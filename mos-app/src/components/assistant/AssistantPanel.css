@@ -9,6 +9,6 @@
 
 .assistant-panel__title {
   color: var(--foreground);
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: 600;
 }

@@ -1297,8 +1297,9 @@ describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted �
     expect(body).toMatch(/text-transform:\s*uppercase/)
     expect(body).toMatch(/letter-spacing:\s*\.?0*\.?06em/) // 0.06em
     expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
-    // Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role).
-    expect(body).toMatch(/font-size:\s*11px/)
+    // Mockup overline is 11px — authored as the semantic token that resolves to exactly 11px
+    // (GUARD-VOCAB tokenization; the kit --ds-font-size-xs resolves ~13.6px, too large for this role).
+    expect(body).toMatch(/font-size:\s*var\(--font-size-overline\)/)
   })
 })
 

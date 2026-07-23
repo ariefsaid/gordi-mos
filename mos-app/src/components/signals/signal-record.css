@@ -13,7 +13,7 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
   padding-bottom: 12px; border-bottom: 1px solid var(--border);
 }
-.signal-record-author { font-weight: 600; color: var(--foreground); font-size: 13.5px; }
+.signal-record-author { font-weight: 600; color: var(--foreground); font-size: var(--font-size-control); }
 .signal-record-team,
 .signal-record-bu,
 .signal-record-site,
@@ -28,10 +28,10 @@
 .signal-record-mentions li {
   display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
   border-radius: var(--radius-pill); background: var(--accent-subtle); color: var(--text-accent);
-  font-size: 12px; font-weight: 600;
+  font-size: var(--font-size-label); font-weight: 600;
 }
 
-.signal-record-vis { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+.signal-record-vis { margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
 
 .signal-record-category { display: flex; }
 
@@ -44,7 +44,7 @@
   margin: 8px 0 0; padding: 8px 10px; list-style: none;
   display: flex; flex-direction: column; gap: 6px;
   background: var(--secondary); border-radius: var(--radius-sm);
-  font-size: 12px; color: var(--muted-foreground);
+  font-size: var(--font-size-label); color: var(--muted-foreground);
 }
 .signal-record-revisions li { display: flex; gap: 8px; flex-wrap: wrap; }
 
@@ -56,7 +56,7 @@
 .signal-ack-name {
   display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
   border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
 }
 
 /* "Linked work" section (MINOR-7/8 spacing) — a clear divider + heading before the actions. */
@@ -65,7 +65,7 @@
   padding-top: 12px; border-top: 1px solid var(--border);
 }
 .signal-record-linked-work h2 {
-  margin: 0; font-size: 13px; font-weight: 600; color: var(--foreground);
+  margin: 0; font-size: var(--font-size-mono); font-weight: 600; color: var(--foreground);
 }
-.signal-record-linked-work p { margin: 0; font-size: 13px; color: var(--muted-foreground); }
+.signal-record-linked-work p { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); }
 .signal-record-linked-work-actions { display: flex; gap: 8px; flex-wrap: wrap; }

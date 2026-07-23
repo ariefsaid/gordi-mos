@@ -41,7 +41,7 @@
   outline: none;
   background: transparent;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   color: var(--foreground);
   width: 100%;
 }
@@ -89,7 +89,7 @@
     flex: 1 1 0;
     height: 44px; /* ≥44px touch target — overrides ViewTabs' own 40px mobile height */
     padding: 0 6px;
-    font-size: 12px;
+    font-size: var(--font-size-label);
     text-align: center;
     justify-content: center;
   }

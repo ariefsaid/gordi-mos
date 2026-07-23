@@ -184,11 +184,11 @@
    control, not a raw native checkbox — consistent with the other toolbar pills. */
 .archived-checkbox {
   appearance: none; -webkit-appearance: none; width: 16px; height: 16px; cursor: pointer;
-  border: 1.5px solid var(--input); border-radius: 4px; background: var(--background);
+  border: 1.5px solid var(--input); border-radius: var(--radius-xs); background: var(--background);
   display: inline-grid; place-content: center; flex: none; margin: 0;
 }
 .archived-checkbox:checked { background: var(--primary); border-color: var(--primary); }
-.archived-checkbox:checked::after { content: "✓"; color: var(--primary-foreground); font-size: 11px; font-weight: 700; line-height: 1; }
+.archived-checkbox:checked::after { content: "✓"; color: var(--primary-foreground); font-size: var(--font-size-overline); font-weight: 700; line-height: 1; }
 .archived-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .archived-label { font-size: 15px; }
 .toolbar-overdue-controls { display: inline-flex; align-items: center; gap: 8px; }
@@ -220,7 +220,7 @@
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   line-height: 1.3;
 }
 
@@ -295,7 +295,7 @@
   text-align: left; height: 38px; padding: 0 12px; line-height: 1.3;
   font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
   /* Mockup overline is a literal 11px (the kit --ds-font-size-xs resolves ~13.6px, too large for this role). */
-  font-size: 11px; color: var(--muted-foreground);
+  font-size: var(--font-size-overline); color: var(--muted-foreground);
   border-bottom: 1px solid var(--border); white-space: nowrap;
 }
 .th-sortable { cursor: pointer; }
@@ -356,16 +356,16 @@ tr:focus-within .row-menu { visibility: visible; }
 }
 .task-name-archived { font-weight: 500; color: var(--muted-foreground); }
 .archived-tag {
-  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px;
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--radius-xs);
   background: var(--secondary); color: var(--muted-foreground);
-  font-size: 11px; font-weight: 500; white-space: nowrap; flex: none;
+  font-size: var(--font-size-overline); font-weight: 500; white-space: nowrap; flex: none;
 }
-.task-bu { display: block; font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+.task-bu { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
 .ownav {
-  width: 26px; height: 26px; border-radius: 999px;
+  width: 26px; height: 26px; border-radius: var(--radius-pill);
   /* Mockup .av-sm avatar: blue12→blue9 gradient + inverted text. blue12 flips with the theme
      (dark navy in light / light blue in dark), so the inverted initials always clear WCAG-AA
      (~8:1 light, ~7:1 dark at the gradient centre). The prior solid --accent + dark
@@ -379,24 +379,24 @@ tr:focus-within .row-menu { visibility: visible; }
 .owner-name-stack { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
 .owner-name-stack .own-name { line-height: 1.2; }
 .owner-provenance {
-  font-size: 11px; color: var(--muted-foreground); font-weight: 500;
+  font-size: var(--font-size-overline); color: var(--muted-foreground); font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .assembly.condensed .td-owner .owner-provenance { display: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
-.td-bu { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bu { font-size: var(--font-size-mono); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
 .due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: 15px; }
 .due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: 15px; }
 .due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: 15px; }
-.act { color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.act { color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; }
 
 /* ── Loading skeleton ── */
 .sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
 .sk { background: var(--secondary); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
-.sk.pill { height: 22px; width: 84px; border-radius: 999px; display: block; }
-.sk.av { height: 26px; width: 26px; border-radius: 999px; display: block; }
+.sk.pill { height: 22px; width: 84px; border-radius: var(--radius-pill); display: block; }
+.sk.av { height: 26px; width: 26px; border-radius: var(--radius-pill); display: block; }
 /* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
 .skeleton-cards { padding: 8px 12px; }
 .sk-card-row { display: flex; align-items: center; gap: 12px; padding: 0 0 12px 0; height: var(--row-min-h); border-bottom: 1px solid var(--row-divider); }
@@ -443,11 +443,11 @@ tr:focus-within .row-menu { visibility: visible; }
 .task-card-meta-pair { display: inline-flex; align-items: baseline; gap: 4px; }
 .task-card-meta dt {
   display: inline;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   font-weight: 500;
 }
-.task-card-meta dd { display: inline; margin: 0; font-size: 12px; }
+.task-card-meta dd { display: inline; margin: 0; font-size: var(--font-size-label); }
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
@@ -492,7 +492,7 @@ tr:focus-within .row-menu { visibility: visible; }
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   color: var(--status-lost-text);
   font-weight: 600;
   cursor: pointer;
@@ -511,11 +511,11 @@ tr:focus-within .row-menu { visibility: visible; }
   align-items: center;
   height: 24px;
   padding: 0 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
   background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
   color: var(--status-lost-text);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   font-weight: 600;
   cursor: pointer;
   gap: 4px;
@@ -540,9 +540,9 @@ tr.grp td { padding: 0; }
 .gbar .caret {
   display: inline-grid; place-items: center; width: 24px; height: 24px;
   background: transparent; border: 0; padding: 0; cursor: pointer;
-  color: var(--muted-foreground); font-size: 11px; line-height: 1; flex: none;
+  color: var(--muted-foreground); font-size: var(--font-size-overline); line-height: 1; flex: none;
 }
-.gbar .caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.gbar .caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
 /* IXD-1: the group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
 .gbar .caret .grp-chev { transition: transform var(--dur-med) ease; display: block; }
 .gbar .caret .grp-chev.grp-chev-collapsed { transform: rotate(-90deg); }
@@ -550,19 +550,19 @@ tr.grp td { padding: 0; }
   .gbar .caret .grp-chev { transition: none; }
 }
 .gbar .glabel { font-size: 15px; font-weight: 700; color: var(--brand-navy-text); }
-.gbar .gcount { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.gbar .gcount { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .gbar .gsub {
-  background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
 .gbar .gsub:hover { color: color-mix(in srgb, var(--status-lost-text) 78%, black); }
 .gbar .gadd {
   margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
-  font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
+  font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 .gbar .gadd:hover { color: var(--foreground); }
 .gbar .gadd:focus-visible, .gbar .gsub:focus-visible {
-  outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px;
+  outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs);
 }
 
 /* ── Mobile grouped cards (AC-129, FR-127) ── */
@@ -574,7 +574,7 @@ tr.grp td { padding: 0; }
 .mgc-caret {
   display: inline-grid; place-items: center; width: 28px; height: 28px;
   background: transparent; border: 0; padding: 0; cursor: pointer;
-  color: var(--muted-foreground); font-size: 12px; flex: none;
+  color: var(--muted-foreground); font-size: var(--font-size-label); flex: none;
 }
 .mgc-caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
 /* IXD-1: the mobile group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
@@ -584,14 +584,14 @@ tr.grp td { padding: 0; }
   .mgc-caret .mgc-chev { transition: none; }
 }
 .mgc-label { font-size: 15px; font-weight: 700; color: var(--brand-navy-text); }
-.mgc-count { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
-  background: transparent; border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600;
+  background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
 .mgc-add {
   margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
-  font-size: 12px; font-weight: 500; color: var(--muted-foreground); cursor: pointer;
+  font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 
 /* ── Cascade D1: Work-line type tag in group headers (FR-233) ────────────────
@@ -601,7 +601,7 @@ tr.grp td { padding: 0; }
    style prop — no literal colors here, token-purity maintained. */
 .wl-type-tag {
   flex: none; /* never stretch */
-  font-size: 11px; /* slightly smaller than gbar body text, clear hierarchy */
+  font-size: var(--font-size-overline); /* slightly smaller than gbar body text, clear hierarchy */
 }
 
 /* ── Cascade D1: Work-line + Objective table columns (FR-234/235) ────────────
@@ -610,11 +610,11 @@ tr.grp td { padding: 0; }
    - td-empty: the "—" placeholder (muted, not primary text weight)
    Column widths sit in the nth-child colgroup rules below. */
 .td-workline {
-  font-size: 13px; color: var(--muted-foreground);
+  font-size: var(--font-size-mono); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-objective {
-  font-size: 13px; color: var(--muted-foreground);
+  font-size: var(--font-size-mono); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-empty { color: var(--muted-foreground); }
@@ -626,7 +626,7 @@ tr.grp td { padding: 0; }
 .workload-caption {
   margin: 0;
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   color: var(--muted-foreground);
   background: var(--surface-secondary);
   border-bottom: 1px solid var(--border);

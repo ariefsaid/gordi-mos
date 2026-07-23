@@ -16,11 +16,11 @@
   transform: translateY(-50%);
   margin-left: 8px;
   padding: 4px 8px;
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--popover);
   color: var(--foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   font-weight: 500;
   white-space: nowrap;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-font-color-primary) 14%, transparent);

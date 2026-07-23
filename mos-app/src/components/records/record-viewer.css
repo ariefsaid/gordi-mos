@@ -143,7 +143,7 @@
   margin-inline-start: -9px;
   padding: 2px 8px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--card);
   font-size: var(--rec-kv-value-size, 13.5px);
   color: var(--foreground);
@@ -158,7 +158,7 @@
   height: 22px;
   margin-inline-start: -9px;
   padding: 0 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--muted);
   color: var(--muted-foreground);
   font-size: var(--rec-kv-value-size, 13.5px);
@@ -169,7 +169,7 @@
 .record-field__pill-dot {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: currentColor;
   flex: none;
 }
@@ -182,7 +182,7 @@
 /* Read-only provenance note (E7's "· Inherited from parent work" register). */
 .record-field__reason {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 
@@ -249,7 +249,7 @@
 }
 
 .record-field__status {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 
@@ -261,7 +261,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--destructive);
 }
 
@@ -292,7 +292,7 @@
 .record-viewer__type {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 700;
   letter-spacing: 0.05em;
   line-height: 1.2;
@@ -302,7 +302,7 @@
 .record-viewer__title {
   margin: 2px 0 0;
   color: var(--foreground);
-  font-size: 20px;
+  font-size: var(--font-size-heading);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
@@ -361,7 +361,7 @@
 }
 
 .record-viewer__activity-item {
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   color: var(--foreground);
 }
 
@@ -371,7 +371,7 @@
 
 .record-viewer__activity-time {
   margin-left: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 
@@ -391,7 +391,7 @@
 
 .record-viewer__permission-note {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 
@@ -399,7 +399,7 @@
    grammar). Small, muted, one line; shown only when the record is editable. */
 .record-viewer__edit-hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 

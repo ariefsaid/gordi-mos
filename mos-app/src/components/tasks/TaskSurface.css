@@ -128,8 +128,8 @@
   color: var(--muted-foreground); cursor: pointer;
 }
 .rf-tab:hover { color: var(--foreground); }
-.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; } /* item #6: normalized to +2 (tab has room) */
-.rf-tcount { font-size: 11px; color: var(--muted-foreground); margin-left: 5px; }
+.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); } /* item #6: normalized to +2 (tab has room) */
+.rf-tcount { font-size: var(--font-size-overline); color: var(--muted-foreground); margin-left: 5px; }
 /* Active tab: weight + a 2px primary underline (never color-alone) — AC-R03. */
 .rf-tab.on { color: var(--foreground); font-weight: 600; }
 .rf-tab.on::after {
@@ -155,7 +155,7 @@
   gap: 8px; color: var(--foreground);
 }
 .status-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.trigger-chev { color: var(--muted-foreground); font-size: 10px; }
+.trigger-chev { color: var(--muted-foreground); font-size: var(--font-size-micro); }
 .status-popover {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: var(--z-popover);
   background: var(--card); border: 1px solid var(--border);
@@ -188,7 +188,7 @@
 .btn-outline-sm {
   height: 28px; padding: 0 10px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 1px solid var(--border); background: var(--background);
-  font: inherit; font-size: 12px; cursor: pointer; color: var(--foreground);
+  font: inherit; font-size: var(--font-size-label); cursor: pointer; color: var(--foreground);
 }
 
 /* ── Archive confirm ── */
@@ -200,7 +200,7 @@
 .meta-row { display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap; }
 .meta-item { display: flex; flex-direction: column; gap: 2px; }
 .meta-label {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  font-size: var(--font-size-overline); font-weight: 600; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--muted-foreground);
 }
 .meta-value { font-size: 15px; color: var(--foreground); }
@@ -213,7 +213,7 @@
   padding: 16px 20px; margin-bottom: 16px;
 }
 .card-h2 {
-  font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 12px;
+  font-size: var(--font-size-heading); font-weight: 600; line-height: 1.3; margin-bottom: 12px;
   display: flex; align-items: center; gap: 10px; color: var(--foreground);
 }
 
@@ -236,16 +236,16 @@
 .person-field-btn:hover { border-color: var(--ring); background: color-mix(in srgb, var(--accent) 50%, transparent); }
 .person-field-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .person-field-edit-hint {
-  margin-left: auto; font-size: 11px; color: var(--muted-foreground); flex-shrink: 0;
+  margin-left: auto; font-size: var(--font-size-overline); color: var(--muted-foreground); flex-shrink: 0;
 }
 /* VIS-1: ONE avatar gradient (navy→primary, OD-P3-7) — same as shell/UserChip.tsx.
    Violet (--violet) is KPI/timeline only; no avatar carries it. PIC and Supervisor
    share the canonical gradient; the typed label carries the ownership distinction. */
 .person-av {
-  width: 22px; height: 22px; border-radius: 999px; flex: none;
+  width: 22px; height: 22px; border-radius: var(--radius-pill); flex: none;
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));
   color: var(--primary-foreground); display: grid; place-items: center;
-  font-size: 10px; font-weight: 700;
+  font-size: var(--font-size-micro); font-weight: 700;
 }
 .person-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rd-source-value { font-weight: 500; }
@@ -293,8 +293,8 @@
 .checklist-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
 .checklist-ctrl-btn {
   width: 24px; height: 24px; border: 0; background: transparent;
-  color: var(--muted-foreground); cursor: pointer; font-size: 12px;
-  display: grid; place-items: center; border-radius: 4px;
+  color: var(--muted-foreground); cursor: pointer; font-size: var(--font-size-label);
+  display: grid; place-items: center; border-radius: var(--radius-xs);
   line-height: 1;
 }
 .checklist-ctrl-btn:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
@@ -310,15 +310,15 @@
 }
 .event-entry:last-child { border-bottom: none; }
 .event-av {
-  width: 26px; height: 26px; border-radius: 999px; flex: none;
+  width: 26px; height: 26px; border-radius: var(--radius-pill); flex: none;
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));
   color: var(--primary-foreground); display: grid; place-items: center;
-  font-size: 10px; font-weight: 700;
+  font-size: var(--font-size-micro); font-weight: 700;
 }
 .event-body { flex: 1; min-width: 0; }
 .event-who { font-size: 15px; font-weight: 600; color: var(--foreground); margin-right: 6px; }
-.event-when { font-size: 12px; color: var(--muted-foreground); }
-.event-label { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+.event-when { font-size: var(--font-size-label); color: var(--muted-foreground); }
+.event-label { font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Comment composer (owner-eyes item 9) ──
    Plain, conventional composer: the textarea fills the panel's content measure and holds a
@@ -411,7 +411,7 @@
    --status-lost-text). The invalid field's border (the ratified components' own
    .mk-*--error rule) and the required asterisk (.tc-required) keep base --destructive
    — those are non-text. */
-.tc-field-error { font-size: 12px; color: var(--status-lost-text); }
+.tc-field-error { font-size: var(--font-size-label); color: var(--status-lost-text); }
 
 .tc-loading-field {
   height: 36px; display: flex; align-items: center;
@@ -445,7 +445,7 @@
   display: flex; align-items: center; gap: 6px;
   padding: 8px 12px; border-bottom: 1px solid var(--border);
 }
-.dw-crumb-mini { font-size: 12px; color: var(--muted-foreground); }
+.dw-crumb-mini { font-size: var(--font-size-label); color: var(--muted-foreground); }
 .dw-bar-spacer { flex: 1; }
 /* P1-4 (Luna-measured 30px header trio on FULL-SCREEN records): the coarse-pointer pattern
    (same as record-panel-host.css .record-panel-btn) — the RESTING size defaults to the 44px touch
@@ -471,7 +471,7 @@
 .dw-open-page {
   height: 28px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--status-open-text); font: inherit;
-  font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  font-size: var(--font-size-label); font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .dw-open-page:hover { background: var(--accent); }
 .dw-open-page:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -488,7 +488,7 @@
 .dw-tabpane .card {
   background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0;
 }
-.dw-tabpane .card-h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+.dw-tabpane .card-h2 { font-size: var(--font-size-overline); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
 
 /* ── Pinned foot — Archive always reachable ── */
 .dw-foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; flex: none; }

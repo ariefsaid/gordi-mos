@@ -304,7 +304,8 @@ describe('OD-REDESIGN-72/79: collection table chrome stays shared', () => {
 
   it('gives every opted-in collection table one 14px / 38px / 52px E7 rhythm', () => {
     expect(css).toMatch(/\.record-collection-view\s*\{[\s\S]*?--row-min-h:\s*52px/)
-    expect(css).toMatch(/\.record-collection-table\s*\{[\s\S]*?font-size:\s*14px/)
+    // 14px authored as the semantic body token that resolves to exactly 14px (GUARD-VOCAB tokenization).
+    expect(css).toMatch(/\.record-collection-table\s*\{[\s\S]*?font-size:\s*var\(--font-size-body\)/)
     expect(css).toMatch(/\.record-collection-view \.record-collection-table thead th[\s\S]*?height:\s*38px/)
     expect(css).toMatch(/\.record-collection-view \.record-collection-table tbody td[\s\S]*?height:\s*var\(--row-min-h\)/)
   })

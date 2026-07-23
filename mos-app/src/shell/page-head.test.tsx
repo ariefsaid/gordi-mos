@@ -89,7 +89,8 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
 
   it('uses the shared 24px page-title scale for .ch-title', () => {
     const css = pageHeadCss()
-    expect(css).toMatch(/\.content-header \.ch-title\s*\{[^}]*font-size:\s*24px/)
+    // 24px authored as the semantic token that resolves to exactly 24px (GUARD-VOCAB tokenization).
+    expect(css).toMatch(/\.content-header \.ch-title\s*\{[^}]*font-size:\s*var\(--font-size-page-title\)/)
   })
 
   it('renders the meta slot (overdue/blocked subtotals) in the content variant', () => {

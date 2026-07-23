@@ -7,7 +7,7 @@
   display: flex; align-items: center; width: 100%; text-align: left;
   padding: 12px 16px; border-radius: var(--radius-lg);
   border: 1px dashed var(--border); background: var(--card);
-  color: var(--muted-foreground); font: inherit; font-size: 13.5px; cursor: pointer;
+  color: var(--muted-foreground); font: inherit; font-size: var(--font-size-control); cursor: pointer;
 }
 .signal-feed-share-row:hover {
   background: var(--secondary); color: var(--foreground); border-style: solid;

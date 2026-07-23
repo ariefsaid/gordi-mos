@@ -49,7 +49,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
@@ -74,7 +74,7 @@
 
 /* inline "Saving…" confirmation (per-cell save in flight) */
 .pqcell-saving {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
 }
 
@@ -84,7 +84,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
 }
 .pqcell-saved-tick {

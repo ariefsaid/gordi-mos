@@ -25,7 +25,7 @@
   background: transparent;
   color: var(--muted-foreground);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   font-weight: 600;
   cursor: pointer;
   transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease, color var(--dur-fast) ease;

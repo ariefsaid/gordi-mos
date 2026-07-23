@@ -21,7 +21,7 @@
 .mention-row {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px;
   padding: 8px 10px; border: none; background: none; font: inherit; text-align: left;
-  border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: inherit;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-mono); color: inherit;
 }
 .mention-row:hover { background: var(--secondary); }
 .mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -29,7 +29,7 @@
 
 .type-badge {
   display: inline-flex; align-items: center; height: 18px; padding: 0 7px; flex: none;
-  border-radius: var(--radius-pill); font-size: 10px; font-weight: 700;
+  border-radius: var(--radius-pill); font-size: var(--font-size-micro); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.04em;
 }
 .type-badge--person { background: var(--accent-subtle); color: var(--text-accent); }

@@ -26,7 +26,7 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -35,11 +35,11 @@
 
 .signal-feed-link {
   flex: none;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   font-weight: 600;
   color: var(--primary);
   text-decoration: none;
   white-space: nowrap;
 }
 .signal-feed-link:hover { text-decoration: underline; }
-.signal-feed-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.signal-feed-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }

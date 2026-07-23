@@ -41,7 +41,7 @@
 .record-collection-table {
   width: 100%;
   table-layout: fixed;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 /* One live collection-table skin. Tasks keeps its decision columns and Signals keeps its
@@ -133,11 +133,11 @@
 }
 .record-collection-result__collection {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 .record-collection-result__count {
   margin-left: auto;
   flex: none;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }

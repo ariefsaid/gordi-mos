@@ -11,7 +11,7 @@
   display: flex; align-items: center; gap: 6px; flex: none;
   padding: 8px 12px; border-bottom: 1px solid var(--border);
 }
-.record-panel-title { font-size: 12px; color: var(--muted-foreground); min-width: 0; }
+.record-panel-title { font-size: var(--font-size-label); color: var(--muted-foreground); min-width: 0; }
 .record-panel-spacer { flex: 1; }
 /* P1-2 (Luna-measured 32px): coarse-pointer pattern (record-viewer.css `@media (pointer: fine)`
  * tighten-down) — the RESTING size defaults to the 44px touch floor everywhere (phone, tablet,

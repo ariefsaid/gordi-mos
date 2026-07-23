@@ -20,12 +20,12 @@
   min-height: 44px; /* P1-4: the "Share a Signal" row meets the 44px coarse-pointer tap floor */
   text-align: left;
   padding: 10px 12px;
-  border-radius: var(--radius-lg, 12px);
+  border-radius: var(--radius-lg);
   border: 1px dashed var(--border);
   background: var(--card);
   color: var(--muted-foreground);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--font-size-control);
   cursor: pointer;
 }
 .home-signal-share-row:hover {
@@ -101,7 +101,7 @@
   inset: -3px 0;
 }
 .home-signal-body:hover .home-signal-body-text { text-decoration: underline; }
-.home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
 .home-signal-body--static { cursor: default; }
 .home-signal-body--static:hover .home-signal-body-text { text-decoration: none; }
 
@@ -110,16 +110,16 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   color: var(--muted-foreground);
   min-width: 0;
 }
 .home-signal-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .home-signal-avatar {
   width: 20px; height: 20px; flex: none;
-  border-radius: var(--radius-pill, 999px);
+  border-radius: var(--radius-pill);
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700;
+  font-size: var(--font-size-micro); font-weight: 700;
   color: var(--primary-foreground);
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));
 }
@@ -141,8 +141,8 @@
   align-items: center;
   height: 22px;
   padding: 0 9px;
-  border-radius: var(--radius-pill, 999px);
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-label);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -153,7 +153,7 @@
 }
 .home-signal-attention--urgent::before {
   content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
-  border-radius: var(--radius-pill, 999px); background: var(--warning);
+  border-radius: var(--radius-pill); background: var(--warning);
 }
 .home-signal-attention--fyi {
   background: var(--secondary);
@@ -176,7 +176,7 @@
 }
 
 .home-signal-row--retracted { padding: var(--row-pad-y, 10px) 4px; }
-.home-signal-tombstone { margin: 0; font-size: 13px; color: var(--muted-foreground); font-style: italic; }
+.home-signal-tombstone { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); font-style: italic; }
 
 @media (max-width: 480px) {
   .home-signal-tail { align-self: flex-start; }

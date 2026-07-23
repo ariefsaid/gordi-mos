@@ -16,7 +16,7 @@
 /* A retracted Signal renders only the tombstone (D31) — quieter frame, no body/actions. */
 .signal-card--retracted { padding: 12px 16px; }
 .signal-tombstone {
-  margin: 0; font-size: 13px; color: var(--muted-foreground); font-style: italic;
+  margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); font-style: italic;
 }
 .signal-tombstone span { margin-left: 6px; }
 
@@ -26,11 +26,11 @@
 .signal-avatar {
   width: 28px; height: 28px; border-radius: var(--radius-pill); flex: none;
   display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 12px; color: var(--primary-foreground);
+  font-weight: 700; font-size: var(--font-size-label); color: var(--primary-foreground);
   background: linear-gradient(135deg, var(--brand-navy), var(--primary));
 }
-.signal-who { font-weight: 600; font-size: 13.5px; color: var(--foreground); }
-.signal-when { font-size: 12px; color: var(--muted-foreground); }
+.signal-who { font-weight: 600; font-size: var(--font-size-control); color: var(--foreground); }
+.signal-when { font-size: var(--font-size-label); color: var(--muted-foreground); }
 
 /* ── Attention weight (CRITICAL-2) — Tinted-Status pattern (DESIGN.md §Status and Signal
    semantics): an attention or late condition is warning/amber, NEVER destructive/red. Urgent is
@@ -40,7 +40,7 @@
 .signal-attention {
   margin-left: auto; flex: none; display: inline-flex; align-items: center;
   height: 22px; padding: 0 9px; border-radius: var(--radius-pill);
-  font-size: 12px; font-weight: 600; white-space: nowrap;
+  font-size: var(--font-size-label); font-weight: 600; white-space: nowrap;
 }
 .signal-attention--urgent {
   background: color-mix(in srgb, var(--warning) 18%, transparent);
@@ -60,7 +60,7 @@
   color: var(--muted-foreground);
 }
 
-.signal-body { font-size: 14px; line-height: 1.5; color: var(--foreground); }
+.signal-body { font-size: var(--font-size-body); line-height: 1.5; color: var(--foreground); }
 .signal-body-link {
   display: block; width: 100%; text-align: left; background: none; border: none;
   padding: 0; font: inherit; color: inherit; cursor: pointer;
@@ -113,7 +113,7 @@
 .signal-category-pill {
   display: inline-flex; align-items: center;
   color: var(--muted-foreground);
-  font-size: 12px; font-weight: 600;
+  font-size: var(--font-size-label); font-weight: 600;
 }
 .signal-category-picker {
   position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: var(--z-popover);
@@ -123,7 +123,7 @@
 .signal-category-option {
   display: block; width: 100%; text-align: left; padding: 8px 10px;
   border: none; background: none; font: inherit; color: var(--foreground);
-  border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; min-height: 36px;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-mono); min-height: 36px;
 }
 .signal-category-option:hover { background: var(--secondary); }
 .signal-category-option[aria-selected="true"] {

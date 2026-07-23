@@ -62,7 +62,7 @@
   flex-basis: 100%;
   min-width: 0;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   line-height: 1.35;
 }
 
@@ -91,7 +91,7 @@
 .catalog-collection__error {
   flex-basis: 100%;
   color: var(--field-error-text);
-  font-size: 12px;
+  font-size: var(--font-size-label);
 }
 
 /* Coarse-pointer targets: every row control clears 44px without changing the fine-pointer look. */
@@ -120,14 +120,14 @@
   display: block;
   margin-bottom: 4px;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 
 .catalog-create__error {
   flex-basis: 100%;
   margin: 0;
   color: var(--field-error-text);
-  font-size: 12px;
+  font-size: var(--font-size-label);
 }
 
 @media (pointer: coarse) {
