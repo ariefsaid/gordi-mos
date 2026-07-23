@@ -37,6 +37,10 @@ import './budget-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
+// r5 F-1 (GUARD-R2 class, mirrors the Money head): while the count is unknown the
+// head shows a quiet placeholder — never a stale bare digit or a '0' pill.
+const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
+
 export function BudgetPage() {
   useDocumentTitle('Budget — Gordi MOS')
   const t = useT()
@@ -164,7 +168,7 @@ export function BudgetPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} state="loading">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={4} />
         </div>
@@ -173,7 +177,7 @@ export function BudgetPage() {
   }
   if (load.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} state="error">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
           message="Couldn't load the BOM + ingredient cost lines. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -183,7 +187,7 @@ export function BudgetPage() {
   }
   if (bom.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} count={0} state="empty">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
           title="No BOM snapshot data yet"
           copy="No BOM rows are available yet. The next warehouse snapshot will populate this page."
@@ -197,7 +201,12 @@ export function BudgetPage() {
       family="workspace"
       title={t('plan.budget.title')}
       jobSentence={t('job.money')}
-      count={budgets.length}
+      meta={
+        // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
+        <span className="ch-meta-line tabular-nums">
+          {budgets.length} {budgets.length === 1 ? 'scenario' : 'scenarios'}
+        </span>
+      }
       state={saving ? 'saving' : savedId ? 'saved' : saveError ? 'validation' : 'default'}
     >
       {/* The section is a single-field wrapper — no aria-label landmark: a region named

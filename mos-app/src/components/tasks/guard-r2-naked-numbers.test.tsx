@@ -19,7 +19,8 @@
  * (Objectives / Projects / Admin People). A new page head MUST be added to that sweep.
  * The MONEY head is enumerated HERE — its cut row-count folds into one labeled meta
  * sentence ("5 branches · as of …"); loading / empty / error show the "—" placeholder,
- * never a bare digit pill.
+ * never a bare digit pill. r5 F-1 extends the money-lane enumeration to the BUDGET
+ * ("2 scenarios") and PRICING ("3 checks") heads — same oracle, same placeholder rule.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -60,6 +61,13 @@ vi.mock('@/lib/db/reporting-margin', async () => {
     await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')
   return { ...actual, listSalesMarginDaily: vi.fn() }
 })
+vi.mock('@/lib/db/plan-budget', () => ({
+  listIngredientCostLines: vi.fn(),
+  listBomLines: vi.fn(),
+  listBudgets: vi.fn(),
+  getCertifiedMetric: vi.fn(),
+  captureBudget: vi.fn(),
+}))
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
@@ -67,7 +75,15 @@ import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily } from '@/lib/db/reporting-margin'
+import {
+  listIngredientCostLines,
+  listBomLines,
+  listBudgets,
+  getCertifiedMetric,
+} from '@/lib/db/plan-budget'
 import { DashboardPage } from '@/pages/dashboard-page'
+import { BudgetPage } from '@/pages/budget-page'
+import { PricingPage } from '@/pages/pricing-page'
 import { TasksWorkspace } from './tasks-workspace'
 import { __resetExpandPrefForTests } from './use-expand-pref'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
@@ -269,6 +285,118 @@ describe('GUARD-R2 (DO-7): the Money page head never shows a number without a la
     renderMoney()
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /no sales snapshot/i })).toBeInTheDocument(),
+    )
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—')
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+})
+
+// ── r5 F-1 — the BUDGET + PRICING heads under the same guard ─────────────────────────
+
+const FRESH_BASIS = '2026-07-01T00:00:00Z'
+function budgetRow(id: string, label: string) {
+  return {
+    id,
+    menu_item_esb_code: 'MENU-CAPPUC',
+    menu_item_name: 'Cappuccino',
+    scenario_label: label,
+    scenario_type: 'baseline',
+    owning_bu_id: 'bu-1',
+    total_budgeted_cogs: 9000,
+    cost_basis_as_of: FRESH_BASIS,
+    certified_metric_key: 'cogs.budgeted',
+    is_complete: true,
+  }
+}
+
+function planBeforeEach() {
+  vi.mocked(getCertifiedMetric).mockResolvedValue({
+    key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true,
+  })
+  vi.mocked(listBomLines).mockResolvedValue([
+    { menu_item_esb_code: 'MENU-CAPPUC', ingredient_esb_code: 'ING-MILK', recipe_qty: 0.18, qty_unit: 'L' },
+  ])
+  vi.mocked(listIngredientCostLines).mockResolvedValue([
+    { ingredient_esb_code: 'ING-MILK', name: 'Fresh Milk', unit_cost: 18000, unit: 'L', as_of: FRESH_BASIS },
+  ])
+}
+
+function renderBudget() {
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider value={authedState}>
+        <BudgetPage />
+      </AuthContext.Provider>
+    </I18nProvider>,
+  )
+}
+
+function renderPricing() {
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider value={authedState}>
+        <PricingPage />
+      </AuthContext.Provider>
+    </I18nProvider>,
+  )
+}
+
+describe('GUARD-R2 (r5 F-1): the Budget page head never shows a number without a label sentence', () => {
+  it('GUARD-R2: populated head meta is one labeled sentence ("2 scenarios") — no .ch-count pill, no bare-number leaf', async () => {
+    planBeforeEach()
+    vi.mocked(listBudgets).mockResolvedValue([budgetRow('b1', 'Baseline'), budgetRow('b2', 'Promo')])
+
+    renderBudget()
+    await waitFor(() => expect(screen.getAllByText('Fresh Milk').length).toBeGreaterThan(0))
+
+    const head = screen.getByTestId('page-head')
+    const metaLines = head.querySelectorAll('.ch-meta-line')
+    expect(metaLines).toHaveLength(1)
+    expect(metaLines[0].textContent?.trim()).toBe('2 scenarios')
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+
+  it('GUARD-R2: while Budget data is loading the head shows the "—" placeholder, never a stale bare digit', async () => {
+    planBeforeEach()
+    vi.mocked(listBomLines).mockReturnValue(new Promise(() => {}))
+    vi.mocked(listBudgets).mockResolvedValue([])
+
+    renderBudget()
+    const head = await screen.findByTestId('page-head')
+    expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—')
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+})
+
+describe('GUARD-R2 (r5 F-1): the Pricing page head never shows a number without a label sentence', () => {
+  it('GUARD-R2: populated head meta is one labeled sentence ("3 checks") — no .ch-count pill, no bare-number leaf', async () => {
+    planBeforeEach()
+    vi.mocked(listBudgets).mockResolvedValue([
+      budgetRow('b1', 'Baseline'), budgetRow('b2', 'Promo'), budgetRow('b3', 'Peak'),
+    ])
+
+    renderPricing()
+    await waitFor(() => expect(screen.getByText(/budget scenario/i)).toBeInTheDocument())
+
+    const head = screen.getByTestId('page-head')
+    const metaLines = head.querySelectorAll('.ch-meta-line')
+    expect(metaLines).toHaveLength(1)
+    expect(metaLines[0].textContent?.trim()).toBe('3 checks')
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
+  })
+
+  it('GUARD-R2: the empty state (no budgets) keeps the placeholder — no "0" pill', async () => {
+    planBeforeEach()
+    vi.mocked(listBudgets).mockResolvedValue([])
+
+    renderPricing()
+    await waitFor(() =>
+      expect(screen.getByText(/no budgets captured yet/i)).toBeInTheDocument(),
     )
     const head = screen.getByTestId('page-head')
     expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—')

@@ -27,6 +27,10 @@ import './pricing-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
+// r5 F-1 (GUARD-R2 class, mirrors the Money head): while the count is unknown the
+// head shows a quiet placeholder — never a stale bare digit or a '0' pill.
+const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
+
 export function PricingPage() {
   useDocumentTitle('Pricing pre-flight — Gordi MOS')
   const t = useT()
@@ -78,7 +82,7 @@ export function PricingPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} state="loading">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={3} />
         </div>
@@ -87,7 +91,7 @@ export function PricingPage() {
   }
   if (load.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} state="error">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
           message="Couldn't load budgets. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -97,7 +101,7 @@ export function PricingPage() {
   }
   if (budgets.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} count={0} state="empty">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
           title="No budgets captured yet"
           copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
@@ -107,7 +111,18 @@ export function PricingPage() {
   }
 
   return (
-    <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} count={budgets.length} state="read-only">
+    <PageFamilyFrame
+      family="workspace"
+      title={t('plan.pricing.title')}
+      jobSentence={t('job.money')}
+      meta={
+        // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
+        <span className="ch-meta-line tabular-nums">
+          {budgets.length} {budgets.length === 1 ? 'check' : 'checks'}
+        </span>
+      }
+      state="read-only"
+    >
 
       <section className="pp-section" aria-label="Pricing pre-flight">
         <p className="pp-help">
