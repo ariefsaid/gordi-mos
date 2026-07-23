@@ -1,8 +1,9 @@
 import { matchPath, useLocation } from 'react-router-dom'
 import { jobKeyForPath } from './job-sentences'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
+import { primaryModuleForViewer } from './destinations'
 import { useAuth } from '@/auth/use-auth'
-import { useT } from '@/i18n/use-t'
+import { useT, type Translate } from '@/i18n/use-t'
 
 /**
  * R-OWNER-1 (provisional): a route is "migrated" when it renders on a PageFamilyFrame whose
@@ -16,19 +17,20 @@ function pageOwnsJobSentence(pathname: string): boolean {
   return PAGE_FAMILY_FRAME_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
 }
 
-function resolveViewerScope(roleName: string | undefined): string {
-  const role = roleName?.toLowerCase() ?? ''
-  if (role.includes('barista') || role.includes('cafe')) return 'Café'
-  if (role.includes('roast')) return 'Roastery'
-  if (role.includes('ecom')) return 'Ecommerce'
-  if (role.includes('finance')) return 'Finance'
-  // No BU-family keyword matched — fall back to the viewer's own role name so the scope signal
-  // is always real, never a generic placeholder. (Was: `accessRoles.includes('admin') → 'Admin'`,
-  // an orphaned label shown on every route with no section it belongs to — F3/P1; and otherwise a
-  // bare 'Team' that told the viewer nothing about which BU they were in.) A real role name
-  // ("Sales Lead", "Managing Director") IS the viewer's scope until the viewer payload carries a
-  // real team/BU name (see destinations.tsx `modulesByBUForRoles` ponytail note — same ceiling).
-  return roleName ?? 'Team'
+function resolveViewerScope(roleNames: string[], accessRoles: string[], t: Translate): string {
+  // Resolve scope from the BU/Module DATA MODEL, not a free-text role-name string match: the
+  // module registry's `workMatch` is the ONE authority for role→BU affiliation — the same map
+  // that gates the rail (destinations.tsx `modulesByBUForRoles`). A Kitchen or Bar *Area* role
+  // resolves to its owning Café *Module* (CONTEXT.md: "Kitchen and Bar are Areas inside the Café
+  // Module"), so a Kitchen Lead shows "Café" on every route, never a less-specific "Team" /
+  // role-name fallback (F1). The prior hand-rolled substring list ('barista'/'cafe'/'roast'/…)
+  // had no branch for 'kitchen' and silently drifted from the rail's authoritative regex.
+  const module = primaryModuleForViewer(roleNames, accessRoles)
+  if (module) return t(module.labelKey)
+  // No module affiliation (org-wide roles: Managing Director, admin, Sales Lead) — fall back to
+  // the viewer's own role name so the scope signal is always real, never a generic placeholder
+  // (F3/P1). Ceiling: name-keyword affiliation; upgrade when the viewer payload carries team.BU.
+  return roleNames[0] ?? 'Team'
 }
 
 /**
@@ -46,8 +48,8 @@ export function ContextRow() {
 
   const jobKey = jobKeyForPath(pathname)
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const roleName = viewer?.roles[0]?.name
-  const scope = resolveViewerScope(roleName)
+  const roleNames = viewer?.roles.map((r) => r.name) ?? []
+  const scope = resolveViewerScope(roleNames, viewer?.accessRoles ?? [], t)
 
   // owner-eyes item 8: on a route whose region-3 page head already carries the job sentence
   // (a PageFamilyFrame family route — the same suppression registry that already silences the

@@ -150,6 +150,29 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(job).toHaveStyle({ flex: '1 1 auto', minWidth: '0' })
   })
 
+  it('F1: a Kitchen Lead resolves to the owning Café Module scope, not a generic "Team" or the bare role name', () => {
+    // CONTEXT.md: Kitchen is an Area *inside* the Café Module. Scope resolves from the module data
+    // model (destinations.tsx workMatch), so a Kitchen Lead shows "Café" — identical to the parallel
+    // Cafe Ops Lead persona — never a less-specific "Team" fallback.
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Kirana Kitchen',
+          email: 'kirana@gordi.id', archived_at: null, created_at: '', updated_at: '',
+        },
+        roles: [{ id: 'r5', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Kitchen Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
+        isManager: false,
+        accessRoles: [],
+      },
+      signOut: vi.fn(),
+    })
+    renderCtx('/admin/roles')
+    const region = screen.getByRole('region', { name: 'Context' })
+    expect(region.textContent).toContain('Café')
+    expect(region.textContent).not.toContain('Team')
+  })
+
   it('F3/P1: a viewer whose role matches no BU-family keyword shows their real role name, not a generic "Team" placeholder', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
