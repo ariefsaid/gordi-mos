@@ -4,6 +4,7 @@
 
 import type { KitchenKpis, KitchenKpiStripData, KitchenKpiTileData } from '@/lib/kitchen-kpis'
 import { Pill } from '@/components/ui/pill'
+import { useT, type Translate } from '@/i18n/use-t'
 import './kitchen-kpi-strip.css'
 
 interface KitchenKpiStripProps {
@@ -13,12 +14,15 @@ interface KitchenKpiStripProps {
 }
 
 export function KitchenKpiStrip({ kpis, data, isDesktop }: KitchenKpiStripProps) {
-  const resolved = data ?? buildLogKpiStripData(kpis!)
+  const t = useT()
+  const resolved = data ?? buildLogKpiStripData(kpis!, t)
   if (isDesktop) return <DesktopStrip data={resolved} />
   return <PhoneSummary data={resolved} />
 }
 
-function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
+// I18N-1: the Log KPI strip labels/deltas/subs route through the catalog. Numbers stay numeric;
+// only the words localize. (Other Kitchen surfaces pass their own pre-built `data`.)
+function buildLogKpiStripData(kpis: KitchenKpis, t: Translate): KitchenKpiStripData {
   const {
     plannedTotal, madeOfPlan, madeSoFar, madeOffPlan, pctComplete,
     itemsRemaining, unitsShort, plannedDishCount,
@@ -27,52 +31,52 @@ function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
   const behind = plannedTotal - madeOfPlan
 
   return {
-    ariaLabel: 'Plan vs actual summary',
-    phoneLabel: 'Today',
-    phoneValue: `${plannedDishCount} planned`,
+    ariaLabel: t('kitchen.kpi.ariaLabel'),
+    phoneLabel: t('kitchen.kpi.phone.today'),
+    phoneValue: t('kitchen.kpi.phone.planned', { count: plannedDishCount }),
     phoneMeta: hasPlan ? `${pctComplete}%` : '—%',
     tiles: [
       {
-        label: 'Planned total',
+        label: t('kitchen.kpi.plannedTotal'),
         value: hasPlan ? String(plannedTotal) : '0',
-        delta: `${plannedDishCount} dishes`,
+        delta: t('kitchen.kpi.plannedTotal.delta', { count: plannedDishCount }),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'portions',
+        sub: t('kitchen.kpi.plannedTotal.sub'),
       },
       {
-        label: 'Made so far',
+        label: t('kitchen.kpi.madeSoFar'),
         value: String(madeSoFar),
         delta: hasPlan
           ? behind > 0
-            ? `−${behind} vs plan`
-            : 'on plan'
-          : 'no plan set',
+            ? t('kitchen.kpi.madeSoFar.behind', { count: behind })
+            : t('kitchen.kpi.madeSoFar.onPlan')
+          : t('kitchen.kpi.noPlanSet'),
         deltaTone: hasPlan ? (behind > 0 ? 'destructive' : 'success') : 'neutral',
         deltaDot: hasPlan ? undefined : false,
-        sub: madeOffPlan > 0 ? `+${madeOffPlan} off-plan` : undefined,
+        sub: madeOffPlan > 0 ? t('kitchen.kpi.madeSoFar.offPlan', { count: madeOffPlan }) : undefined,
       },
       {
-        label: '% complete',
+        label: t('kitchen.kpi.pctComplete'),
         value: hasPlan ? `${pctComplete}%` : '—%',
-        delta: hasPlan ? `${madeOfPlan} of ${plannedTotal}` : 'no plan set',
+        delta: hasPlan ? t('kitchen.kpi.pctComplete.delta', { made: madeOfPlan, total: plannedTotal }) : t('kitchen.kpi.noPlanSet'),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'of plan',
+        sub: t('kitchen.kpi.pctComplete.sub'),
       },
       {
         // census FLAG-C: the value counts DISHES but the delta counts PORTIONS — the label
         // said "Items" and the delta said "units", a silent unit switch. Name both units.
-        label: 'Dishes remaining',
+        label: t('kitchen.kpi.dishesRemaining'),
         value: String(itemsRemaining),
         delta: hasPlan
           ? itemsRemaining > 0
-            ? `−${unitsShort} portions short`
-            : 'all on plan'
-          : 'no plan set',
+            ? t('kitchen.kpi.dishesRemaining.short', { count: unitsShort })
+            : t('kitchen.kpi.dishesRemaining.allOnPlan')
+          : t('kitchen.kpi.noPlanSet'),
         deltaTone: hasPlan ? (itemsRemaining > 0 ? 'destructive' : 'success') : 'neutral',
         deltaDot: hasPlan ? undefined : false,
-        sub: 'of target',
+        sub: t('kitchen.kpi.dishesRemaining.sub'),
       },
     ],
   }

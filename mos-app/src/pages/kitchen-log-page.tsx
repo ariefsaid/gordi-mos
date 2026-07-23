@@ -384,7 +384,7 @@ export function KitchenLogPage() {
   const columns: DataTableColumn<WipItemOption>[] = [
     {
       key: 'dish',
-      header: 'Dish',
+      header: t('kitchen.log.col.dish'),
       cardLabel: '',
       render: item => (
         <span className="kl-dish">
@@ -395,7 +395,7 @@ export function KitchenLogPage() {
     },
     {
       key: 'plan',
-      header: 'Plan',
+      header: t('kitchen.log.col.plan'),
       numeric: true,
       render: item => {
         const plan = lines[item.id]?.plan_qty ?? 0
@@ -404,13 +404,13 @@ export function KitchenLogPage() {
     },
     {
       key: 'stock',
-      header: 'Stock',
+      header: t('kitchen.log.col.stock'),
       numeric: true,
       render: item => lines[item.id]?.stok ?? 0,
     },
     {
       key: 'made',
-      header: 'Made today',
+      header: t('kitchen.log.col.made'),
       // The reused WipItemStepper (SAME props/handlers as the prior phone card):
       // name + stepper + plan/stok/tersedia meta + cap cue + variance-note gate.
       // cafe-3: dense on the desktop table row (drops the bordered/full-width card
@@ -431,7 +431,7 @@ export function KitchenLogPage() {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('kitchen.log.col.status'),
       render: item => {
         const line = lines[item.id]
         const status = kitchenStatus({
@@ -445,8 +445,8 @@ export function KitchenLogPage() {
   ]
 
   const groups: DataTableGroup<WipItemOption>[] = [
-    { key: 'planned', label: 'Planned today', count: plannedLines.length, rows: plannedLines },
-    { key: 'offplan', label: 'Off-plan', hint: 'log as produced', count: offPlanLines.length, rows: offPlanLines },
+    { key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines },
+    { key: 'offplan', label: t('kitchen.log.group.offplan'), hint: t('kitchen.log.group.offplan.hint'), count: offPlanLines.length, rows: offPlanLines },
   ]
 
   return (
