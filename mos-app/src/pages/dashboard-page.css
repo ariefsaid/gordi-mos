@@ -46,6 +46,17 @@
 }
 .dash-kpi-grid--gm {
   margin-top: 12px;
+  /* r5 F-5 ("regroup the GM row"): 4 tiles in a 3-up grid stranded BOM coverage
+     with a 2-track trailing void. Full-row arithmetic for 4 tiles: 2×2 through
+     1023 (a 3-up track can't be split evenly by 4), 4-up from 1024 where a track
+     (~197px+) holds the widest GM value at the 23px ceiling. Phone stays on the
+     shared 2-up (2×2, full). */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 1024px) {
+  .dash-kpi-grid--gm {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .dash-loading {

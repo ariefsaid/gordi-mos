@@ -168,6 +168,11 @@ describe('DashboardPage — states', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/dashboard-page.css'), 'utf8')
     expect(css).toMatch(/\.dash-kpi-tile--mix\s*\{\s*grid-column:\s*span 2;/)
     expect(css.indexOf('.dash-kpi-tile--mix')).toBeLessThan(css.indexOf('@media'))
+    // And the GM row is REGROUPED (the ruling's other half): 4 tiles never sit in a
+    // 3-up grid — 2×2 base, 4-up from 1024 — so BOM coverage is never stranded.
+    expect(css).toMatch(/\.dash-kpi-grid--gm\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/)
+    const wide = css.split('@media (min-width: 1024px)')[1] ?? ''
+    expect(wide).toMatch(/\.dash-kpi-grid--gm\s*\{[^}]*repeat\(4, minmax\(0, 1fr\)\)/)
   })
 
   it('AC-023: error — non-secret retry, no DSN/token/SQL/stack text', async () => {
