@@ -44,6 +44,32 @@
 .split.expanded { grid-template-columns: 1fr; }
 .split.expanded .assembly { display: none; }
 
+/* ── R1 (owner review r2): split height parity ──
+   With align-items:start the table card and the record drawer each sat at their OWN content
+   height, so their bottoms never lined up — the owner read them as two mismatched boxes. At the
+   split width both columns now stretch to ONE shared track height (the taller of the two), and the
+   drawer becomes a flex column that FILLS that height and OWNS its overflow via an internal scroll —
+   so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
+   .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
+   Scoped to ≥1100px because below the split threshold the drawer is a modal overlay, not a column.
+   Excludes .expanded (the drawer already fills the row there). */
+@media (min-width: 1100px) {
+  .split:not(.nodrawer):not(.expanded) { align-items: stretch; }
+  .split:not(.expanded) .drawer:not(.expanded) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .split:not(.expanded) .drawer:not(.expanded) > .dw-surface {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 /* ── Card assembly (OD-P3-10/11) ── */
 .assembly {
   background: var(--card); border: 1px solid var(--border);
