@@ -49,17 +49,28 @@ export function ContextRow() {
   const roleName = viewer?.roles[0]?.name
   const scope = resolveViewerScope(roleName)
 
+  // owner-eyes item 8: on a route whose region-3 page head already carries the job sentence
+  // (a PageFamilyFrame family route — the same suppression registry that already silences the
+  // sentence here), the ContextRow would render only a lone scope crumb ("Café") floating above
+  // the page title — an orphan that duplicates context the head + the topbar breadcrumb already
+  // provide. So on those routes the WHOLE strip goes silent: no scope, no sentence, and the region
+  // collapses to zero height (the anatomy landmark stays present for the shell contract, but adds
+  // no visual gap). Unmigrated routes keep the scope + sentence — there the ContextRow is the sole
+  // context signal.
+  const headOwnsContext = pageOwnsJobSentence(pathname)
+
   return (
     <div
       role="region"
       aria-label="Context"
       data-anatomy="context-row"
       className="ctx-row flex items-center gap-3 px-4"
-      style={{ height: 'var(--ctx-row-h, 40px)', flex: 'none' }}
+      style={{ height: headOwnsContext ? 0 : 'var(--ctx-row-h, 40px)', flex: 'none', overflow: 'hidden' }}
     >
-      {scope && <span className="ctx-scope truncate text-muted-foreground" style={{ fontSize: 13 }}>{scope}</span>}
-      {/* RATIFY R-OWNER-1: provisional — ContextRow sentence suppressed on V3-family routes */}
-      {!pageOwnsJobSentence(pathname) && (
+      {!headOwnsContext && scope && (
+        <span className="ctx-scope truncate text-muted-foreground" style={{ fontSize: 13 }}>{scope}</span>
+      )}
+      {!headOwnsContext && (
         <b className="ctx-job truncate text-foreground" style={{ fontSize: 13, fontWeight: 500 }}>
           {t(jobKey)}
         </b>

@@ -112,8 +112,10 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(screen.getAllByText('Trust the financial figures and act on money exceptions.')).toHaveLength(1)
   })
 
-  it('AC-013: shows the viewer scope signal, not the viewer name, in the context row', () => {
-    renderCtx('/')
+  it('AC-013: shows the viewer scope signal, not the viewer name, in the context row (unmigrated route)', () => {
+    // owner-eyes item 8: the scope crumb is suppressed on migrated routes whose head carries context,
+    // so the scope-signal behavior is asserted on an unmigrated route where ContextRow is the sole owner.
+    renderCtx('/admin/roles')
     const region = screen.getByRole('region', { name: 'Context' })
     expect(region.textContent).toContain('Café')
     expect(region.textContent).not.toContain('Cahya')
@@ -133,7 +135,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
       },
       signOut: vi.fn(),
     })
-    renderCtx('/')
+    renderCtx('/admin/roles')
     const region = screen.getByRole('region', { name: 'Context' })
     expect(region.textContent).toContain('Managing Director')
     expect(region.textContent).not.toBe('Admin')
@@ -154,7 +156,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
       },
       signOut: vi.fn(),
     })
-    renderCtx('/')
+    renderCtx('/admin/roles')
     const region = screen.getByRole('region', { name: 'Context' })
     expect(region.textContent).toContain('Sales Lead')
   })
@@ -197,10 +199,14 @@ describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-f
     expect(screen.getByText('What needs my attention right now?')).toBeInTheDocument()
   })
 
-  it('still renders the Context region (with scope) on a migrated route', () => {
+  it('owner-eyes item 8: suppresses the orphan scope crumb on a migrated route (region stays, but empty + collapsed)', () => {
+    // The region landmark must remain (the shell anatomy contract), but on a migrated route whose
+    // head already carries context the strip renders NOTHING — no lone "Café" crumb above the title.
     renderCtx('/work/tasks')
     const region = screen.getByRole('region', { name: 'Context' })
     expect(region).toHaveAttribute('data-anatomy', 'context-row')
-    expect(region.textContent).toContain('Café')
+    expect(region.textContent).not.toContain('Café')
+    expect(region.textContent?.trim()).toBe('')
+    expect(region).toHaveStyle({ height: '0px' })
   })
 })
