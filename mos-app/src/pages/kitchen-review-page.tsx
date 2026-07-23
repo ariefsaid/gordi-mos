@@ -191,7 +191,10 @@ function KitchenReviewDecision({
         <>
           <button
             type="button"
-            className="btn btn-primary krow-btn"
+            // census DEFECT-2: one solid primary per surface. The bulk "Approve all (N)" is
+            // that primary; each row's Approve is a quiet outline (the 10 solid blues were a
+            // hierarchy blur). Reject stays outline too — the resting row has no solid fill.
+            className="btn btn-outline krow-btn"
             aria-label={`Approve ${log.wip_item_name}`}
             disabled={approveDisabled || submitting}
             title={approveDisabled ? approveDisabledReason : undefined}
