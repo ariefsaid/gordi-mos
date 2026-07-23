@@ -209,7 +209,13 @@ if not s.get("auditedAt"):
     s["auditedAt"] = c
 s["ratifiedBy"] = r
 s["bumped"] = False
-s["due"] = False'
+s["due"] = False
+# A lock resolves the "never audited / owes its (re-)battery" markers; genuine
+# remaining-axis DUEs (persona / dimension / state gaps) persist and are kept.
+s["dueAxes"] = [a for a in s.get("dueAxes", [])
+                if "NEVER AUDITED" not in a
+                and "owes" not in a.lower()
+                and "IN FLIGHT" not in a]'
     render
     echo "LOCKED '$sid' @ $commit (ratifiedBy=$ratifier)."
     ;;
