@@ -64,6 +64,21 @@ function personName(people: readonly PersonOption[], id: string | null): string 
   return people.find((p) => p.id === id)?.full_name ?? 'Unknown person'
 }
 
+/** The overdue-age signal that rides with the debt (LAW-2, record-page-anatomy §2.3: Outstanding
+ *  carries Counterparty · Amount · Balance · Age). Whole-day count relative to the due date, in
+ *  UTC-day granularity so it is stable regardless of the caller's wall-clock time. */
+function ageLabel(dueDate: string | null, today = new Date()): string {
+  if (!dueDate) return 'No due date'
+  const dayMs = 86_400_000
+  const due = Date.parse(`${dueDate}T00:00:00Z`)
+  const now = Date.parse(`${today.toISOString().slice(0, 10)}T00:00:00Z`)
+  const days = Math.round((now - due) / dayMs)
+  if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'} overdue`
+  if (days === 0) return 'Due today'
+  const ahead = -days
+  return `Due in ${ahead} ${ahead === 1 ? 'day' : 'days'}`
+}
+
 /** A read-only field spec with NO per-field provenance caption. The whole-record read-only
  *  reason is carried once by the viewer footer (LAW-6 / F3) — never repeated per row. */
 function readField(spec: Omit<RecordFieldSpec, 'editable' | 'readOnlyReason'>): RecordFieldSpec {
@@ -91,6 +106,7 @@ export function createFollowUpRecordAdapter(input: FollowUpRecordAdapterInput): 
     readField({ key: 'originalAmount', label: 'Original amount', control: 'text', value: row.original_amount, displayValue: formatIDR(row.original_amount) }),
     readField({ key: 'runningBalance', label: 'Running balance', control: 'text', value: row.running_balance, displayValue: formatIDR(row.running_balance) }),
     readField({ key: 'dueDate', label: 'Due date', control: 'date', value: row.due_date, displayValue: row.due_date ?? 'No due date' }),
+    readField({ key: 'age', label: 'Age', control: 'text', value: row.due_date, displayValue: ageLabel(row.due_date) }),
   ])
   const outstandingSlot: RecordContentSlot = {
     ...outstanding,

@@ -63,10 +63,19 @@ describe('Census Step 2.5 — Follow-up record anatomy conformance (AC-ANAT-009)
     expect(observedVector(container)[0]).toBe('outstanding')
     const regions = [...container.querySelectorAll('[data-viewer-region]')].map((n) => (n as HTMLElement).dataset.viewerRegion)
     expect(regions.filter((r) => r === 'metadata')).toHaveLength(0)
-    // The debt (counterparty · amount · balance · due) leads the record.
+    // The debt (counterparty · amount · balance · due · age) leads the record.
     const outstanding = container.querySelector('[data-content-slot="outstanding"]')!
     expect(outstanding.textContent).toContain('PT Big Buyer')
     expect(outstanding.textContent).toMatch(/Rp\s?400.000/)
+  })
+
+  it('N1 — Outstanding carries the overdue-age signal (record-page-anatomy §2.3: Counterparty · Amount · Balance · Age)', () => {
+    const { container } = renderRecord()
+    const outstanding = container.querySelector('[data-content-slot="outstanding"]')!
+    // The Age field label + a computed overdue-age value ride WITH the debt (LAW-2), not a
+    // separate metadata region. The fixture due date (2026-06-30) is always in the past.
+    expect(outstanding.textContent).toContain('Age')
+    expect(outstanding.textContent).toMatch(/overdue/)
   })
 
   it('F2 — the identity heading is the counterparty, not a truncated slice of any content region', () => {
