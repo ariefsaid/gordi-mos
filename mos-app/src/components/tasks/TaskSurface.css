@@ -77,6 +77,22 @@
   overflow: hidden;
 }
 
+/* owner-eyes item 12 — one shared, centered record column. The standalone full-page record composed
+   three mismatched left-pinned widths: a ~1130px chrome row, the 820px document card, and the feed,
+   stranding dead space on the right. Bind the chrome row (and the archived banner) to the SAME 820px
+   E7 measure as .record-doc, and center all of them in the content area. PageFrame caps its content
+   region at 1180px and left-aligns it, so — as in item 7 — lift that cap where the region hosts a
+   full-page record, then let the 820px column center. Unlike the Tasks LIST (item 7, a full-bleed
+   data workspace) a single record is a DOCUMENT, so it centers at its reading measure instead of
+   filling the width — same intent, calm against E7. The chrome row's actions then sit at the
+   column's edges, not the viewport's. Scoped by :has(.record-doc) so only this page is affected. */
+.page-frame__content:has(.record-doc) { max-width: none; }
+.record-doc,
+.record-chrome,
+.archived-banner { margin-inline: auto; }
+.record-chrome,
+.archived-banner { max-width: 820px; width: 100%; }
+
 /* ── Details sections (top) ──
    A plain wrapper — NOT a bespoke fields panel. It hosts the SAME RecordViewer
    document (identity/ownership/status-timing/details) used everywhere else, so
