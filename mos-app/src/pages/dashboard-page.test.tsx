@@ -8,6 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 vi.mock('@/lib/db/reporting', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')
@@ -148,6 +150,23 @@ describe('DashboardPage — states', () => {
     renderPage()
     const heading = await screen.findByRole('heading', { name: /no sales snapshot/i })
     expect(heading.closest('[data-testid="empty-state"]')).toHaveClass('dash-empty-fill')
+  })
+
+  it('census r3: the channel-mix tile spans 2 tracks on narrow grids — span hook on the tile + the pinned span rule — so the no-wrap value never paints past its tile', async () => {
+    mockRev.mockResolvedValue(sixtyDaysRevenue())
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+    renderPage()
+
+    // The one tile whose value ("POS 83% · B2B 17%") outgrows a narrow track carries
+    // the composition's span hook (grid placement is the page's concern, not the tile's).
+    const tile = await screen.findByRole('group', { name: 'Channel mix' })
+    expect(tile).toHaveClass('dash-kpi-tile--mix')
+
+    // Structural pin of the rule (jsdom computes no grid layout — the stylesheet is the
+    // oracle): below 1024px the hook spans 2 tracks; the no-wrap number grammar stays.
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/dashboard-page.css'), 'utf8')
+    const narrow = css.split('@media (max-width: 1023.98px)')[1] ?? ''
+    expect(narrow).toMatch(/\.dash-kpi-tile--mix\s*\{\s*grid-column:\s*span 2;/)
   })
 
   it('AC-023: error — non-secret retry, no DSN/token/SQL/stack text', async () => {

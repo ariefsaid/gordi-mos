@@ -342,6 +342,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
               value={revKpis.channelMix}
               sub="trailing window"
               help="Share of trailing-window revenue by channel."
+              className="dash-kpi-tile--mix"
             />
           </div>
 

@@ -37,6 +37,12 @@ export interface KPITileProps {
   basis?: { label: string }
   /** FR-008/024: a DQ badge from bom_coverage_pct on GM/COGS tiles. */
   dq?: DqState
+  /**
+   * Extra class(es) on the tile's grid-child element — the composition's hook for
+   * grid placement (e.g. the Money channel-mix tile spans 2 tracks on narrow grids,
+   * census r3). Layout stays the parent grid's concern, never the tile's.
+   */
+  className?: string
 }
 
 const DELTA_TONE: Record<KPITileDelta['tone'], PillTone> = {
@@ -56,13 +62,16 @@ export function KPITile({
   selected = false,
   basis,
   dq,
+  className: extraClassName,
 }: KPITileProps) {
+  const withExtra = (base: string) => (extraClassName ? `${base} ${extraClassName}` : base)
+
   if (state === 'loading') {
     // Cohesion-debt 2026-07-19, item #3: one loading grammar — the shared
     // LoadingShell (role=status + SkeletonRows), not a role=group Pill-skeleton.
     // The KPI label stays visible AND names the busy status.
     return (
-      <div className="kpi-tile">
+      <div className={withExtra('kpi-tile')}>
         <span className="kpi-tile-label">{label}</span>
         <LoadingShell count={1} label={label} />
       </div>
@@ -95,7 +104,7 @@ export function KPITile({
     </>
   )
 
-  const className = `kpi-tile${selected ? ' kpi-tile--selected' : ''}`
+  const className = withExtra(`kpi-tile${selected ? ' kpi-tile--selected' : ''}`)
 
   // onClick present → a real <button> for filter-in-place (FR-016/AC-016).
   if (onClick) {

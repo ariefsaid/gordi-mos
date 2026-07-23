@@ -32,6 +32,20 @@
   gap: 12px;
   margin-bottom: 12px;
 }
+
+/* Census r3 (Director ruling on the g-money r2 finding): the channel-mix value
+   ("POS 83% · B2B 17%", 23px nowrap ≈ 230px + 34px chrome ≈ 264px min) paints past
+   its tile wherever a track is narrower than that — the whole phone 2-up range and
+   the 3-up range below ~1024 (track = (column − 24px gaps) / 3 < 264px; measured
+   fitting from 1024 up: track 267px). SPAN treatment, not font/wrap surgery: the
+   mix tile takes 2 tracks on those grids so the value never leaves its tile and the
+   no-wrap number grammar stays intact. Layouts stay full/balanced: 2-up phone →
+   2/2/full-row; 3-up → 3 + (1+2). ≥1024 the single track fits and the span lifts. */
+@media (max-width: 1023.98px) {
+  .dash-kpi-tile--mix {
+    grid-column: span 2;
+  }
+}
 .dash-kpi-grid--gm {
   margin-top: 12px;
 }
