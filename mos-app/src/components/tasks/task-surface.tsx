@@ -901,6 +901,27 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
     </div>
   )
 
+  const actionButtons = (
+    <>
+      <button type="button" className="btn btn-outline" onClick={closeToCollection}>{t('tasks.cancel')}</button>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={submitting}
+        aria-busy={submitting}
+      >
+        {submitting ? t('tasks.create.submitting') : t('tasks.create.submit')}
+      </button>
+    </>
+  )
+
+  // F1: the create form is a scrolling body + a pinned action foot, mirroring the
+  // ViewSurface drawer anatomy (`.dw-bar` header · `.dw-tabpane` scroll body · `.dw-foot`).
+  // Before this, the drawer variant rendered a plain <form> whose overflow:auto never
+  // bounded (no flex-basis), so `.dw-surface`'s overflow:hidden simply clipped the tail of
+  // a long form — the Cancel/Create row fell below the fold with no scrollbar to reach it
+  // at split-view heights (1280×800 and up). Keeping the actions in a pinned foot guarantees
+  // the primary CTA is always reachable regardless of form length or viewport height.
   const formMarkup = (
       <form
         onSubmit={handleSubmit}
@@ -908,6 +929,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         aria-label={t('tasks.create.form')}
         className={inDrawer ? 'tc-create-form' : undefined}
       >
+        <div className={inDrawer ? 'dw-tabpane tc-create-body' : undefined}>
         {submitError && (
           <div role="alert" className="tc-submit-error">
             {submitError}
@@ -1094,18 +1116,14 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           />
         </div>
 
-        {/* Actions */}
-        <div className="tc-actions">
-          <button type="button" className="btn btn-outline" onClick={closeToCollection}>{t('tasks.cancel')}</button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={submitting}
-            aria-busy={submitting}
-          >
-            {submitting ? t('tasks.create.submitting') : t('tasks.create.submit')}
-          </button>
         </div>
+
+        {/* Actions — pinned foot in the drawer (always reachable); inline divider on the page. */}
+        {inDrawer ? (
+          <div className="dw-foot tc-create-foot">{actionButtons}</div>
+        ) : (
+          <div className="tc-actions">{actionButtons}</div>
+        )}
       </form>
   )
 

@@ -504,5 +504,9 @@
 
 /* ── Create mode inside the drawer (no double card frame) ── */
 .tc-create-drawer { max-width: none; }
-.tc-create-form { padding: 16px; overflow: auto; }
-.tc-create-drawer .tc-actions { margin-top: 4px; }
+/* F1: the drawer create form fills the surface as a flex column so its body scrolls
+   (`.dw-tabpane`) and its actions pin (`.dw-foot`) — the CTA can never be clipped
+   below the fold the way the old plain `padding:16px; overflow:auto` form was. */
+.tc-create-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* The scrolling body reuses `.dw-tabpane` (flex:1 · min-height:0 · overflow:auto · padding). */
+.tc-create-foot { justify-content: flex-end; gap: 8px; }
