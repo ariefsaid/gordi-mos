@@ -1648,3 +1648,18 @@ pinned — not endorsed — in the test's EXCEPTIONS ledger for a design-archite
 (remap vs mint a token). Pre-existing, unrelated red found while verifying:
 `css-var-wiring.test.ts` fails on `--field-error-text` (undefined var, no fallback) in
 `catalog-collection.css` — present before this branch's changes, left for its owning lane.
+
+## Luna INTERIM verdict — 2026-07-23, live-drive audit (attested ba6459e)
+
+**OFFICIAL: 27/40 · 6.5/10 · floor violations 3 · BAR NOT MET** (prior official: 26/40 at 61f6087).
+Method: Luna (gpt-5.6-luna, --thinking max) drove the live app itself via agent-browser (no
+pre-curated screenshots, owner-directed), Director demo, 1280/1024/390, E7 floor served alongside.
+Floor violations: (1) H3 — Signal full record has no visible Back; record-panel chrome icon-only
+vs E7's explicit "Open full page"; (2) H6 — signal title identity truncates across table/feed/
+phone/record + Home tail (E7 wraps); (3) H8 — Home 390 horizontal overflow (~700px scroll width),
+task record double scroll containers, phone filter stack, raised-card signal phone table vs E7's
+calmer single surface.
+**Cross-reference:** scored at ba6459e — the queued-and-now-merged lanes (2766ca6..1e68738) already
+fixed: feed phone title starvation (DO-14), saved-view strip clip + condensed title wrap (DO-18a/b),
+create-door band gating (DO-17). Residuals → lane `v3/luna-floor`. Next Luna pass runs from a
+PINNED detached checkout (this pass drifted 2 merges mid-audit; noted, tolerated for INTERIM only).
