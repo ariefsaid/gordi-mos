@@ -66,13 +66,38 @@ export interface RecordRelation {
   onOpen?: () => void
 }
 
+/** The context the shared RecordViewer hands every content slot at render time. Beyond
+ *  mode/readOnly it forwards the field-commit seam (onCommitField / onDirtyChange /
+ *  fieldCommitsFrozen) so a content slot that IS a field section (the content-first anatomy
+ *  of OD-REDESIGN-90 — a kind packs its ordered regions into content slots rather than the
+ *  metadata region, which renders BEFORE content) can wire its RecordFields exactly as the
+ *  metadata region would. The commit fields are optional so a purely presentational slot
+ *  (a Signal message, a Follow-up audit list) can ignore them and be called with just
+ *  `{ mode, readOnly }`. */
+export interface RecordContentSlotContext {
+  mode: RecordViewerMode
+  readOnly: boolean
+  /** Persist a field edit by its adapter key (mirrors RecordViewerProps.onCommitField). */
+  onCommitField?: (key: string, value: RecordValue) => Promise<void>
+  onDirtyChange?: (dirty: boolean) => void
+  /** True while a host leave-guard dialog is open (see RecordField's commitsFrozen note). */
+  fieldCommitsFrozen?: boolean
+}
+
 /** A domain-owned content region rendered through a typed renderer. Issue 5 only
  *  CONSUMES this seam — no block authoring, JSONB serialization, or fabricated
- *  blocks (those are Issue 10). */
+ *  blocks (those are Issue 10).
+ *
+ *  `section` (OD-REDESIGN-90 content-first): when a slot IS a field section its specs are
+ *  carried here as DATA so the record stays inspectable (adapters/tests read the field specs
+ *  without rendering), while `render` produces the same value-first RecordField markup the
+ *  metadata region emits — wired through the slot context's commit seam. A slot with no
+ *  `section` is a free-form custom region (message prose, checklist, activity, notes). */
 export interface RecordContentSlot {
   id: string
   label: string
-  render: (context: { mode: RecordViewerMode; readOnly: boolean }) => ReactNode
+  section?: RecordMetadataSection
+  render: (context: RecordContentSlotContext) => ReactNode
 }
 
 export interface RecordActivityItem {

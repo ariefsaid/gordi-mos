@@ -3,6 +3,7 @@ import type {
   RecordKind,
   RecordViewerAdapter,
   RecordContentSlot,
+  RecordContentSlotContext,
 } from './record-viewer.types'
 
 /**
@@ -109,8 +110,12 @@ describe('RecordViewer contract', () => {
 
   it('a content slot accepts a typed renderer without exposing a block-authoring API', () => {
     const slot: RecordContentSlot = taskAdapter.contentSlots[0]
-    // The only authored surface is a render function receiving mode + readOnly.
-    expectTypeOf(slot.render).parameter(0).toEqualTypeOf<{ mode: 'panel' | 'page'; readOnly: boolean }>()
+    // The only authored surface is a render function receiving the slot context (mode + readOnly +
+    // the field-commit seam a content-first field-section slot wires through, OD-REDESIGN-90). It is
+    // a typed render context — NOT a block-authoring / JSONB API.
+    expectTypeOf(slot.render).parameter(0).toEqualTypeOf<RecordContentSlotContext>()
+    // A purely presentational slot can still be called with just mode + readOnly (the commit seam is
+    // optional), and returns a ReactNode — no fabricated block tree.
     expect(slot.render({ mode: 'panel', readOnly: false })).toBeNull()
   })
 })

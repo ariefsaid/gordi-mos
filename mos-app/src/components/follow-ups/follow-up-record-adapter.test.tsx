@@ -1,7 +1,20 @@
 import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PersonOption } from '@/lib/db/directory'
 import type { FollowUpRow, FollowUpEvent } from '@/lib/db/follow-ups'
+import type { RecordFieldSpec, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { createFollowUpRecordAdapter } from './follow-up-record-adapter'
+
+// Content-first (OD-REDESIGN-90): the Follow-up packs its fields into ordered CONTENT slots,
+// each carrying its section specs as `section` DATA — so the record stays inspectable without
+// rendering. The metadata region is empty; these helpers read the field specs from the slots.
+function slotFields(adapter: RecordViewerAdapter): RecordFieldSpec[] {
+  return adapter.contentSlots.flatMap((s) => s.section?.fields ?? [])
+}
+function fieldBlob(adapter: RecordViewerAdapter): string {
+  return slotFields(adapter).map((f) => `${f.key} ${f.label} ${f.displayValue}`).join(' | ')
+}
 
 // A Follow-up is a REAL, DISTINCT domain model — money-shaped (counterparty, invoice
 // grain, running balance, promise/settle lifecycle). It is NOT a Task: the adapter must
@@ -40,7 +53,7 @@ describe('createFollowUpRecordAdapter', () => {
     expect(adapter.typeLabel).toBe('Follow-up')
     expect(adapter.title).toBe('PT Big Buyer')
     // Never a Task: no status control, no checklist content slot, no Business Unit owner.
-    const keys = adapter.metadata.flatMap((s) => s.fields.map((f) => f.key))
+    const keys = slotFields(adapter).map((f) => f.key)
     expect(keys).not.toContain('status')
     expect(keys).not.toContain('businessUnit')
     expect(adapter.contentSlots.map((s) => s.id)).not.toContain('checklist')
@@ -48,26 +61,29 @@ describe('createFollowUpRecordAdapter', () => {
 
   it('surfaces the money grain — invoice ref, original amount, running balance in IDR', () => {
     const adapter = createFollowUpRecordAdapter({ row, events, people })
-    const labels = adapter.metadata.flatMap((s) => s.fields.map((f) => `${f.label}=${f.displayValue}`))
-    expect(labels.join(' | ')).toContain('INV-1001')
-    expect(labels.join(' | ')).toMatch(/Rp\s?1.000.000/)
-    expect(labels.join(' | ')).toMatch(/Rp\s?400.000/)
+    const labels = fieldBlob(adapter)
+    expect(labels).toContain('INV-1001')
+    expect(labels).toMatch(/Rp\s?1.000.000/)
+    expect(labels).toMatch(/Rp\s?400.000/)
   })
 
   it('names the chase owner Person in charge (PIC) and never leaks a RACI noun', () => {
     const adapter = createFollowUpRecordAdapter({ row, events, people })
-    const flat = adapter.metadata.flatMap((s) => s.fields.map((f) => `${f.key} ${f.label} ${f.displayValue}`)).join(' ')
+    const flat = fieldBlob(adapter)
     expect(flat).toContain('Person in charge (PIC)')
     expect(flat).toContain('Sari (Collections)')
     expect(flat).not.toMatch(/responsible|accountable|consulted|informed|raci|assigned_to/i)
   })
 
   it('renders the lifecycle history from real follow-up events (newest transitions), not fabricated activity', () => {
+    // Audit history is the LAST content slot (content-first): the timestamped trail lives there,
+    // quiet, not in the metadata/activity region ahead of the debt.
     const adapter = createFollowUpRecordAdapter({ row, events, people })
-    expect(adapter.activity).toHaveLength(2)
-    const joined = adapter.activity.map((a) => `${a.label} ${a.detail ?? ''}`).join(' | ')
-    expect(joined.toLowerCase()).toContain('chase')
-    expect(joined.toLowerCase()).toContain('partial')
+    const audit = adapter.contentSlots.find((s) => s.id === 'audit')!
+    render(<I18nProvider>{audit.render({ mode: 'page', readOnly: true })}</I18nProvider>)
+    const joined = (screen.getByRole('list').textContent ?? '').toLowerCase()
+    expect(joined).toContain('chase')
+    expect(joined).toContain('partial')
   })
 
   it('is a read-first record door: a settled/confirmed commitment is honestly read-only', () => {

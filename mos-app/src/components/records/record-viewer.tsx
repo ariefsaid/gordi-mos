@@ -19,6 +19,7 @@ import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { RecordField } from './record-field'
 import type {
   RecordAction,
+  RecordMetadataSection,
   RecordRelation,
   RecordValue,
   RecordViewerAdapter,
@@ -64,6 +65,45 @@ const ACTION_VARIANT: Record<RecordAction['intent'], ButtonVariant> = {
 }
 
 const noopCommit = async () => {}
+
+/**
+ * RecordFieldList — the ONE value-first field-section body (an `<h3>` + the RecordField rows).
+ * Shared by the viewer's metadata region AND by a content-first field-section content slot
+ * (OD-REDESIGN-90): a kind that leads with its content packs Ownership/Relations/… into ordered
+ * content slots, and each such slot renders this exact body so the fields, the commit seam, the
+ * dirty-guard, and the commits-frozen shield behave identically wherever the section is placed.
+ * It renders no section wrapper — the caller owns the landmark `<section>` (metadata region or
+ * `data-content-slot`), so the accessible name and region marker stay where they belong.
+ */
+export function RecordFieldList({
+  section,
+  onCommitField,
+  onDirtyChange,
+  fieldCommitsFrozen = false,
+}: {
+  section: RecordMetadataSection
+  onCommitField?: (key: string, value: RecordValue) => Promise<void>
+  onDirtyChange?: (dirty: boolean) => void
+  fieldCommitsFrozen?: boolean
+}): ReactNode {
+  const commit = onCommitField ?? noopCommit
+  return (
+    <>
+      <h3 className="record-viewer__section-title">{section.label}</h3>
+      <div className="record-viewer__fields">
+        {section.fields.map((field) => (
+          <RecordField
+            key={field.key}
+            spec={field}
+            onCommit={(value) => commit(field.key, value)}
+            onDirtyChange={onDirtyChange}
+            commitsFrozen={fieldCommitsFrozen}
+          />
+        ))}
+      </div>
+    </>
+  )
+}
 
 export function RecordViewer({
   adapter,
@@ -163,18 +203,12 @@ function RecordBody({
     <>
       {adapter.metadata.map((section) => (
         <section key={section.id} className="record-viewer__section" data-viewer-region="metadata" aria-label={section.label}>
-          <h3 className="record-viewer__section-title">{section.label}</h3>
-          <div className="record-viewer__fields">
-            {section.fields.map((field) => (
-              <RecordField
-                key={field.key}
-                spec={field}
-                onCommit={(value) => onCommitField(field.key, value)}
-                onDirtyChange={onDirtyChange}
-                commitsFrozen={fieldCommitsFrozen}
-              />
-            ))}
-          </div>
+          <RecordFieldList
+            section={section}
+            onCommitField={onCommitField}
+            onDirtyChange={onDirtyChange}
+            fieldCommitsFrozen={fieldCommitsFrozen}
+          />
         </section>
       ))}
 
@@ -206,7 +240,7 @@ function RecordBody({
           data-content-slot={slot.id}
           aria-label={slot.label}
         >
-          {slot.render({ mode, readOnly })}
+          {slot.render({ mode, readOnly, onCommitField, onDirtyChange, fieldCommitsFrozen })}
         </section>
       ))}
 
