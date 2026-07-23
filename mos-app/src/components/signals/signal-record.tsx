@@ -190,7 +190,7 @@ export function SignalFacts({
     ...(siteName ? [{ label: t('signals.record.site'), value: siteName }] : []),
   ]
   return (
-    <section className="signal-region signal-facts-region" data-signal-region="facts">
+    <section className="signal-region" data-signal-region="facts">
       <h2 className="signal-region-title">{t('signals.record.region.facts')}</h2>
       <dl className="signal-facts">
         {rows.map((r) => (
