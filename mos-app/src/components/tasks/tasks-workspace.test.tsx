@@ -381,6 +381,7 @@ describe('V3 collection grammar — shared filter controls', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const statusSelect = screen.getByRole('combobox', { name: /status/i })
     fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
     await waitFor(() => {

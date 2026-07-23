@@ -601,6 +601,7 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     const initialWorkLinesCalls = vi.mocked(listWorkLines).mock.calls.length
 
     // Trigger a filter change (status filter) — should NOT re-trigger catalog loads
+    ensureViewOptionsOpen()
     const statusSelect = screen.getByRole('combobox', { name: /status/i })
     fireEvent.change(statusSelect, { target: { value: 'Open' } })
     await waitFor(() => {}) // allow any async effects to settle

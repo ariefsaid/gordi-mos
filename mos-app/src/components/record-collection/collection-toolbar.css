@@ -17,8 +17,8 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  min-height: 52px;
-  padding: 8px 12px;
+  min-height: 48px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
 }
 .collection-toolbar__primary-spacer { flex: 1 1 auto; min-width: 12px; }
@@ -96,7 +96,7 @@
   width: 100%;
   min-width: 0;
   flex-wrap: wrap;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
 .collection-toolbar__query-spacer { flex: 1 1 auto; min-width: 0; }
@@ -106,6 +106,55 @@
   gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
+}
+
+/* Lean + disclosure (OD-REDESIGN-84.1): the ONE "View & filters" door. An inline row, not a
+   popup, so it keeps normal document focus order and can't be clipped by a scroll container. */
+.collection-toolbar__options-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.collection-toolbar__options-trigger:hover { border-color: var(--border-strong); background: var(--secondary); }
+.collection-toolbar__options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.collection-toolbar__options-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.collection-toolbar__options-chevron { transition: transform var(--dur-med) ease; }
+.collection-toolbar__options-chevron--open { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .collection-toolbar__options-chevron { transition: none; }
+}
+
+.collection-toolbar__options {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--secondary) 28%, var(--card));
+}
+.collection-toolbar__option-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
 }
 
 .collection-toolbar__select .mk-select__box { max-width: 180px; }
@@ -237,6 +286,11 @@
   .collection-toolbar__query { justify-content: flex-start; padding: 8px; }
   .collection-toolbar__filter-group { width: 100%; }
   .collection-toolbar__query > * { min-height: 44px; }
+  /* Phone hosts render the options panel expanded inside their outer "View & filters" wrapper;
+     each disclosed control is a full-width 44px touch target. */
+  .collection-toolbar__options { padding: 8px; gap: 12px; }
+  .collection-toolbar__option-field { width: 100%; }
+  .collection-toolbar__option-field .mk-select__box { width: 100%; max-width: none; height: 44px; }
   .collection-toolbar__select .mk-select__box { height: 44px; max-width: min(220px, 70vw); }
   .collection-toolbar__search { min-height: 44px; max-width: none; }
   .collection-toolbar__view { min-height: 44px; }

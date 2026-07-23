@@ -5,6 +5,16 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { CollectionToolbar } from './collection-toolbar'
 
+// The lean-row disclosure trigger is desktop-only (min-width:768px). jsdom's setup default is
+// matches:false (phone → panel expanded); stub matches:true to exercise the collapsed door.
+function stubDesktop() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: true, media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(), onchange: null,
+  })))
+}
+
 describe('CollectionToolbar — shared RecordCollection control grammar', () => {
   afterEach(() => vi.unstubAllGlobals())
 
@@ -79,7 +89,10 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(saveTrigger).toHaveFocus()
   })
 
-  it('E7-floor (owner score gate, 2026-07-22): group/sort render inline as quiet selects — never behind a disclosure', async () => {
+  it('OD-REDESIGN-84.1: filters/group/sort are disclosed behind ONE "View & filters" door and a dot flags a non-default shape', async () => {
+    // Desktop grammar: the lean row shows only search + the one trigger. Phone hosts expose the
+    // identical door via their outer wrapper (matchMedia default → panel already expanded there).
+    stubDesktop()
     const onGroupChange = vi.fn()
     render(
       <I18nProvider>
@@ -104,12 +117,18 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
       </I18nProvider>,
     )
 
-    // Both the domain filter and the view-shape select (Group) are visible immediately — no
-    // "View options" trigger to find or click. The flat row is the whole capability.
-    expect(screen.queryByRole('button', { name: /view options/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
+    // Collapsed: the domain filter AND the view-shape select both live behind the one door.
+    expect(screen.queryByRole('combobox', { name: 'Team' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
 
+    const trigger = screen.getByRole('button', { name: /view & filters/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    // A non-default filter (Group=team) is hidden, so the trigger carries the active dot.
+    expect(document.querySelector('.collection-toolbar__options-dot')).toBeInTheDocument()
+
+    await userEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Group' }), '')
     expect(onGroupChange).toHaveBeenCalledWith('')
   })

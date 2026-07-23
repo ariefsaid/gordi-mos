@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -70,6 +70,13 @@ function renderPage(initialPath = '/work/signals') {
   )
 }
 
+// OD-REDESIGN-84.1: the filters/group/sort/toggles (incl. Show retracted) live behind the one
+// desktop "View & filters" disclosure. Open it when collapsed to reach those controls.
+function openViewOptions() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
+
 function LocationProbe() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -105,9 +112,11 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'false')
-    // Feed still carries search + the meaningful ambient filters (attention / category / team).
+    // Feed's lean row leads with search + the saved-view axis (both always visible).
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Needs attention' })).toBeInTheDocument()
+    // The meaningful ambient filters (attention / category / team) live behind the one door.
+    openViewOptions()
     expect(screen.getByRole('combobox', { name: 'Attention' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
@@ -119,6 +128,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // Choosing Table (a click) reveals the full grid capabilities — Group · Sort · Save view.
     await userEvent.click(screen.getByRole('tab', { name: 'Table' }))
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true'))
+    openViewOptions()
     expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
@@ -134,6 +144,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'false')
     // The Table's grid capabilities are present, and the row cells render (real table, not feed).
+    openViewOptions()
     expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
     expect(screen.getAllByText(/HQ Operations/).some((node) => node.closest('td'))).toBe(true)
@@ -265,7 +276,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument())
     expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument()
 
-    // E7-floor: the "Show retracted" toggle renders inline — no disclosure to open first.
+    // OD-84.1: the "Show retracted" toggle lives behind the one "View & filters" door.
+    openViewOptions()
     await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
     expect(screen.getByText('Duplicate')).toBeInTheDocument()
@@ -277,6 +289,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     ])
     renderPage('/work/signals?retracted=1')
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
+    openViewOptions()
     expect(screen.getByRole('switch', { name: /show retracted/i })).toHaveAttribute('aria-checked', 'true')
 
     await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
