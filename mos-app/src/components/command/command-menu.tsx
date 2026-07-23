@@ -116,6 +116,17 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     [navigateItems, moneyAuthorized],
   )
 
+  // CMDK-1: the palette is kept mounted across close→reopen (its host toggles `open`, it does
+  // not unmount), so query/active/records would otherwise persist — a reopen landed mid-search
+  // on a stale query with the default Recent/Actions/Navigate view unreachable. Reset the session
+  // state whenever it closes, so the next open always starts from the default view.
+  useEffect(() => {
+    if (open) return
+    setQuery('')
+    setActive(0)
+    setRecords({ status: 'idle' })
+  }, [open])
+
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
   useEffect(() => {
     if (!open) return

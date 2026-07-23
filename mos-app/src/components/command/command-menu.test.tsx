@@ -435,6 +435,54 @@ describe('AC-K04: stale response cannot clobber newer query results', () => {
   })
 })
 
+// ── CMDK-1: session state resets on close → reopen ───────────────────────────
+describe('CMDK-1: palette resets to the default view on close→reopen', () => {
+  it('CMDK-1: a typed query + record results are cleared after close, so reopen shows the default view', async () => {
+    localStorage.setItem('mos.locale', 'en')
+    mockSearch.mockResolvedValue([{ id: 't1', title: 'Some searched task', status: 'Open' }])
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="*" element={<CommandMenu open onClose={onClose} onShareSignal={vi.fn()} />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    // Type a query → the record-search group appears and the default groups are filtered out.
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'searched' } })
+    await screen.findByRole('option', { name: /Some searched task/i })
+
+    // Close (open=false) then reopen (open=true) — the host keeps the component mounted.
+    rerender(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="*" element={<CommandMenu open={false} onClose={onClose} onShareSignal={vi.fn()} />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    rerender(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="*" element={<CommandMenu open onClose={onClose} onShareSignal={vi.fn()} />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    // The query is empty again and the default view (Actions/Navigate groups) is back, with the
+    // stale record result gone.
+    expect(screen.getByRole('combobox')).toHaveValue('')
+    expect(screen.getByText('Actions')).toBeInTheDocument()
+    expect(screen.getByText('Navigate')).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Some searched task/i })).toBeNull()
+  })
+})
+
 // ── AC-K09: no-bleed + muted group labels ───────────────────────────────────
 describe('AC-K09: no-bleed + muted group labels', () => {
   it('AC-K09: long record titles truncate and carry a title attribute', async () => {
