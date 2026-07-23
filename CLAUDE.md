@@ -116,6 +116,14 @@ both directions.
 | Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
 | Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
 
+**Skills are the method (binding, owner-directed 2026-07-23).** Before writing any METHOD into an
+agent brief or doing the work directly, check whether an installed skill owns that concern (this
+table). If it does, the brief says **"invoke the skill and follow ITS command flow/checklists/
+scripts"** — never a hand-rolled paraphrase (paraphrases drop the rigor: the detector, audit-flow,
+and kit-normalization incidents). Corollary: **preflight skill integrity** (SKILL.md present,
+scripts runnable) before relying on it — vendoring gaps fail silently; a broken skill is repaired
+via `scripts/vendor-skills.sh`, not worked around.
+
 superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
 `Bash` tool was stripped (read-only). gstack telemetry stays `off`.
 
