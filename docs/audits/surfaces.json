@@ -130,7 +130,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "3d5b147",
+      "lockedAt": "1be4fd3",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx",
@@ -176,8 +176,8 @@
       ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "1be4fd3",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
@@ -219,8 +219,8 @@
       ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "1be4fd3",
       "bumped": false,
       "pins": [
         "mos-app/src/shell/record-panel-host.test.tsx",
@@ -258,7 +258,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "3d5b147",
+      "lockedAt": "1be4fd3",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-430-post-a-signal.spec.ts"
@@ -298,16 +298,15 @@
       ],
       "generation": 2,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill (gen-1)",
-      "lockedAt": "3d550af",
-      "bumped": true,
+      "ratifiedBy": "Director",
+      "lockedAt": "1be4fd3",
+      "bumped": false,
       "pins": [
         "mos-app/src/components/records/guard-record-page-measure.css.test.tsx"
       ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#36-signal-record",
-      "due": true,
+      "due": false,
       "dueAxes": [
-        "GEN-2 BUMP IN FLIGHT — luna-floor record-tree refactor (per-kind Signal composition, anatomy Step 2.5); re-battery + re-lock owed before merge",
         "states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6)"
       ]
     },

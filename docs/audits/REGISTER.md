@@ -14,7 +14,7 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 
 **Generated:** 2026-07-23 · **backfill baseline:** `3d550af` · **surfaces:** 25 · **dimensions:** 2
 
-**Lifecycle tally:** LOCKED 15 · BUMPED 1 · DUE 9
+**Lifecycle tally:** LOCKED 16 · BUMPED 0 · DUE 9
 
 ## Global due axes (apply to EVERY surface)
 
@@ -26,11 +26,11 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 | Surface | Routes | Status | Gen | audited@ | locked@ | Pins | Persona-differs | Due axes |
 |---|---|---|---|---|---|---|---|---|
 | Home | `/` | LOCKED | 1 | `ab61009` | `3d550af` | 2 | member: rail shows only viewer-affiliated module (OD-REDESIGN-68); my-work list scoped to own tasks | persona:member (rail-module + my-work scoping never audited); states: hover/loading/error NOT-REVIEWED (census-r2 3.1) |
-| Tasks workspace | `/work/tasks`, `/work/tasks?view=*` | LOCKED | 1 | `ab61009` | `3d5b147` | 6 | — | states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2) |
-| Task record (drawer + full page) | `/work/tasks/:taskId` | LOCKED | 1 | `ab61009` | `3d550af` | 3 | member: read-only record — no edit affordances (census-r2 3.3 Kitchen persona) | anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned; states: loading/error NOT-REVIEWED (census-r2 3.3) |
-| Task create (new) | `/work/tasks/new` | LOCKED | 1 | `ab61009` | `3d550af` | 2 | — | states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4) |
-| Signals archive | `/work/signals` | LOCKED | 1 | `ab61009` | `3d5b147` | 1 | — | states: empty/error/hover NOT-REVIEWED (census-r2 3.5) |
-| Signal record (panel + full page) | `/work/signals/:signalId`, `?record=<id>` | BUMPED | 2 | `ab61009` | `3d550af` | 1 | — | GEN-2 BUMP IN FLIGHT — luna-floor record-tree refactor (per-kind Signal composition, anatomy Step 2.5); re-battery + re-lock owed before merge; states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6) |
+| Tasks workspace | `/work/tasks`, `/work/tasks?view=*` | LOCKED | 1 | `ab61009` | `1be4fd3` | 6 | — | states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2) |
+| Task record (drawer + full page) | `/work/tasks/:taskId` | LOCKED | 1 | `ab61009` | `1be4fd3` | 3 | member: read-only record — no edit affordances (census-r2 3.3 Kitchen persona) | anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned; states: loading/error NOT-REVIEWED (census-r2 3.3) |
+| Task create (new) | `/work/tasks/new` | LOCKED | 1 | `ab61009` | `1be4fd3` | 2 | — | states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4) |
+| Signals archive | `/work/signals` | LOCKED | 1 | `ab61009` | `1be4fd3` | 1 | — | states: empty/error/hover NOT-REVIEWED (census-r2 3.5) |
+| Signal record (panel + full page) | `/work/signals/:signalId`, `?record=<id>` | LOCKED | 2 | `ab61009` | `1be4fd3` | 1 | — | states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6) |
 | Inbox (deputy triage) | `/inbox` | LOCKED | 1 | `ab61009` | `3d5b147` | 2 | — | states: populated-triage/hover/loading/error NOT-REVIEWED — only EMPTY rendered (census-r2 DO-8, F-INBOX-2) |
 | Cafe opening home | `/cafe` | LOCKED | 1 | `3d99815` | `3d5b147` | 1 | member: capture-only (no review/pushes); ops_lead: sees resolve-queue + rollup | states: started-panel/team-picker/loading/error NOT-REVIEWED — >half the route (census-r2 DO-8) |
 | Kitchen sub-tabs (log/plan/stock/review/pushes) | `/cafe/log`, `/cafe/plan`, `/cafe/stock`, `/cafe/review`, `/cafe/pushes` | LOCKED | 1 | `542c48b` | `3d5b147` | 1 | member: log/plan/stock only — review + pushes gated (RequireAccessRole ops_lead/admin); ops_lead: all five tabs | persona:member vs ops_lead tab-gating render never audited; review/pushes states NOT-REVIEWED |
@@ -53,7 +53,6 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 
 ## DUE — surfaces owing their first (or a re-opened) generation battery
 
-- **Signal record (panel + full page)** [`signal-record`] — BUMPED: GEN-2 BUMP IN FLIGHT — luna-floor record-tree refactor (per-kind Signal composition, anatomy Step 2.5); re-battery + re-lock owed before merge; states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6)
 - **Follow-up record** [`follow-up-record`] — DUE: NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010).
 - **Events** [`events`] — DUE: NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery.
 - **Profile** [`profile`] — DUE: NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host.
