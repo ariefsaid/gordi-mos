@@ -721,3 +721,7 @@ costing tenant); Transfer path is. See `docs/reference/esb-goo-integration.md`.
   push (e.g. HTTP 502) offers no in-app recovery while `dead_letter` says "Escalate to platform".
   A row-level Retry needs the ESB worker's retry semantics — design it with the ESB worker
   workstream, not as a UI-only affordance.
+
+- **Money drill-through to contributing records (deferred 2026-07-23, journey JQ-5):** the dip
+  investigation dead-ends at the branch aggregate — J19 half-met. Needs read-model support for
+  record-level attribution; scope with the reporting schema, Phase-4 feature work.
