@@ -132,13 +132,16 @@ describe('SignalRecordHost — loading/error states', () => {
 })
 
 describe('SignalRecordHost — resolves names + mentions from the DAL', () => {
+  // P1-3: author/Team/BU/Site now render as the shared RecordViewer Facts rows (record-field
+  // chips), not SignalRecord's own `.signal-record-author` etc. classes — those moved out.
   it('renders author/Team/BU/Site names resolved client-side', async () => {
     renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    expect(screen.getByText('Dewi Director', { selector: '.signal-record-author' })).toBeInTheDocument()
-    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
-    expect(screen.getByText('Retail Ops')).toBeInTheDocument()
-    expect(screen.getByText('Gordi HQ')).toBeInTheDocument()
+    const facts = screen.getByRole('region', { name: 'Facts' })
+    expect(within(facts).getByText('Dewi Director')).toBeInTheDocument()
+    expect(within(facts).getByText('HQ Operations')).toBeInTheDocument()
+    expect(within(facts).getByText('Retail Ops')).toBeInTheDocument()
+    expect(within(facts).getByText('Gordi HQ')).toBeInTheDocument()
     expect(screen.getByText('@Peer Person')).toBeInTheDocument()
   })
 })

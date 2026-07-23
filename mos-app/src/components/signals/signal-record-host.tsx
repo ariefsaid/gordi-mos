@@ -174,33 +174,27 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
     load()
   }
 
-  // V3 Issue 5 tenant half: the Signal record renders THROUGH the shared RecordViewer. The full
-  // object-specific SignalRecord subtree (author/team/mentions/category picker/comments/follow-up/
-  // link/linked-work/retraction tombstone) is hosted as ONE typed Signal content slot via
-  // wrapSignalRecord, so the viewer supplies the record-viewer grammar while SignalRecord keeps
-  // ownership of the Signal's display — nothing is duplicated. The viewer identity header is
-  // suppressed because SignalRecord already presents the body/heading (no duplicate heading).
+  // P1-3 (anatomy parity, docs/reviews): identity/Facts/body/activity/the Acknowledge action now
+  // flow through the shared RecordViewer grammar (wrapSignalRecord) — the SAME chrome/section
+  // rhythm Task's record uses. SignalRecord keeps only its typed workflow subtree (mentions,
+  // shield line, category picker, revision disclosure, "who's acknowledged" roster, linked-work
+  // actions, comments), hosted as a second content slot — nothing is duplicated, only relocated.
+  const revisionViews = revisions.map((rev) => ({
+    id: rev.id, field: rev.field, old_value: rev.old_value, new_value: rev.new_value,
+    created_at: rev.created_at, actorName: personName(people, rev.actor_id, t('signals.card.unknownAuthor')),
+  }))
+  const hasAcknowledged = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
   const hostContent = (
     <>
       <SignalRecord
         mode={mode}
-        showBody={false}
         signal={signal}
-        authorName={personName(people, signal.author_id, t('signals.card.unknownAuthor'))}
-        teamName={teamName}
-        businessUnitName={businessUnitName}
-        siteName={siteName}
         mentions={mentionViews}
         shieldLine={shieldLine}
-        revisions={revisions.map((rev) => ({
-          id: rev.id, field: rev.field, old_value: rev.old_value, new_value: rev.new_value,
-          created_at: rev.created_at, actorName: personName(people, rev.actor_id, t('signals.card.unknownAuthor')),
-        }))}
+        revisions={revisionViews}
         acknowledgements={acknowledgements.map((ack) => ({
           personId: ack.person_id, personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
         }))}
-        hasAcknowledged={!!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)}
-        onAcknowledge={() => { void handleAcknowledge() }}
         onCategorize={(category) => { void handleCategorize(category) }}
         comments={comments}
         people={people}
@@ -259,7 +253,24 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
   return (
     <div className="signal-record-host">
       <RecordViewer
-        adapter={wrapSignalRecord(detail, hostContent)}
+        adapter={wrapSignalRecord({
+          detail,
+          authorName: personName(people, signal.author_id, t('signals.card.unknownAuthor')),
+          teamName,
+          businessUnitName,
+          siteName,
+          revisions: revisionViews,
+          acknowledgements: acknowledgements.map((ack) => ({
+            personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
+            occurredAt: ack.created_at,
+          })),
+          hasAcknowledged,
+          // Matches the prior behavior exactly (no viewerId gate existed on Acknowledge before —
+          // only the comment/link/follow-up affordances were viewerId-gated); not a new policy.
+          canAcknowledge: true,
+          onAcknowledge: () => handleAcknowledge(),
+          hostContent,
+        })}
         mode={mode}
       />
     </div>

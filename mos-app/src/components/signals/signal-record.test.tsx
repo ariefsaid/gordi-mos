@@ -21,20 +21,21 @@ function baseSignal(overrides: Partial<SignalRow> = {}): SignalRow {
 const PEOPLE: PersonOption[] = [{ id: 'person-cahya', full_name: 'Cahya Cafe' }]
 const COMMENTS: TaskComment[] = [{ id: 'c1', author_id: 'person-cahya', body: 'Dispatching a tech now.', created_at: '2026-07-16T03:00:00Z' }]
 
+// P1-3 (anatomy parity, docs/reviews): identity (author/team/site/occurred/attention) and body
+// prose moved OUT of SignalRecord to the shared RecordViewer identity + Facts metadata + body
+// content slot (signal-record-adapter.tsx wrapSignalRecord) — see signal-record-adapter.test.tsx
+// for that coverage. This file now covers only SignalRecord's remaining typed workflow: mentions,
+// shield line, category correction, revision disclosure, the acknowledger roster, linked work,
+// and comments — none of the 24 prior goal behaviors are lost, several moved one file over.
 function renderRecord(props: Partial<React.ComponentProps<typeof SignalRecord>> = {}) {
   return render(
     <I18nProvider>
       <SignalRecord
         mode="panel"
         signal={baseSignal()}
-        authorName="Cahya Cafe"
-        teamName="HQ Operations"
-        businessUnitName="Retail Ops"
-        siteName="Gordi HQ"
         mentions={[]}
         revisions={[]}
         acknowledgements={[]}
-        hasAcknowledged={false}
         comments={COMMENTS}
         people={PEOPLE}
         canComment
@@ -46,22 +47,22 @@ function renderRecord(props: Partial<React.ComponentProps<typeof SignalRecord>> 
 }
 
 describe('SignalRecord — core content', () => {
-  it('renders body/author/Team/derived BU+Site/occurred-at/attention', () => {
+  it('no longer renders the identity head (author/team/occurred/attention) — that moved to the shared RecordViewer Facts section', () => {
     renderRecord()
-    expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument()
-    expect(screen.getByText('Cahya Cafe', { selector: '.signal-record-author' })).toBeInTheDocument()
-    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
-    expect(screen.getByText('Retail Ops')).toBeInTheDocument()
-    expect(screen.getByText('Gordi HQ')).toBeInTheDocument()
-    expect(screen.getByText('Needs attention')).toBeInTheDocument()
+    // The body prose also moved out (to the shared body content slot); SignalRecord itself
+    // renders none of these now.
+    expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
+    expect(document.querySelector('.signal-record-head')).toBeNull()
+    expect(document.querySelector('.signal-record-author')).toBeNull()
+    expect(document.querySelector('.signal-record-body')).toBeNull()
   })
 
   it('renders "Add category" when uncategorised, and the category once set', () => {
     const { rerender } = render(
       <I18nProvider>
         <SignalRecord
-          mode="panel" signal={baseSignal()} authorName="Cahya Cafe" teamName="HQ Operations"
-          mentions={[]} revisions={[]} acknowledgements={[]} hasAcknowledged={false}
+          mode="panel" signal={baseSignal()}
+          mentions={[]} revisions={[]} acknowledgements={[]}
           comments={[]} people={PEOPLE} canComment onPostComment={vi.fn()}
         />
       </I18nProvider>,
@@ -71,8 +72,8 @@ describe('SignalRecord — core content', () => {
     rerender(
       <I18nProvider>
         <SignalRecord
-          mode="panel" signal={baseSignal({ category: 'Equipment/facility' })} authorName="Cahya Cafe" teamName="HQ Operations"
-          mentions={[]} revisions={[]} acknowledgements={[]} hasAcknowledged={false}
+          mode="panel" signal={baseSignal({ category: 'Equipment/facility' })}
+          mentions={[]} revisions={[]} acknowledgements={[]}
           comments={[]} people={PEOPLE} canComment onPostComment={vi.fn()}
         />
       </I18nProvider>,
@@ -113,37 +114,30 @@ describe('SignalRecord — Edited indicator + revision history (FR-410)', () => 
     expect(screen.getByText(/edited/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /edited/i }))
     expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument() // old_value shown
-    expect(screen.getAllByText('Corrected body').length).toBeGreaterThan(0) // new_value + current body
+    expect(screen.getByText('Corrected body')).toBeInTheDocument() // new_value (body itself no longer renders here)
   })
 })
 
 describe('SignalRecord — retraction tombstone (FR-411)', () => {
-  it('renders only the tombstone + reason when retracted, no body/actions/comments', () => {
+  it('renders only the tombstone + reason when retracted, no actions/comments', () => {
     renderRecord({ signal: baseSignal({ retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate report' }) })
     expect(screen.getByText(/retracted/i)).toBeInTheDocument()
     expect(screen.getByText('Duplicate report')).toBeInTheDocument()
-    expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: /comments/i })).not.toBeInTheDocument()
   })
 })
 
-describe('SignalRecord — Acknowledge (FR-412)', () => {
-  it('shows an Acknowledge control and calls onAcknowledge, and lists acknowledgers', async () => {
-    const onAcknowledge = vi.fn()
-    renderRecord({
-      onAcknowledge,
-      acknowledgements: [{ personId: 'person-cahya', personName: 'Cahya Cafe' }],
-    })
+describe('SignalRecord — acknowledger roster (FR-412; the Acknowledge ACTION itself now lives in the shared RecordViewer actions footer — see signal-record-adapter.test.tsx)', () => {
+  it('lists acknowledgers when present', () => {
+    renderRecord({ acknowledgements: [{ personId: 'person-cahya', personName: 'Cahya Cafe' }] })
     expect(screen.getByText('Cahya Cafe', { selector: '.signal-ack-name' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /^acknowledge$/i }))
-    expect(onAcknowledge).toHaveBeenCalledTimes(1)
   })
 
-  it('shows "Acknowledged" (disabled) once the viewer has already acknowledged', () => {
-    renderRecord({ hasAcknowledged: true })
-    const button = screen.getByRole('button', { name: /acknowledged/i })
-    expect(button).toBeDisabled()
+  it('renders no acknowledge roster/button at all when nobody has acknowledged yet', () => {
+    renderRecord({ acknowledgements: [] })
+    expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument()
+    expect(document.querySelector('.signal-record-ack')).toBeNull()
   })
 })
 

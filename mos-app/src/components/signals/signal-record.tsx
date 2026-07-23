@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { CommentThread, type TaskComment } from '@/components/tasks/CommentThread'
-import { formatWibDateTime } from '@/lib/wib-time'
 import type { PersonOption } from '@/lib/db/directory'
-import { attentionSlug, type MentionKind, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import type { MentionKind, SignalCategory, SignalRow } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
 import './signal-card.css'
 import './signal-record.css'
@@ -15,6 +14,15 @@ import './signal-record.css'
 // action arrive as props — the caller (a future drawer/page host) owns fetch/mutate wiring
 // (mirrors TaskSurface/RecordFeed's split, kept thin here since there is no Signal-specific tab
 // strip). The Signal never gains Status/PIC/Supervisor/due date/resolution (OD-39/D25).
+//
+// P1-3 (anatomy parity, docs/reviews): identity (author/team/site/occurred/attention) and the
+// full body prose moved OUT to the shared RecordViewer identity + Facts metadata + body content
+// slot (signal-record-adapter.tsx wrapSignalRecord) — the SAME grammar Task's record uses. This
+// component now renders only the typed Signal WORKFLOW that grammar has no generic slot for:
+// mentions, the shield line, category correction (the shared 8-family picker, unchanged — Rule
+// 11, the same widget feed rows/cards use), the revision-history disclosure, the "who's
+// acknowledged" roster (the Acknowledge ACTION itself now lives in RecordViewer's shared actions
+// footer, matching Task's Mark-complete/Archive placement), linked-work actions, and comments.
 
 export interface SignalRevisionView {
   id: string
@@ -42,19 +50,11 @@ export interface LinkedTasksSummary {
 
 export interface SignalRecordProps {
   mode: 'panel' | 'page'
-  /** The shared RecordViewer owns the Signal identity/title when true. */
-  showBody?: boolean
   signal: SignalRow
-  authorName: string
-  teamName: string
-  businessUnitName?: string | null
-  siteName?: string | null
   mentions: SignalMentionView[]
   shieldLine?: string
   revisions: SignalRevisionView[]
   acknowledgements: SignalAcknowledgementView[]
-  hasAcknowledged: boolean
-  onAcknowledge?: () => void
   onCategorize?: (category: SignalCategory) => void
   comments: TaskComment[]
   people: PersonOption[]
@@ -66,8 +66,8 @@ export interface SignalRecordProps {
 }
 
 export function SignalRecord({
-  mode, signal, showBody = true, authorName, teamName, businessUnitName, siteName,
-  mentions, shieldLine, revisions, acknowledgements, hasAcknowledged, onAcknowledge, onCategorize,
+  mode, signal,
+  mentions, shieldLine, revisions, acknowledgements, onCategorize,
   comments, people, canComment, onPostComment,
   linkedTasksSummary, onCreateFollowUpTask, onLinkExistingTask,
 }: SignalRecordProps) {
@@ -86,19 +86,6 @@ export function SignalRecord({
 
   return (
     <article className="signal-record" data-mode={mode} data-signal-id={signal.id} aria-label={t('signals.record.title')}>
-      <header className="signal-record-head">
-        <span className="signal-record-author">{authorName}</span>
-        <span className="signal-record-team">{teamName}</span>
-        {businessUnitName && <span className="signal-record-bu">{businessUnitName}</span>}
-        {siteName && <span className="signal-record-site">{siteName}</span>}
-        <span className="signal-record-occurred">{formatWibDateTime(signal.occurred_at)}</span>
-        <span className={`signal-attention signal-attention--${attentionSlug(signal.attention)}`}>
-          {signal.attention}
-        </span>
-      </header>
-
-      {showBody && <p className="signal-record-body">{signal.body}</p>}
-
       {mentions.length > 0 && (
         <ul className="signal-record-mentions" aria-label={t('signals.record.mentionsLabel')}>
           {mentions.map((m, i) => (
@@ -133,22 +120,19 @@ export function SignalRecord({
         </div>
       )}
 
-      <section className="signal-record-ack" aria-label={t('signals.record.acknowledgeLabel')}>
-        <Button
-          variant={hasAcknowledged ? 'ghost' : 'outline'}
-          disabled={hasAcknowledged || !onAcknowledge}
-          onClick={onAcknowledge}
-        >
-          {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.record.acknowledge')}
-        </Button>
-        {acknowledgements.length > 0 && (
+      {/* P1-3: the Acknowledge ACTION moved to RecordViewer's shared actions footer (matching
+          Task's Mark-complete/Archive placement) — this stays the "who's acknowledged" roster
+          only, a live list rather than a one-shot action, so it renders just like Mentions above
+          (nothing when nobody has acknowledged yet). */}
+      {acknowledgements.length > 0 && (
+        <section className="signal-record-ack" aria-label={t('signals.record.acknowledgeLabel')}>
           <ul className="signal-ack-list">
             {acknowledgements.map((ack) => (
               <li key={ack.personId} className="signal-ack-name">{ack.personName}</li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="signal-record-linked-work" aria-label={t('signals.record.linkedWorkLabel')}>
         <h2>{t('signals.record.linkedWorkLabel')}</h2>
