@@ -21,6 +21,19 @@
 /* Error/cap state: destructive hairline (non-text affordance may stay --destructive). */
 .kls-card.kls-invalid { border-color: var(--destructive); }
 
+/* cafe-3: dense (desktop DataTable "Made today" cell) — the table row surface already
+   provides containment, so the bordered/padded/full-width card box here creates
+   card-soup + a dead void when the column is wider than the control cluster. Drop the
+   box and size to content; the phone card floor (dense=false) is unchanged. */
+.kls-card.kls-dense {
+  width: max-content;
+  max-width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.kls-card.kls-dense.kls-invalid { border: none; }
+
 .kls-row {
   display: flex;
   align-items: center;

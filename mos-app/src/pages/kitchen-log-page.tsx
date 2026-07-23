@@ -412,6 +412,9 @@ export function KitchenLogPage() {
       header: 'Made today',
       // The reused WipItemStepper (SAME props/handlers as the prior phone card):
       // name + stepper + plan/stok/tersedia meta + cap cue + variance-note gate.
+      // cafe-3: dense on the desktop table row (drops the bordered/full-width card
+      // box that otherwise creates card-soup + a dead void in the column); the phone
+      // card floor keeps the full card look (dense omitted there via isDesktop).
       render: item => (
         <WipItemStepper
           itemName={item.name}
@@ -421,6 +424,7 @@ export function KitchenLogPage() {
           onNotesChange={note => handleNotesChange(item.id, note)}
           disabled={isSubmitting}
           hideName
+          dense={isDesktop}
         />
       ),
     },

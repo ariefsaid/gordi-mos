@@ -20,6 +20,11 @@ interface WipItemStepperProps {
   /** hide the visual name label when the host already shows it (e.g. the shared
    *  DataTable Dish column). itemName is still used for the −/+/input aria-labels. */
   hideName?: boolean
+  /** cafe-3: drop the bordered/full-width `.kls-card` box when the host is a dense
+   *  desktop table cell (the row surface already provides containment there) —
+   *  content sizes to the control cluster instead of stretching the whole column.
+   *  The phone card floor keeps the bordered card look (dense=false/omitted). */
+  dense?: boolean
 }
 
 export function WipItemStepper({
@@ -30,6 +35,7 @@ export function WipItemStepper({
   onNotesChange,
   disabled = false,
   hideName = false,
+  dense = false,
 }: WipItemStepperProps) {
   const t = useT()
   const { qty_porsi, notes, plan_qty, stok, tersedia, error, capError, dirty } = line
@@ -49,7 +55,7 @@ export function WipItemStepper({
   }
 
   return (
-    <div className={`kls-card${invalid ? ' kls-invalid' : ''}`}>
+    <div className={`kls-card${dense ? ' kls-dense' : ''}${invalid ? ' kls-invalid' : ''}`}>
       {/* Row: name + stepper */}
       <div className="kls-row">
         {!hideName && <span className="kls-name">{itemName}</span>}

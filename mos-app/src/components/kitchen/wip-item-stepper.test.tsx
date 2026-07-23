@@ -23,6 +23,7 @@ function renderStepper(
     onQtyChange?: () => void
     onNotesChange?: () => void
     itemName?: string
+    dense?: boolean
   } = {},
 ) {
   return render(
@@ -32,6 +33,7 @@ function renderStepper(
       actionType={over.actionType ?? 'Production'}
       onQtyChange={over.onQtyChange ?? vi.fn()}
       onNotesChange={over.onNotesChange ?? vi.fn()}
+      dense={over.dense}
     />,
   )
 }
@@ -123,5 +125,19 @@ describe('WipItemStepper — AC-020/021/022', () => {
     renderStepper({ onQtyChange })
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity/i }), { target: { value: '15' } })
     expect(onQtyChange).toHaveBeenCalledWith(15)
+  })
+
+  // cafe-3: dense (desktop DataTable cell) drops the bordered/full-width card box;
+  // the default (phone card) keeps it.
+  it('cafe-3: dense=true drops the .kls-card bordered-box class, keeps content', () => {
+    renderStepper({ dense: true, itemName: 'Ayam Bakar' })
+    const card = screen.getByRole('spinbutton', { name: /quantity/i }).closest('.kls-card')
+    expect(card).toHaveClass('kls-dense')
+  })
+
+  it('cafe-3: dense omitted (phone card floor) keeps the bordered card box', () => {
+    renderStepper({ itemName: 'Ayam Bakar' })
+    const card = screen.getByRole('spinbutton', { name: /quantity/i }).closest('.kls-card')
+    expect(card).not.toHaveClass('kls-dense')
   })
 })
