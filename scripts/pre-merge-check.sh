@@ -169,6 +169,26 @@ check_review "code-quality"  "code-quality" "$REQUIRE_CODE_QUALITY"
 check_review "design"        "design"       "$REQUIRE_DESIGN"
 check_review "security"      "security"     "$REQUIRE_SECURITY"
 
+# ── 5b. Mechanical design guards (owner directive 2026-07-23: the design floor is machine-checked;
+# a UI diff cannot merge on ledger prose alone). Runs the guard battery whenever design review is
+# required (any *.tsx/*.css change). Structural suites only — fast, no server needed; the Playwright
+# geometry spec runs in the design review itself.
+if $REQUIRE_DESIGN; then
+  echo "Running mechanical design guards (vitest guard battery)…"
+  if ( cd "$(git rev-parse --show-toplevel)/mos-app" && \
+       npx vitest run --silent --maxWorkers=2 \
+         src/components/guard-css-token-vocab.test.ts \
+         src/components/ui/kit-vocab.test.ts \
+         src/components/ui/tap-targets.css.test.ts \
+         $(find src -name "guard-*.test.*" -o -name "guard-*.css.test.*" | tr '\n' ' ') \
+         >/dev/null 2>&1 ); then
+    SUMMARY_LINES+=("  mechanical-guards: PASS [ok]")
+  else
+    FAILURES+=("  mechanical design guard battery FAILED — run: cd mos-app && npx vitest run 'src/**/guard-*' src/components/ui/kit-vocab.test.ts src/components/ui/tap-targets.css.test.ts")
+    SUMMARY_LINES+=("  mechanical-guards: FAIL")
+  fi
+fi
+
 # ── 6. Report ────────────────────────────────────────────────────────────────
 echo ""
 echo "pre-merge-check: branch '${BRANCH}'"
