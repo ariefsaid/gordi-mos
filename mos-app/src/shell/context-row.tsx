@@ -67,11 +67,25 @@ export function ContextRow() {
       className="ctx-row flex items-center gap-3 px-4"
       style={{ height: headOwnsContext ? 0 : 'var(--ctx-row-h, 40px)', flex: 'none', overflow: 'hidden' }}
     >
+      {/* money-1: the scope crumb is a flex-none block with a maxWidth ceiling — its shrink
+          factor is 0 so it never gives up width to the job sentence (was: a bare flex child
+          whose overflow:hidden implicitly zeroed its flex-basis min, so both children shrank
+          proportionally and "Admin" collapsed to "Ad…" on phone width). The maxWidth ceiling
+          is only a safety net for an unusually long real-role scope (F3/P1) — ordinary scope
+          values ("Café", "Admin") always render in full. */}
       {!headOwnsContext && scope && (
-        <span className="ctx-scope truncate text-muted-foreground" style={{ fontSize: 13 }}>{scope}</span>
+        <span
+          className="ctx-scope truncate text-muted-foreground"
+          style={{ fontSize: 13, flex: 'none', maxWidth: '60%' }}
+        >
+          {scope}
+        </span>
       )}
       {!headOwnsContext && (
-        <b className="ctx-job truncate text-foreground" style={{ fontSize: 13, fontWeight: 500 }}>
+        <b
+          className="ctx-job truncate text-foreground"
+          style={{ fontSize: 13, fontWeight: 500, flex: '1 1 auto', minWidth: 0 }}
+        >
           {t(jobKey)}
         </b>
       )}

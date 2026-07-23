@@ -142,6 +142,14 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(screen.queryByText('Admin', { exact: true })).not.toBeInTheDocument()
   })
 
+  it('money-1: the scope crumb never shrinks below its content — flex:none with a maxWidth ceiling, so it cannot collapse to an illegible fragment on phone width', () => {
+    renderCtx('/admin/roles')
+    const scope = screen.getByText('Café')
+    expect(scope).toHaveStyle({ flex: 'none' })
+    const job = screen.getByText('What needs my attention right now?')
+    expect(job).toHaveStyle({ flex: '1 1 auto', minWidth: '0' })
+  })
+
   it('F3/P1: a viewer whose role matches no BU-family keyword shows their real role name, not a generic "Team" placeholder', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
