@@ -18,10 +18,13 @@ import {
  * button — the host owns all of those. This surface owns only the filter chrome, the
  * loading/empty/error/ready states, and honest per-row open/mark-handled affordances.
  *
- * Filter/query/sort state is delegated to the landed Issue 6 RecordCollection seam; this component
- * is presentational (controlled `filter` + `onFilterChange`) and holds no local filter store. The
- * Handled filter is omitted (not a dead tab) until `handledFilterAvailable` — see
- * read-handled-semantics.ts for the owner-gated provisional semantics.
+ * This component is presentational (controlled `filter` + `onFilterChange`) and holds no local
+ * filter store — but the filter state it is handed is NOT on the Issue 6 RecordCollection seam:
+ * InboxTriageConnected keeps it in plain `useState`, so it does not URL-sync or survive refresh.
+ * Migrating Inbox onto the engine's synced query is D-E1 / fix work-order item 7
+ * (docs/plans/2026-07-23-interaction-consistency.md). The Handled filter is omitted (not a dead
+ * tab) until `handledFilterAvailable` — see read-handled-semantics.ts for the owner-gated
+ * provisional semantics.
  */
 
 export type InboxTriageState = 'loading' | 'ready' | 'empty' | 'error'
