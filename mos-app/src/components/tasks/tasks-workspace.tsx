@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -134,6 +135,10 @@ export function TasksWorkspace({
   const host = useOverlayHost()
   const auth = useAuth()
   const isDesktop = useIsDesktop()
+  // DO-17 (census-sweep R2 tasks FINDING2): the global Action Launcher FAB exists whenever the
+  // rail is collapsed (<920, useIsNarrow) — so the header create door hides on isNarrow, not
+  // !isDesktop (<768), or the 768–919 band shows BOTH doors.
+  const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
   // Block 2(b) (Luna 390 audit): on phone, collapse the View & filters config behind ONE
@@ -354,7 +359,9 @@ export function TasksWorkspace({
   // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
   // the single create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
-  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups' && isDesktop
+  // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
+  // 768–919 band must never show both doors.
+  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')

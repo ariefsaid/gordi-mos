@@ -92,12 +92,13 @@ const PEOPLE = [
   { id: 'other-id', full_name: 'Budi Setiawan' },
 ]
 
-function stubMatchMedia(split = true, desktop = true) {
+function stubMatchMedia(split = true, desktop = true, narrow = !desktop) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => {
       let matches = false
       if (query.includes('1100')) matches = split
+      else if (query.includes('919')) matches = narrow // useIsNarrow — rail collapsed / FAB present
       else if (query.includes('768')) matches = desktop
       return {
         matches, media: query, onchange: null,
@@ -281,6 +282,17 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     // Phone: no in-page header create button — the single phone create door is the global FAB
     // (rendered by the app shell, not this component).
     stubMatchMedia(false, false)
+    renderTable()
+    await waitFor(() => screen.getByText('Only work item'))
+    expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
+  })
+
+  // DO-17 (census-sweep R2 tasks FINDING2): the shell's Action Launcher FAB exists whenever the
+  // rail is collapsed (isNarrow, <920) — so in the 768–919 band (desktop by useIsDesktop, but
+  // narrow by useIsNarrow) the header door must hide too, or BOTH create doors co-exist.
+  it('DO-17: the 768–919 band hides the header create door (FAB owns it while the rail is collapsed)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
+    stubMatchMedia(false, true, true) // not split, ≥768, but rail collapsed (<920)
     renderTable()
     await waitFor(() => screen.getByText('Only work item'))
     expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
