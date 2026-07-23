@@ -28,8 +28,10 @@
 
 **A1 · Deputy panel bubble chrome** (interrogation #10). The proposal drops the two-tone chat-bubble
 chrome for assistant replies. Flagship-surface identity change → per your rules this is a **mockup
-pick, not a prose yes/no**. → I'll push 2 variant cards (current bubbles vs calm document style) to
-review; pick there. *(Cards owed — slot.)*
+pick, not a prose yes/no**. **Cards DELIVERED** — the side-by-side comparison (A current bubbles vs
+B calm document, same conversation, app tokens verbatim) was rendered to the owner's side panel
+(`scratchpad/deputy-bubble-pick.html`). **Answer: A or B.** Recommend: **B** — matches the record
+grammar; the labeled-turn structure keeps speaker clarity without the tinted-bubble chrome.
 
 > **VERIFY: CONFIRMED-OPEN.** No owner statement on bubble-vs-document Deputy chrome in any raw thread
 > (0 owner hits). Code: Deputy replies render through `AssistantPanel`/`OverlayCompanionSlot`
@@ -247,4 +249,4 @@ risks density regressions across the record grammar.
   > user-reachable (appearance control + theme-provider, follows system; provenance 03:1139-1229,1820 —
   > "the whole app was repainted… in both light and dark mode"). Whatever the Step-2 backfill flag asks,
   > it is not "does dark mode exist" — it exists. Scope the flag before re-asking.
-- Deputy-bubble mockup cards (A1).
+- ~~Deputy-bubble mockup cards~~ — DELIVERED (A1 above). **The sheet is COMPLETE — every slot closed.**
