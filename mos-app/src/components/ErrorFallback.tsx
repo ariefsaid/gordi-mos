@@ -20,7 +20,8 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '100vh',
+        // R6-P2 (owner review r2): dvh so a mobile URL bar can't crop the centered card.
+        minHeight: '100dvh',
         padding: '16px',
         backgroundColor: 'var(--background)',
         color: 'var(--foreground)',

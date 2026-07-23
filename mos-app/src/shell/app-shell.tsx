@@ -70,8 +70,13 @@ function ShellContent() {
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
     // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
     <BreadcrumbTitleProvider>
+      {/* R6-P2 (owner review r2): dvh, not vh, so the mobile browser's collapsing URL bar can't
+          crop the bottom tab bar / content. h-dvh (dynamic HEIGHT), NOT min-h-dvh: the shell is a
+          fixed-height grid whose content row (minmax(0,1fr)) scrolls INTERNALLY — min-height would
+          unbind that row and let the whole shell grow (the "grows" case), breaking the internal
+          scroll. h-dvh keeps the exact grid behaviour, only swapping vh → dvh. */}
       <div
-        className="h-screen bg-secondary/35"
+        className="h-dvh bg-secondary/35"
         style={{
           display: 'grid',
           width: '100%',

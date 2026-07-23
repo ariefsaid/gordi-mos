@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Outlet, useParams, useMatch, useLocation, useNavigationType } from 'react-router-dom'
+import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
@@ -22,7 +22,6 @@ import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
  * grid can collapse to full width when the surface is expanded).
  */
 export function TasksLayout() {
-  useDocumentTitle('Tasks — Gordi MOS')
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
@@ -31,6 +30,13 @@ export function TasksLayout() {
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal
   // overlay over a full-width (un-squashed) table, so the table must NOT condense.
   const isSplit = useIsSplitWidth()
+
+  // R6 (owner review r2): whether this render is the standalone full canonical page. Computed BEFORE
+  // useDocumentTitle so the split shell can DEFER the title (pass null) to TaskRecordPage, which owns
+  // the record name. Child effects run before parent effects, so without this the parent's generic
+  // "Tasks — Gordi MOS" would clobber the child's record title on every mount.
+  const pageMode = isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && Boolean(taskId)
+  useDocumentTitle(pageMode ? null : 'Tasks — Gordi MOS')
 
   // Optimistic status overrides fed by the open drawer (AC-103) so the table row
   // reflects an inline status change without a full reload.
@@ -59,7 +65,7 @@ export function TasksLayout() {
   // no PerformanceNavigationTiming, so direct-render unit tests stay in panel mode;
   // the e2e proves the real-browser direct-open branch). All hooks run above so this
   // branch is a plain conditional return, not a conditional hook.
-  if (isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && taskId) {
+  if (pageMode && taskId) {
     return <TaskRecordPage taskId={taskId} />
   }
 
@@ -91,10 +97,23 @@ export function TasksLayout() {
  */
 function TaskRecordPage({ taskId }: { taskId: string }) {
   const t = useT()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [title, setTitle] = useState<string | null>(null)
   // Empty string before the title resolves keeps the crumb at "Work · Tasks";
   // once resolved it pushes the task title; on unmount the hook clears it.
   useSetBreadcrumbTitle(title ?? '')
+  // R6-P2 (owner review r2): reflect the open record in document.title (the browser tab / history).
+  // TasksLayout deferred the generic title (passed null) precisely so this record name wins.
+  useDocumentTitle(title ? `${title} · ${t('tasks.title')} — Gordi MOS` : `${t('tasks.label.task')} — Gordi MOS`)
+  // R6(a) (owner verbatim: "blow up to full page, there should be resize back to drawer. currently
+  // just back to table"): the inverse of "Open full page". Re-opens the SAME task in the split drawer
+  // over the table by navigating to the same URL with the panel page-state (isTaskPageMode → false),
+  // preserving the collection's query string. A PUSH, so browser Back from the drawer still works.
+  const collapseToSplit = () => navigate(
+    { pathname: `/work/tasks/${taskId}`, search: location.search },
+    { state: { taskSurface: 'panel' } },
+  )
   // V3 focused-record family, P1-2 (Luna: record identity behind a generic "Task" page head +
   // utility strip at y≈234, vs E7's compact chrome at y≈124). The RecordViewer's own identity
   // header (overline + resolved title) IS the page heading now — PageFamilyFrame's generic
@@ -117,6 +136,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         width="full"
         presentation="page"
         onTitleResolved={setTitle}
+        onCollapseToSplit={collapseToSplit}
         identityHeadingLevel={1}
       />
     </PageFamilyFrame>

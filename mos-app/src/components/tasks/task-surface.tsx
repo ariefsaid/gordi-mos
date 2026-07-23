@@ -65,6 +65,12 @@ export type TaskSurfaceProps = {
   /** Canonical promotion callback supplied by the shared overlay host. */
   onOpenPage?: () => void
   onExpandToggle?: () => void    // wired in PR-B
+  /**
+   * R6(a) (owner review r2): the inverse of "Open full page" on the STANDALONE full canonical page —
+   * re-open this same record in the split drawer over the table. Supplied only by TaskRecordPage;
+   * when present, the full-width chrome renders a "back to split" control (a dead-end page otherwise).
+   */
+  onCollapseToSplit?: () => void
   expanded?: boolean
   /** Suppress the task-local utility bar when RecordPanelHost owns the chrome. */
   showPanelUtility?: boolean
@@ -110,7 +116,7 @@ export function TaskSurface(props: TaskSurfaceProps) {
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
   taskId, width, presentation = width === 'drawer' ? 'panel' : 'page', expanded,
-  onClose, onOpenPage, onExpandToggle, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
+  onClose, onOpenPage, onExpandToggle, onCollapseToSplit, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
   showPanelUtility = true,
   identityHeadingLevel,
   fieldCommitsFrozen,
@@ -642,6 +648,23 @@ function ViewSurface({
           )}
           <span className="dw-bar-spacer" />
           <AskDeputyAction draft={t('assistant.askAbout.task', { title: task.title })} />
+          {/* R6(a): the inverse of "Open full page" — collapse this standalone page back to the
+              split drawer over the table (the "resize back to drawer" the owner asked for), so the
+              full page is never a dead end whose only exit is back to the bare table. Uses the same
+              collapse ("shrink") glyph as the drawer's expanded-state toggle. */}
+          {onCollapseToSplit && (
+            <button
+              type="button"
+              className="dw-iconbtn"
+              aria-label={t('tasks.backToSplit')}
+              title={t('tasks.backToSplit')}
+              onClick={() => onCollapseToSplit()}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+              </svg>
+            </button>
+          )}
           {onExpandToggle && (
             <button
               type="button"
