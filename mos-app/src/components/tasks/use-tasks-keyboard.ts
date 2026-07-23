@@ -7,8 +7,17 @@ export type UseTasksKeyboardArgs = {
   enabled: boolean
   /** Open the row at this index (Enter / o). */
   onOpen: (index: number) => void
-  /** Close the drawer (Esc) — fires even while a field has focus. */
+  /**
+   * Close the drawer (Esc). NOT fired while an overlay session is active (the overlay host owns
+   * the guarded Escape path — D-B3/D-F1) nor while a field has focus (the field owns its own
+   * Escape — I5 field isolation).
+   */
   onClose: () => void
+  /**
+   * True while a shared overlay-host session is live. Gates the window Escape off so the host's
+   * guarded close is the ONE Escape path — never a race between host.close and onCloseDrawer.
+   */
+  overlayActive?: boolean
   /** Open the create drawer (n). */
   onNew: () => void
   /** Toggle expand ⇄ split (e). */
@@ -37,15 +46,20 @@ function isTypingTarget(): boolean {
  *
  * Coexists with native Tab order — these never replace Tab. All single-letter
  * hotkeys are SUPPRESSED while a text input/textarea/select (or contentEditable)
- * has focus, so typing "n" in a field never opens a new task; Esc always works.
+ * has focus, so typing "n" in a field never opens a new task.
+ *
+ * Escape single-path (D-B3/D-F1, RULED I2): the window Escape stands down while
+ * an overlay session is active (the panel host owns the guarded close) and while
+ * a field has focus (the field owns its own Escape — I5 isolation). It fires only
+ * when the table region itself would otherwise swallow the key.
  */
 export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardResult {
-  const { rowCount, enabled, onOpen, onClose, onNew, onExpand } = args
+  const { rowCount, enabled, onOpen, onClose, onNew, onExpand, overlayActive = false } = args
   const [cursor, setCursorState] = useState(-1)
 
   // Keep the latest callbacks/values in a ref so the window listener is stable.
-  const ref = useRef({ rowCount, onOpen, onClose, onNew, onExpand, cursor })
-  ref.current = { rowCount, onOpen, onClose, onNew, onExpand, cursor }
+  const ref = useRef({ rowCount, onOpen, onClose, onNew, onExpand, cursor, overlayActive })
+  ref.current = { rowCount, onOpen, onClose, onNew, onExpand, cursor, overlayActive }
 
   const setCursor = useCallback((index: number) => setCursorState(index), [])
 
@@ -57,10 +71,16 @@ export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardRe
   useEffect(() => {
     if (!enabled) return
     function handler(e: KeyboardEvent) {
-      const { rowCount: rc, onOpen: open, onClose: close, onNew: nw, onExpand: exp, cursor: cur } = ref.current
+      const { rowCount: rc, onOpen: open, onClose: close, onNew: nw, onExpand: exp, cursor: cur, overlayActive: overlay } = ref.current
 
-      // Esc always works (even from a field) — releases the drawer.
-      if (e.key === 'Escape') { close(); return }
+      // Escape single-path (D-B3): while an overlay session is live the HOST owns the guarded
+      // Escape; while a field has focus the FIELD owns its Escape (I5). The window layer only
+      // closes the drawer when neither deeper owner is in play.
+      if (e.key === 'Escape') {
+        if (overlay || isTypingTarget()) return
+        close()
+        return
+      }
 
       // Single-letter hotkeys are suppressed while typing.
       if (isTypingTarget()) return

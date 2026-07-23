@@ -16,6 +16,7 @@ import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 import { useT } from '@/i18n/use-t'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useTasksKeyboard } from './use-tasks-keyboard'
 import { TasksTableBody } from './tasks-table-body'
 import type { FlatRow } from './tasks-table-body'
@@ -370,9 +371,15 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     const record = projection.visibleRecords.find((candidate) => candidate.id === taskId)
     if (record) props.onOpenRecord(record)
   }, [projection.visibleRecords, props, providedRuntime])
+  // Escape single-path (D-B3/D-F1): while ANY overlay-host session is live, the host owns the
+  // guarded Escape (runtime.onCloseDrawer routes through host.close only as a fallback) — the
+  // window keyboard layer stands down so a dirty-field guard is never raced by an unguarded close.
+  const overlayHost = useOptionalOverlayHost()
+  const overlayActive = (overlayHost?.session?.frames.length ?? 0) > 0
   const keyboard = useTasksKeyboard({
     rowCount: leafTasks.length,
     enabled: desktopLayout,
+    overlayActive,
     onOpen: (index) => { const task = leafTasks[index]; if (task) openTask(task.id) },
     onClose: runtime.onCloseDrawer,
     onNew: runtime.onNewTask,

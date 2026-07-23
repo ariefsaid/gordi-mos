@@ -21,8 +21,8 @@ describe('useTasksKeyboard (AC-109)', () => {
     document.querySelectorAll('input,select,textarea').forEach(el => el.remove())
   })
 
-  function setup(rowCount = 3, enabled = true) {
-    return renderHook(() => useTasksKeyboard({ rowCount, enabled, onOpen, onClose, onNew, onExpand }))
+  function setup(rowCount = 3, enabled = true, overlayActive = false) {
+    return renderHook(() => useTasksKeyboard({ rowCount, enabled, overlayActive, onOpen, onClose, onNew, onExpand }))
   }
 
   it('AC-109: j moves the cursor down and k moves it up (clamped to bounds)', () => {
@@ -65,7 +65,7 @@ describe('useTasksKeyboard (AC-109)', () => {
     expect(onExpand).toHaveBeenCalled()
   })
 
-  it('AC-109: single-letter hotkeys are SUPPRESSED while a text input has focus (Esc still works)', () => {
+  it('AC-109: single-letter hotkeys are SUPPRESSED while a text input has focus', () => {
     setup(3)
     const input = document.createElement('input')
     document.body.appendChild(input)
@@ -75,9 +75,30 @@ describe('useTasksKeyboard (AC-109)', () => {
     act(() => fireKey('e'))
     expect(onNew).not.toHaveBeenCalled()
     expect(onExpand).not.toHaveBeenCalled()
-    // Esc always works even from a field
+  })
+
+  // D-B3 / RULED I5 (fix work-order item 11): a focused field owns its own Escape (discard the
+  // draft, close a picker) — the window layer must NOT also fire an unguarded close.
+  it('Escape from a focused field is NOT handled by the window layer (field-Escape isolation)', () => {
+    setup(3)
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.focus()
     act(() => fireKey('Escape'))
-    expect(onClose).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // D-B3/D-F1 (fix work-order item 11): while an overlay session is live, the overlay host owns
+  // the ONE guarded Escape path — the window layer stands down so host.close is never raced by
+  // an unguarded onCloseDrawer (dirty-field guard would be bypassed).
+  it('Escape is NOT handled while an overlay session is active (the host owns the guarded close)', () => {
+    setup(3, true, true)
+    act(() => fireKey('Escape'))
+    expect(onClose).not.toHaveBeenCalled()
+    // The rest of the layer still works (j/k cursor is list-side, not panel-side).
+    act(() => fireKey('j'))
+    act(() => fireKey('Enter'))
+    expect(onOpen).toHaveBeenCalledWith(0)
   })
 
   it('AC-109: hotkeys are suppressed while a <select> or <textarea> has focus', () => {
