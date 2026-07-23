@@ -32,7 +32,10 @@ export function ActivityCard({ events, people, now }: ActivityCardProps) {
 
   return (
     <section className="card" aria-label={t('tasks.activityTitle')} role="region">
-      <h2 className="card-h2">{t('tasks.activityTitle')}</h2>
+      {/* owner-eyes item 6: the feed's active tab already reads "Activity", so the inner
+          "Activity & updates" heading is a redundant duplicate. Keep it sr-only — the landmark
+          still has an accessible name for AT, but sighted users don't see the doubled label. */}
+      <h2 className="sr-only">{t('tasks.activityTitle')}</h2>
       {events.length === 0 && <p className="empty-substate">{t('tasks.activityEmpty')}</p>}
       <div className="thread">
         {events.map(ev => (
