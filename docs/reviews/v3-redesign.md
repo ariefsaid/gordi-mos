@@ -1602,3 +1602,7 @@ Signal record on the shared identity/Facts/activity grammar. Skills toolchain re
 engine vendored (1 production ban found+fixed), uupm-family SKILL.mds restored, vendor script
 hardened. Luna re-score DEFERRED by owner; next: design-review find-and-fix + impeccable distill
 as-designed, then owner eyes (impeccable live mode ready).
+
+RATIFY-BEFORE-MERGE (kit-normalize, 2026-07-23): Pill renders as a rounded-rect (--radius-sm)
+while DESIGN.md §Shapes declares pills full-round (999px) — shipped v3 look kept, identity doc
+untouched; owner picks: ratify rounded-rect (edit DESIGN.md) or revert pills to full-round.
