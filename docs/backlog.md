@@ -1,5 +1,10 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
+- **Post-cockpit orphan sweep (2026-07-23):** the OD-85 deletion orphaned `directory.ts
+  getRoles()`, `use-company-finance-kpis.ts`, and the e2e `MEMBER` fixture + its global-setup
+  seeding (sole consumers deleted; they live in shared files so the deletion lane correctly left
+  them). Delete in a follow-up once confirmed no in-flight lane readopts them.
+
 - **Impeccable-audit P3s for owner walkthrough (2026-07-23):** (a) toolbar controls render 38px
   vs DESIGN.md's 32px control token — consistent, minor, taste call; (b) desktop Task full page
   leaves ~230px unused right gutter (spec caps measure, doesn't mandate filling) — taste call;
