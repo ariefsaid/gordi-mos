@@ -439,7 +439,7 @@ function DesktopTable({
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '35%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '40%' }}
           >
             Person
           </th>
@@ -453,17 +453,14 @@ function DesktopTable({
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '35%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '45%' }}
           >
             Access roles
           </th>
-          <th
-            scope="col"
-            className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '10%' }}
-          >
-            Status
-          </th>
+          {/* No dedicated Status column: archived rows are signalled inline on the name
+              (line-through + 0.6 opacity), so a permanent 10%-width header that was blank
+              for every non-archived row — the default 'All' view shows only non-archived —
+              earned no screen real estate. (V3 sweep F1, fossil-delete.) */}
           <th scope="col" className="w-10" />
         </tr>
       </thead>
@@ -509,13 +506,6 @@ function DesktopTable({
             </td>
             <td className="px-4">
               <RoleChips roles={person.access_roles} />
-            </td>
-            <td className="px-4">
-              {person.archived_at && (
-                <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  Archived
-                </span>
-              )}
             </td>
             <td className="px-2 text-right">
               <PersonActions person={person} people={people} onAction={onAction} />
