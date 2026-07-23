@@ -394,8 +394,9 @@ describe('Rail count badges (Tasks · Signals)', () => {
   it('renders the open-Tasks and attention-Signals counts as trailing badges', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
-    const tasks = screen.getByRole('link', { name: 'Tasks' })
-    const signals = screen.getByRole('link', { name: 'Signals' })
+    // DO-18(d): the badge label joins the accname, so match on the leading label.
+    const tasks = screen.getByRole('link', { name: /^Tasks/ })
+    const signals = screen.getByRole('link', { name: /^Signals/ })
     expect(within(tasks).getByText('11')).toBeInTheDocument()
     expect(within(signals).getByText('3')).toBeInTheDocument()
   })
@@ -422,12 +423,18 @@ describe('Rail count badges (Tasks · Signals)', () => {
     expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
   })
 
-  it('keeps the badge aria-hidden so the link accessible name is just the label', () => {
+  // DO-18(d) (census-sweep R2 tasks FINDING5, a11y half — deliberate UX change): the badge was
+  // aria-hidden, so screen-reader users never got the count at all. It now carries an accessible
+  // name stating what the count counts; the link's accname includes it.
+  it('DO-18(d): the badge exposes an accessible name stating what the count counts', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 7, attentionSignals: 0 })
-    // Accessible name resolves to "Tasks" (the aria-hidden count is excluded).
-    const tasks = screen.getByRole('link', { name: 'Tasks' })
-    expect(within(tasks).getByText('7').getAttribute('aria-hidden')).toBe('true')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 7, attentionSignals: 3 })
+    const tasks = screen.getByRole('link', { name: /^Tasks/ })
+    const badge = within(tasks).getByText('7')
+    expect(badge.getAttribute('aria-hidden')).not.toBe('true')
+    expect(badge).toHaveAccessibleName('7 open tasks')
+    const signals = screen.getByRole('link', { name: /^Signals/ })
+    expect(within(signals).getByText('3')).toHaveAccessibleName('3 signals need attention')
   })
 })
 
@@ -482,7 +489,7 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(tasksCompact.querySelector('svg')).not.toBeNull()
   })
 
-  it('a positive count badge still renders (compact styling) and stays aria-hidden', () => {
+  it('a positive count badge still renders (compact styling) with its accessible name (DO-18d)', () => {
     setAuthAs(['admin'], 'Managing Director')
     render(
       <ThemeProvider>
@@ -495,9 +502,9 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
         </I18nProvider>
       </ThemeProvider>,
     )
-    const tasks = screen.getByRole('link', { name: 'Tasks' })
+    const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const badge = within(tasks).getByText('4')
-    expect(badge.getAttribute('aria-hidden')).toBe('true')
+    expect(badge).toHaveAccessibleName('4 open tasks')
     expect(badge.className).toMatch(/rail-count-badge--compact/)
   })
 

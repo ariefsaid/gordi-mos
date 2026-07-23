@@ -36,3 +36,17 @@ describe('GUARD-R3: the saved-view label→chip seam is an authored ≥8px gap',
     expect(Number(m![1])).toBeGreaterThanOrEqual(8)
   })
 })
+
+describe('DO-18(b) (census-sweep R2 tasks FINDING6): the view-chip strip scrolls, never squashes', () => {
+  it('the strip is a horizontal scroll region (Block 2(a))', () => {
+    const body = ruleBody('.collection-toolbar__views')
+    expect(body).toMatch(/overflow-x:\s*auto/)
+    expect(body).toMatch(/flex-wrap:\s*nowrap/)
+  })
+
+  it('a view chip never flex-shrinks (the 390 "Follow-up…" clip): flex none + nowrap', () => {
+    const body = ruleBody('.collection-toolbar__view ')
+    expect(body).toMatch(/flex:\s*none/)
+    expect(body).toMatch(/white-space:\s*nowrap/)
+  })
+})

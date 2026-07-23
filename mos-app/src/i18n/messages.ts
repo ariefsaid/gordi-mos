@@ -208,8 +208,10 @@ export const messages = {
     'tasks.markComplete': 'Mark complete',
     'tasks.reopen': 'Reopen',
     'tasks.archive': 'Archive task',
-    'tasks.activity': 'Activity ${age} ago',
-    'tasks.activityLabel': 'Activity',
+    // DO-18(c) (census R2 tasks FINDING4): the recency label names WHAT the timestamp is —
+    // "Updated" (last_activity_at), not the ambiguous "Activity". (The composed
+    // 'tasks.activity' "Activity N ago" key died with its drawer-subline consumer — T2 fossils.)
+    'tasks.activityLabel': 'Updated',
     'tasks.dueLabel': 'Due',
     'tasks.source': 'Source',
     'tasks.objective': 'Objective',
@@ -471,6 +473,11 @@ export const messages = {
     'rail.work.workSystems': 'Work Systems',
     'rail.work.direction': 'Direction',
     'rail.work.cadence': 'Cadence',
+    // DO-18(d) (census R2 tasks FINDING5, a11y half): the rail count badge's accessible name —
+    // states what the count counts (exactly what useRailCounts fetches). The rail-vs-page count
+    // reconciliation (open vs total display semantics) stays FLAG-2.
+    'rail.badge.openTasks': '${count} open tasks',
+    'rail.badge.attentionSignals': '${count} signals need attention',
     'nav.more': 'More',
     'job.home': 'What needs my attention right now?',
     'job.work': 'Find and do the work I own or my Team owns.',
@@ -951,8 +958,7 @@ export const messages = {
     'tasks.markComplete': 'Tandai selesai',
     'tasks.reopen': 'Buka kembali',
     'tasks.archive': 'Arsipkan tugas',
-    'tasks.activity': 'Aktivitas ${age} lalu',
-    'tasks.activityLabel': 'Aktivitas',
+    'tasks.activityLabel': 'Diperbarui',
     'tasks.dueLabel': 'Jatuh tempo',
     'tasks.source': 'Sumber',
     'tasks.objective': 'Tujuan',
@@ -1198,6 +1204,8 @@ export const messages = {
     'rail.work.workSystems': 'Sistem Kerja',
     'rail.work.direction': 'Arah',
     'rail.work.cadence': 'Irama',
+    'rail.badge.openTasks': '${count} tugas terbuka',
+    'rail.badge.attentionSignals': '${count} sinyal perlu perhatian',
     'nav.more': 'Lainnya',
     'job.home': 'Apa yang perlu perhatian saya sekarang?',
     'job.work': 'Temukan dan kerjakan tugas yang jadi tanggung jawab saya atau Tim saya.',

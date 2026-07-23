@@ -34,6 +34,16 @@ function badgeCountFor(path: string, counts?: RailCounts | null): number | undef
   return undefined
 }
 
+// DO-18(d) (census-sweep R2 tasks FINDING5, a11y half): the badge's accessible NAME — a naked
+// aria-hidden number told screen-reader users nothing. The label states what the count counts
+// (what the code fetches: open Tasks / needs-attention Signals); the rail-vs-page count
+// reconciliation stays FLAG-2 (owner ruling pending).
+function badgeLabelKeyFor(path: string): MessageKey | undefined {
+  if (path === '/work/tasks') return 'rail.badge.openTasks'
+  if (path === '/work/signals') return 'rail.badge.attentionSignals'
+  return undefined
+}
+
 type RailNavProps = {
   onNavigate?: () => void
   /** Rail badge counts (open Tasks · needs-attention Signals). Undefined/null → no badges. */
@@ -126,7 +136,9 @@ function WorkSubLabel({ children }: { children: string }) {
 // tabular digits. Rendered ONLY for a positive count (zero/undefined → nothing, E7 quiet rule).
 // `compact` (P1-1): no room beside a hidden label, so the badge pins to the icon's corner instead
 // (rail-count-badge--compact, rail-nav.css) — still quiet, still omitted at zero/undefined.
-function RailCountBadge({ count, compact = false }: { count?: number; compact?: boolean }) {
+// DO-18(d): with a `label` the badge is EXPOSED to AT under that name (aria-label replaces the
+// naked digit in the accname); without one it stays a hidden redundant glance cue.
+function RailCountBadge({ count, label, compact = false }: { count?: number; label?: string; compact?: boolean }) {
   if (count === undefined || count <= 0) return null
   return (
     <span
@@ -135,7 +147,8 @@ function RailCountBadge({ count, compact = false }: { count?: number; compact?: 
           ? 'rail-count-badge--compact inline-flex items-center justify-center rounded-full font-semibold text-muted-foreground bg-[color:var(--secondary)] tabular-nums'
           : 'ml-auto inline-flex items-center h-[18px] px-[7px] rounded-full text-[11px] font-semibold text-muted-foreground bg-[color:var(--secondary)] tabular-nums'
       }
-      aria-hidden="true"
+      aria-label={label}
+      aria-hidden={label ? undefined : 'true'}
     >
       {count}
     </span>
@@ -143,9 +156,10 @@ function RailCountBadge({ count, compact = false }: { count?: number; compact?: 
 }
 
 // A Work child (always expanded). Default aria-current="page" when active.
-function WorkChild({ section, onNavigate, badge, compact = false }: { section: Section; onNavigate?: () => void; badge?: number; compact?: boolean }) {
+function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false }: { section: Section; onNavigate?: () => void; badge?: number; badgeLabelKey?: MessageKey; compact?: boolean }) {
   const t = useT()
   const label = section.labelKey ? t(section.labelKey) : section.label
+  const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
   return (
     <NavLink
       to={section.path}
@@ -171,7 +185,7 @@ function WorkChild({ section, onNavigate, badge, compact = false }: { section: S
             </span>
           )}
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
-          <RailCountBadge count={badge} compact={compact} />
+          <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}
     </NavLink>
@@ -253,7 +267,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                         <div key={sub.labelKey} className="flex flex-col gap-[2px]">
                           {showOverline && <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>}
                           {items.map((c) => (
-                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} compact={compact} />
+                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
                           ))}
                         </div>
                       )

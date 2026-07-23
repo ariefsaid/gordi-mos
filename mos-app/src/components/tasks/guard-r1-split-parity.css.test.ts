@@ -69,3 +69,20 @@ describe('GUARD-R1: split table + drawer share ONE track height at the split wid
     expect(css).toMatch(/\.split\s*\{[^}]*align-items:\s*start/)
   })
 })
+
+describe('DO-18(a) (census-sweep R2 tasks FINDING1): condensed-tier Task identity never starves', () => {
+  it('the drawer-open condensed tier lets the Task title wrap to a clamped 2 lines', () => {
+    // In the squashed split track the one-line ellipsis truncated 6/11 titles at 1280.
+    // The condensed tier overrides .task-name's nowrap with a 2-line clamp.
+    expect(css).toMatch(
+      /\.split:not\(\.nodrawer\):not\(\.expanded\)\s+\.task-name\s*\{[^}]*white-space:\s*normal/,
+    )
+    expect(css).toMatch(
+      /\.split:not\(\.nodrawer\):not\(\.expanded\)\s+\.task-name\s*\{[^}]*-webkit-line-clamp:\s*2/,
+    )
+  })
+
+  it('the base .task-name keeps its one-line ellipsis (the wrap is a condensed-tier exception)', () => {
+    expect(css).toMatch(/\.task-name\s*\{[^}]*white-space:\s*nowrap/)
+  })
+})

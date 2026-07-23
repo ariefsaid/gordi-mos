@@ -133,6 +133,14 @@ describe('MobileGroupedCards', () => {
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
   })
 
+  // DO-18(c) (census-sweep R2 tasks FINDING4): the card's recency meta names WHAT the
+  // timestamp means — "Updated" (last_activity_at) — never the ambiguous "Activity Nd".
+  it('DO-18(c): the recency meta is labeled "Updated", not "Activity"', () => {
+    renderCards()
+    expect(screen.getAllByText('Updated').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Activity')).toBeNull()
+  })
+
   it('role="list" on the container and role="listitem" on each card wrapper (a11y)', () => {
     renderCards()
     expect(document.querySelector('[role="list"]')).toBeTruthy()

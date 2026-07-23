@@ -50,6 +50,10 @@
 .collection-toolbar__views::-webkit-scrollbar { display: none; }
 
 .collection-toolbar__view {
+  /* DO-18(b) (census-sweep R2 tasks FINDING6): flex:none — as a flex child the chip's default
+     shrink squashed the last chip ("Follow-up…") at 390 instead of letting the strip's
+     overflow-x:auto scroll (Block 2(a)). Chips keep intrinsic width; the STRIP scrolls. */
+  flex: none;
   min-height: 26px;
   padding: 0 10px;
   border: 0;

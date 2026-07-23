@@ -283,6 +283,16 @@
 /* PIC avatar-only in condensed — hide the name text (still in aria-label + the tooltip title). */
 .split:not(.nodrawer):not(.expanded) .td-owner .own-name,
 .split:not(.nodrawer):not(.expanded) .td-owner .owner-provenance { display: none; }
+/* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
+   titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
+   to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */
+.split:not(.nodrawer):not(.expanded) .task-name {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
 /* Menu col alignment + header (PR-2 AC-T02/T07). */
 .td-menu, .th-menu { text-align: right; white-space: nowrap; padding-right: 12px; }
 
