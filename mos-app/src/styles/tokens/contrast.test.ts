@@ -92,6 +92,13 @@ const TOKENS = {
   '--ds-color-amber3-dark':   { r: 0.178, g: 0.128, b: 0.049, a: 1 },
   '--ds-color-amber11-dark':  { r: 0.64,  g: 0.40,  b: 0.0,   a: 1 },
   '--warning-foreground-dark': { r: 0.85,  g: 0.75,  b: 0.45,  a: 1 },
+  // SYS-1 (backfill census): the on-brand-chip foreground. The brand fills are theme-INVARIANT,
+  // so their foreground must be too — dark --ds-font-color-inverted now = white (was 0.09 near-black).
+  '--ds-color-blue':               { r: 0.276, g: 0.384, b: 0.837, a: 1 }, // The One Blue chip (both themes)
+  '--ds-font-color-inverted-dark': { r: 1.0,   g: 1.0,   b: 1.0,   a: 1 }, // SYS-1 corrected dark value
+  // SYS-4 (backfill census): theme-aware blue-on-blue-tint text (dark values).
+  '--text-on-accent-tint-dark':    { r: 0.62,  g: 0.72,  b: 1.0,   a: 1 },
+  '--ds-color-blue3-dark':         { r: 0.105, g: 0.141, b: 0.275, a: 1 }, // active rail pill fill (dark)
 }
 
 // Helper to create tinted background (status hue at ~14% alpha over surface)
@@ -207,6 +214,29 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       const fg = TOKENS['--warning-foreground-dark']
       const ratio = contrastRatio(fg, bg)
       expect(ratio).toBeGreaterThanOrEqual(3)
+    })
+
+    // SYS-1: the recurrence-class fix. On the theme-invariant blue chip (primary buttons, avatars,
+    // checkboxes) the dark foreground was near-black 0.09 → 3.39:1 (buttons measured 3.44). White
+    // (matching light, since the surface doesn't flip) = 5.29:1.
+    it('inverted-text-dark on the brand blue chip ≥ 4.5:1 (SYS-1)', () => {
+      const ratio = contrastRatio(TOKENS['--ds-font-color-inverted-dark'], TOKENS['--ds-color-blue'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    // SYS-4: the active rail pill — mid-blue text on the dark blue3 fill was 2.9:1. The theme-aware
+    // token lightens the text in dark (mid-blue's luminance can never reach AA on any dark tint).
+    it('text-on-accent-tint-dark on the dark rail pill (blue3) ≥ 4.5:1 (SYS-4)', () => {
+      const ratio = contrastRatio(TOKENS['--text-on-accent-tint-dark'], TOKENS['--ds-color-blue3-dark'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    // SYS-4: the @mention person badge — mid-blue text on --accent-subtle (blue @10%) over the dark
+    // surface was 3.1:1. Same theme-aware token restores AA.
+    it('text-on-accent-tint-dark on accent-subtle (blue/10% over dark surface) ≥ 4.5:1 (SYS-4)', () => {
+      const bg = tint(TOKENS['--ds-color-blue'], TOKENS['--surface-primary-dark'], 0.10)
+      const ratio = contrastRatio(TOKENS['--text-on-accent-tint-dark'], bg)
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
   })
 })

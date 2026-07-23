@@ -156,7 +156,17 @@
   --ds-font-color-tertiary: color(display-p3 0.574 0.558 0.527);
   --ds-font-color-light: color(display-p3 0.417 0.406 0.383);
   --ds-font-color-extra-light: color(display-p3 0.298 0.298 0.298);
-  --ds-font-color-inverted: color(display-p3 0.09 0.09 0.09);
+  /* SYS-1 (backfill census, CRITICAL): this token is the app's on-BRAND-CHIP foreground —
+     it clothes text sitting on the solid --ds-color-blue / -red / -green fills (primary &
+     destructive & success buttons, checkboxes, avatars). Those brand fills are theme-INVARIANT
+     (byte-identical in theme-light.css and theme-dark.css). The kit's stock "inverted = flip
+     with the theme" value (near-black 0.09 in dark) put near-black text on a constant mid-blue
+     chip → 1.01–3.44:1, failing AA everywhere in dark. Because the surface it sits on does NOT
+     flip, its foreground must NOT flip: keep it light in dark, matching the light theme's white.
+     White on --ds-color-blue = 5.29:1 (AA pass). No consumer ever pairs this token with the
+     theme-flipping --ds-background-inverted-primary (grep: zero --surface-inverted consumers),
+     so lightening it is safe. Recurrence of the OD-P4-11 pt2 / dq-badge.css F1a class. */
+  --ds-font-color-inverted: color(display-p3 1 1 1);
   --ds-font-color-danger: color(display-p3 0.83 0.329 0.324);
   --ds-font-size-xxs: 0.625rem;
   --ds-font-size-xs: 0.975rem;
