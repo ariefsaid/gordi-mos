@@ -102,6 +102,24 @@
   }
 }
 
+/* ── Phone reflow (Census R2 DO-2 · objectives F1 P1) ─────────────────────────
+   Sharing one line with the flex-none Rename/Archive cluster left the identity
+   ~8 characters at 390 ("Café HQ …", "Operational Excell…") — identity starvation.
+   On phone the identity takes the full row (the actions wrap onto their own line
+   below, right-aligned as before) and the name WRAPS instead of ellipsizing, so
+   a catalog row is always recognizable by its full name. */
+@media (max-width: 480px) {
+  .catalog-collection__identity {
+    flex-basis: 100%;
+  }
+
+  .catalog-collection__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
 /* ── Page-level inline create bar (the ONE primary create affordance) ───────────────────────── */
 .catalog-create {
   display: flex;
