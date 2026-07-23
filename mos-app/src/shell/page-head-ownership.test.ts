@@ -14,6 +14,13 @@ describe('V3 shared page-head styling ownership', () => {
     expect(css).not.toContain('--bottom-tab-bar-h')
   })
 
+  // DO-23(c) (census-sweep R2 task-record P3-4): the V3 frame is the mobile scroll container —
+  // focus scroll-into-view (a record's edit textarea + actions) must clear the tab-bar band.
+  it('DO-23(c): the phone frame declares scroll-padding-bottom sized by the tabbar token', () => {
+    const css = readSource('src/shell/page-families.css')
+    expect(css).toMatch(/scroll-padding-bottom:\s*calc\(16px \+ var\(--tabbar-h, 60px\)\)/)
+  })
+
   it('keeps the content-header grammar in the shared PageHead layer', () => {
     const sharedCss = readSource('src/shell/page-head.css')
     const pageHeadSource = readSource('src/shell/page-head.tsx')

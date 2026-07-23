@@ -268,4 +268,12 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
     // A pointer:fine block tightens the resting target below 44px.
     expect(css).toMatch(/@media \(pointer: fine\)[\s\S]*\.record-field__edit[\s\S]*min-height:\s*32px/)
   })
+
+  // DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — a read-only
+  // value floors at the editable target's pitch in BOTH pointer tiers (44px+2 touch, 32px+2 fine),
+  // so a non-editor persona sees the same document cadence as an editor.
+  it('DO-23(a): read-only values share the editable row pitch in both pointer tiers', () => {
+    expect(css).toMatch(/\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*46px/)
+    expect(css).toMatch(/@media \(pointer: fine\)[\s\S]*\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*34px/)
+  })
 })

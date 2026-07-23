@@ -194,6 +194,8 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.permission.readOnly).toBe(true)
     expect(fieldByKey(adapter, 'pic').editable).toBe(false)
     expect(adapter.permission.reason).toMatch(/permission/i)
+    // DO-23(b) (census R2 task-record P3-2): the note carries a RECOVERY clause, not a dead end.
+    expect(adapter.permission.reason).toMatch(/ask a manager or admin/i)
   })
 })
 

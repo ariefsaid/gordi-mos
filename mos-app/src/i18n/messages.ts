@@ -186,7 +186,8 @@ export const messages = {
     'tasks.field.teamFromRecord': 'Team is set from the task record.',
     'tasks.field.teamMigration': 'No team is assigned to this task yet (data migration).',
     'tasks.field.readOnlyArchived': 'Archived tasks can’t be edited.',
-    'tasks.field.readOnlyNoPermission': 'You don’t have permission to edit this task.',
+    // DO-23(b) (census R2 task-record P3-2): problem + recovery, not a dead end.
+    'tasks.field.readOnlyNoPermission': 'You don’t have permission to edit this task. Ask a manager or admin to change its ownership.',
     'tasks.pic': 'PIC',
     // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership source, shown
     // beside the PIC on occurrence-grouped rows whose generating def binds a Role.
@@ -938,7 +939,7 @@ export const messages = {
     'tasks.field.teamFromRecord': 'Tim ditetapkan dari catatan tugas.',
     'tasks.field.teamMigration': 'Belum ada tim untuk tugas ini (migrasi data).',
     'tasks.field.readOnlyArchived': 'Tugas terarsip tidak dapat diubah.',
-    'tasks.field.readOnlyNoPermission': 'Anda tidak memiliki izin untuk mengubah tugas ini.',
+    'tasks.field.readOnlyNoPermission': 'Anda tidak memiliki izin untuk mengubah tugas ini. Minta manajer atau admin untuk mengubah kepemilikannya.',
     'tasks.pic': 'PIC',
     'tasks.pic.via': 'melalui ${role}',
     'tasks.supervisor': 'Supervisor',

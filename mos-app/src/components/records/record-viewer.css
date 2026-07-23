@@ -95,6 +95,8 @@
 
   .record-field--readonly .record-field__value {
     padding-top: 6px;
+    /* DO-23(a): fine-pointer tier matches the editable 32px target + 2px border. */
+    min-height: 34px;
   }
 }
 
@@ -121,6 +123,10 @@
 
 .record-field--readonly .record-field__value {
   padding-top: 9px;
+  /* DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — the read-only
+     value floors at the SAME pitch as the editable activation target (44px + 2px border), so a
+     read-only viewer (e.g. Kitchen persona) sees the same document cadence as an editor. */
+  min-height: 46px;
 }
 
 /* F4 fix: an unpopulated relation row (the Task's Project/Process or Objective, both real

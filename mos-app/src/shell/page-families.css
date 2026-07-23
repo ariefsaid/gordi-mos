@@ -17,6 +17,11 @@
 @media (max-width: 767px) {
   .page-frame--v3 {
     padding: 16px 16px calc(16px + var(--tabbar-h, 60px));
+    /* DO-23(c) (census-sweep R2 task-record P3-4): the frame IS the mobile scroll container —
+       focus/scroll-into-view (e.g. a record's edit textarea + Save/Cancel) must land clear of
+       the tab-bar band, not tucked against the scrollport's bottom edge. Landing at this seam,
+       every page family (Tasks record, Signals, admin) inherits it. */
+    scroll-padding-bottom: calc(16px + var(--tabbar-h, 60px));
   }
 
   .page-frame--v3 .page-frame__content {
