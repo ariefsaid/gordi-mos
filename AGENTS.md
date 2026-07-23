@@ -121,6 +121,11 @@ completion pass rather than blindly restarting the same run.
   seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
   source of truth; the layered design battery (OD-REDESIGN-89) green + ledgered before merging UI changes.
+- **Audit coverage register (BLOCKING):** `docs/audits/REGISTER.md` (machine half `docs/audits/surfaces.json`)
+  is the coverage authority — the enumerated surface × persona matrix with each surface's design generation,
+  locked commit, and pins. A UI merge requires the touched surface **LOCKED** or explicitly **BUMPED**;
+  `scripts/pre-merge-check.sh` enforces it, `scripts/audit-register.sh {bump|lock}` drives the lifecycle.
+  The dimensions of quality and their owning checks are enumerated in `docs/quality-model.md`.
 
 ## Git workflow (owner default)
 - Start every mutable issue in an isolated Git worktree on a named feature branch based on current
