@@ -18,8 +18,9 @@ vi.mock('@/lib/db/directory', () => ({
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
 const desktopState = vi.hoisted(() => ({ value: true }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
+const composerOpen = vi.hoisted(() => vi.fn())
 vi.mock('@/shell/signal-composer-host', () => ({
-  useSignalComposer: () => ({ open: vi.fn(), postCount: 0 }),
+  useSignalComposer: () => ({ open: composerOpen, postCount: 0 }),
 }))
 
 // The ?record=<id> record is SignalRecordHost's own job (signal-record-host.test.tsx covers its
@@ -134,6 +135,28 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
     // The chosen Table persists as shareable URL state (?layout=table).
     expect(screen.getByTestId('location')).toHaveTextContent('layout=table')
+  })
+
+  it('D-D2 / Rule 7: the toolbar hosts ONE layout-independent Share Signal door (present in Feed AND Table; no in-feed row)', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    // Feed (default): the toolbar Share door is present — and there is NO second in-feed "Share a
+    // Signal" row (that row is Home-ambient-only now).
+    expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true')
+    const shareInFeed = screen.getByRole('button', { name: 'Share Signal' })
+    expect(shareInFeed).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /share a signal/i })).not.toBeInTheDocument()
+
+    // Switching to Table must NOT make the compose door blink out — it rides row 1, layout-independent.
+    await userEvent.click(screen.getByRole('tab', { name: 'Table' }))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true'))
+    const shareInTable = screen.getByRole('button', { name: 'Share Signal' })
+    expect(shareInTable).toBeInTheDocument()
+
+    // It opens the ONE shared composer.
+    await userEvent.click(shareInTable)
+    expect(composerOpen).toHaveBeenCalledTimes(1)
   })
 
   it('FR-V3-007: an explicit ?layout=table URL overrides the Feed default and restores the Table', async () => {

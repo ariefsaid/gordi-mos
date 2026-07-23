@@ -9,6 +9,7 @@ import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { Toggle } from '@/components/ui/toggle'
+import { Button } from '@/components/ui/button'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
@@ -181,6 +182,14 @@ export function SignalsArchivePage() {
 
   const signalToolbar = (
     <CollectionToolbar
+      // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
+      // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
+      // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
+      primaryAction={(
+        <Button variant="primary" onClick={openSignalComposer}>
+          {t('signals.action.share')}
+        </Button>
+      )}
       presentation={{
         label: t('signals.archive.presentationLabel'),
         value: controller.state.presentation,

@@ -91,15 +91,19 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     expect(fyiRow?.classList.contains('home-signal-row--attention')).toBe(false)
   })
 
-  it('wires Share and the injected collection opener while hiding unavailable Task creation', async () => {
-    const onOpenRecord = vi.fn()
-    const actions: SignalCollectionActions = {
-      onShareClick: vi.fn(),
-    }
-    renderFeed([row({ id: 'signal-9' })], actions, onOpenRecord)
+  it('D-D2: the archive Feed no longer renders the in-feed Share row (it is ambient-only; the toolbar hosts the one door)', () => {
+    const actions: SignalCollectionActions = { onShareClick: vi.fn() }
+    renderFeed([row({ id: 'signal-9' })], actions)
+    // The in-feed "Share a Signal" row is Home-ambient-only now — the /work/signals archive's
+    // single compose door lives in the CollectionToolbar (layout-independent), so the Feed presents
+    // no second, layout-dependent Share door.
+    expect(screen.queryByRole('button', { name: /share a signal/i })).not.toBeInTheDocument()
+  })
 
-    await userEvent.click(screen.getByRole('button', { name: /share a signal/i }))
-    expect(actions.onShareClick).toHaveBeenCalledTimes(1)
+  it('wires the injected collection opener while hiding unavailable Task creation', async () => {
+    const onOpenRecord = vi.fn()
+    const actions: SignalCollectionActions = { onShareClick: vi.fn() }
+    renderFeed([row({ id: 'signal-9' })], actions, onOpenRecord)
 
     // The record-open affordance is now accessibly named ("Open signal: <body>") — Luna (c).
     await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))

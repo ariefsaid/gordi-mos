@@ -51,6 +51,12 @@ export interface CollectionToolbarProps<
   filters?: readonly CollectionToolbarFilter[]
   savedViews?: CollectionToolbarSavedViews
   toggles?: ReactNode
+  /**
+   * A layout-independent primary action for the collection (e.g. Signals' "Share Signal"), hosted
+   * in row 1 so it is present in EVERY presentation — the door does not blink in/out with the
+   * Table/Feed switch (interaction D-D2 / Rule 7). Omitted collections render no primary action.
+   */
+  primaryAction?: ReactNode
   className?: string
   /**
    * Census R2 DO-6: a reserved (coming-soon) view has no rows to operate on, so every
@@ -89,6 +95,7 @@ export function CollectionToolbar<
   filters = [],
   savedViews,
   toggles,
+  primaryAction,
   className,
   reserved = false,
 }: CollectionToolbarProps<TPresentation, TView>) {
@@ -196,6 +203,12 @@ export function CollectionToolbar<
             />
           </div>
         )}
+
+        {/* Layout-independent primary action (D-D2): rides row 1 in every presentation, so the
+            collection's ONE compose door never blinks with the Table/Feed switch. */}
+        {primaryAction ? (
+          <div className="collection-toolbar__primary-action">{primaryAction}</div>
+        ) : null}
       </div>
 
       {/* Lean query row (OD-84.1): search leads; the ONE labelled "View & filters" disclosure

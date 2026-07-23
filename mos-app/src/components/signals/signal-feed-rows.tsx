@@ -47,10 +47,15 @@ export function SignalFeedRows({
       className={`home-signal-feed${variant === 'archive' ? ' home-signal-feed--archive' : ''}`}
       data-testid="signal-feed"
     >
-      {/* Quiet action row — the composer entry (stays, per redirect). */}
-      <button type="button" className="home-signal-share-row" onClick={onShareClick}>
-        {t('signals.feed.shareRow')}
-      </button>
+      {/* Quiet action row — the composer entry. Ambient-only (D-D2): on Home (the ambient tail) this
+          IS the compose door, since Home has no CollectionToolbar. In the /work/signals archive the
+          toolbar hosts the ONE layout-independent Share door, so this in-feed row would be a SECOND,
+          layout-dependent door — omitted there so the archive has exactly one compose door. */}
+      {variant === 'ambient' && onShareClick ? (
+        <button type="button" className="home-signal-share-row" onClick={onShareClick}>
+          {t('signals.feed.shareRow')}
+        </button>
+      ) : null}
 
       {ordered.length === 0 ? (
         <EmptyState title={t('signals.feed.empty')} nested />

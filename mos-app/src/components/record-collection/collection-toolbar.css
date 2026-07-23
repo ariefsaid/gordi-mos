@@ -23,6 +23,9 @@
 }
 .collection-toolbar__primary-spacer { flex: 1 1 auto; min-width: 12px; }
 
+/* Layout-independent primary action (D-D2) — trails row 1, after the presentation switch. */
+.collection-toolbar__primary-action { flex: 0 0 auto; display: flex; align-items: center; }
+
 .collection-toolbar__presentations .view-tabs {
   position: static;
   z-index: auto;

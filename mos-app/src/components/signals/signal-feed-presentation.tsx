@@ -33,7 +33,8 @@ export function SignalFeedPresentation({
         signals={[...projection.visibleRecords]}
         authorNamesById={namesToRecord(context.authorNamesById)}
         teamNamesById={namesToRecord(context.teamNamesById)}
-        onShareClick={actions.onShareClick}
+        // D-D2: the archive Feed's Share door is hosted by the CollectionToolbar (layout-independent),
+        // so the in-feed ambient-only Share row is intentionally not wired here.
         onCategorize={actions.onCategorize}
         onOpen={onOpenRecord ? (signal) => onOpenRecord(signal) : undefined}
       />
