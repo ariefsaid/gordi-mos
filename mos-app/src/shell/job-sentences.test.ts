@@ -69,8 +69,12 @@ describe('jobKeyForPath — route → owning job key (Work child / record resolu
     expect(jobKeyForPath('/profile')).toBe('job.profile')
   })
 
-  it('falls back to the home job sentence for an unknown route', () => {
-    expect(jobKeyForPath('/admin/people')).toBe('job.home')
+  it('resolves /admin/* to the admin job key (not Home’s fallback)', () => {
+    expect(jobKeyForPath('/admin/people')).toBe('job.admin')
+    expect(jobKeyForPath('/admin')).toBe('job.admin')
+  })
+
+  it('falls back to the home job sentence for a genuinely unknown route', () => {
     expect(jobKeyForPath('/unknown-xyz')).toBe('job.home')
   })
 })

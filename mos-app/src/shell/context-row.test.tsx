@@ -222,12 +222,13 @@ describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-f
   })
 
   it('keeps the ContextRow job sentence on an unmigrated route (there it is the only job sentence)', () => {
-    // An unmigrated route with no PageFamilyFrame region-3 sentence (e.g. an admin sub-route that
-    // falls back to the Home job key) — ContextRow stays the sole owner and must NOT be globally
-    // suppressed. (`/work/signals` was moved to a migrated route in the Luna single-job-sentence
-    // correction; region 3 owns it there now.)
+    // An unmigrated route with no PageFamilyFrame region-3 sentence (e.g. an admin sub-route) —
+    // ContextRow stays the sole owner and must NOT be globally suppressed. The rendered copy is
+    // the route's OWN job sentence: /admin/* now resolves to `job.admin` (V3 sweep F2), no longer
+    // borrowing Home's "What needs my attention right now?". (`/work/signals` was moved to a
+    // migrated route in the Luna single-job-sentence correction; region 3 owns it there now.)
     renderCtx('/admin/roles')
-    expect(screen.getByText('What needs my attention right now?')).toBeInTheDocument()
+    expect(screen.getByText('Configure who can sign in and what they can do.')).toBeInTheDocument()
   })
 
   it('owner-eyes item 8: suppresses the orphan scope crumb on a migrated route (region stays, but empty + collapsed)', () => {

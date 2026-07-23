@@ -49,6 +49,12 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
   ecommerce: 'job.ecommerce',
   roastery: 'job.roastery',
   profile: 'job.profile',
+  // /admin/* is an app-native settings surface, not one of the 12 convergence rail
+  // destinations — so it carries its own job key (like `profile`) rather than falling
+  // through to `job.home`. Without this, every /admin route borrowed Home's sentence
+  // ("What needs my attention right now?"), factually wrong on a settings screen. It is
+  // NOT added to the verbatim `jobSentences` registry, which is a 12-row convergence port.
+  admin: 'job.admin',
 }
 
 /**
@@ -59,8 +65,8 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
  *    `/work/tasks/:id` (a record) → the owning `tasks` job key.
  *  - `/work` (bare) → `tasks` (Work parent default child).
  *  - top-level destinations + Modules → their own job key.
- *  - `/profile` → `job.profile`.
- *  - unknown (e.g. `/admin/*`, 404) → `job.home` (the always-present fallback).
+ *  - `/profile` → `job.profile`; `/admin/*` → `job.admin`.
+ *  - unknown (e.g. a 404) → `job.home` (the always-present fallback).
  */
 export function jobKeyForPath(pathname: string): MessageKey {
   const segments = pathname.replace(/^\/+/, '').split('/').filter(Boolean)
