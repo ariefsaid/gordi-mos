@@ -37,7 +37,13 @@
 /* --dq-good = success family */
 .dq-badge--good {
   background: color-mix(in srgb, var(--success) 14%, transparent);  /* --dq-good-bg */
-  color: var(--success-foreground);                                  /* --dq-good-text */
+  /* Contrast fix (census DO / g-money finding 3): --success-foreground is the INVERTED
+     (near-white) text meant for a SOLID success fill — on this 14% green tint it failed
+     AA (near-white on pale green). --status-won-text is the theme-aware green-on-tint
+     text token (dark green in light, light green on dark) already used by Pill/fail-loud
+     for exactly this pale-success-chip case. Legibility only — the good/green severity
+     semantics are unchanged. */
+  color: var(--status-won-text);                                     /* --dq-good-text */
 }
 .dq-badge--good .dot {
   background: var(--success);                                        /* --dq-good-dot */
