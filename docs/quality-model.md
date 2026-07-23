@@ -274,7 +274,7 @@ per surface, converging as specs consistently cite their journeys.
 |---|---|---|---|---|
 | D1 | Element craft | per-merge | PARTIAL | Wire `impeccable` detector as blocking (token-ladder half already ratcheted) |
 | D2 | Component quality | per-surface | PARTIAL | Storybook states + axe for shared components; F2/F5 guards |
-| D3 | **Page composition (OD-90)** | per-surface | **GAP** | **Author `record-page-anatomy.spec.md` + census Step 2.5** — top priority |
+| D3 | **Page composition (OD-90)** | per-surface | **PARTIAL** | Spec AUTHORED (`docs/specs/record-page-anatomy.spec.md`, census Step 2.5 defined); Signal conformance in flight; Task/Follow-up conformance owed (FR-ANAT-009/010) |
 | D4 | Interaction verbs | per-merge | PARTIAL | Land Tier-1..4 work-order; get the 10 owner rulings; conformance harness |
 | D5 | Integration seams | per-merge | PARTIAL | Wire `deepLinkResolver`; build Signal→Task (OD-39) |
 | D6 | Journey quality | per-milestone | GAP→PARTIAL | This audit done; fold journeys into curated E2E |
