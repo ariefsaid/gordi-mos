@@ -93,6 +93,14 @@ button.kpi-tile:hover {
   }
 }
 
+/* r5 F-3: the tile is a stretch-aligned flex column, so the delta Pill used to
+   stretch into a full-width bar on wide tiles and clip its long copy on narrow
+   ones. The pill hugs its content; the compact "vs prev" copy comes from
+   formatDelta (the long comparison copy lives in the tile help tooltip). */
+.kpi-tile > .pill {
+  align-self: flex-start;
+}
+
 .kpi-tile-sub {
   font-size: var(--font-size-overline);
   color: var(--text-tertiary);

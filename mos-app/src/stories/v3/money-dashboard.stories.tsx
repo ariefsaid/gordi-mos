@@ -42,7 +42,8 @@ export const v3Matrix = {
     { symbol: 'WindowRangeFields', file: 'mos-app/src/components/dashboard/window-selector.tsx', importPath: '@/components/dashboard/window-selector' },
   ],
   debt: [
-    'The delta Pill ellipsizes ("+4.2% vs prev perio…") inside narrow phone tiles — a Pill-family fit gap recorded in the g-money r3 report, separate from the KPI value span/clamp treatment.',
+    // r3 debt "delta Pill ellipsizes in narrow phone tiles" — PAID by r5 F-3
+    // (pill hugs content + compact "vs prev" copy; long copy in the help tooltip).
   ],
   scope: { applicationMigration: false, representativeAcceptance: false, futureIssue4Host: false },
 } as const
@@ -86,14 +87,14 @@ function KpiTileMatrixSpecimen() {
         </p>
         <div className="dash-kpi-grid">
           <KPITile label="Trailing 7-day revenue" value="Rp 285,2 jt"
-            delta={{ text: '+4.2% vs prev period', tone: 'success', dot: true }} />
+            delta={{ text: '+4,2% vs prev', tone: 'success', dot: true }} />
           <KPITile label="Trailing 30-day revenue" value="Rp 1,2 M"
-            delta={{ text: '-6.1% vs prev period', tone: 'destructive', dot: true }}
+            delta={{ text: '-6,1% vs prev', tone: 'destructive', dot: true }}
             onClick={() => setSelected(!selected)} selected={selected} />
           <KPITile label="Avg check" value="Rp 58.775" sub="revenue + transactions"
             help="Trailing-window revenue ÷ transactions." />
           <KPITile label="Gross margin %" value="35,6%"
-            delta={{ text: '±0.0% vs prev period', tone: 'neutral' }}
+            delta={{ text: '±0,0% vs prev', tone: 'neutral' }}
             basis={{ label: 'interim — stock-movement' }} dq="good" />
           <KPITile label="Interim COGS" value="Rp 609,8 jt" state="loading" />
         </div>
@@ -110,7 +111,7 @@ export const KpiTileMatrix: Story = {
     const canvas = within(canvasElement)
     // Non-interactive tiles are named groups; the delta rides a Pill inside the tile.
     const revenue = canvas.getByRole('group', { name: 'Trailing 7-day revenue' })
-    await expect(within(revenue).getByText('+4.2% vs prev period')).toBeVisible()
+    await expect(within(revenue).getByText('+4,2% vs prev')).toBeVisible()
     // onClick → a real button carrying aria-current while selected (FR-016 grammar).
     const interactive = canvas.getByRole('button', { name: 'Trailing 30-day revenue' })
     await expect(interactive).toHaveAttribute('aria-current', 'true')
@@ -126,6 +127,12 @@ export const KpiTileMatrix: Story = {
     const value = revenue.querySelector('.kpi-tile-value--nowrap') as HTMLElement
     await expect(getComputedStyle(value).whiteSpace).toBe('nowrap')
     await expect(getComputedStyle(value).fontSize).toBe('23px')
+    // r5 F-3: the delta pill HUGS its content — never a full-width bar across the tile.
+    const pill = revenue.querySelector('.pill') as HTMLElement
+    await expect(getComputedStyle(pill).alignSelf).toBe('flex-start')
+    await expect(pill.getBoundingClientRect().width).toBeLessThan(
+      revenue.getBoundingClientRect().width - 24,
+    )
   },
 }
 

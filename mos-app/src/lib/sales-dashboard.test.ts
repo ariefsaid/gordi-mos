@@ -141,6 +141,13 @@ describe('formatDelta', () => {
     expect(d.text).toContain('-10')
   })
 
+  it('r5 F-3/F-2: compact id-ID delta — "+4,2% vs prev", never the long "vs prev period" nor a raw-period decimal', () => {
+    const d = formatDelta({ current: 1_042_000, prior: 1_000_000 })
+    expect(d.text).toBe('+4,2% vs prev')
+    const neg = formatDelta({ current: 939_000, prior: 1_000_000 })
+    expect(neg.text).toBe('-6,1% vs prev')
+  })
+
   it('renders neutral "no comparison" (never 0%/NaN) when prior is null', () => {
     const d = formatDelta({ current: 500_000, prior: null })
     expect(d.tone).toBe('neutral')

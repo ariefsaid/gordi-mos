@@ -1,6 +1,8 @@
 // KPITile tests — design-plan §2.1 (general KPI tile primitive, never says "revenue").
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { KPITile } from './kpi-tile'
 
 describe('KPITile — ready state', () => {
@@ -173,5 +175,14 @@ describe('KPITile — basis label + DQ badge slots (AC-008)', () => {
     const { container } = render(<KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" />)
     expect(container.querySelector('.kpi-tile-basis')).toBeNull()
     expect(container.querySelector('.dq-badge')).toBeNull()
+  })
+
+  it('r5 F-3 (structural pin): the delta pill hugs content — align-self: flex-start on .kpi-tile > .pill', () => {
+    // jsdom computes no flex layout — the stylesheet is the oracle (same pattern as the
+    // census-r3 span pin). The stretch-aligned tile column must never stretch the pill
+    // into a full-width bar (1600) nor clip its copy (390).
+    const css = readFileSync(resolve(__dirname, 'kpi-tile.css'), 'utf8')
+    const block = css.split('.kpi-tile > .pill')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('align-self: flex-start')
   })
 })

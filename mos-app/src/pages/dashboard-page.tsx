@@ -361,7 +361,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
               value={formatGrossMarginValue(gmKpis?.marginAmount ?? null)}
               delta={gmDelta ? { text: gmDelta.text, tone: gmDelta.tone } : undefined}
               basis={{ label: basis }}
-              help="Revenue − interim COGS over the window."
+              help="Revenue − interim COGS over the window. Delta compares with the previous equal-length period."
             />
             <KPITile
               label="Interim COGS"
