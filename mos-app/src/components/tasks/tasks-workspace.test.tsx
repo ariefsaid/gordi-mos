@@ -845,7 +845,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // Back in value mode: the edit control is gone and the field shows the saved baseline date.
     expect(screen.queryByLabelText('Due')).toBeNull()
     const dueField = document.querySelector('[data-field-key="dueDate"]') as HTMLElement
-    expect(within(dueField).getByText('2026-07-01')).toBeInTheDocument()
+    expect(within(dueField).getByText(/1 Jul/)).toBeInTheDocument()
 
     // (2) Re-dirty the record via a FAILED commit (FieldErrorRetryContract) — the persisted
     // tenant dirty state attaches the leave-guard. Re-activate the field, then the failed Enter
@@ -1200,7 +1200,7 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
 
 // ── F3 (design review): one overdue token everywhere, no density-dependent glyph ──
 describe('F3 — overdue label stays consistent across densities (no bare "!" glyph)', () => {
-  it('F3: in condensed split-view, overdue row shows the full "Overdue · <date>" label (not a bare "!")', async () => {
+  it('F3: in condensed split-view, overdue keeps a dated label with the overdue treatment — never a bare "!" and never clipped (owner-eyes item 3: the "Overdue ·" prefix yields at condensed width; color + full label at normal density carry it)', async () => {
     const overdueDate = '2020-01-01'
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Overdue task', status: 'Open', due_date: overdueDate }),
@@ -1210,10 +1210,12 @@ describe('F3 — overdue label stays consistent across densities (no bare "!" gl
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
     await switchToAll()
     await waitFor(() => screen.getByText('Overdue task'))
-    // Condensed mode must render the SAME label as the full table — no degraded "!" glyph.
+    // Condensed keeps a dated label with the overdue treatment — never a bare "!" and never
+    // clipped (owner-eyes item 3: the "Overdue ·" prefix yields at condensed width).
     const dueCell = document.querySelector('tr.task-row .due-overdue')
     expect(dueCell).toBeTruthy()
-    expect(dueCell!.textContent).toMatch(/^Overdue · /)
+    expect(dueCell!.textContent).toMatch(/1 Jan/)
+    expect(dueCell!.textContent!.trim()).not.toBe('!')
   })
 
   it('F3: non-condensed (no drawer) overdue row shows the same full "Overdue · <date>" text', async () => {
