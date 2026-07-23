@@ -12,6 +12,20 @@
 > re-expression (ranking preference) · Signals feed-first default · phone View&filters wrapper
 > non-dedup rationale. Then feature work resumes.
 
+- **R6(b) record-door unification (deferred from `v3/owner-r2`, 2026-07-23):** Tasks opens
+  records path-based (`/work/tasks/:id`) while Signals uses the `?record=` query seam — two door
+  grammars. Unify (likely on `?record=`), and make browser-Back-after-expand return to the drawer
+  (needs the shared overlay-host `openPage` push-vs-replace change — entangles Signals + the
+  AC-V3-008 dirty-guard suites, hence its own issue). Also: document.title for the drawer-open
+  case. The 2026-07-23 interaction-consistency interrogation (`docs/plans/2026-07-23-interaction-consistency.md`)
+  covers this verb — execute from its work-order.
+
+- **Mechanical guard suite (lane `v3/mech-guards`, in flight 2026-07-23):** every owner-caught
+  defect class becomes a deterministic guard — split height parity, no naked head numbers, one
+  solid primary per surface, toolbar label gap, ≤1 permission note per record, token vocabulary
+  scan widened beyond `ui/`, 44px tap targets (structural Vitest + Playwright geometry spec).
+  Wire the geometry spec into `pre-merge-check.sh` once merged.
+
 - **Post-cockpit orphan sweep (2026-07-23):** the OD-85 deletion orphaned `directory.ts
   getRoles()`, `use-company-finance-kpis.ts`, and the e2e `MEMBER` fixture + its global-setup
   seeding (sole consumers deleted; they live in shared files so the deletion lane correctly left
