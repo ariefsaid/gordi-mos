@@ -383,22 +383,24 @@
 .tc-label { font-size: 15px; font-weight: 500; color: var(--foreground); }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
-.tc-input, .tc-textarea {
-  width: 100%; height: 36px; padding: 0 12px;
+/* Description keeps a native <textarea> — ui/ has no ratified multiline primitive.
+   It carries the same token chrome (border/radius/focus-ring/16px) as the other fields. */
+.tc-textarea {
+  width: 100%; padding: 8px 12px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
   background: var(--background); font: inherit; font-size: 16px;
-  color: var(--foreground);
+  color: var(--foreground); resize: vertical;
 }
-.tc-input:focus-visible, .tc-textarea:focus-visible {
+.tc-textarea:focus-visible {
   outline: 2px solid var(--ring); outline-offset: 2px;
 }
-.tc-input-error { border-color: var(--destructive); }
-.tc-textarea { height: auto; padding: 8px 12px; resize: vertical; }
 
-/* F2 fix: the shared Select/DateField primitives own their own token chrome (box,
-   chevron/calendar glyph, focus ring); scale their box to this form's 36px/16px
+/* F2 fix: the shared TextInput/Select/DateField primitives own their own token chrome
+   (box, chevron/calendar glyph, focus ring); scale their box to this form's 36px/16px
    field rhythm (same override pattern the record-field__select rule uses to raise
    Select to the record's 44px floor — see record-viewer.css). */
+.tc-input .mk-textinput__box { height: 36px; padding: 0 12px; }
+.tc-input .mk-textinput__field { font-size: 16px; }
 .tc-select .mk-select__box { height: 36px; padding: 0 34px 0 12px; }
 .tc-select .mk-select__field { font-size: 16px; }
 .tc-select .mk-select__chevron { right: 10px; }
@@ -406,8 +408,9 @@
 .tc-date .mk-date__display { font-size: 16px; }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
-   --status-lost-text). The invalid field's 1px outline (.tc-input-error) and the
-   required asterisk (.tc-required) keep base --destructive — those are non-text. */
+   --status-lost-text). The invalid field's border (the ratified components' own
+   .mk-*--error rule) and the required asterisk (.tc-required) keep base --destructive
+   — those are non-text. */
 .tc-field-error { font-size: 12px; color: var(--status-lost-text); }
 
 .tc-loading-field {

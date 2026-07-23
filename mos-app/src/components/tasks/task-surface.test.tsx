@@ -728,7 +728,9 @@ describe('TaskSurface — create mode', () => {
     // Error appears below the field, announced, and the input carries the error class
     const err = await screen.findByText(/title is required/i)
     expect(err).toHaveAttribute('role', 'alert')
-    expect(title).toHaveClass('tc-input-error')
+    // Error affordance: the ratified TextInput carries it on its root (destructive border);
+    // aria-invalid on the input is the accessible oracle.
+    expect(title.closest('.mk-textinput')).toHaveClass('mk-textinput--error')
     expect(title).toHaveAttribute('aria-invalid', 'true')
   })
 
@@ -739,7 +741,7 @@ describe('TaskSurface — create mode', () => {
     await screen.findByText(/title is required/i)
     fireEvent.change(title, { target: { value: 'Now it has a value' } })
     await waitFor(() => expect(screen.queryByText(/title is required/i)).toBeNull())
-    expect(title).not.toHaveClass('tc-input-error')
+    expect(title.closest('.mk-textinput')).not.toHaveClass('mk-textinput--error')
   })
 
   it('AC-108: blurring an empty Team renders an inline error', async () => {

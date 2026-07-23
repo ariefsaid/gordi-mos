@@ -33,6 +33,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { formatDate } from './task-formatters'
 import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Select } from '@/components/ui/select'
+import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 
 // Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
@@ -941,15 +942,16 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
           <label htmlFor="task-title" className="tc-label">
             {t('tasks.create.title')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
-          <input
+          <TextInput
             id="task-title"
             type="text"
-            className={`tc-input${titleError ? ' tc-input-error' : ''}`}
+            className="tc-input"
+            fullWidth
+            error={Boolean(titleError)}
             value={title}
             onChange={e => { setTitle(e.target.value); if (titleError) setTitleError('') }}
             onBlur={validateTitleOnBlur}
             aria-required="true"
-            aria-invalid={titleError ? 'true' : undefined}
             aria-describedby={titleError ? 'title-err' : undefined}
             placeholder={t('tasks.create.titlePlaceholder')}
             disabled={submitting}
