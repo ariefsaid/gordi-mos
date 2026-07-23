@@ -388,4 +388,22 @@ describe('SignalRecordPage — canonical full page (AC-RPH-3)', () => {
     expect(document.querySelector('.record-panel-chrome')).toBeNull()
     expect(document.querySelector('.drawer')).toBeNull()
   })
+
+  it('SR-3/SR-8: hides the generic page head so the archive job sentence does not leak and no duplicate "Signal" heading sits above the record', async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals/signal-1']}>
+          <Routes>
+            <Route path="/work/signals/:signalId" element={<SignalRecordPage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+    // hideHead suppresses the shared PageHead entirely: the archive LIST job sentence must NOT
+    // appear on a single record (SR-3), and there is no frame-level "Signal" heading duplicating
+    // the record's own identity header (SR-8 — the record host owns the sole "Signal" chrome).
+    expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Signal' })).toBeNull()
+  })
 })

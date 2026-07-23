@@ -100,9 +100,9 @@
 .record-doc .record-details {
   border-bottom: 1px solid var(--border);
 }
-/* Prose values read at a comfortable line length (impeccable line-length rule,
-   ~72ch) rather than stretching the full document width. */
-.record-doc .record-field__value { max-width: 72ch; }
+/* Prose value measure (~72ch) + the 820px column cap now live on the SHARED .record-viewer--page
+   seam (record-viewer.css) so the Signal record page inherits the SAME measure — this file keeps
+   only .record-doc's own CARD chrome (border/shadow/radius + the 820px card width above). */
 /* Compact (drawer) variant — the drawer chrome is the frame, so there is no
    second divider; the drawer header owns identity + status. */
 .record-details-compact {

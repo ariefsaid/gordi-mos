@@ -153,6 +153,11 @@ function RecordBody({
   const readOnly = adapter.permission.readOnly
   const allowed = new Set(adapter.permission.allowedActionIds)
   const visibleActions = adapter.actions.filter((a) => allowed.has(a.id))
+  // SR-6: the "select a value to edit" hint is only honest when at least one field CAN be edited.
+  // A Signal's Facts are all read-only even on a non-retracted (permission.readOnly=false) record,
+  // so gating on !readOnly alone showed the hint on a record with nothing to edit. Gate on the
+  // presence of a genuinely editable field — Task (editable fields) still shows it, Signal never does.
+  const hasEditableField = adapter.metadata.some((section) => section.fields.some((f) => f.editable))
 
   return (
     <>
@@ -244,7 +249,7 @@ function RecordBody({
         )}
         {/* Quiet inline-edit hint (E7 table-footnote parity) — only when the record is editable,
             adapted to our fields' value-first grammar (activate the value, Enter saves, Esc discards). */}
-        {!readOnly && (
+        {!readOnly && hasEditableField && (
           <p className="record-viewer__edit-hint">{t('record.editHint')}</p>
         )}
       </footer>

@@ -213,4 +213,15 @@ describe('RecordViewer', () => {
       screen.queryByText("Select a field's value to edit it. Enter saves · Esc discards."),
     ).toBeNull()
   })
+
+  // SR-6: a Signal is permission.readOnly=false (not retracted) yet ALL its Facts are
+  // editable:false — there is genuinely nothing to activate. The hint must gate on the presence
+  // of an editable field, not on !readOnly, or it promises an edit affordance that does not exist.
+  it('SR-6: omits the inline-edit hint when no field is editable even though the record is not read-only', () => {
+    renderViewer(signalAdapter())
+    expect(signalAdapter().permission.readOnly).toBe(false)
+    expect(
+      screen.queryByText("Select a field's value to edit it. Enter saves · Esc discards."),
+    ).toBeNull()
+  })
 })

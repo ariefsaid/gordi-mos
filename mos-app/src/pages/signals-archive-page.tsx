@@ -361,11 +361,18 @@ export function SignalRecordPage() {
   useDocumentTitle('Signal — Gordi MOS')
   const { signalId } = useParams<{ signalId: string }>()
   if (!signalId) return <Navigate to="/work/signals" replace />
+  // SR-3 / SR-8 (mirrors TaskRecordPage exactly): the generic "Signal" page head + its job
+  // sentence are pure duplication above the record's OWN identity header (SIGNAL overline +
+  // resolved title). `hideHead` suppresses that generic head so there is exactly ONE heading on
+  // the page — the record's title — and the archive's list job sentence ("Search and revisit…")
+  // no longer leaks onto a single record. The record-scoped jobSentence stays honest for AT / a
+  // future un-hidden head. SignalRecordHost promotes the identity heading to h1 in page mode.
   return (
     <PageFamilyFrame
       family="focused-record"
       title="Signal"
-      jobSentence="Search and revisit the Signals your Teams have shared."
+      jobSentence="Review and follow up on this Signal."
+      hideHead
     >
       <SignalRecordHost signalId={signalId} mode="page" />
     </PageFamilyFrame>

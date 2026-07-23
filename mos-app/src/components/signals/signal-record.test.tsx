@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -173,5 +175,32 @@ describe('SignalRecord — Linked work (Create follow-up Task / Link existing Ta
     expect(screen.queryByText(/status/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/supervisor/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/^pic$/i)).not.toBeInTheDocument()
+  })
+})
+
+// DO-5 (SR-2): the reused CommentThread wraps itself in a bordered .card with a 20px .card-h2 —
+// correct standalone, but inside the Signal record DOCUMENT it read as a nested card breaking the
+// borderless-section flow. jsdom cannot compute the border, so pin the CSS grammar: within
+// .signal-record the card chrome is neutralized and the heading drops to the sibling-section
+// register, so Comments reads as a quiet peer of Linked-work / Acknowledged (one document).
+describe('DO-5: Comments joins the record document grammar (no nested card)', () => {
+  const css = readFileSync(
+    resolve(process.cwd(), 'src/components/signals/signal-record.css'),
+    'utf8',
+  ).replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('DO-5: .signal-record .card sheds its border/shadow/background so it is not a nested card', () => {
+    const m = /\.signal-record\s+\.card\s*\{([^}]*)\}/.exec(css)
+    expect(m, 'signal-record.css must neutralize .signal-record .card').not.toBeNull()
+    const body = m![1]
+    expect(body).toMatch(/border:\s*0/)
+    expect(body).toMatch(/box-shadow:\s*none/)
+    expect(body).toMatch(/background:\s*transparent/)
+  })
+
+  it('DO-5: the comment heading drops to the sibling-section register (no 20px card-h2)', () => {
+    const m = /\.signal-record\s+\.card-h2\s*\{([^}]*)\}/.exec(css)
+    expect(m, 'signal-record.css must re-register .signal-record .card-h2').not.toBeNull()
+    expect(m![1]).toMatch(/font-size:\s*var\(--font-size-mono\)/)
   })
 })

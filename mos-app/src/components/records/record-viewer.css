@@ -280,6 +280,26 @@
   background: var(--card);
 }
 
+/* ── Page-mode document measure — the ONE shared record-page grammar (Task + Signal) ─────────
+   A record opened as its OWN PAGE (mode="page") reads as a centered DOCUMENT at a comfortable
+   reading measure, NOT stretched to the viewport. This lives on the shared RecordViewer so BOTH
+   the Task record page and the Signal record page inherit the SAME measure from one seam —
+   neither surface may re-derive it per-tenant (the width fix that landed on Task but not Signal
+   was exactly that kind of one-surface drift; guard-record-page-measure.css.test.ts now pins both).
+   Panel/drawer mode (the in-list split) fills its host instead, so this is scoped to --page.
+   The 820px column cap is the E7 renderRecordPage measure; prose VALUES additionally cap at a
+   ~72ch reading length so a long description never runs the full column width (impeccable
+   line-length rule). Task's own .record-doc CARD (border/shadow/radius) stays surface-specific —
+   only the shared MEASURE lives here. */
+.record-viewer--page {
+  max-width: 820px;
+  margin-inline: auto;
+}
+
+.record-viewer--page .record-field__value {
+  max-width: 72ch;
+}
+
 /* E7 record anatomy: one identity block, then quiet typed sections. The live Task and Signal
  * tenants may differ in fields/content, but never in the title/type/section rhythm. */
 .record-viewer__identity {

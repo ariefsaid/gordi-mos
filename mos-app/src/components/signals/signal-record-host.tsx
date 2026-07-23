@@ -122,8 +122,10 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
     label: '',
   }))
   const notifyCount = dedupeRecipients(staged, rosters.teamMembers, rosters.buMembers)
+  // SR-1: notify count carries its noun (owner ruling "notify N people"); noun resolved in-locale.
+  const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
   const shieldLine = !teamName ? undefined : notifyCount > 0
-    ? t('signals.composer.visibleToNotify', { team: teamName, count: notifyCount })
+    ? t('signals.composer.visibleToNotify', { team: teamName, count: notifyCount, noun: notifyNoun })
     : t('signals.composer.visibleTo', { team: teamName })
 
   const statusById = Object.fromEntries(tasks.map((task) => [task.id, task.status]))
@@ -272,6 +274,10 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
           hostContent,
         })}
         mode={mode}
+        // SR-8 (mirrors TaskRecordPage): in page mode the RecordViewer identity IS the page's h1
+        // (the generic PageFamilyFrame head is hidden), so promote it from the default h2. The
+        // in-list panel/drawer keeps h2 (its host chrome owns the surrounding hierarchy).
+        headingLevel={mode === 'page' ? 1 : 2}
       />
     </div>
   )

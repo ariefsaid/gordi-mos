@@ -20,7 +20,10 @@
 .signal-record-occurred { font-size: 12.5px; color: var(--muted-foreground); }
 .signal-record-head .signal-attention { margin-left: auto; }
 
-.signal-record-body { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--foreground); }
+/* SR-4: the Signal record body is prose — cap it at a ~72ch reading measure so a long body does
+   not run the full document width (the SAME impeccable line-length rule the shared
+   .record-viewer--page value cap applies to Task's description). */
+.signal-record-body { margin: 0; max-width: 72ch; font-size: 14.5px; line-height: 1.6; color: var(--foreground); }
 
 .signal-record-mentions {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
@@ -69,3 +72,17 @@
 }
 .signal-record-linked-work p { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); }
 .signal-record-linked-work-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* SR-2: the Comments block reuses the shared CommentThread, which wraps itself in a bordered
+   .card with a 20px .card-h2 heading. That is correct as a STANDALONE card, but inside the Signal
+   record DOCUMENT it read as a nested card interrupting a borderless-section flow. Neutralize the
+   card chrome and drop the heading to the sibling-section register (the SAME move the Task record
+   feed makes with `.rf-tabpane .card`), so Comments reads as a quiet peer of the Linked-work /
+   Acknowledged sections above it — one document, no nested card. */
+.signal-record .card {
+  background: transparent; border: 0; border-radius: 0; box-shadow: none;
+  margin: 0; padding: 12px 0 0; border-top: 1px solid var(--border);
+}
+.signal-record .card-h2 {
+  font-size: var(--font-size-mono); font-weight: 600; margin-bottom: 8px; color: var(--foreground);
+}
