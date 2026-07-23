@@ -117,7 +117,14 @@ export function SignalTablePresentation({
           actions.onSort?.(next.key, next.dir === 'asc' ? 'ascending' : 'descending')
         }}
         rowClassName={(signal) =>
-          [signal.retracted_at ? 'signal-table-row--retracted' : undefined]
+          [
+            signal.retracted_at ? 'signal-table-row--retracted' : undefined,
+            // Operations-event row treatment (DESIGN.md §Operations event tokens): an
+            // attention-worthy row (Needs attention / Urgent, never a retracted one) carries the
+            // warning/7% fill + 2px warning left rule — the same treatment the Feed presentation
+            // gives it, so both /work/signals presentations read the state identically.
+            !signal.retracted_at && signal.attention !== 'FYI' ? 'signal-table-row--needs-attention' : undefined,
+          ]
             .filter(Boolean)
             .join(' ') || undefined
         }

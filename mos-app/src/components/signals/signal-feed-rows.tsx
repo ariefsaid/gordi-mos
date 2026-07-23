@@ -22,6 +22,13 @@ export interface SignalFeedRowsProps {
   onShareClick?: () => void
   onCategorize?: (signalId: string, category: SignalCategory) => void
   onOpen?: (signal: SignalRow) => void
+  /**
+   * `ambient` (default) — the Home tail: no per-row state fill, so Home reads as one calm system.
+   * `archive` — the /work/signals Feed: attention-worthy rows carry DESIGN.md's Operations-event
+   * row treatment (warning/7% fill + a 2px warning left rule, the owner-approved side-stripe
+   * exception, §Operations event tokens). Home's row treatment is unchanged.
+   */
+  variant?: 'ambient' | 'archive'
 }
 
 function initials(name: string): string {
@@ -30,12 +37,16 @@ function initials(name: string): string {
 
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
+  variant = 'ambient',
 }: SignalFeedRowsProps) {
   const t = useT()
   const ordered = orderSignalsForFeed([...signals])
 
   return (
-    <div className="home-signal-feed" data-testid="signal-feed">
+    <div
+      className={`home-signal-feed${variant === 'archive' ? ' home-signal-feed--archive' : ''}`}
+      data-testid="signal-feed"
+    >
       {/* Quiet action row — the composer entry (stays, per redirect). */}
       <button type="button" className="home-signal-share-row" onClick={onShareClick}>
         {t('signals.feed.shareRow')}
@@ -57,8 +68,16 @@ export function SignalFeedRows({
             }
             const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
             const teamName = teamNamesById[signal.owning_team_id] ?? ''
+            // Attention-worthy = anything above FYI (Needs attention / Urgent — the same amber
+            // family). The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the
+            // row here is inert on Home and lights up only in the archive Feed.
+            const attentionRow = signal.attention !== 'FYI' ? ' home-signal-row--attention' : ''
             return (
-              <li key={signal.id} className="home-signal-row" data-signal-id={signal.id}>
+              <li
+                key={signal.id}
+                className={`home-signal-row${attentionRow}`}
+                data-signal-id={signal.id}
+              >
                 <div className="home-signal-main">
                   {/* Body = the row title, one truncated line; the clickable record affordance. */}
                   {onOpen ? (

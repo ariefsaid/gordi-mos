@@ -29,6 +29,7 @@ export function SignalFeedPresentation({
   const actions = useSignalCollectionActions()
   return (
       <SignalFeedRows
+        variant="archive"
         signals={[...projection.visibleRecords]}
         authorNamesById={namesToRecord(context.authorNamesById)}
         teamNamesById={namesToRecord(context.teamNamesById)}

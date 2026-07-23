@@ -110,3 +110,16 @@
 .signal-table-row--retracted {
   color: var(--muted-foreground);
 }
+
+/* Operations-event attention row treatment (DESIGN.md §Operations event tokens): an
+   attention-worthy row (Needs attention / Urgent) carries a warning/7% fill + a 2px warning left
+   rule — the owner-approved side-stripe exception, always paired with the fill + the amber
+   attention pill text (never color-alone, WCAG 1.4.1). The rule is an inset box-shadow on the
+   leading cell so it survives `border-collapse: collapse` and does not shift cell content; the
+   quiet grey hover wash still layers over the fill, and the rule persists through it. */
+.signal-collection-table tbody tr.signal-table-row--needs-attention td {
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+}
+.signal-collection-table tbody tr.signal-table-row--needs-attention td:first-child {
+  box-shadow: inset 2px 0 0 0 var(--warning);
+}

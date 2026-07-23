@@ -90,6 +90,23 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
   })
 
+  it('P1-1: an attention-worthy row carries the Operations-event row class; FYI / retracted do not', () => {
+    renderTable([
+      row({ id: 's-attn', body: 'Grinder is down', attention: 'Needs attention' }),
+      row({ id: 's-urgent', body: 'Gas leak', attention: 'Urgent' }),
+      row({ id: 's-fyi', body: 'Restocked cups', attention: 'FYI' }),
+      row({ id: 's-dead', body: 'Dupe', attention: 'Urgent', retracted_at: '2026-07-16T05:00:00Z' }),
+    ])
+    const isAttentionRow = (text: string) =>
+      screen.getByText(text).closest('tr')?.classList.contains('signal-table-row--needs-attention')
+    expect(isAttentionRow('Grinder is down')).toBe(true)
+    expect(isAttentionRow('Gas leak')).toBe(true)
+    expect(isAttentionRow('Restocked cups')).toBe(false)
+    // A retracted row is a tombstone, never an attention row (state supersedes attention).
+    expect(screen.getByText(/this signal was retracted/i).closest('tr')?.classList
+      .contains('signal-table-row--needs-attention')).toBe(false)
+  })
+
   it('AC-V3-014: Signal table headers use the same native keyboard-sort contract as Tasks', async () => {
     const onSort = vi.fn()
     renderTable([row()], new Set(), vi.fn(), vi.fn(), { onSort })

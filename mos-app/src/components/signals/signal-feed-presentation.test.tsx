@@ -71,6 +71,24 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
   })
 
+  it('gives an attention-worthy archive row the Operations-event row treatment; FYI rows stay quiet (P1-1)', () => {
+    renderFeed(
+      [
+        row({ id: 'sig-attn', body: 'Grinder is down', attention: 'Needs attention' }),
+        row({ id: 'sig-fyi', body: 'Restocked cups', attention: 'FYI' }),
+      ],
+      {},
+    )
+    // The archive Feed opts into the attention treatment via the shared component's variant.
+    expect(document.querySelector('.home-signal-feed--archive')).toBeInTheDocument()
+    // Attention-worthy row carries the modifier the CSS lights up (warning fill + 2px left rule);
+    // FYI does not. Home's ambient variant never sets `--archive`, so Home is untouched.
+    const attnRow = document.querySelector('[data-signal-id="sig-attn"]')
+    const fyiRow = document.querySelector('[data-signal-id="sig-fyi"]')
+    expect(attnRow?.classList.contains('home-signal-row--attention')).toBe(true)
+    expect(fyiRow?.classList.contains('home-signal-row--attention')).toBe(false)
+  })
+
   it('wires Share and the injected collection opener while hiding unavailable Task creation', async () => {
     const onOpenRecord = vi.fn()
     const actions: SignalCollectionActions = {
