@@ -1686,3 +1686,17 @@ downstream conformance debt to reconcile.
   (conditional) → Audit history**; the per-field read-only provenance captions (one per field, 9 total)
   collapse to the single whole-record note (LAW-6 / F3). Step-2.5 recorded green via
   `follow-up-record-anatomy.test.tsx`.
+
+## Security audit — cafe/kitchen seam (SEC-1 escalation, 2026-07-23)
+
+- security: PASS — with prescription. SEC-1 verdict: **MEDIUM, not the census's CRITICAL** (no
+  cross-org path; no privilege elevation; approval triple-gated — RLS + `_guard_kitchen_log`
+  trigger + RPC role check with cross-org-first ordering; Submitted logs inert to actuals/ESB).
+  Real exposure confined to `ops.kitchen_logs`: (a) any org member can INSERT Submitted logs
+  (queue pollution), (b) UPDATE policy lacks `submitted_by=self` → pre-approval tampering of
+  another member's pending row. **Pre-existing on origin/main (identical policy); V3 improved
+  posture** (added review/pushes guards main lacks). Prescription: BU-membership WITH CHECK via
+  `shared.is_member_of_bu()` on INSERT + own-row-or-lead on UPDATE; seed caveat — verify a Kitchen
+  team membership exists before shipping (fail-closed risk); route guard needs a team-aware
+  `RequireTeamInBU` (access-role vocabulary can't express it), or minimum: hide the cafe rail
+  entry for non-members. Fix lane: `v3/sec-kitchen-rls`.
