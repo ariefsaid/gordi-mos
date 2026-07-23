@@ -37,6 +37,7 @@ import {
   type WindowSpec,
 } from '@/lib/dashboard'
 import { formatIDRCompact, formatDelta, dailySeries, type DashboardCut } from '@/lib/sales-dashboard'
+import { formatPercent } from '@/lib/format/percent'
 import { KPITile } from '@/components/dashboard/kpi-tile'
 import { ChartFrame } from '@/components/dashboard/chart-frame'
 import { DataTable, type DataTableSort } from '@/components/dashboard/data-table'
@@ -532,7 +533,9 @@ function toTableRows(cutRows: ReturnType<typeof aggregateByCut>): DashboardTable
     dimension: r.dimension,
     revenue: formatIDRCompact(r.revenue),
     transactions: r.transactions,
-    sharePct: `${r.sharePct}%`,
+    // sharePct is already ×100 (23.1) — back to a fraction for the ONE canonical
+    // locale-aware percent formatter (r5 F-2: no raw-period "23.1%" beside "36,7%").
+    sharePct: formatPercent(r.sharePct / 100, 1),
     avgCheck: formatIDRCompact(r.avgCheck),
     cogsInterim: r.cogsInterim != null ? formatIDRCompact(r.cogsInterim) : '—',
     grossMargin: r.grossMargin != null ? formatIDRCompact(r.grossMargin) : '—',

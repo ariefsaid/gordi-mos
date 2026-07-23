@@ -332,6 +332,18 @@ describe('DashboardPage — Detail tab', () => {
     expect(within(table).getByRole('columnheader', { name: /^gross margin$/i })).toBeInTheDocument()
     expect(within(table).getByRole('columnheader', { name: /margin %/i })).toBeInTheDocument()
   })
+
+  it('r5 F-2: Share % and Margin % speak the SAME id-ID separator — no raw-period percent in the table', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    fireEvent.click(screen.getByRole('tab', { name: /detail/i }))
+    const table = await screen.findByRole('table', { name: /revenue breakdown/i })
+    // Fixtures: POS 10jt/day vs B2B 5jt/day → shares 66,7% / 33,3% (comma, canonical module).
+    expect(within(table).getByText('66,7%')).toBeInTheDocument()
+    expect(within(table).getByText('33,3%')).toBeInTheDocument()
+    // The old raw-period form must not render anywhere in the table.
+    expect(within(table).queryByText(/\d+\.\d+%/)).toBeNull()
+  })
 })
 
 describe('DashboardPage — populated (phone)', () => {

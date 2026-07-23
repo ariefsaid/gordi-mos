@@ -5,6 +5,7 @@
 // (cohesion-debt 2026-07-19, item #1) — this file no longer owns an IDR/date copy.
 import { formatIDR } from './format/money'
 import { formatDayMonthYear } from './format/date'
+import { formatPercent } from './format/percent'
 
 export { formatIDR }
 //
@@ -190,10 +191,11 @@ export function assessCostStatus(args: {
   return { stale, uncertified, fresh: !stale && !uncertified, reasons }
 }
 
-/** Format a 0..1 fraction as a percentage string (e.g. 0.423 -> "42%"). */
+/** Format a 0..1 fraction as a percentage string (e.g. 0.423 -> "42%"). Integer
+ * precision is this surface's semantic; the separator/locale comes from the ONE
+ * canonical percent module (census g-money r5 F-2). */
 export function formatPct(frac: number | null): string {
-  if (frac === null) return '—'
-  return Math.round(frac * 100) + '%'
+  return formatPercent(frac, 0)
 }
 
 function round4(n: number): number {
