@@ -54,6 +54,12 @@ push / merge / deploy. Per-issue loop:
 of correctness** — port what they answered; don't re-open them mid-build. Re-iterating mockups per
 build round is a known failure mode of this project (see the redesign's OD-REDESIGN-65).
 
+**Mockup fidelity is not a data spec (owner-directed 2026-07-23).** A mockup's presumption of
+correctness covers IA, quality bar, and visual grammar — it never justifies a field/row/control
+whose information the surface already carries elsewhere. Every mockup-carried element must earn
+its place by information; redundancy is a fossil even when the mockup drew it (the
+Classification-row and Notes-tab incidents).
+
 ## Director posture (main session)
 Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
 ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
