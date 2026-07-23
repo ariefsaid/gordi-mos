@@ -40,11 +40,11 @@ describe('kitchenStatus — plan §6.1 mapping (on/over/under/not-started/logged
     })
   })
 
-  it('none: plan===0, made===0 → neutral dot:false "—" (dotless em-dash)', () => {
+  it('none: plan===0, made===0 → neutral dot:false "Not logged" (cafe-4: labeled, not a naked em-dash)', () => {
     expect(kitchenStatus({ made: 0, plan: 0, isOffPlan: true })).toEqual({
       tone: 'neutral',
       dot: false,
-      label: '—',
+      label: 'Not logged',
     })
   })
 })
