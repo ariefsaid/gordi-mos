@@ -189,6 +189,43 @@ if $REQUIRE_DESIGN; then
   fi
 fi
 
+# ── 5c. Audit-register coverage gate (Standing Audit Program — the enforcement teeth) ──
+# Map the diff's files → surfaces via docs/audits/surfaces.json pathSets. A surface the
+# diff TOUCHES must be either LOCKED (a generation battery ran and the passing state is
+# pinned) or explicitly BUMPED (a redesign lane is open, recorded in the register). A
+# change to an unlocked, un-bumped surface is a UI merge OUTSIDE the audit lifecycle →
+# FAIL. This makes "ship a surface without ever auditing it" mechanically impossible.
+# Only runs on UI diffs (REQUIRE_DESIGN); pure bash + jq, fast (no server, no node).
+if $REQUIRE_DESIGN && [[ -f docs/audits/surfaces.json ]] && command -v jq >/dev/null 2>&1; then
+  UNLOCKED_TOUCHED=()
+  while IFS=$'\t' read -r sid locked bumped pathset_json; do
+    # LOCKED (pins carry regression) or BUMPED (lane open) → allowed to change.
+    if [[ "$locked" != "null" && -n "$locked" ]]; then continue; fi
+    if [[ "$bumped" == "true" ]]; then continue; fi
+    # Unlocked + un-bumped: does the diff touch this surface's pathSet? bash [[ == ]]
+    # globbing — '*' spans '/', so 'dir/**' and 'name.*' both match as intended.
+    touched=false
+    while IFS= read -r g; do
+      [[ -z "$g" ]] && continue
+      while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        # shellcheck disable=SC2053
+        if [[ "$f" == $g ]]; then touched=true; break 2; fi
+      done <<< "$CHANGED_FILES"
+    done < <(echo "$pathset_json" | jq -r '.[]')
+    if $touched; then UNLOCKED_TOUCHED+=("$sid"); fi
+  done < <(jq -r '.surfaces[] | [.id, (.lockedAt // "null"), (.bumped|tostring), (.pathSet|tojson)] | @tsv' docs/audits/surfaces.json)
+
+  if [[ "${#UNLOCKED_TOUCHED[@]}" -gt 0 ]]; then
+    for sid in "${UNLOCKED_TOUCHED[@]}"; do
+      FAILURES+=("  - audit-register: unlocked surface '${sid}' changed — run its generation battery or record a bump. Open the lane: bash scripts/audit-register.sh bump ${sid} ; after the battery + ratify: bash scripts/audit-register.sh lock ${sid} <commit>")
+    done
+    SUMMARY_LINES+=("  audit-register: ${#UNLOCKED_TOUCHED[@]} unlocked surface(s) touched [BLOCKING]")
+  else
+    SUMMARY_LINES+=("  audit-register: PASS [ok]")
+  fi
+fi
+
 # ── 6. Report ────────────────────────────────────────────────────────────────
 echo ""
 echo "pre-merge-check: branch '${BRANCH}'"
