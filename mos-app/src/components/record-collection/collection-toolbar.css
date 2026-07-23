@@ -83,6 +83,11 @@
    presets and user views read as one intentional control rather than unlabeled chips. */
 .collection-toolbar__views-label {
   flex: none;
+  /* R3 (owner review r2): the micro-label sat flush against the "All" chip. Give it the row's
+     gap rhythm so "Saved view" reads as a label OF the chip strip, not fused to the first chip.
+     A left pad balances the label inside the pill track; the right gap opens the label→chip seam. */
+  padding-left: 4px;
+  margin-inline-end: 8px;
   color: var(--muted-foreground);
   font-size: 13px;
   white-space: nowrap;
