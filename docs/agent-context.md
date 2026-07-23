@@ -542,6 +542,11 @@ or the pi equivalent) so parallel agents never share one checkout. The shared-tr
 - **After any worktree-agent dispatch,** confirm your own HEAD didn't wander:
   `git branch --show-current` + `git rev-parse --short HEAD`. See [[mos-multiagent-git-gotchas]].
 
+- **No suggested-task chips from agents (owner-directed 2026-07-23):** briefs must say "do NOT
+  spawn_task; report out-of-scope findings in your final return value only." The Director applies
+  do/defer/delete on every finding — chips popped to the owner for items the Director then fixed
+  anyway were pure noise (three incidents on 07-23).
+
 ## Gotchas (will bite you)
 - **Stale local `main`:** `git worktree add … main` uses your *local* ref, which lags `origin/main` after
   you merge a PR. `git fetch` + rebase the worktree, or it'll miss/clobber recent merges.
