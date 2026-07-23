@@ -53,6 +53,16 @@
   font-size: 15px;
 }
 
+/* R2 (owner review r2): the ONE muted meta sentence for a workspace head — "14 tasks · 2 blocked".
+   A single font size (the body token, DESIGN.md body/meta step) so the whole line reads as one
+   register — no count-pill vs. submeta "size soup". Sits inside the content-header .ch-meta wrapper. */
+.content-header .ch-meta-line {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 .page-head--v3.content-header {
   flex-wrap: wrap;
 }

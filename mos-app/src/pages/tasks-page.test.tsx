@@ -762,11 +762,12 @@ describe('Fix M2 — task count suppressed in error state', () => {
     mockListTasks.mockResolvedValue([makeTask(), makeTask({ id: 'task-2', title: 'Task 2' })])
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
-    // Goal-oracle: the loaded count is visible. UI-fidelity rework moved the count to
-    // the content-header count pill (.ch-count) — read it there (was the count-line).
-    // In "Mine" segment default, both tasks are by VIEWER_ID so both appear.
-    const pill = document.querySelector('.content-header .ch-count')
-    expect(pill?.textContent).toBe('2')
+    // Goal-oracle: the loaded count is visible. R2 (owner review r2) replaced the content-header
+    // count pill with ONE muted meta sentence ("N tasks · M blocked", a single font size) — the
+    // count now reads inside that sentence. In "Mine" segment default, both tasks are by VIEWER_ID
+    // so both appear.
+    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
+    expect(countLine?.textContent).toContain('2 tasks')
   })
 })
 

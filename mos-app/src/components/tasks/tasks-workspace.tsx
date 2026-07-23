@@ -355,13 +355,24 @@ export function TasksWorkspace({
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
       state={frameState}
-      count={stats?.total ?? null}
       action={showNewTask ? (
         <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
       ) : undefined}
       meta={
-        <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
-          {stats === null ? '—' : stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null}
+        // R2 (owner review r2): ONE muted meta sentence in the E7 grammar — "14 tasks · 2 blocked",
+        // a single font size (the body token). Replaces the superscript count pill + a differently
+        // sized "blocked" fragment (the "size soup" the owner flagged). Live counts; blocked only
+        // when >0; "—" while loading/error (AC-M2). The count also lives in the result-header inside
+        // the card, so dropping the page-head pill loses no information.
+        <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
+          {stats === null
+            ? '—'
+            : [
+                t('tasks.meta.taskCount', { count: stats.total }),
+                stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
         </span>
       }
     >
