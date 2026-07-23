@@ -215,8 +215,8 @@ describe('AC-070 — detail page renders task fields', () => {
     // Activity log region (the feed default tab)
     expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
 
-    // Description lives in the Details section prose AND the Notes feed tab; both surface the text.
-    fireEvent.click(screen.getByRole('tab', { name: /notes/i }))
+    // Description renders once, in the Details section prose (the Notes feed tab was a fossil,
+    // deleted deliberately — owner-eyes item 11 / commit b031937; journey step updated, goal intact).
     expect(screen.getAllByText(/espresso machine on floor 2 is broken/i).length).toBeGreaterThan(0)
 
     // Checklist items behind the Checklist feed tab
