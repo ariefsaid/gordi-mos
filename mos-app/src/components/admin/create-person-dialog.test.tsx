@@ -51,12 +51,20 @@ beforeEach(() => {
   )
 })
 
-function renderDialog(props: { open?: boolean; onClose?: () => void; onCreated?: () => void } = {}) {
+function renderDialog(
+  props: {
+    open?: boolean
+    onClose?: () => void
+    onCreated?: () => void
+    onShowToast?: (message: string) => void
+  } = {},
+) {
   return render(
     <CreatePersonDialog
       open={props.open ?? true}
       onClose={props.onClose ?? vi.fn()}
       onCreated={props.onCreated ?? vi.fn()}
+      onShowToast={props.onShowToast}
     />,
   )
 }
@@ -287,6 +295,73 @@ describe('CreatePersonDialog (AC-011)', () => {
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
     await screen.findByText(/couldn't create/i)
+  })
+
+  // ── JQ-3: the "Create a login now" intent must never be silently lost ─────────
+
+  it('JQ-3: login-requested create surfaces the show-once credential reveal (never a plain "added" toast)', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPwJQ3')
+    const onShowToast = vi.fn()
+    const onClose = vi.fn()
+    renderDialog({ onShowToast, onClose })
+
+    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
+    await user.type(screen.getByLabelText('Email'), 'hire@gordi.id')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    // The credential handoff fired: the reveal shows the password.
+    await screen.findByText('TempPwJQ3')
+    // …and the dialog did NOT short-circuit into the no-login "added" success.
+    expect(onShowToast).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('JQ-3: person-created-but-login-failed surfaces an honest actionable message, not a silent "added"', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockRejectedValue(new Error('provisioning RPC failed'))
+    const onCreated = vi.fn()
+    const onClose = vi.fn()
+    const onShowToast = vi.fn()
+    renderDialog({ onCreated, onClose, onShowToast })
+
+    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
+    await user.type(screen.getByLabelText('Email'), 'hire@gordi.id')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    // The list refreshes (the new no-login person is now visible with a Create-login row action)…
+    await waitFor(() => expect(onCreated).toHaveBeenCalled())
+    // …and the admin is told the login step did NOT happen + how to recover — never a bare "added".
+    const message = onShowToast.mock.calls.at(-1)?.[0] as string
+    expect(message).toMatch(/sign-in couldn't be created/i)
+    expect(message).toMatch(/create login/i)
+    expect(message).not.toBe('New Hire added.')
+    // No credential reveal is shown (none was created).
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('JQ-3: a full create failure (person not written) keeps the honest "couldn\'t create" error', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockRejectedValue(new Error('rls denied'))
+    const onCreated = vi.fn()
+    const onShowToast = vi.fn()
+    renderDialog({ onCreated, onShowToast })
+
+    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
+    await user.type(screen.getByLabelText('Email'), 'hire@gordi.id')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    await screen.findByText(/couldn't create/i)
+    // Nothing was written → no list refresh, no misleading "added" toast, no login attempt.
+    expect(onCreated).not.toHaveBeenCalled()
+    expect(onShowToast).not.toHaveBeenCalled()
+    expect(mockCreateLogin).not.toHaveBeenCalled()
   })
 
   // FIX B1 regression — the canonical shell owns the visible Single-Border Rule.

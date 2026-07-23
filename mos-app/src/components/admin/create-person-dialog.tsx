@@ -109,29 +109,47 @@ export function CreatePersonDialog({
     const resolvedEmail = noEmail ? syntheticEmail : email.trim() || null
     setPhase('submitting')
 
+    let personId: string
     try {
-      const personId = await createPerson({
+      personId = await createPerson({
         full_name: fullName.trim(),
         email: resolvedEmail,
         access_roles: Array.from(selectedRoles),
       })
-
-      if (createLoginNow) {
-        const pw = await createLogin(personId)
-        // Swap to reveal — do NOT close or call onCreated yet
-        setRevealData({ password: pw, personName: fullName.trim(), email: resolvedEmail })
-        setPhase('reveal')
-      } else {
-        // No login — close + notify + toast
-        onCreated()
-        onShowToast?.(`${fullName.trim()} added.`)
-        onClose()
-      }
     } catch (err) {
+      // Nothing was written — the honest "couldn't create this person, try again" path.
       setPhase('form')
       setSubmitError(
         err instanceof Error ? err.message : "Couldn't create this person. Try again.",
       )
+      return
+    }
+
+    if (!createLoginNow) {
+      // No login requested — close + notify + toast.
+      onCreated()
+      onShowToast?.(`${fullName.trim()} added.`)
+      onClose()
+      return
+    }
+
+    // JQ-3: login WAS requested. Deliver the credential handoff (PasswordReveal) on success, or a
+    // visible actionable message on failure — never let the login intent vanish behind a plain
+    // "added" success. The person already exists here, so re-submitting createPerson would
+    // duplicate them; on failure we therefore refresh the list (the new person surfaces with a
+    // "Create login" row action) and hand the admin an honest recovery instruction via the toast,
+    // then close — the row-menu Create login (with its own reveal) is the established retry path.
+    try {
+      const pw = await createLogin(personId)
+      // Swap to reveal — do NOT close or call onCreated yet (Done drops the password + closes).
+      setRevealData({ password: pw, personName: fullName.trim(), email: resolvedEmail })
+      setPhase('reveal')
+    } catch {
+      onCreated()
+      onShowToast?.(
+        `${fullName.trim()} added, but the sign-in couldn't be created. Open their ⋯ menu to Create login.`,
+      )
+      onClose()
     }
   }
 
