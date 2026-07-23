@@ -53,10 +53,11 @@ export const ADMIN = {
   displayName: 'E2E Admin',
 }
 
-// MEMBER (Issue E — Home stacked-union): a dedicated e2e-only user + dedicated e2e person with the
-// `member` access role and NO org role (not a manager/BU-head/owner) → a pure contributor whose
-// stacked Home is capture-first only. Same dedicated-e2e isolation pattern as ADMIN/RECOVERY so it
-// never touches a dev persona (all dev personas are BU-heads). Used by home-stacked-union.spec.ts.
+// MEMBER: a dedicated e2e-only user + dedicated e2e person with the `member` access role and NO
+// org role (not a manager/BU-head/owner) → a pure contributor persona. Same dedicated-e2e isolation
+// pattern as ADMIN/RECOVERY so it never touches a dev persona (all dev personas are BU-heads).
+// (Its sole consumer, home-stacked-union.spec.ts, was deleted — OD-REDESIGN-85 — leaving this
+// seeded but currently unconsumed by a live spec; kept for the next persona-scoped e2e that needs it.)
 export const MEMBER = {
   email: 'e2e.member@example.test',
   password: 'e2e-password-123',

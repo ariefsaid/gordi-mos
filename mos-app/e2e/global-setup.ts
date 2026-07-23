@@ -213,9 +213,9 @@ export default async function globalSetup() {
   )
   console.log(`[global-setup] created + linked ADMIN user → dedicated person ${ADMIN.personId} (admin role)`)
 
-  // ── 3c-bis. MEMBER (dedicated e2e person, member access, NO org role) — Issue E stacked-union ──
-  // A pure contributor (member access, no role-scope) whose stacked Home is capture-first only. Same
-  // dedicated-e2e pattern as ADMIN (never touches a dev persona).
+  // ── 3c-bis. MEMBER (dedicated e2e person, member access, NO org role) ──
+  // A pure contributor persona (member access, no role-scope). Same dedicated-e2e pattern as ADMIN
+  // (never touches a dev persona).
   await execSql(
     SUPABASE_URL,
     SERVICE_ROLE_KEY,

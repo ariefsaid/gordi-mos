@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom'
-import { SHOW_USER_VIEWS, SHOW_HOME_STACKED, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
+import { SHOW_USER_VIEWS, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
@@ -7,7 +7,6 @@ import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
-import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { FollowUpRecordPage } from './pages/follow-up-record-page'
@@ -102,10 +101,7 @@ export const routeConfig: RouteObject[] = [
         element: <AppShell />,
         handle: v3Infrastructure('layout'),
         children: [
-          { index: true, element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage />, handle: v3Page('workspace') },
-          ...(import.meta.env.DEV
-            ? [{ path: '__home-stacked', element: <StackedUnionHome />, handle: v3Infrastructure('dev-only') }]
-            : []),
+          { index: true, element: <HomePage />, handle: v3Page('workspace') },
 
           // ── Work (canonical) ──
           { path: 'work', element: <Navigate to="/work/tasks" replace />, handle: v3Redirect('/work/tasks') },

@@ -280,17 +280,12 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
 })
 
 // ════════════════════════════════════════════════════════════════════════════
-// RI-VIS-4: ONE pill — no hand-rolled pillStyle / wup-state-* / ops-source-badge
-// raw pill shell outside the shared <Pill> (VIS-4, PR-2). The My Week strips +
-// the Ops source badge re-skin onto <Pill>; the weekly <StatePill> does too.
+// RI-VIS-4: ONE pill — no hand-rolled wup-state-* / ops-source-badge raw pill
+// shell outside the shared <Pill> (VIS-4, PR-2). The Ops source badge re-skin
+// onto <Pill>. (The My Week pillStyle check retired with the weekly/ scaffold —
+// OD-REDESIGN-85.)
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
-  it('my-week-panel.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
-    const src = readSrc('components/weekly/my-week-panel.tsx')
-    expect(src).not.toMatch(/\bpillStyle\b/)
-    expect(src).toMatch(/from '@\/components\/ui\/pill'/)
-  })
-
   it('no non-test source renders a wup-state-* or ops-source-badge className (raw pill shells)', () => {
     const offenders: string[] = []
     for (const f of listNonTestSource(SRC)) {
