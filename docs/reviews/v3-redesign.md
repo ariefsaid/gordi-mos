@@ -1619,3 +1619,32 @@ overlay drawer path; composer unstyled; PageFrame cap void; fossils kept by mock
 misreading. In-flight lanes + verdicts land in follow-up sections. Score state: Luna official
 26/40 · 6.5 · 8 floor violations at `61f6087` — floor violations since closed with measured px;
 re-score deferred by owner until requested.
+
+## Mechanical guards — 2026-07-23 (branch v3/mech-guards; the owner-catch ratchet)
+
+Every defect class the owner personally caught (that 5 audit rounds missed) is now a
+deterministic, machine-checked guard — the class can never again require his eye. Two layers:
+structural (Vitest/jsdom, always-on, class/count/CSS-grammar assertions) and geometry
+(Playwright computed boxes, `mos-app/e2e/guards.geometry.spec.ts`, needs the live stack).
+Each guard cites the skill rule it mechanizes, in the test header and here.
+
+| Guard | Pins | Skill rule mechanized | Owning test(s) |
+|---|---|---|---|
+| GUARD-R1 split height parity | ≥1100px split: table + drawer share ONE grid track height (stretch + drawer flex-fill/overflow); base grid stays start-aligned; measured: tops AND bottoms align ≤2px | taste §7 "Align & Space Perfectly" | `mos-app/src/components/tasks/guard-r1-split-parity.css.test.ts` · geometry GUARD-R1 |
+| GUARD-R2 naked numbers | Tasks head = exactly ONE `.ch-meta-line` labeled sentence ("3 tasks · 1 blocked"), zero `.ch-count` pill, zero bare-number leaf; loading shows "—" | impeccable distill "every element justifies its existence"; uupm "Font Size Scale — no random sizes" | `mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx` |
+| GUARD-PRIMARY one solid primary | CollectionToolbar contributes ZERO resting `.btn-primary` in every disclosure state; Save-view trigger stays ghost; transient save-confirm ≤1; live Tasks page ≤1 visible | impeccable distill "Clear hierarchy: ONE primary action" | `mos-app/src/components/record-collection/guard-one-solid-primary.test.tsx` · geometry GUARD-PRIMARY |
+| GUARD-R3 toolbar label gap | `.collection-toolbar__views-label` declares ≥8px inline-end; measured label→chip gap ≥8px | uupm ux-guidelines "min 8px gap between adjacent targets"; taste §7 | `mos-app/src/components/record-collection/guard-r3-toolbar-label-gap.css.test.ts` · geometry GUARD-R3 |
+| GUARD-R4 permission notes | Real `createTaskRecordAdapter`→`RecordViewer` path: read-only/archived record renders EXACTLY 1 footer reason + 0 per-field reasons; editable renders 0 | impeccable critique heuristic 8 (minimalist: no irrelevant information) | `mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx` |
+| GUARD-VOCAB token vocabulary | ALL of `src/components/**/*.css` (kit dir owned by stricter kit-vocab) + `src/shell/*.css`: font-size/border-radius must be semantic tokens; pre-existing raw values pinned in a count-ledger that only ratchets DOWN (stale entries fail); colors zero-tolerance (surface is hex/rgb/hsl-clean) | uupm "Font Size Scale — consistent modular scale"; DESIGN.md §Typography ladder | `mos-app/src/components/guard-css-token-vocab.test.ts` (extends `ui/kit-vocab.test.ts`) |
+| GUARD-TAP tap targets | Phone 375px: every sampled visible `.btn`/`.chip`/`.bottom-tab`/options-trigger ≥44px tall across Tasks/Home/Signals (pins the P1-4 fix) | uupm ux-guidelines "Touch Target Size: min 44×44px" (High) | `mos-app/src/components/ui/tap-targets.css.test.ts` (pre-existing CSS pin) · geometry GUARD-TAP |
+
+Alongside the GUARD-VOCAB ratchet, 213 mechanical token substitutions landed (byte-identical
+values only: 24/20/18/14/13.5/13/12/11/10px → the ladder tokens; 4/8/12/999px radii → radius
+tokens; matching-fallback `var()` forms normalized) across 45 component/shell CSS files —
+zero visual change by construction. The signal-table side-stripe exception (owner-approved)
+was left untouched; only its font sizes were tokenized. Non-trivial leftovers (15px, 16px,
+23px, 12.5px, `--text-size-*` foreign family, `--rec-kv-*` indirection, 2px/6px radii …) are
+pinned — not endorsed — in the test's EXCEPTIONS ledger for a design-architect decision
+(remap vs mint a token). Pre-existing, unrelated red found while verifying:
+`css-var-wiring.test.ts` fails on `--field-error-text` (undefined var, no fallback) in
+`catalog-collection.css` — present before this branch's changes, left for its owning lane.
