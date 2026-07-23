@@ -14,7 +14,7 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 
 **Generated:** 2026-07-23 · **backfill baseline:** `3d550af` · **surfaces:** 25 · **dimensions:** 2
 
-**Lifecycle tally:** LOCKED 14 · BUMPED 1 · DUE 10
+**Lifecycle tally:** LOCKED 15 · BUMPED 1 · DUE 9
 
 ## Global due axes (apply to EVERY surface)
 
@@ -36,8 +36,8 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 | Kitchen sub-tabs (log/plan/stock/review/pushes) | `/cafe/log`, `/cafe/plan`, `/cafe/stock`, `/cafe/review`, `/cafe/pushes` | LOCKED | 1 | `542c48b` | `25aaa64` | 1 | member: log/plan/stock only — review + pushes gated (RequireAccessRole ops_lead/admin); ops_lead: all five tabs | persona:member vs ops_lead tab-gating render never audited; review/pushes states NOT-REVIEWED |
 | Objectives catalog | `/work/objectives` | LOCKED | 1 | `ab61009` | `3d550af` | 2 | member: no access (RequireCapability objective.manage — absent, not disabled); ops_lead: no access | 8 of 9 states NOT-REVIEWED (census-r2 3.10) |
 | Projects & Processes catalog | `/work/projects` | LOCKED | 1 | `ab61009` | `3d550af` | 2 | ops_lead: visible (workline.manage per OD-C-2); member: no access (absent) | 8 of 9 states NOT-REVIEWED (census-r2 3.10) |
-| Money summary + detail | `/money`, `/money/detail` | LOCKED | 1 | `3d550af` | `3d550af` | 3 | finance: PRIMARY non-admin audience — the only non-admin door to Money (RequireAccessRole finance/admin); admin: same render as finance; member: no access (absent); ops_lead: no access | persona:finance never audited AS Fitri (the audience the surface exists for); dimension:data-viz D17 — the revenue chart never audited AS A CHART (axes/legend/encoding; uupm data-viz rules) |
-| Money plan (Budget + Pricing) | `/money/budget`, `/money/pricing` | DUE | 1 | — | — | 1 | finance: gated finance/admin + flag SHOW_PLAN_BUDGET; member: no access; ops_lead: no access | NEVER AUDITED — flag-gated SHOW_PLAN_BUDGET; renders fully against seeds (FLAG-18). Owes gen-1 battery. |
+| Money summary + detail | `/money`, `/money/detail` | LOCKED | 1 | `3d550af` | `7689133` | 3 | finance: PRIMARY non-admin audience — the only non-admin door to Money (RequireAccessRole finance/admin); admin: same render as finance; member: no access (absent); ops_lead: no access | persona:finance never audited AS Fitri (the audience the surface exists for); dimension:data-viz D17 — the revenue chart never audited AS A CHART (axes/legend/encoding; uupm data-viz rules) |
+| Money plan (Budget + Pricing) | `/money/budget`, `/money/pricing` | LOCKED | 1 | `7689133` | `7689133` | 1 | finance: gated finance/admin + flag SHOW_PLAN_BUDGET; member: no access; ops_lead: no access | — |
 | Follow-ups queue | `/money/follow-ups`, `/work/follow-ups?view=followups` | LOCKED | 1 | `ab61009` | `3d550af` | 1 | finance: gated finance/admin + flag SHOW_FOLLOWUPS | flag SHOW_FOLLOWUPS off — only reserved placeholder rendered; populated/loading/error NOT-REVIEWED |
 | Follow-up record | `/work/follow-ups/:id` | DUE | 1 | — | — | 0 | finance: gated + flag SHOW_FOLLOWUPS | NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010). |
 | Admin — People | `/admin/people` | LOCKED | 1 | `ab61009` | `3d550af` | 1 | admin: only audience (AdminRoute); finance: no access; ops_lead: no access; member: no access | states: hover/loading/error/empties/menus NOT-REVIEWED (census-r2 3.12) |
@@ -54,7 +54,6 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 ## DUE — surfaces owing their first (or a re-opened) generation battery
 
 - **Signal record (panel + full page)** [`signal-record`] — BUMPED: GEN-2 BUMP IN FLIGHT — luna-floor record-tree refactor (per-kind Signal composition, anatomy Step 2.5); re-battery + re-lock owed before merge; states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6)
-- **Money plan (Budget + Pricing)** [`money-plan`] — DUE: NEVER AUDITED — flag-gated SHOW_PLAN_BUDGET; renders fully against seeds (FLAG-18). Owes gen-1 battery.
 - **Follow-up record** [`follow-up-record`] — DUE: NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010).
 - **Events** [`events`] — DUE: NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery.
 - **Profile** [`profile`] — DUE: NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host.

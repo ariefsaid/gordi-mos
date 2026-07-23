@@ -73,7 +73,10 @@ surface and both pages passed their census.
 5. Phone View & filters wrapper non-dedup rationale. **Ratify.**
 6. **RecordViewer region order → content-first** (OD-90 adoption; the anatomy spec's flagged
    conformance debt; per-kind for Signal now, Task/Follow-up next). **Ratify.**
-7. *(slot)* F-9 Money job sentences for Budget/Pricing — drafts land with money r5.
+7. **F-9 Money job sentences (drafts landed, approve or edit):**
+   - Budget — EN "Capture certified-cost budget scenarios pricing can trust." · ID "Rekam skenario anggaran berbasis biaya tersertifikasi yang bisa dipercaya penetapan harga."
+   - Pricing — EN "Check a candidate price against certified costs before it ships." · ID "Uji harga kandidat terhadap biaya tersertifikasi sebelum diberlakukan."
+   **Recommend: approve as drafted.**
 
 ## F · Pending slots (fill before the sitting closes)
 

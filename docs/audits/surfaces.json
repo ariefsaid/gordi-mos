@@ -564,8 +564,8 @@
       ],
       "generation": 1,
       "auditedAt": "3d550af",
-      "ratifiedBy": "money lane backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "7689133",
       "bumped": false,
       "pins": [
         "mos-app/src/pages/guard-r2-naked-heads.test.tsx",
@@ -611,18 +611,16 @@
         1870
       ],
       "generation": 1,
-      "auditedAt": null,
-      "ratifiedBy": null,
-      "lockedAt": null,
+      "auditedAt": "7689133",
+      "ratifiedBy": "Director",
+      "lockedAt": "7689133",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-PB-012-budget-pricing-preflight.spec.ts"
       ],
       "findings": null,
-      "due": true,
-      "dueAxes": [
-        "NEVER AUDITED — flag-gated SHOW_PLAN_BUDGET; renders fully against seeds (FLAG-18). Owes gen-1 battery."
-      ]
+      "due": false,
+      "dueAxes": []
     },
     {
       "id": "follow-ups-queue",
