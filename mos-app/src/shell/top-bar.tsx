@@ -239,7 +239,11 @@ function CreateButton({ onOpenCreate }: { onOpenCreate?: () => void }) {
   return (
     <button
       type="button"
-      aria-label={t('actionLauncher.open')}
+      // TB-3 (WCAG 2.5.3 label-in-name): the button carries a visible "Create" label, so its
+      // accessible name must contain it. No aria-label override — the accessible name derives
+      // from the visible text (the PlusIcon is aria-hidden), guaranteeing the match. Popup
+      // semantics stay on aria-haspopup, not smuggled into an "Open actions" name that voice
+      // users can't invoke by the word they see.
       aria-haspopup="dialog"
       className="flex items-center gap-1.5 rounded-sm bg-primary px-3 font-semibold text-primary-foreground hover:bg-primary/90 flex-none"
       style={{ height: 34, fontSize: 13 }}

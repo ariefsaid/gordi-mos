@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -123,32 +123,42 @@ describe('AC-014: TopBar layout (OD-57)', () => {
 })
 
 // E7 topbar parity — the Create button (Action Launcher trigger). Desktop-only; opens the
-// shared command registry (the same command menu the mobile plus opens). Its accessible name
-// is "Open actions" (actionLauncher.open), NOT "Create Task", so AC-014's no-universal-action
-// assertion above still holds.
+// shared command registry (the same command menu the mobile plus opens). TB-3 (WCAG 2.5.3
+// label-in-name): its accessible name is the visible "Create" label — no aria-label override —
+// while aria-haspopup carries the popup semantics. It is still NOT "Create Task", so AC-014's
+// no-universal-action assertion above still holds.
 describe('E7 parity: Create button (Action Launcher)', () => {
   it('renders the Create button after the deputy launcher on desktop', () => {
     renderTopBar()
-    const create = screen.getByRole('button', { name: 'Open actions' })
+    const create = screen.getByRole('button', { name: 'Create' })
     expect(create).toBeInTheDocument()
     expect(create).toHaveTextContent('Create')
+    expect(create).toHaveAttribute('aria-haspopup', 'dialog')
     const deputy = screen.getByRole('button', { name: /Open deputy/i })
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     expect(precedes(deputy, create)).toBe(true)
   })
 
+  // TB-3: the visible label ("Create") is contained in the accessible name ("Create").
+  it('TB-3: accessible name contains the visible label (WCAG 2.5.3)', () => {
+    renderTopBar()
+    const create = screen.getByRole('button', { name: 'Create' })
+    const visible = within(create).getByText('Create')
+    expect(create).toHaveAccessibleName(new RegExp(visible.textContent!))
+  })
+
   it('clicking Create calls onOpenCreate', () => {
     const onOpenCreate = vi.fn()
     renderTopBar('/work/tasks', vi.fn(), vi.fn(), onOpenCreate)
-    fireEvent.click(screen.getByRole('button', { name: 'Open actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(onOpenCreate).toHaveBeenCalledOnce()
   })
 
   it('is desktop-only — absent at <920px (the bottom-tab plus is the phone launcher)', () => {
     mockUseIsNarrow.mockReturnValue(true)
     renderTopBar()
-    expect(screen.queryByRole('button', { name: 'Open actions' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()
   })
 })
 
