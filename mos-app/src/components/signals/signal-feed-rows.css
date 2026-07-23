@@ -179,5 +179,9 @@
 .home-signal-tombstone { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); font-style: italic; }
 
 @media (max-width: 480px) {
+  /* DO-14 (signals F-3): on a phone the tail (attention pill + category control) is fixed-width
+     while the title column (flex:1) is squeezed to ~3 words — identity starvation. Stack the row
+     so the title + meta take the FULL width and the tail drops to its own line beneath them. */
+  .home-signal-row { flex-direction: column; gap: 6px; }
   .home-signal-tail { align-self: flex-start; }
 }

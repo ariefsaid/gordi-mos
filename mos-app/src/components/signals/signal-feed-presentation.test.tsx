@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -103,5 +105,44 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
     expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
     expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
+  })
+})
+
+// DO-14 (signals F-3): on a phone the row is a flex ROW — a fixed-width tail (attention pill +
+// category control) squeezes the title column to ~3 words (identity starvation). jsdom has no
+// layout engine, so pin the CSS grammar of the fix: at ≤480px the row stacks to a column so the
+// title/main span the full width and the tail drops beneath.
+describe('DO-14: mobile feed row stacks so the Signal title is not starved by the tail', () => {
+  const css = readFileSync(
+    resolve(process.cwd(), 'src/components/signals/signal-feed-rows.css'),
+    'utf8',
+  ).replace(/\/\*[\s\S]*?\*\//g, '')
+
+  function mediaBody(query: string): string {
+    const idx = css.indexOf(`@media (${query})`)
+    expect(idx, `signal-feed-rows.css must contain @media (${query})`).toBeGreaterThanOrEqual(0)
+    const open = css.indexOf('{', idx)
+    let depth = 0
+    for (let i = open; i < css.length; i += 1) {
+      if (css[i] === '{') depth += 1
+      if (css[i] === '}') {
+        depth -= 1
+        if (depth === 0) return css.slice(open + 1, i)
+      }
+    }
+    throw new Error(`unterminated media block: ${query}`)
+  }
+
+  it('DO-14: the ≤480px block flips .home-signal-row to a column', () => {
+    const body = mediaBody('max-width: 480px')
+    expect(body).toMatch(/\.home-signal-row\s*\{[^}]*flex-direction:\s*column/)
+  })
+
+  it('DO-14 (guard the guard): the base .home-signal-row stays a flex ROW at wide widths', () => {
+    // The stack is a scoped phone exception; the desktop/tablet row must keep its row layout so
+    // the title + tail sit side-by-side above 480px.
+    const base = css.slice(0, css.indexOf('@media'))
+    expect(base).toMatch(/\.home-signal-row\s*\{[^}]*display:\s*flex/)
+    expect(base).not.toMatch(/\.home-signal-row\s*\{[^}]*flex-direction:\s*column/)
   })
 })
