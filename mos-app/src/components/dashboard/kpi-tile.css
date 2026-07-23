@@ -5,6 +5,7 @@
    Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
 .kpi-tile {
+  position: relative; /* r5 F-8: anchors the stretched hit overlay */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -20,20 +21,28 @@
   color: inherit;
 }
 
-/* Button variant (onClick set — filter-in-place, FR-016/AC-016): reset native button
-   chrome so the tile reads identically to the div, just interactive. The hover lift
-   is conveyed by the primary border-color transition (Soft-Elevation: rest shadow
-   stays; no separate hover-shadow token exists in DESIGN.md). */
-button.kpi-tile {
-  cursor: pointer;
-  width: 100%;
+/* Interactive variant (onClick set — filter-in-place, FR-016/AC-016). r5 F-8: the
+   tile is a div + a stretched transparent hit <button> (never a button WRAPPER —
+   that nested the help button). The hover lift stays the primary border-color
+   transition (Soft-Elevation: rest shadow stays; no hover-shadow token). */
+.kpi-tile--interactive {
   transition: border-color var(--dur-fast) ease;
 }
-button.kpi-tile:hover {
+.kpi-tile--interactive:hover {
   border-color: var(--primary);
 }
 @media (prefers-reduced-motion: reduce) {
-  button.kpi-tile { transition: none; }
+  .kpi-tile--interactive { transition: none; }
+}
+
+.kpi-tile-hit {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  border-radius: inherit;
+  padding: 0;
+  cursor: pointer;
 }
 
 /* selected = the tile driving the current filter-in-place window (FR-016/AC-016):
@@ -53,12 +62,19 @@ button.kpi-tile:hover {
   color: var(--muted-foreground);
 }
 
+/* r5 F-8: a real <button> now (was a span) — reset native chrome, stack above the
+   hit overlay so it stays independently clickable/focusable on interactive tiles. */
 .kpi-tile-help {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 14px;
   height: 14px;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   color: var(--muted-foreground);

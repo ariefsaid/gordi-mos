@@ -83,9 +83,12 @@ export function KPITile({
       <span className="kpi-tile-label">
         {label}
         {help && (
-          <span className="kpi-tile-help" aria-label={help} title={help}>
+          // r5 F-8: a REAL button — keyboard/AT reachable (was a cursor:help span
+          // only pointer users could discover). It carries no action; the tooltip
+          // surfaces on hover AND focus via title, and AT announces the aria-label.
+          <button type="button" className="kpi-tile-help" aria-label={help} title={help}>
             ?
-          </span>
+          </button>
         )}
       </span>
       <span className="kpi-tile-value kpi-tile-value--nowrap tabular">{value}</span>
@@ -104,21 +107,27 @@ export function KPITile({
     </>
   )
 
-  const className = withExtra(`kpi-tile${selected ? ' kpi-tile--selected' : ''}`)
+  const className = withExtra(
+    `kpi-tile${selected ? ' kpi-tile--selected' : ''}${onClick ? ' kpi-tile--interactive' : ''}`,
+  )
 
-  // onClick present → a real <button> for filter-in-place (FR-016/AC-016).
+  // onClick present → filter-in-place (FR-016/AC-016). r5 F-8: the tile itself is
+  // no longer a <button> wrapper (that would nest the help button — invalid,
+  // AT-hostile). A stretched transparent hit button overlays the tile; the help
+  // button stacks above it (z-index), so both are independently reachable.
   if (onClick) {
     return (
-      <button
-        type="button"
-        className={className}
-        aria-label={label}
-        aria-current={selected ? 'true' : undefined}
-        data-touch-target="true"
-        onClick={onClick}
-      >
+      <div className={className}>
+        <button
+          type="button"
+          className="kpi-tile-hit"
+          aria-label={label}
+          aria-current={selected ? 'true' : undefined}
+          data-touch-target="true"
+          onClick={onClick}
+        />
         {inner}
-      </button>
+      </div>
     )
   }
 

@@ -70,6 +70,31 @@ describe('KPITile — ready state', () => {
     expect(screen.getByLabelText(/share of trailing-7d revenue by channel/i)).toBeInTheDocument()
   })
 
+  it('r5 F-8: the "?" help is a REAL button — keyboard/AT reachable, not a pointer-only span', () => {
+    render(<KPITile label="Channel mix" value="POS 82% · B2B 18%" help="Share of trailing-window revenue by channel." />)
+    const helpBtn = screen.getByRole('button', { name: 'Share of trailing-window revenue by channel.' })
+    expect(helpBtn.tagName).toBe('BUTTON')
+    helpBtn.focus()
+    expect(helpBtn).toHaveFocus() // focus surfaces the title tooltip for keyboard users
+  })
+
+  it('r5 F-8: on an interactive tile the help button NEVER nests inside the action button (both independently reachable)', () => {
+    const onClick = vi.fn()
+    render(
+      <KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" onClick={onClick}
+        help="Sum of clean revenue over the 7 days." />,
+    )
+    const action = screen.getByRole('button', { name: 'Trailing 7-day revenue' })
+    const helpBtn = screen.getByRole('button', { name: 'Sum of clean revenue over the 7 days.' })
+    expect(action.contains(helpBtn)).toBe(false)
+    expect(helpBtn.contains(action)).toBe(false)
+    // The action still fires; pressing the help button does NOT filter.
+    fireEvent.click(helpBtn)
+    expect(onClick).not.toHaveBeenCalled()
+    fireEvent.click(action)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
   it('the label is the accessible name of the tile (a11y)', () => {
     render(<KPITile label="Trailing 7-day revenue" value="Rp 128,4jt" />)
     expect(screen.getByRole('group', { name: 'Trailing 7-day revenue' })).toBeInTheDocument()
