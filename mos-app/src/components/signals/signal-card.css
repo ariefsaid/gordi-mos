@@ -106,9 +106,13 @@
 
 /* ── The shared category picker anchor + popover (also used from signal-record.tsx) ── */
 .signal-category-picker-anchor { position: relative; display: inline-flex; }
+/* A SET category is read-only provenance, not a control — DESIGN.md §Operations event tokens
+   (Type): "quiet muted-foreground label text, not a filled chip". No fill, no pill, no fixed
+   control height; it reads as the quiet label the value it names is. The CORRECTION affordance
+   (the "Add category" ghost Button + 8-family listbox below) keeps its full control affordance. */
 .signal-category-pill {
-  display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
-  border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
+  display: inline-flex; align-items: center;
+  color: var(--muted-foreground);
   font-size: 12px; font-weight: 600;
 }
 .signal-category-picker {
