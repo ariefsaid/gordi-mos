@@ -32,8 +32,14 @@
   white-space: nowrap;
 }
 
+/* H6 (Luna floor): the title cell opts OUT of the table's blanket `white-space: nowrap` so its
+   message can wrap; every OTHER column stays single-line (Team / Occurred / Attention never grow). */
+.signal-collection-table td.signal-table-title-cell { white-space: normal; }
 .signal-table-message {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   width: 100%;
   overflow: hidden;
   padding: 0;
@@ -44,8 +50,9 @@
   font-weight: 500;
   text-align: left;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* H6: 2-line clamp (SAME vocabulary as the condensed Task title) instead of a single-line ellipsis
+     that clipped mid-word at 1280 — the identity/decision column must never starve to meaninglessness. */
+  white-space: normal;
   cursor: pointer;
 }
 .signal-table-title-cell {
