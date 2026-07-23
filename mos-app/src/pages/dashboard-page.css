@@ -13,13 +13,6 @@
   box-sizing: border-box;
 }
 
-.dash-fresh {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-}
-
 .dash-pane {
   padding: 16px 24px 24px;
   box-sizing: border-box;

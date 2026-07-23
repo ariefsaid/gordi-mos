@@ -194,6 +194,17 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     expect(screen.getAllByText(/2026/i).length).toBeGreaterThan(0)
   })
 
+  it('AC-020: freshness reads as a human WIB time, never a raw ISO timestamp', async () => {
+    // A finance reader glances at "as of …" to trust the figures — it must be legible
+    // (e.g. "1 Jul 2026, 10:14 WIB"), not a machine ISO string. Every "as of" label on
+    // the page (page head + chart) routes through the shared FreshnessLabel, so the raw
+    // `2026-07-01T03:14:00Z` fixture must never leak to the DOM.
+    const { container } = renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    expect(container.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)
+    expect(screen.getAllByText(/WIB/).length).toBeGreaterThan(0)
+  })
+
   it('renders the revenue KPI tiles (7d, 30d, latest-day, avg check, channel mix)', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })

@@ -43,6 +43,7 @@ import { DataTable, type DataTableSort } from '@/components/dashboard/data-table
 import { GlobalToolbar } from '@/components/dashboard/global-toolbar'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { WhatsComingStrip } from '@/components/dashboard/whats-coming-strip'
+import { FreshnessLabel } from '@/components/dashboard/freshness-label'
 import { DailyRevenueChart } from '@/components/sales/daily-revenue-chart'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import './dashboard-page.css'
@@ -277,7 +278,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       title="Money"
       jobSentence={t('job.money')}
       count={cutRows.length}
-      meta={snapshotAsOf ? <span className="dash-fresh">as of {snapshotAsOf}</span> : undefined}
+      meta={snapshotAsOf ? <FreshnessLabel asOf={snapshotAsOf} /> : undefined}
     >
 
       <DashboardChrome
@@ -368,7 +369,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           <ChartFrame
             title="Daily revenue"
             ariaLabel="Daily revenue chart"
-            freshness={snapshotAsOf ? <span className="tabular">as of {snapshotAsOf}</span> : undefined}
+            freshness={snapshotAsOf ? <FreshnessLabel asOf={snapshotAsOf} /> : undefined}
             tableFallback={
               <table>
                 <caption>Daily revenue by channel</caption>
