@@ -89,4 +89,20 @@ describe('Rail — width regime (OD-REDESIGN-84.2 / P1-1)', () => {
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByText('Destinations')).toBeInTheDocument()
   })
+
+  // NAV-2: the compact rail must NOT be a scroll container, or `overflow-x` computes to `auto`
+  // and clips the label tooltip that escapes the 72px aside to the right. Full rail keeps scroll.
+  it('compact=true makes the aside overflow visible so the label tooltip can disclose', () => {
+    const { container } = renderRail({ compact: true })
+    const aside = container.querySelector('aside') as HTMLElement
+    expect(aside.style.overflow).toBe('visible')
+    expect(aside.style.overflowY).toBe('')
+  })
+
+  it('compact=false keeps the aside vertically scrollable (no tooltip to clip)', () => {
+    const { container } = renderRail()
+    const aside = container.querySelector('aside') as HTMLElement
+    expect(aside.style.overflowY).toBe('auto')
+    expect(aside.style.overflow).toBe('')
+  })
 })

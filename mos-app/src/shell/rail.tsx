@@ -23,8 +23,15 @@ export function Rail({ onNavigate, compact = false }: RailProps) {
         width: compact ? 'var(--rail-w-compact)' : 'var(--rail-w)',
         gridArea: 'rail',
         minHeight: 0,
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
+        // NAV-2: the CSS-only compact tooltip (rail-nav.css) escapes the 72px aside to the RIGHT
+        // (`left:100%`). A scroll container clips it — and `overflow-y:auto` alone forces
+        // `overflow-x` computed to `auto` too (the spec's "visible reverts to auto" rule), so the
+        // label never paints in the 920–1099px band. The compact regime is icon-only (short list),
+        // so it takes `overflow:visible` to let the tooltip disclose; the full labelled rail (no
+        // tooltip, taller content) keeps its own scroll.
+        ...(compact
+          ? { overflow: 'visible' }
+          : { overflowY: 'auto', overscrollBehavior: 'contain' }),
       }}
     >
       <RailNav onNavigate={onNavigate} counts={counts} compact={compact} />
