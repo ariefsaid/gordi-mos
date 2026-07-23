@@ -44,6 +44,9 @@ const feedCss = stripComments(
 const tableCss = stripComments(
   readFileSync(resolve(process.cwd(), 'src/components/signals/signal-table-presentation.css'), 'utf8'),
 )
+const grammarCss = stripComments(
+  readFileSync(resolve(process.cwd(), 'src/components/collection-grammar.css'), 'utf8'),
+)
 
 describe('GUARD H6/H8(a): Signal title identity clamps to 2 lines, never a nowrap single line', () => {
   it('GUARD: the Home ambient-tail title (.home-signal-body-text) is a 2-line clamp, not nowrap', () => {
@@ -67,5 +70,24 @@ describe('GUARD H6/H8(a): Signal title identity clamps to 2 lines, never a nowra
     const body = ruleBody(tableCss, /td\.signal-table-title-cell\s*\{/)
     expect(body, 'the title cell must override the td nowrap').not.toBeNull()
     expect(body!).toMatch(/white-space:\s*normal/)
+  })
+})
+
+describe('GUARD H8(c): the phone Signals result is ONE calm surface, not a stack of raised cards', () => {
+  it('GUARD: the signal phone card is flat — no border / radius / resting shadow', () => {
+    // The flatten rule is the single-selector `.signal-collection-presentation .dt-card` block
+    // whose body zeroes border/radius/shadow (distinct from the shared min-height rule).
+    expect(grammarCss).toMatch(
+      /\.signal-collection-presentation \.dt-card\s*\{[^}]*border:\s*0[^}]*border-radius:\s*0[^}]*box-shadow:\s*none/s,
+    )
+  })
+
+  it('GUARD: consecutive signal cards form one surface — zero inter-card gap, a single hairline divider', () => {
+    const cards = ruleBody(grammarCss, /\.signal-collection-presentation \.dt-cards\s*\{/)
+    expect(cards, 'the signal card container must drop the inter-card gap').not.toBeNull()
+    expect(cards!).toMatch(/gap:\s*0/)
+    const divider = ruleBody(grammarCss, /\.signal-collection-presentation \.dt-card \+ \.dt-card\s*\{/)
+    expect(divider, 'consecutive signal cards must be separated by a hairline, not a gap').not.toBeNull()
+    expect(divider!).toMatch(/border-top:\s*1px solid/)
   })
 })

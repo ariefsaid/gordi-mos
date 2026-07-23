@@ -221,8 +221,37 @@
 .signal-collection-presentation .dt-card {
   box-sizing: border-box;
   min-height: 44px;
+}
+.collection-grammar-card {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-rest);
+}
+
+/* H8(c) (Luna floor): the phone Signals result is E7's ONE calm surface, not a stack of raised
+   cards. Flatten the shared DataTable card mode for Signals — drop each card's border / radius /
+   resting shadow and the inter-card gap, and separate rows with a single hairline — so the archive
+   reads as one continuous result surface inside the outer result-card frame (the SAME flat-row
+   grammar the Feed layout + the Home ambient tail already use). Scoped to the signal presentation,
+   so dashboard DataTables (where a card stack is intended) are untouched. */
+.signal-collection-presentation .dt-cards { gap: 0; }
+.signal-collection-presentation .dt-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.signal-collection-presentation .dt-card + .dt-card {
+  border-top: 1px solid var(--row-divider);
+}
+/* H6 (Luna floor): the phone card title identity clamps to 2 lines like every other Signal title
+   surface — the DataTable card mode otherwise re-forced a single nowrap line, clipping the message
+   mid-word. Card-scoped so it beats the card title's own display/white-space. */
+.signal-collection-presentation .dt-card .signal-table-message {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
 }
 
 .collection-grammar-card .collection-grammar-card-body,
