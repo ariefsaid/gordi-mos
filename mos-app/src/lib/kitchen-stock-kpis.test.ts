@@ -16,7 +16,7 @@
 // round and the selector has no A–E consumer; building it now would be dead code.)
 
 import { describe, it, expect } from 'vitest'
-import { computeStockKpis } from './kitchen-stock-kpis'
+import { computeStockKpis, computeStockKpiStripData } from './kitchen-stock-kpis'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
 function row(wip_item_id: string, name: string, stok: number, tersedia: number): KitchenStockRow {
@@ -66,6 +66,25 @@ describe('computeStockKpis — negatives drive the deficit rate (never clamped)'
   it('no negatives → 0% deficit', () => {
     const kpis = computeStockKpis([row('w1', 'A', 5, 3), row('w2', 'B', 0, 0)])
     expect(kpis.pctComplete).toBe(0)
+  })
+})
+
+// census FLAG-F: on-hand (Σ stok, the usable snapshot) and available (Σ tersedia, the
+// cumulative transfer-ready balance) are DIFFERENT bases — both tiles must name their basis
+// so 161-on-hand vs 7080-available reads, and the meaningless "read-only" delta is gone.
+describe('computeStockKpiStripData — both stock bases are labeled (FLAG-F)', () => {
+  it('on-hand tile is captioned "usable now"; available tile is "cumulative"', () => {
+    const data = computeStockKpiStripData(ROWS)
+    const onHand = data.tiles.find(t => t.label === 'Total on-hand')
+    const available = data.tiles.find(t => t.label === 'Available total')
+    expect(onHand?.sub).toBe('usable now')
+    expect(available?.sub).toBe('cumulative')
+    expect(available?.delta).toBe('transfer-ready')
+  })
+
+  it('no tile carries the meaningless "read-only" delta', () => {
+    const data = computeStockKpiStripData(ROWS)
+    expect(JSON.stringify(data.tiles)).not.toMatch(/read-only/i)
   })
 })
 

@@ -34,18 +34,26 @@ export function computePlanKpiStripData(
   action: KitchenActionType,
 ): KitchenKpiStripData {
   const kpis = computePlanKpis(cells, action)
-  const statusLabel = kpis.plannedTotal > 0 ? 'Ready' : 'No plan created yet'
+  // census DEFECT-1: the plan editor has exactly TWO real aggregate metrics — total
+  // portions and how many dishes carry a target. The former tiles 3/4 crammed a WORD
+  // ("Production"/"Ready") into the number slot, echoed the segmented control's active
+  // action, and captioned it with dev jargon ("write surface", "editing today"). Drop to
+  // the two real metrics + one plain status line; the seg control already names the action.
+  const statusLine = kpis.plannedTotal > 0
+    ? `Ready · ${kpis.plannedTotal} portions across ${kpis.plannedDishCount} ${kpis.plannedDishCount === 1 ? 'dish' : 'dishes'}`
+    : 'No plan created yet — set a target on any dish'
 
   return {
     ariaLabel: 'Planning summary',
     phoneLabel: 'Plan',
-    phoneValue: `${kpis.plannedDishCount} dishes`,
-    phoneMeta: action,
+    phoneValue: `${kpis.plannedDishCount} ${kpis.plannedDishCount === 1 ? 'dish' : 'dishes'}`,
+    phoneMeta: statusLine,
+    statusLine,
     tiles: [
       {
         label: 'Planned total',
         value: String(kpis.plannedTotal),
-        delta: `${kpis.plannedDishCount} dishes`,
+        delta: `${kpis.plannedDishCount} ${kpis.plannedDishCount === 1 ? 'dish' : 'dishes'}`,
         deltaTone: 'neutral',
         deltaDot: false,
         sub: 'portions',
@@ -53,26 +61,8 @@ export function computePlanKpiStripData(
       {
         label: 'Dishes planned',
         value: String(kpis.plannedDishCount),
-        delta: action,
-        deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'current action',
-      },
-      {
-        label: 'Active action',
-        value: action,
-        delta: kpis.plannedTotal > 0 ? `${kpis.plannedTotal} portions set` : 'set targets',
-        deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
-        deltaDot: false,
-        sub: 'editing today',
-      },
-      {
-        label: 'Plan status',
-        value: statusLabel,
-        delta: kpis.plannedTotal > 0 ? 'targets set' : 'nothing planned',
-        deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
-        deltaDot: false,
-        sub: 'write surface',
+        sub: 'with a target set',
       },
     ],
   }

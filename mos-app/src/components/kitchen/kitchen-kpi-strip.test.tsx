@@ -40,7 +40,7 @@ describe('KitchenKpiStrip — desktop branch', () => {
     expect(within(region).getByText('4')).toBeInTheDocument()
   })
 
-  it('renders the delta chips: "6 dishes", off-plan "+35", short "−46 units short"', () => {
+  it('renders the delta chips: "6 dishes", off-plan "+35", short "−46 portions short"', () => {
     render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
     // Planned-total delta: dish count
@@ -49,13 +49,18 @@ describe('KitchenKpiStrip — desktop branch', () => {
     expect(within(region).getByText(/−40 vs plan/i)).toBeInTheDocument()
     // off-plan sub
     expect(within(region).getByText(/\+35 off-plan/i)).toBeInTheDocument()
-    // items-remaining delta: units short
-    expect(within(region).getByText(/−46 units short/i)).toBeInTheDocument()
+    // census FLAG-C: the remaining tile counts DISHES; its shortfall delta must name PORTIONS
+    // (not "units") — no silent unit switch. And the label reads "Dishes remaining".
+    expect(within(region).getByText(/−46 portions short/i)).toBeInTheDocument()
+    expect(within(region).getByText(/dishes remaining/i)).toBeInTheDocument()
+    expect(within(region).queryByText(/units short/i)).toBeNull()
+    expect(within(region).queryByText(/items remaining/i)).toBeNull()
   })
 
   it('renders tile captions (portions / of plan / of target)', () => {
     render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
-    expect(screen.getByText(/portions/i)).toBeInTheDocument()
+    // exact caption match — "portions" the sub, distinct from the "…portions short" delta (FLAG-C)
+    expect(screen.getByText('portions')).toBeInTheDocument()
     expect(screen.getAllByText(/of plan/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/of target/i)).toBeInTheDocument()
   })

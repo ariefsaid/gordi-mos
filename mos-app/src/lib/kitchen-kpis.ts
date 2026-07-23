@@ -28,7 +28,12 @@ export interface KitchenKpiStripData {
   phoneLabel: string
   phoneValue: string
   phoneMeta: string
-  tiles: [KitchenKpiTileData, KitchenKpiTileData, KitchenKpiTileData, KitchenKpiTileData]
+  /** 1–4 metric tiles. Most strips carry 4; the Plan editor carries 2 real metrics
+   *  (portions + dishes) — its status is a plain `statusLine`, not a word crammed into a
+   *  metric slot (census DEFECT-1). The desktop grid sizes its columns to the tile count. */
+  tiles: KitchenKpiTileData[]
+  /** Optional plain status sentence rendered under the tiles (Plan editor: "Ready · …"). */
+  statusLine?: string
 }
 
 export interface KitchenKpis {

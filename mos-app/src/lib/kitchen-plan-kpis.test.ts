@@ -13,7 +13,7 @@
 // tension the owner deferred; the headline numbers are faithful.
 
 import { describe, it, expect } from 'vitest'
-import { computePlanKpis } from './kitchen-plan-kpis'
+import { computePlanKpis, computePlanKpiStripData } from './kitchen-plan-kpis'
 import type { PlanCell } from '@/lib/db/kitchen-logs.types'
 
 function cell(
@@ -89,6 +89,46 @@ describe('computePlanKpis — reuses the KitchenKpis shape without false-deficit
         plannedDishCount: expect.any(Number),
       }),
     )
+  })
+})
+
+// census DEFECT-1: the plan strip carries TWO real metrics + a plain status LINE — never a
+// word ("Production"/"Ready") crammed into a KPI value slot, never the seg-control echo, and
+// never dev jargon ("write surface"/"editing today"). The status is prose, not a metric tile.
+describe('computePlanKpiStripData — two real metrics + a plain status line (DEFECT-1)', () => {
+  const cells: PlanCell[] = [
+    cell('w1', 'Production', 50),
+    cell('w2', 'Production', 30),
+  ]
+
+  it('returns exactly two metric tiles — Planned total (portions) + Dishes planned', () => {
+    const data = computePlanKpiStripData(cells, 'Production')
+    expect(data.tiles).toHaveLength(2)
+    expect(data.tiles.map(t => t.label)).toEqual(['Planned total', 'Dishes planned'])
+    expect(data.tiles[0].value).toBe('80') // 50 + 30 portions
+    expect(data.tiles[1].value).toBe('2') // two dishes with a target
+  })
+
+  it('carries a plain status LINE (not a tile) that summarizes readiness', () => {
+    const data = computePlanKpiStripData(cells, 'Production')
+    expect(data.statusLine).toMatch(/ready/i)
+    expect(data.statusLine).toMatch(/80 portions/)
+    expect(data.statusLine).toMatch(/2 dishes/)
+  })
+
+  it('empty plan → status line invites the first target, still two tiles', () => {
+    const data = computePlanKpiStripData([], 'Production')
+    expect(data.tiles).toHaveLength(2)
+    expect(data.statusLine).toMatch(/no plan created yet/i)
+  })
+
+  it('no metric tile carries a word-value or dev jargon, and no seg-control echo', () => {
+    const data = computePlanKpiStripData(cells, 'Production')
+    const blob = JSON.stringify(data.tiles)
+    // the retired junk tiles + their captions must not reappear
+    expect(blob).not.toMatch(/Active action|Plan status|write surface|editing today|current action/i)
+    // no tile VALUE is the literal action word (that belongs to the seg control)
+    for (const tile of data.tiles) expect(tile.value).not.toMatch(/Production|Transfer/i)
   })
 })
 

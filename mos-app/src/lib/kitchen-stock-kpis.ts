@@ -50,12 +50,15 @@ export function computeStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStr
     phoneMeta: `${availableTotal} available`,
     tiles: [
       {
+        // census FLAG-F: label the two bases so on-hand (161) vs available (7080) reads —
+        // on-hand is the usable snapshot for the day; available is the cumulative
+        // transfer-ready balance across all approved activity.
         label: 'Total on-hand',
         value: String(onHandTotal),
         delta: `${rows.length} items`,
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'portions',
+        sub: 'usable now',
       },
       {
         label: 'Items in stock',
@@ -74,10 +77,10 @@ export function computeStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStr
       {
         label: 'Available total',
         value: String(availableTotal),
-        delta: 'read-only',
+        delta: 'transfer-ready',
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'transfer-ready',
+        sub: 'cumulative',
       },
     ],
   }

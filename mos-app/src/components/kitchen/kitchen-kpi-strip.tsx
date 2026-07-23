@@ -61,11 +61,13 @@ function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
         sub: 'of plan',
       },
       {
-        label: 'Items remaining',
+        // census FLAG-C: the value counts DISHES but the delta counts PORTIONS — the label
+        // said "Items" and the delta said "units", a silent unit switch. Name both units.
+        label: 'Dishes remaining',
         value: String(itemsRemaining),
         delta: hasPlan
           ? itemsRemaining > 0
-            ? `−${unitsShort} units short`
+            ? `−${unitsShort} portions short`
             : 'all on plan'
           : 'no plan set',
         deltaTone: hasPlan ? (itemsRemaining > 0 ? 'destructive' : 'success') : 'neutral',
@@ -78,9 +80,15 @@ function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
 
 function DesktopStrip({ data }: { data: KitchenKpiStripData }) {
   return (
-    <section className="kks" aria-label={data.ariaLabel}>
-      {data.tiles.map(tile => <KpiTile key={tile.label} tile={tile} />)}
-    </section>
+    <div className="kks-wrap">
+      {/* Grid sizes to the tile count — 4 for Log/Stock/Review, 2 for the Plan editor
+          (census DEFECT-1), so two tiles don't strand two empty columns. data-tiles
+          drives the column rule in CSS so the tablet responsive collapse still applies. */}
+      <section className="kks" data-tiles={data.tiles.length} aria-label={data.ariaLabel}>
+        {data.tiles.map(tile => <KpiTile key={tile.label} tile={tile} />)}
+      </section>
+      {data.statusLine && <p className="kks-status">{data.statusLine}</p>}
+    </div>
   )
 }
 

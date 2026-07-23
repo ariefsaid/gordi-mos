@@ -280,10 +280,14 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
 
+    // census DEFECT-1: two real metric tiles only — the Log labels stay absent AND the
+    // retired junk tiles ("Active action"/"Plan status", word-in-value + dev-jargon subs) are gone.
     expect(screen.getByText(/planned total/i)).toBeInTheDocument()
     expect(screen.getByText(/dishes planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/active action/i)).toBeInTheDocument()
-    expect(screen.getByText(/plan status/i)).toBeInTheDocument()
+    expect(screen.queryByText(/active action/i)).toBeNull()
+    expect(screen.queryByText(/plan status/i)).toBeNull()
+    expect(screen.queryByText(/write surface/i)).toBeNull()
+    expect(screen.queryByText(/editing today/i)).toBeNull()
     expect(screen.queryByText(/made so far/i)).toBeNull()
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
@@ -305,7 +309,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />)
     await screen.findByText('Ayam Bakar')
 
-    expect(screen.getByText('No plan created yet')).toBeInTheDocument()
+    expect(screen.getByText(/no plan created yet/i)).toBeInTheDocument()
     expect(screen.queryByText(/^empty$/i)).toBeNull()
   })
 

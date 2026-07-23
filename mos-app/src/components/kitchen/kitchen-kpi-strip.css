@@ -6,7 +6,14 @@
    Spacing follows the sibling kitchen CSS idiom (literal px; tokens for the rest).
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Desktop: 4-tile grid ── */
+/* ── Desktop: tile grid (column count = tile count via data-tiles) ── */
+.kks-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+}
 .kks {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -14,6 +21,16 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+}
+/* The Plan editor carries 2 real metric tiles + a status line (census DEFECT-1). */
+.kks[data-tiles='2'] { grid-template-columns: repeat(2, 1fr); }
+/* Plain status sentence under the tiles — the Plan editor's "Ready · N portions …". Not a
+   metric tile: no card, muted, one type token (the honest home for the status word that
+   used to be crammed into a KPI value slot). */
+.kks-status {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
 }
 .kks-tile {
   display: flex;
