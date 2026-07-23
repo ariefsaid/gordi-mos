@@ -1589,3 +1589,16 @@ anatomy). Objective floor items (phone title widths, 44px Ask-Deputy target, nes
 record start y, signals-first ordering, toolbar height) are fix-now; the two OSCILLATING calls
 (toolbar flat-vs-disclosure; 1024 rail) go to the owner — agents have flip-flopped and the
 composite oracle needs an owner word.
+
+## Luna-findings closure + skills-toolchain repair — 2026-07-23
+
+All 8 official floor violations closed with measured proof (lanes v3/luna-a + v3/luna-b):
+toolbar 100px behind ONE "View & filters" door (OD-84.1) · urgent Signals lead Home's ranked
+stream (A12 RE-EXPRESSED: boundary runs through Signals by attention level) · 390px titles
+350px, zero h-scroll · mobile cards de-boxed (surface = only elevation) · 72px icon rail at
+1024 → 952px content (OD-84.2; RATIFY: compact rail renders section icons — full rail stays
+icon-less per B2) · record identity 234→172px + one h1 + shared Back · Ask Deputy 44px coarse ·
+Signal record on the shared identity/Facts/activity grammar. Skills toolchain repaired: detector
+engine vendored (1 production ban found+fixed), uupm-family SKILL.mds restored, vendor script
+hardened. Luna re-score DEFERRED by owner; next: design-review find-and-fix + impeccable distill
+as-designed, then owner eyes (impeccable live mode ready).
