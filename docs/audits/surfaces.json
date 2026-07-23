@@ -5,11 +5,26 @@
   "backfillBaseline": "3d550af",
   "backfillNote": "Generation-1 baseline declared at register creation (HEAD 3d550af). auditedAt records the census EVIDENCE commit (provenance); lockedAt records the commit whose tree is the pinned gen-1 baseline (regressions measured from here). Backfilled locks rest on the existing guard/story/e2e pins listed per surface; open census DO-items remain tracked in docs/plans/2026-07-23-census-sweep-r2.md and did not block the gen-1 lock (their fixes largely landed post-ab61009 — see the money + cafe lanes).",
   "globalDueAxes": [
-    { "axis": "locale-id", "note": "Indonesian locale — PROVABLY NEVER AUDITED on any surface. Step-2 sweep target." },
-    { "axis": "dark-mode", "note": "Appearance control ships (shell/appearance-control.tsx) but ZERO audit round used dark. PROVABLY NEVER AUDITED on any surface. Step-2 sweep target — expect the biggest findings crop here." }
+    {
+      "axis": "locale-id",
+      "note": "Indonesian locale — PROVABLY NEVER AUDITED on any surface. Step-2 sweep target."
+    },
+    {
+      "axis": "dark-mode",
+      "note": "Appearance control ships (shell/appearance-control.tsx) but ZERO audit round used dark. PROVABLY NEVER AUDITED on any surface. Step-2 sweep target — expect the biggest findings crop here."
+    }
   ],
-  "personaClasses": ["admin", "finance", "ops_lead", "member"],
-  "standardWidths": [390, 768, 1280],
+  "personaClasses": [
+    "admin",
+    "finance",
+    "ops_lead",
+    "member"
+  ],
+  "standardWidths": [
+    390,
+    768,
+    1280
+  ],
   "wideVoidWidth": 1870,
   "dimensions": [
     {
@@ -20,7 +35,9 @@
       "ledger": "docs/plans/2026-07-23-component-interrogation.md",
       "note": "111/111 shared components enumerated full-matrix (default/hover/focus/disabled/loading/error/empty). Cross-cutting: not a surface. Pins: src/stories/v3/*.stories.tsx (controls, primitives, foundation, feedback, dense-collections, accessibility-responsive).",
       "due": false,
-      "dueAxes": ["axe unscoped run + F2/F5 guards still unbuilt (quality-model D2)"]
+      "dueAxes": [
+        "axe unscoped run + F2/F5 guards still unbuilt (quality-model D2)"
+      ]
     },
     {
       "id": "interaction-consistency",
@@ -30,270 +47,647 @@
       "ledger": "docs/plans/2026-07-23-interaction-consistency.md",
       "note": "7 verbs x all surfaces enumerated: 35 divergences, 24 ruled, 10 owe an owner ruling (GAP-1..10). Cross-cutting: not a surface. Pins: interaction-contract.md + protected-seam guards (dirty-leave-guard, Escape-isolation, commit-freeze).",
       "due": false,
-      "dueAxes": ["10 owner GAP rulings outstanding", "automated interaction-conformance harness unbuilt"]
+      "dueAxes": [
+        "10 owner GAP rulings outstanding",
+        "automated interaction-conformance harness unbuilt"
+      ]
     }
   ],
   "surfaces": [
     {
       "id": "home",
       "name": "Home",
-      "routes": ["/"],
-      "pathSet": ["mos-app/src/pages/home-page.tsx", "mos-app/src/pages/home-page.css", "mos-app/src/components/home/**"],
-      "personaDiffers": { "member": "rail shows only viewer-affiliated module (OD-REDESIGN-68); my-work list scoped to own tasks" },
-      "states": ["default", "empty(no-tasks)", "hover", "loading", "error"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/home-page.tsx",
+        "mos-app/src/pages/home-page.css",
+        "mos-app/src/components/home/**"
+      ],
+      "personaDiffers": {
+        "member": "rail shows only viewer-affiliated module (OD-REDESIGN-68); my-work list scoped to own tasks"
+      },
+      "states": [
+        "default",
+        "empty(no-tasks)",
+        "hover",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/components/home/guard-do16-home-layout.css.test.ts", "mos-app/e2e/home-rail-scroll-containment.spec.ts"],
+      "pins": [
+        "mos-app/src/components/home/guard-do16-home-layout.css.test.ts",
+        "mos-app/e2e/home-rail-scroll-containment.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#31-home",
       "due": false,
-      "dueAxes": ["persona:member (rail-module + my-work scoping never audited)", "states: hover/loading/error NOT-REVIEWED (census-r2 3.1)"]
+      "dueAxes": [
+        "persona:member (rail-module + my-work scoping never audited)",
+        "states: hover/loading/error NOT-REVIEWED (census-r2 3.1)"
+      ]
     },
     {
       "id": "tasks",
       "name": "Tasks workspace",
-      "routes": ["/work/tasks", "/work/tasks?view=*"],
-      "pathSet": ["mos-app/src/pages/tasks-layout.tsx", "mos-app/src/components/tasks/tasks-workspace.tsx", "mos-app/src/components/tasks/TasksWorkspace.css", "mos-app/src/components/record-collection/**"],
+      "routes": [
+        "/work/tasks",
+        "/work/tasks?view=*"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/tasks-layout.tsx",
+        "mos-app/src/components/tasks/tasks-workspace.tsx",
+        "mos-app/src/components/tasks/TasksWorkspace.css",
+        "mos-app/src/components/record-collection/**"
+      ],
       "personaDiffers": null,
-      "states": ["default", "drawer-open", "grouped", "card", "empty", "loading", "error", "desktop-popover"],
-      "widths": [390, 768, 1280, 1870],
+      "states": [
+        "default",
+        "drawer-open",
+        "grouped",
+        "card",
+        "empty",
+        "loading",
+        "error",
+        "desktop-popover"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "25aaa64",
       "bumped": false,
-      "pins": ["mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx", "mos-app/src/components/tasks/guard-r1-split-parity.css.test.ts", "mos-app/src/components/record-collection/guard-one-solid-primary.test.tsx", "mos-app/src/components/record-collection/guard-r3-toolbar-label-gap.css.test.ts", "mos-app/e2e/tasks-split-view.spec.ts", "mos-app/e2e/tasks-canonical-page.spec.ts"],
+      "pins": [
+        "mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx",
+        "mos-app/src/components/tasks/guard-r1-split-parity.css.test.ts",
+        "mos-app/src/components/record-collection/guard-one-solid-primary.test.tsx",
+        "mos-app/src/components/record-collection/guard-r3-toolbar-label-gap.css.test.ts",
+        "mos-app/e2e/tasks-split-view.spec.ts",
+        "mos-app/e2e/tasks-canonical-page.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#32-tasks",
       "due": false,
-      "dueAxes": ["states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2)"]
+      "dueAxes": [
+        "states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2)"
+      ]
     },
     {
       "id": "task-record",
       "name": "Task record (drawer + full page)",
-      "routes": ["/work/tasks/:taskId"],
-      "pathSet": ["mos-app/src/components/tasks/task-surface.tsx", "mos-app/src/components/tasks/TaskSurface.css", "mos-app/src/components/tasks/task-drawer.tsx", "mos-app/src/components/records/**"],
-      "personaDiffers": { "member": "read-only record — no edit affordances (census-r2 3.3 Kitchen persona)" },
-      "states": ["default", "edit-focus", "empty-fields", "loading", "error"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/work/tasks/:taskId"
+      ],
+      "pathSet": [
+        "mos-app/src/components/tasks/task-surface.tsx",
+        "mos-app/src/components/tasks/TaskSurface.css",
+        "mos-app/src/components/tasks/task-drawer.tsx",
+        "mos-app/src/components/records/**"
+      ],
+      "personaDiffers": {
+        "member": "read-only record — no edit affordances (census-r2 3.3 Kitchen persona)"
+      },
+      "states": [
+        "default",
+        "edit-focus",
+        "empty-fields",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx", "mos-app/src/components/records/guard-record-page-measure.css.test.tsx", "mos-app/e2e/tasks-canonical-page.spec.ts"],
+      "pins": [
+        "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
+        "mos-app/src/components/records/guard-record-page-measure.css.test.tsx",
+        "mos-app/e2e/tasks-canonical-page.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#33-task-record",
       "due": false,
-      "dueAxes": ["anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned", "states: loading/error NOT-REVIEWED (census-r2 3.3)"]
+      "dueAxes": [
+        "anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned",
+        "states: loading/error NOT-REVIEWED (census-r2 3.3)"
+      ]
     },
     {
       "id": "task-create",
       "name": "Task create (new)",
-      "routes": ["/work/tasks/new"],
-      "pathSet": ["mos-app/src/components/tasks/task-surface.tsx", "mos-app/src/components/tasks/task-drawer.tsx", "mos-app/src/shell/record-panel-host.tsx", "mos-app/src/shell/record-panel-host.css"],
+      "routes": [
+        "/work/tasks/new"
+      ],
+      "pathSet": [
+        "mos-app/src/components/tasks/task-surface.tsx",
+        "mos-app/src/components/tasks/task-drawer.tsx",
+        "mos-app/src/shell/record-panel-host.tsx",
+        "mos-app/src/shell/record-panel-host.css"
+      ],
       "personaDiffers": null,
-      "states": ["default", "directory-loading", "field-focus", "field-error", "submit-error", "submitting"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "default",
+        "directory-loading",
+        "field-focus",
+        "field-error",
+        "submit-error",
+        "submitting"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/shell/record-panel-host.test.tsx", "mos-app/e2e/tasks-create-status.spec.ts"],
+      "pins": [
+        "mos-app/src/shell/record-panel-host.test.tsx",
+        "mos-app/e2e/tasks-create-status.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#34-task-create",
       "due": false,
-      "dueAxes": ["states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4)"]
+      "dueAxes": [
+        "states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4)"
+      ]
     },
     {
       "id": "signals",
       "name": "Signals archive",
-      "routes": ["/work/signals"],
-      "pathSet": ["mos-app/src/pages/signals-archive-page.tsx", "mos-app/src/components/signals/**"],
+      "routes": [
+        "/work/signals"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/signals-archive-page.tsx",
+        "mos-app/src/components/signals/**"
+      ],
       "personaDiffers": null,
-      "states": ["default", "loading", "empty", "error", "hover"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "default",
+        "loading",
+        "empty",
+        "error",
+        "hover"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/e2e/AC-430-post-a-signal.spec.ts"],
+      "pins": [
+        "mos-app/e2e/AC-430-post-a-signal.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#35-signals",
       "due": false,
-      "dueAxes": ["states: empty/error/hover NOT-REVIEWED (census-r2 3.5)"]
+      "dueAxes": [
+        "states: empty/error/hover NOT-REVIEWED (census-r2 3.5)"
+      ]
     },
     {
       "id": "signal-record",
       "name": "Signal record (panel + full page)",
-      "routes": ["/work/signals/:signalId", "?record=<id>"],
-      "pathSet": ["mos-app/src/pages/signals-archive-page.tsx", "mos-app/src/components/signals/signal-record-adapter.tsx", "mos-app/src/components/records/**"],
+      "routes": [
+        "/work/signals/:signalId",
+        "?record=<id>"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/signals-archive-page.tsx",
+        "mos-app/src/components/signals/signal-record-adapter.tsx",
+        "mos-app/src/components/records/**"
+      ],
       "personaDiffers": null,
-      "states": ["default", "loading", "empty-fields", "error", "whole-empty", "hover"],
-      "widths": [390, 768, 1280, 1870],
+      "states": [
+        "default",
+        "loading",
+        "empty-fields",
+        "error",
+        "whole-empty",
+        "hover"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill (gen-1)",
       "lockedAt": "3d550af",
       "bumped": true,
-      "pins": ["mos-app/src/components/records/guard-record-page-measure.css.test.tsx"],
+      "pins": [
+        "mos-app/src/components/records/guard-record-page-measure.css.test.tsx"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#36-signal-record",
       "due": true,
-      "dueAxes": ["GEN-2 BUMP IN FLIGHT — luna-floor record-tree refactor (per-kind Signal composition, anatomy Step 2.5); re-battery + re-lock owed before merge", "states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6)"]
+      "dueAxes": [
+        "GEN-2 BUMP IN FLIGHT — luna-floor record-tree refactor (per-kind Signal composition, anatomy Step 2.5); re-battery + re-lock owed before merge",
+        "states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6)"
+      ]
     },
     {
       "id": "inbox",
       "name": "Inbox (deputy triage)",
-      "routes": ["/inbox"],
-      "pathSet": ["mos-app/src/pages/inbox-page.tsx", "mos-app/src/components/inbox/**", "mos-app/src/shell/inbox-deputy-host.regression.test.ts"],
+      "routes": [
+        "/inbox"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/inbox-page.tsx",
+        "mos-app/src/components/inbox/**",
+        "mos-app/src/shell/inbox-deputy-host.regression.test.ts"
+      ],
       "personaDiffers": null,
-      "states": ["empty", "populated-triage", "hover", "loading", "error", "unavailable"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "empty",
+        "populated-triage",
+        "hover",
+        "loading",
+        "error",
+        "unavailable"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/shell/inbox-deputy-host.regression.test.ts", "mos-app/e2e/inbox-replay.spec.ts"],
+      "pins": [
+        "mos-app/src/shell/inbox-deputy-host.regression.test.ts",
+        "mos-app/e2e/inbox-replay.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#37-inbox",
       "due": false,
-      "dueAxes": ["states: populated-triage/hover/loading/error NOT-REVIEWED — only EMPTY rendered (census-r2 DO-8, F-INBOX-2)"]
+      "dueAxes": [
+        "states: populated-triage/hover/loading/error NOT-REVIEWED — only EMPTY rendered (census-r2 DO-8, F-INBOX-2)"
+      ]
     },
     {
       "id": "cafe-opening",
       "name": "Cafe opening home",
-      "routes": ["/cafe"],
-      "pathSet": ["mos-app/src/pages/cafe-opening-page.tsx", "mos-app/src/pages/cafe-opening-page.css", "mos-app/src/components/cafe/**"],
-      "personaDiffers": { "member": "capture-only (no review/pushes)", "ops_lead": "sees resolve-queue + rollup" },
-      "states": ["not-started", "started-panel", "no-team", "team-picker", "loading", "error"],
-      "widths": [390, 768, 1280],
+      "routes": [
+        "/cafe"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/cafe-opening-page.tsx",
+        "mos-app/src/pages/cafe-opening-page.css",
+        "mos-app/src/components/cafe/**"
+      ],
+      "personaDiffers": {
+        "member": "capture-only (no review/pushes)",
+        "ops_lead": "sees resolve-queue + rollup"
+      },
+      "states": [
+        "not-started",
+        "started-panel",
+        "no-team",
+        "team-picker",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": "3d99815",
       "ratifiedBy": "cafe lane backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/e2e/AC-720-cafe-today-opening.spec.ts"],
+      "pins": [
+        "mos-app/e2e/AC-720-cafe-today-opening.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#38-cafe",
       "due": false,
-      "dueAxes": ["states: started-panel/team-picker/loading/error NOT-REVIEWED — >half the route (census-r2 DO-8)"]
+      "dueAxes": [
+        "states: started-panel/team-picker/loading/error NOT-REVIEWED — >half the route (census-r2 DO-8)"
+      ]
     },
     {
       "id": "cafe-kitchen-tabs",
       "name": "Kitchen sub-tabs (log/plan/stock/review/pushes)",
-      "routes": ["/cafe/log", "/cafe/plan", "/cafe/stock", "/cafe/review", "/cafe/pushes"],
-      "pathSet": ["mos-app/src/pages/kitchen-log-page.tsx", "mos-app/src/pages/kitchen-plan-page.tsx", "mos-app/src/pages/kitchen-stock-page.tsx", "mos-app/src/pages/kitchen-review-page.tsx", "mos-app/src/pages/kitchen-pushes-page.tsx", "mos-app/src/components/kitchen/**"],
-      "personaDiffers": { "member": "log/plan/stock only — review + pushes gated (RequireAccessRole ops_lead/admin)", "ops_lead": "all five tabs" },
-      "states": ["default", "empty", "loading", "error", "phone-cards"],
-      "widths": [390, 768, 1280],
+      "routes": [
+        "/cafe/log",
+        "/cafe/plan",
+        "/cafe/stock",
+        "/cafe/review",
+        "/cafe/pushes"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/kitchen-log-page.tsx",
+        "mos-app/src/pages/kitchen-plan-page.tsx",
+        "mos-app/src/pages/kitchen-stock-page.tsx",
+        "mos-app/src/pages/kitchen-review-page.tsx",
+        "mos-app/src/pages/kitchen-pushes-page.tsx",
+        "mos-app/src/components/kitchen/**"
+      ],
+      "personaDiffers": {
+        "member": "log/plan/stock only — review + pushes gated (RequireAccessRole ops_lead/admin)",
+        "ops_lead": "all five tabs"
+      },
+      "states": [
+        "default",
+        "empty",
+        "loading",
+        "error",
+        "phone-cards"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": "542c48b",
-      "ratifiedBy": "kitchen census backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "25aaa64",
       "bumped": false,
-      "pins": ["mos-app/e2e/AC-090-kitchen-log-approve.spec.ts"],
+      "pins": [
+        "mos-app/e2e/AC-090-kitchen-log-approve.spec.ts"
+      ],
       "findings": "docs/plans/2026-06-22-kitchen-screens-redesign.md",
       "due": false,
-      "dueAxes": ["persona:member vs ops_lead tab-gating render never audited", "review/pushes states NOT-REVIEWED"]
+      "dueAxes": [
+        "persona:member vs ops_lead tab-gating render never audited",
+        "review/pushes states NOT-REVIEWED"
+      ]
     },
     {
       "id": "objectives",
       "name": "Objectives catalog",
-      "routes": ["/work/objectives"],
-      "pathSet": ["mos-app/src/pages/objectives-page.tsx", "mos-app/src/components/catalog/**"],
-      "personaDiffers": { "member": "no access (RequireCapability objective.manage — absent, not disabled)", "ops_lead": "no access" },
-      "states": ["default", "empty", "loading", "error", "archived-toggle", "hover", "manage-mode"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/work/objectives"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/objectives-page.tsx",
+        "mos-app/src/components/catalog/**"
+      ],
+      "personaDiffers": {
+        "member": "no access (RequireCapability objective.manage — absent, not disabled)",
+        "ops_lead": "no access"
+      },
+      "states": [
+        "default",
+        "empty",
+        "loading",
+        "error",
+        "archived-toggle",
+        "hover",
+        "manage-mode"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/components/catalog/guard-catalog-identity-phone.css.test.ts", "mos-app/e2e/AC-020-catalog.spec.ts"],
+      "pins": [
+        "mos-app/src/components/catalog/guard-catalog-identity-phone.css.test.ts",
+        "mos-app/e2e/AC-020-catalog.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#310-objectives-projects",
       "due": false,
-      "dueAxes": ["8 of 9 states NOT-REVIEWED (census-r2 3.10)"]
+      "dueAxes": [
+        "8 of 9 states NOT-REVIEWED (census-r2 3.10)"
+      ]
     },
     {
       "id": "projects",
       "name": "Projects & Processes catalog",
-      "routes": ["/work/projects"],
-      "pathSet": ["mos-app/src/pages/projects-processes-page.tsx", "mos-app/src/components/catalog/**", "mos-app/src/components/processes/**"],
-      "personaDiffers": { "ops_lead": "visible (workline.manage per OD-C-2)", "member": "no access (absent)" },
-      "states": ["default", "empty", "loading", "error", "archived-toggle", "hover", "manage-mode"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/work/projects"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/projects-processes-page.tsx",
+        "mos-app/src/components/catalog/**",
+        "mos-app/src/components/processes/**"
+      ],
+      "personaDiffers": {
+        "ops_lead": "visible (workline.manage per OD-C-2)",
+        "member": "no access (absent)"
+      },
+      "states": [
+        "default",
+        "empty",
+        "loading",
+        "error",
+        "archived-toggle",
+        "hover",
+        "manage-mode"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/components/catalog/guard-catalog-identity-phone.css.test.ts", "mos-app/e2e/AC-411-catalog-manage-mode.spec.ts"],
+      "pins": [
+        "mos-app/src/components/catalog/guard-catalog-identity-phone.css.test.ts",
+        "mos-app/e2e/AC-411-catalog-manage-mode.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#310-objectives-projects",
       "due": false,
-      "dueAxes": ["8 of 9 states NOT-REVIEWED (census-r2 3.10)"]
+      "dueAxes": [
+        "8 of 9 states NOT-REVIEWED (census-r2 3.10)"
+      ]
     },
     {
       "id": "money-summary",
       "name": "Money summary + detail",
-      "routes": ["/money", "/money/detail"],
-      "pathSet": ["mos-app/src/pages/dashboard-page.tsx", "mos-app/src/pages/dashboard-page.css", "mos-app/src/components/dashboard/**", "mos-app/src/components/sales/**"],
-      "personaDiffers": { "finance": "PRIMARY non-admin audience — the only non-admin door to Money (RequireAccessRole finance/admin)", "admin": "same render as finance", "member": "no access (absent)", "ops_lead": "no access" },
-      "states": ["awaiting", "populated", "loading", "error"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/money",
+        "/money/detail"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/dashboard-page.tsx",
+        "mos-app/src/pages/dashboard-page.css",
+        "mos-app/src/components/dashboard/**",
+        "mos-app/src/components/sales/**"
+      ],
+      "personaDiffers": {
+        "finance": "PRIMARY non-admin audience — the only non-admin door to Money (RequireAccessRole finance/admin)",
+        "admin": "same render as finance",
+        "member": "no access (absent)",
+        "ops_lead": "no access"
+      },
+      "states": [
+        "awaiting",
+        "populated",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "3d550af",
       "ratifiedBy": "money lane backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/pages/guard-r2-naked-heads.test.tsx", "mos-app/e2e/AC-025-026-dashboard-responsive.spec.ts", "mos-app/src/stories/v3/money-dashboard.stories.tsx"],
+      "pins": [
+        "mos-app/src/pages/guard-r2-naked-heads.test.tsx",
+        "mos-app/e2e/AC-025-026-dashboard-responsive.spec.ts",
+        "mos-app/src/stories/v3/money-dashboard.stories.tsx"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#311-money",
       "due": false,
-      "dueAxes": ["persona:finance never audited AS Fitri (the audience the surface exists for)", "dimension:data-viz D17 — the revenue chart never audited AS A CHART (axes/legend/encoding; uupm data-viz rules)"]
+      "dueAxes": [
+        "persona:finance never audited AS Fitri (the audience the surface exists for)",
+        "dimension:data-viz D17 — the revenue chart never audited AS A CHART (axes/legend/encoding; uupm data-viz rules)"
+      ]
     },
     {
       "id": "money-plan",
       "name": "Money plan (Budget + Pricing)",
-      "routes": ["/money/budget", "/money/pricing"],
-      "pathSet": ["mos-app/src/pages/budget-page.tsx", "mos-app/src/pages/budget-page.css", "mos-app/src/pages/pricing-page.tsx", "mos-app/src/pages/pricing-page.css", "mos-app/src/components/plan/**"],
-      "personaDiffers": { "finance": "gated finance/admin + flag SHOW_PLAN_BUDGET", "member": "no access", "ops_lead": "no access" },
-      "states": ["default", "empty", "loading", "error"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/money/budget",
+        "/money/pricing"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/budget-page.tsx",
+        "mos-app/src/pages/budget-page.css",
+        "mos-app/src/pages/pricing-page.tsx",
+        "mos-app/src/pages/pricing-page.css",
+        "mos-app/src/components/plan/**"
+      ],
+      "personaDiffers": {
+        "finance": "gated finance/admin + flag SHOW_PLAN_BUDGET",
+        "member": "no access",
+        "ops_lead": "no access"
+      },
+      "states": [
+        "default",
+        "empty",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
       "bumped": false,
-      "pins": ["mos-app/e2e/AC-PB-012-budget-pricing-preflight.spec.ts"],
+      "pins": [
+        "mos-app/e2e/AC-PB-012-budget-pricing-preflight.spec.ts"
+      ],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED — flag-gated SHOW_PLAN_BUDGET; renders fully against seeds (FLAG-18). Owes gen-1 battery."]
+      "dueAxes": [
+        "NEVER AUDITED — flag-gated SHOW_PLAN_BUDGET; renders fully against seeds (FLAG-18). Owes gen-1 battery."
+      ]
     },
     {
       "id": "follow-ups-queue",
       "name": "Follow-ups queue",
-      "routes": ["/money/follow-ups", "/work/follow-ups?view=followups"],
-      "pathSet": ["mos-app/src/pages/follow-ups-page.tsx", "mos-app/src/components/follow-ups/**"],
-      "personaDiffers": { "finance": "gated finance/admin + flag SHOW_FOLLOWUPS" },
-      "states": ["reserved-coming-soon", "populated", "empty", "loading", "error"],
-      "widths": [390, 768, 1280],
+      "routes": [
+        "/money/follow-ups",
+        "/work/follow-ups?view=followups"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/follow-ups-page.tsx",
+        "mos-app/src/components/follow-ups/**"
+      ],
+      "personaDiffers": {
+        "finance": "gated finance/admin + flag SHOW_FOLLOWUPS"
+      },
+      "states": [
+        "reserved-coming-soon",
+        "populated",
+        "empty",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/e2e/AC-524-follow-up.spec.ts"],
+      "pins": [
+        "mos-app/e2e/AC-524-follow-up.spec.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#39-follow-ups",
       "due": false,
-      "dueAxes": ["flag SHOW_FOLLOWUPS off — only reserved placeholder rendered; populated/loading/error NOT-REVIEWED"]
+      "dueAxes": [
+        "flag SHOW_FOLLOWUPS off — only reserved placeholder rendered; populated/loading/error NOT-REVIEWED"
+      ]
     },
     {
       "id": "follow-up-record",
       "name": "Follow-up record",
-      "routes": ["/work/follow-ups/:id"],
-      "pathSet": ["mos-app/src/pages/follow-up-record-page.tsx", "mos-app/src/components/records/**"],
-      "personaDiffers": { "finance": "gated + flag SHOW_FOLLOWUPS" },
-      "states": ["default", "loading", "error"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/work/follow-ups/:id"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/follow-up-record-page.tsx",
+        "mos-app/src/components/records/**"
+      ],
+      "personaDiffers": {
+        "finance": "gated + flag SHOW_FOLLOWUPS"
+      },
+      "states": [
+        "default",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
@@ -302,34 +696,75 @@
       "pins": [],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010)."]
+      "dueAxes": [
+        "NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010)."
+      ]
     },
     {
       "id": "admin-people",
       "name": "Admin — People",
-      "routes": ["/admin/people"],
-      "pathSet": ["mos-app/src/pages/admin-users-page.tsx", "mos-app/src/components/admin/**"],
-      "personaDiffers": { "admin": "only audience (AdminRoute)", "finance": "no access", "ops_lead": "no access", "member": "no access" },
-      "states": ["default", "hover", "loading", "error", "empty", "row-menus"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "/admin/people"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/admin-users-page.tsx",
+        "mos-app/src/components/admin/**"
+      ],
+      "personaDiffers": {
+        "admin": "only audience (AdminRoute)",
+        "finance": "no access",
+        "ops_lead": "no access",
+        "member": "no access"
+      },
+      "states": [
+        "default",
+        "hover",
+        "loading",
+        "error",
+        "empty",
+        "row-menus"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "census-r2 backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/src/components/admin/guard-flex-basis-balloon.css.test.ts"],
+      "pins": [
+        "mos-app/src/components/admin/guard-flex-basis-balloon.css.test.ts"
+      ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#312-admin-people",
       "due": false,
-      "dueAxes": ["states: hover/loading/error/empties/menus NOT-REVIEWED (census-r2 3.12)"]
+      "dueAxes": [
+        "states: hover/loading/error/empties/menus NOT-REVIEWED (census-r2 3.12)"
+      ]
     },
     {
       "id": "events",
       "name": "Events",
-      "routes": ["/events"],
-      "pathSet": ["mos-app/src/pages/events-page.tsx"],
+      "routes": [
+        "/events"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/events-page.tsx"
+      ],
       "personaDiffers": null,
-      "states": ["sanctioned-empty", "populated", "loading", "error"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "sanctioned-empty",
+        "populated",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
@@ -338,16 +773,31 @@
       "pins": [],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery."]
+      "dueAxes": [
+        "NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery."
+      ]
     },
     {
       "id": "profile",
       "name": "Profile",
-      "routes": ["/profile"],
-      "pathSet": ["mos-app/src/pages/profile-page.tsx"],
+      "routes": [
+        "/profile"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/profile-page.tsx"
+      ],
       "personaDiffers": null,
-      "states": ["default", "editing", "loading", "error"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "default",
+        "editing",
+        "loading",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
@@ -356,34 +806,73 @@
       "pins": [],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host."]
+      "dueAxes": [
+        "NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host."
+      ]
     },
     {
       "id": "login-recovery",
       "name": "Login + Recovery",
-      "routes": ["/login", "/recovery"],
-      "pathSet": ["mos-app/src/pages/login-page.tsx", "mos-app/src/pages/recovery-page.tsx", "mos-app/src/auth/auth-shell.tsx"],
+      "routes": [
+        "/login",
+        "/recovery"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/login-page.tsx",
+        "mos-app/src/pages/recovery-page.tsx",
+        "mos-app/src/auth/auth-shell.tsx"
+      ],
       "personaDiffers": null,
-      "states": ["default", "submitting", "error", "sent", "orphan"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "default",
+        "submitting",
+        "error",
+        "sent",
+        "orphan"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
       "bumped": false,
-      "pins": ["mos-app/e2e/auth-password-login.spec.ts", "mos-app/e2e/auth-recovery.spec.ts", "mos-app/e2e/auth-magic-link.spec.ts"],
+      "pins": [
+        "mos-app/e2e/auth-password-login.spec.ts",
+        "mos-app/e2e/auth-recovery.spec.ts",
+        "mos-app/e2e/auth-magic-link.spec.ts"
+      ],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED as a design surface (e2e cover flow, not composition/craft). Owes gen-1 battery — the pre-auth first impression."]
+      "dueAxes": [
+        "NEVER AUDITED as a design surface (e2e cover flow, not composition/craft). Owes gen-1 battery — the pre-auth first impression."
+      ]
     },
     {
       "id": "not-found-stubs",
       "name": "Not-found + module stubs",
-      "routes": ["/*", "/ecommerce", "/roastery"],
-      "pathSet": ["mos-app/src/pages/not-found-page.tsx", "mos-app/src/pages/slice-stub-page.tsx"],
+      "routes": [
+        "/*",
+        "/ecommerce",
+        "/roastery"
+      ],
+      "pathSet": [
+        "mos-app/src/pages/not-found-page.tsx",
+        "mos-app/src/pages/slice-stub-page.tsx"
+      ],
       "personaDiffers": null,
-      "states": ["not-found", "stub-job-sentence"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "not-found",
+        "stub-job-sentence"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
@@ -392,97 +881,225 @@
       "pins": [],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED — not-found recovery + stub job sentences. Owes gen-1 battery."]
+      "dueAxes": [
+        "NEVER AUDITED — not-found recovery + stub job sentences. Owes gen-1 battery."
+      ]
     },
     {
       "id": "chrome-top-bar",
       "name": "Top-bar cluster (bell / create / account)",
-      "routes": ["*(global chrome)"],
-      "pathSet": ["mos-app/src/shell/top-bar.tsx", "mos-app/src/shell/top-bar-assistant.test.tsx", "mos-app/src/shell/user-chip.tsx", "mos-app/src/shell/breadcrumb.tsx", "mos-app/src/shell/breadcrumb-title.tsx"],
-      "personaDiffers": { "member": "account chip + role; create/bell invariant", "admin": "same cluster" },
-      "states": ["default", "bell-unread", "bell-panel-open", "account-menu-open", "hover"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "*(global chrome)"
+      ],
+      "pathSet": [
+        "mos-app/src/shell/top-bar.tsx",
+        "mos-app/src/shell/top-bar-assistant.test.tsx",
+        "mos-app/src/shell/user-chip.tsx",
+        "mos-app/src/shell/breadcrumb.tsx",
+        "mos-app/src/shell/breadcrumb-title.tsx"
+      ],
+      "personaDiffers": {
+        "member": "account chip + role; create/bell invariant",
+        "admin": "same cluster"
+      },
+      "states": [
+        "default",
+        "bell-unread",
+        "bell-panel-open",
+        "account-menu-open",
+        "hover"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
       "bumped": false,
-      "pins": ["mos-app/src/cohesion-chrome.regression.test.ts", "mos-app/src/shell/top-bar-inbox-bell.test.tsx"],
+      "pins": [
+        "mos-app/src/cohesion-chrome.regression.test.ts",
+        "mos-app/src/shell/top-bar-inbox-bell.test.tsx"
+      ],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED AS A SURFACE — the bell/create/account cluster on every viewport. Owes gen-1 battery."]
+      "dueAxes": [
+        "NEVER AUDITED AS A SURFACE — the bell/create/account cluster on every viewport. Owes gen-1 battery."
+      ]
     },
     {
       "id": "chrome-nav",
       "name": "Rail + bottom-nav + More drawer",
-      "routes": ["*(global chrome)"],
-      "pathSet": ["mos-app/src/shell/rail.tsx", "mos-app/src/shell/rail-nav.tsx", "mos-app/src/shell/rail-nav.css", "mos-app/src/shell/bottom-tab-bar.tsx", "mos-app/src/shell/mobile-drawer.tsx", "mos-app/src/shell/destinations.tsx", "mos-app/src/shell/sections.tsx"],
-      "personaDiffers": { "member": "rail shows only affiliated module (OD-REDESIGN-68); Money/Admin absent; bottom-nav promotes viewer module", "finance": "Money present in rail", "ops_lead": "Projects + Café present", "admin": "Admin + Money present" },
-      "states": ["default", "rail-compact(920-1099)", "bottom-nav", "more-drawer-open", "hover", "active"],
-      "widths": [390, 768, 1280, 1870],
+      "routes": [
+        "*(global chrome)"
+      ],
+      "pathSet": [
+        "mos-app/src/shell/rail.tsx",
+        "mos-app/src/shell/rail-nav.tsx",
+        "mos-app/src/shell/rail-nav.css",
+        "mos-app/src/shell/bottom-tab-bar.tsx",
+        "mos-app/src/shell/mobile-drawer.tsx",
+        "mos-app/src/shell/destinations.tsx",
+        "mos-app/src/shell/sections.tsx"
+      ],
+      "personaDiffers": {
+        "member": "rail shows only affiliated module (OD-REDESIGN-68); Money/Admin absent; bottom-nav promotes viewer module",
+        "finance": "Money present in rail",
+        "ops_lead": "Projects + Café present",
+        "admin": "Admin + Money present"
+      },
+      "states": [
+        "default",
+        "rail-compact(920-1099)",
+        "bottom-nav",
+        "more-drawer-open",
+        "hover",
+        "active"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "shell-nav backfill",
       "lockedAt": "3d550af",
       "bumped": false,
-      "pins": ["mos-app/e2e/shell-nav.spec.ts", "mos-app/e2e/shell-phone-nav.spec.ts", "mos-app/e2e/shell-aria-current.spec.ts", "mos-app/src/consistency.regression.test.tsx"],
+      "pins": [
+        "mos-app/e2e/shell-nav.spec.ts",
+        "mos-app/e2e/shell-phone-nav.spec.ts",
+        "mos-app/e2e/shell-aria-current.spec.ts",
+        "mos-app/src/consistency.regression.test.tsx"
+      ],
       "findings": null,
       "due": false,
-      "dueAxes": ["MORE DRAWER never audited as a surface (mobile secondary nav)", "persona rail variants (member/finance/ops_lead differ) never audited per-class"]
+      "dueAxes": [
+        "MORE DRAWER never audited as a surface (mobile secondary nav)",
+        "persona rail variants (member/finance/ops_lead differ) never audited per-class"
+      ]
     },
     {
       "id": "chrome-command-menu",
       "name": "Command menu (Cmd-K)",
-      "routes": ["*(global overlay)"],
-      "pathSet": ["mos-app/src/components/command/**"],
+      "routes": [
+        "*(global overlay)"
+      ],
+      "pathSet": [
+        "mos-app/src/components/command/**"
+      ],
       "personaDiffers": null,
-      "states": ["closed", "open-empty", "open-typing", "results", "no-results"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "closed",
+        "open-empty",
+        "open-typing",
+        "results",
+        "no-results"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
       "bumped": false,
-      "pins": ["mos-app/e2e/shell-command-palette.spec.ts"],
+      "pins": [
+        "mos-app/e2e/shell-command-palette.spec.ts"
+      ],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED AS A SURFACE — the Cmd-K palette (open/typing/results/no-results). Owes gen-1 battery."]
+      "dueAxes": [
+        "NEVER AUDITED AS A SURFACE — the Cmd-K palette (open/typing/results/no-results). Owes gen-1 battery."
+      ]
     },
     {
       "id": "chrome-deputy-panel",
       "name": "Deputy panel",
-      "routes": ["*(global overlay, SHOW_ASSISTANT)"],
-      "pathSet": ["mos-app/src/components/assistant/**", "mos-app/src/lib/agent/**", "mos-app/src/shell/deputy-overlay-coexistence.ts"],
+      "routes": [
+        "*(global overlay, SHOW_ASSISTANT)"
+      ],
+      "pathSet": [
+        "mos-app/src/components/assistant/**",
+        "mos-app/src/lib/agent/**",
+        "mos-app/src/shell/deputy-overlay-coexistence.ts"
+      ],
       "personaDiffers": null,
-      "states": ["closed", "open", "thinking", "streaming", "record-safe-compact", "error"],
-      "widths": [390, 768, 1280, 1870],
+      "states": [
+        "closed",
+        "open",
+        "thinking",
+        "streaming",
+        "record-safe-compact",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280,
+        1870
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
       "bumped": false,
-      "pins": ["mos-app/src/shell/deputy-overlay-coexistence.test.tsx", "mos-app/src/shell/inbox-deputy-host.regression.test.ts"],
+      "pins": [
+        "mos-app/src/shell/deputy-overlay-coexistence.test.tsx",
+        "mos-app/src/shell/inbox-deputy-host.regression.test.ts"
+      ],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED AS A SURFACE — the deputy companion (right-edge track, coexistence with Inbox overlay). Owes gen-1 battery."]
+      "dueAxes": [
+        "NEVER AUDITED AS A SURFACE — the deputy companion (right-edge track, coexistence with Inbox overlay). Owes gen-1 battery."
+      ]
     },
     {
       "id": "chrome-signal-composer",
       "name": "Signal composer host",
-      "routes": ["*(global overlay)"],
-      "pathSet": ["mos-app/src/shell/signal-composer-host.tsx", "mos-app/src/shell/signal-composer-host.css", "mos-app/src/components/signals/signal-composer.tsx", "mos-app/src/components/signals/signal-mention-picker.tsx"],
+      "routes": [
+        "*(global overlay)"
+      ],
+      "pathSet": [
+        "mos-app/src/shell/signal-composer-host.tsx",
+        "mos-app/src/shell/signal-composer-host.css",
+        "mos-app/src/components/signals/signal-composer.tsx",
+        "mos-app/src/components/signals/signal-mention-picker.tsx"
+      ],
       "personaDiffers": null,
-      "states": ["closed", "open", "team-select", "mention-picker", "submitting", "error"],
-      "widths": [390, 768, 1280],
+      "states": [
+        "closed",
+        "open",
+        "team-select",
+        "mention-picker",
+        "submitting",
+        "error"
+      ],
+      "widths": [
+        390,
+        768,
+        1280
+      ],
       "generation": 1,
       "auditedAt": null,
       "ratifiedBy": null,
       "lockedAt": null,
       "bumped": false,
-      "pins": ["mos-app/src/shell/signal-composer-host.test.tsx", "mos-app/e2e/AC-430-post-a-signal.spec.ts"],
+      "pins": [
+        "mos-app/src/shell/signal-composer-host.test.tsx",
+        "mos-app/e2e/AC-430-post-a-signal.spec.ts"
+      ],
       "findings": null,
       "due": true,
-      "dueAxes": ["NEVER AUDITED AS A SURFACE — the composer host (one command, many entry points). Owes gen-1 battery; carries open FLAG-4 (team default) + FLAG-5 (datetime locale)."]
+      "dueAxes": [
+        "NEVER AUDITED AS A SURFACE — the composer host (one command, many entry points). Owes gen-1 battery; carries open FLAG-4 (team default) + FLAG-5 (datetime locale)."
+      ]
     }
   ]
 }
