@@ -209,3 +209,27 @@ begin
     on conflict (org_id, code) do nothing;
   end loop;
 end $$;
+
+-- ─── Kitchen team memberships (SEC-1, fresh-reset parity for 20260723000001) ─────────────────
+-- The kitchen-logs INSERT policy now fails closed unless the submitter is a member of the log's BU
+-- (Retail Ops) or ops_lead/admin. Wire the demo kitchen personas into the HQ Operations team
+-- (retail_ops) so Krishna Kitchen (submitter, member) keeps write access after a bare `db reset`;
+-- Cahya Cafe (reviewer) too. Mirrors the migration's seed-compat block. Idempotent.
+do $$
+declare
+  v_team_hq uuid;
+begin
+  select id into v_team_hq
+    from shared.teams
+   where org_id = '10000000-0000-0000-0000-000000000001' and code = 'hq_operations';
+  if v_team_hq is not null then
+    -- is_primary=false: a SECONDARY retail_ops membership that grants kitchen write access without
+    -- disturbing each persona's primary owning-team default (seed.dev-signals sets those). Avoids the
+    -- team_memberships_one_primary partial-unique index.
+    insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+    values
+      ('10000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000002', v_team_hq, false),  -- Krishna Kitchen (submitter)
+      ('10000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001', v_team_hq, false)   -- Cahya Cafe (reviewer)
+    on conflict do nothing;
+  end if;
+end $$;
