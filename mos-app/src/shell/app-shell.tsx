@@ -15,7 +15,9 @@ import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { OverlayHostSlot, type OverlayHistoryDriver, OverlayHostProvider } from './overlay-host'
+import { createRecordDeepLinkResolver } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
+import { useT } from '@/i18n/use-t'
 
 /**
  * Wires the shared overlay host to react-router (V3 Issue 4 route seam): the history driver
@@ -27,6 +29,7 @@ import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
  */
 function OverlayHostRoot({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const t = useT()
   const historyDriver = useMemo<OverlayHistoryDriver>(
     () => ({
       index: () => {
@@ -38,7 +41,16 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
     }),
     [navigate],
   )
-  return <OverlayHostProvider historyDriver={historyDriver}>{children}</OverlayHostProvider>
+  // D-A1 (item 4): a hard load / refresh onto a URL carrying a persisted `__mosOverlay` route marker
+  // restores the record through the tenant-supplied resolver (overlay-host.tsx:399-411). Tasks and
+  // the Signals archive restore via their own `?record=` page effect first; this covers the route
+  // sessions whose id lives only in the marker (Home-feed Signal, Follow-up over its queue).
+  const deepLinkResolver = useMemo(() => createRecordDeepLinkResolver(t), [t])
+  return (
+    <OverlayHostProvider historyDriver={historyDriver} deepLinkResolver={deepLinkResolver}>
+      {children}
+    </OverlayHostProvider>
+  )
 }
 
 function ShellContent() {

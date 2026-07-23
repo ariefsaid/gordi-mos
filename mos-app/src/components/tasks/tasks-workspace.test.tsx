@@ -9,7 +9,7 @@ import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -747,6 +747,79 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
 
     await waitFor(() => {
       expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+    })
+  })
+
+  // D-A1 (fix work-order item 4): a Task drawer opened from a list row must be URL-addressable
+  // (?record=<id>) exactly like a Signal, so a bookmark/refresh of "the task I'm working on"
+  // restores it instead of dropping to a bare list. RULED by OD-REDESIGN-19/63 + I1/I7.
+  describe('D-A1 — Task open is URL-addressable (?record=)', () => {
+    function renderAt(entries: string[]) {
+      let current: ReturnType<typeof useLocation> | null = null
+      function LocationProbe() {
+        current = useLocation()
+        const navigate = useNavigate()
+        return <button type="button" onClick={() => navigate(-1)}>Back</button>
+      }
+      const utils = render(
+        <I18nProvider>
+          <AuthContext.Provider value={authedState}>
+            <MemoryRouter initialEntries={entries}>
+              <OverlayHostProvider>
+                <LocationProbe />
+                <TasksWorkspace savedView={makeSavedView('all')} onSavedViewChange={() => {}} />
+              </OverlayHostProvider>
+            </MemoryRouter>
+          </AuthContext.Provider>
+        </I18nProvider>,
+      )
+      return { ...utils, getLocation: () => current }
+    }
+
+    it('clicking a task row writes ?record=<id> into the URL (bookmarkable/shareable)', async () => {
+      mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
+      const { getLocation } = renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Addressable task'))
+      fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+      await waitFor(() => expect(getLocation()?.search).toContain('record=task-addr'))
+      expect(
+        document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]'),
+      ).toBeTruthy()
+    })
+
+    it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {
+      const task = makeTask({ id: 'task-restore', title: 'Restored task' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      renderAt(['/work/tasks?record=task-restore'])
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]'),
+        ).toBeTruthy(),
+      )
+    })
+
+    it('Browser Back from an in-app-opened drawer returns to the collection and clears ?record=', async () => {
+      const task = makeTask({ id: 'task-clear', title: 'Clearable task' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      const { getLocation } = renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Clearable task'))
+      fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]'),
+        ).toBeTruthy(),
+      )
+      await waitFor(() => expect(getLocation()?.search).toContain('record=task-clear'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]'),
+        ).toBeNull(),
+      )
+      expect(getLocation()?.search ?? '').not.toContain('record=')
     })
   })
 

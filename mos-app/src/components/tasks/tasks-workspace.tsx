@@ -1,7 +1,7 @@
 import './TasksWorkspace.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
@@ -10,6 +10,7 @@ import { RecordCollectionSurface } from '@/components/record-collection/record-c
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
+import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { useDueRuns } from '@/components/processes/use-due-runs'
@@ -35,6 +36,16 @@ import { updateTaskFields } from '@/lib/db/tasks'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry } from '@/shell/overlay-host'
+
+// D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
+// seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
+// createRecordRouteAdapter so no third door grammar is invented. The panel toggles ?record=<id> on
+// the collection path (/work/tasks); the canonical full page keeps its own path (/work/tasks/:id).
+const taskRouteAdapter = createRecordRouteAdapter({
+  collectionPath: '/work/tasks',
+  panelParam: 'record',
+  pagePath: (id) => `/work/tasks/${id}`,
+})
 
 // §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
 type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
@@ -174,13 +185,46 @@ export function TasksWorkspace({
 
   const retry = useCallback(() => controller.retry(), [controller])
   const dueRuns = useDueRuns(retry)
+
+  // D-A1 (item 4): the open Task id lives in the URL as ?record=<id> (addressable/shareable). The
+  // collection owns its own query params; the record param rides alongside them, and the shared
+  // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
+  // archive seam exactly (signals-archive-page.tsx).
+  const [params, setParams] = useSearchParams()
+  const recordId = taskRouteAdapter.readPanelId(location)
+  const hadTaskSession = useRef(false)
+  const suppressNextOpen = useRef(false)
+  // The record id we last opened a host session for. If the session later closes while ?record=
+  // still lingers in the URL (a browser Back / ✕ / Escape pops the marker one render before the
+  // query is dropped), this ref tells the open effect "the user closed THIS record — do not
+  // resurrect it" so Back truly closes the drawer instead of re-opening it (I2, no dead-end).
+  const openedRecordRef = useRef<string | null>(null)
+
+  // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
+  // collection's query (view/filter/sort) survives the jump onto the canonical page.
+  const pageSearch = useCallback(() => {
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    const s = next.toString()
+    return s ? `?${s}` : ''
+  }, [params])
+
+  // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
+  // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
   const onOpenTask = useCallback((taskId: string) => {
-    const pageTo = { pathname: `/work/tasks/${taskId}`, search: currentSearch }
+    const next = new URLSearchParams(params)
+    next.set('record', taskId)
+    setParams(next)
+  }, [params, setParams])
+
+  const taskEntry = useMemo<OverlayEntry | null>(() => {
+    if (!recordId) return null
+    const pageTo = { pathname: `/work/tasks/${recordId}`, search: pageSearch() }
     // Record-scoped "Ask Deputy" seed: the loaded row carries the task title, so the composer opens
     // with "About Task: <title>". Falls back to the generic record noun if the row isn't loaded.
-    const taskTitle = controller.state.data?.records.find((r) => r.id === taskId)?.title?.trim()
+    const taskTitle = controller.state.data?.records.find((r) => r.id === recordId)?.title?.trim()
     const entry: OverlayEntry = {
-      key: `task:${taskId}`,
+      key: `task:${recordId}`,
       owner: 'tasks' as const,
       tenant: 'record' as const,
       label: t('tasks.detail.title'),
@@ -196,7 +240,7 @@ export function TasksWorkspace({
     }
     entry.content = (
       <TaskOverlayContent
-        taskId={taskId}
+        taskId={recordId}
         onClose={() => { void host.close() }}
         onOpenPage={() => { void host.openPage(pageTo, entry.pageState) }}
         onTaskChanged={onTaskChanged}
@@ -204,8 +248,49 @@ export function TasksWorkspace({
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
       />
     )
-    void host.openRoot(entry, 'route')
-  }, [controller.state.data, currentSearch, host, onTaskArchived, onTaskChanged, t])
+    return entry
+  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, t])
+
+  // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
+  // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
+  useEffect(() => {
+    if (!taskEntry) {
+      openedRecordRef.current = null
+      suppressNextOpen.current = false
+      return
+    }
+    if (suppressNextOpen.current) return
+    const active = host.session?.frames.at(-1)?.entry
+    if (active?.key === taskEntry.key) return
+    // A genuine browser Back / ✕ / Escape pops the marker one render before the clear effect drops
+    // ?record=: the session is gone but recordId still lingers. If we ALREADY had a stably-open
+    // session for this record (hadTaskSession), the user closed it — let the clear effect finish
+    // and do NOT resurrect it, so Back truly closes the drawer (I2, no dead-end). The guard is
+    // scoped to hadTaskSession so it does not swallow the legitimate re-open after the initial
+    // hard-load/refresh POP (MemoryRouter/boot reports the first navigation as POP, which closes
+    // the just-opened session before its marker lands) — that restore path must still re-open.
+    if (!active && openedRecordRef.current === recordId && hadTaskSession.current) return
+    const hasTaskSession = host.session?.frames.some((frame) => frame.entry.owner === 'tasks')
+    openedRecordRef.current = recordId
+    void (hasTaskSession ? host.replaceRoot(taskEntry) : host.openRoot(taskEntry, 'route'))
+  }, [host, taskEntry, recordId])
+
+  // When the host session closes (explicit close, or a browser POP the host owns), drop the
+  // ?record= query without adding a second history step. The ref stops the open effect from
+  // clearing its own freshly-set record. Mirrors signals-archive-page.tsx.
+  const taskSessionActive = host.session?.frames.some((frame) => frame.entry.owner === 'tasks') ?? false
+  useEffect(() => {
+    if (taskSessionActive) {
+      hadTaskSession.current = true
+      return
+    }
+    if (!hadTaskSession.current || !recordId) return
+    if (suppressNextOpen.current) return
+    hadTaskSession.current = false
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    setParams(next, { replace: true })
+  }, [params, recordId, setParams, taskSessionActive])
   // Inline title edit (E7 collection promise) — persists through the SAME updateTaskFields path the
   // record editor uses (task-surface handleUpdateField). Rejects (no viewer, or a failed write) so
   // TaskRow's useInlineCommit rolls the row back optimistically. The edited title lives in the row's
@@ -416,6 +501,10 @@ export function TasksWorkspace({
           </TaskCollectionRuntimeProvider>
         </section>
         {drawerOpen && drawerSlot}
+        {/* One physical host grammar for Task records. The collection owns ?record= query state;
+            OverlayHostSlot owns panel geometry, focus, Back, Escape, and canonical promotion. The
+            ?record= query is dropped by the session-tracking effect above whenever the host session
+            closes (explicit close or a browser POP), so no onClose override is needed here. */}
         <OverlayHostSlot owner="tasks" />
       </div>
     </PageFamilyFrame>
