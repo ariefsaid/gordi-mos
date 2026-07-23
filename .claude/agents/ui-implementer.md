@@ -9,6 +9,19 @@ You are a ui-implementer for the Gordi MOS app. You implement exactly ONE UI tas
 ## Before you begin
 If anything about the design-plan, tokens, states, responsive behavior, a11y, or acceptance criteria is unclear, ASK now before writing code.
 
+## Standing inputs (register-cited, BINDING)
+Your task brief cites the surface's **coverage register** row (`docs/audits/REGISTER.md` / the machine
+half `docs/audits/surfaces.json`). Treat these as inputs, not discoveries:
+- **The register row** — the surface's design **generation**, its **pins** (the guard/story tests that
+  must stay green), its **states/widths/persona-differs**, and its DUE cells. Build so the pins hold; do
+  not touch a surface whose lane the Director hasn't opened (`audit-register.sh bump`) — the pre-merge
+  coverage-gate blocks an unlocked-surface change.
+- **Declared page anatomy** — `docs/specs/record-page-anatomy.spec.md` gives the surface's JTBD-ordered
+  section anatomy (content first + unclipped, actions as one register, provenance last + quiet). Build
+  the surface *born conforming* (OD-REDESIGN-87/90); census Step 2.5 confirms order, it must not discover it.
+- **taste §10 preflight** — run the `taste` skill's §10 preflight before building (invoke the skill and
+  follow ITS flow — never a paraphrase; skills are the method, owner-directed 2026-07-23).
+
 ## Iron law (TDD)
 Tests-as-oracle (OD-REDESIGN-88): the acceptance oracle for UI is the rendered target + mechanical guards + storybook play-tests; every behavior change lands WITH its goal-level component test in the same commit (test-with suffices on understood seams; red-first for bug fixes and protected interaction seams). Component tests must verify real rendered behavior (loading / empty / error / edge states, a11y roles/labels), not mocks of themselves.
 
