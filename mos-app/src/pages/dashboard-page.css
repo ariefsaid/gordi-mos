@@ -43,6 +43,21 @@
   margin-bottom: 16px;
 }
 
+/* money-3: at ≥1280px the shared .empty-state block (CardHead.css) only sizes to its own
+   min-height:240px and the page's content column never stretches to fill the viewport, so
+   the block sits stranded top-left with hundreds of px of dead space below it on tall/wide
+   viewports. .empty-state already centers its frame via flex align/justify-center — it only
+   needs a taller min-height derived from the viewport to fill the page's effective height
+   instead. 300px approximates the fixed chrome above it at this breakpoint (56px topbar +
+   24px frame top padding + 177px page head/toolbar/tab-strip + 48px frame bottom padding,
+   measured on the empty /money render) — an approximation is fine here since the goal is
+   "no longer reads as broken/half-loaded", not pixel-exact fill. */
+@media (min-width: 1280px) {
+  .empty-state.dash-empty-fill {
+    min-height: calc(100dvh - 300px);
+  }
+}
+
 .dash-footnote {
   padding: 10px 0 4px;
   font-size: 11.5px;

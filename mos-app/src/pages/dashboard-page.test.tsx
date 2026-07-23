@@ -142,6 +142,14 @@ describe('DashboardPage — states', () => {
     expect(screen.queryByText(/^Rp 0/)).not.toBeInTheDocument()
   })
 
+  it('money-3: the empty state carries the dash-empty-fill scoping class so it centers within the full remaining viewport at ≥1280px instead of a stranded fixed-height block', async () => {
+    mockRev.mockResolvedValue([])
+    mockMarg.mockResolvedValue([])
+    renderPage()
+    const heading = await screen.findByRole('heading', { name: /no sales snapshot/i })
+    expect(heading.closest('[data-testid="empty-state"]')).toHaveClass('dash-empty-fill')
+  })
+
   it('AC-023: error — non-secret retry, no DSN/token/SQL/stack text', async () => {
     mockRev.mockRejectedValueOnce(new Error('permission denied for schema reporting'))
     mockMarg.mockResolvedValue([])

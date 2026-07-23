@@ -246,6 +246,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           variant="awaiting"
           title="No sales snapshot data yet"
           copy="No sales snapshot rows are available yet. The next warehouse snapshot will populate this page."
+          className="dash-empty-fill"
         />
       </PageFamilyFrame>
     )
