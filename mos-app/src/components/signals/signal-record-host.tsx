@@ -15,21 +15,28 @@ import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
-import { SignalRecord, type SignalMentionView } from './signal-record'
+import { formatWibDateTime } from '@/lib/wib-time'
+import {
+  SignalReach, SignalDiscussion, SignalFacts, SignalHistory, type SignalMentionView,
+} from './signal-record'
 import { RecordViewer } from '@/components/records/record-viewer'
-import { wrapSignalRecord } from './signal-record-adapter'
+import { wrapSignalRecord, firstLine } from './signal-record-adapter'
 import './signal-record-host.css'
 
-// C3 (KNOWN GAP 2): signal-record.tsx (B15) is a fully presentational renderer — this host is
-// the fetch+mutate layer for the Signal record. It is the CONTENT of the shared RecordPanelHost
-// (spec record-panel-host.spec.md, FR-3) — chrome-free: the host owns the ✕ Close / "Open full
-// page" / modal regime, this host owns only the Signal's own data + actions. `mode` mirrors the
-// Task renderer: "panel" (the in-list split drawer) or "page" (the full canonical record page).
+// C3 (KNOWN GAP 2): signal-record.tsx is a set of presentational region renderers — this host is
+// the fetch+mutate layer for the Signal record. It builds the five JTBD region nodes (Message /
+// Reach & response / Discussion / Facts / History — docs/specs/record-page-anatomy.spec.md §2.1)
+// and hands them to wrapSignalRecord, which orders them into the shared RecordViewer's content
+// slots. It is the CONTENT of the shared RecordPanelHost (chrome-free: the host owns the
+// ✕ Close / "Open full page" / modal regime; the STANDALONE page owns the Back via the shared
+// RecordPageChrome). `mode` mirrors the Task renderer: "panel" (in-list drawer) or "page".
 
 export interface SignalRecordHostProps {
   signalId: string
   /** panel = in-list split drawer content; page = standalone canonical record page (OD-63/Rule 4). */
   mode?: 'panel' | 'page'
+  /** Lets a page host reflect the record's resolved name (breadcrumb / Ask-Deputy seed). */
+  onTitleResolved?: (title: string) => void
 }
 
 type FetchState = 'loading' | 'ready' | 'error'
@@ -38,7 +45,7 @@ function personName(people: PersonOption[], id: string, fallback: string): strin
   return people.find((p) => p.id === id)?.full_name ?? fallback
 }
 
-export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostProps) {
+export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: SignalRecordHostProps) {
   const t = useT()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -92,6 +99,11 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
   }, [signalId])
 
   useEffect(() => load(), [load])
+
+  // Reflect the resolved record name to a page host (breadcrumb / Ask-Deputy seed).
+  useEffect(() => {
+    if (detail) onTitleResolved?.(firstLine(detail.signal.body))
+  }, [detail, onTitleResolved])
 
   if (state === 'loading') {
     return (
@@ -176,37 +188,16 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
     load()
   }
 
-  // P1-3 (anatomy parity, docs/reviews): identity/Facts/body/activity/the Acknowledge action now
-  // flow through the shared RecordViewer grammar (wrapSignalRecord) — the SAME chrome/section
-  // rhythm Task's record uses. SignalRecord keeps only its typed workflow subtree (mentions,
-  // shield line, category picker, revision disclosure, "who's acknowledged" roster, linked-work
-  // actions, comments), hosted as a second content slot — nothing is duplicated, only relocated.
   const revisionViews = revisions.map((rev) => ({
     id: rev.id, field: rev.field, old_value: rev.old_value, new_value: rev.new_value,
     created_at: rev.created_at, actorName: personName(people, rev.actor_id, t('signals.card.unknownAuthor')),
   }))
   const hasAcknowledged = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
-  const hostContent = (
-    <>
-      <SignalRecord
-        mode={mode}
-        signal={signal}
-        mentions={mentionViews}
-        shieldLine={shieldLine}
-        revisions={revisionViews}
-        acknowledgements={acknowledgements.map((ack) => ({
-          personId: ack.person_id, personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
-        }))}
-        onCategorize={(category) => { void handleCategorize(category) }}
-        comments={comments}
-        people={people}
-        canComment={!!viewerId}
-        onPostComment={handlePostComment}
-        linkedTasksSummary={linkedTasksSummary}
-        onCreateFollowUpTask={toggleFollowUp}
-        onLinkExistingTask={() => setLinkOpen((open) => !open)}
-      />
 
+  // The toggled create-follow-up / link-existing forms live inside the Reach action register so a
+  // form opens beside the action that spawned it (not orphaned at the foot of the document).
+  const actionForms = (
+    <>
       {followUpOpen && (
         <form
           className="signal-record-followup-form"
@@ -223,7 +214,6 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
           </Button>
         </form>
       )}
-
       {linkOpen && (
         linkableTasks.length === 0 ? (
           <EmptyState title={t('signals.record.noLinkableTasks')} />
@@ -252,26 +242,57 @@ export function SignalRecordHost({ signalId, mode = 'panel' }: SignalRecordHostP
     </>
   )
 
+  // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
+  // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
+  const retracted = signal.retracted_at !== null
+  const reach = retracted ? null : (
+    <SignalReach
+      mentions={mentionViews}
+      shieldLine={shieldLine}
+      canAcknowledge
+      hasAcknowledged={hasAcknowledged}
+      onAcknowledge={() => { void handleAcknowledge() }}
+      acknowledgements={acknowledgements.map((ack) => ({
+        personId: ack.person_id, personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
+      }))}
+      linkedTasksSummary={linkedTasksSummary}
+      onCreateFollowUpTask={toggleFollowUp}
+      onLinkExistingTask={() => setLinkOpen((open) => !open)}
+      actionForms={actionForms}
+    />
+  )
+  const discussion = retracted ? null : (
+    <SignalDiscussion
+      comments={comments}
+      people={people}
+      canComment={!!viewerId}
+      onPostComment={handlePostComment}
+    />
+  )
+  const facts = (
+    <SignalFacts
+      authorName={personName(people, signal.author_id, t('signals.card.unknownAuthor'))}
+      teamName={teamName}
+      businessUnitName={businessUnitName}
+      siteName={siteName}
+      category={signal.category}
+      onCategorize={(category) => { void handleCategorize(category) }}
+    />
+  )
+  const history = signal.edited_at
+    ? <SignalHistory edited revisions={revisionViews} />
+    : null
+
   return (
     <div className="signal-record-host">
       <RecordViewer
         adapter={wrapSignalRecord({
           detail,
-          authorName: personName(people, signal.author_id, t('signals.card.unknownAuthor')),
-          teamName,
-          businessUnitName,
-          siteName,
-          revisions: revisionViews,
-          acknowledgements: acknowledgements.map((ack) => ({
-            personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
-            occurredAt: ack.created_at,
-          })),
-          hasAcknowledged,
-          // Matches the prior behavior exactly (no viewerId gate existed on Acknowledge before —
-          // only the comment/link/follow-up affordances were viewerId-gated); not a new policy.
-          canAcknowledge: true,
-          onAcknowledge: () => handleAcknowledge(),
-          hostContent,
+          occurredLabel: formatWibDateTime(signal.occurred_at),
+          reach,
+          discussion,
+          facts,
+          history,
         })}
         mode={mode}
         // SR-8 (mirrors TaskRecordPage): in page mode the RecordViewer identity IS the page's h1

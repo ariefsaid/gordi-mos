@@ -199,7 +199,13 @@ function RecordBody({
       )}
 
       {adapter.contentSlots.map((slot) => (
-        <section key={slot.id} className="record-viewer__section" data-viewer-region="content" aria-label={slot.label}>
+        <section
+          key={slot.id}
+          className="record-viewer__section"
+          data-viewer-region="content"
+          data-content-slot={slot.id}
+          aria-label={slot.label}
+        >
           {slot.render({ mode, readOnly })}
         </section>
       ))}

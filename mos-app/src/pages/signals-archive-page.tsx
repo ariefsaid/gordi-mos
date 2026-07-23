@@ -25,6 +25,7 @@ import {
 } from '@/components/signals/signal-collection-actions'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
+import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { BOOT_SIGNAL_RECORD_ID } from '@/components/signals/signal-page-mode'
 import './signals-archive-page.css'
 
@@ -367,15 +368,22 @@ export function SignalsArchivePage() {
  * `mode` the only difference (Rule 11).
  */
 export function SignalRecordPage() {
-  useDocumentTitle('Signal — Gordi MOS')
+  const t = useT()
   const { signalId } = useParams<{ signalId: string }>()
+  const [title, setTitle] = useState<string | null>(null)
+  // R6-P2 parity with TaskRecordPage: reflect the resolved record name in the browser tab.
+  useDocumentTitle(title ? `${title} · Signal — Gordi MOS` : 'Signal — Gordi MOS')
+  // Record-scoped Ask-Deputy seed (mirrors the panel's askSignalDraft) — resolved once the record
+  // loads; a compact reference so the composer opens with "About Signal: <message>".
+  const deputyDraft = title
+    ? t('assistant.askAbout.signal', { title: title.length > 72 ? `${title.slice(0, 71).trimEnd()}…` : title })
+    : null
   if (!signalId) return <Navigate to="/work/signals" replace />
   // SR-3 / SR-8 (mirrors TaskRecordPage exactly): the generic "Signal" page head + its job
   // sentence are pure duplication above the record's OWN identity header (SIGNAL overline +
   // resolved title). `hideHead` suppresses that generic head so there is exactly ONE heading on
-  // the page — the record's title — and the archive's list job sentence ("Search and revisit…")
-  // no longer leaks onto a single record. The record-scoped jobSentence stays honest for AT / a
-  // future un-hidden head. SignalRecordHost promotes the identity heading to h1 in page mode.
+  // the page — the record's title. H3 (Luna floor): the record-page Back lives at the SHARED
+  // record-page seam (mirror of the Task page) so every record kind returns the same way.
   return (
     <PageFamilyFrame
       family="focused-record"
@@ -383,7 +391,12 @@ export function SignalRecordPage() {
       jobSentence="Review and follow up on this Signal."
       hideHead
     >
-      <SignalRecordHost signalId={signalId} mode="page" />
+      <RecordPageChrome
+        backTo="/work/signals"
+        backLabel={t('nav.signals')}
+        deputyDraft={deputyDraft}
+      />
+      <SignalRecordHost signalId={signalId} mode="page" onTitleResolved={setTitle} />
     </PageFamilyFrame>
   )
 }

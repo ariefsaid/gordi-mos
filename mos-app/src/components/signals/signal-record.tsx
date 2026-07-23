@@ -1,28 +1,21 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { CommentThread, type TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
-import type { MentionKind, SignalCategory, SignalRow } from '@/lib/db/signals.types'
+import { attentionSlug, type Attention, type MentionKind, type SignalCategory } from '@/lib/db/signals.types'
 import { SignalCategoryPicker } from './signal-category-picker'
 import './signal-card.css'
 import './signal-record.css'
 
-// Signal record surface (Rule 6 anatomy; reuses the record-panel host pattern — mode
-// "panel"|"page", OD-63/Rule 4). A presentational renderer: all data (the resolved Signal +
-// names + comments + revisions + acknowledgements + linked-work summary) and every mutating
-// action arrive as props — the caller (a future drawer/page host) owns fetch/mutate wiring
-// (mirrors TaskSurface/RecordFeed's split, kept thin here since there is no Signal-specific tab
-// strip). The Signal never gains Status/PIC/Supervisor/due date/resolution (OD-39/D25).
-//
-// P1-3 (anatomy parity, docs/reviews): identity (author/team/site/occurred/attention) and the
-// full body prose moved OUT to the shared RecordViewer identity + Facts metadata + body content
-// slot (signal-record-adapter.tsx wrapSignalRecord) — the SAME grammar Task's record uses. This
-// component now renders only the typed Signal WORKFLOW that grammar has no generic slot for:
-// mentions, the shield line, category correction (the shared 8-family picker, unchanged — Rule
-// 11, the same widget feed rows/cards use), the revision-history disclosure, the "who's
-// acknowledged" roster (the Acknowledge ACTION itself now lives in RecordViewer's shared actions
-// footer, matching Task's Mark-complete/Archive placement), linked-work actions, and comments.
+// Signal record — JTBD anatomy (docs/specs/record-page-anatomy.spec.md §2.1, OD-REDESIGN-90;
+// visual reference: scratchpad ds-bundle/mockups/signal-record-anatomy.html). The record reads
+// top-to-bottom as the reader's job sequence:
+//   Message → Reach & response → Discussion → Facts (provenance) → History (audit).
+// Each region is a small presentational component fed by props; the host (signal-record-host.tsx)
+// wires data + handlers and the adapter (wrapSignalRecord) orders them into the shared
+// RecordViewer's content slots (identity stays region 0). A Signal never gains Status/PIC/
+// Supervisor/due/resolution (jtbd A1/A2, OD-REDESIGN-45): it is a fact, not work.
 
 export interface SignalRevisionView {
   id: string
@@ -48,108 +41,218 @@ export interface LinkedTasksSummary {
   open: number
 }
 
-export interface SignalRecordProps {
-  mode: 'panel' | 'page'
-  signal: SignalRow
+// ── Region 1 · Message — read what happened ────────────────────────────────────
+// The Signal body IS the record: full, unclipped prose (the identity h1 above carries the first
+// line; the full body always renders here so the heading is never an ellipsized slice — F2). The
+// attention level + occurred time ride WITH it (LAW-2), never hoisted to a downstream facts block.
+export function SignalMessage({
+  body, attention, occurredLabel, retracted, retractReason,
+}: {
+  body: string
+  attention: Attention
+  occurredLabel: string
+  retracted?: boolean
+  retractReason?: string | null
+}) {
+  const t = useT()
+  if (retracted) {
+    return (
+      <p className="signal-tombstone">
+        {t('signals.retracted')} {retractReason ? <span>{retractReason}</span> : null}
+      </p>
+    )
+  }
+  return (
+    <div className="signal-message">
+      <div className="signal-message-urgency">
+        <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attention}</span>
+        <span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span>
+      </div>
+      <p className="signal-message-body">{body}</p>
+    </div>
+  )
+}
+
+// ── Region 2 · Reach & response — know the audience, take the one factual response ─────────────
+// Mentions + visibility line, the ONE action register (LAW-3): Acknowledge + linked-work verbs —
+// no Status/resolve/close (a Signal is a fact). The "who's acknowledged" roster + linked summary
+// (only when linked work exists — the empty "0 Tasks · 0 open" line was noise, LAW-5).
+export function SignalReach({
+  mentions, shieldLine,
+  canAcknowledge, hasAcknowledged, onAcknowledge,
+  acknowledgements, linkedTasksSummary,
+  onCreateFollowUpTask, onLinkExistingTask, actionForms,
+}: {
   mentions: SignalMentionView[]
   shieldLine?: string
-  revisions: SignalRevisionView[]
+  canAcknowledge: boolean
+  hasAcknowledged: boolean
+  onAcknowledge?: () => void
   acknowledgements: SignalAcknowledgementView[]
-  onCategorize?: (category: SignalCategory) => void
-  comments: TaskComment[]
-  people: PersonOption[]
-  canComment: boolean
-  onPostComment: (body: string) => Promise<void> | void
   linkedTasksSummary?: LinkedTasksSummary
   onCreateFollowUpTask?: () => void
   onLinkExistingTask?: () => void
-}
-
-export function SignalRecord({
-  mode, signal,
-  mentions, shieldLine, revisions, acknowledgements, onCategorize,
-  comments, people, canComment, onPostComment,
-  linkedTasksSummary, onCreateFollowUpTask, onLinkExistingTask,
-}: SignalRecordProps) {
+  actionForms?: ReactNode
+}) {
   const t = useT()
-  const [revisionsOpen, setRevisionsOpen] = useState(false)
-
-  if (signal.retracted_at) {
-    return (
-      <div className="signal-record signal-record--retracted" data-mode={mode} data-signal-id={signal.id}>
-        <p className="signal-tombstone">
-          {t('signals.retracted')} {signal.retract_reason ? <span>{signal.retract_reason}</span> : null}
-        </p>
-      </div>
-    )
-  }
-
+  const hasLinked = linkedTasksSummary && linkedTasksSummary.total > 0
   return (
-    <article className="signal-record" data-mode={mode} data-signal-id={signal.id} aria-label={t('signals.record.title')}>
-      {mentions.length > 0 && (
-        <ul className="signal-record-mentions" aria-label={t('signals.record.mentionsLabel')}>
-          {mentions.map((m, i) => (
-            <li key={`${m.kind}-${m.label}-${i}`}>@{m.label}</li>
-          ))}
-        </ul>
-      )}
+    <section className="signal-region signal-reach" data-signal-region="reach">
+      <h2 className="signal-region-title">{t('signals.record.region.reach')}</h2>
 
-      {shieldLine && <p className="signal-record-vis">{shieldLine}</p>}
-
-      <div className="signal-record-category">
-        <SignalCategoryPicker category={signal.category} onCategorize={onCategorize} />
-      </div>
-
-      {signal.edited_at && (
-        <div className="signal-record-edited">
-          <button type="button" onClick={() => setRevisionsOpen((open) => !open)}>
-            {t('signals.record.edited')}
-          </button>
-          {revisionsOpen && (
-            <ul className="signal-record-revisions">
-              {revisions.map((rev) => (
-                <li key={rev.id}>
-                  <span>{rev.actorName}</span>
-                  <span>{rev.field}</span>
-                  <span>{rev.old_value}</span>
-                  <span>{rev.new_value}</span>
-                </li>
+      {(mentions.length > 0 || shieldLine) && (
+        <div className="signal-reach-audience">
+          {mentions.length > 0 && (
+            <ul className="signal-record-mentions" aria-label={t('signals.record.mentionsLabel')}>
+              {mentions.map((m, i) => (
+                <li key={`${m.kind}-${m.label}-${i}`}>@{m.label}</li>
               ))}
             </ul>
           )}
+          {shieldLine && <p className="signal-record-vis">{shieldLine}</p>}
         </div>
       )}
 
-      {/* P1-3: the Acknowledge ACTION moved to RecordViewer's shared actions footer (matching
-          Task's Mark-complete/Archive placement) — this stays the "who's acknowledged" roster
-          only, a live list rather than a one-shot action, so it renders just like Mentions above
-          (nothing when nobody has acknowledged yet). */}
+      {/* The one action register — Acknowledge (factual response) + linked-work verbs. */}
+      <div className="signal-reach-actions" data-signal-actions="true">
+        {onCreateFollowUpTask && (
+          <Button variant="primary" onClick={onCreateFollowUpTask}>{t('signals.record.createFollowUpTask')}</Button>
+        )}
+        {onLinkExistingTask && (
+          <Button variant="outline" onClick={onLinkExistingTask}>{t('signals.record.linkExistingTask')}</Button>
+        )}
+        {canAcknowledge && (
+          <Button variant="outline" disabled={hasAcknowledged} onClick={() => onAcknowledge?.()}>
+            {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.record.acknowledge')}
+          </Button>
+        )}
+      </div>
+
+      {actionForms}
+
+      {hasLinked && (
+        <p className="signal-reach-linked">
+          {t('signals.record.linkedWorkSummary', { total: linkedTasksSummary!.total, open: linkedTasksSummary!.open })}
+        </p>
+      )}
+
       {acknowledgements.length > 0 && (
-        <section className="signal-record-ack" aria-label={t('signals.record.acknowledgeLabel')}>
+        <div className="signal-reach-ack" aria-label={t('signals.record.acknowledgeLabel')}>
+          <span className="signal-reach-ack-label">{t('signals.record.acknowledgedBy')}</span>
           <ul className="signal-ack-list">
             {acknowledgements.map((ack) => (
               <li key={ack.personId} className="signal-ack-name">{ack.personName}</li>
             ))}
           </ul>
-        </section>
-      )}
-
-      <section className="signal-record-linked-work" aria-label={t('signals.record.linkedWorkLabel')}>
-        <h2>{t('signals.record.linkedWorkLabel')}</h2>
-        {linkedTasksSummary && (
-          <p>{t('signals.record.linkedWorkSummary', { total: linkedTasksSummary.total, open: linkedTasksSummary.open })}</p>
-        )}
-        <div className="signal-record-linked-work-actions">
-          {onCreateFollowUpTask && (
-            <Button variant="outline" onClick={onCreateFollowUpTask}>{t('signals.record.createFollowUpTask')}</Button>
-          )}
-          {onLinkExistingTask && (
-            <Button variant="ghost" onClick={onLinkExistingTask}>{t('signals.record.linkExistingTask')}</Button>
-          )}
         </div>
-      </section>
+      )}
+    </section>
+  )
+}
 
-      <CommentThread comments={comments} people={people} canPost={canComment} onPost={onPostComment} />
-    </article>
+// ── Region 3 · Discussion — discuss without turning fact into work ─────────────────────────────
+export function SignalDiscussion({
+  comments, people, canComment, onPostComment,
+}: {
+  comments: TaskComment[]
+  people: PersonOption[]
+  canComment: boolean
+  onPostComment: (body: string) => Promise<void> | void
+}) {
+  const t = useT()
+  return (
+    <section className="signal-region signal-discussion" data-signal-region="discussion">
+      <h2 className="signal-region-title">{t('signals.record.region.discussion')}</h2>
+      <CommentThread comments={comments} people={people} canPost={canComment} onPost={onPostComment} heading="srOnly" />
+    </section>
+  )
+}
+
+// ── Region 4 · Facts (provenance) — verify who/where/when when needed ───────────────────────────
+// Quiet, compact, near the end. NO per-field "fixed after posting" caption on every row (LAW-6):
+// ONE whole-section note. Category renders here as its value + the correct affordance.
+export function SignalFacts({
+  authorName, teamName, businessUnitName, siteName,
+  category, onCategorize,
+}: {
+  authorName: string
+  teamName: string
+  businessUnitName: string | null
+  siteName: string | null
+  category: SignalCategory | null
+  onCategorize?: (category: SignalCategory) => void
+}) {
+  const t = useT()
+  const rows: { label: string; value: ReactNode }[] = [
+    { label: t('signals.record.reportedBy'), value: authorName },
+    { label: t('signals.record.owningTeam'), value: teamName },
+    ...(businessUnitName ? [{ label: t('signals.record.businessUnit'), value: businessUnitName }] : []),
+    ...(siteName ? [{ label: t('signals.record.site'), value: siteName }] : []),
+  ]
+  return (
+    <section className="signal-region signal-facts-region" data-signal-region="facts">
+      <h2 className="signal-region-title">{t('signals.record.region.facts')}</h2>
+      <dl className="signal-facts">
+        {rows.map((r) => (
+          <div key={r.label} className="signal-facts-row">
+            <dt className="signal-facts-label">{r.label}</dt>
+            <dd className="signal-facts-value">{r.value}</dd>
+          </div>
+        ))}
+        <div className="signal-facts-row">
+          <dt className="signal-facts-label">{t('signals.record.category')}</dt>
+          <dd className="signal-facts-value signal-facts-value--category">
+            <SignalCategoryPicker category={category} onCategorize={onCategorize} />
+          </dd>
+        </div>
+      </dl>
+      {/* ONE quiet provenance note — replaces the per-field "fixed after posting" captions (LAW-6). */}
+      <p className="signal-facts-note">{t('signals.record.factsNote')}</p>
+    </section>
+  )
+}
+
+// ── Region 5 · History (audit) — honest revision history, quiet, disclosed ──────────────────────
+// "Edited N times" is a disclosure entry point → a human-readable summary. The old→new values
+// render as readable prose ONLY behind the disclosure (never in the default view — F4/LAW-5), and
+// the revision list renders in exactly ONE region.
+export function SignalHistory({
+  edited, revisions,
+}: {
+  edited: boolean
+  revisions: SignalRevisionView[]
+}) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  if (!edited || revisions.length === 0) return null
+  return (
+    <section className="signal-region signal-history" data-signal-region="history">
+      <h2 className="signal-region-title">{t('signals.record.region.history')}</h2>
+      <button
+        type="button"
+        className="signal-history-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {t(revisions.length === 1 ? 'signals.record.editedOnce' : 'signals.record.editedTimes', { count: revisions.length })}
+      </button>
+      {open && (
+        <ul className="signal-history-list">
+          {revisions.map((rev) => (
+            <li key={rev.id} className="signal-history-item">
+              <span className="signal-history-who">{rev.actorName}</span>{' '}
+              <span className="signal-history-what">
+                {t('signals.record.revisionSummary', { field: t(`signals.record.field.${rev.field}`) })}
+              </span>
+              {(rev.old_value !== null || rev.new_value !== null) && (
+                <div className="signal-history-diff">
+                  {t('signals.record.revisionDiff', { from: rev.old_value ?? '—', to: rev.new_value ?? '—' })}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

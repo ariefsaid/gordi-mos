@@ -117,7 +117,7 @@ describe('SignalRecordHost — loading/error states', () => {
   it('shows a loading state, then the resolved record', async () => {
     renderHost()
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
   })
 
   it('shows an error state with retry when getSignal fails', async () => {
@@ -127,7 +127,7 @@ describe('SignalRecordHost — loading/error states', () => {
 
     mockGetSignal.mockResolvedValueOnce({ signal: baseSignal, mentions: [], acknowledgements: [], tasks: [] })
     await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }))
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
   })
 })
 
@@ -136,8 +136,8 @@ describe('SignalRecordHost — resolves names + mentions from the DAL', () => {
   // chips), not SignalRecord's own `.signal-record-author` etc. classes — those moved out.
   it('renders author/Team/BU/Site names resolved client-side', async () => {
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    const facts = screen.getByRole('region', { name: 'Facts' })
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+    const facts = document.querySelector('[data-content-slot="facts"]') as HTMLElement
     expect(within(facts).getByText('Dewi Director')).toBeInTheDocument()
     expect(within(facts).getByText('HQ Operations')).toBeInTheDocument()
     expect(within(facts).getByText('Retail Ops')).toBeInTheDocument()
@@ -150,7 +150,7 @@ describe('SignalRecordHost — Acknowledge wiring (FR-412)', () => {
   it('calls acknowledgeSignal and reflects the acknowledged state after refetch', async () => {
     mockAcknowledgeSignal.mockResolvedValue(undefined)
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     mockGetSignal.mockResolvedValueOnce({
       signal: baseSignal, mentions: [], tasks: [],
@@ -176,7 +176,7 @@ describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () 
   it('opens the category picker and calls correctSignal with the chosen family', async () => {
     mockCorrectSignal.mockResolvedValue(undefined)
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, category: 'Equipment/facility' }, mentions: [], acknowledgements: [], tasks: [] })
     await userEvent.click(screen.getByRole('button', { name: /add category/i }))
@@ -191,7 +191,7 @@ describe('SignalRecordHost — comment thread reuse (postComment/listComments, R
   it('posts a comment via the reused entityType=signal comment DAL', async () => {
     mockPostComment.mockResolvedValue('c1')
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     mockListComments.mockResolvedValueOnce([{ id: 'c1', author_id: VIEWER_ID, body: 'On it', created_at: '2026-07-16T05:00:00Z' }])
     const box = screen.getByRole('textbox', { name: /^comment$/i })
@@ -207,7 +207,7 @@ describe('SignalRecordHost — Create follow-up Task (createFollowUpTask, FR-413
   it('opens a minimal title form prefilled from the Signal body and creates the follow-up Task', async () => {
     mockCreateFollowUpTask.mockResolvedValue('task-new')
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /create follow-up task/i }))
     const titleInput = screen.getByRole('textbox', { name: /task title/i })
@@ -236,7 +236,7 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
     ])
     mockLinkSignalTask.mockResolvedValue(undefined)
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /link existing task/i }))
     const picker = await screen.findByRole('combobox', { name: /existing task/i })
@@ -266,7 +266,8 @@ describe('SignalRecordHost — Linked-work summary (summarizeLinkedTasks, FR-413
       { id: 'task-b', org_id: 'org-1', title: 'B', business_unit_id: BU_ID, status: 'Done', responsible_person_id: 'x', accountable_person_id: 'x', consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '', archived_at: null, created_by: 'x', created_at: '', updated_at: '' },
     ])
     renderHost()
-    const region = await screen.findByRole('region', { name: /linked work/i })
+    await screen.findByText(/2 Tasks/)
+    const region = document.querySelector('[data-signal-region="reach"]') as HTMLElement
     await waitFor(() => expect(within(region).getByText(/2 Tasks/)).toBeInTheDocument())
     expect(within(region).getByText(/1 open/)).toBeInTheDocument()
   })
@@ -280,13 +281,13 @@ describe('SignalRecordHost — Linked-work summary (summarizeLinkedTasks, FR-413
 describe('SignalRecordHost — renders as chrome-free content (FR-3)', () => {
   it('does not render its own close control (the host owns ✕ Close)', async () => {
     renderHost()
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /^close$/i })).toBeNull()
   })
 
   it('forwards mode="page" to the canonical page renderer', async () => {
     renderHost({ mode: 'page' })
-    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    expect(document.querySelector('.signal-record[data-mode="page"]')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+    expect(document.querySelector('h1')?.textContent).toContain('The freezer alarm went off')
   })
 })

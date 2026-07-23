@@ -4,203 +4,178 @@ import { resolve } from 'node:path'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import type { SignalRow } from '@/lib/db/signals.types'
 import type { TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
-import { SignalRecord } from './signal-record'
+import {
+  SignalMessage, SignalReach, SignalDiscussion, SignalFacts, SignalHistory,
+  type SignalRevisionView,
+} from './signal-record'
 
-function baseSignal(overrides: Partial<SignalRow> = {}): SignalRow {
-  return {
-    id: 'signal-1', author_id: 'person-cahya', owning_team_id: 'team-hq',
-    occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
-    attention: 'Needs attention', category: null, source: 'human',
-    retracted_at: null, retract_reason: null, edited_at: null,
-    created_at: '2026-07-16T02:00:00Z',
-    ...overrides,
-  }
-}
+// OD-REDESIGN-90 anatomy (docs/specs/record-page-anatomy.spec.md §2.1): the record's five regions
+// are small presentational components. This file covers each region's goal behaviors; the RENDERED
+// ORDER + the Step-2.5 FAIL gates live in signal-record-anatomy.test.tsx.
 
 const PEOPLE: PersonOption[] = [{ id: 'person-cahya', full_name: 'Cahya Cafe' }]
 const COMMENTS: TaskComment[] = [{ id: 'c1', author_id: 'person-cahya', body: 'Dispatching a tech now.', created_at: '2026-07-16T03:00:00Z' }]
 
-// P1-3 (anatomy parity, docs/reviews): identity (author/team/site/occurred/attention) and body
-// prose moved OUT of SignalRecord to the shared RecordViewer identity + Facts metadata + body
-// content slot (signal-record-adapter.tsx wrapSignalRecord) — see signal-record-adapter.test.tsx
-// for that coverage. This file now covers only SignalRecord's remaining typed workflow: mentions,
-// shield line, category correction, revision disclosure, the acknowledger roster, linked work,
-// and comments — none of the 24 prior goal behaviors are lost, several moved one file over.
-function renderRecord(props: Partial<React.ComponentProps<typeof SignalRecord>> = {}) {
-  return render(
-    <I18nProvider>
-      <SignalRecord
-        mode="panel"
-        signal={baseSignal()}
-        mentions={[]}
-        revisions={[]}
-        acknowledgements={[]}
-        comments={COMMENTS}
-        people={PEOPLE}
-        canComment
-        onPostComment={vi.fn()}
-        {...props}
-      />
-    </I18nProvider>,
-  )
+function wrap(node: React.ReactNode) {
+  return render(<I18nProvider>{node}</I18nProvider>)
 }
 
-describe('SignalRecord — core content', () => {
-  it('no longer renders the identity head (author/team/occurred/attention) — that moved to the shared RecordViewer Facts section', () => {
-    renderRecord()
-    // The body prose also moved out (to the shared body content slot); SignalRecord itself
-    // renders none of these now.
-    expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
-    expect(document.querySelector('.signal-record-head')).toBeNull()
-    expect(document.querySelector('.signal-record-author')).toBeNull()
-    expect(document.querySelector('.signal-record-body')).toBeNull()
+describe('SignalMessage — the content leads (LAW-1/LAW-2)', () => {
+  it('AC-ANAT-002: renders the FULL body prose unclipped, with the attention pill + occurred riding with it', () => {
+    const body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count. Investigating the grinder.'
+    wrap(<SignalMessage body={body} attention="Needs attention" occurredLabel="22 Jul 2026, 17:18 WIB" />)
+    expect(screen.getByText(body)).toBeInTheDocument() // full body, not a slice
+    expect(screen.getByText('Needs attention')).toBeInTheDocument()
+    expect(screen.getByText(/Occurred 22 Jul 2026, 17:18 WIB/)).toBeInTheDocument()
   })
 
-  it('renders "Add category" when uncategorised, and the category once set', () => {
-    const { rerender } = render(
-      <I18nProvider>
-        <SignalRecord
-          mode="panel" signal={baseSignal()}
-          mentions={[]} revisions={[]} acknowledgements={[]}
-          comments={[]} people={PEOPLE} canComment onPostComment={vi.fn()}
-        />
-      </I18nProvider>,
+  it('AC-ANAT-010: a retracted Signal shows only the tombstone + reason — no message body, no controls', () => {
+    wrap(<SignalMessage body="Original text" attention="FYI" occurredLabel="x" retracted retractReason="Duplicate report" />)
+    expect(screen.getByText(/retracted/i)).toBeInTheDocument()
+    expect(screen.getByText('Duplicate report')).toBeInTheDocument()
+    expect(screen.queryByText('Original text')).not.toBeInTheDocument()
+  })
+})
+
+describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervisor (jtbd A1/A2)', () => {
+  function renderReach(props: Partial<React.ComponentProps<typeof SignalReach>> = {}) {
+    return wrap(
+      <SignalReach
+        mentions={[]} canAcknowledge hasAcknowledged={false}
+        acknowledgements={[]} {...props}
+      />,
     )
-    expect(screen.getByRole('button', { name: /add category/i })).toBeInTheDocument()
+  }
 
-    rerender(
-      <I18nProvider>
-        <SignalRecord
-          mode="panel" signal={baseSignal({ category: 'Equipment/facility' })}
-          mentions={[]} revisions={[]} acknowledgements={[]}
-          comments={[]} people={PEOPLE} canComment onPostComment={vi.fn()}
-        />
-      </I18nProvider>,
-    )
-    expect(screen.getByText('Equipment/facility')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
-  })
-
-  it('opens the 8-family category picker and calls onCategorize with the chosen family', async () => {
-    const onCategorize = vi.fn()
-    renderRecord({ onCategorize })
-    await userEvent.click(screen.getByRole('button', { name: /add category/i }))
-    const picker = screen.getByRole('listbox', { name: /categor/i })
-    await userEvent.click(within(picker).getByRole('option', { name: 'Quality' }))
-
-    expect(onCategorize).toHaveBeenCalledWith('Quality')
-    expect(screen.queryByRole('listbox', { name: /categor/i })).not.toBeInTheDocument()
-  })
-
-  it('renders rendered mentions and the shield line', () => {
-    renderRecord({ mentions: [{ kind: 'person', label: 'Peer Person' }], shieldLine: 'Visible to HQ Operations · notify 1' })
+  it('renders mentions + the visibility shield line', () => {
+    renderReach({ mentions: [{ kind: 'person', label: 'Peer Person' }], shieldLine: 'Visible to HQ Operations · notify 1' })
     expect(screen.getByText('@Peer Person')).toBeInTheDocument()
     expect(screen.getByText('Visible to HQ Operations · notify 1')).toBeInTheDocument()
   })
-})
 
-describe('SignalRecord — Edited indicator + revision history (FR-410)', () => {
-  it('shows no Edited indicator when edited_at is unset', () => {
-    renderRecord()
-    expect(screen.queryByText(/edited/i)).not.toBeInTheDocument()
-  })
-
-  it('shows the Edited indicator with revision history when edited_at is set', async () => {
-    renderRecord({
-      signal: baseSignal({ edited_at: '2026-07-16T04:00:00Z', body: 'Corrected body' }),
-      revisions: [{ id: 'rev-1', field: 'body', old_value: 'The freezer alarm went off', new_value: 'Corrected body', created_at: '2026-07-16T04:00:00Z', actorName: 'Cahya Cafe' }],
-    })
-    expect(screen.getByText(/edited/i)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /edited/i }))
-    expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument() // old_value shown
-    expect(screen.getByText('Corrected body')).toBeInTheDocument() // new_value (body itself no longer renders here)
-  })
-})
-
-describe('SignalRecord — retraction tombstone (FR-411)', () => {
-  it('renders only the tombstone + reason when retracted, no actions/comments', () => {
-    renderRecord({ signal: baseSignal({ retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate report' }) })
-    expect(screen.getByText(/retracted/i)).toBeInTheDocument()
-    expect(screen.getByText('Duplicate report')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: /comments/i })).not.toBeInTheDocument()
-  })
-})
-
-describe('SignalRecord — acknowledger roster (FR-412; the Acknowledge ACTION itself now lives in the shared RecordViewer actions footer — see signal-record-adapter.test.tsx)', () => {
-  it('lists acknowledgers when present', () => {
-    renderRecord({ acknowledgements: [{ personId: 'person-cahya', personName: 'Cahya Cafe' }] })
-    expect(screen.getByText('Cahya Cafe', { selector: '.signal-ack-name' })).toBeInTheDocument()
-  })
-
-  it('renders no acknowledge roster/button at all when nobody has acknowledged yet', () => {
-    renderRecord({ acknowledgements: [] })
-    expect(screen.queryByRole('button', { name: /acknowledge/i })).not.toBeInTheDocument()
-    expect(document.querySelector('.signal-record-ack')).toBeNull()
-  })
-})
-
-describe('SignalRecord — reused comment thread (Rule 11 — record-feed/CommentThread)', () => {
-  it('renders the CommentThread with the Signal comments', () => {
-    renderRecord()
-    expect(screen.getByRole('region', { name: /comments/i })).toBeInTheDocument()
-    expect(screen.getByText('Dispatching a tech now.')).toBeInTheDocument()
-  })
-})
-
-describe('SignalRecord — Linked work (Create follow-up Task / Link existing Task, D25/OD-39)', () => {
-  it('renders the linked-work summary and both actions, wired to their handlers', async () => {
+  it('AC-ANAT-005: Acknowledge + Create follow-up + Link existing all occupy ONE actions register', () => {
     const onCreateFollowUpTask = vi.fn()
     const onLinkExistingTask = vi.fn()
-    renderRecord({
-      linkedTasksSummary: { total: 2, open: 1 },
-      onCreateFollowUpTask, onLinkExistingTask,
-    })
-
-    const linkedWork = screen.getByRole('region', { name: /linked work/i })
-    expect(within(linkedWork).getByText(/2 Tasks/)).toBeInTheDocument()
-    expect(within(linkedWork).getByText(/1 open/)).toBeInTheDocument()
-
-    await userEvent.click(within(linkedWork).getByRole('button', { name: /create follow-up task/i }))
-    expect(onCreateFollowUpTask).toHaveBeenCalledTimes(1)
-    await userEvent.click(within(linkedWork).getByRole('button', { name: /link existing task/i }))
-    expect(onLinkExistingTask).toHaveBeenCalledTimes(1)
+    const onAcknowledge = vi.fn()
+    renderReach({ onCreateFollowUpTask, onLinkExistingTask, onAcknowledge })
+    const region = document.querySelector('[data-signal-region="reach"]') as HTMLElement
+    const cluster = region.querySelector('[data-signal-actions]')!
+    // Every mutating verb is inside the single cluster.
+    for (const name of [/create follow-up task/i, /link existing task/i, /acknowledge/i]) {
+      expect(within(cluster as HTMLElement).getByRole('button', { name })).toBeInTheDocument()
+    }
   })
 
-  it('never shows Status/PIC/Supervisor/resolution fields (a Signal has none, OD-39)', () => {
-    renderRecord()
+  it('drops the "0 Tasks · 0 open" noise when there is no linked work, shows the summary when there is', () => {
+    const { rerender } = renderReach({ linkedTasksSummary: { total: 0, open: 0 } })
+    expect(screen.queryByText(/0 Tasks/)).not.toBeInTheDocument()
+    rerender(
+      <I18nProvider>
+        <SignalReach mentions={[]} canAcknowledge hasAcknowledged={false} acknowledgements={[]} linkedTasksSummary={{ total: 2, open: 1 }} />
+      </I18nProvider>,
+    )
+    expect(screen.getByText(/2 Tasks · 1 open/)).toBeInTheDocument()
+  })
+
+  it('lists the "who\'s acknowledged" roster and disables Acknowledge once done (never disappears)', () => {
+    renderReach({ hasAcknowledged: true, acknowledgements: [{ personId: 'person-cahya', personName: 'Cahya Cafe' }] })
+    expect(screen.getByText('Cahya Cafe', { selector: '.signal-ack-name' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /acknowledged/i })).toBeDisabled()
+  })
+
+  it('never shows a Status/PIC/Supervisor/resolution control (a Signal is a fact, OD-39)', () => {
+    renderReach()
     expect(screen.queryByText(/status/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/supervisor/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/^pic$/i)).not.toBeInTheDocument()
   })
 })
 
+describe('SignalFacts — quiet provenance, ONE section note, no per-field captions (LAW-6/F3)', () => {
+  function renderFacts(props: Partial<React.ComponentProps<typeof SignalFacts>> = {}) {
+    return wrap(
+      <SignalFacts authorName="Dewi Director" teamName="HQ Operations" businessUnitName="Retail Ops" siteName="Gordi HQ" category={null} {...props} />,
+    )
+  }
+
+  it('AC-ANAT-003: renders the provenance rows with exactly ONE section-level note, not a caption per row', () => {
+    renderFacts()
+    const region = document.querySelector('[data-signal-region="facts"]') as HTMLElement
+    expect(within(region).getByText('Dewi Director')).toBeInTheDocument()
+    expect(within(region).getByText('Retail Ops')).toBeInTheDocument()
+    // Exactly one quiet provenance note for the whole section.
+    expect(region.querySelectorAll('.signal-facts-note')).toHaveLength(1)
+    // No per-field "fixed after posting" caption stamped on each row (the old defect).
+    expect(within(region).queryAllByText(/fixed after posting/i)).toHaveLength(0)
+  })
+
+  it('renders "Add category" when uncategorised and the value once set, and corrects via the 8-family picker', async () => {
+    const onCategorize = vi.fn()
+    const { rerender } = renderFacts({ onCategorize })
+    expect(screen.getByRole('button', { name: /add category/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /add category/i }))
+    await userEvent.click(within(screen.getByRole('listbox', { name: /categor/i })).getByRole('option', { name: 'Quality' }))
+    expect(onCategorize).toHaveBeenCalledWith('Quality')
+
+    rerender(
+      <I18nProvider>
+        <SignalFacts authorName="Dewi" teamName="HQ" businessUnitName={null} siteName={null} category="Equipment/facility" />
+      </I18nProvider>,
+    )
+    expect(screen.getByText('Equipment/facility')).toBeInTheDocument()
+  })
+})
+
+describe('SignalDiscussion — comments in the document grammar', () => {
+  it('renders the comment thread with the Signal comments', () => {
+    wrap(<SignalDiscussion comments={COMMENTS} people={PEOPLE} canComment onPostComment={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: /discussion/i })).toBeInTheDocument()
+    expect(document.querySelector('[data-signal-region="discussion"]')).toBeTruthy()
+    expect(screen.getByText('Dispatching a tech now.')).toBeInTheDocument()
+  })
+})
+
+describe('SignalHistory — disclosed audit, no raw diff in the default view (LAW-5/F4)', () => {
+  const revisions: SignalRevisionView[] = [
+    { id: 'rev-1', field: 'body', old_value: 'down about 10%', new_value: 'down about 15%', created_at: '2026-07-16T04:00:00Z', actorName: 'Cahya Cafe' },
+  ]
+
+  it('renders nothing when the Signal has never been edited', () => {
+    const { container } = wrap(<SignalHistory edited={false} revisions={[]} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('AC-ANAT-004: shows an "Edited · N" disclosure; the old→new values appear ONLY after expanding', async () => {
+    wrap(<SignalHistory edited revisions={revisions} />)
+    // Default (collapsed) view: the raw diff values are absent.
+    expect(screen.queryByText(/down about 10%/)).not.toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: /edited · 1 revision/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(toggle)
+    // Now behind the disclosure: a human-readable summary + the readable diff.
+    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(screen.getByText(/down about 10%.*down about 15%/)).toBeInTheDocument()
+  })
+})
+
 // DO-5 (SR-2): the reused CommentThread wraps itself in a bordered .card with a 20px .card-h2 —
-// correct standalone, but inside the Signal record DOCUMENT it read as a nested card breaking the
-// borderless-section flow. jsdom cannot compute the border, so pin the CSS grammar: within
-// .signal-record the card chrome is neutralized and the heading drops to the sibling-section
-// register, so Comments reads as a quiet peer of Linked-work / Acknowledged (one document).
+// correct standalone, but inside the Signal record DOCUMENT it read as a nested card. jsdom cannot
+// compute the border, so pin the CSS grammar: within .signal-discussion the card chrome is
+// neutralized so Comments reads as a quiet peer of the sibling regions (one document, LAW-7).
 describe('DO-5: Comments joins the record document grammar (no nested card)', () => {
   const css = readFileSync(
     resolve(process.cwd(), 'src/components/signals/signal-record.css'),
     'utf8',
   ).replace(/\/\*[\s\S]*?\*\//g, '')
 
-  it('DO-5: .signal-record .card sheds its border/shadow/background so it is not a nested card', () => {
-    const m = /\.signal-record\s+\.card\s*\{([^}]*)\}/.exec(css)
-    expect(m, 'signal-record.css must neutralize .signal-record .card').not.toBeNull()
+  it('DO-5: .signal-discussion .card sheds its border/shadow/background so it is not a nested card', () => {
+    const m = /\.signal-discussion\s+\.card\s*\{([^}]*)\}/.exec(css)
+    expect(m, 'signal-record.css must neutralize .signal-discussion .card').not.toBeNull()
     const body = m![1]
     expect(body).toMatch(/border:\s*0/)
     expect(body).toMatch(/box-shadow:\s*none/)
     expect(body).toMatch(/background:\s*transparent/)
-  })
-
-  it('DO-5: the comment heading drops to the sibling-section register (no 20px card-h2)', () => {
-    const m = /\.signal-record\s+\.card-h2\s*\{([^}]*)\}/.exec(css)
-    expect(m, 'signal-record.css must re-register .signal-record .card-h2').not.toBeNull()
-    expect(m![1]).toMatch(/font-size:\s*var\(--font-size-mono\)/)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -410,6 +410,26 @@ describe('SignalRecordPage — canonical full page (AC-RPH-3)', () => {
     // Same renderer, page mode — no split-drawer shell/chrome around it.
     expect(document.querySelector('.record-panel-chrome')).toBeNull()
     expect(document.querySelector('.drawer')).toBeNull()
+  })
+
+  // H3 (Luna floor): the Signal full page carries a visible Back at the SHARED record-page seam —
+  // the SAME .record-page-chrome the Task page uses (whatever chrome carries Task's Back carries
+  // Signal's). This pins the shared seam for the Signal kind so it can never regress to a dead-end.
+  it('H3: carries a shared record-page "Back to Signals" affordance (the same seam Task uses)', async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals/signal-1']}>
+          <Routes>
+            <Route path="/work/signals/:signalId" element={<SignalRecordPage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+    const chrome = document.querySelector('.record-page-chrome') as HTMLElement
+    expect(chrome).toBeTruthy()
+    const back = within(chrome).getByRole('link', { name: /back to signals/i })
+    expect(back).toHaveAttribute('href', '/work/signals')
   })
 
   it('SR-3/SR-8: hides the generic page head so the archive job sentence does not leak and no duplicate "Signal" heading sits above the record', async () => {

@@ -1,30 +1,27 @@
-/* SignalRecord — the canonical Signal record surface (design-review step-4 CRITICAL-1). A
-   header field grid with real separations, sectioned regions (mentions/category/edited/
-   acknowledge/linked-work), each divided by a hairline. Reuses signal-card.css's attention
-   pill + category-picker anchor (same classes, same visual language as the feed card) — the
-   component imports both stylesheets rather than duplicating those rules here. */
+/* Signal record — JTBD anatomy (docs/specs/record-page-anatomy.spec.md §2.1, OD-REDESIGN-90;
+   visual reference scratchpad ds-bundle/mockups/signal-record-anatomy.html). Five regions read as
+   one calm document: Message → Reach & response → Discussion → Facts → History, each a quiet
+   sibling section separated by a hairline + negative space (LAW-7: no card-in-card). E7 tokens
+   only. Reuses signal-card.css's attention pill (same visual language as the feed). */
 
-.signal-record { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.signal-record--retracted { padding: 12px 16px; }
-
-/* ── Header field grid — author/team/BU/site/occurred + the attention pill, each label a
-   short span so the whole row reads as one scannable line but keeps real gaps (MINOR-7/8). ── */
-.signal-record-head {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
-  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+/* ── Region shell — a quiet section register (border-t + space, not a boxed card, LAW-7). ── */
+.signal-region { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+.signal-region-title {
+  margin: 0 0 12px; font-size: var(--font-size-overline); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
 }
-.signal-record-author { font-weight: 600; color: var(--foreground); font-size: var(--font-size-control); }
-.signal-record-team,
-.signal-record-bu,
-.signal-record-site,
-.signal-record-occurred { font-size: 12.5px; color: var(--muted-foreground); }
-.signal-record-head .signal-attention { margin-left: auto; }
 
-/* SR-4: the Signal record body is prose — cap it at a ~72ch reading measure so a long body does
-   not run the full document width (the SAME impeccable line-length rule the shared
-   .record-viewer--page value cap applies to Task's description). */
-.signal-record-body { margin: 0; max-width: 72ch; font-size: 14.5px; line-height: 1.6; color: var(--foreground); }
+/* ── 1 · Message — the content leads, unclipped; attention + occurred ride with it (LAW-2). ── */
+.signal-message { display: flex; flex-direction: column; }
+.signal-message-urgency { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.signal-message-occurred { font-size: var(--font-size-control); color: var(--muted-foreground); }
+.signal-message-body {
+  margin: 16px 0 0; max-width: 72ch; font-size: 16px; line-height: 1.6; color: var(--foreground);
+  overflow-wrap: anywhere; white-space: pre-wrap;
+}
 
+/* ── 2 · Reach & response — one action register (LAW-3). ── */
+.signal-reach-audience { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .signal-record-mentions {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
 }
@@ -33,28 +30,13 @@
   border-radius: var(--radius-pill); background: var(--accent-subtle); color: var(--text-accent);
   font-size: var(--font-size-label); font-weight: 600;
 }
+.signal-record-vis { margin: 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
 
-.signal-record-vis { margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
+.signal-reach-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.signal-reach-linked { margin: 14px 0 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
 
-.signal-record-category { display: flex; }
-
-.signal-record-edited { font-size: 12.5px; }
-.signal-record-edited > button {
-  background: none; border: none; padding: 0; font: inherit; color: var(--text-accent);
-  cursor: pointer; text-decoration: underline;
-}
-.signal-record-revisions {
-  margin: 8px 0 0; padding: 8px 10px; list-style: none;
-  display: flex; flex-direction: column; gap: 6px;
-  background: var(--secondary); border-radius: var(--radius-sm);
-  font-size: var(--font-size-label); color: var(--muted-foreground);
-}
-.signal-record-revisions li { display: flex; gap: 8px; flex-wrap: wrap; }
-
-.signal-record-ack {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding-top: 12px; border-top: 1px solid var(--border);
-}
+.signal-reach-ack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.signal-reach-ack-label { font-size: var(--font-size-label); color: var(--muted-foreground); }
 .signal-ack-list { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
 .signal-ack-name {
   display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
@@ -62,27 +44,44 @@
   font-size: var(--font-size-label);
 }
 
-/* "Linked work" section (MINOR-7/8 spacing) — a clear divider + heading before the actions. */
-.signal-record-linked-work {
-  display: flex; flex-direction: column; gap: 8px;
-  padding-top: 12px; border-top: 1px solid var(--border);
-}
-.signal-record-linked-work h2 {
-  margin: 0; font-size: var(--font-size-mono); font-weight: 600; color: var(--foreground);
-}
-.signal-record-linked-work p { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); }
-.signal-record-linked-work-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* SR-2: the Comments block reuses the shared CommentThread, which wraps itself in a bordered
-   .card with a 20px .card-h2 heading. That is correct as a STANDALONE card, but inside the Signal
-   record DOCUMENT it read as a nested card interrupting a borderless-section flow. Neutralize the
-   card chrome and drop the heading to the sibling-section register (the SAME move the Task record
-   feed makes with `.rf-tabpane .card`), so Comments reads as a quiet peer of the Linked-work /
-   Acknowledged sections above it — one document, no nested card. */
-.signal-record .card {
+/* ── 3 · Discussion — the comment thread in the document grammar (no nested card, LAW-7). ──
+   The reused CommentThread wraps itself in a bordered .card with a 20px .card-h2. Inside the
+   Signal record DOCUMENT that reads as a nested card; neutralize the chrome so Comments is a quiet
+   peer of the sibling regions. (jsdom cannot compute the border — the guard pins this grammar.) */
+.signal-discussion .card {
   background: transparent; border: 0; border-radius: 0; box-shadow: none;
-  margin: 0; padding: 12px 0 0; border-top: 1px solid var(--border);
+  margin: 0; padding: 0;
 }
-.signal-record .card-h2 {
+.signal-discussion .card-h2 {
   font-size: var(--font-size-mono); font-weight: 600; margin-bottom: 8px; color: var(--foreground);
 }
+
+/* ── 4 · Facts (provenance) — quiet, compact, last; ONE section note, no per-field captions. ── */
+.signal-facts {
+  display: grid; grid-template-columns: 130px 1fr; row-gap: 8px; column-gap: 16px;
+  margin: 0; font-size: var(--font-size-control);
+}
+.signal-facts-row { display: contents; }
+.signal-facts-label { color: var(--muted-foreground); }
+.signal-facts-value { color: var(--foreground); overflow-wrap: anywhere; }
+.signal-facts-value--category { display: flex; }
+.signal-facts-note { margin: 12px 0 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
+
+/* ── 5 · History (audit) — disclosed, readable, never a raw diff dump in the default view. ── */
+.signal-history-toggle {
+  background: none; border: 0; padding: 0; font: inherit; font-size: var(--font-size-control);
+  color: var(--text-accent); cursor: pointer; text-decoration: underline;
+}
+.signal-history-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-history-list {
+  margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px;
+}
+.signal-history-item {
+  padding-left: 14px; border-left: 2px solid var(--border); font-size: var(--font-size-control);
+}
+.signal-history-who { font-weight: 600; color: var(--foreground); }
+.signal-history-what { color: var(--muted-foreground); }
+.signal-history-diff { margin-top: 4px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+
+/* Retraction tombstone (the sole message of a retracted Signal). */
+.signal-tombstone { margin: 0; font-size: var(--font-size-body); color: var(--muted-foreground); font-style: italic; }
