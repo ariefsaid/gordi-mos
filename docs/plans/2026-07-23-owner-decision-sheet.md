@@ -230,7 +230,13 @@ surface and both pages passed their census.
 ## F · Pending slots (fill before the sitting closes)
 
 - ~~Journey-audit flags~~ — **CLOSED, no new owner flags**: all 6 journeys walked; findings were DO (JQ-1 cafe tab gating, JQ-3 onboarding login handoff, JQ-4 inbox door — fix lane v3/jq-fixes) or DEFER (JQ-5 drill-through → backlog); JQ-2 = GAP-4 above.
-- Backfill-batch flags (dark mode / id locale / finance persona / chrome surfaces — Step 2).
+- **Backfill-batch flags — LANDED (6 one-liners, docs/plans/2026-07-23-backfill-census.md §4):**
+  - **G1** Phone bottom-tabs: carry the rail's at-a-glance counts, or count-free phone chrome? **Recommend: count-free** (phone chrome stays calm; Home carries the numbers).
+  - **G2** `/cafe/log` deep-link from every persona's "Failed checks" band, or Café/Kitchen roles only? **Recommend: role-scoped** (matches the SEC-1 guard direction).
+  - **G3** "Objective" in Bahasa: loanword everywhere, or "Tujuan" everywhere? (today it's mixed). **Recommend: "Objective" as loanword** — matches PIC/Supervisor loanword convention.
+  - **G4** Stuck-run Deputy: two Stop buttons (banner + composer) or one? **Recommend: one** (banner owns it).
+  - **G5** ⌘K keyboard hints on the 390px touch variant: render or hide? **Recommend: hide on coarse pointer.**
+  - **G6** 404 page: keep the Home job-sentence or a 404-specific line? **Recommend: 404-specific line.**
   > **VERIFY (dark mode, incidental — not one of the enumerated items):** dark mode is ALREADY built and
   > user-reachable (appearance control + theme-provider, follows system; provenance 03:1139-1229,1820 —
   > "the whole app was repainted… in both light and dark mode"). Whatever the Step-2 backfill flag asks,

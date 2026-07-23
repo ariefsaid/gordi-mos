@@ -869,16 +869,14 @@
         1280
       ],
       "generation": 1,
-      "auditedAt": null,
-      "ratifiedBy": null,
-      "lockedAt": null,
+      "auditedAt": "ce9e5e8",
+      "ratifiedBy": "Director",
+      "lockedAt": "ce9e5e8",
       "bumped": false,
       "pins": [],
       "findings": null,
-      "due": true,
-      "dueAxes": [
-        "NEVER AUDITED — not-found recovery + stub job sentences. Owes gen-1 battery."
-      ]
+      "due": false,
+      "dueAxes": []
     },
     {
       "id": "chrome-top-bar",

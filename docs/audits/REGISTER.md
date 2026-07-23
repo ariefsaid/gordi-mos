@@ -14,7 +14,7 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 
 **Generated:** 2026-07-23 · **backfill baseline:** `3d550af` · **surfaces:** 25 · **dimensions:** 2
 
-**Lifecycle tally:** LOCKED 17 · BUMPED 0 · DUE 8
+**Lifecycle tally:** LOCKED 18 · BUMPED 0 · DUE 7
 
 ## Global due axes (apply to EVERY surface)
 
@@ -44,7 +44,7 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 | Events | `/events` | DUE | 1 | — | — | 0 | — | NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery. |
 | Profile | `/profile` | DUE | 1 | — | — | 0 | — | NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host. |
 | Login + Recovery | `/login`, `/recovery` | DUE | 1 | — | — | 3 | — | NEVER AUDITED as a design surface (e2e cover flow, not composition/craft). Owes gen-1 battery — the pre-auth first impression. |
-| Not-found + module stubs | `/*`, `/ecommerce`, `/roastery` | DUE | 1 | — | — | 0 | — | NEVER AUDITED — not-found recovery + stub job sentences. Owes gen-1 battery. |
+| Not-found + module stubs | `/*`, `/ecommerce`, `/roastery` | LOCKED | 1 | `ce9e5e8` | `ce9e5e8` | 0 | — | — |
 | Top-bar cluster (bell / create / account) | `*(global chrome)` | DUE | 1 | — | — | 2 | member: account chip + role; create/bell invariant; admin: same cluster | NEVER AUDITED AS A SURFACE — the bell/create/account cluster on every viewport. Owes gen-1 battery. |
 | Rail + bottom-nav + More drawer | `*(global chrome)` | LOCKED | 1 | `ab61009` | `3d550af` | 4 | member: rail shows only affiliated module (OD-REDESIGN-68); Money/Admin absent; bottom-nav promotes viewer module; finance: Money present in rail; ops_lead: Projects + Café present; admin: Admin + Money present | MORE DRAWER never audited as a surface (mobile secondary nav); persona rail variants (member/finance/ops_lead differ) never audited per-class |
 | Command menu (Cmd-K) | `*(global overlay)` | DUE | 1 | — | — | 1 | — | NEVER AUDITED AS A SURFACE — the Cmd-K palette (open/typing/results/no-results). Owes gen-1 battery. |
@@ -56,7 +56,6 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 - **Events** [`events`] — DUE: NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery.
 - **Profile** [`profile`] — DUE: NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host.
 - **Login + Recovery** [`login-recovery`] — DUE: NEVER AUDITED as a design surface (e2e cover flow, not composition/craft). Owes gen-1 battery — the pre-auth first impression.
-- **Not-found + module stubs** [`not-found-stubs`] — DUE: NEVER AUDITED — not-found recovery + stub job sentences. Owes gen-1 battery.
 - **Top-bar cluster (bell / create / account)** [`chrome-top-bar`] — DUE: NEVER AUDITED AS A SURFACE — the bell/create/account cluster on every viewport. Owes gen-1 battery.
 - **Command menu (Cmd-K)** [`chrome-command-menu`] — DUE: NEVER AUDITED AS A SURFACE — the Cmd-K palette (open/typing/results/no-results). Owes gen-1 battery.
 - **Deputy panel** [`chrome-deputy-panel`] — DUE: NEVER AUDITED AS A SURFACE — the deputy companion (right-edge track, coexistence with Inbox overlay). Owes gen-1 battery.
