@@ -419,41 +419,96 @@ implementation details the Director/role agents should decide unilaterally.
 1. **`ui/chip.tsx`** — do we want a canonical person-chip at all? It's being deleted as a fossil
    (zero consumers today), but if the RecordViewer/CollectionToolbar people grammar will need one
    soon, should this be *ported forward* into that grammar now instead of deleted and rebuilt later?
+   > **PRE-ANSWERED from grill (Director call, not owner):** the ratified build posture is build-on-**real-demand**,
+   > never speculatively [decisions.md:909 "on real demand … never speculatively"; value-first, OD line 728].
+   > So: delete the floating primitive now and build person display *into* the people grammar when that work
+   > actually lands — do **not** port a consumer-less primitive forward. This matches the entry's own proposal.
+   > No owner decision required.
 
 2. **`ui/icon-button.tsx` vs `ui/button.tsx`** — two button vocabularies exist (`tertiary`/`ghost`,
    `secondary`/`outline`, `danger`/`destructive`). Fold `IconButton` into `Button` as an `iconOnly`
    mode, or keep it separate and just rename its variants to match? This is a public-API decision
    that touches every icon-only affordance in the app once made.
+   > **PARTIAL — constraint settled, residual is a Director/eng call (off the owner list):** DESIGN §5 ratifies
+   > ONE button vocabulary = `primary|outline|ghost|destructive` (Appendix `button.tsx`: "One control vocabulary
+   > anchor; variants … match DESIGN §5", ratified 2026-07-07). IconButton's parallel names (`tertiary/secondary/danger`)
+   > must therefore collapse to that set — not an open question. The only residual — fold into `Button` as
+   > `iconOnly size="icon"` vs keep a thin wrapper with renamed variants — is an internal API decision the Director
+   > makes under the single-vocabulary law; it is not an owner strategic call.
 
 3. **`admin/user-table.tsx`** — porting People onto `RecordCollectionSurface` also unlocks bulk
    multi-select (disable/archive in one action). Is bulk offboarding actually wanted for a
    ~15-person rollout, or is single-row-at-a-time intentional restraint we shouldn't "fix"?
+   > **PRE-ANSWERED from grill:** the owner already ruled this app-wide — **no bulk/selection affordance until a
+   > real bulk action ships**; single-row is the ratified stance. [OD-REDESIGN-83.2 (owner 2026-07-22): "Task
+   > selection checkboxes REMOVED until a real bulk action ships. Signals' honest no-selection stance is the shared
+   > grammar; the checkbox column … is a dead affordance (taste rule). Reintroduce with the first real bulk action";
+   > reinforced by OD-P3-3/D14 decisions.md:365 "**bulk-select DEFERRED — no row checkboxes in v1** … re-add
+   > post-rollout if wanted".] So People ports onto `RecordCollectionSurface` **without** wiring the selection bar.
+   > Do not "fix" the single-row restraint. No owner decision required.
 
 4. **`follow-ups/follow-up-queue-table.tsx`** — the counterparty-open-record button forks between
    an overlay panel (money door) and a full-page `<Link>` (Work-Tasks embed door) for the identical
    action. Which one is the *intended* single opening contract per `DESIGN.md`'s Overlay grammar —
    should both doors always open the panel, or should Follow-ups get an exception?
+   > **PRE-ANSWERED from grill:** both doors open the shared right-side RecordViewer panel; the full-page `<Link>`
+   > is the non-conformant path, not an option. [OD-REDESIGN-75 (owner 2026-07-20), decisions.md:1881: "V3 uses one
+   > predictable overlay grammar; **components do not choose drawer, modal, popover, or page independently** … A
+   > record click opens the shared right-side RecordViewer panel; … an explicit action escalates the same renderer
+   > to its full canonical page."] No Follow-ups exception. The escalate-to-full-page affordance is a *separate*
+   > explicit action, not the default open. No owner decision required.
 
 5. **`follow-ups/follow-up-queue-embed.tsx`** — registering Follow-ups as its own
    `RecordCollectionSurface` descriptor (rather than piggybacking on the Task collection's `view`
    flag) is a real architectural change to how the Work Tasks door surfaces Follow-ups. Confirm this
    is in scope for this redesign pass, or should it be deferred to a dedicated ADR given it touches
    the Task/Follow-up collection boundary?
+   > **PARTIAL — direction settled, only sequencing is open (Director scoping, not owner):** Follow-ups is already
+   > ratified as a first-class Work collection (Cadence/queues), and "**every collection follows the same index
+   > grammar** … Specialized queues may vary columns/actions but remain views of canonical records" [OD-REDESIGN-8,
+   > decisions.md:1110]. Piggybacking on the Task collection's `view` magic-string is a component choosing its own
+   > grammar — already forbidden by OD-REDESIGN-75. So a `followUpCollectionDescriptor` is the *correct* end-state,
+   > not an open design question. The only residual is **sequencing** (do it in this pass vs a follow-on ADR) — a
+   > Director scoping call within the redesign, not an owner strategic decision.
 
 6. **`plan/fail-loud-badge.tsx`** — the "stale" cost-basis state is currently destructive-red;
    the proposal downgrades it to warning-amber (matching DQBadge's partial-vs-good precedent). This
    changes what a finance user sees as blocking vs advisory on a real financial metric — needs
    explicit owner sign-off, not just a design-system consistency call.
+   > **PARTIAL — the warn-vs-block philosophy is already ratified; one narrow sub-question remains:** the owner's
+   > stance is **warn-not-block in MVP**, and snapshot staleness is a *visible-honesty caveat*, not a hard error
+   > [ADR-0022 §Negative: "the snapshot's `as-of` (D6 visible freshness) is the honesty mechanism … staleness …
+   > visible into actionable" is the deferred layer; ADR-0022 Open-Q #3: "does a below-floor proposed price block
+   > or merely warn? **Lean: warn-only in MVP** … blocking is a later policy"]. So downgrading **stale → warning-amber**
+   > is *consistent* with the ratified direction, and **uncertified/missing-cost-line → destructive** matches A7's
+   > true blocking case [OD anchor A7, decisions.md:937-939 "uncertified/stale renders a fail-loud badge and Plan
+   > pricing pre-flight warns/blocks against it"]. Remaining one-liner for the owner: **should the uncertified /
+   > missing-cost-line tier actually *block* the pricing pre-flight, or only *warn* like everything else in MVP?**
+   > (The stale=amber vs red colour choice no longer needs him — it follows the ratified warn-only lean.)
 
 7. **`command/command-menu.tsx`** — "Share Signal" is a labeled command that silently does nothing
    (navigates Home) today. Is the Step-4 composer still coming, in which case we wire the real
    intent now and ship it disabled/hidden until ready — or has that scope been dropped, in which case
    we delete the action entirely rather than ship a fake one?
+   > **PRE-ANSWERED from grill:** "Share Signal" is a **ratified, permanent universal action** in the ⌘K / Action
+   > Launcher palette — not dropped scope. [experience-contract Rule 7, lines 156-159: universal actions "*Share
+   > Signal*, … *Create Task*" live in the ⌘K palette; "The Action Launcher keeps its universal actions stable
+   > (Share Signal · …)"; owner frame directive.] The Signal composer target already exists (live `signal-composer.tsx`,
+   > and OD-REDESIGN-75: "a compact centered composer remains valid for capture-first objects such as Signals").
+   > So **wire the real intent now**; the silent-navigate-Home is a bug to fix, not a fake to keep or delete. No
+   > owner decision required.
 
 8. **`command/command-menu.tsx`** (second question, same file) — record search today is
    Tasks-only but labeled generically "Records." Do we want to actually widen search to include
    Signals (a real scope increase), or just rename the label/copy to be honest about Tasks-only
    coverage? These are different amounts of work and should be picked deliberately, not defaulted.
+   > **PARTIAL — the fake-label half is settled; only the scope-widen half is a real owner pick:** search is a
+   > **record-general** entry, not conceptually Tasks-only [OD-REDESIGN-7, decisions.md:1099: "A first-class record
+   > reached from … **search** … is the same object opening the same canonical renderer"], and a labelled-but-untrue
+   > "Records" group is a dead/fake affordance the taste rule already bans (same rule that removed the Task checkboxes,
+   > OD-REDESIGN-83.2). So "don't ship a lying label" is not an owner question — either widen the source or rename to
+   > "Tasks", honestly. Remaining one-liner for the owner: **does v1 ⌘K search actually index Signals too (a real
+   > scope increase), or ship Tasks-only until the search endpoint fans out?**
 
 9. ~~Truncated interrogation data~~ — **RESOLVED**: the 45 missing verdicts were recovered
    verbatim from the workflow journal and appear in the Appendix below; the ledger is closed over
@@ -466,6 +521,12 @@ implementation details the Director/role agents should decide unilaterally.
     This is a visible identity change to the Deputy surface specifically, which is a flagship feature —
     confirm this reads as an improvement and not a regression in "does this look like our product" terms
     before it's built, ideally via a quick mockup rather than committing straight to code.
+    > **NEW — keep for the owner, but it is a mockup pick, not a free-text question.** Nothing in the corpus
+    > decides the deputy's chat-bubble chrome; it is a genuine flagship-surface visual-identity call. The corpus
+    > only tells us *how* to answer it: the deputy is a first-class, **mockup-proven** surface [OD-REDESIGN-9 /
+    > ADR-0025 D4: "the mockup proves the UX"; deputy is "the headline interaction paradigm"], and design gates are
+    > scored on fresh renders, not self-scored (standing rule). So this correctly routes through the mockup-first
+    > gate: design-architect renders the bubble-less deputy, owner picks. Do **not** send it as a prose yes/no.
 
 ---
 
@@ -493,6 +554,14 @@ The consolidation input was cut mid-payload; every entry below was recovered fro
 
 ### `mos-app/src/components/records/dirty-leave-guard.ts`
 - **Existence:** flag-owner — ZERO live consumers. grep across all of src (incl. shell/pages/tasks/signals/follow-ups) finds dirtyLeaveGuard referenced only by dirty-leave-guard.ts and dirty-leave-guard.test.ts — no tenant wires it into an OverlayEntry.leaveGuard. By the zero-consumer rule this is fossil, but because a record's unsaved-draft leave-guard is REAL required function (the header calls it 'the content-side half of the record-viewer.behavior.test.tsx contract'), the honest question for the owner is whether the tenant wiring was dropped (a bug/gap) rather than the helper being genuinely dead. task-surface.tsx forwards onDirtyChange + fieldCommitsFrozen but never imports this factory. Confirm: is the dirty->confirm-discard guard wired elsewhere (host handles it), or is this an unhooked safety net that leaves discard-on-close unguarded? If the former, delete this file + its test; if the latter, wire it in the record tenant.
+- **PRE-ANSWERED from grill (off the owner's desk — it's a Director/implementer code-verify, not a decision):**
+  the retain/discard leave-guard on panel-close is a **ratified requirement AND is owned by the live host's native
+  listener**, not by this standalone factory. [OD-REDESIGN-83.1 (owner 2026-07-22), decisions.md:2017-2020: "A SECOND
+  Escape is the panel-close intent and **triggers the retain/discard leave-guard** … NFR-V3-001's isolation intent now
+  holds **through the live host's native listener**."] So discard-on-close is **not** unguarded — the host guards it —
+  and this `dirtyLeaveGuard` factory is the superseded/unwired copy. Resolution is therefore the "former" branch: a
+  code-verify (does the record host actually implement retain/discard on close? — it does, per OD-83.1) → **delete the
+  file + its test**. No owner decision required.
 - **Design:** highest-quality
 - **Grammar:** conformant — 6-line factory returning the shell OverlayLeaveGuard contract (Stay->deny, Discard->allow); attach-only-while-dirty. Clean and correctly scoped — the issue is wiring/existence, not shape.
 - **Story:** not-warranted
@@ -739,6 +808,11 @@ The consolidation input was cut mid-payload; every entry below was recovered fro
 
 ### `mos-app/src/pages/home-page.tsx`
 - **Existence:** flag-owner — Not a components/home/ file (it's the route-bound page under src/pages/), included here only because it is HomeStream's sole consumer and the evidence for HomeStream's existence verdict lives in it. Flagging rather than a components/home/ verdict: this file is itself a strong, well-commented composition (shared signal read split attention/ambient per A12, single-flight fetch guards with token invalidation, StrictMode-safe mount ref) and outside this sweep's stated scope (components/home/), so no independent verdict is rendered on it — noting only that its quality directly substantiates HomeStream's 'earns-place' call and that it is NOT itself a components/home/ fossil to sweep.
+- **NOT AN OWNER QUESTION (self-resolved in-doc):** this entry renders **no verdict** and asks the owner nothing —
+  it is a quality note that substantiates HomeStream's earns-place call, explicitly out of this sweep's scope
+  (`src/pages/`, not `components/home/`). It also enacts the shipped owner redirect [OD-REDESIGN-82-era "Home = ONE
+  consequence-ranked stream", A12 attention/ambient split — see the `home-stream.tsx` entry §4]. Nothing to send
+  the owner; carry no decision-sheet row for it.
 - **Design:** minor-polish
 - **Grammar:** conformant
 - **Story:** not-warranted
