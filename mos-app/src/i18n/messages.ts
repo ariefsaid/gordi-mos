@@ -568,8 +568,13 @@ export const messages = {
     'signals.mention.group.team': 'Team',
     'signals.mention.group.bu': 'BU',
     'signals.composer.visibleTo': 'Visible to ${team}',
-    'signals.composer.visibleToNotify': 'Visible to ${team} · notify ${count}',
-    'signals.composer.postTo': 'Post to ${team} · ${attention} · notify ${count}',
+    // SR-1 (owner ruling, provenance/02-the-50plus-qna-grill-2026-07-10_12.md:1924,2317 — "notify N
+    // people"): the notify count carries its NOUN, never a naked number. English inflects the noun
+    // (person/people); the caller selects the singular/plural key by count and threads it as ${noun}.
+    'signals.composer.visibleToNotify': 'Visible to ${team} · notify ${count} ${noun}',
+    'signals.composer.postTo': 'Post to ${team} · ${attention} · notify ${count} ${noun}',
+    'signals.notify.person': 'person',
+    'signals.notify.people': 'people',
     'signals.composer.siteHint': "Location derives from the owning Team (Site is never a mention target).",
     'signals.retracted': 'This Signal was retracted.',
     'signals.record.addCategory': 'Add category',
@@ -1282,8 +1287,12 @@ export const messages = {
     'signals.mention.group.team': 'Tim',
     'signals.mention.group.bu': 'BU',
     'signals.composer.visibleTo': 'Terlihat oleh ${team}',
-    'signals.composer.visibleToNotify': 'Terlihat oleh ${team} · beri tahu ${count}',
-    'signals.composer.postTo': 'Kirim ke ${team} · ${attention} · beri tahu ${count}',
+    // SR-1: Indonesian "orang" is invariant (no singular/plural inflection) — both keys resolve to
+    // it, so the count still reads with its noun in either locale.
+    'signals.composer.visibleToNotify': 'Terlihat oleh ${team} · beri tahu ${count} ${noun}',
+    'signals.composer.postTo': 'Kirim ke ${team} · ${attention} · beri tahu ${count} ${noun}',
+    'signals.notify.person': 'orang',
+    'signals.notify.people': 'orang',
     'signals.composer.siteHint': 'Lokasi berasal dari Tim pemilik (Site tidak pernah menjadi sasaran sebutan).',
     'signals.retracted': 'Sinyal ini telah ditarik kembali.',
     'signals.record.addCategory': 'Tambah kategori',

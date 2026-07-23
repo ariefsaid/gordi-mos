@@ -228,7 +228,8 @@ describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () =>
     await userEvent.type(body, ' cc @Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
-    expect(screen.getByText('Visible to HQ Operations · notify 2')).toBeInTheDocument()
+    // SR-1 (owner ruling): the dedup count carries its noun — "notify N people", never a naked N.
+    expect(screen.getByText('Visible to HQ Operations · notify 2 people')).toBeInTheDocument()
   })
 
   it('shows "Visible to <Team>" with no notify suffix when no mentions are staged', async () => {
@@ -247,7 +248,8 @@ describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () =>
     await userEvent.type(body, '@Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
-    expect(screen.getByText('Post to Radiant Operations · FYI · notify 1')).toBeInTheDocument()
+    // SR-1: singular count inflects the noun — "notify 1 person".
+    expect(screen.getByText('Post to Radiant Operations · FYI · notify 1 person')).toBeInTheDocument()
   })
 })
 

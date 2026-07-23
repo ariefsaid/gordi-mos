@@ -84,10 +84,14 @@ export function SignalComposer({
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null
   const isCrossTeam = !!primaryTeamId && teamId !== primaryTeamId
   const notifyCount = dedupeRecipients(mentions, teamMembers, buMembers)
+  // SR-1 (owner ruling — "notify N people"): the count carries its noun. English inflects
+  // person/people by count; Indonesian "orang" is invariant (both keys resolve to it). The caller
+  // resolves the noun in the active locale and threads it as ${noun}.
+  const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
   const shieldLine = !selectedTeam ? '' : isCrossTeam
-    ? t('signals.composer.postTo', { team: selectedTeam.name, attention: 'FYI', count: notifyCount })
+    ? t('signals.composer.postTo', { team: selectedTeam.name, attention: 'FYI', count: notifyCount, noun: notifyNoun })
     : notifyCount > 0
-      ? t('signals.composer.visibleToNotify', { team: selectedTeam.name, count: notifyCount })
+      ? t('signals.composer.visibleToNotify', { team: selectedTeam.name, count: notifyCount, noun: notifyNoun })
       : t('signals.composer.visibleTo', { team: selectedTeam.name })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
