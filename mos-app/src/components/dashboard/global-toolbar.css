@@ -55,6 +55,13 @@
     background: color-mix(in srgb, var(--secondary) 92%, transparent);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
+    /* money-2: with Channel/Activity cut off screen the row previously ended flush with
+       no hint that more pills exist off-canvas (design-plan gap G2's overflow-x:auto had
+       no scroll cue). Fade the trailing 28px so a sliver of the next pill always shows
+       through as a "there's more" affordance — harmless (imperceptible) on the rare frame
+       where the row happens to fit exactly. */
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
   }
   .global-toolbar-divider,
   .global-toolbar-overline {
