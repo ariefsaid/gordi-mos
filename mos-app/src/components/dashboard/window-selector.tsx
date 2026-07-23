@@ -14,6 +14,14 @@ export interface WindowSelectorProps {
   onChange: (spec: WindowSpec) => void
   bounds: { earliest: string; latest: string } | null
   ariaLabel?: string
+  /**
+   * DO-21 (census sweep r2, money F-4): when the composition places the Custom
+   * From/To pair on its OWN row outside the phone's horizontal filter rail (so
+   * Branch/Channel/Activity stay reachable), the seg suppresses its inline pair
+   * and the parent renders <WindowRangeFields> where it wants. Default false —
+   * desktop keeps the inline seg+pair exactly as before.
+   */
+  hideRange?: boolean
 }
 
 const PRESETS: Array<{ id: string; days: 7 | 30 | 60 }> = [
@@ -27,6 +35,7 @@ export function WindowSelector({
   onChange,
   bounds,
   ariaLabel = 'Time window',
+  hideRange = false,
 }: WindowSelectorProps) {
   const options = ['7d', '30d', '60d', 'Custom']
   const activeId = value.kind === 'preset' ? `${value.days}d` : 'Custom'
@@ -63,8 +72,6 @@ export function WindowSelector({
   }
 
   const isCustom = value.kind === 'custom'
-  const min = bounds?.earliest
-  const max = bounds?.latest
 
   return (
     <div className="window-selector">
@@ -91,40 +98,62 @@ export function WindowSelector({
         })}
       </div>
 
-      {isCustom && (
-        <div className="window-selector-range">
-          <label className="window-selector-field">
-            <span className="window-selector-field-label">From</span>
-            <input
-              type="date"
-              value={value.kind === 'custom' ? value.from : ''}
-              min={min}
-              max={max}
-              aria-label="From"
-              onChange={e => {
-                if (value.kind === 'custom') {
-                  onChange({ kind: 'custom', from: e.target.value, to: value.to })
-                }
-              }}
-            />
-          </label>
-          <label className="window-selector-field">
-            <span className="window-selector-field-label">To</span>
-            <input
-              type="date"
-              value={value.kind === 'custom' ? value.to : ''}
-              min={min}
-              max={max}
-              aria-label="To"
-              onChange={e => {
-                if (value.kind === 'custom') {
-                  onChange({ kind: 'custom', from: value.from, to: e.target.value })
-                }
-              }}
-            />
-          </label>
-        </div>
+      {isCustom && !hideRange && (
+        <WindowRangeFields value={value} onChange={onChange} bounds={bounds} />
       )}
+    </div>
+  )
+}
+
+/**
+ * The Custom From/To date pair — the one DOM for the pair wherever it renders:
+ * inline beside the seg (desktop, via WindowSelector) or on its own row below the
+ * phone filter rail (DO-21, via GlobalToolbar). Only meaningful while the window
+ * is `{kind:'custom'}` — callers gate on that.
+ */
+export function WindowRangeFields({
+  value,
+  onChange,
+  bounds,
+}: {
+  value: WindowSpec
+  onChange: (spec: WindowSpec) => void
+  bounds: { earliest: string; latest: string } | null
+}) {
+  const min = bounds?.earliest
+  const max = bounds?.latest
+  return (
+    <div className="window-selector-range">
+      <label className="window-selector-field">
+        <span className="window-selector-field-label">From</span>
+        <input
+          type="date"
+          value={value.kind === 'custom' ? value.from : ''}
+          min={min}
+          max={max}
+          aria-label="From"
+          onChange={e => {
+            if (value.kind === 'custom') {
+              onChange({ kind: 'custom', from: e.target.value, to: value.to })
+            }
+          }}
+        />
+      </label>
+      <label className="window-selector-field">
+        <span className="window-selector-field-label">To</span>
+        <input
+          type="date"
+          value={value.kind === 'custom' ? value.to : ''}
+          min={min}
+          max={max}
+          aria-label="To"
+          onChange={e => {
+            if (value.kind === 'custom') {
+              onChange({ kind: 'custom', from: value.from, to: e.target.value })
+            }
+          }}
+        />
+      </label>
     </div>
   )
 }
