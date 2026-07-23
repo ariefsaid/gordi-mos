@@ -47,7 +47,11 @@
 @media (min-width: 1100px) {
   .drawer-shell-split {
     position: fixed;
-    top: 0;
+    /* TB-1 / OD-P4-9: the shell panel floats over MAIN content, but the top-bar is in normal
+       flow (no z-index) and would be covered by this fixed z-drawer panel from the top edge — incl.
+       the bell/deputy/⌘K cluster and the very bell that opened it. Anchoring below the header
+       leaves the whole chrome row reachable while the panel still overlays the page. */
+    top: var(--header-h);
     right: 0;
     bottom: 0;
     width: min(44%, 480px);
@@ -80,7 +84,10 @@
   }
 
   .drawer.overlay-companion-host--standalone {
-    top: 0;
+    /* TB-1 / OD-P4-9: same chrome-reachability contract as .drawer-shell-split — the standalone
+       companion (Deputy, no record open) anchors below the header so the top-bar cluster that
+       opened it stays reachable instead of being covered by this fixed z-drawer surface. */
+    top: var(--header-h);
     bottom: 0;
     width: min(var(--assistant-w), 100vw);
     border-radius: 0;
