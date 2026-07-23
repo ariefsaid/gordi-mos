@@ -177,15 +177,15 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "1be4fd3",
-      "bumped": true,
+      "lockedAt": "6d32409",
+      "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
         "mos-app/src/components/records/guard-record-page-measure.css.test.tsx",
         "mos-app/e2e/tasks-canonical-page.spec.ts"
       ],
       "findings": "docs/plans/2026-07-23-census-sweep-r2.md#33-task-record",
-      "due": true,
+      "due": false,
       "dueAxes": [
         "anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned",
         "states: loading/error NOT-REVIEWED (census-r2 3.3)"
@@ -220,7 +220,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "1be4fd3",
+      "lockedAt": "6d32409",
       "bumped": false,
       "pins": [
         "mos-app/src/shell/record-panel-host.test.tsx",
@@ -299,7 +299,7 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "1be4fd3",
+      "lockedAt": "6d32409",
       "bumped": false,
       "pins": [
         "mos-app/src/components/records/guard-record-page-measure.css.test.tsx"
@@ -650,7 +650,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "3d5b147",
+      "lockedAt": "6d32409",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-524-follow-up.spec.ts"
@@ -686,16 +686,14 @@
         1870
       ],
       "generation": 2,
-      "auditedAt": null,
-      "ratifiedBy": null,
-      "lockedAt": null,
-      "bumped": true,
+      "auditedAt": "6d32409",
+      "ratifiedBy": "Director",
+      "lockedAt": "6d32409",
+      "bumped": false,
       "pins": [],
       "findings": null,
-      "due": true,
-      "dueAxes": [
-        "NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010)."
-      ]
+      "due": false,
+      "dueAxes": []
     },
     {
       "id": "admin-people",

@@ -14,7 +14,7 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 
 **Generated:** 2026-07-23 · **backfill baseline:** `3d550af` · **surfaces:** 25 · **dimensions:** 2
 
-**Lifecycle tally:** LOCKED 15 · BUMPED 1 · DUE 9
+**Lifecycle tally:** LOCKED 17 · BUMPED 0 · DUE 8
 
 ## Global due axes (apply to EVERY surface)
 
@@ -27,10 +27,10 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 |---|---|---|---|---|---|---|---|---|
 | Home | `/` | LOCKED | 1 | `ab61009` | `3d550af` | 2 | member: rail shows only viewer-affiliated module (OD-REDESIGN-68); my-work list scoped to own tasks | persona:member (rail-module + my-work scoping never audited); states: hover/loading/error NOT-REVIEWED (census-r2 3.1) |
 | Tasks workspace | `/work/tasks`, `/work/tasks?view=*` | LOCKED | 1 | `ab61009` | `1be4fd3` | 6 | — | states: loading/error/desktop-popover NOT-REVIEWED (census-r2 3.2) |
-| Task record (drawer + full page) | `/work/tasks/:taskId` | BUMPED | 2 | `ab61009` | `1be4fd3` | 3 | member: read-only record — no edit affordances (census-r2 3.3 Kitchen persona) | anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned; states: loading/error NOT-REVIEWED (census-r2 3.3) |
-| Task create (new) | `/work/tasks/new` | LOCKED | 1 | `ab61009` | `1be4fd3` | 2 | — | states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4) |
+| Task record (drawer + full page) | `/work/tasks/:taskId` | LOCKED | 2 | `ab61009` | `6d32409` | 3 | member: read-only record — no edit affordances (census-r2 3.3 Kitchen persona) | anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned; states: loading/error NOT-REVIEWED (census-r2 3.3) |
+| Task create (new) | `/work/tasks/new` | LOCKED | 1 | `ab61009` | `6d32409` | 2 | — | states: field-error/submit-error/submitting NOT-REVIEWED (census-r2 3.4) |
 | Signals archive | `/work/signals` | LOCKED | 1 | `ab61009` | `1be4fd3` | 1 | — | states: empty/error/hover NOT-REVIEWED (census-r2 3.5) |
-| Signal record (panel + full page) | `/work/signals/:signalId`, `?record=<id>` | LOCKED | 2 | `ab61009` | `1be4fd3` | 1 | — | states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6) |
+| Signal record (panel + full page) | `/work/signals/:signalId`, `?record=<id>` | LOCKED | 2 | `ab61009` | `6d32409` | 1 | — | states: error/whole-empty/hover NOT-REVIEWED (census-r2 3.6) |
 | Inbox (deputy triage) | `/inbox` | LOCKED | 1 | `ab61009` | `3d5b147` | 2 | — | states: populated-triage/hover/loading/error NOT-REVIEWED — only EMPTY rendered (census-r2 DO-8, F-INBOX-2) |
 | Cafe opening home | `/cafe` | LOCKED | 1 | `3d99815` | `3d5b147` | 1 | member: capture-only (no review/pushes); ops_lead: sees resolve-queue + rollup | states: started-panel/team-picker/loading/error NOT-REVIEWED — >half the route (census-r2 DO-8) |
 | Kitchen sub-tabs (log/plan/stock/review/pushes) | `/cafe/log`, `/cafe/plan`, `/cafe/stock`, `/cafe/review`, `/cafe/pushes` | LOCKED | 1 | `542c48b` | `3d5b147` | 1 | member: log/plan/stock only — review + pushes gated (RequireAccessRole ops_lead/admin); ops_lead: all five tabs | persona:member vs ops_lead tab-gating render never audited; review/pushes states NOT-REVIEWED |
@@ -38,8 +38,8 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 | Projects & Processes catalog | `/work/projects` | LOCKED | 1 | `ab61009` | `3d550af` | 2 | ops_lead: visible (workline.manage per OD-C-2); member: no access (absent) | 8 of 9 states NOT-REVIEWED (census-r2 3.10) |
 | Money summary + detail | `/money`, `/money/detail` | LOCKED | 1 | `3d550af` | `7689133` | 3 | finance: PRIMARY non-admin audience — the only non-admin door to Money (RequireAccessRole finance/admin); admin: same render as finance; member: no access (absent); ops_lead: no access | persona:finance never audited AS Fitri (the audience the surface exists for); dimension:data-viz D17 — the revenue chart never audited AS A CHART (axes/legend/encoding; uupm data-viz rules) |
 | Money plan (Budget + Pricing) | `/money/budget`, `/money/pricing` | LOCKED | 1 | `7689133` | `7689133` | 1 | finance: gated finance/admin + flag SHOW_PLAN_BUDGET; member: no access; ops_lead: no access | — |
-| Follow-ups queue | `/money/follow-ups`, `/work/follow-ups?view=followups` | LOCKED | 1 | `ab61009` | `3d5b147` | 1 | finance: gated finance/admin + flag SHOW_FOLLOWUPS | flag SHOW_FOLLOWUPS off — only reserved placeholder rendered; populated/loading/error NOT-REVIEWED |
-| Follow-up record | `/work/follow-ups/:id` | DUE | 2 | — | — | 0 | finance: gated + flag SHOW_FOLLOWUPS | NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010). |
+| Follow-ups queue | `/money/follow-ups`, `/work/follow-ups?view=followups` | LOCKED | 1 | `ab61009` | `6d32409` | 1 | finance: gated finance/admin + flag SHOW_FOLLOWUPS | flag SHOW_FOLLOWUPS off — only reserved placeholder rendered; populated/loading/error NOT-REVIEWED |
+| Follow-up record | `/work/follow-ups/:id` | LOCKED | 2 | `6d32409` | `6d32409` | 0 | finance: gated + flag SHOW_FOLLOWUPS | — |
 | Admin — People | `/admin/people` | LOCKED | 1 | `ab61009` | `3d5b147` | 1 | admin: only audience (AdminRoute); finance: no access; ops_lead: no access; member: no access | states: hover/loading/error/empties/menus NOT-REVIEWED (census-r2 3.12) |
 | Events | `/events` | DUE | 1 | — | — | 0 | — | NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery. |
 | Profile | `/profile` | DUE | 1 | — | — | 0 | — | NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host. |
@@ -53,8 +53,6 @@ Full model: `docs/plans/wise-discovering-frog.md`; per-dimension owning checks:
 
 ## DUE — surfaces owing their first (or a re-opened) generation battery
 
-- **Task record (drawer + full page)** [`task-record`] — BUMPED: anatomy conformance (Step 2.5 / FR-ANAT-009) not yet pinned; states: loading/error NOT-REVIEWED (census-r2 3.3)
-- **Follow-up record** [`follow-up-record`] — DUE: NEVER AUDITED — flag-gated focused-record via shared RecordViewer. Owes gen-1 battery + anatomy conformance (FR-ANAT-010).
 - **Events** [`events`] — DUE: NEVER AUDITED — job-sentence + sanctioned empty state (Step 10). Owes gen-1 battery.
 - **Profile** [`profile`] — DUE: NEVER AUDITED — real page; language selection lives here (OD-70). Owes gen-1 battery — the locale-id sweep's natural host.
 - **Login + Recovery** [`login-recovery`] — DUE: NEVER AUDITED as a design surface (e2e cover flow, not composition/craft). Owes gen-1 battery — the pre-auth first impression.
