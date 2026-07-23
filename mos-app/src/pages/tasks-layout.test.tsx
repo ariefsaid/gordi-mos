@@ -568,10 +568,10 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Standalone page task' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
 
-    // The ONE renderer (TaskSurface) renders the record identity row (h2); the
-    // shell h1 stays the generic type label so the resolved title shows once,
-    // inside the card — not twice (F4, title+metadata-hierarchy).
-    await waitFor(() => screen.getByRole('heading', { level: 2, name: 'Standalone page task' }))
+    // P1-2: the ONE renderer (TaskSurface) renders the record identity as the page's ONE h1 —
+    // the generic shell PageHead is hidden (tasks-layout.tsx TaskRecordPage passes hideHead), so
+    // there is no separate "Task" heading competing with it.
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Standalone page task' }))
 
     // No split-drawer aside and no table shell — it is a standalone canonical page.
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
@@ -597,28 +597,31 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
   })
 
   // V3 Issue 3, Task 9/10 — the direct/full Task page is the Focused-record representative.
-  it('Focused record family: a direct Task page mounts inside the focused-record frame with one h1 (shell, generic) + one h2 (record identity, resolved title)', async () => {
+  // P1-2 (deliberate anatomy change, docs/decisions.md / Luna P1-2): the record identity's own
+  // overline+title IS the page heading now — there is exactly ONE h1 total, no separate generic
+  // shell h1 above it (the old "shell h1 generic + record h2 resolved title" split duplicated
+  // page-head chrome above the identity; see docs/reviews for the y≈234-vs-E7's-y≈124 finding).
+  it('Focused record family: a direct Task page mounts inside the focused-record frame with exactly ONE h1 — the record identity, resolved title', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open me' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
 
-    // The record identity is the h2 (the PageFamilyFrame owns the shell h1).
-    await screen.findByRole('heading', { level: 2, name: 'Open me' })
+    // The record identity IS the h1 (the shell's generic PageHead is hidden — hideHead).
+    await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
     const main = document.querySelector('main')
     expect(main?.getAttribute('data-page-family')).toBe('focused-record')
 
-    // The resolved title shows exactly ONCE — inside the record-identity h2. The
-    // shell h1 stays the generic "Task" type label so the same string never
-    // appears twice on screen (F4 fix, title+metadata-hierarchy / impeccable H8
-    // aesthetic-minimalist): the E7 canonical record keeps the title in the
-    // card only.
-    expect(screen.getByRole('heading', { level: 1, name: 'Task' })).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { level: 2, name: 'Open me' })).toHaveLength(1)
-    expect(screen.queryByRole('heading', { level: 1, name: 'Open me' })).toBeNull()
+    // The resolved title shows exactly ONCE, as the page's only heading — no generic "Task"
+    // heading competing with it, no duplicate at any level.
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.queryByRole('heading', { level: 1, name: 'Task' })).toBeNull()
+    expect(screen.queryByRole('heading', { level: 2, name: 'Open me' })).toBeNull()
 
-    // The focused-record job sentence renders; the internal family name never shows.
-    expect(screen.getByText('Review and update this task.')).toBeInTheDocument()
+    // The generic shell job sentence is gone with the hidden PageHead (the identity + the
+    // record-chrome row are the page's only pre-content chrome now); the internal family
+    // name never shows either way.
+    expect(screen.queryByText('Review and update this task.')).toBeNull()
     expect(screen.queryByText('Focused record')).toBeNull()
 
     // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
@@ -626,6 +629,20 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+  })
+
+  // P1-2: the standalone canonical page's record-chrome row collapses to ONE compact row — a
+  // Back-to-collection affordance leading, the record actions (Ask Deputy) trailing.
+  it('P1-2: the standalone full-page record chrome carries a Back-to-Tasks affordance', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Open me' })
+
+    const chromeRow = document.querySelector('.record-chrome') as HTMLElement
+    expect(chromeRow).toBeTruthy()
+    const backLink = within(chromeRow).getByRole('link', { name: 'Back' })
+    expect(backLink).toHaveAttribute('href', '/work/tasks')
   })
 
   // F3 (E7 floor): the drawer and the expanded@split pseudo-full-page already carry the
@@ -638,7 +655,7 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' }, makeFakeRuntime())
 
-    await screen.findByRole('heading', { level: 2, name: 'Open me' })
+    await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
     // Lives in the record's own top utility row (.record-chrome), not buried in the body.
     const chromeRow = document.querySelector('.record-chrome')

@@ -29,7 +29,7 @@ import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useTabMemory } from './use-tab-memory'
 import type { TabKey } from './use-tab-memory'
 import { useT } from '@/i18n/use-t'
-import { CloseIcon } from '@/shell/icons'
+import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Select } from '@/components/ui/select'
 import { DateField } from '@/components/ui/date-field'
 
@@ -609,18 +609,34 @@ function ViewSurface({
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
 
-      {/* Record chrome — when promoted from the drawer (expanded@split) the host passes
-          collapse/close callbacks; carry them in a quiet utility row so the expand control
-          stays reversible (collapse back to split) and the surface is never a dead end. A
-          standalone full-page route host (TaskRecordPage) passes neither, so this row is
-          the ONLY header the record has — it still renders, carrying the record-scoped Ask
-          Deputy affordance top-right (E7 floor F3, J05): RecordPanelHost already supplies
-          that button when showPanelUtility is false (the drawer/expanded@split host owns
-          its own chrome instead), so this internal bar only needs to fill the gap the host
-          doesn't cover. */}
+      {/* Record chrome — P1-2 (Luna: record identity behind a generic page head + utility strip
+          at y≈234, vs E7's compact y≈124). ONE compact row: a Back affordance on the leading
+          edge, the record actions (Ask Deputy, incl. expand/close when promoted from the drawer)
+          trailing — no separate page head above it (tasks-layout.tsx TaskRecordPage passes
+          hideHead). When promoted from the drawer (expanded@split) the host passes collapse/close
+          callbacks; carry them in this same row so the expand control stays reversible (collapse
+          back to split) and the surface is never a dead end — in that case the row's leading edge
+          stays the crumb (Close already serves as "back"), never a redundant Back link. A
+          standalone full-page route host (TaskRecordPage) passes neither, so this row is the ONLY
+          header the record has: its leading edge is a real Back-to-collection affordance, and it
+          still carries the record-scoped Ask Deputy affordance (E7 floor F3, J05) — RecordPanelHost
+          already supplies that button when showPanelUtility is false (the drawer/expanded@split
+          host owns its own chrome instead), so this internal bar only needs to fill the gap the
+          host doesn't cover. */}
       {showPanelUtility && (
         <div className="dw-bar record-chrome">
-          <span className="dw-crumb-mini">{t('tasks.fullWidth')}</span>
+          {onClose ? (
+            <span className="dw-crumb-mini">{t('tasks.fullWidth')}</span>
+          ) : (
+            <Link
+              to={{ pathname: '/work/tasks', search: location.search }}
+              className="dw-iconbtn"
+              aria-label={t('record.back')}
+              title={t('record.back')}
+            >
+              <BackIcon />
+            </Link>
+          )}
           <span className="dw-bar-spacer" />
           <AskDeputyAction draft={t('assistant.askAbout.task', { title: task.title })} />
           {onExpandToggle && (

@@ -114,10 +114,16 @@ describe('RecordPanelHost — close/Esc/scrim (FR-1 / I2)', () => {
 })
 
 describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full page · ✕ Close)', () => {
-  it('uses the 32px control token while retaining 44px mobile touch targets', () => {
+  // P1-2 (Luna-measured 32px, docs/reviews): the old CSS was 32px everywhere except a single
+  // CSS-scoped mobile-sheet context (.drawer-modal.drawer-fullscreen), so ANY other coarse-pointer
+  // host of this same button class (the TaskSurface standalone full-page record-chrome row) fell
+  // through unconditionally to 32px — the exact bug Luna measured. The coarse-pointer pattern
+  // (record-viewer.css `@media (pointer: fine)` tighten-down) inverts the default: 44px is the
+  // RESTING size everywhere, and only a genuine fine pointer (desktop mouse) tightens to 32px.
+  it('defaults to the 44px touch floor and tightens to the 32px control token only for a fine pointer', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
-    expect(css).toMatch(/\.record-panel-btn\s*\{[^}]*width:\s*32px;\s*height:\s*32px;/s)
-    expect(css).toMatch(/\.drawer-modal\.drawer-fullscreen \.record-panel-btn\s*\{\s*width:\s*44px;\s*height:\s*44px;\s*\}/s)
+    expect(css).toMatch(/\.record-panel-btn\s*\{[^}]*width:\s*44px;\s*height:\s*44px;/s)
+    expect(css).toMatch(/@media \(pointer: fine\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}\s*\}/s)
   })
 
   it('no title → no chrome (the tenant owns its own header — Task zero-change path)', () => {

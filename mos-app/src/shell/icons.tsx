@@ -28,6 +28,31 @@ export function Chevron({ className, size = 14 }: { className?: string; size?: n
 }
 
 /**
+ * The ONE back-navigation glyph (P1-2, docs/reviews Luna finding — consolidated out of
+ * record-panel-host.tsx's identical local definition, Rule 11). A left chevron — `M15 18l-6-6
+ * 6-6`, stroke-2, round caps, aria-hidden, mirrors E7's `‹` panel-back affordance. The button
+ * that hosts it MUST carry an accessible name (aria-label).
+ */
+export function BackIcon({ className, size = 16 }: { className?: string; size?: number }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  )
+}
+
+/**
  * The ONE close/dismiss glyph (cohesion-debt 2026-07-19, item #2). Formerly a raw
  * `×`, a raw `✕`, a 16px SVG, and an 18px SVG — four ways to draw the same X.
  * Path `M18 6 6 18M6 6l12 12`, stroke-2, round caps, aria-hidden. The button that

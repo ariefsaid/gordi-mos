@@ -95,21 +95,21 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   // Empty string before the title resolves keeps the crumb at "Work · Tasks";
   // once resolved it pushes the task title; on unmount the hook clears it.
   useSetBreadcrumbTitle(title ?? '')
-  // V3 focused-record family: the PageFamilyFrame owns the shell <main> + h1,
-  // but the h1 stays the generic type label ("Task") — the resolved record
-  // title lives inside the RecordViewer identity card only (matching the
-  // Follow-up/Signal record pages and the E7 canonical prototype, whose
-  // full-page chrome carries no title at all). Repeating the resolved title
-  // in both the page h1 and the card ~100px below it duplicated the same
-  // string on screen (title+metadata-hierarchy; impeccable H8 aesthetic-
-  // minimalist). The typed TaskSurface body renders the record identity as
-  // an h2 beneath it.
+  // V3 focused-record family, P1-2 (Luna: record identity behind a generic "Task" page head +
+  // utility strip at y≈234, vs E7's compact chrome at y≈124). The RecordViewer's own identity
+  // header (overline + resolved title) IS the page heading now — PageFamilyFrame's generic
+  // PageHead ("Task" + a job-sentence paragraph) is hidden (hideHead) so there is exactly ONE
+  // heading on the page, and TaskSurface's record-chrome row collapses to a single compact
+  // Back-affordance-and-actions strip immediately above the identity (see TaskSurface.css
+  // .record-chrome). identityHeadingLevel is 1 (not 2): the shell no longer owns an h1 here, so
+  // the RecordViewer heading is promoted to be that h1.
   return (
     <PageFamilyFrame
       family="focused-record"
       title={t('tasks.label.task')}
       jobSentence="Review and update this task."
       state={title ? 'default' : 'loading'}
+      hideHead
     >
       <TaskSurface
         taskId={taskId}
@@ -117,7 +117,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         width="full"
         presentation="page"
         onTitleResolved={setTitle}
-        identityHeadingLevel={2}
+        identityHeadingLevel={1}
       />
     </PageFamilyFrame>
   )

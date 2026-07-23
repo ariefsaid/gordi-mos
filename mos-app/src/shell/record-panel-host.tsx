@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { useIsSplitWidth } from './use-is-split-width'
 import { useIsDesktop } from './use-is-desktop'
 import { useIsNarrow } from './use-is-narrow'
-import { CloseIcon } from './icons'
+import { CloseIcon, BackIcon } from './icons'
 import { useT } from '@/i18n/use-t'
 import type { OverlayOwner } from './overlay-navigation'
 
@@ -60,14 +60,6 @@ export type RecordPanelHostProps = {
   escapeOnDocument?: boolean
   /** Marks a shared-host companion without claiming it is the primary overlay session frame. */
   companion?: boolean
-}
-
-function BackIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  )
 }
 
 function OpenPageIcon() {
