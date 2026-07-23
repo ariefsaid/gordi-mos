@@ -9,9 +9,12 @@ export interface CutToggleProps {
   value: string
   onChange: (value: string) => void
   ariaLabel?: string
+  /** I18N-1: map an option VALUE to its display label; the value passed to onChange is unchanged
+   *  (so callers keep their enum logic). Defaults to identity for generic (already-labelled) uses. */
+  renderLabel?: (option: string) => string
 }
 
-export function CutToggle({ options, value, onChange, ariaLabel = 'View' }: CutToggleProps) {
+export function CutToggle({ options, value, onChange, ariaLabel = 'View', renderLabel }: CutToggleProps) {
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -54,7 +57,7 @@ export function CutToggle({ options, value, onChange, ariaLabel = 'View' }: CutT
             }}
             onKeyDown={e => handleKeyDown(e, index)}
           >
-            {option}
+            {renderLabel ? renderLabel(option) : option}
           </button>
         )
       })}

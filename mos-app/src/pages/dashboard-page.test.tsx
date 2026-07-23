@@ -5,7 +5,7 @@
 // columns, "What's coming" strip, filter-in-place, tab persistence).
 // Route-gate (AC-001/002/003) is owned by router.tsx + RequireAccessRole (separate suite).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
@@ -24,6 +24,7 @@ import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/repor
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 
 import { DashboardPage } from './dashboard-page'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
 const mockMarg = vi.mocked(listSalesMarginDaily)
@@ -363,5 +364,35 @@ describe('DashboardPage — populated (phone)', () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     expect(screen.getByText(/trailing 7-day revenue/i)).toBeInTheDocument()
+  })
+})
+
+// I18N-1 (census DO-8): the Money surface routes its KPI/tab/chart/table labels through the
+// i18n catalog — under `id` it renders Indonesian, not English.
+describe('DashboardPage — locale seam (I18N-1)', () => {
+  beforeEach(() => {
+    setDesktop()
+    localStorage.setItem('mos.locale', 'id')
+    mockRev.mockResolvedValue(sixtyDaysRevenue())
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+  })
+  afterEach(() => localStorage.clear())
+
+  it('renders KPI labels, tabs, chart, and table headers in Bahasa Indonesia under id', async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/money']}>
+          <DashboardPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    // Tabs (Ringkasan / Rincian), a KPI label, and the condensed-table header — all Indonesian.
+    expect(await screen.findByRole('tab', { name: 'Ringkasan' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Rincian' })).toBeInTheDocument()
+    expect(screen.getByText('Marjin kotor %')).toBeInTheDocument()
+    // Both the chart fallback and the condensed detail table carry a translated 'Pendapatan' header.
+    expect(screen.getAllByRole('columnheader', { name: 'Pendapatan' }).length).toBeGreaterThan(0)
+    // The old English strings are gone.
+    expect(screen.queryByText('Gross margin %')).toBeNull()
   })
 })

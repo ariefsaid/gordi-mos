@@ -17,7 +17,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { useT } from '@/i18n/use-t'
+import { useT, type Translate } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listSalesDailyRevenue, latestReportingDate } from '@/lib/db/reporting'
 import { listSalesMarginDaily, latestMarginReportingDate } from '@/lib/db/reporting-margin'
@@ -71,10 +72,17 @@ function windowQueryValue(spec: WindowSpec): string {
 // cut row-count folds into ONE labeled meta sentence ("5 branches · as of …"), matching
 // the Tasks head ("14 tasks · 2 blocked") — a digit with no attached noun carries no
 // meaning. Loading / empty / error show the "—" placeholder, never a stale bare digit.
-function cutNoun(cut: DashboardCut, n: number): string {
-  if (cut === 'Channel') return n === 1 ? 'channel' : 'channels'
-  if (cut === 'Activity') return n === 1 ? 'activity' : 'activities'
-  return n === 1 ? 'branch' : 'branches'
+// I18N-1: the noun routes through the catalog (singular/plural keys, resolved per locale).
+function cutNoun(cut: DashboardCut, n: number, t: Translate): string {
+  const stem = cut === 'Channel' ? 'channel' : cut === 'Activity' ? 'activity' : 'branch'
+  return t(`money.cut.${stem}.${n === 1 ? 'one' : 'other'}` as MessageKey)
+}
+
+// I18N-1: the cut's display label (Branch/Channel/Activity) — used in the head meta, the
+// "applies to both" line, and the detail table's dimension column header.
+function cutLabel(cut: DashboardCut, t: Translate): string {
+  const stem = cut === 'Channel' ? 'channel' : cut === 'Activity' ? 'activity' : 'branch'
+  return t(`money.cut.${stem}` as MessageKey)
 }
 
 const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
@@ -99,8 +107,8 @@ interface DashboardTableRow {
 }
 
 export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summary' | 'detail' }) {
-  useDocumentTitle('Money — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('money.documentTitle'))
   const isDesktop = useIsDesktop()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -205,21 +213,22 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (load === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
+      <PageFamilyFrame family="workspace" title={t('dest.money')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
           bounds={bounds}
           tab={tab} onTab={setTab}
+          t={t}
         />
         {/* The `.dash-loading` wrapper is THE single page-level loading status; the
             placeholder tile grid + SkeletonRows are decorative skeletons, so they are
             aria-hidden — otherwise each tile's own LoadingShell status (cohesion item
             #3) would nest inside this one. */}
-        <div role="status" aria-label="Loading" aria-busy="true" className="dash-loading">
+        <div role="status" aria-label={t('common.loading')} aria-busy="true" className="dash-loading">
           <div className="dash-kpi-grid" aria-hidden="true">
             {Array.from({ length: 5 }, (_, i) => (
-              <KPITile key={`r${i}`} label="Loading" value="" state="loading" />
+              <KPITile key={`r${i}`} label={t('common.loading')} value="" state="loading" />
             ))}
           </div>
           <SkeletonRows count={4} />
@@ -231,15 +240,16 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Error ────────────────────────────────────────────────────────────────────
   if (load === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
+      <PageFamilyFrame family="workspace" title={t('dest.money')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
           bounds={bounds}
           tab={tab} onTab={setTab}
+          t={t}
         />
         <ErrorState
-          message="Couldn't load sales reporting. Try again."
+          message={t('money.error')}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       </PageFamilyFrame>
@@ -249,17 +259,18 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Empty (no snapshot rows) ─────────────────────────────────────────────────
   if (revenueRows.length === 0 || !latestDate || !rev7d || !rev30d || !revKpis) {
     return (
-      <PageFamilyFrame family="workspace" title="Money" jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
+      <PageFamilyFrame family="workspace" title={t('dest.money')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <DashboardChrome
           cut={cut} onCut={setCut}
           windowSpec={windowSpec} onWindow={setWindowSpec}
           bounds={bounds}
           tab={tab} onTab={setTab}
+          t={t}
         />
         <EmptyState
           variant="awaiting"
-          title="No sales snapshot data yet"
-          copy="No sales snapshot rows are available yet. The next warehouse snapshot will populate this page."
+          title={t('money.empty.title')}
+          copy={t('money.empty.copy')}
           className="dash-empty-fill"
         />
       </PageFamilyFrame>
@@ -288,11 +299,11 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   return (
     <PageFamilyFrame
       family="workspace"
-      title="Money"
+      title={t('dest.money')}
       jobSentence={t('job.money')}
       meta={
         <span className="ch-meta-line tabular-nums">
-          {cutRows.length} {cutNoun(cut, cutRows.length)}
+          {cutRows.length} {cutNoun(cut, cutRows.length, t)}
           {snapshotAsOf && <> · <FreshnessLabel asOf={snapshotAsOf} /></>}
         </span>
       }
@@ -303,46 +314,47 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
         windowSpec={windowSpec} onWindow={setWindowSpec}
         bounds={bounds}
         tab={tab} onTab={setTab}
-        trailing={<span>Applies to both: <b>{cut}</b> · <b>{windowLabel}</b></span>}
+        t={t}
+        trailing={<span>{t('money.appliesToBoth')} <b>{cutLabel(cut, t)}</b> · <b>{windowLabel}</b></span>}
       />
 
       {tab === 'summary' ? (
-        <div className="dash-pane" role="tabpanel" aria-label="Summary">
+        <div className="dash-pane" role="tabpanel" aria-label={t('money.tab.summary')}>
           {/* Revenue KPI row — 7d/30d are fixed-window filter-in-place drivers (FR-006);
               latestDay/avgCheck/channelMix follow the active window. */}
           <div className="dash-kpi-grid">
             <KPITile
-              label="Trailing 7-day revenue"
+              label={t('money.kpi.rev7d')}
               value={rev7d ? formatIDRCompact(rev7d.trailing.current) : '—'}
               delta={delta7d ? { text: delta7d.text, tone: delta7d.tone } : undefined}
               onClick={() => setWindowSpec(tileWindow(7))}
               selected={activePresetDays === 7}
-              help="Sum of clean revenue over the 7 days ending on the latest reporting day. WoW = prior 7-day window."
+              help={t('money.kpi.rev7d.help')}
             />
             <KPITile
-              label="Trailing 30-day revenue"
+              label={t('money.kpi.rev30d')}
               value={rev30d ? formatIDRCompact(rev30d.trailing.current) : '—'}
               delta={delta30d ? { text: delta30d.text, tone: delta30d.tone } : undefined}
               onClick={() => setWindowSpec(tileWindow(30))}
               selected={activePresetDays === 30}
-              help="Sum over 30 days ending on the latest reporting day. MoM = prior 30-day window."
+              help={t('money.kpi.rev30d.help')}
             />
             <KPITile
-              label="Latest reporting-day revenue"
+              label={t('money.kpi.latestDay')}
               value={formatIDRCompact(revKpis.latestDay)}
               sub={latestDate}
             />
             <KPITile
-              label="Avg check"
+              label={t('money.kpi.avgCheck')}
               value={revKpis.avgCheck != null ? formatIDRCompact(revKpis.avgCheck) : '—'}
-              sub="revenue ÷ transactions"
-              help="Trailing-window revenue ÷ transactions."
+              sub={t('money.kpi.avgCheck.sub')}
+              help={t('money.kpi.avgCheck.help')}
             />
             <KPITile
-              label="Channel mix"
+              label={t('money.kpi.channelMix')}
               value={revKpis.channelMix}
-              sub="trailing window"
-              help="Share of trailing-window revenue by channel."
+              sub={t('money.kpi.channelMix.sub')}
+              help={t('money.kpi.channelMix.help')}
               className="dash-kpi-tile--mix"
             />
           </div>
@@ -350,52 +362,49 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           {/* Gross margin / COGS row — basis-labelled (AC-008) */}
           <div className="dash-kpi-grid dash-kpi-grid--gm">
             <KPITile
-              label="Gross margin %"
+              label={t('money.kpi.gmPct')}
               value={formatMarginPct(gmKpis?.marginPct ?? null)}
               basis={{ label: basis }}
               dq={gmKpis?.dq}
-              help="Gross margin ÷ revenue over the active window. Basis = interim stock-movement."
+              help={t('money.kpi.gmPct.help')}
             />
             <KPITile
-              label="Gross margin amt"
+              label={t('money.kpi.gmAmt')}
               value={formatGrossMarginValue(gmKpis?.marginAmount ?? null)}
               delta={gmDelta ? { text: gmDelta.text, tone: gmDelta.tone } : undefined}
               basis={{ label: basis }}
-              help="Revenue − interim COGS over the window. Delta compares with the previous equal-length period."
+              help={t('money.kpi.gmAmt.help')}
             />
             <KPITile
-              label="Interim COGS"
+              label={t('money.kpi.cogs')}
               value={formatGrossMarginValue(gmKpis?.cogsAmount ?? null)}
               basis={{ label: basis }}
-              help="Cost of goods sold, stock-movement-derived, not GL-certified."
+              help={t('money.kpi.cogs.help')}
             />
             <KPITile
-              label="BOM coverage"
+              label={t('money.kpi.bomCoverage')}
               value={gmKpis?.bomCoveragePct != null ? formatMarginPct(gmKpis.bomCoveragePct) : '—'}
               dq={gmKpis?.dq}
-              help="Share of COGS backed by a bill-of-materials basis over the window."
+              help={t('money.kpi.bomCoverage.help')}
             />
           </div>
 
-          <p className="dash-footnote">
-            <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
-            stock-movement-derived, <b>not GL-certified</b>.
-          </p>
+          <MoneyFootnote t={t} />
 
           <WhatsComingStrip />
 
           <ChartFrame
-            title="Daily revenue"
-            ariaLabel="Daily revenue chart"
+            title={t('money.chart.title')}
+            ariaLabel={t('money.chart.ariaLabel')}
             freshness={snapshotAsOf ? <FreshnessLabel asOf={snapshotAsOf} /> : undefined}
             tableFallback={
               <table>
-                <caption>Daily revenue by channel</caption>
+                <caption>{t('money.chart.caption')}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Date</th>
-                    <th scope="col">Channel</th>
-                    <th scope="col">Revenue</th>
+                    <th scope="col">{t('money.chart.col.date')}</th>
+                    <th scope="col">{t('money.chart.col.channel')}</th>
+                    <th scope="col">{t('money.chart.col.revenue')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -417,33 +426,30 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
 
           {/* FR-018: condensed detail table reflecting the current filter (top 5 rows). */}
           <DataTable
-            columns={detailColumns(cut)}
+            columns={detailColumns(cut, t)}
             rows={sortedRows.slice(0, 5)}
             sort={undefined}
             onSortChange={undefined}
             isDesktop={isDesktop}
-            caption={`Top ${Math.min(5, sortedRows.length)} by revenue — switch to Detail for the full table`}
-            emptyLabel="No rows for this cut."
+            caption={t('money.table.captionSummary', { count: Math.min(5, sortedRows.length) })}
+            emptyLabel={t('money.table.empty')}
           />
           <div className="dash-detail-door">
-            <Link to={detailHref} className="btn btn-outline">View full detail</Link>
+            <Link to={detailHref} className="btn btn-outline">{t('money.viewFullDetail')}</Link>
           </div>
         </div>
       ) : (
-        <div className="dash-pane" role="tabpanel" aria-label="Detail">
+        <div className="dash-pane" role="tabpanel" aria-label={t('money.tab.detail')}>
           <DataTable
-            columns={detailColumns(cut)}
+            columns={detailColumns(cut, t)}
             rows={sortedRows}
             sort={sort}
             onSortChange={setSort}
             isDesktop={isDesktop}
-            caption="Revenue breakdown"
-            emptyLabel="No rows for this cut."
+            caption={t('money.table.captionDetail')}
+            emptyLabel={t('money.table.empty')}
           />
-          <p className="dash-footnote">
-            <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
-            stock-movement-derived, <b>not GL-certified</b>.
-          </p>
+          <MoneyFootnote t={t} />
         </div>
       )}
     </PageFamilyFrame>
@@ -461,9 +467,11 @@ interface DashboardChromeProps {
   tab: string
   onTab: (id: string) => void
   trailing?: React.ReactNode
+  t: Translate
 }
 
 function DashboardChrome(props: DashboardChromeProps) {
+  const { t } = props
   return (
     <>
       <GlobalToolbar
@@ -474,10 +482,10 @@ function DashboardChrome(props: DashboardChromeProps) {
         bounds={props.bounds}
       />
       <ViewTabs
-        ariaLabel="Money view"
+        ariaLabel={t('money.tabs.ariaLabel')}
         tabs={[
-          { id: 'summary', label: 'Summary' },
-          { id: 'detail', label: 'Detail' },
+          { id: 'summary', label: t('money.tab.summary') },
+          { id: 'detail', label: t('money.tab.detail') },
         ]}
         active={props.tab}
         onChange={props.onTab}
@@ -485,40 +493,50 @@ function DashboardChrome(props: DashboardChromeProps) {
       />
       {SHOW_FOLLOWUPS && (
         <div className="dash-queue-entry">
-          <Link to="/money/follow-ups" className="btn btn-outline">Follow-up queue</Link>
+          <Link to="/money/follow-ups" className="btn btn-outline">{t('money.followUpQueue')}</Link>
         </div>
       )}
     </>
   )
 }
 
+// I18N-1: the interim/GL-certified footnote, reconstructed from catalog fragments so the two
+// bold emphases survive translation (a single interpolated string can't carry <b> spans).
+function MoneyFootnote({ t }: { t: Translate }) {
+  return (
+    <p className="dash-footnote">
+      <b>{t('money.footnote.interim')}</b>{t('money.footnote.body')}<b>{t('money.footnote.notCertified')}</b>.
+    </p>
+  )
+}
+
 // ── Detail-table column defs (AC-018 — the full mandated column set) ──────────────
-function detailColumns(cut: DashboardCut) {
+function detailColumns(cut: DashboardCut, t: Translate) {
   return [
-    { key: 'dimension', header: cut, cardLabel: '' },
+    { key: 'dimension', header: cutLabel(cut, t), cardLabel: '' },
     {
-      key: 'revenue', header: 'Revenue', numeric: true, sortable: true,
+      key: 'revenue', header: t('money.table.col.revenue'), numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.revenue,
     },
-    { key: 'transactions', header: 'Txns', numeric: true, sortable: true },
+    { key: 'transactions', header: t('money.table.col.txns'), numeric: true, sortable: true },
     {
-      key: 'sharePct', header: 'Share', numeric: true, sortable: true,
+      key: 'sharePct', header: t('money.table.col.share'), numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.sharePct,
     },
     {
-      key: 'avgCheck', header: 'Avg check', numeric: true, sortable: true,
+      key: 'avgCheck', header: t('money.table.col.avgCheck'), numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.avgCheck,
     },
     {
-      key: 'cogsInterim', header: 'Interim COGS', numeric: true, sortable: true,
+      key: 'cogsInterim', header: t('money.table.col.cogs'), numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.cogsInterim,
     },
     {
-      key: 'grossMargin', header: 'Gross margin', numeric: true, sortable: true,
+      key: 'grossMargin', header: t('money.table.col.gm'), numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.grossMargin,
     },
     {
-      key: 'marginPct', header: 'Margin %', numeric: true, sortable: true,
+      key: 'marginPct', header: t('money.table.col.marginPct'), numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.marginPct,
     },
   ]

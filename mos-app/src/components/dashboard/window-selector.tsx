@@ -7,6 +7,7 @@
 import { useRef, type KeyboardEvent } from 'react'
 import type { WindowSpec } from '@/lib/dashboard'
 import { isoDaysBefore } from '@/lib/trailing-window'
+import { useT } from '@/i18n/use-t'
 import './window-selector.css'
 
 export interface WindowSelectorProps {
@@ -34,9 +35,14 @@ export function WindowSelector({
   value,
   onChange,
   bounds,
-  ariaLabel = 'Time window',
+  ariaLabel,
   hideRange = false,
 }: WindowSelectorProps) {
+  const t = useT()
+  // I18N-1: 'Custom' stays the internal id; only its label localizes (presets 7d/30d/60d are
+  // locale-neutral duration tokens).
+  const resolvedAriaLabel = ariaLabel ?? t('money.toolbar.timeWindow')
+  const optionLabel = (id: string) => (id === 'Custom' ? t('money.window.custom') : id)
   const options = ['7d', '30d', '60d', 'Custom']
   const activeId = value.kind === 'preset' ? `${value.days}d` : 'Custom'
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -79,7 +85,7 @@ export function WindowSelector({
 
   return (
     <div className="window-selector">
-      <div role="tablist" aria-label={ariaLabel} className="window-selector-seg">
+      <div role="tablist" aria-label={resolvedAriaLabel} className="window-selector-seg">
         {options.map((option, index) => {
           const isSelected = option === activeId
           return (
@@ -97,7 +103,7 @@ export function WindowSelector({
               }}
               onKeyDown={e => handleKeyDown(e, index)}
             >
-              {option}
+              {optionLabel(option)}
             </button>
           )
         })}
@@ -125,18 +131,19 @@ export function WindowRangeFields({
   onChange: (spec: WindowSpec) => void
   bounds: { earliest: string; latest: string } | null
 }) {
+  const t = useT()
   const min = bounds?.earliest
   const max = bounds?.latest
   return (
     <div className="window-selector-range">
       <label className="window-selector-field">
-        <span className="window-selector-field-label">From</span>
+        <span className="window-selector-field-label">{t('money.window.from')}</span>
         <input
           type="date"
           value={value.kind === 'custom' ? value.from : ''}
           min={min}
           max={max}
-          aria-label="From"
+          aria-label={t('money.window.from')}
           onChange={e => {
             if (value.kind === 'custom') {
               onChange({ kind: 'custom', from: e.target.value, to: value.to })
@@ -145,13 +152,13 @@ export function WindowRangeFields({
         />
       </label>
       <label className="window-selector-field">
-        <span className="window-selector-field-label">To</span>
+        <span className="window-selector-field-label">{t('money.window.to')}</span>
         <input
           type="date"
           value={value.kind === 'custom' ? value.to : ''}
           min={min}
           max={max}
-          aria-label="To"
+          aria-label={t('money.window.to')}
           onChange={e => {
             if (value.kind === 'custom') {
               onChange({ kind: 'custom', from: value.from, to: e.target.value })

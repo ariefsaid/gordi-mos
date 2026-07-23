@@ -9,6 +9,8 @@
 // reachable instead of being pushed off-canvas.
 import type { WindowSpec } from '@/lib/dashboard'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useT } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 import { CutToggle } from './cut-toggle'
 import { WindowSelector, WindowRangeFields } from './window-selector'
 import './global-toolbar.css'
@@ -31,9 +33,10 @@ export function GlobalToolbar({
   bounds,
 }: GlobalToolbarProps) {
   const isDesktop = useIsDesktop()
+  const t = useT()
   const customOnPhone = !isDesktop && windowSpec.kind === 'custom'
   return (
-    <div className="global-toolbar" role="toolbar" aria-label="Dashboard filters">
+    <div className="global-toolbar" role="toolbar" aria-label={t('money.toolbar.ariaLabel')}>
       <div className="global-toolbar-rail">
         <div className="global-toolbar-group">
           <WindowSelector
@@ -45,12 +48,14 @@ export function GlobalToolbar({
         </div>
         <span className="global-toolbar-divider" aria-hidden="true" />
         <div className="global-toolbar-group">
-          <span className="global-toolbar-overline">Cut</span>
+          <span className="global-toolbar-overline">{t('money.toolbar.cut')}</span>
           <CutToggle
             options={CUT_OPTIONS}
             value={cut}
             onChange={v => onCutChange(v as typeof cut)}
-            ariaLabel="Cut dimension"
+            ariaLabel={t('money.toolbar.cutDimension')}
+            // I18N-1: value stays the English enum ('Branch'); only the label localizes.
+            renderLabel={(o) => t(`money.cut.${o.toLowerCase()}` as MessageKey)}
           />
         </div>
       </div>
