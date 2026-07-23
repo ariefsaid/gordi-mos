@@ -131,12 +131,13 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
   // signal-record.css raw font-sizes (12.5px ×2, 14.5px ×1) were paid off by the OD-REDESIGN-90
   // anatomy rewrite — every region now speaks var(--font-size-*). Ledger entry pruned (ratchet).
   'src/components/tasks/TaskSurface.css': {
-    'font-size: 15px': 16,
+    // -1 font-size:15px and the lone border-radius:2px paid off by retiring the tabbed feed's
+    // .rf-* rules (content-first anatomy split Checklist/Activity into stacked slots, OD-REDESIGN-90).
+    'font-size: 15px': 15,
     'font-size: 26px': 3,
     // 16px on form inputs is deliberate (mobile-zoom floor); 7th added by the tc TextInput port.
     'font-size: 16px': 7,
     'font-size: 22px': 1,
-    'border-radius: 2px': 1,
     'border-radius: 6px': 3,
   },
   'src/components/tasks/TasksWorkspace.css': {

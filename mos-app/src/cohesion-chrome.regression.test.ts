@@ -286,7 +286,9 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
 
   it('CHROME-FOCUS: the roomy controls are normalized to +2 (no inset override left)', () => {
     const roomy: Record<string, string> = {
-      'components/tasks/TaskSurface.css': '.rf-tab',
+      // The retired tabbed feed's .rf-tab is gone (content-first anatomy split Checklist and
+      // Activity into stacked content slots, OD-REDESIGN-90) — the remaining roomy control is the
+      // task card link.
       'components/tasks/TasksWorkspace.css': '.task-card-link',
     }
     for (const [file, sel] of Object.entries(roomy)) {

@@ -23,11 +23,9 @@ import { canEdit } from './task-permissions'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskViewerFieldKey } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
-import { RecordFeed } from './record-feed'
-import type { FeedTab } from './record-feed'
+import { ChecklistCard } from './checklist-card'
+import { TaskActivity } from './task-activity'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
-import { useTabMemory } from './use-tab-memory'
-import type { TabKey } from './use-tab-memory'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatDate } from './task-formatters'
@@ -36,23 +34,6 @@ import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 import { LoadingShell } from '@/components/ui/state-kit'
-
-// Feed tabs ride the per-task useTabMemory store (ADR-0013 D3 — reuse, no new
-// persistence). The two stores name the panes differently, so map between them
-// explicitly (clearer than nested ternaries):
-//   slot 'details'  ↔ feed 'activity' (the default pane)
-//   slot 'checklist'↔ feed 'checklist'
-// The former slot 'activity' ↔ feed 'notes' pairing is gone — the Notes tab was removed
-// (owner-eyes item 11). A persisted slot 'activity' now falls back to the 'activity' feed tab.
-const SLOT_TO_FEED: Record<TabKey, FeedTab> = {
-  details: 'activity',
-  checklist: 'checklist',
-  activity: 'activity',
-}
-const FEED_TO_SLOT: Record<FeedTab, TabKey> = {
-  activity: 'details',
-  checklist: 'checklist',
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 // PR-A: TaskSurface is the single actionable task editor (ADR-0007 "one UI, two
@@ -133,16 +114,6 @@ function ViewSurface({
   const navigate = useNavigate()
   const location = useLocation()
   const auth = useAuth()
-  // The feed tabs (Activity / Checklist / Notes) ride the existing per-task
-  // useTabMemory store (ADR-0013 D3 — reuse, no new persistence). Its default
-  // slot ('details') maps to the feed default 'activity'; the description pane
-  // ('activity' slot) presents as 'Notes'.
-  const [storedTab, setStoredTab] = useTabMemory(taskId)
-  const feedTab = SLOT_TO_FEED[storedTab] ?? 'activity'
-  const setFeedTab = useCallback((t: FeedTab) => {
-    setStoredTab(FEED_TO_SLOT[t])
-  }, [setStoredTab])
-
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const isManager = auth.status === 'authenticated' ? auth.viewer.isManager : false
   const t = useT()
@@ -378,6 +349,7 @@ function ViewSurface({
         ownershipSection: t('tasks.ownership'),
         statusSection: t('tasks.statusTiming'),
         detailsSection: t('tasks.detailsTitle'),
+        relatedSection: t('tasks.relatedTitle'),
         statusField: t('tasks.status.label'),
         descriptionField: t('tasks.create.description'),
         projectProcessField: t('tasks.filter.projectProcess'),
@@ -397,39 +369,55 @@ function ViewSurface({
       onArchive: async () => { setShowConfirm(true) },
       onUnarchive: handleUnarchive,
     })
-    const feedSlot: RecordContentSlot = {
-      id: 'feed',
-      label: 'Updates',
+    // Content-first anatomy (OD-REDESIGN-90 §2.2): the base adapter yields the ordered content
+    // slots [content, ownership, relations, checklist, activity]. Override the trailing two with
+    // the LIVE interactive composition — the checklist card (add/toggle/reorder/delete) and the
+    // activity + comment region — so the record reads content → ownership → relations → checklist
+    // → activity in ONE column, drawer and page alike. The field slots (content/ownership/relations)
+    // render through the shared RecordViewer field-commit seam untouched.
+    const checklistSlot: RecordContentSlot = {
+      id: 'checklist',
+      label: t('tasks.feed.checklist'),
       render: () => (
-        <RecordFeed
-          task={localTask}
-          checklist={localChecklist}
+        <ChecklistCard
+          items={localChecklist}
+          canEdit={editable}
+          taskId={localTask.id}
+          viewerId={viewerId}
+          onAdd={handleAddChecklist}
+          onToggle={handleToggle}
+          onReorder={handleReorder}
+          onDelete={handleDeleteChecklist}
+          saveError={checklistError
+            ? { message: t('record.field.saveError'), onRetry: checklistError }
+            : null}
+        />
+      ),
+    }
+    const activitySlot: RecordContentSlot = {
+      id: 'activity',
+      label: t('tasks.feed.activity'),
+      render: () => (
+        <TaskActivity
           events={data.events}
           comments={comments}
           people={peopleDirectory}
           now={now}
           editable={editable}
-          viewerId={viewerId}
-          activeTab={feedTab}
-          onSelectTab={setFeedTab}
-          onAddChecklist={handleAddChecklist}
-          onToggleChecklist={handleToggle}
-          onReorderChecklist={handleReorder}
-          onDeleteChecklist={handleDeleteChecklist}
           onPostComment={handlePostComment}
-          checklistError={checklistError
-            ? { message: t('record.field.saveError'), onRetry: checklistError }
-            : null}
           onCommentDirtyChange={handleCommentDirtyChange}
         />
       ),
     }
-    return { ...base, contentSlots: [feedSlot], activity: [] }
+    const contentSlots = base.contentSlots.map((slot) =>
+      slot.id === 'checklist' ? checklistSlot : slot.id === 'activity' ? activitySlot : slot,
+    )
+    return { ...base, contentSlots }
   // Handler identities are intentionally excluded; their captured state is represented above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     data, localTask, localChecklist, viewerId, isManager, peopleDirectory, busDirectory,
-    objectivesDir, workLinesDir, generatedFromLabel, comments, now, editable, feedTab, setFeedTab, t, locale,
+    objectivesDir, workLinesDir, generatedFromLabel, comments, now, editable, t, locale,
     checklistError,
   ])
 
@@ -640,23 +628,13 @@ function ViewSurface({
   }
 
   // ── Full width: the single-column record document (E7 canonical) ───────────
-  // AC-R06: expanded@split (and the standalone /work/tasks/:id page) render E7's
-  // full-width single-column document (e7-app.js renderRecordPage): the SAME
-  // RecordViewer document (identity/ownership/status-timing/details) stacked on
-  // top with its feed content slot withheld, then that SAME withheld slot (the
-  // RecordFeed tabs) below as its own section. This composes the one canonical
-  // viewer; it never reintroduces a bespoke fields panel (RecordDetailsPanel is
-  // deleted and stays deleted).
-  //
-  // RATIFY-BEFORE-MERGE: ADR-0013 D3 two-column expanded page superseded by E7
-  // full-width document (critic-cited, owner's E7-floor law). The 332px left
-  // column crammed values into ragged multi-line wraps while the right feed
-  // panel sat half-empty; E7's record is one comfortable single column.
-  const detailsOnlyAdapter: RecordViewerAdapter | null = taskViewerAdapter
-    ? { ...taskViewerAdapter, contentSlots: [] }
-    : null
-  const feedSlot = taskViewerAdapter?.contentSlots[0]
-
+  // Content-first anatomy (OD-REDESIGN-90 §2.2): the WHOLE record renders through the ONE shared
+  // RecordViewer in a single column — content (title + description + status/due) → ownership →
+  // relations → checklist → activity, in that order. Every region is an ordered content slot, so
+  // the earlier two-column split (a details adapter with contentSlots withheld, stacked above the
+  // feed rendered separately in .record-feed-col) is gone: the content now LEADS instead of the
+  // metadata region painting ahead of it. It never reintroduces a bespoke fields panel
+  // (RecordDetailsPanel is deleted and stays deleted).
   return (
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
@@ -736,31 +714,24 @@ function ViewSurface({
         </div>
       )}
 
-      {/* AC-R05: archived banner + Unarchive sit above the two columns */}
+      {/* AC-R05: archived banner + Unarchive sit above the record document */}
       {isArchived && (
         <div className="archived-banner" role="status">
           <span>{t('tasks.archivedBanner')}</span>
         </div>
       )}
 
-      {detailsOnlyAdapter && (
+      {taskViewerAdapter && (
         <div className="record-doc">
           <div className="record-details" data-testid="record-details">
             <RecordViewer
-              adapter={detailsOnlyAdapter}
+              adapter={taskViewerAdapter}
               mode="page"
               headingLevel={identityHeadingLevel ?? 1}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
               fieldCommitsFrozen={fieldCommitsFrozen}
             />
-          </div>
-          <div className="record-feed-col">
-            {feedSlot && (
-              <section className="record-viewer__section" data-viewer-region="content" aria-label={feedSlot.label}>
-                {feedSlot.render({ mode: 'page', readOnly: taskViewerAdapter?.permission.readOnly ?? false })}
-              </section>
-            )}
           </div>
         </div>
       )}

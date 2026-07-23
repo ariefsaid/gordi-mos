@@ -109,39 +109,16 @@
   border: 0;
 }
 
-/* ── Tabbed feed (below) ──
-   .record-feed-col hosts the SAME feed content slot the RecordViewer would
-   otherwise render inline; drop the slot wrapper's own padding/divider here
-   since RecordFeed (.rf-*) already owns its internal spacing. */
-.record-feed-col { display: flex; flex-direction: column; min-width: 0; }
-.record-feed-col > .record-viewer__section { padding: 0; border-bottom: 0; }
-.record-feed { display: flex; flex-direction: column; min-width: 0; flex: 1;
-  color: var(--foreground); }
-.rf-tabs {
-  display: flex; gap: 2px; padding: 8px 16px 0;
-  border-bottom: 1px solid var(--border); flex: none;
-}
-.rf-tab {
-  position: relative; border: 0; background: transparent; font: inherit;
-  font-size: 15px; font-weight: 500; padding: 8px 12px 10px;
-  color: var(--muted-foreground); cursor: pointer;
-}
-.rf-tab:hover { color: var(--foreground); }
-.rf-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); } /* item #6: normalized to +2 (tab has room) */
-.rf-tcount { font-size: var(--font-size-overline); color: var(--muted-foreground); margin-left: 5px; }
-/* Active tab: weight + a 2px primary underline (never color-alone) — AC-R03. */
-.rf-tab.on { color: var(--foreground); font-weight: 600; }
-.rf-tab.on::after {
-  content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px;
-  height: 2px; border-radius: 2px; background: var(--primary);
-}
-.rf-tabpane { overflow: auto; padding: 16px; flex: 1; min-width: 0; }
-.rf-tabpane .card {
+/* ── Checklist + Activity regions (content-first anatomy, OD-REDESIGN-90 §2.2) ──
+   The retired tabbed feed (.rf-*) is gone: Checklist and Activity are now separate ordered
+   content slots stacked below Relations, each rendering its own component (ChecklistCard,
+   ActivityCard, CommentThread) inside a shared `.record-viewer__section` (which owns the
+   region padding + hairline). Neutralize those components' internal `.card` chrome so they
+   read as quiet regions of the ONE record document — never a card-in-card (LAW-7). */
+.record-activity { display: flex; flex-direction: column; min-width: 0; }
+[data-content-slot="activity"] .card,
+[data-content-slot="checklist"] .card {
   background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
-}
-.rf-notes { min-width: 0; }
-@media (prefers-reduced-motion: no-preference) {
-  .rf-tab.on::after { transition: left var(--dur-med) ease, right var(--dur-med) ease; }
 }
 
 /* ── Btn styles ── */

@@ -19,12 +19,13 @@ import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { canEdit, canArchive } from './task-permissions'
+import { RecordFieldList } from '@/components/records/record-viewer'
 import type {
   RecordAction,
+  RecordContentSlot,
   RecordFieldOption,
   RecordFieldSpec,
   RecordMetadataSection,
-  RecordActivityItem,
   RecordRelation,
   RecordValue,
   RecordViewerAdapter,
@@ -149,6 +150,8 @@ export interface TaskRecordLabels {
   ownershipSection: string
   statusSection: string
   detailsSection: string
+  /** Content-first anatomy (OD-REDESIGN-90 §2.3): the Relations region heading. */
+  relatedSection: string
   statusField: string
   descriptionField: string
   projectProcessField: string
@@ -174,6 +177,7 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
   ownershipSection: 'Task ownership',
   statusSection: 'Status & Timing',
   detailsSection: 'Task details',
+  relatedSection: 'Related',
   statusField: 'Status',
   descriptionField: 'Description',
   projectProcessField: 'Project/Process',
@@ -318,9 +322,12 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     editable,
   })
 
-  // Document anatomy (E7 record): Ownership → Status & Timing → Details → Activity. A Task
-  // reads as a calm document, not a settings form — each field renders its value first
-  // (RecordField value-first grammar) and swaps in its control on activation.
+  // Content-first document anatomy (OD-REDESIGN-90 §2.2, FR-ANAT-009): the Task leads with its
+  // OWN content — Title (identity h1) + Description — then Ownership → Relations → Checklist →
+  // Activity. The regions are packed into ORDERED content slots so the content leads without
+  // flipping record-viewer.tsx's shared region order (which would endanger every other consumer
+  // and paint the metadata region before content anyway). E7's calm-document intent is preserved;
+  // only the ORDER obeys LAW-1 (content leads) / LAW-2 (Status + Due ride with the content).
   const workLine = workLines.find((row) => row.id === task.work_line_id) ?? null
   const workLineName = workLine?.name ?? null
   const objectiveName = objectives.find((row) => row.id === task.objective_id)?.name ?? null
@@ -330,38 +337,19 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   // because the E7 mockup drew it (a quality floor, not a data spec), so no information is lost.
   const sourceDisplay = workLineName ?? objectiveName
 
-  // Ownership landmark — Business Unit · PIC · Supervisor · Source. Source is read-only DERIVED
-  // provenance (never editable; it mirrors the real work-line/objective attribution, never a stored
-  // column). Team stays gated off until Issue 8's real team_id contract (§Task-11). The oracle's
-  // accessible name is "Task ownership".
-  const ownership: RecordMetadataSection = {
-    id: 'ownership',
-    label: L.ownershipSection,
+  // 1. Content (LEADS) — Description prose directly beneath the identity title; Status pill + Due
+  //    ride with it (LAW-2 — urgency adjacent to the content it qualifies, not a downstream block).
+  const content: RecordMetadataSection = {
+    id: 'content',
+    label: L.detailsSection,
     fields: [
-      ...ownershipFields(task, editable, people, businessUnits, team, labels),
-      // Source/provenance — read-only derived summary naming the real work-line/objective
-      // attribution. Rendered only when such an attribution exists; a hand-created task with no
-      // work line or objective carries no Source row (no naked "Ad hoc" placeholder).
-      ...(sourceDisplay
-        ? [{
-            key: 'source',
-            label: L.sourceField,
-            control: 'text' as const,
-            value: task.work_line_id ?? task.objective_id ?? null,
-            displayValue: sourceDisplay,
-            editable: false,
-            readOnlyReason: undefined,
-          }]
-        : []),
-    ],
-  }
-
-  // Status & Timing — the lifecycle pill + Due, then the provenance/attribution relations we
-  // actually hold (Project/Process, Objective) woven in as relation chips WHERE the data exists.
-  const statusSection: RecordMetadataSection = {
-    id: 'status',
-    label: L.statusSection,
-    fields: [
+      editSpec({
+        key: 'description',
+        label: L.descriptionField,
+        control: 'textarea',
+        value: task.description,
+        displayValue: task.description ?? L.noneMarker,
+      }),
       editSpec({
         key: 'status',
         label: L.statusField,
@@ -371,6 +359,24 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         options: TASK_STATUSES.map((s) => ({ value: s, label: s })),
       }),
       dueField(task, editable, labels.dueDate, formatDate),
+    ],
+  }
+
+  // 2. Ownership — Business Unit · PIC · Supervisor. Team stays gated off until Issue 8's real
+  //    team_id contract (§Task-11). The oracle's accessible name is "Task ownership".
+  const ownership: RecordMetadataSection = {
+    id: 'ownership',
+    label: L.ownershipSection,
+    fields: ownershipFields(task, editable, people, businessUnits, team, labels),
+  }
+
+  // 3. Relations — Project/Process · Objective (settable navigational links) · Generated-by ·
+  //    Source (read-only provenance), each rendered WHERE the datum exists. Source/Generated-by
+  //    carry no per-field reason (LAW-6 / F3 — one whole-record note only).
+  const relations: RecordMetadataSection = {
+    id: 'relations',
+    label: L.relatedSection,
+    fields: [
       editSpec({
         key: 'projectProcess',
         label: L.projectProcessField,
@@ -400,31 +406,22 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
             readOnlyReason: undefined,
           }]
         : []),
+      // Source/provenance — read-only derived summary naming the real work-line/objective
+      // attribution. Rendered only when such an attribution exists; a hand-created task with no
+      // work line or objective carries no Source row (no naked "Ad hoc" placeholder).
+      ...(sourceDisplay
+        ? [{
+            key: 'source',
+            label: L.sourceField,
+            control: 'text' as const,
+            value: task.work_line_id ?? task.objective_id ?? null,
+            displayValue: sourceDisplay,
+            editable: false,
+            readOnlyReason: undefined,
+          }]
+        : []),
     ],
   }
-
-  // Details — description as prose (prose-first). Title is NOT re-listed: the RecordViewer
-  // identity header already owns the record-name heading (no-duplicate-h1 / ViewerIdentity-
-  // Suppression contract), so a Title field would render the same name twice.
-  const details: RecordMetadataSection = {
-    id: 'details',
-    label: L.detailsSection,
-    fields: [
-      editSpec({
-        key: 'description',
-        label: L.descriptionField,
-        control: 'textarea',
-        value: task.description,
-        displayValue: task.description ?? L.noneMarker,
-      }),
-    ],
-  }
-
-  const activity: RecordActivityItem[] = detail.events.map((e) => ({
-    id: e.id,
-    label: EVENT_LABELS[e.event_type] ?? e.event_type,
-    occurredAt: e.created_at,
-  }))
 
   const actions: RecordAction[] = []
   const allowedActionIds: string[] = []
@@ -467,21 +464,28 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     }
   }
 
+  // Each field section becomes an ordered CONTENT slot: its specs stay inspectable via `section`
+  // and it renders through the shared RecordFieldList wired to the slot's field-commit seam — so a
+  // relocated field keeps the exact value-first grammar, Escape isolation, and dirty-guard it had
+  // in the metadata region. checklist + activity are the trailing content/audit regions; the live
+  // TaskSurface overrides them with the interactive checklist + activity/comments composition.
+  const contentSlots: RecordContentSlot[] = [
+    fieldSectionSlot(content),
+    fieldSectionSlot(ownership),
+    fieldSectionSlot(relations),
+    { id: 'checklist', label: 'Checklist', render: () => renderChecklist(detail) },
+    { id: 'activity', label: 'Activity', render: () => renderActivity(detail) },
+  ]
+
   return {
     kind: 'task',
     id: task.id,
     title: task.title,
     typeLabel: L.typeLabel,
-    metadata: [ownership, statusSection, details],
+    metadata: [],
     relations: [],
-    contentSlots: [
-      {
-        id: 'checklist',
-        label: 'Checklist',
-        render: () => renderChecklist(detail),
-      },
-    ],
-    activity,
+    contentSlots,
+    activity: [],
     actions,
     permission: {
       readOnly: !editable,
@@ -490,6 +494,46 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     },
     state: 'ready',
   }
+}
+
+/** Wrap a Task field section as an ordered content slot (content-first anatomy): the section
+ *  specs are carried as DATA so the adapter stays inspectable, while `render` produces the same
+ *  value-first RecordField markup the metadata region emits — wired through the slot's commit seam. */
+function fieldSectionSlot(section: RecordMetadataSection): RecordContentSlot {
+  return {
+    id: section.id,
+    label: section.label,
+    section,
+    render: (ctx) => (
+      <RecordFieldList
+        section={section}
+        onCommitField={ctx.onCommitField}
+        onDirtyChange={ctx.onDirtyChange}
+        fieldCommitsFrozen={ctx.fieldCommitsFrozen}
+      />
+    ),
+  }
+}
+
+/** The default Activity (audit) region — the event log, last and quiet. The live TaskSurface
+ *  overrides this slot with the interactive Activity + comment thread; this default keeps the
+ *  adapter self-renderable (its own unit test) without a raw old→new diff dump (LAW-5 / F4). */
+function renderActivity(detail: TaskDetail): ReactNode {
+  if (detail.events.length === 0) {
+    return <p className="record-activity__empty">No activity yet.</p>
+  }
+  return (
+    <ul className="record-viewer__activity">
+      {detail.events.map((e) => (
+        <li key={e.id} className="record-viewer__activity-item">
+          <span>{EVENT_LABELS[e.event_type] ?? e.event_type}</span>
+          <time dateTime={e.created_at} className="record-viewer__activity-time">
+            {e.created_at}
+          </time>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 // Checklist is Task content that inherits the parent Task's PIC/Supervisor — it has NO

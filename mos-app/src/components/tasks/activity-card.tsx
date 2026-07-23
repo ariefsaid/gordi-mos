@@ -31,10 +31,11 @@ export function ActivityCard({ events, people, now }: ActivityCardProps) {
   }
 
   return (
-    <section className="card" aria-label={t('tasks.activityTitle')} role="region">
-      {/* owner-eyes item 6: the feed's active tab already reads "Activity", so the inner
-          "Activity & updates" heading is a redundant duplicate. Keep it sr-only — the landmark
-          still has an accessible name for AT, but sighted users don't see the doubled label. */}
+    // Content-first anatomy (OD-REDESIGN-90): the Activity region landmark is now the labeled
+    // content slot that wraps this card (`<section data-content-slot="activity" aria-label>`), so
+    // this card is a plain container — NOT a second nested region (region-in-region) or a card
+    // inside the record document (LAW-7). The heading stays sr-only (the slot already names it).
+    <div className="card">
       <h2 className="sr-only">{t('tasks.activityTitle')}</h2>
       {events.length === 0 && <p className="empty-substate">{t('tasks.activityEmpty')}</p>}
       <div className="thread">
@@ -49,6 +50,6 @@ export function ActivityCard({ events, people, now }: ActivityCardProps) {
           </div>
         ))}
       </div>
-    </section>
+    </div>
   )
 }

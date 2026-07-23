@@ -196,7 +196,7 @@ describe('TaskDrawer — expanded@split mounts the full-width record document (E
     expect(document.querySelector('.record-details-compact')).toBeTruthy()
   })
 
-  it('AC-R06: toggling expand @≥1100px MOUNTS the full record document (.record-doc — details stacked over the feed)', async () => {
+  it('AC-R06: toggling expand @≥1100px MOUNTS the full record document (.record-doc — content-first single column)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
@@ -213,10 +213,11 @@ describe('TaskDrawer — expanded@split mounts the full-width record document (E
     expect(details).toBeTruthy()
     expect(details?.classList.contains('record-details-compact')).toBe(false)
 
-    // Goal-oracle: the FULL record shows — details on top AND the feed section below.
-    expect(document.querySelector('.record-doc .record-feed-col')).toBeTruthy()
-    // The feed's tablist (Activity / Checklist) is present in the document.
-    expect(document.querySelector('.record-doc')!.querySelector('[role="tablist"]')).toBeTruthy()
+    // Goal-oracle: the FULL content-first record shows — content leads, then the ordered content
+    // slots (ownership → relations → checklist → activity) stacked in ONE column (no tabbed feed).
+    const slots = [...document.querySelectorAll('.record-doc [data-content-slot]')].map((n) => (n as HTMLElement).dataset.contentSlot)
+    expect(slots).toEqual(['content', 'ownership', 'relations', 'checklist', 'activity'])
+    expect(document.querySelector('.record-doc')!.querySelector('[role="tablist"]')).toBeNull()
 
     // Collapse stays reachable (no dead end): a collapse control returns to split.
     fireEvent.click(screen.getByRole('button', { name: /collapse to split/i }))

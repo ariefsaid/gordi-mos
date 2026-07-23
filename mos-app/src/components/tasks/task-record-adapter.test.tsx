@@ -65,8 +65,11 @@ function makeInput(overrides: Partial<TaskRecordAdapterInput> = {}): TaskRecordA
   }
 }
 
+// Content-first (OD-REDESIGN-90): the Task packs its field sections into ordered CONTENT slots,
+// each carrying its specs as `section` DATA — so the record stays inspectable without rendering.
+// The metadata region is empty; read the field specs from the content slots' sections.
 function fieldsOf(adapter: RecordViewerAdapter): RecordFieldSpec[] {
-  return adapter.metadata.flatMap((s) => s.fields)
+  return adapter.contentSlots.flatMap((s) => s.section?.fields ?? [])
 }
 function fieldByKey(adapter: RecordViewerAdapter, key: string): RecordFieldSpec {
   const f = fieldsOf(adapter).find((x) => x.key === key)
@@ -98,7 +101,12 @@ describe('createTaskRecordAdapter', () => {
     render(<>{checklist.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Check fridge stock')).toBeInTheDocument()
 
-    expect(adapter.activity).toHaveLength(1)
+    // Activity is the LAST content slot (content-first): the event log lives there, quiet, not in
+    // a metadata/activity region ahead of the content.
+    expect(adapter.activity).toHaveLength(0)
+    const activity = adapter.contentSlots.find((s) => s.id === 'activity')!
+    render(<>{activity.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
+    expect(screen.getByText('Created')).toBeInTheDocument()
     expect(adapter.actions.map((a) => a.id)).toContain('complete')
   })
 
@@ -156,7 +164,7 @@ describe('createTaskRecordAdapter', () => {
     expect(fieldByKey(adapter, 'supervisor').label).toBe('Supervisor')
 
     // No RACI vocabulary leaks into any field key/label or content.
-    const blob = JSON.stringify(adapter.metadata)
+    const blob = JSON.stringify(adapter.contentSlots.map((s) => s.section))
     expect(blob).not.toMatch(/responsible|accountable|consulted|informed|raci/i)
 
     // Checklist slot introduces no independent owner (no second PIC/Supervisor field).

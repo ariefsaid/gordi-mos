@@ -33,7 +33,10 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
   }
 
   return (
-    <section className="card" aria-label={t('tasks.checklistTitle')}>
+    // Content-first anatomy (OD-REDESIGN-90): the Checklist region landmark is the labeled content
+    // slot that wraps this card (`<section data-content-slot="checklist" aria-label>`), so this is a
+    // plain container — not a second nested region or a card-in-card (LAW-7). The visible h2 stays.
+    <div className="card">
       <h2 className="card-h2">
         {t('tasks.checklistTitle')}
         {items.length > 0 && (
@@ -115,6 +118,6 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
           aria-label={t('tasks.checklist.addAria')}
         />
       )}
-    </section>
+    </div>
   )
 }

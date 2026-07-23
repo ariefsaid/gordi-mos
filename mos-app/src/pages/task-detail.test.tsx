@@ -212,15 +212,14 @@ describe('AC-070 — detail page renders task fields', () => {
     // false-positive on the test's own fixture names "Consulted Person"/"Informed Person").
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted \(C\)|Informed \(I\)/)).toBeNull()
 
-    // Activity log region (the feed default tab)
+    // Activity region (content-first: a stacked region, no longer a tab)
     expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
 
-    // Description renders once, in the Details section prose (the Notes feed tab was a fossil,
+    // Description renders once, in the content region prose (the Notes feed tab was a fossil,
     // deleted deliberately — owner-eyes item 11 / commit b031937; journey step updated, goal intact).
     expect(screen.getAllByText(/espresso machine on floor 2 is broken/i).length).toBeGreaterThan(0)
 
-    // Checklist items behind the Checklist feed tab
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    // Content-first anatomy: the Checklist is a directly-visible stacked region (no tab to click).
     expect(screen.getByText('Inspect heating element')).toBeTruthy()
     expect(screen.getByText('Order parts')).toBeTruthy()
   }, 10_000)
@@ -324,10 +323,8 @@ describe('AC-074 — checklist add / toggle', () => {
   it('adds an item: addChecklistItem called, item appears', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderDetail()
-    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
-
-    const input = screen.getByPlaceholderText(/add a step/i)
+    // Content-first anatomy: the checklist add field is directly visible (no tab to open).
+    const input = await screen.findByPlaceholderText(/add a step/i)
     fireEvent.change(input, { target: { value: 'Buy a new gasket' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -340,8 +337,7 @@ describe('AC-074 — checklist add / toggle', () => {
     const checklist = makeChecklist([{ id: 'item-0', label: 'Inspect coil', is_done: false }])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
     await waitFor(() => screen.getByText('Inspect coil'))
 
     const checkbox = screen.getByRole('checkbox', { name: /inspect coil/i })
@@ -359,8 +355,7 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
     await waitFor(() => screen.getByText('Step A'))
 
     // Move "Step A" down (move-down button on the first item)
@@ -381,8 +376,7 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
     await waitFor(() => screen.getByText('Step B'))
 
     // Move "Step B" up — use the specific aria-label on its move-up button
@@ -401,8 +395,7 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    await waitFor(() => screen.getByRole('tab', { name: /checklist/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
+    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
     await waitFor(() => screen.getByText('Remove me'))
 
     const deleteBtn = screen.getByRole('button', { name: /delete checklist item remove me/i })
