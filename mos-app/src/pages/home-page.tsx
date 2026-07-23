@@ -22,6 +22,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { viewerSeesCafe } from '@/shell/destinations'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -110,6 +111,11 @@ export function HomePage() {
     return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
+  // SEC-1 route hygiene (FLAG-B / G2): the failed-checks band routes to /cafe/log, so surface it only
+  // to cafe-affiliated / ops_lead / admin viewers — the same honest role ceiling as the Café rail entry.
+  const seesCafe = useMemo(
+    () => viewerSeesCafe((viewer?.roles ?? []).map(r => r.name), viewer?.accessRoles ?? []),
+    [viewer])
 
   // At ≤390px the order toggle folds behind a single compact disclosure so it's never the lead,
   // full-width element ahead of the stream; desktop/tablet keep the inline radiogroup (RI-2).
@@ -200,6 +206,9 @@ export function HomePage() {
 
   const loadFailedChecks = useCallback(() => {
     if (!personId || failedChecksInFlightRef.current) return
+    // Non-cafe viewers (finance/HR/…) get no failed-checks band at all — an empty ready state, never a
+    // /cafe/log deep-link they cannot act on (SEC-1 route hygiene). RLS still owns row visibility.
+    if (!seesCafe) { setFailedChecks([]); setFailedChecksState('ready'); return }
     failedChecksInFlightRef.current = true
     const token = ++failedChecksTokenRef.current
     setFailedChecksState('loading')
@@ -216,7 +225,7 @@ export function HomePage() {
       .finally(() => {
         if (failedChecksTokenRef.current === token) failedChecksInFlightRef.current = false
       })
-  }, [personId])
+  }, [personId, seesCafe])
 
   useEffect(() => {
     failedChecksTokenRef.current += 1

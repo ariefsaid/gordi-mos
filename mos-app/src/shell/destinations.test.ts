@@ -5,7 +5,7 @@
  * FR-001..005, FR-020/021, AC-011/012 prep.
  */
 import { describe, it, expect } from 'vitest'
-import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, type Destination } from './destinations'
+import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerSeesCafe, type Destination } from './destinations'
 
 describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () => {
   it('exports exactly the five workspace ids in order: home, work, events, money, inbox', () => {
@@ -110,6 +110,31 @@ describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
     const profile = UTILITY.find((u) => u.id === 'profile')!
     expect(isLive(profile, [])).toBe(true)
     expect(profile.primaryPath).toBe('/profile')
+  })
+})
+
+// viewerSeesCafe — SEC-1 route hygiene: who may see cafe/kitchen surfaces (rail entry + Home
+// failed-checks /cafe/log deep-link). Same honest role ceiling as the Café module's workMatch,
+// PLUS ops_lead/admin who own the review queue org-wide. Fail-closed for unaffiliated personas.
+describe('viewerSeesCafe (SEC-1 route hygiene, FLAG-B/G2)', () => {
+  it('true for a viewer whose job role name matches the Café module (kitchen / cafe / bar / barista)', () => {
+    expect(viewerSeesCafe(['Kitchen Lead'], ['member'])).toBe(true)
+    expect(viewerSeesCafe(['Cafe Ops Lead'], ['member'])).toBe(true)
+    expect(viewerSeesCafe(['Head Barista'], [])).toBe(true)
+    expect(viewerSeesCafe(['Bar Supervisor'], [])).toBe(true)
+  })
+
+  it('true for ops_lead or admin regardless of job role (they own the review queue org-wide)', () => {
+    expect(viewerSeesCafe([], ['ops_lead'])).toBe(true)
+    expect(viewerSeesCafe([], ['admin'])).toBe(true)
+    expect(viewerSeesCafe(['Finance Lead'], ['admin'])).toBe(true)
+  })
+
+  it('false (fail-closed) for a non-cafe persona: finance/HR/roastery job role, no ops_lead/admin', () => {
+    expect(viewerSeesCafe(['Finance Lead'], ['finance'])).toBe(false)
+    expect(viewerSeesCafe(['HR Manager'], ['member'])).toBe(false)
+    expect(viewerSeesCafe(['Roastery Lead'], ['member'])).toBe(false)
+    expect(viewerSeesCafe([], [])).toBe(false)
   })
 })
 

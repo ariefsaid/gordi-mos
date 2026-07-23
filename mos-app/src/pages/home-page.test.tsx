@@ -101,6 +101,24 @@ const memberViewer: AuthState = {
   ...financeViewer,
   viewer: { ...financeViewer.viewer, accessRoles: [] },
 }
+// A cafe-affiliated viewer: a plain member whose JOB ROLE name matches the Café module workMatch —
+// the honest ceiling gating the failed-checks (/cafe/log) band (SEC-1 route hygiene).
+const cafeViewer: AuthState = {
+  ...financeViewer,
+  viewer: {
+    ...financeViewer.viewer,
+    accessRoles: ['member'],
+    roles: [{
+      id: '30000000-0000-0000-0000-000000000002',
+      org_id: '10000000-0000-0000-0000-000000000001',
+      business_unit_id: '20000000-0000-0000-0000-000000000014',
+      name: 'Kitchen Lead',
+      reports_to_role_id: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }],
+  },
+}
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -157,6 +175,28 @@ describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () 
     expect(await screen.findByRole('region', STREAM)).toBeInTheDocument()
     expect(await screen.findByRole('region', { name: 'Signals' })).toBeInTheDocument()
     expect(mockListRevenue).not.toHaveBeenCalled()
+  })
+})
+
+describe('SEC-1 route hygiene (FLAG-B/G2) — the failed-checks /cafe/log band is gated to cafe viewers', () => {
+  it('a cafe-affiliated viewer sees their failed checks (the DAL is queried, the item renders)', async () => {
+    mockLoadFailedChecks.mockResolvedValue([
+      { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: '/cafe/log' },
+    ])
+    await renderHome(cafeViewer)
+    await screen.findByRole('region', STREAM)
+    expect(mockLoadFailedChecks).toHaveBeenCalled()
+    expect(await screen.findByText('Production · 2026-07-20')).toBeInTheDocument()
+  })
+
+  it('a non-cafe finance viewer never queries café logs nor gets a /cafe/log deep-link', async () => {
+    mockLoadFailedChecks.mockResolvedValue([
+      { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: '/cafe/log' },
+    ])
+    await renderHome(financeViewer)
+    await screen.findByRole('region', STREAM)
+    expect(mockLoadFailedChecks).not.toHaveBeenCalled()
+    expect(screen.queryByText('Production · 2026-07-20')).toBeNull()
   })
 })
 

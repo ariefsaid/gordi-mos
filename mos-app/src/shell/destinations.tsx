@@ -165,6 +165,20 @@ export function primaryModuleForViewer(roleNames: string[], accessRoles: string[
   return modulesForRoles(roleNames, accessRoles)[0] ?? null
 }
 
+/**
+ * SEC-1 route hygiene (FLAG-B / G2): whether the viewer should see cafe/kitchen work surfaces —
+ * the Café rail entry (already scoped by the `cafe` module's `workMatch`) and Home's failed-checks
+ * deep-link (which routes to `/cafe/log`). True for a viewer affiliated with the Café module by job
+ * role (same honest ceiling as the rail's `workMatch`), OR ops_lead/admin who own the review queue
+ * org-wide. Fail-closed: a finance/HR/etc. persona with no cafe affiliation gets no cafe deep-link.
+ * ponytail: role-name affiliation, same ceiling as `modulesForRoles`; upgrade to a team-membership
+ * check when the viewer payload carries team.business_unit (the deferred RequireTeamInBU seam).
+ */
+export function viewerSeesCafe(roleNames: string[], accessRoles: string[]): boolean {
+  if (accessRoles.includes('ops_lead') || accessRoles.includes('admin')) return true
+  return modulesForRoles(roleNames, accessRoles).some((m) => m.id === 'cafe')
+}
+
 export const UTILITY: Destination[] = [
   {
     id: 'admin',
