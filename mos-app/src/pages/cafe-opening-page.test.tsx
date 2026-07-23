@@ -39,22 +39,24 @@ const mockGetPeople = vi.mocked(getPeople)
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
 
-const authedState: AuthState = {
-  status: 'authenticated',
-  viewer: {
-    person: {
-      id: '40000000-0000-0000-0000-000000000001', org_id: 'org-1', user_id: 'auth-user-001',
-      full_name: 'Cahya Cafe', email: 'cahya@gordi.id', archived_at: null,
-      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+function authedState(accessRoles: string[] = ['ops_lead']): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: '40000000-0000-0000-0000-000000000001', org_id: 'org-1', user_id: 'auth-user-001',
+        full_name: 'Cahya Cafe', email: 'cahya@gordi.id', archived_at: null,
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      roles: [], isManager: false, accessRoles,
     },
-    roles: [], isManager: false, accessRoles: ['ops_lead'],
-  },
-  signOut: async () => {},
+    signOut: async () => {},
+  }
 }
 
-function renderPage() {
+function renderPage(accessRoles: string[] = ['ops_lead']) {
   return render(
-    <AuthContext.Provider value={authedState}>
+    <AuthContext.Provider value={authedState(accessRoles)}>
       <I18nProvider>
         <MemoryRouter initialEntries={['/cafe']}>
           <CafeOpeningPage />
@@ -89,12 +91,37 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     expect(screen.getByRole('link', { name: /log/i })).toHaveAttribute('href', '/cafe/log')
     expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
     expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
+    // JQ-1: an ops_lead sees the lead-only day-steps (Review + Pushes).
     expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
+    expect(screen.getByRole('link', { name: /pushes/i })).toHaveAttribute('href', '/cafe/pushes')
 
     // Step 7 minor (item 7b) — real button-styled links (btn-outline: visible border/background),
     // never plain unstyled text.
     const logLink = screen.getByRole('link', { name: /log/i })
     expect(logLink).toHaveClass('btn', 'btn-outline')
+  })
+
+  it('JQ-1: a member sees Log/Plan/Stock but NOT the lead-only Review/Pushes doors', async () => {
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    const due: DueProcessRun[] = [{
+      work_line_id: PROCESS_ID, process_name: 'Café Opening',
+      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
+      period_key: '2026-07-17', scheduled_date: '2026-07-17',
+    }]
+    mockListStartableCafeTeams.mockResolvedValue(due)
+    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
+
+    renderPage(['member'])
+
+    // A member can still start their own Team's opening (OD-71iii) — wait for the ready surface.
+    await screen.findByRole('link', { name: /log/i })
+
+    // The capture doors a member reaches stay visible…
+    expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
+    expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
+    // …but the ops_lead-only day-steps are HIDDEN — no door that only bounces the member.
+    expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
   })
 
   // Step 7 minor (item 7b) — full-width tap targets at ≤390px (CSS lock, mirrors task-row.test.tsx's

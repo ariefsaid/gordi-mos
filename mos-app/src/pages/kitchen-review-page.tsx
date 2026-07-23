@@ -22,6 +22,7 @@ import { DataTable } from '@/components/dashboard/data-table'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { useReviewKpis } from '@/lib/kitchen-review-kpis'
+import { canReviewCafe } from '@/lib/kitchen-gates'
 import './kitchen-review-page.css'
 
 function wibToday(): string {
@@ -267,7 +268,7 @@ export function KitchenReviewPage() {
   const auth = useAuth()
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const allowed = canReviewCafe(accessRoles)
 
   const [logDate] = useState(wibToday)
   const [logs, setLogs] = useState<ReviewLogRow[]>([])

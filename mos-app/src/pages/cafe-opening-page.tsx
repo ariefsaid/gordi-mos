@@ -16,6 +16,7 @@ import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib
 import { listAuthorTeams } from '@/lib/db/signals'
 import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
+import { canReviewCafe } from '@/lib/kitchen-gates'
 import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
@@ -25,11 +26,19 @@ interface BranchTeam {
   name: string
 }
 
+// Capture doors every café viewer reaches (Log/Plan/Stock — read/capture for all roles).
 const CAPTURE_LINKS = [
   { to: '/cafe/log', key: 'nav.cafe.log' as const },
   { to: '/cafe/plan', key: 'nav.cafe.plan' as const },
   { to: '/cafe/stock', key: 'nav.cafe.stock' as const },
+]
+
+// JQ-1: Review + Pushes are ops_lead/admin-only day-steps. Their doors render ONLY for a
+// viewer who can actually reach the route (canReviewCafe) — a member no longer sees a tab
+// that silently bounces them off the section (the route's forbidden panel stays as backstop).
+const LEAD_LINKS = [
   { to: '/cafe/review', key: 'nav.cafe.review' as const },
+  { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const },
 ]
 
 export function CafeOpeningPage() {
@@ -37,6 +46,8 @@ export function CafeOpeningPage() {
   useDocumentTitle('Café Operations — Gordi MOS')
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const captureLinks = canReviewCafe(accessRoles) ? [...CAPTURE_LINKS, ...LEAD_LINKS] : CAPTURE_LINKS
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
@@ -144,7 +155,7 @@ export function CafeOpeningPage() {
           {/* Step 7 minor (item 7b): real button-styled links (btn-outline), full-width tap
               targets at ≤390px (cafe-opening-page.css). */}
           <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
-            {CAPTURE_LINKS.map((link) => (
+            {captureLinks.map((link) => (
               <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">
                 {t(link.key)}
               </Link>

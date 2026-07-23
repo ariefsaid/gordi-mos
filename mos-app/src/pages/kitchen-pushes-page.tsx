@@ -29,6 +29,7 @@ import { DataTable, type DataTableColumn } from '@/components/dashboard/data-tab
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
 import type { MessageKey } from '@/i18n/messages'
+import { canReviewCafe } from '@/lib/kitchen-gates'
 import './kitchen-pushes-page.css'
 
 // ── Status tag configuration (Tinted-Status pattern — dot + text, never color-alone) ──
@@ -176,7 +177,7 @@ export function KitchenPushesPage() {
 
   // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const allowed = canReviewCafe(accessRoles)
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })

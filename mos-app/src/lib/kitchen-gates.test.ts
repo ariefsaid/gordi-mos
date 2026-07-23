@@ -10,6 +10,7 @@ import {
   effectiveTarget,
   needsVarianceNote,
   transferExceedsAvailable,
+  canReviewCafe,
 } from './kitchen-gates'
 import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 
@@ -81,5 +82,23 @@ describe('transferExceedsAvailable — FR-023 / AC-022 (reject, not cap)', () =>
   })
   it('Production is never gated by tersedia (it makes stock)', () => {
     expect(transferExceedsAvailable(line({ qty_porsi: 999, tersedia: 0 }), 'Production')).toBe(false)
+  })
+})
+
+describe('canReviewCafe — JQ-1 Review/Pushes door gate', () => {
+  it('grants ops_lead', () => {
+    expect(canReviewCafe(['ops_lead'])).toBe(true)
+  })
+  it('grants admin', () => {
+    expect(canReviewCafe(['admin'])).toBe(true)
+  })
+  it('denies a plain member', () => {
+    expect(canReviewCafe(['member'])).toBe(false)
+  })
+  it('denies finance (no café review grant)', () => {
+    expect(canReviewCafe(['finance'])).toBe(false)
+  })
+  it('denies an empty role set', () => {
+    expect(canReviewCafe([])).toBe(false)
   })
 })
