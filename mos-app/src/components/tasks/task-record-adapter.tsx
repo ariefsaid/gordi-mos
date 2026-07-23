@@ -108,13 +108,20 @@ function buName(bus: readonly BusinessUnitOption[], id: string): string {
   return bus.find((b) => b.id === id)?.name ?? id
 }
 
-/** Wrap a field spec with the shared editable/read-only-reason policy. */
+/** Wrap a field spec with the shared editable policy.
+ *
+ *  R4 (owner review r2): an editable-by-design field that the current viewer can't edit shows NO
+ *  per-field reason — just its value, read-only, with no edit affordance. The single whole-record
+ *  read-only note (why the viewer can't edit) is carried ONCE by RecordViewer's footer from
+ *  adapter.permission.reason. Stamping the same "you can't edit this task" line onto every field
+ *  was the repetitive noise the owner flagged: a wall of identical reasons with no per-field intent.
+ *  A genuinely field-specific reason (e.g. the honest Team-migration state, teamOwnershipField)
+ *  still sets its own readOnlyReason directly; this shared wrapper simply never adds a blanket one. */
 function editableSpec(
   editable: boolean,
-  readOnlyReason: string,
   spec: Omit<RecordFieldSpec, 'editable'>,
 ): RecordFieldSpec {
-  return { ...spec, editable, readOnlyReason: editable ? undefined : readOnlyReason }
+  return { ...spec, editable }
 }
 
 /** i18n-able labels for the shared Task field builders. Defaults are English so the full
@@ -232,7 +239,6 @@ export function teamOwnershipField(
 function ownershipFields(
   task: Pick<TaskListRow, 'business_unit_id' | 'responsible_person_id' | 'accountable_person_id'>,
   editable: boolean,
-  readOnlyReason: string,
   people: readonly PersonOption[],
   businessUnits: readonly BusinessUnitOption[],
   // `_team` is accepted (callers still supply it, so the internal model stays honest — the Issue-8
@@ -242,7 +248,7 @@ function ownershipFields(
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
 ): RecordFieldSpec[] {
   return [
-    editableSpec(editable, readOnlyReason, {
+    editableSpec(editable, {
       key: 'businessUnit',
       label: labels.businessUnit,
       control: 'select',
@@ -250,7 +256,7 @@ function ownershipFields(
       displayValue: buName(businessUnits, task.business_unit_id),
       options: buOptions(businessUnits),
     }),
-    editableSpec(editable, readOnlyReason, {
+    editableSpec(editable, {
       key: 'pic',
       label: labels.pic,
       control: 'person',
@@ -258,7 +264,7 @@ function ownershipFields(
       displayValue: personName(people, task.responsible_person_id),
       options: personOptions(people),
     }),
-    editableSpec(editable, readOnlyReason, {
+    editableSpec(editable, {
       key: 'supervisor',
       label: labels.supervisor,
       control: 'person',
@@ -275,11 +281,10 @@ function ownershipFields(
 function dueField(
   task: Pick<TaskListRow, 'due_date'>,
   editable: boolean,
-  readOnlyReason: string,
   label: string = DEFAULT_TASK_FIELD_LABELS.dueDate,
   formatDate: (iso: string) => string = (iso) => iso,
 ): RecordFieldSpec {
-  return editableSpec(editable, readOnlyReason, {
+  return editableSpec(editable, {
     key: 'dueDate',
     label,
     control: 'date',
@@ -328,12 +333,14 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   const editable = canEdit(task, viewerId, isManager) && !archived
   const canArchiveTask = canArchive(task, viewerId, isManager)
 
+  // The ONE whole-record read-only note (why the viewer can't edit) — surfaced once by
+  // RecordViewer's footer via `permission.reason` below. It is NOT stamped onto every field
+  // (R4 — see editableSpec): a wall of identical per-field reasons was the noise the owner flagged.
   const readOnlyReason = archived ? L.readOnlyArchived : L.readOnlyNoPermission
 
   const editSpec = (spec: Omit<RecordFieldSpec, 'editable'>): RecordFieldSpec => ({
     ...spec,
     editable,
-    readOnlyReason: editable ? undefined : readOnlyReason,
   })
 
   // Document anatomy (E7 record): Ownership → Status & Timing → Details → Activity. A Task
@@ -353,7 +360,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     id: 'ownership',
     label: L.ownershipSection,
     fields: [
-      ...ownershipFields(task, editable, readOnlyReason, people, businessUnits, team, labels),
+      ...ownershipFields(task, editable, people, businessUnits, team, labels),
       {
         key: 'classification',
         label: L.classificationField,
@@ -397,7 +404,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         displayValue: task.status,
         options: TASK_STATUSES.map((s) => ({ value: s, label: s })),
       }),
-      dueField(task, editable, readOnlyReason, labels.dueDate, formatDate),
+      dueField(task, editable, labels.dueDate, formatDate),
       editSpec({
         key: 'projectProcess',
         label: L.projectProcessField,
