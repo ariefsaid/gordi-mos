@@ -166,7 +166,7 @@ export function ObjectivesPage() {
             }}
             controls={toolbar}
             empty={{ title: t('catalog.objectives.empty.title'), copy: t('catalog.objectives.empty.copy') }}
-            filteredEmpty={{ title: t('catalog.filteredEmpty.title'), clear: () => setQuery({ view: 'active', q: '', type: 'all' }) }}
+            filteredEmpty={{ title: t('catalog.filteredEmpty.title'), clear: () => setQuery({ view: 'active', q: '' }) }}
             error={{ message: t('catalog.objectives.error'), retry: () => controller.retry() }}
             loadingLabel={t('catalog.objectives.loading')}
           />
