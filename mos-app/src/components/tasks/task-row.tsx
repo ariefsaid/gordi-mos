@@ -56,7 +56,7 @@ export type TaskRowProps = {
 }
 
 export function TaskRow({
-  task, now, isSelected, isCursor, leafIndex, cursorRowRef,
+  task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
   onEditTitle,
@@ -69,11 +69,14 @@ export function TaskRow({
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
     ? (taskOverdue
-      // F3 (design review): one overdue token everywhere — full "Overdue · <date>"
-      // label in every density. A bare "!" glyph in the condensed split-drawer list
-      // read as a different state than the full table's red "Overdue · <date>";
-      // the label itself (not just color) already satisfies WCAG 1.4.1.
-      ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) })
+      // The full table shows the "Overdue · <date>" label (both text and color carry the state).
+      // In the CONDENSED (drawer-open split) tier the track is too narrow for that label to fit
+      // without clipping, so we show the bare formatted date and let the red `due-overdue` color
+      // carry the overdue meaning (owner-eyes item 3 — no mid-word clipping). The color alone is a
+      // secondary cue; the drawer beside the table names the state in full.
+      ? (condensed
+        ? formatDate(task.due_date, locale)
+        : t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }))
       : formatDate(task.due_date, locale))
     : '—'
   const isArchived = task.archived_at != null

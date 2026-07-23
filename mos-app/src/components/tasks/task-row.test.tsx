@@ -342,3 +342,22 @@ describe('TaskRow — AC-T04 row hover/selected styling (CSS lock)', () => {
     expect(selBody).not.toMatch(/var\(--primary\)/)
   })
 })
+
+describe('TaskRow — owner-eyes item 3: condensed Due never carries the clip-prone "Overdue ·" prefix', () => {
+  it('full table shows the "Overdue · <date>" label (text + color)', () => {
+    renderRow({ condensed: false })
+    // due 2026-06-12 vs NOW 2026-06-19 → overdue
+    const due = document.querySelector('.due-overdue')!
+    expect(due).toBeTruthy()
+    expect(due.textContent).toMatch(/Overdue ·\s*Fri 12 Jun/)
+  })
+
+  it('condensed (drawer-open split) shows the bare formatted date — the red color carries the overdue meaning', () => {
+    renderRow({ condensed: true })
+    const due = document.querySelector('.due-overdue')!
+    expect(due).toBeTruthy()
+    // no "Overdue ·" prefix in the narrow split track (no mid-word clipping)
+    expect(due.textContent).not.toMatch(/Overdue/)
+    expect(due.textContent).toMatch(/Fri 12 Jun/)
+  })
+})

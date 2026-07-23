@@ -24,7 +24,9 @@ export function PicCell({ fullName, provenance }: PicCellProps) {
     ? `${t('tasks.pic')}: ${fullName} (${t('tasks.pic.via', { role: provenance })})`
     : `${t('tasks.pic')}: ${fullName}`
   return (
-    <div className="owner task-pic-cell" aria-label={label}>
+    // `title` carries the full PIC name as a hover tooltip — the sole name affordance in the
+    // condensed (drawer-open split) tier where the row renders the avatar only (owner-eyes item 3).
+    <div className="owner task-pic-cell" aria-label={label} title={fullName}>
       <span className="ownav" aria-hidden="true">{initials(fullName)}</span>
       {provenance ? (
         <span className="owner-name-stack">
