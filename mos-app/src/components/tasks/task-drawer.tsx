@@ -150,7 +150,42 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const [resolvedTitle, setResolvedTitle] = useState<string | null>(null)
   useEffect(() => { setResolvedTitle(null) }, [taskId])
 
-  const close = () => navigate({ pathname: '/work/tasks', search: location.search })
+  // D-B1 (OD-REDESIGN-22): the route drawer mounts RecordPanelHost directly (no OverlayHost
+  // requestLeave), so it owns the SAME dirty leave-guard the in-list overlay path has. A dirty
+  // create draft (bubbled up via CreateSurface's onDirtyChange) or a dirty view-mode RecordField
+  // edit must prompt "Discard unsaved changes?" before any Escape/close leaves. dirtyRef is read
+  // synchronously so an immediate Escape right after a keystroke still vetoes the leave.
+  const dirtyRef = useRef(false)
+  const pendingLeaveRef = useRef<(() => void) | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const onDirtyChange = useCallback((dirty: boolean) => { dirtyRef.current = dirty }, [])
+  // guardedClose interposes the confirm ONLY when there is unsaved work; a clean drawer closes
+  // immediately (AC-306/307/308/309 unchanged). `proceed` is the concrete navigation to run.
+  const guardedClose = useCallback((proceed: () => void) => {
+    if (dirtyRef.current) {
+      pendingLeaveRef.current = proceed
+      setConfirmOpen(true)
+      return
+    }
+    proceed()
+  }, [])
+  const cancelLeave = useCallback(() => {
+    pendingLeaveRef.current = null
+    setConfirmOpen(false)
+  }, [])
+  const discardAndLeave = useCallback(async () => {
+    dirtyRef.current = false
+    setConfirmOpen(false)
+    const proceed = pendingLeaveRef.current
+    pendingLeaveRef.current = null
+    proceed?.()
+  }, [])
+
+  const leaveToList = useCallback(
+    () => navigate({ pathname: '/work/tasks', search: location.search }),
+    [navigate, location.search],
+  )
+  const close = () => guardedClose(leaveToList)
   const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
   const openPage = mode === 'view' && taskId
     ? () => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } })
@@ -219,21 +254,40 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         onTaskArchived={ctx?.onTaskArchived}
         onTitleResolved={setResolvedTitle}
         showPanelUtility={false}
+        // D-B1: view-mode RecordField draft state and create-mode form leave both feed the guard.
+        onDirtyChange={onDirtyChange}
+        onRequestLeave={guardedClose}
+        // Freeze RecordField commits for the render in which the confirm opens, so the dialog's
+        // auto-focus can't race a still-editing field's blur into a stray commit (record-field.tsx).
+        fieldCommitsFrozen={confirmOpen}
       />
     </>
   )
 
   return (
-    <RecordPanelHost
-      label={label}
-      onClose={close}
-      expanded={expanded}
-      focusKey={`${taskId ?? mode}-${mode}`}
-      title={label}
-      actions={hostActions}
-      onOpenPage={openPage}
-    >
-      {surface}
-    </RecordPanelHost>
+    <>
+      <RecordPanelHost
+        label={label}
+        onClose={close}
+        expanded={expanded}
+        focusKey={`${taskId ?? mode}-${mode}`}
+        title={label}
+        actions={hostActions}
+        onOpenPage={openPage}
+        transitionPending={confirmOpen}
+      >
+        {surface}
+      </RecordPanelHost>
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t('tasks.unsaved.title')}
+        body={t('tasks.unsaved.copy')}
+        confirmLabel={t('tasks.unsaved.discard')}
+        cancelLabel={t('tasks.cancel')}
+        tone="destructive"
+        onConfirm={discardAndLeave}
+        onCancel={cancelLeave}
+      />
+    </>
   )
 }

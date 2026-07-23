@@ -82,6 +82,13 @@ export type TaskSurfaceProps = {
   /** Bubbles RecordField draft state to a host-owned leave guard. */
   onDirtyChange?: (dirty: boolean) => void
   /**
+   * D-B1: the create form's own Cancel / Close controls route their leave through this so a host
+   * (TaskDrawer) can interpose its dirty leave-guard. The surface calls it with the concrete
+   * navigation to run once leaving is allowed; when omitted (standalone TaskSurface) the surface
+   * navigates directly, unchanged.
+   */
+  onRequestLeave?: (proceed: () => void) => void
+  /**
    * True while the host's own leave-guard confirmation dialog is open (D1 fix). Forwarded
    * straight to RecordViewer's `fieldCommitsFrozen` — see record-field.tsx's header note.
    */
@@ -755,7 +762,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskSurfaceProps) {
+function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirtyChange, onRequestLeave }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -816,6 +823,14 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
   const [workLineId, setWorkLineId] = useState('')
   const [objectiveId, setObjectiveId] = useState('')
 
+  // D-B1: dirty = the user has started composing (any field the user has touched). Programmatic
+  // prefills (primaryRoleBU, viewer defaults) set state directly, never through markDirty, so an
+  // untouched create drawer stays clean and closes without a confirm. Bubbled to the host
+  // (TaskDrawer) so its leave-guard can prompt before a typed draft is discarded on Escape/close.
+  const [dirty, setDirty] = useState(false)
+  const markDirty = () => setDirty((was) => (was ? was : true))
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+
   // Set BU once directory loads (in case primaryRoleBU wasn't set at mount).
   // A pre-filled BU (deep-link) is never overwritten.
   useEffect(() => {
@@ -874,6 +889,9 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
         objectiveId: objectiveId || null,
       }
       const newId = await createTask(input)
+      // The create succeeded: this is no longer an unsaved draft, so the destination record must
+      // NOT trip the host leave-guard as we navigate onto it.
+      setDirty(false)
       onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
       navigate({ pathname: `/work/tasks/${newId}`, search: collectionSearchString })
     } catch {
@@ -887,6 +905,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
   // .record-chrome strip above the card (mirrors ViewSurface) so the collapse control
   // is never lost when expanded promotes the surface to full width.
   const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchString })
+  // D-B1: the create form's own leave controls (chrome ✕ / Cancel) defer to the host leave-guard
+  // when one is present (TaskDrawer), so a typed draft prompts a discard confirm instead of
+  // vanishing. Standalone (no host) the leave runs directly, unchanged.
+  const requestClose = () => (onRequestLeave ? onRequestLeave(closeToCollection) : closeToCollection())
 
   const expandBtn = (
     <button
@@ -914,7 +936,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
       className="dw-iconbtn"
       aria-label={t('tasks.close')}
       title={t('tasks.close')}
-      onClick={closeToCollection}
+      onClick={requestClose}
     >
       <CloseIcon />
     </button>
@@ -930,7 +952,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
 
   const actionButtons = (
     <>
-      <button type="button" className="btn btn-outline" onClick={closeToCollection}>{t('tasks.cancel')}</button>
+      <button type="button" className="btn btn-outline" onClick={requestClose}>{t('tasks.cancel')}</button>
       <button
         type="submit"
         className="btn btn-primary"
@@ -975,7 +997,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
             fullWidth
             error={Boolean(titleError)}
             value={title}
-            onChange={e => { setTitle(e.target.value); if (titleError) setTitleError('') }}
+            onChange={e => { setTitle(e.target.value); markDirty(); if (titleError) setTitleError('') }}
             onBlur={validateTitleOnBlur}
             aria-required="true"
             aria-describedby={titleError ? 'title-err' : undefined}
@@ -1002,7 +1024,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               fullWidth
               error={Boolean(buError)}
               value={businessUnitId}
-              onChange={e => { setBusinessUnitId(e.target.value); if (buError) setBuError('') }}
+              onChange={e => { setBusinessUnitId(e.target.value); markDirty(); if (buError) setBuError('') }}
               onBlur={validateBuOnBlur}
               aria-required="true"
               aria-describedby={buError ? 'bu-err' : undefined}
@@ -1033,7 +1055,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               className="tc-select"
               fullWidth
               value={responsiblePersonId}
-              onChange={e => setResponsiblePersonId(e.target.value)}
+              onChange={e => { setResponsiblePersonId(e.target.value); markDirty() }}
               disabled={submitting}
               aria-label={t('tasks.pic')}
               aria-required="true"
@@ -1058,7 +1080,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               className="tc-select"
               fullWidth
               value={accountablePersonId}
-              onChange={e => setAccountablePersonId(e.target.value)}
+              onChange={e => { setAccountablePersonId(e.target.value); markDirty() }}
               disabled={submitting}
               aria-label={t('tasks.supervisor')}
               aria-required="true"
@@ -1080,7 +1102,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               className="tc-select"
               fullWidth
               value={workLineId}
-              onChange={e => setWorkLineId(e.target.value)}
+              onChange={e => { setWorkLineId(e.target.value); markDirty() }}
               disabled={submitting}
               aria-label={t('tasks.filter.projectProcess')}
             >
@@ -1104,7 +1126,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
               className="tc-select"
               fullWidth
               value={objectiveId}
-              onChange={e => setObjectiveId(e.target.value)}
+              onChange={e => { setObjectiveId(e.target.value); markDirty() }}
               disabled={submitting}
               aria-label={t('tasks.objective')}
             >
@@ -1124,7 +1146,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
             className="tc-date"
             fullWidth
             value={dueDate}
-            onChange={setDueDate}
+            onChange={(v) => { setDueDate(v); markDirty() }}
             disabled={submitting}
             aria-label={t('tasks.create.dueDate')}
           />
@@ -1137,7 +1159,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated }: TaskS
             id="task-desc"
             className="tc-textarea"
             value={description}
-            onChange={e => setDescription(e.target.value)}
+            onChange={e => { setDescription(e.target.value); markDirty() }}
             rows={3}
             placeholder={t('tasks.create.descriptionPlaceholder')}
             disabled={submitting}

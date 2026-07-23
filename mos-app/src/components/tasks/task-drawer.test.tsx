@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -234,6 +234,66 @@ describe('TaskDrawer — expanded@split mounts the full-width record document (E
     await screen.findByText('Fix the coffee machine')
     expect(document.querySelector('.record-doc')).toBeNull()
     expect(document.querySelector('.dw-surface')).toBeTruthy()
+  })
+})
+
+// D-B1 (OD-REDESIGN-22): the route drawer (/work/tasks/new + collapse-to-split) mounts
+// RecordPanelHost directly, so before this fix Escape/close discarded a typed draft instantly
+// with no confirm — the in-list overlay path already guards it. TaskDrawer now owns the same
+// dirty leave-guard: a dirty create draft (or view-mode field edit) prompts "Discard unsaved
+// changes?" on Escape/close, and a clean drawer still closes immediately.
+describe('TaskDrawer — create/route dirty-guard (D-B1)', () => {
+  it('typing a title then Escape shows the discard confirm and does NOT drop the draft', async () => {
+    renderAt('/work/tasks/new', 'create')
+    await screen.findByRole('complementary', { name: /create task/i })
+    const title = screen.getByLabelText(/^title$/i)
+    fireEvent.change(title, { target: { value: 'Draft that must not vanish' } })
+    fireEvent.keyDown(title, { key: 'Escape' })
+    // Guarded: the confirm appears; we did NOT leave to the list.
+    expect(await screen.findByRole('dialog', { name: /discard unsaved changes/i })).toBeInTheDocument()
+    expect(screen.queryByTestId('list-here')).toBeNull()
+  })
+
+  it('confirming discard leaves to the list (preserving the saved view)', async () => {
+    renderAt('/work/tasks/new?view=mine', 'create')
+    await screen.findByRole('complementary', { name: /create task/i })
+    fireEvent.change(screen.getByLabelText(/^title$/i), { target: { value: 'Draft' } })
+    fireEvent.keyDown(screen.getByLabelText(/^title$/i), { key: 'Escape' })
+    const dialog = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
+    fireEvent.click(within(dialog).getByRole('button', { name: /discard changes/i }))
+    await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine')
+  })
+
+  it('cancelling the confirm keeps the create drawer open with the draft intact', async () => {
+    renderAt('/work/tasks/new', 'create')
+    await screen.findByRole('complementary', { name: /create task/i })
+    fireEvent.change(screen.getByLabelText(/^title$/i), { target: { value: 'Keep me' } })
+    fireEvent.keyDown(screen.getByLabelText(/^title$/i), { key: 'Escape' })
+    const dialog = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
+    fireEvent.click(within(dialog).getByRole('button', { name: /^cancel$/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /discard unsaved changes/i })).toBeNull())
+    // Still on the create drawer, draft preserved.
+    expect(screen.getByRole('complementary', { name: /create task/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/^title$/i)).toHaveValue('Keep me')
+    expect(screen.queryByTestId('list-here')).toBeNull()
+  })
+
+  it('the Close (Esc) chrome button on a DIRTY create draft also routes through the guard', async () => {
+    renderAt('/work/tasks/new', 'create')
+    await screen.findByRole('complementary', { name: /create task/i })
+    fireEvent.change(screen.getByLabelText(/^title$/i), { target: { value: 'Draft' } })
+    fireEvent.click(screen.getByRole('button', { name: /close \(esc\)/i }))
+    expect(await screen.findByRole('dialog', { name: /discard unsaved changes/i })).toBeInTheDocument()
+    expect(screen.queryByTestId('list-here')).toBeNull()
+  })
+
+  it('a CLEAN (untouched) create drawer still closes immediately on Escape — no confirm', async () => {
+    renderAt('/work/tasks/new', 'create')
+    const aside = await screen.findByRole('complementary', { name: /create task/i })
+    fireEvent.keyDown(aside, { key: 'Escape' })
+    await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
+    expect(screen.queryByRole('dialog', { name: /discard unsaved changes/i })).toBeNull()
   })
 })
 
