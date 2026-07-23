@@ -592,6 +592,10 @@ export const messages = {
     'signals.composer.occurredLabel': 'Occurred at',
     'signals.composer.author': 'Posted by ${name}',
     'signals.composer.categoryHelp': 'Category is added after posting — it never blocks capture.',
+    // SIG-2 — the honest empty state when the viewer belongs to no team (nothing to post to).
+    'signals.composer.noTeams.title': 'No team to post to',
+    'signals.composer.noTeams.copy': 'A Signal is always posted to a team you belong to, and you are not a member of any team yet — so there is nowhere to share this.',
+    'signals.composer.noTeams.note': 'Ask an admin or your team lead to add you to a team.',
     'signals.action.share': 'Share Signal',
     'signals.composer.close': 'Close Share Signal',
     'signals.mention.pickerLabel': 'Mention a person, team, or BU',
@@ -1353,6 +1357,10 @@ export const messages = {
     'signals.composer.occurredLabel': 'Terjadi pada',
     'signals.composer.author': 'Diposting oleh ${name}',
     'signals.composer.categoryHelp': 'Kategori ditambahkan setelah diposting — tidak pernah menghalangi pencatatan.',
+    // SIG-2 — status kosong yang jujur ketika pengguna tidak tergabung dalam tim mana pun.
+    'signals.composer.noTeams.title': 'Belum ada tim untuk diposting',
+    'signals.composer.noTeams.copy': 'Sinyal selalu diposting ke tim yang Anda ikuti, dan Anda belum menjadi anggota tim mana pun — jadi belum ada tujuan untuk membagikannya.',
+    'signals.composer.noTeams.note': 'Minta admin atau ketua tim Anda untuk menambahkan Anda ke sebuah tim.',
     'signals.action.share': 'Bagikan Sinyal',
     'signals.composer.close': 'Tutup Bagikan Sinyal',
     'signals.mention.pickerLabel': 'Sebut orang, tim, atau BU',

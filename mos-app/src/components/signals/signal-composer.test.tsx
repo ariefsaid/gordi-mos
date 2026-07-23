@@ -68,6 +68,31 @@ beforeEach(() => {
   mockCreateSignal.mockResolvedValue('signal-new')
 })
 
+// SIG-2 — a viewer with no team memberships gets an honest empty state, not a dead composer.
+describe('SignalComposer — no-team empty state (SIG-2)', () => {
+  it('renders an empty state explaining why, instead of an empty select + forever-disabled submit', async () => {
+    mockListAuthorTeams.mockResolvedValue([])
+    renderComposer()
+
+    // The empty state resolves once the (empty) team load settles.
+    expect(await screen.findByText('No team to post to')).toBeInTheDocument()
+    expect(screen.getByText(/Ask an admin or your team lead/i)).toBeInTheDocument()
+
+    // No dead controls: no owning-Team select, no disabled Share Signal button.
+    expect(screen.queryByRole('combobox', { name: /team/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /share signal/i })).not.toBeInTheDocument()
+  })
+
+  it('does not flash the empty state before the team load resolves', () => {
+    let resolveTeams: (t: TeamOption[]) => void = () => {}
+    mockListAuthorTeams.mockReturnValue(new Promise<TeamOption[]>((r) => { resolveTeams = r }))
+    renderComposer()
+    // Still loading → the form (its Share Signal button) is present, the empty state is not.
+    expect(screen.queryByText('No team to post to')).not.toBeInTheDocument()
+    resolveTeams([])
+  })
+})
+
 describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
   it('paints exactly the four capture fields and enables Share Signal with only body typed', async () => {
     renderComposer()

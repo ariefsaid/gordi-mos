@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { EmptyState } from '@/components/ui/state-kit'
 import {
   listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
@@ -42,6 +43,7 @@ export function SignalComposer({
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
+  const [teamsLoaded, setTeamsLoaded] = useState(false)
   const [teamId, setTeamId] = useState('')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
   const [site, setSite] = useState<SiteOption | null>(null)
@@ -57,6 +59,7 @@ export function SignalComposer({
 
   useEffect(() => {
     let cancelled = false
+    setTeamsLoaded(false)
     const teamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
     Promise.all([teamsLoad, getPeople(), getBusinessUnits()]).then(([teamOptions, peopleOptions, buOptions]) => {
       if (cancelled) return
@@ -66,6 +69,7 @@ export function SignalComposer({
       setPeople(peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })))
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
+      .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
   }, [authorId, canCreateForTeam])
 
@@ -131,6 +135,23 @@ export function SignalComposer({
     } finally {
       setPosting(false)
     }
+  }
+
+  // SIG-2: a viewer with no team memberships (e.g. Finance, an org-wide role) has nothing to
+  // post a Signal TO — the owning-Team select would render empty and Share Signal would sit
+  // disabled forever with no explanation. Once the team load resolves empty, show an honest
+  // empty state that says why and who to ask, instead of a dead control.
+  if (teamsLoaded && teams.length === 0) {
+    return (
+      <div className="signal-composer" data-testid="signal-composer">
+        <EmptyState
+          variant="blank"
+          title={t('signals.composer.noTeams.title')}
+          copy={t('signals.composer.noTeams.copy')}
+          note={t('signals.composer.noTeams.note')}
+        />
+      </div>
+    )
   }
 
   return (
