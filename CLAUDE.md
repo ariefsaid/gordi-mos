@@ -46,7 +46,7 @@ push / merge / deploy. Per-issue loop:
    change lands WITH its goal-level test in the same commit — test-with suffices on understood
    seams; red-first stays required for bug fixes (the failing repro is the proof), uncertain logic,
    and changes to protected interaction seams. No untested prod code, ever.
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (4-lens) for UI.
+5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; for UI the layered design battery (OD-REDESIGN-89): mechanical guards (pre-merge-wired) → census protocol Steps 1–6 → Storybook states + axe → interaction-contract conformance → Luna (live-drive, E7 floor, OFFICIAL verdict, carrying the JTBD intent lens, oracle `docs/jtbd.md`) — the standalone 4-lens essay review is retired.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
 8. **Ship** — `release-engineer` (branch → commit → push → PR). Director merges.
@@ -88,7 +88,7 @@ provider is unavailable — the loop is substrate-agnostic.
 - **Data/schema:** reversible migrations; **RLS on every business table**; `org_id` + app/workspace
   seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
-  source of truth; 4-lens design review (Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) before merging UI changes.
+  source of truth; the layered design battery (OD-REDESIGN-89): mechanical guards (pre-merge-wired) → census protocol Steps 1–6 → Storybook states + axe → interaction-contract conformance → Luna (live-drive, E7 floor, OFFICIAL verdict, carrying the JTBD intent lens, oracle `docs/jtbd.md`) must be green + ledgered (artifacts, not essays) before merging UI changes.
 - **Review battery (BLOCKING):** before offering or performing merge-to-main, the full review battery (spec · code-quality · design if any `*.tsx`/`*.css` changed · security if any auth/RLS/schema path changed) MUST have run and be recorded in `docs/reviews/<branch>.md`, verified by `bash scripts/pre-merge-check.sh` (exit 0). Green gates ≠ reviewed. No ledger + no passing script run = no merge.
 - **Owner-artifact deviations (BLOCKING):** any build-time deviation from an owner artifact — a sketch,
   a verbatim directive, a mockup pick — MUST become a `RATIFY-BEFORE-MERGE:` line in the step ledger.

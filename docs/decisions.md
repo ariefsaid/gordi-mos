@@ -2080,3 +2080,21 @@ what-should-already-understood seams." Amended discipline:
   the goal, never re-stage the journey ceremony.
 - BDD authoring rule unchanged: app conforms to the test; deliberate UX changes update journey
   steps only, goal-oracles intact.
+
+### OD-REDESIGN-89 — the 4-lens design review dissolves into the layered battery (owner 2026-07-23)
+
+Owner: "i dont think 4 lens is effective. as can be noted so far." Evidence: five 4-lens rounds
+passed surfaces the owner's eye and the census protocol then failed — perspective essays inherit
+sampling blind spots; enumeration and independence do not. The design review of record is now the
+**layered battery** (all green + ledgered before any owner viewing):
+0. Mechanical guards (wired into pre-merge-check.sh — a UI diff cannot merge on prose).
+1. Census protocol Steps 1–6 on the surface's current state (artifacts attached; score without
+   them is void).
+2. Storybook states + unscoped axe for changed shared components.
+3. Interaction-contract conformance (the verb grammar of docs/plans/2026-07-23-interaction-consistency.md).
+4. Luna, live-driving, floor-ruled, OFFICIAL verdict — carrying the retained product-intent/JTBD
+   judgment lens (oracle docs/jtbd.md).
+The standalone 4-lens essay review is retired; the design-reviewer role runs the census protocol +
+the JTBD intent check instead. Ledger records artifacts, not essays. The owner's viewing is
+acceptance, never defect-hunting; any owner-caught pixel defect is a process bug whose class
+becomes a guard the same day.

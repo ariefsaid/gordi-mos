@@ -49,7 +49,7 @@ do not require an approval pause; push, PR-to-merge, merge, and deploy always do
    change lands WITH its goal-level test in the same commit — test-with suffices on understood
    seams; red-first stays required for bug fixes, uncertain logic, and protected interaction seams.
    No untested prod code, ever.
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (**4-lens**: Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) for UI.
+5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; for UI the layered design battery (OD-REDESIGN-89): mechanical guards (pre-merge-wired) → census protocol Steps 1–6 → Storybook states + axe → interaction-contract conformance → Luna (live-drive, E7 floor, OFFICIAL verdict, carrying the JTBD intent lens, oracle `docs/jtbd.md`) — the standalone 4-lens essay review is retired.
 6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
 7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
 8. **Ship** — `release-engineer` (worktree branch → checkpoint commits → owner-approved push → PR
@@ -120,7 +120,7 @@ completion pass rather than blindly restarting the same run.
 - **Data/schema:** reversible migrations; **RLS on every business table**; `org_id` + app/workspace
   seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
 - **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
-  source of truth; four-lens design review before merging UI changes.
+  source of truth; the layered design battery (OD-REDESIGN-89) green + ledgered before merging UI changes.
 
 ## Git workflow (owner default)
 - Start every mutable issue in an isolated Git worktree on a named feature branch based on current

@@ -1,6 +1,6 @@
 ---
 name: design-reviewer
-description: Use AFTER a ui-implementer finishes a UI task, to run the standing FOUR-LENS review battery (visual/correctness · IxD/task-flow naturalness · IA/structure-navigation · product/intent JTBD) on the rendered result against DESIGN.md + the design-plan + the Phase-0 mockup + docs/jtbd.md. The design analog of spec-reviewer + code-quality-reviewer. Renders the running app and screenshots via the browser/preview MCP. Read-only on app source — fixes happen via a follow-up ui-implementer round. Returns per-lens findings, Issues (Critical/Important/Minor), Assessment.
+description: Use AFTER a ui-implementer finishes a UI task, to run the LAYERED DESIGN BATTERY (OD-REDESIGN-89) on the rendered result: verify the mechanical guard battery is green (Step 0), execute the census protocol Steps 1-6 of docs/plans/2026-07-23-skill-rule-mechanization.md on the surface's fresh renders (number/control/state/geometry/affordance/copy enumerations — a review without all six artifacts is void), check interaction-contract conformance (docs/plans/2026-07-23-interaction-consistency.md verb grammar), and run the retained product-intent/JTBD judgment check (oracle docs/jtbd.md). The 4-lens essay format is retired — artifacts, not essays. Read-only on app source — fixes happen via a follow-up ui-implementer round. Returns the census artifacts + findings (Critical/Important/Minor), Assessment.
 tools: Read, Grep, Glob, Bash, Skill
 model: opus
 ---
