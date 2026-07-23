@@ -65,6 +65,9 @@ for s in ui-ux-pro-max design-system ui-styling; do
     if [ -d "$base" ]; then
       rm -rf "${DEST:?}/$s"
       cp -RL "$base" "$DEST/$s"
+      # upstream keeps SKILL.md in .claude/skills/<s>/ while the payload lives in src/<s>/ —
+      # copy it too or the vendored skill is headless (silent-failure class; owner directive 2026-07-23)
+      [ -f "$TMP/uupm/.claude/skills/$s/SKILL.md" ] && cp "$TMP/uupm/.claude/skills/$s/SKILL.md" "$DEST/$s/SKILL.md"
       break
     fi
   done
