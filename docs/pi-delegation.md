@@ -24,8 +24,10 @@ Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; p
 > concurrency gate, cooldown state (`pi-dispatch cooldowns`), a 30-min stall watchdog (transcript-growth
 > based), and a token ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
 > Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
-> (cross-family) · `review-money` (**Luna-only, caller passes `--thinking max`; no fallback — failure =
-> escalate, never a weaker reviewer**). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
+> (cross-family) · `review-money` (**Luna-only at max thinking — baked into the
+> ladder; no fallback — failure = escalate, never a weaker reviewer**) · `multimodal` (vision judgment:
+> minimax → inkling → Luna; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
+> loops, Luna fallback; no claude rung — orchestrate failure escalates to the Director). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
 > provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
 > limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
 > capability rationale; the wrapper's ladders are the executable form. **openrouter remains banned.**
