@@ -259,13 +259,13 @@
 /* OD-REDESIGN-22 (D-C1): a failed checklist write shows a visible error + Retry. */
 .checklist-save-error {
   display: flex; align-items: center; gap: 8px;
-  margin: 8px 0 0; font-size: 12px; color: var(--destructive);
+  margin: 8px 0 0; font-size: var(--font-size-label); color: var(--field-error-text);
 }
 .checklist-retry {
   min-height: 24px; padding: 2px 8px;
   border: 1px solid var(--destructive); border-radius: var(--radius-sm);
   background: transparent; color: var(--destructive);
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: var(--font-size-label); font-weight: 600; cursor: pointer;
 }
 .checklist-add-input {
   width: 100%; border: 0; outline: none; background: transparent;

@@ -13,6 +13,7 @@
 // OverlayEntry.leaveGuard. Related links call onOpenRelated (or their href).
 import { useId, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
+import { reportError } from '@/lib/telemetry'
 import { Button, type ButtonVariant } from '@/components/ui/button'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { RecordField } from './record-field'
@@ -228,7 +229,13 @@ function RecordBody({
                 variant={ACTION_VARIANT[action.intent]}
                 disabled={action.disabled}
                 title={action.disabled ? action.disabledReason : undefined}
-                onClick={() => void action.run()}
+                onClick={() => {
+                  // Central net: an adapter action whose run() rejects must never become an
+                  // unhandled rejection — adapters own the visible error UX; this only reports.
+                  void Promise.resolve(action.run()).catch((error) =>
+                    reportError(error, { source: 'record-viewer.action', action: action.id }),
+                  )
+                }}
               >
                 {action.label}
               </Button>
