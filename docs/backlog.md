@@ -1,5 +1,11 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
+- **Impeccable-audit P3s for owner walkthrough (2026-07-23):** (a) toolbar controls render 38px
+  vs DESIGN.md's 32px control token — consistent, minor, taste call; (b) desktop Task full page
+  leaves ~230px unused right gutter (spec caps measure, doesn't mandate filling) — taste call;
+  (c) confirm the Home attention time-window behavior across the WIB midnight boundary (digest
+  composition legitimately shifted mid-audit when the date rolled — likely correct, unconfirmed).
+
 - **Dead-code sweep after the attention-pill fold (deferred 2026-07-23):** `DueRunsTrigger`
   (component + test + `.due-runs-trigger`/`.due-runs-chev` CSS in `due-runs.css`) went dormant
   when the two toolbar stat pills folded into one attention pill (commit `61f6087`). Deferred
