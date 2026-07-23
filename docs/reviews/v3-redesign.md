@@ -1663,3 +1663,26 @@ calmer single surface.
 fixed: feed phone title starvation (DO-14), saved-view strip clip + condensed title wrap (DO-18a/b),
 create-door band gating (DO-17). Residuals → lane `v3/luna-floor`. Next Luna pass runs from a
 PINNED detached checkout (this pass drifted 2 merges mid-audit; noted, tolerated for INTERIM only).
+
+## Content-first record anatomy adopted — RATIFY-BEFORE-MERGE (2026-07-23, lane v3/anatomy)
+
+FR-ANAT-009 (Task) + FR-ANAT-010 (Follow-up) recomposed to the declared content-first anatomy
+(`docs/specs/record-page-anatomy.spec.md` §2.2/§2.3). Both surfaces are BUMPED gen-2 in
+`docs/audits/REGISTER.md`. Per the spec's "Refinement of record" note, adopting content-first is a
+deviation from `DESIGN.md` → *RecordViewer* (which documents the region order Identity → *metadata /
+relations* → **Content** → Activity → Actions): the build leads with Content by packing each kind's
+ordered regions into content slots (the shared `record-viewer.tsx` region order is left untouched —
+a global flip would endanger every other consumer). The `DESIGN.md` RecordViewer region table is the
+downstream conformance debt to reconcile.
+
+- RATIFY-BEFORE-MERGE (Task record, FR-ANAT-009): region order moved from E7/`DESIGN.md`
+  *Ownership → Status&Timing → Details → Activity* to content-first **Content (Title+Description, Status+Due
+  ride) → Ownership → Relations → Checklist → Activity**. Consequential deliberate UX change: the tabbed
+  RecordFeed (AC-R03 Activity/Checklist tab grammar, ADR-0013 D3) is retired — Checklist and Activity are
+  now separate stacked content slots in one column (drawer + page), superseding the two-column details|feed
+  page. Step-2.5 recorded green (observed === declared, F1–F5 false) via `task-record-anatomy.test.tsx`.
+- RATIFY-BEFORE-MERGE (Follow-up record, FR-ANAT-010): region order moved from *Commitment → Money →
+  Owner&dates → (notes) → activity* to content-first **Outstanding (leads) → Settlement → Roles → Promises
+  (conditional) → Audit history**; the per-field read-only provenance captions (one per field, 9 total)
+  collapse to the single whole-record note (LAW-6 / F3). Step-2.5 recorded green via
+  `follow-up-record-anatomy.test.tsx`.
