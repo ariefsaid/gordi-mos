@@ -237,6 +237,46 @@ describe('TaskDrawer — expanded@split mounts the full-width record document (E
   })
 })
 
+// DO-4 (census-sweep R2, task-create F1): ONE create header. RecordPanelHost owns the chrome
+// ("Create task" title · expand · ✕); CreateSurface suppresses its own near-identical bar via
+// showPanelUtility=false, so the doubled ~92–120px header and the second same-named close
+// button are gone. DO-15(f) (F9): the expand toggle only renders at ≥1100px, where the
+// full-width promotion it triggers actually exists.
+describe('TaskDrawer — single create header (DO-4) + expand gating (DO-15f)', () => {
+  it('DO-4: the create drawer renders ONE chrome bar — host-owned, no surface .dw-bar', async () => {
+    renderAt('/work/tasks/new', 'create')
+    const aside = await screen.findByRole('complementary', { name: /create task/i })
+    // The host chrome is the one bar; the surface's duplicate bar is suppressed.
+    expect(aside.querySelectorAll('.record-panel-chrome')).toHaveLength(1)
+    expect(aside.querySelector('.dw-bar')).toBeNull()
+    // Exactly ONE ✕ on the chrome dismiss axis (the host's own); Cancel stays in the foot.
+    expect(screen.getAllByRole('button', { name: /^close/i })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
+  })
+
+  it('DO-4: the host bar carries the expand toggle at split width (create-mode actions)', async () => {
+    renderAt('/work/tasks/new', 'create')
+    const aside = await screen.findByRole('complementary', { name: /create task/i })
+    const toggle = screen.getByRole('button', { name: /expand to full width/i })
+    expect(aside.querySelector('.record-panel-chrome')).toContainElement(toggle)
+  })
+
+  it('DO-15(f): below the split width the expand toggle does not render (it would be a no-op)', async () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    renderAt('/work/tasks/new', 'create')
+    await screen.findByRole('dialog', { name: /create task/i })
+    expect(screen.queryByRole('button', { name: /expand to full width/i })).toBeNull()
+  })
+
+  it('DO-15(f): view mode also hides the expand toggle below the split width', async () => {
+    stubWidths({ split: false, band: true, desktop: true })
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/work/tasks/task-abc')
+    await screen.findByRole('dialog', { name: /task detail/i })
+    expect(screen.queryByRole('button', { name: /expand to full width/i })).toBeNull()
+  })
+})
+
 // D-B1 (OD-REDESIGN-22): the route drawer (/work/tasks/new + collapse-to-split) mounts
 // RecordPanelHost directly, so before this fix Escape/close discarded a typed draft instantly
 // with no confirm — the in-list overlay path already guards it. TaskDrawer now owns the same
@@ -279,11 +319,12 @@ describe('TaskDrawer — create/route dirty-guard (D-B1)', () => {
     expect(screen.queryByTestId('list-here')).toBeNull()
   })
 
-  it('the Close (Esc) chrome button on a DIRTY create draft also routes through the guard', async () => {
+  it('the host ✕ chrome button on a DIRTY create draft also routes through the guard', async () => {
+    // DO-4: the create drawer's one ✕ is the HOST's own close (the surface bar is suppressed).
     renderAt('/work/tasks/new', 'create')
     await screen.findByRole('complementary', { name: /create task/i })
     fireEvent.change(screen.getByLabelText(/^title$/i), { target: { value: 'Draft' } })
-    fireEvent.click(screen.getByRole('button', { name: /close \(esc\)/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^close$/i }))
     expect(await screen.findByRole('dialog', { name: /discard unsaved changes/i })).toBeInTheDocument()
     expect(screen.queryByTestId('list-here')).toBeNull()
   })
@@ -353,9 +394,10 @@ describe('TaskDrawer — focus regime (AC-110)', () => {
   })
 
   it('AC-309: create close from /work/tasks/new?view=mine returns to /work/tasks?view=mine', async () => {
+    // DO-4 journey step: the one create ✕ is now the host's own close button.
     renderAt('/work/tasks/new?view=mine', 'create')
     await screen.findByRole('complementary', { name: /create task/i })
-    fireEvent.click(screen.getByRole('button', { name: /close \(esc\)/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^close$/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })
 

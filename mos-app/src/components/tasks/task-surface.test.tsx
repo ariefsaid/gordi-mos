@@ -649,6 +649,28 @@ describe('TaskSurface — create mode', () => {
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Drawer task' })))
   })
 
+  // DO-4 (census-sweep R2, task-create F1): CreateSurface honors showPanelUtility exactly like
+  // ViewSurface — when the overlay host owns the chrome, the surface renders NO bar of its own.
+  it('DO-4: showPanelUtility=false suppresses the create-mode chrome bar (host owns the chrome)', async () => {
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/tasks/new']}>
+          <TaskSurface
+            taskId={null} mode="create" width="drawer"
+            expanded={false} onExpandToggle={vi.fn()} onClose={vi.fn()}
+            showPanelUtility={false}
+          />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    expect(document.querySelector('.dw-bar')).toBeNull()
+    expect(screen.queryByRole('button', { name: /expand to full width/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /close/i })).toBeNull()
+    // The form itself is intact (Cancel + submit still present).
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
+  })
+
   // M5: the create-mode drawer bar must include the expand toggle for parity
   // with view mode (mockup Screen 2). It reflects `expanded` and calls back.
   it('M5: create-mode drawer bar shows the expand toggle and calls onExpandToggle', async () => {

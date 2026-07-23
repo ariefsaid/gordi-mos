@@ -776,7 +776,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirtyChange, onRequestLeave }: TaskSurfaceProps) {
+function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -955,14 +955,19 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
       <CloseIcon />
     </button>
   )
-  const chromeBar = (
+  // DO-4 (census-sweep R2, task-create F1): when the overlay host owns the chrome
+  // (showPanelUtility=false — same contract ViewSurface already honors), the surface renders NO
+  // bar of its own. Before this, RecordPanelHost's "Create task ✕" bar and this near-identical
+  // bar stacked (~92–120px of pure duplication, two same-named close buttons on one dismiss
+  // axis). The host carries the title, the expand toggle (its create-mode actions), and the one ✕.
+  const chromeBar = showPanelUtility ? (
     <div className={inDrawer ? 'dw-bar' : 'dw-bar record-chrome'}>
       <span className="dw-crumb-mini">{expanded ? t('tasks.create.newFullWidth') : t('tasks.create.new')}</span>
       <span className="dw-bar-spacer" />
       {onExpandToggle && expandBtn}
       {closeBtn}
     </div>
-  )
+  ) : null
 
   const actionButtons = (
     <>
