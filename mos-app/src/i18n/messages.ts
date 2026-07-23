@@ -433,6 +433,17 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Note required — off plan',
     'kitchen.log.stepper.capCue': 'Insufficient stock — produce first',
     'kitchen.log.footer.noteRequired': 'Note required to submit',
+    // ── Pushes (S5) status + ESB target labels — humanized enums (census FLAG-E). ESB
+    //    target names per docs/reference/esb-goo-integration.md (GKID = production Core API,
+    //    GOO = staging branch/SAE tenant). ──
+    'kitchen.push.status.posted': 'Posted',
+    'kitchen.push.status.pending': 'Pending',
+    'kitchen.push.status.in_flight': 'In flight',
+    'kitchen.push.status.failed': 'Failed',
+    'kitchen.push.status.dead_letter': 'Dead letter',
+    'kitchen.push.env.gkid': 'GKID prod',
+    'kitchen.push.env.goo': 'GOO staging',
+    'kitchen.push.env.dry_run': 'Dry run',
     // ── Redesign Step 2 — new rail/destination/job-sentence/stub keys (spec §3.1, Rule 1/3/7). ──
     'dest.events': 'Events',
     'dest.money': 'Money',
@@ -1170,6 +1181,17 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
     'kitchen.log.stepper.capCue': 'Stok kurang — produksi dulu',
     'kitchen.log.footer.noteRequired': 'Isi catatan wajib untuk submit',
+    // ── Label status + target ESB Pushes (S5) — enum yang dimanusiakan (census FLAG-E).
+    //    Nama target ESB per docs/reference/esb-goo-integration.md (GKID = Core API produksi,
+    //    GOO = branch staging/tenant SAE). ──
+    'kitchen.push.status.posted': 'Terkirim',
+    'kitchen.push.status.pending': 'Menunggu',
+    'kitchen.push.status.in_flight': 'Diproses',
+    'kitchen.push.status.failed': 'Gagal',
+    'kitchen.push.status.dead_letter': 'Gagal permanen',
+    'kitchen.push.env.gkid': 'GKID prod',
+    'kitchen.push.env.goo': 'GOO staging',
+    'kitchen.push.env.dry_run': 'Uji coba',
     // ── Redesign Step 2 — kunci rail/destinasi/kalimat-kerja/stub baru (spec §3.1, Rule 1/3/7). ──
     'dest.events': 'Acara',
     'dest.money': 'Keuangan',

@@ -319,15 +319,17 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     expect(await screen.findByText(/Connection refused/i)).toBeInTheDocument()
   })
 
-  it('target_env displayed for each row (dry_run vs goo/gkid)', async () => {
+  it('target_env displayed for each row with humanized ESB names (census FLAG-E)', async () => {
     mockListPushes.mockResolvedValue([POSTED_ROW, DEAD_LETTER_ROW])
     render(<KitchenPushesPage />)
     await screen.findByText('PR-20260621-001')
-    // goo and dry_run are both present
+    // POSTED_ROW is goo → "GOO staging"; DEAD_LETTER_ROW is dry_run → "Dry run"
     const rows = screen.getAllByRole('row')
     const rowText = rows.map(r => r.textContent ?? '')
-    expect(rowText.some(t => t.includes('goo'))).toBe(true)
-    expect(rowText.some(t => t.includes('dry_run'))).toBe(true)
+    expect(rowText.some(t => t.includes('GOO staging'))).toBe(true)
+    expect(rowText.some(t => t.includes('Dry run'))).toBe(true)
+    // raw enum tokens must not leak
+    expect(rowText.some(t => /\bgoo\b|dry_run/.test(t))).toBe(false)
   })
 
   it('source_ref (batch_id) rendered in a mono font class', async () => {
@@ -419,10 +421,26 @@ describe('KitchenPushesPage — all status values render', () => {
     render(<KitchenPushesPage />)
     await screen.findByText('PR-20260621-001')
 
-    // Each status appears as visible text (not color-only — WCAG 1.4.1)
-    expect(screen.getByText('posted')).toBeInTheDocument()
-    expect(screen.getByText('dead_letter')).toBeInTheDocument()
-    expect(screen.getByText('failed')).toBeInTheDocument()
-    expect(screen.getByText('pending')).toBeInTheDocument()
+    // Each status appears as a visible, HUMANIZED status TAG (census FLAG-E — not the raw
+    // enum, not color-only, WCAG 1.4.1). Scope to the .mk-tag pills so "Posted" the status
+    // doesn't collide with the "Posted" (posted_at) column header.
+    const tagTexts = Array.from(document.querySelectorAll('.mk-tag')).map(t => t.textContent)
+    expect(tagTexts).toContain('Posted')
+    expect(tagTexts).toContain('Dead letter')
+    expect(tagTexts).toContain('Failed')
+    expect(tagTexts).toContain('Pending')
+    // the raw enum tokens must not leak to the UI
+    expect(screen.queryByText('dead_letter')).toBeNull()
+  })
+
+  // census FLAG-A: dead_letter is terminal (system failure) → destructive red tint, distinct
+  // from the retryable amber `failed`. Assert the tag palette on the two rows.
+  it('dead_letter tints destructive (red) while failed stays amber', async () => {
+    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW, FAILED_ROW])
+    render(<KitchenPushesPage />)
+    const deadTag = (await screen.findByText('Dead letter')).closest('.mk-tag')
+    const failedTag = (await screen.findByText('Failed')).closest('.mk-tag')
+    expect(deadTag?.getAttribute('style')).toContain('--ds-tag-background-red')
+    expect(failedTag?.getAttribute('style')).toContain('--ds-tag-background-amber')
   })
 })

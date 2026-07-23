@@ -44,6 +44,14 @@
   letter-spacing: 0;
 }
 
+/* census DEFECT-3: the BATCH (PR-YYYYMMDD-NNN) and ENDPOINT (assembly-actual) values were
+   wrapping to 2–3 lines because their columns were starved. nowrap forces the table to
+   allocate each column its full single-line width — no mid-token breaks on the hyphens. */
+.kpu-batch,
+.kpu-endpoint {
+  white-space: nowrap;
+}
+
 /* Tabular digits for retry_count and time columns */
 .tabular {
   font-variant-numeric: tabular-nums;

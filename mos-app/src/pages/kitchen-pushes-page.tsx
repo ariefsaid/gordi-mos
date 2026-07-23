@@ -9,8 +9,9 @@
 //   RLS is the authority; the UI gate is a courtesy (design-plan §0).
 // - READ-ONLY v1: no retry/resend/reset actions. Dead-letter manual retry is
 //   DEFERRED. The surface reads + shows status so the lead can escalate.
-// - Status badges via Tag (green=posted, neutral=pending/in_flight,
-//   amber=failed/dead_letter). target_env shown prominently (dry_run vs goo/gkid).
+// - Status badges via Tag (green=posted, neutral=pending/in_flight, amber=failed
+//   [retryable], red=dead_letter [terminal system failure, census FLAG-A]). target_env
+//   shown as its humanized ESB name (GOO staging / GKID prod / Dry run — census FLAG-E).
 // - Dead-letter rows: warning/7% fill + 2px warning left rule (the owner-approved
 //   side-stripe exception, DESIGN.md "Ops Log tokens").
 // - All states: loading / empty / error+retry / forbidden / populated.
@@ -27,33 +28,38 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
+import type { MessageKey } from '@/i18n/messages'
 import './kitchen-pushes-page.css'
 
 // ── Status tag configuration (Tinted-Status pattern — dot + text, never color-alone) ──
+// Labels flow through i18n (census FLAG-E — humanized, both locales), resolved at render.
+// census FLAG-A: dead_letter is TERMINAL (system failure, manual escalation) → destructive
+// red, distinct from the retryable amber `failed`. Amber = attention; red = system error.
 
-type StatusTagConfig = { color: 'green' | 'gray' | 'amber' | 'red'; label: string }
+type StatusTagConfig = { color: 'green' | 'gray' | 'amber' | 'red'; labelKey: MessageKey }
 
 function statusConfig(status: EsbPushStatus): StatusTagConfig {
   switch (status) {
-    case 'posted':    return { color: 'green',  label: 'posted' }
-    case 'pending':   return { color: 'gray',   label: 'pending' }
-    case 'in_flight': return { color: 'gray',   label: 'in_flight' }
-    case 'failed':    return { color: 'amber',  label: 'failed' }
-    case 'dead_letter': return { color: 'amber', label: 'dead_letter' }
+    case 'posted':    return { color: 'green', labelKey: 'kitchen.push.status.posted' }
+    case 'pending':   return { color: 'gray',  labelKey: 'kitchen.push.status.pending' }
+    case 'in_flight': return { color: 'gray',  labelKey: 'kitchen.push.status.in_flight' }
+    case 'failed':    return { color: 'amber', labelKey: 'kitchen.push.status.failed' }
+    case 'dead_letter': return { color: 'red', labelKey: 'kitchen.push.status.dead_letter' }
   }
 }
 
 // ── target_env tag configuration ──
 // gkid = calm blue (live target — not an alarm, OQ-6 owner choice: calm blue chosen).
-// goo / dry_run = neutral gray.
+// goo / dry_run = neutral gray. Labels are the proper ESB target names (docs/reference/
+// esb-goo-integration.md: GKID = production Core API, GOO = staging branch/SAE), i18n'd.
 
-type EnvTagConfig = { color: 'blue' | 'gray'; label: string }
+type EnvTagConfig = { color: 'blue' | 'gray'; labelKey: MessageKey }
 
 function envConfig(env: EsbTargetEnv): EnvTagConfig {
   switch (env) {
-    case 'gkid':    return { color: 'blue', label: 'gkid' }
-    case 'goo':     return { color: 'gray', label: 'goo' }
-    case 'dry_run': return { color: 'gray', label: 'dry_run' }
+    case 'gkid':    return { color: 'blue', labelKey: 'kitchen.push.env.gkid' }
+    case 'goo':     return { color: 'gray', labelKey: 'kitchen.push.env.goo' }
+    case 'dry_run': return { color: 'gray', labelKey: 'kitchen.push.env.dry_run' }
   }
 }
 
@@ -88,24 +94,28 @@ function formatDate(iso: string | null): string {
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
-const pushColumns: DataTableColumn<EsbPushRow>[] = [
+// Column factory (mirrors kitchen-stock-page's stockColumns(t)) so the Target/Status tag
+// labels resolve through the i18n seam (census FLAG-E). BATCH + ENDPOINT carry nowrap
+// classes so the 81 batch IDs stop wrapping 2–3 lines (census DEFECT-3).
+function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] {
+ return [
   {
     key: 'source_ref',
     header: 'Batch',
     cardLabel: '',
-    render: row => <span className="mono">{row.source_ref}</span>,
+    render: row => <span className="mono kpu-batch">{row.source_ref}</span>,
   },
   {
     key: 'endpoint',
     header: 'Endpoint',
-    render: row => <span className="kpu-cell-muted">{row.endpoint}</span>,
+    render: row => <span className="kpu-cell-muted kpu-endpoint">{row.endpoint}</span>,
   },
   {
     key: 'target_env',
     header: 'Target',
     render: row => {
       const cfg = envConfig(row.target_env)
-      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+      return <Tag color={cfg.color} weight="medium">{t(cfg.labelKey)}</Tag>
     },
   },
   {
@@ -113,7 +123,7 @@ const pushColumns: DataTableColumn<EsbPushRow>[] = [
     header: 'Status',
     render: row => {
       const cfg = statusConfig(row.status)
-      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+      return <Tag color={cfg.color} weight="medium">{t(cfg.labelKey)}</Tag>
     },
   },
   { key: 'retry_count', header: 'Retries', numeric: true },
@@ -153,7 +163,8 @@ const pushColumns: DataTableColumn<EsbPushRow>[] = [
     header: 'Posted',
     render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
   },
-]
+ ]
+}
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -260,7 +271,7 @@ export function KitchenPushesPage() {
 
       {load.kind === 'ready' && rows.length > 0 && (
         <DataTable
-          columns={pushColumns}
+          columns={pushColumns(t)}
           rows={rows}
           isDesktop={isDesktop}
           rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
