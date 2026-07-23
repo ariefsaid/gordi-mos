@@ -47,6 +47,27 @@ vi.mock('@/lib/db/admin-users', () => ({
   restorePerson: vi.fn(),
   synthesizeEmail: vi.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}@ops.gordi.local`),
 }))
+// Census FLAG-D enumeration — the four Café/Kitchen heads (Plan editor + Pesanan, Stock,
+// Review, Pushes) join the sweep so their naked count chips (32/326/10/81) can't re-grow.
+vi.mock('@/lib/db/kitchen-logs', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
+  return {
+    ...actual,
+    fetchKitchenStock: vi.fn(),
+    listActiveWipItems: vi.fn(),
+    fetchPlanMap: vi.fn(),
+    listSubmittedKitchenLogs: vi.fn(),
+    approveKitchenLog: vi.fn(),
+    rejectKitchenLog: vi.fn(),
+  }
+})
+vi.mock('@/lib/db/kitchen-plans', () => ({
+  listKitchenPlans: vi.fn(),
+  listPesanan: vi.fn(),
+  upsertKitchenPlan: vi.fn(),
+}))
+vi.mock('@/lib/db/kitchen-pushes', () => ({ listEsbPushes: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn(), getBusinessUnits: vi.fn() }))
 
 import { listObjectivesAll } from '@/lib/db/objectives'
 import { listWorkLinesAll } from '@/lib/db/work-lines'
@@ -54,9 +75,17 @@ import { listTasks } from '@/lib/db/tasks'
 import { useAuth } from '@/auth/use-auth'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listAdminPeople } from '@/lib/db/admin-users'
+import { fetchKitchenStock, listActiveWipItems, fetchPlanMap, listSubmittedKitchenLogs } from '@/lib/db/kitchen-logs'
+import { listKitchenPlans, listPesanan } from '@/lib/db/kitchen-plans'
+import { listEsbPushes } from '@/lib/db/kitchen-pushes'
+import { getPeople } from '@/lib/db/directory'
 import { ObjectivesPage } from './objectives-page'
 import { ProjectsProcessesPage } from './projects-processes-page'
 import { AdminUsersPage } from './admin-users-page'
+import { KitchenStockPage } from './kitchen-stock-page'
+import { KitchenPlanPage } from './kitchen-plan-page'
+import { KitchenReviewPage } from './kitchen-review-page'
+import { KitchenPushesPage } from './kitchen-pushes-page'
 
 const ADMIN_VIEWER: AuthState = {
   status: 'authenticated',
@@ -147,5 +176,69 @@ describe('GUARD-R2 sweep: no page head shows a number without a label sentence',
     expect(head.querySelector('.ch-count')).toBeNull()
     expect(bareNumberLeaves(head)).toHaveLength(0)
     expect(screen.getByTestId('people-count-line').textContent?.trim()).toBe('—')
+  })
+})
+
+// ── Census FLAG-D: the Café/Kitchen heads join the sweep ──────────────────────
+const MEMBER_VIEWER: AuthState = {
+  status: 'authenticated',
+  viewer: {
+    person: {
+      id: 'member-id', org_id: 'org-1', user_id: 'member-user', full_name: 'Krishna Kitchen',
+      email: 'krishna@gordi.id', archived_at: null,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    },
+    roles: [], isManager: false, accessRoles: ['member'],
+  },
+  signOut: vi.fn(),
+}
+
+describe('GUARD-R2 sweep (FLAG-D): the Café/Kitchen heads carry labeled meta, no naked chip', () => {
+  beforeEach(() => {
+    // ADMIN_VIEWER (from the outer beforeEach) sees the lead faces: Plan EDITOR, Review, Pushes.
+    vi.mocked(fetchKitchenStock).mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Nasi Putih', category: 'Rice/Staple', stok: 10, tersedia: 20 },
+    ])
+    vi.mocked(listActiveWipItems).mockResolvedValue([{ id: 'w1', name: 'Ayam Bakar', category: 'Chicken' }])
+    vi.mocked(listKitchenPlans).mockResolvedValue([
+      { id: 'pl1', wip_item_id: 'w1', action_type: 'Production', qty_porsi: 12 },
+    ])
+    vi.mocked(listPesanan).mockResolvedValue([
+      { log_date: '2026-07-23', wip_item_id: 'w1', wip_item_name: 'Sate', category: 'Meat', action_type: 'Production', qty_porsi: 5 },
+    ])
+    vi.mocked(listSubmittedKitchenLogs).mockResolvedValue([
+      { id: 'lg1', log_date: '2026-07-23', action_type: 'Production', wip_item_id: 'w1', wip_item_name: 'Risoles', qty_porsi: 8, notes: null, status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-07-23T09:00:00Z' },
+    ])
+    vi.mocked(fetchPlanMap).mockResolvedValue({})
+    vi.mocked(getPeople).mockResolvedValue([{ id: 'p1', full_name: 'Budi Santoso' }])
+    vi.mocked(listEsbPushes).mockResolvedValue([
+      { id: 'e1', source_module: 'kitchen', source_ref: 'PR-20260723-001', endpoint: 'assembly-actual', target_env: 'goo', status: 'posted', retry_count: 0, last_error: null, esb_doc_num: 'ESB-1', created_at: '2026-07-23T09:00:00Z', posted_at: '2026-07-23T09:05:00Z' },
+    ])
+  })
+
+  it('GUARD-R2/cafe-stock: the Stock head has no .ch-count pill and no bare-number leaf', async () => {
+    renderInApp(<KitchenStockPage />)
+    await assertHeadClean('Nasi Putih')
+  })
+
+  it('GUARD-R2/cafe-plan (editor): the Plan head has no .ch-count pill and no bare-number leaf', async () => {
+    renderInApp(<KitchenPlanPage />)
+    await assertHeadClean('Ayam Bakar')
+  })
+
+  it('GUARD-R2/cafe-plan (pesanan): the member horizon head has no .ch-count pill and no bare-number leaf', async () => {
+    vi.mocked(useAuth).mockReturnValue(MEMBER_VIEWER)
+    renderInApp(<KitchenPlanPage />)
+    await assertHeadClean('Sate')
+  })
+
+  it('GUARD-R2/cafe-review: the Review head has no .ch-count pill and no bare-number leaf', async () => {
+    renderInApp(<KitchenReviewPage />)
+    await assertHeadClean('Risoles')
+  })
+
+  it('GUARD-R2/cafe-pushes: the Pushes head has no .ch-count pill and no bare-number leaf', async () => {
+    renderInApp(<KitchenPushesPage />)
+    await assertHeadClean('PR-20260723-001')
   })
 })

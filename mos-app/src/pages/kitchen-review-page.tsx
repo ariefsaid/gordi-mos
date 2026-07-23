@@ -566,8 +566,13 @@ export function KitchenReviewPage() {
       family="workspace"
       title="Café · Review"
       jobSentence={t('job.cafe')}
-      count={load.kind === 'ready' ? submittedCount : null}
-      meta={<span className="kr-date tabular">{logDate}</span>}
+      meta={
+        // census FLAG-D: labeled meta sentence, not a naked count chip ("N submitted · <date>").
+        <span className="kr-meta">
+          {load.kind === 'ready' && `${submittedCount} submitted · `}
+          <span className="kr-date tabular">{logDate}</span>
+        </span>
+      }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
 

@@ -116,8 +116,13 @@ export function KitchenStockPage() {
       family="workspace"
       title="Café · Stock"
       jobSentence={t('job.cafe')}
-      count={load.kind === 'ready' ? rows.length : null}
-      meta={<span className="ks-date tabular">{asOf}</span>}
+      meta={
+        // census FLAG-D: no naked count chip — a labeled meta sentence ("N dishes · <date>").
+        <span className="ks-meta">
+          {load.kind === 'ready' && `${rows.length} ${rows.length === 1 ? 'dish' : 'dishes'} · `}
+          <span className="ks-date tabular">{asOf}</span>
+        </span>
+      }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'}
     >
 

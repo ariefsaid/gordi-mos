@@ -251,8 +251,13 @@ function PlanEditor() {
       family="workspace"
       title="Café · Plan"
       jobSentence={t('job.cafe')}
-      count={load.kind === 'ready' ? items.length : null}
-      meta={<span className="kp-date tabular">{logDate}</span>}
+      meta={
+        // census FLAG-D: labeled meta sentence, not a naked count chip ("N dishes · <date>").
+        <span className="kp-meta">
+          {load.kind === 'ready' && `${items.length} ${items.length === 1 ? 'dish' : 'dishes'} · `}
+          <span className="kp-date tabular">{logDate}</span>
+        </span>
+      }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
 
@@ -390,8 +395,13 @@ function PesananView() {
       family="workspace"
       title="Café · Plan"
       jobSentence={t('job.cafe')}
-      count={load.kind === 'ready' ? rows.length : null}
-      meta={<span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>}
+      meta={
+        // census FLAG-D: labeled meta sentence, not a naked count chip ("N planned · next 14 days").
+        <span className="kp-meta">
+          {load.kind === 'ready' && `${rows.length} planned · `}
+          <span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>
+        </span>
+      }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
 

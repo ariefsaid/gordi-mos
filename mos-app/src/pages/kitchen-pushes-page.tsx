@@ -239,7 +239,12 @@ export function KitchenPushesPage() {
       family="workspace"
       title="Café · Pushes"
       jobSentence={t('job.cafe')}
-      count={load.kind === 'ready' ? rows.length : null}
+      meta={
+        // census FLAG-D: labeled meta sentence, not a naked count chip ("N in outbox").
+        load.kind === 'ready'
+          ? <span className="kpu-meta">{rows.length} in outbox</span>
+          : undefined
+      }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'}
     >
 
