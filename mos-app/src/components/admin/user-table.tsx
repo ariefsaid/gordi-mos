@@ -62,10 +62,15 @@ function LoginStatusPill({ status }: { status: LoginStatus }) {
 
 // ── RoleChips ─────────────────────────────────────────────────────────────────
 
+// Access-role tags are neutral: DESIGN.md documents a per-role color scheme only for
+// Objective/Project/Process RACI governance chips (§Governance role chips) — NOT for admin
+// access roles — and The One Blue Rule reserves saturated blue for the primary action alone.
+// So ops_lead reads neutral like every other role (was 'sky', an undocumented lone blue that
+// sat next to the primary '+ Add person' button). V3 sweep F3.
 const ROLE_COLOR: Record<string, TagColor> = {
   admin: 'slate',
   finance: 'slate',
-  ops_lead: 'sky',
+  ops_lead: 'slate',
   member: 'gray',
   manager: 'gray',
 }
