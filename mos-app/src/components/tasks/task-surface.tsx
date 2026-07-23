@@ -29,6 +29,8 @@ import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useTabMemory } from './use-tab-memory'
 import type { TabKey } from './use-tab-memory'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
+import { formatDate } from './task-formatters'
 import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Select } from '@/components/ui/select'
 import { DateField } from '@/components/ui/date-field'
@@ -129,6 +131,7 @@ function ViewSurface({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const isManager = auth.status === 'authenticated' ? auth.viewer.isManager : false
   const t = useT()
+  const { locale } = useI18n()
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -319,6 +322,9 @@ function ViewSurface({
       objectives: objectivesDir,
       workLines: workLinesDir,
       generatedFromLabel,
+      // item 2: the record's Due uses the SAME formatter family as the table row ("Wed 8 Jul"),
+      // never the raw ISO. The field's `value` stays ISO for the edit control.
+      formatDate: (iso) => formatDate(iso, locale),
       labels: {
         businessUnit: t('tasks.field.businessUnit'),
         pic: t('tasks.pic'),
@@ -384,7 +390,7 @@ function ViewSurface({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     data, localTask, localChecklist, viewerId, isManager, peopleDirectory, busDirectory,
-    objectivesDir, workLinesDir, generatedFromLabel, comments, now, editable, feedTab, setFeedTab, t,
+    objectivesDir, workLinesDir, generatedFromLabel, comments, now, editable, feedTab, setFeedTab, t, locale,
   ])
 
   const commitField = createTaskFieldCommit({

@@ -102,6 +102,23 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.actions.map((a) => a.id)).toContain('complete')
   })
 
+  it('item 2 (owner-eyes): Due displayValue uses the injected formatter family; value stays raw ISO', () => {
+    // Default (no formatter) keeps the raw ISO in displayValue — the adapter's own literals.
+    const rawDue = fieldByKey(createTaskRecordAdapter(makeInput()), 'dueDate')
+    expect(rawDue.value).toBe('2026-07-25')
+    expect(rawDue.displayValue).toBe('2026-07-25')
+
+    // When the live surface injects the table's date formatter, the record's Due reads the SAME
+    // "Wed 8 Jul"-style string as the table row — never the raw ISO — while the edit control's
+    // value is still the ISO the date input reads/writes.
+    const formatted = fieldByKey(
+      createTaskRecordAdapter(makeInput({ formatDate: (iso) => `fmt(${iso})` })),
+      'dueDate',
+    )
+    expect(formatted.value).toBe('2026-07-25')
+    expect(formatted.displayValue).toBe('fmt(2026-07-25)')
+  })
+
   it('§Task-11: PIC/Supervisor labels, Business Unit present, NO Team field before Issue 8, no RACI, checklist inherits ownership', () => {
     const adapter = createTaskRecordAdapter(makeInput())
     const bu = fieldByKey(adapter, 'businessUnit')

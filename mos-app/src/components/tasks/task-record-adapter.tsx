@@ -69,6 +69,13 @@ export interface TaskRecordAdapterInput {
    * conditional (E7 record grammar), never a fabricated placeholder.
    */
   generatedFromLabel?: string | null
+  /**
+   * Formats an ISO `YYYY-MM-DD` into the record's DISPLAY string. The live TaskSurface passes the
+   * SAME `task-formatters.formatDate` family the table row uses (V3 owner-eyes item 2) so a record's
+   * Due reads "Wed 8 Jul", never the raw ISO "2026-07-08". Omitted → the raw ISO is shown (keeps the
+   * adapter's own unit tests literal). The field's `value` stays the ISO string for the edit control.
+   */
+  formatDate?: (iso: string) => string
   onUpdateField: (field: TaskViewerFieldKey, value: string | null) => Promise<void>
   onUpdateStatus: (next: TaskStatus) => Promise<void>
   onArchive: () => Promise<void>
@@ -258,19 +265,22 @@ function ownershipFields(
   ]
 }
 
-/** The Task due-date field (a text-like date control that holds a draft), shared by both adapters. */
+/** The Task due-date field (a text-like date control that holds a draft), shared by both adapters.
+ *  `formatDate` renders the value-first DISPLAY string (item 2 — same formatter family as the table);
+ *  `value` stays the raw ISO the edit control writes/reads. */
 function dueField(
   task: Pick<TaskListRow, 'due_date'>,
   editable: boolean,
   readOnlyReason: string,
   label: string = DEFAULT_TASK_FIELD_LABELS.dueDate,
+  formatDate: (iso: string) => string = (iso) => iso,
 ): RecordFieldSpec {
   return editableSpec(editable, readOnlyReason, {
     key: 'dueDate',
     label,
     control: 'date',
     value: task.due_date,
-    displayValue: task.due_date ?? 'No due date',
+    displayValue: task.due_date ? formatDate(task.due_date) : 'No due date',
   })
 }
 
@@ -306,6 +316,7 @@ export function createTaskFieldCommit(
 
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
   const { detail, viewerId, isManager, people, businessUnits, objectives = [], workLines = [], team } = input
+  const formatDate = input.formatDate ?? ((iso: string) => iso)
   const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
   const L = { ...DEFAULT_TASK_RECORD_LABELS, ...input.recordLabels }
   const task = detail.task
@@ -382,7 +393,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         displayValue: task.status,
         options: TASK_STATUSES.map((s) => ({ value: s, label: s })),
       }),
-      dueField(task, editable, readOnlyReason, labels.dueDate),
+      dueField(task, editable, readOnlyReason, labels.dueDate, formatDate),
       editSpec({
         key: 'projectProcess',
         label: L.projectProcessField,
