@@ -26,6 +26,8 @@ import { ViewTabs } from '@/components/ui/view-tabs'
 import { usePeopleListPresentsCards } from './use-people-list-presents-cards'
 import { roleLabel } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow, LoginStatus } from '@/lib/db/admin-users.types'
+import { useT } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 import './people-toolbar.css'
 
 // ── PersonAction union type (item 12) ────────────────────────────────────────
@@ -47,16 +49,17 @@ const LOGIN_TONE: Record<LoginStatus, PillTone> = {
   disabled: 'warning',
 }
 
-const LOGIN_LABEL: Record<LoginStatus, string> = {
-  none: 'No login',
-  active: 'Active',
-  disabled: 'Disabled',
+const LOGIN_LABEL_KEY: Record<LoginStatus, MessageKey> = {
+  none: 'admin.people.login.none',
+  active: 'admin.people.login.active',
+  disabled: 'admin.people.login.disabled',
 }
 
 function LoginStatusPill({ status }: { status: LoginStatus }) {
+  const t = useT()
   return (
     <Pill tone={LOGIN_TONE[status]}>
-      {LOGIN_LABEL[status]}
+      {t(LOGIN_LABEL_KEY[status])}
     </Pill>
   )
 }
@@ -77,9 +80,10 @@ const ROLE_COLOR: Record<string, TagColor> = {
 }
 
 function RoleChips({ roles }: { roles: string[] }) {
+  const t = useT()
   if (roles.length === 0) {
     return (
-      <span style={{ color: 'var(--muted-foreground)' }} aria-label="No roles">
+      <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.roles.none')}>
         —
       </span>
     )
@@ -129,6 +133,7 @@ function PersonActionMenu({
   onClose,
   labelledById,
 }: PersonActionMenuProps) {
+  const t = useT()
   const lastAdmin = isLastActiveAdmin(person, people)
 
   function dispatch(action: PersonAction) {
@@ -154,7 +159,7 @@ function PersonActionMenu({
         className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
         onClick={() => dispatch('manage-roles')}
       >
-        Manage roles
+        {t('admin.people.action.manageRoles')}
       </button>
 
       <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -167,7 +172,7 @@ function PersonActionMenu({
           className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('reset-password')}
         >
-          Reset password
+          {t('admin.people.action.resetPassword')}
         </button>
       )}
 
@@ -177,14 +182,14 @@ function PersonActionMenu({
           type="button"
           tabIndex={0}
           aria-disabled={lastAdmin ? 'true' : undefined}
-          title={lastAdmin ? "Can't remove the last admin" : undefined}
+          title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
           className={[
             'w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
             lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
           ].filter(Boolean).join(' ')}
           onClick={() => !lastAdmin && dispatch('disable-login')}
         >
-          Disable login
+          {t('admin.people.action.disableLogin')}
         </button>
       )}
 
@@ -196,7 +201,7 @@ function PersonActionMenu({
           className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('enable-login')}
         >
-          Enable login
+          {t('admin.people.action.enableLogin')}
         </button>
       )}
 
@@ -208,7 +213,7 @@ function PersonActionMenu({
           className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('create-login')}
         >
-          Create login
+          {t('admin.people.action.createLogin')}
         </button>
       )}
 
@@ -222,7 +227,7 @@ function PersonActionMenu({
           className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('restore')}
         >
-          Restore
+          {t('admin.people.action.restore')}
         </button>
       ) : (
         <button
@@ -230,7 +235,7 @@ function PersonActionMenu({
           type="button"
           tabIndex={0}
           aria-disabled={lastAdmin ? 'true' : undefined}
-          title={lastAdmin ? "Can't remove the last admin" : undefined}
+          title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
           className={[
             'w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
             lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
@@ -238,7 +243,7 @@ function PersonActionMenu({
           style={{ color: lastAdmin ? undefined : 'var(--destructive)' }}
           onClick={() => !lastAdmin && dispatch('archive')}
         >
-          Archive
+          {t('admin.people.action.archive')}
         </button>
       )}
     </div>
@@ -266,6 +271,7 @@ const MENU_SIDE_MARGIN = 8
 const ESTIMATED_MENU_HEIGHT = 200
 
 function PersonActions({ person, people, onAction }: PersonActionsProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -334,7 +340,7 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
         ref={triggerRef}
         id={btnId}
         type="button"
-        aria-label={`More actions for ${person.full_name}`}
+        aria-label={t('admin.people.moreActionsFor', { name: person.full_name })}
         aria-haspopup="true"
         aria-expanded={open}
         // DO-22(a) (census admin-people P2-A): persistent low-emphasis rest state — the old
@@ -383,6 +389,7 @@ interface MobileManageSheetProps {
 }
 
 function MobileManageSheet({ person, people, onAction }: MobileManageSheetProps) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -414,9 +421,9 @@ function MobileManageSheet({ person, people, onAction }: MobileManageSheetProps)
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
-        aria-label={`Manage ${person.full_name}`}
+        aria-label={t('admin.people.manageFor', { name: person.full_name })}
       >
-        Manage
+        {t('admin.people.action.manage')}
       </button>
       {open && (
         <div ref={sheetRef} className="mt-1">
@@ -441,6 +448,7 @@ function DesktopTable({
   people: AdminPersonRow[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
 }) {
+  const t = useT()
   return (
     <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
       <thead>
@@ -450,14 +458,14 @@ function DesktopTable({
             className="text-left px-4 text-xs font-semibold uppercase"
             style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '50%' }}
           >
-            Person
+            {t('admin.people.col.person')}
           </th>
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
             style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '15%' }}
           >
-            Login
+            {t('admin.people.col.login')}
           </th>
           {/* DO-22(c) (census admin-people P3-C): rebalance — the 45% roles column held 1–2
               small chips (sparse mid-row void) while Person carried the dense content. */}
@@ -466,7 +474,7 @@ function DesktopTable({
             className="text-left px-4 text-xs font-semibold uppercase"
             style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '35%' }}
           >
-            Access roles
+            {t('admin.people.col.roles')}
           </th>
           {/* No dedicated Status column: archived rows are signalled inline on the name
               (line-through + 0.6 opacity), so a permanent 10%-width header that was blank
@@ -537,6 +545,7 @@ function MobileCardList({
   people: AdminPersonRow[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col gap-3 p-3">
       {people.map((person) => (
@@ -568,7 +577,7 @@ function MobileCardList({
             {person.email && (
               <>
                 <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-                  Email
+                  {t('admin.people.card.email')}
                 </dt>
                 <dd
                   className="text-xs"
@@ -584,7 +593,7 @@ function MobileCardList({
               </>
             )}
             <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              Roles
+              {t('admin.people.card.roles')}
             </dt>
             <dd>
               <RoleChips roles={person.access_roles} />
@@ -592,10 +601,10 @@ function MobileCardList({
             {person.archived_at && (
               <>
                 <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-                  Status
+                  {t('admin.people.card.status')}
                 </dt>
                 <dd className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  Archived
+                  {t('admin.people.card.archived')}
                 </dd>
               </>
             )}
@@ -613,12 +622,12 @@ function MobileCardList({
 
 type StatusSegment = 'all' | 'active' | 'none' | 'disabled' | 'archived'
 
-const SEGMENT_OPTIONS: { value: StatusSegment; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'none', label: 'No login' },
-  { value: 'disabled', label: 'Disabled' },
-  { value: 'archived', label: 'Archived' },
+const SEGMENT_OPTIONS: { value: StatusSegment; labelKey: MessageKey }[] = [
+  { value: 'all', labelKey: 'admin.people.seg.all' },
+  { value: 'active', labelKey: 'admin.people.seg.active' },
+  { value: 'none', labelKey: 'admin.people.seg.none' },
+  { value: 'disabled', labelKey: 'admin.people.seg.disabled' },
+  { value: 'archived', labelKey: 'admin.people.seg.archived' },
 ]
 
 // ── Filter logic ──────────────────────────────────────────────────────────────
@@ -673,6 +682,7 @@ function SearchIcon() {
 
 function PeopleToolbar({ segment, onSegmentChange, searchQuery, onSearchChange }: PeopleToolbarProps) {
   const searchId = useId()
+  const t = useT()
 
   return (
     <div className="people-toolbar">
@@ -683,8 +693,8 @@ function PeopleToolbar({ segment, onSegmentChange, searchQuery, onSearchChange }
           id={searchId}
           type="search"
           role="searchbox"
-          aria-label="Search people by name or email"
-          placeholder="Search people…"
+          aria-label={t('admin.people.search.label')}
+          placeholder={t('admin.people.search.placeholder')}
           className="people-search-input"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -703,8 +713,8 @@ function PeopleToolbar({ segment, onSegmentChange, searchQuery, onSearchChange }
           compact toolbar row, not as the full-bleed sticky page strip. */}
       <div className="people-status-tabs">
         <ViewTabs
-          ariaLabel="Status filter"
-          tabs={SEGMENT_OPTIONS.map((opt) => ({ id: opt.value, label: opt.label }))}
+          ariaLabel={t('admin.people.statusFilter')}
+          tabs={SEGMENT_OPTIONS.map((opt) => ({ id: opt.value, label: t(opt.labelKey) }))}
           active={segment}
           onChange={(id) => onSegmentChange(id as StatusSegment)}
         />
@@ -724,6 +734,7 @@ export interface UserTableProps {
 
 export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: UserTableProps) {
   const presentsCards = usePeopleListPresentsCards()
+  const t = useT()
 
   // Filter state is URL-synced (I7 / D-E1): status + search survive refresh and are shareable, so
   // "filter to Disabled + search andi, then share the link" reproduces the same view. Client-side
@@ -770,11 +781,11 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: Use
         /* Org has only the admin — "Just you so far" */
         <div className="py-16 px-4">
           <EmptyState
-            title="Just you so far"
-            copy="Add your first teammate to give them access."
+            title={t('admin.people.empty.org.title')}
+            copy={t('admin.people.empty.org.copy')}
           >
             <Button variant="primary" onClick={onAddPerson}>
-              + Add person
+              {t('admin.people.addPerson')}
             </Button>
           </EmptyState>
         </div>
@@ -782,11 +793,11 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: Use
         /* Filter applied but no rows match */
         <div className="py-12 px-4">
           <EmptyState
-            title="No people match this filter"
-            copy="Try a different search term or status filter."
+            title={t('admin.people.empty.noMatch.title')}
+            copy={t('admin.people.empty.noMatch.copy')}
           >
             <Button variant="ghost" onClick={clearFilters}>
-              Clear filter
+              {t('admin.people.empty.noMatch.clear')}
             </Button>
           </EmptyState>
         </div>

@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useId } from 'react'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -51,6 +52,7 @@ type PendingConfirm =
 
 export function AdminUsersPage() {
   const auth = useAuth()
+  const t = useT()
   const viewerPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   // DO-22(b): same presentation decision the UserTable itself makes — chrome and list
   // presentation can never disagree.
@@ -113,7 +115,7 @@ export function AdminUsersPage() {
           // No confirm — low-stakes reversible action
           await setLoginEnabled(person.id, true)
           await load()
-          showToast(`${person.full_name}: login enabled.`)
+          showToast(t('admin.people.toast.loginEnabled', { name: person.full_name }))
           break
 
         case 'create-login': {
@@ -127,7 +129,7 @@ export function AdminUsersPage() {
           // No confirm — low-stakes reversible action
           await restorePerson(person.id)
           await load()
-          showToast(`${person.full_name} restored.`)
+          showToast(t('admin.people.toast.restored', { name: person.full_name }))
           break
 
         case 'manage-roles':
@@ -136,7 +138,7 @@ export function AdminUsersPage() {
           break
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Action failed. Try again.')
+      setActionError(err instanceof Error ? err.message : t('admin.people.actionFailed'))
     }
   }
 
@@ -153,14 +155,14 @@ export function AdminUsersPage() {
     await setLoginEnabled(person.id, false)
     setPendingConfirm(null)
     await load()
-    showToast(`${person.full_name}: login disabled.`)
+    showToast(t('admin.people.toast.loginDisabled', { name: person.full_name }))
   }
 
   async function handleConfirmArchive(person: AdminPersonRow) {
     await archivePerson(person.id)
     setPendingConfirm(null)
     await load()
-    showToast(`${person.full_name} archived.`)
+    showToast(t('admin.people.toast.archived', { name: person.full_name }))
   }
 
   function handleRevealDone() {
@@ -181,16 +183,16 @@ export function AdminUsersPage() {
     // never the bare ".ch-count" digit pill; "—" while counts are unknown.
     <PageFamilyFrame
       family="management"
-      title="People"
-      jobSentence="Manage who can sign in and what they can do."
+      title={t('admin.people.title')}
+      jobSentence={t('admin.people.job')}
       meta={
         <span data-testid="people-count-line" className="ch-meta-line tabular-nums">
           {loadState === 'loaded'
-            ? `${people.length} ${people.length === 1 ? 'person' : 'people'}`
+            ? t(people.length === 1 ? 'admin.people.count.one' : 'admin.people.count.other', { count: people.length })
             : '—'}
         </span>
       }
-      action={<Button variant="primary" onClick={() => setAddOpen(true)}>+ Add person</Button>}
+      action={<Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
       state={frameState}
     >
 
@@ -200,7 +202,7 @@ export function AdminUsersPage() {
           <ErrorState
             message={actionError}
             onRetry={() => setActionError('')}
-            retryLabel="Dismiss"
+            retryLabel={t('admin.people.dismiss')}
           />
         </div>
       )}
@@ -234,7 +236,7 @@ export function AdminUsersPage() {
                 className="text-xs font-semibold uppercase"
                 style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em' }}
               >
-                Person
+                {t('admin.people.col.person')}
               </span>
             </div>
             {/* Cohesion-debt 2026-07-19, item #3: one loading grammar — LoadingShell
@@ -246,7 +248,7 @@ export function AdminUsersPage() {
         {loadState === 'error' && (
           <div className="py-12 px-4">
             <ErrorState
-              message="Couldn't load people. Try again."
+              message={t('admin.people.loadError')}
               onRetry={load}
             />
           </div>
@@ -289,9 +291,9 @@ export function AdminUsersPage() {
       {pendingConfirm?.type === 'reset-password' && (
         <ConfirmDialog
           open
-          title={`Reset password for ${pendingConfirm.person.full_name}?`}
-          body="Their current password will stop working. A new temporary password will be shown once."
-          confirmLabel="Reset password"
+          title={t('admin.people.confirm.reset.title', { name: pendingConfirm.person.full_name })}
+          body={t('admin.people.confirm.reset.body')}
+          confirmLabel={t('admin.people.confirm.reset.confirm')}
           tone="primary"
           onConfirm={() => handleConfirmResetPassword(pendingConfirm.person)}
           onCancel={() => setPendingConfirm(null)}
@@ -301,9 +303,9 @@ export function AdminUsersPage() {
       {pendingConfirm?.type === 'disable-login' && (
         <ConfirmDialog
           open
-          title={`Disable sign-in for ${pendingConfirm.person.full_name}?`}
-          body="They won't be able to log in until you enable it again. Nothing is deleted."
-          confirmLabel="Disable"
+          title={t('admin.people.confirm.disable.title', { name: pendingConfirm.person.full_name })}
+          body={t('admin.people.confirm.disable.body')}
+          confirmLabel={t('admin.people.confirm.disable.confirm')}
           tone="primary"
           onConfirm={() => handleConfirmDisable(pendingConfirm.person)}
           onCancel={() => setPendingConfirm(null)}
@@ -313,9 +315,9 @@ export function AdminUsersPage() {
       {pendingConfirm?.type === 'archive' && (
         <ConfirmDialog
           open
-          title={`Archive ${pendingConfirm.person.full_name}?`}
-          body="They drop out of the directory and lose access, but nothing is deleted."
-          confirmLabel="Archive"
+          title={t('admin.people.confirm.archive.title', { name: pendingConfirm.person.full_name })}
+          body={t('admin.people.confirm.archive.body')}
+          confirmLabel={t('admin.people.confirm.archive.confirm')}
           tone="destructive"
           onConfirm={() => handleConfirmArchive(pendingConfirm.person)}
           onCancel={() => setPendingConfirm(null)}
