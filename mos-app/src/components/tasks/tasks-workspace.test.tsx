@@ -531,6 +531,34 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     expect(screen.queryByText('Ordinary task')).toBeNull()
   })
 
+  // Census R2 DO-6 (follow-ups F1 P1 + F2 P2): the reserved view must not lie about its scope
+  // ("11 items in your scope" counted TASKS) nor render live row-operating controls above a
+  // coming-soon placeholder. Only the view chips — the way back out — survive.
+  it('DO-6: the reserved Follow-ups view shows no task count and no dead row controls', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'task-1', title: 'Ordinary task' }),
+      makeTask({ id: 'task-2', title: 'Second task' }),
+    ])
+    renderTable({ savedView: makeSavedView('followups') })
+    await waitFor(() => screen.getByRole('region', { name: /follow-ups/i }))
+
+    // The result header never claims the task count as follow-up scope — it shows the honest "—".
+    const header = screen.getByTestId('collection-result-header')
+    expect(header.textContent).not.toMatch(/\d+ items in your scope/)
+    expect(header.textContent).toContain('—')
+    // The page head's meta sentence is a placeholder too, not "2 tasks".
+    expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('—')
+
+    // No dead row-operating controls: search, the View & filters door, the Table/Card switch.
+    expect(screen.queryByRole('searchbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /view & filters/i })).toBeNull()
+    expect(screen.queryByRole('tab', { name: /table/i })).toBeNull()
+
+    // The view chips stay — they are the door out of the reserved view.
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeInTheDocument()
+  })
+
   it('AC-305: after view=mine loads, Group / Unit / Status / Person still work without rewriting the saved view', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'mine', title: 'Mine task' }),

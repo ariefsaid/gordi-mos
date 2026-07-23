@@ -52,6 +52,13 @@ export interface CollectionToolbarProps<
   savedViews?: CollectionToolbarSavedViews
   toggles?: ReactNode
   className?: string
+  /**
+   * Census R2 DO-6: a reserved (coming-soon) view has no rows to operate on, so every
+   * row-operating control — search, the "View & filters" disclosure, the presentation
+   * switch, Save view — is HIDDEN rather than rendered live-but-dead above a placeholder
+   * body. Only the view chip strip survives: it is the door back out of the reserved view.
+   */
+  reserved?: boolean
 }
 
 /**
@@ -83,6 +90,7 @@ export function CollectionToolbar<
   savedViews,
   toggles,
   className,
+  reserved = false,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -103,7 +111,8 @@ export function CollectionToolbar<
   const canSave = Boolean(viewName.trim()) && !saving
   // Every secondary control lives behind the one "View & filters" door: domain filters, view-shape
   // (group/sort), Save view, and domain toggles. The collapsed toolbar is row 1 + search + trigger.
-  const hasViewOptions = filters.length > 0 || Boolean(savedViews) || Boolean(toggles)
+  // A reserved view has no rows, so the door (and everything behind it) is withheld (DO-6).
+  const hasViewOptions = !reserved && (filters.length > 0 || Boolean(savedViews) || Boolean(toggles))
   // First option is each choice's rest state; a dot on the collapsed trigger says "the view is
   // shaped by a filter you can't currently see" so the door never hides an active filter silently.
   const viewOptionsActive = filters.some(
@@ -170,20 +179,25 @@ export function CollectionToolbar<
 
         <div className="collection-toolbar__primary-spacer" />
 
-        <div className="collection-toolbar__presentations">
-          <ViewTabs
-            ariaLabel={presentation.label}
-            active={presentation.value}
-            tabs={presentation.options.map((option) => ({ id: option.value, label: option.label }))}
-            onChange={(value) => presentation.onChange(value as TPresentation)}
-          />
-        </div>
+        {/* Reserved views have no rows to re-present — a live Table/Card switch above a
+            coming-soon placeholder is a dead control (DO-6). */}
+        {!reserved && (
+          <div className="collection-toolbar__presentations">
+            <ViewTabs
+              ariaLabel={presentation.label}
+              active={presentation.value}
+              tabs={presentation.options.map((option) => ({ id: option.value, label: option.label }))}
+              onChange={(value) => presentation.onChange(value as TPresentation)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Lean query row (OD-84.1): search leads; the ONE labelled "View & filters" disclosure
           trigger trails right. Every filter/group/sort/toggle lives behind it, so the collapsed
           toolbar is just row 1 + this one line. The trigger is desktop-only — phone hosts expose
           the identical door via their outer wrapper, and this panel renders expanded within it. */}
+      {reserved ? null : (
       <div className="collection-toolbar__query">
         {search ? (
           <label className="collection-toolbar__search">
@@ -225,6 +239,7 @@ export function CollectionToolbar<
           </>
         ) : null}
       </div>
+      )}
 
       {hasViewOptions && (optionsOpen || !isDesktop) ? (
         <div

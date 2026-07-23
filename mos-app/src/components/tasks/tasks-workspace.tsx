@@ -343,6 +343,14 @@ export function TasksWorkspace({
         overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
       }
   const hasRows = projection !== null && projection.visibleRecords.length > 0
+  // Census R2 DO-6 (follow-ups F1/F2): on the Follow-ups view the loaded records are TASKS, so any
+  // count derived from `stats` mislabels tasks as follow-up scope ("11 items in your scope" above a
+  // coming-soon body). While the view is the reserved placeholder the toolbar also drops every
+  // row-operating control (search / View & filters / Table-Card) — dead controls above a
+  // placeholder teach people the surface is broken. When SHOW_FOLLOWUPS lands, the live queue
+  // (FollowUpQueueEmbed) owns its own count; `stats.total` stays wrong for this view either way.
+  const followupsView = query.view === 'followups'
+  const reservedFollowups = followupsView && !SHOW_FOLLOWUPS
   // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
   // the single create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
@@ -373,6 +381,7 @@ export function TasksWorkspace({
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
       dueRuns={dueRuns}
+      reserved={reservedFollowups}
       savedViews={{
         label: t('tasks.savedViews'),
         selectedId: state.savedViews.items.find((item) => item.id === query.savedViewId)?.id ?? null,
@@ -417,7 +426,10 @@ export function TasksWorkspace({
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
 
-  const controls = captureFirstMobile ? (
+  // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
+  // disclosure (whose whole content is now just those chips) would be a door hiding the only
+  // way out — render the chips directly instead.
+  const controls = captureFirstMobile && !reservedFollowups ? (
       <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
@@ -450,7 +462,7 @@ export function TasksWorkspace({
         // when >0; "—" while loading/error (AC-M2). The count also lives in the result-header inside
         // the card, so dropping the page-head pill loses no information.
         <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
-          {stats === null
+          {stats === null || followupsView
             ? '—'
             : [
                 t('tasks.meta.taskCount', { count: stats.total }),
@@ -469,7 +481,9 @@ export function TasksWorkspace({
               resultHeader={{
                 collectionLabel: t('tasks.title'),
                 viewLabel: viewLabel(query.view, t),
-                count: stats === null ? null : stats.total,
+                // DO-6: the Follow-ups view never shows the task-count — null renders the honest
+                // "—" placeholder instead of mislabeling tasks as follow-up scope.
+                count: stats === null || followupsView ? null : stats.total,
               }}
               controls={controls}
               empty={{

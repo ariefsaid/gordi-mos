@@ -15,6 +15,7 @@ import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
+import { EmptyState } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useTasksKeyboard } from './use-tasks-keyboard'
@@ -470,14 +471,13 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         <FollowUpQueueEmbed />
       </div>
     ) : (
-      <div className="empty-state empty-state--quiet" role="region" aria-label={t('tasks.saved.followups')}>
-        <div className="empty-state-frame">
-          <div className="empty-state-body">
-            <h3 className="empty-title">{t('tasks.followups.title')}</h3>
-            <p className="empty-copy">{t('tasks.followups.copy')}</p>
-          </div>
-        </div>
-      </div>
+      // DO-24(c): the shared EmptyState kit, not a hand-rolled copy of its markup — the bespoke
+      // div carried `.empty-state--quiet` as a dead literal and skipped the kit's icon/testid.
+      <EmptyState
+        variant="quiet"
+        title={t('tasks.followups.title')}
+        copy={t('tasks.followups.copy')}
+      />
     )
   }
 

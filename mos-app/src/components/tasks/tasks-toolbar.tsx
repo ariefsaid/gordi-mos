@@ -28,6 +28,9 @@ export type TasksToolbarProps = {
   /** The recurring-runs-due-to-start source. Its count folds into the single attention pill
    * (item 3(a)); the pill also toggles this list's disclosure when due work exists. */
   dueRuns?: UseDueRunsResult
+  /** DO-6: the active view is a reserved placeholder — only the view chips render (no dead
+   * search/filters/presentation controls above a coming-soon body). */
+  reserved?: boolean
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -69,6 +72,7 @@ export function TasksToolbar({
   personOptions,
   savedViews,
   dueRuns,
+  reserved,
 }: TasksToolbarProps) {
   const t = useT()
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
@@ -100,6 +104,7 @@ export function TasksToolbar({
   return (
     <CollectionToolbar
       className="tasks-collection-toolbar"
+      reserved={reserved}
       presentation={{
         label: t('tasks.view'),
         value: query.layout,
