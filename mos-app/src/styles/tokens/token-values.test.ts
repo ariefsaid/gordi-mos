@@ -548,12 +548,13 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       )
     })
 
-    it('--shadow-overlay: navy-tinted (NOT cool hsl(240...))', () => {
+    it('--shadow-overlay: theme-aware --shadow-cast base (SYS-3, was a fixed cool hsl that vanished in dark)', () => {
       const val = getToken('--shadow-overlay', 'indexCss')
-      // eslint-disable-next-line no-restricted-syntax -- test expectation for E7 shadow value
-      expect(val).toContain('hsl(210 40% 24%')
-      // eslint-disable-next-line no-restricted-syntax -- test expectation for old shadow value
-      expect(val).not.toContain('hsl(240 10% 8%')
+      // SYS-3: the shared (light) def now mixes the theme-aware --shadow-cast, not a hardcoded
+      // mid-navy hsl. The .dark override (asserted below) lifts the alpha so overlays keep depth.
+      expect(val).toContain('color-mix(in srgb, var(--shadow-cast) 16%')
+      // eslint-disable-next-line no-restricted-syntax -- guarding the removed old shadow value
+      expect(val).not.toContain('hsl(210 40% 24%')
     })
 
     it('--scrim: color-mix from --brand-navy @ 45% (cohesion-debt item #1 — one reconciled modal dim)', () => {
@@ -564,14 +565,66 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       expect(val).toContain('color-mix(in srgb, var(--brand-navy) 45%')
     })
 
-    it('--shadow-popover: color-mix from --brand-navy @ 10%', () => {
+    it('--shadow-popover: color-mix from --shadow-cast @ 10% (SYS-3 theme-aware base)', () => {
       const val = getToken('--shadow-popover', 'indexCss')
-      expect(val).toContain('color-mix(in srgb, var(--brand-navy) 10%')
+      expect(val).toContain('color-mix(in srgb, var(--shadow-cast) 10%')
     })
 
-    it('--shadow-drawer: color-mix from --brand-navy @ 16%', () => {
+    it('--shadow-drawer: color-mix from --shadow-cast @ 16% (SYS-3 theme-aware base)', () => {
       const val = getToken('--shadow-drawer', 'indexCss')
-      expect(val).toContain('color-mix(in srgb, var(--brand-navy) 16%')
+      expect(val).toContain('color-mix(in srgb, var(--shadow-cast) 16%')
+    })
+
+    // ── SYS-3 (backfill census, HIGH): dark-mode elevation must not collapse. The shared shadow
+    // recipes mix --shadow-cast, which is a near-black navy in light and MUST stay near-black in
+    // dark (not the mid-tone --brand-navy) AND the .dark block must lift the alpha. Source-scan
+    // guard so the fix can't silently regress. ──
+    it('--shadow-cast (light) = --brand-navy (keeps light shadows verbatim)', () => {
+      const lightBlock = indexCss.match(/:root,\s*\.light\s*{([\s\S]*?)}/)?.[1] || ''
+      expect(extractToken(lightBlock, '--shadow-cast')).toContain('var(--brand-navy)')
+    })
+
+    // channel extractor that ignores the "3" in "display-p3"
+    const p3chans = (val: string) =>
+      val.match(/display-p3\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/)!.slice(1, 4).map(Number)
+
+    it('--shadow-cast (dark) is a near-black cast, NOT the mid-tone --brand-navy', () => {
+      const darkBlock = indexCss.match(/\.dark\s*{([\s\S]*?)}/)?.[1] || ''
+      const cast = extractToken(darkBlock, '--shadow-cast')!
+      expect(cast).not.toContain('var(--brand-navy)')
+      // every channel ≤ 0.05 → genuinely near-black (dark navy 0.18/0.20/0.30 would fail this)
+      p3chans(cast).forEach((c) => expect(c).toBeLessThanOrEqual(0.05))
+    })
+
+    it('.dark lifts --shadow-rest alpha well above the light 4–5% (so it reads on a dark surface)', () => {
+      // Every --shadow-rest declaration in index.css (shared 5%/4% + the .dark override); the
+      // override MUST push the max mix to a real dark-mode depth (≥ 30%).
+      const allRest = [...indexCss.matchAll(/--shadow-rest:\s*([^;]+);/g)].map((m) => m[1])
+      const maxPct = Math.max(...allRest.flatMap((v) => (v.match(/(\d+)%/g) || []).map((p) => parseInt(p))))
+      expect(maxPct).toBeGreaterThanOrEqual(30)
+    })
+
+    // ── SYS-1 (backfill census, CRITICAL): the on-brand-chip foreground sits on theme-INVARIANT
+    // brand fills, so it must itself be theme-invariant — dark --ds-font-color-inverted must NOT
+    // flip to near-black. Source-scan on the token files (the recurrence-class guard). ──
+    it('--ds-font-color-inverted (dark) is LIGHT, matching light — not the kit near-black flip', () => {
+      const lightVal = extractToken(themeLight, '--ds-font-color-inverted')!
+      const darkVal = extractToken(themeDark, '--ds-font-color-inverted')!
+      // both are white in these files
+      p3chans(darkVal).forEach((c) => expect(c).toBeGreaterThanOrEqual(0.9)) // near-white, never 0.09
+      expect(normalizeColor(darkVal)).toBe(normalizeColor(lightVal)) // theme-invariant, like its surface
+    })
+
+    // ── SYS-4 (backfill census, MEDIUM): the theme-aware blue-on-blue-tint text token. Light = the
+    // mid-blue (unchanged); dark = a lighter blue that clears AA on the dark tint. ──
+    it('--text-on-accent-tint: light = --ds-color-blue (unchanged), dark = a lighter blue', () => {
+      const lightBlock = indexCss.match(/:root,\s*\.light\s*{([\s\S]*?)}/)?.[1] || ''
+      const darkBlock = indexCss.match(/\.dark\s*{([\s\S]*?)}/)?.[1] || ''
+      expect(extractToken(lightBlock, '--text-on-accent-tint')).toContain('var(--ds-color-blue)')
+      const darkChans = p3chans(extractToken(darkBlock, '--text-on-accent-tint')!)
+      // lighter than mid-blue (0.276/0.384/0.837): red & green channels lifted well above the mid-blue
+      expect(darkChans[0]).toBeGreaterThan(0.5)
+      expect(darkChans[1]).toBeGreaterThan(0.6)
     })
 
     it('--gradient-primary-sheen: E7 action blue stops', () => {

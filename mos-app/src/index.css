@@ -26,6 +26,12 @@
   --brand-navy:      color(display-p3 0.0313 0.0311 0.0893); /* hsl(218 46% 22%)  — structural weight */
   --brand-navy-text: color(display-p3 0.0435 0.0436 0.1192); /* hsl(218 42% 26%)  — AA text on light */
   --brand-orange:    color(display-p3 0.9 0.45 0.2);          /* vivid orange — brand sprinkle / active-tab accent (was a bad dark-brown p3 conversion) */
+  /* SYS-3 (backfill census, HIGH): the elevation-shadow CAST colour. In LIGHT, --brand-navy is a
+     near-black navy, so mixing it at low alpha gives a legible drop shadow — keep that verbatim.
+     Dark overrides this below (brand-navy is a MID-TONE in dark → its low-alpha mix vanishes on a
+     dark surface). The shadow recipes reference --shadow-cast, not --brand-navy, so the base is
+     theme-aware. No-Pure-Black-Shadow Rule preserved (light = navy; dark = a barely-navy near-black). */
+  --shadow-cast:     var(--brand-navy);
   /* Status-pill darkened-AA text tokens (DESIGN.md §5 / ADR-0008) — P3 form */
   --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
@@ -33,6 +39,12 @@
   --field-error-text:   var(--status-lost-text); /* I4 field-error text — the alias TaskSurface/catalog reference */
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
   --warning-foreground: color(display-p3 0.28 0.22 0.08);        /* hsl(28 80% 34%) — E7 deep brown */
+  /* SYS-4 (backfill census, MEDIUM) / DO-11: the theme-aware "blue text on a blue tint" pair —
+     the active rail pill (The One Blue on --ds-color-blue3) and the @mention person badge (on
+     --accent-subtle). In LIGHT this is the mid-blue --ds-color-blue verbatim (both surfaces are
+     pale → AA already; light unchanged). Dark overrides it below: mid-blue's luminance (~0.15) can
+     NEVER reach 4.5:1 on a dark tint no matter how dark the tint, so the TEXT must lighten. */
+  --text-on-accent-tint: var(--ds-color-blue);
 }
 
 .dark {
@@ -45,6 +57,14 @@
   --status-lost-text:   color(display-p3 0.92 0.60 0.60);     /* red text on dark */
   --status-violet-text: color(display-p3 0.70 0.62 1.0);      /* violet text on dark */
   --warning-foreground: color(display-p3 0.85 0.75 0.45);     /* E7 dark mode: light amber-brown — AA on bright warning tint */
+  /* SYS-3: near-black cast (a whisper of navy, not #000 → No-Pure-Black-Shadow Rule kept). The
+     dark shadow recipes below also lift the alpha: a light-theme 5% mix that reads on paper
+     needs a much deeper mix to register against a 0.10-luminance dark surface. */
+  --shadow-cast:     color(display-p3 0.008 0.008 0.02);
+  /* SYS-4: lighten the on-blue-tint text so it clears AA on the dark rail pill / mention chip.
+     Reuses the proven --status-open-text dark value: 7.7:1 on --ds-color-blue3, 8.3:1 on
+     --accent-subtle (was 2.9 / 3.1 with the theme-invariant mid-blue). */
+  --text-on-accent-tint: color(display-p3 0.62 0.72 1.0);
 }
 
 /* ── Layout geometry (raw px — layout dims, not colors; identical in both themes). */
@@ -82,10 +102,11 @@
   --dur-slow: 180ms;  /* overlay entrances — drawer sheet slide, deputy panel slide */
 
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
-     P3 form: brand-navy channel @ low alpha. No-Pure-Black-Shadow Rule preserved. */
+     P3 form: --shadow-cast channel @ low alpha (theme-aware base — SYS-3).
+     No-Pure-Black-Shadow Rule preserved. Dark bumps the alpha in the .dark override below. */
   --shadow-rest:
-    0 1px 2px color-mix(in srgb, var(--brand-navy) 5%, transparent),
-    0 1px 3px color-mix(in srgb, var(--brand-navy) 4%, transparent);
+    0 1px 2px color-mix(in srgb, var(--shadow-cast) 5%, transparent),
+    0 1px 3px color-mix(in srgb, var(--shadow-cast) 4%, transparent);
 
   /* OD-P3-12 gradients — navy-tinted whispers, never purple. Reuse accent (blue)
      + brand-navy. The gradient is a SHEEN, not a new hue (One-Blue Rule preserved). */
@@ -111,8 +132,8 @@
      same token rather than keeping its heavier 72% one-off. Consumed via the
      `.scrim` utility (below) or var(--scrim) directly. */
   --scrim:           color-mix(in srgb, var(--brand-navy) 45%, transparent);
-  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--brand-navy) 10%, transparent);
-  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--brand-navy) 16%, transparent);
+  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--shadow-cast) 10%, transparent);
+  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--shadow-cast) 16%, transparent);
 
   /* Faint brand-tinted lift on the primary action at rest (OD-P3-12) — the single
      source for the value .btn-primary inlines. Named so surfaces (e.g. the kitchen
@@ -121,10 +142,27 @@
 
   /* DESIGN.md §307 "Overlay" shadow — used by dialogs + ⋯ menu popover.
      Previously referenced as --shadow-overlay but was undefined; defined here so
-     overlays render with correct floating depth instead of flat. */
+     overlays render with correct floating depth instead of flat. SYS-3: was a hardcoded
+     mid-navy hsl (0.16/0.08 alpha) that vanished on dark surfaces; now mixes the theme-aware
+     --shadow-cast at the same light-theme weight, with the .dark override lifting the alpha. */
   --shadow-overlay:
-    0 10px 30px hsl(210 40% 24% / 0.16),
-    0 2px 6px hsl(210 40% 24% / 0.08);
+    0 10px 30px color-mix(in srgb, var(--shadow-cast) 16%, transparent),
+    0 2px 6px color-mix(in srgb, var(--shadow-cast) 8%, transparent);
+}
+
+/* ── SYS-3 (backfill census, HIGH): dark-mode elevation. A shadow that reads at 4–16% mix on a
+   light surface disappears against a ~0.10-luminance dark surface. Dark keeps the near-black
+   --shadow-cast (set in the .dark brand block) AND multiplies the alpha so cards/tiles/popovers/
+   dialogs regain depth. Values are the light recipe's geometry with heavier casts. */
+.dark {
+  --shadow-rest:
+    0 1px 2px color-mix(in srgb, var(--shadow-cast) 42%, transparent),
+    0 1px 3px color-mix(in srgb, var(--shadow-cast) 34%, transparent);
+  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--shadow-cast) 55%, transparent);
+  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--shadow-cast) 60%, transparent);
+  --shadow-overlay:
+    0 10px 30px color-mix(in srgb, var(--shadow-cast) 58%, transparent),
+    0 2px 6px color-mix(in srgb, var(--shadow-cast) 46%, transparent);
 }
 
 /* ── Tailwind v4 theme mapping (ADR-0009 D3). Every --color-* utility resolves to

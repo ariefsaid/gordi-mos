@@ -57,6 +57,11 @@ type RailNavProps = {
 // `bg-accent` resolved to --surface-secondary — the SAME warm-grey as the rail panel bg, so the
 // selection was invisible (zero contrast). Now a blue tint (--ds-color-blue3) on the panel + The
 // One Blue text. itemBase owns the active color so inner label spans don't re-set text-foreground.
+// SYS-4 (backfill census, MEDIUM): the active text is the theme-aware --text-on-accent-tint, NOT
+// Tailwind text-primary. text-primary is the theme-invariant mid-blue (--ds-color-blue); on the
+// dark blue3 pill it dropped to 2.9:1. The token is mid-blue in light (identical render) and a
+// light-blue in dark (7.7:1). Applied to the <a> and the active icon span; the trailing count
+// badge keeps its own explicit text-muted-foreground.
 // `compact` = the OD-REDESIGN-84.2 (P1-1) icon-only regime: center the icon, drop the
 // item's horizontal padding (the label collapses to zero visual width), and tag a
 // `rail-tooltip-target` class so the CSS-only hover/focus-visible tooltip (rail-nav.css)
@@ -66,7 +71,7 @@ const itemBase = (isActive: boolean, compact = false) =>
     'relative flex items-center gap-[10px] h-9 rounded-sm no-underline text-sm',
     compact ? 'justify-center px-0 rail-tooltip-target' : 'px-2.5',
     isActive
-      ? 'bg-[color:var(--ds-color-blue3)] font-semibold text-primary'
+      ? 'bg-[color:var(--ds-color-blue3)] font-semibold text-[color:var(--text-on-accent-tint)]'
       : 'font-normal text-muted-foreground hover:bg-accent/60',
   ].join(' ')
 
@@ -86,7 +91,7 @@ function DestLink({ d, onNavigate, compact = false }: { d: Destination; onNaviga
     >
       {({ isActive }) => (
         <>
-          <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
+          <span className={isActive ? 'text-[color:var(--text-on-accent-tint)]' : 'text-muted-foreground'}>
             <d.Icon />
           </span>
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
@@ -237,7 +242,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                   >
                     {({ isActive }) => (
                       <>
-                        <span className={isActive ? 'text-primary' : 'text-muted-foreground'}>
+                        <span className={isActive ? 'text-[color:var(--text-on-accent-tint)]' : 'text-muted-foreground'}>
                           <d.Icon />
                         </span>
                         <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>

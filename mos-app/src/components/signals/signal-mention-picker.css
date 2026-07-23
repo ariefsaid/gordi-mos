@@ -32,7 +32,10 @@
   border-radius: var(--radius-pill); font-size: var(--font-size-micro); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.04em;
 }
-.type-badge--person { background: var(--accent-subtle); color: var(--text-accent); }
+/* SYS-4: --text-accent is the theme-invariant mid-blue (--ds-color-blue); on --accent-subtle over
+   a dark surface it read 3.1:1. --text-on-accent-tint is the theme-aware pair (mid-blue in light =
+   unchanged, light-blue in dark = 8.3:1). */
+.type-badge--person { background: var(--accent-subtle); color: var(--text-on-accent-tint); }
 .type-badge--team { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
 .type-badge--bu { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
 
