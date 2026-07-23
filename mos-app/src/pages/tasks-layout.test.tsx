@@ -658,11 +658,11 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
-    // Lives in the shared record-page chrome (.record-page-chrome), not buried in the body.
-    const chromeRow = document.querySelector('.record-page-chrome')
-    expect(chromeRow).toBeTruthy()
-    const askButton = within(chromeRow as HTMLElement).getByRole('button', { name: 'Ask Deputy' })
-    expect(askButton).toBeInTheDocument()
+    // Lives in the shared record-page chrome (.record-page-chrome), not buried in the body. The
+    // record-scoped Ask Deputy seed resolves from the record title (onTitleResolved), one render
+    // after the h1, so await it rather than assuming it is present the instant the heading is.
+    const askButton = await screen.findByRole('button', { name: 'Ask Deputy' })
+    expect(askButton.closest('.record-page-chrome')).toBeTruthy()
   })
 
   it('F3: no Ask Deputy affordance renders while the record is still loading', () => {
