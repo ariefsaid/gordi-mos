@@ -208,7 +208,8 @@ describe('RI-IA-2: migrated data/list pages use their declared V3 family frame',
     ['pages/follow-ups-page.tsx', 'workspace'],
     ['pages/pricing-page.tsx', 'workspace'],
     ['pages/budget-page.tsx', 'workspace'],
-    ['components/catalog/catalog-manager.tsx', 'management'],
+    ['pages/objectives-page.tsx', 'management'],
+    ['pages/projects-processes-page.tsx', 'management'],
   ] as const
 
   for (const [file, family] of targets) {

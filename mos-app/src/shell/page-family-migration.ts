@@ -50,14 +50,14 @@ export const ISSUE_11_MIGRATED_ROUTES: readonly PageFamilyMigrationEntry[] = [
   {
     path: '/work/objectives',
     family: 'management',
-    sourceFile: 'src/components/catalog/catalog-manager.tsx',
-    symbol: 'CatalogManager',
+    sourceFile: 'src/pages/objectives-page.tsx',
+    symbol: 'ObjectivesPage',
   },
   {
     path: '/work/projects',
     family: 'management',
-    sourceFile: 'src/components/catalog/catalog-manager.tsx',
-    symbol: 'CatalogManager',
+    sourceFile: 'src/pages/projects-processes-page.tsx',
+    symbol: 'ProjectsProcessesPage',
   },
   {
     path: '/events',
