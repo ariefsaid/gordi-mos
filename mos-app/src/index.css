@@ -169,6 +169,31 @@
   --radius-sm: 0.5rem;           /* 8px  — CONTROLS (buttons/inputs/badges/nav-items) */
   --radius-xs: 0.25rem;          /* 4px  — checkbox/tiny */
 
+  /* ── Type scale (SEMANTIC layer) — the ONE deliberate size ladder (v3 kit-normalize).
+     DESIGN.md §Typography is the authority: "Controls and table cells run 13.5px; the
+     base run is 14px." Every primitive in src/components/ui/*.css resolves its
+     font-size to one of these tokens — no raw px (vocabulary guard, kit-vocab.test.ts).
+     The kit's --ds-font-size-* primitives are a DIFFERENT (oversized ~15.6px) scale and
+     are intentionally NOT chained here; these px values are the DESIGN.md ladder verbatim.
+     Owner complaint 2026-07 ("multiple font sizes that feel untidy") → this ladder. */
+  --font-size-page-title: 24px;   /* page title (Plus Jakarta 600) — DESIGN.md page-title */
+  --font-size-heading:    20px;   /* section/card heading — DESIGN.md heading */
+  --font-size-subheading: 18px;   /* sub-section header, empty-state title — DESIGN.md subheading */
+  --font-size-body:       14px;   /* base body, table cells, meta — DESIGN.md body (== the html base) */
+  --font-size-control:    13.5px; /* buttons/inputs/select/date/tabs — DESIGN.md "controls run 13.5px" */
+  --font-size-mono:       13px;   /* SF Mono IDs/codes, dense compact text — DESIGN.md mono */
+  --font-size-label:      12px;   /* pill/tag labels, field labels, dense metadata — DESIGN.md label */
+  --font-size-overline:   11px;   /* counts, column headers, captions — DESIGN.md overline */
+  --font-size-micro:      10px;   /* avatar initials — the one sub-11 mark */
+
+  /* ── Chip/Pill/Tag inline padding — the documented alignment affordance. A pill's L/R
+     padding insets its text; in a key/value or label column that inset pushes the pill's
+     text off the column's x. Consumers pull the pill flush with the matching `--flush`
+     utility (margin-inline-start: calc(-1 * var(--*-inline-pad))) so pill text aligns with
+     plain-text values above/below. Owner complaint: "text misaligned from transparent pills". */
+  --pill-inline-pad: 9px;
+  --tag-inline-pad:  8px;
+
   /* Fonts — OD-P3-9 pairing. NOTE: @fontsource-variable/dm-sans registers the family
      as "DM Sans Variable" — it MUST lead the stack or the UI silently falls back to
      system-ui (the bug that made the app render in the OS font, not DM Sans). */
