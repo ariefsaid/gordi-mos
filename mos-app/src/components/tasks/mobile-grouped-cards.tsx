@@ -188,7 +188,7 @@ export function MobileGroupedCards({
   const isFlat = groups.length === 1 && groups[0].key === '__flat__'
   if (isFlat) {
     return (
-      <div className="mgc" role="list" aria-label={t('tasks.title')}>
+      <div className="mgc mgc-flat" role="list" aria-label={t('tasks.title')}>
         {groups[0].rows.map(task => (
           <div key={task.id} role="listitem">
             <TaskCard
