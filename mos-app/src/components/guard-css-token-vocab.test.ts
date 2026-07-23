@@ -128,10 +128,8 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
   'src/components/signals/signal-record-host.css': {
     'font-size: 15px': 1,
   },
-  'src/components/signals/signal-record.css': {
-    'font-size: 12.5px': 2,
-    'font-size: 14.5px': 1,
-  },
+  // signal-record.css raw font-sizes (12.5px ×2, 14.5px ×1) were paid off by the OD-REDESIGN-90
+  // anatomy rewrite — every region now speaks var(--font-size-*). Ledger entry pruned (ratchet).
   'src/components/tasks/TaskSurface.css': {
     'font-size: 15px': 16,
     'font-size: 26px': 3,

@@ -16,8 +16,8 @@
 .signal-message-urgency { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .signal-message-occurred { font-size: var(--font-size-control); color: var(--muted-foreground); }
 .signal-message-body {
-  margin: 16px 0 0; max-width: 72ch; font-size: 16px; line-height: 1.6; color: var(--foreground);
-  overflow-wrap: anywhere; white-space: pre-wrap;
+  margin: 16px 0 0; max-width: 72ch; font-size: var(--font-size-body); line-height: 1.6;
+  color: var(--foreground); overflow-wrap: anywhere; white-space: pre-wrap;
 }
 
 /* ── 2 · Reach & response — one action register (LAW-3). ── */
