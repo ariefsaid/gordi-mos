@@ -168,7 +168,7 @@ export function BudgetPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.plan.budget')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={4} />
         </div>
@@ -177,7 +177,7 @@ export function BudgetPage() {
   }
   if (load.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.plan.budget')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
           message="Couldn't load the BOM + ingredient cost lines. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -187,7 +187,7 @@ export function BudgetPage() {
   }
   if (bom.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
+      <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.plan.budget')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
           title="No BOM snapshot data yet"
           copy="No BOM rows are available yet. The next warehouse snapshot will populate this page."
@@ -200,7 +200,7 @@ export function BudgetPage() {
     <PageFamilyFrame
       family="workspace"
       title={t('plan.budget.title')}
-      jobSentence={t('job.money')}
+      jobSentence={t('job.plan.budget')}
       meta={
         // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
         <span className="ch-meta-line tabular-nums">

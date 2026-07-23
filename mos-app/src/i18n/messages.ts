@@ -543,6 +543,10 @@ export const messages = {
     'catalog.projects.loading': 'Loading projects & processes…',
     'job.events': "See what's happening around our outlets and when.",
     'job.money': 'Trust the financial figures and act on money exceptions.',
+    // r5 F-9 DRAFTS — pending owner walkthrough approval (Budget/Pricing shared
+    // job.money before; each surface now states its own task-shaped job).
+    'job.plan.budget': 'Capture certified-cost budget scenarios pricing can trust.',
+    'job.plan.pricing': 'Check a candidate price against certified costs before it ships.',
     // DO-24(b) (census F-INBOX-7): plain second person — "what asked for me" was ungrammatical.
     'job.inbox': 'Triage what was directed to you and return to its source.',
     'job.cafe': "Run today's café floor work — openings, checks, stock, shifts.",
@@ -1282,6 +1286,9 @@ export const messages = {
     'catalog.projects.loading': 'Memuat proyek & proses…',
     'job.events': 'Lihat apa yang terjadi di outlet kita dan kapan.',
     'job.money': 'Percayai angka keuangan dan bertindak pada pengecualian uang.',
+    // r5 F-9 DRAFTS — menunggu persetujuan walkthrough owner.
+    'job.plan.budget': 'Rekam skenario anggaran berbasis biaya tersertifikasi yang bisa dipercaya penetapan harga.',
+    'job.plan.pricing': 'Uji harga kandidat terhadap biaya tersertifikasi sebelum diberlakukan.',
     'job.inbox': 'Triase apa yang ditujukan kepada Anda dan kembali ke sumbernya.',
     'job.cafe': 'Jalankan kerja floor kafe hari ini — pembukaan, cek, stok, shift.',
     'job.ecommerce': 'Penuhi pesanan online hari ini terhadap stok yang tepat.',

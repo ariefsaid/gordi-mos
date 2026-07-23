@@ -64,6 +64,18 @@ beforeEach(() => {
   vi.mocked(listBudgets).mockResolvedValue([])
 })
 
+describe('BudgetPage — head (r5 F-9)', () => {
+  it('r5 F-9: the head speaks the Budget-specific job sentence — never the shared job.money', async () => {
+    vi.mocked(listBomLines).mockResolvedValue([])
+    vi.mocked(listIngredientCostLines).mockResolvedValue([])
+    renderPage()
+    await screen.findByText(/no bom snapshot data/i)
+    const head = screen.getByTestId('page-head')
+    expect(head.textContent).toContain('Capture certified-cost budget scenarios pricing can trust.')
+    expect(head.textContent).not.toContain('Trust the financial figures')
+  })
+})
+
 describe('BudgetPage — states', () => {
   it('loading: shows a busy skeleton before data resolves', () => {
     vi.mocked(listBomLines).mockReturnValue(new Promise(() => {}))

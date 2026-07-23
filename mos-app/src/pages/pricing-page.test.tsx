@@ -31,6 +31,17 @@ beforeEach(() => {
   vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true })
 })
 
+describe('PricingPage — head (r5 F-9)', () => {
+  it('r5 F-9: the head speaks the Pricing-specific job sentence — never the shared job.money', async () => {
+    vi.mocked(listBudgets).mockResolvedValue([])
+    renderPage()
+    await screen.findByText(/no budgets captured yet/i)
+    const head = screen.getByTestId('page-head')
+    expect(head.textContent).toContain('Check a candidate price against certified costs before it ships.')
+    expect(head.textContent).not.toContain('Trust the financial figures')
+  })
+})
+
 describe('PricingPage — states', () => {
   it('loading: shows a busy skeleton', () => {
     vi.mocked(listBudgets).mockReturnValue(new Promise(() => {}))

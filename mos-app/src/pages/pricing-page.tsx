@@ -82,7 +82,7 @@ export function PricingPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="loading">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={3} />
         </div>
@@ -91,7 +91,7 @@ export function PricingPage() {
   }
   if (load.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="error">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
           message="Couldn't load budgets. Try again."
           onRetry={() => setRetryKey((k) => k + 1)}
@@ -101,7 +101,7 @@ export function PricingPage() {
   }
   if (budgets.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
           title="No budgets captured yet"
           copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
@@ -114,7 +114,7 @@ export function PricingPage() {
     <PageFamilyFrame
       family="workspace"
       title={t('plan.pricing.title')}
-      jobSentence={t('job.money')}
+      jobSentence={t('job.plan.pricing')}
       meta={
         // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
         <span className="ch-meta-line tabular-nums">
