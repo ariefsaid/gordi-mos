@@ -1,62 +1,48 @@
 # Agent context — read me first (owner prefs · hard rules · gotchas · pointers)
 
-> ## CANONICAL CURRENT STATE — 2026-07-23 midday (supersedes every dated banner below)
+> ## CANONICAL CURRENT STATE — 2026-07-23 evening (supersedes every dated banner below)
 >
-> **Branch `v3-redesign` = the integration branch** (worktree `.claude/worktrees/v3-redesign`,
-> dev server `mos-dev-v3` :5199, base path `/mos`). Every lane merges into it through the
-> Director gate (rebase → typecheck/lint/focused vitest → ff-merge → push). The ledger
-> `docs/reviews/v3-redesign.md` is evidence of record; `docs/backlog.md` holds open items.
+> **Branch `v3-redesign`** (worktree `.claude/worktrees/v3-redesign`, dev :5199, base `/mos`).
+> **The Standing Audit Program is ACTIVE** (owner-approved plan `~/.claude/plans/wise-discovering-frog.md`):
+> coverage register `docs/audits/REGISTER.md` + `surfaces.json` is the design-coverage authority —
+> 25 surfaces, generation lifecycle (battery → RATIFY → LOCK → pins), re-audit only on bump /
+> pin-insufficiency / milestone-Luna. `scripts/audit-register.sh bump|lock|status|render`,
+> `scripts/audit-staleness.sh`; `pre-merge-check.sh` runs the guard battery AND the coverage gate
+> (UI diff on unlocked+unbumped surface = FAIL). Quality model: `docs/quality-model.md`.
+> Anatomy law: `docs/specs/record-page-anatomy.spec.md` (OD-90, census Step 2.5).
 >
-> **Merged today (owner-driven "REDESIGN, remove fossils, be brave" wave):** E7-floor closure of
-> all 8 Luna violations · kit normalization (semantic `--font-size-*`/`--radius-*` ladder,
-> KIT-VOCAB guard, full state coverage — root cause of "untidy fonts" was a MISSING semantic
-> type layer + 15px drift) · owner screenshot rounds 1-2 (19+6 items: split-mode starvation
-> root-caused [condensed never fired on the overlay path], composer had NO css, Notes tab
-> fossil deleted, kv value-column alignment, dead void [PageFrame cap], lifecycle-aware
-> actions, locale "leak" = owner's browser locale=id, NOT a bug) · fossil purges (cockpit
-> scaffold −2860 lines OD-85; CatalogManager; Classification row [duplicated relation rows —
-> mockup-fidelity trap]) · catalogs rebuilt on the collection grammar · Signals attention-row
-> spec treatment + 44px targets.
+> **Merged this wave:** owner-r2 rounds · 9 sweep fix lanes · mechanical guard suite (~15 guard
+> files + vocab ratchet, skill-cited) · interaction Tier-1/2 RULED fixes (visible save errors,
+> create dirty-guard, Escape isolation, `?record=` URL door + deep-link resolver, follow-ups/inbox
+> Back) · census-r2 DO-1..24 · Money designed+seeded (rounds 1-4: seed.dev-money.sql, FreshnessLabel,
+> custom-range row, guards, stories) · Kitchen designed+seeded (seed.dev-kitchen.sql, useInlineCommit
+> parity) · storybook 29+5 stories · OD-87..90 + tests-as-oracle (OD-88) + layered battery replaces
+> 4-lens (OD-89). **Luna INTERIM verdict: 27/40 · 6.5/10 · 3 floors (ledgered, at ba6459e).**
 >
-> **Owner law (verbatim, binding):** "remove fossil!!! REDESIGN. be brave. nothing sacred" ·
-> "remove when its needed. make it functional still. dont break. but if it can be better,
-> remove, redesign, make it better" · "highest quality of UI, UX, IA and IxD" · skills are the
-> method (CLAUDE.md rule) · mockup fidelity is not a data spec (CLAUDE.md rule) · Luna
-> (gpt-5.6-luna) is the only accepted scorer, DEFERRED until owner asks; bar ≥32/40 · >8.5/10 ·
-> zero E7-floor violations, scope Home+Tasks+Signals. Don't spam Luna; sonnet/opus critics
-> in-loop only as finding-generators (their numbers never count).
+> **IN FLIGHT:** luna-floor lane (Signal OD-90 anatomy + 3 floor residuals; worktree v3-luna-floor,
+> tree mid-refactor) · kitchen r2 (census fixes, worktree v3-g-kitchen) · money r5 (census fixes,
+> worktree v3-g-money) · journey-quality audit (6 JTBD walks → docs/plans/2026-07-23-journey-quality-audit.md).
+> **QUEUE after those:** backfill batch (register DUE set: 11 surfaces + locale-id + dark-mode +
+> finance/member personas) · mechanical token pass (census DO-9/10 + guard C3 → pages/**; runs LAST)
+> · Task/Follow-up anatomy conformance (FR-ANAT-009/010, RATIFY line) · pinned-checkout Luna over
+> the register scope · owner decision sheet (`docs/plans/2026-07-23-owner-decision-sheet.md`,
+> 30 items + 3 open slots).
 >
-> **IN FLIGHT (background, survive context compaction; completion notifications re-invoke the
-> Director):** ① route total-sweep workflow `wf_36ee7d41` (all routes × 3 personas × 5 widths ×
-> open-states; capture→inspect→fix lanes `v3/sweep-<route>`, OOM-leaned: fixers batch-4,
-> vitest --maxWorkers=2, APFS-cloned node_modules) ② component interrogation workflow
-> `wf_a893b30d` (18 clusters × ~109 components; existence/design/grammar/story verdicts via
-> impeccable critique+distill + ui-ux-pro-max db + design-system spec format; READ-ONLY →
-> writes `docs/plans/2026-07-23-component-interrogation.md`) ③ lane `v3/owner-r2` (agent
-> a1173cbb…: R1 drawer/table height · R2 head meta sentence · R3 saved-view spacing · R4
-> repetitive not-permitted lines · R5 DELETE Classification · R6 expand↔drawer round-trip +
-> ?record= URL door + dvh + document.title). **Integration protocol:** rebase lane onto
-> origin/v3-redesign in ITS worktree → verify → ff-merge → push → remove worktree + branch
-> (containment-check before -D).
+> **Owner law additions today:** no suggested-task chips from agents (findings in returns; Director
+> does do/defer/delete) · tests-as-oracle replaces red-first on understood seams (OD-88) · page
+> anatomy is declared + checkable (OD-90) · fix-generalization: fix at the shared seam, sweep
+> siblings, extend the guard · grill-corpus answers first (never re-ask) · Luna dispatches go
+> DIRECT via pi (never wrapped in a Claude agent), from a PINNED checkout (serving the live
+> integration worktree drifted 2 merges mid-audit — tolerated once, never again).
 >
-> **GOTCHAS (hard-won today):** agents stall silently (API stream) — resume with SendMessage
-> using their transcript, check liveness via worktree mtime/transcript size, never by waiting ·
-> fixers sometimes commit into the WRONG worktree — audit `git log` of every worktree before
-> merging · capture/critic screenshots MUST come from a fresh server started in the scored
-> worktree (stale-server contamination invalidated two scoring rounds) · long-running vite
-> serves a stale module graph after heavy git changes — kill + rm node_modules/.vite +
-> restart (the owner hit this on :5199) · e2e runs wipe demo data (global-teardown now
-> restores; reseed via supabase/seed.dev-tasks.sql through docker exec) · owner's browser
-> locale is `id` — "Indonesian chrome" is correct behavior · compound bash chains: grep -c
-> exits 1 on zero matches and kills && chains; never chain cleanup after a fallible merge ·
-> kill orphan dev servers after every lane (lsof -iTCP -sTCP:LISTEN).
->
-> **NEXT STEPS (in order):** 1. merge in-flight lanes as they land (protocol above) · 2. execute
-> the interrogation work-order (fix lanes AFTER the route sweep merges — collision discipline) ·
-> 3. full suite + reseed · 4. owner walkthrough on :5199 (impeccable `live` variant mode for
-> taste calls) · 5. ONE Luna pass only when the owner asks · 6. RATIFY register in the ledger
-> (pill radius; A12 re-expression; OD-18 re-expression; Signals feed default; phone View&filters
-> non-dedup) · 7. feature work unblocks after convergence.
+> **GOTCHAS (append-only; all prior ones stand):** owner interrupts kill ALL background tasks —
+> workflows resume via resumeFromRunId (journal cache), agents via SendMessage (transcript); but
+> agents the USER stopped need explicit owner sign-off to relaunch · 5h quota cuts kill agents
+> mid-work — resume from their last words · workflow args MUST be passed as a JSON object (a
+> stringified args reached scripts as undefined → the round-1 sweep captured the WRONG TREE; always
+> provenance-gate captures with a commit attestation + ABORT) · pi -p prints output only at the end
+> (0-byte log ≠ stall; check the spawned browser processes) · agent-browser shared default session:
+> concurrent agents MUST use --session <name> isolation (a lane touched Luna's live session once).
 
 
 Fast cold-start for a fresh agent (esp. post-compaction). This is the human/process layer; the
