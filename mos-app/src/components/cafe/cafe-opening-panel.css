@@ -3,6 +3,13 @@
 .cafe-opening-panel {
   display: flex; flex-direction: column; gap: 12px;
 }
+/* The bound-Team eyebrow — the panel's subject label. Bound into the header block of
+   BOTH the not-started and started bodies (census DO-24a, cafe F4) so it no longer
+   floats as an orphan that vanishes once the opening starts. On-ladder label token,
+   replacing the prior inline fontSize:12 muted paragraph. */
+.cafe-opening-team {
+  font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); margin: 0;
+}
 .cafe-opening-caption {
   font-size: 16px; font-weight: 600; color: var(--foreground); margin: 0;
 }

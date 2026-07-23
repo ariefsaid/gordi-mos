@@ -103,8 +103,10 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
     return (
       <div className="cafe-opening-panel">
         {/* Name the bound Team — the page auto-selects one (first due / first membership) and
-            hiding WHICH one it chose was audit finding F10. */}
-        <p className="text-muted-foreground" style={{ fontSize: 12, margin: '0 0 8px' }}>{teamName}</p>
+            hiding WHICH one it chose was audit finding F10. Bound as the panel's subject eyebrow
+            (census DO-24a) — same header block as the started body below, so it doesn't read as
+            an orphan that disappears on start. */}
+        <p className="cafe-opening-team">{teamName}</p>
         {canStart ? (
           <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
             <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
@@ -126,6 +128,9 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
 
   return (
     <div className="cafe-opening-panel cafe-opening-panel--started">
+      {/* Same subject eyebrow as the not-started body (census DO-24a) — the bound Team
+          now heads the panel in every state, not only before Start. */}
+      <p className="cafe-opening-team">{teamName}</p>
       <h2 className="cafe-opening-caption">{rollup.caption}</h2>
       <p className="cafe-opening-rollup tabular-nums">
         {/* Design fix wave item 6 — the café member dead-end minor: a non-capable member has no

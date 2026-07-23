@@ -14,6 +14,10 @@
     flex-direction: column;
   }
   .cafe-capture-link {
+    /* Reset the row's `flex: 1 1 140px`: once the container is a column the 140px
+       flex-basis governs the MAIN (vertical) axis and balloons each link to ~140px
+       tall (census DO-3, cafe F1). Content-height + the 44px tap floor instead. */
+    flex: 0 0 auto;
     width: 100%;
     min-height: 44px;
   }
