@@ -265,6 +265,17 @@
   html {
     font-family: var(--font-sans);
   }
+  /* H8(b) (Luna floor): ONE scroll owner. The app shell is a fixed-height grid (app-shell.tsx,
+     `h-dvh`) whose content row scrolls INTERNALLY (its <main data-page-family> is the sole
+     scroller). But the shell root is `100dvh`, and on a viewport where dvh resolves taller than the
+     visual `innerHeight` (a mobile URL-bar / headless quirk) the root overflowed an unconstrained
+     `body`, so the DOCUMENT scrolled TOO — the Task record page showed two nested vertical scroll
+     containers (document + main). Pin html/body to the real viewport and clip: the shell root can
+     be as tall as dvh reports, but the document never becomes a second scroller. */
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     margin: 0;
     background-color: var(--surface-primary);
