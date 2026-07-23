@@ -9,6 +9,10 @@
 .mk-checkbox--medium { width: 16px; height: 16px; }
 .mk-checkbox--small { width: 14px; height: 14px; }
 .mk-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* Hover — border warms toward the action blue to signal interactivity (impeccable all-states). */
+.mk-checkbox:hover:not(:disabled):not([aria-checked="true"]):not([aria-checked="mixed"]) {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+}
 .mk-checkbox[aria-checked="true"],
 .mk-checkbox[aria-checked="mixed"] {
   background: var(--primary); border-color: var(--primary);
