@@ -2098,3 +2098,19 @@ The standalone 4-lens essay review is retired; the design-reviewer role runs the
 the JTBD intent check instead. Ledger records artifacts, not essays. The owner's viewing is
 acceptance, never defect-hunting; any owner-caught pixel defect is a process bug whose class
 becomes a guard the same day.
+
+### OD-REDESIGN-90 — page anatomy is a declared, checkable artifact (owner 2026-07-23)
+
+Owner, on the Signal record page: "what are the JTBD in this page? it doesnt flow intuitively...
+among the 3 skills available, there should be a best practise and convention on how to structure
+this... even with the mechanical guards, census pass, storybook and 4 lens, this is still not
+producing a neat and tidy design." Diagnosis: every battery layer enumerates ELEMENTS; none judges
+COMPOSITION. The fix: every record kind and destination declares its **JTBD-ordered anatomy** —
+the section order that serves the reader's jobs (for a Signal record: content first and unclipped →
+urgency/attention with it → actions grouped as one "what to do" register → provenance/audit last,
+quiet, disclosed). The anatomy standard is derived FROM the skills (impeccable distill
+content-first/strip-to-essence, taste hierarchy, ui-ux-pro-max detail-view guidance), lives in
+`docs/specs/record-page-anatomy.spec.md`, and the census protocol gains **Step 2.5 — anatomy
+conformance**: assert the rendered section order matches the kind's declared anatomy; a page
+whose leading section is not its content FAILS. Provenance micro-copy never repeats per field
+(the R4 rule generalized to captions).
