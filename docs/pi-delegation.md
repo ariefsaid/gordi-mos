@@ -16,6 +16,19 @@ Verified live on this machine 2026-06-12: `pi` 0.79.1, `agent-browser` 0.27.0; p
 2026-06) trialed-good as a builder 2026-06-16 — now the **preferred builder** and a capable
 **orchestrator/Director of a parallel pi team** (§3e, owner-directed for max Claude-token economy).
 
+> **⚑ Dispatch entry point (owner, 2026-07-22): use `pi-dispatch <tier>` — not raw `pi` — for role dispatches.**
+> The wrapper (`~/.local/bin/pi-dispatch`) owns provider/model selection: capability-banded fallback
+> ladders (free-first: NIM → requesty/mistral/ollama-cloud where tier-appropriate → GLM plan → codex
+> OAuth → `claude -p` last resort), retry-with-backoff on NIM `ResourceExhausted`/429 (open pi bug
+> earendil-works/pi#6364 — pi itself won't retry these), per-model rung-hopping, a machine-wide NIM
+> concurrency gate, cooldown state (`pi-dispatch cooldowns`), a 30-min stall watchdog (transcript-growth
+> based), and a token ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
+> Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
+> (cross-family). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
+> provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
+> limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
+> capability rationale; the wrapper's ladders are the executable form. **openrouter remains banned.**
+
 ## 1. Division of labor (binding)
 
 | Who | Keeps |
@@ -46,7 +59,7 @@ Replaces playbook §3 / the model-delegation-discipline memory's opus/sonnet/hai
 | `openai-codex` / `gpt-5.6-luna` | ALL reviews and audits — spec-review, code-quality, design-review, security. Deliberately **cross-family** vs the GLM builders. **Owner-directed 2026-07-15: gpt-5.6-luna supersedes the former gpt-5.4 for all reviews AND is the z.ai-cap build fallback; ALWAYS dispatch Luna at MAX reasoning effort (see below).** | opus reviewers |
 | `nvidia` / **NIM-hosted GLM-5.2, Nemotron 3 Ultra, or DeepSeek V4 Pro** | Independent NIM capacity for text-only workhorse coding. NIM-hosted GLM-5.2 does **not** consume the GLM Coding Plan quota. Suitable for substantial implementation, with Director verification; **never sole author/sign-off for security/RLS/RPC/auth/money-path or schema**. | workhorse-impl |
 | `nvidia` / **`minimaxai/minimax-m3`** or **`thinkingmachines/inkling`** (NIM-hosted, owner-confirmed 2026-07-21) | Rendered UI/image inspection and multimodal IxD judgment when Luna is unavailable. Reached via `pi --provider nvidia --model <slug>` (same as Nemotron); inkling needs `--thinking high`. Slightly lower general capability than the text workhorses — verify more tightly. See "NIM multimodal models" below for exact blobs + flags. | multimodal-alt |
-| `openrouter` / **Nemotron 3 Ultra (free)** → **Nex N2 Pro (free)** | LAST-RESORT free fallback (after NIM) — keeps the loop moving on a 429. Note: OpenRouter Nemotron can 404 on account data-policy guardrails (`openrouter.ai/settings/privacy`); prefer the `nvidia` NIM provider above | best-effort |
+| ~~`openrouter`~~ | **RETIRED (owner 2026-07-22: openrouter banned).** The free-fallback role is now the wrapper's ladders: requesty Nemotron-3-Ultra, mistral-medium, ollama-cloud gemma4 — see the pi-dispatch banner at top | — |
 
 > **⚑ GLM-only degraded review mode (gpt-5.6-luna / openai-codex unavailable).** When the cross-family
 > reviewer is down, route reviews to a **different GLM than the builder** (build `glm-5.2` → review
@@ -190,12 +203,16 @@ Director's double-verification (§5) matters more, not less, when running on the
 
 ```bash
 cd <issue-worktree-or-repo-root>   # dispatch from where the work happens (worktree per issue, playbook §6)
-pi --provider zai --model glm-5.2 -p --no-session \
+pi-dispatch build \
   --append-system-prompt .claude/agents/<role>.md \
-  "<self-contained brief>" < /dev/null
+  "<self-contained brief>"
 ```
 
-- **`< /dev/null` is load-bearing** — without it `-p` can block on stdin.
+- **The brief must be the LAST argument** — the wrapper appends `< /dev/null`, picks provider/model
+  from the tier's ladder, retries/falls back, and ledgers tokens. Extra args pass through to pi
+  verbatim (the `claude -p` last-resort rung keeps only `--append-system-prompt`).
+- Raw `pi --provider … --model …` is for diagnostics only (e.g. `pi-dispatch smoke`); if you must
+  use it: **`< /dev/null` is load-bearing** — without it `-p` can block on stdin.
 - **`--append-system-prompt`** injects the role contract. `.claude/agents/*.md` are **tracked**
   (present in every worktree). `.claude/skills/*` are **gitignored** (vendored) — reference them by
   **absolute path from the primary checkout**, e.g.
