@@ -3,7 +3,7 @@
 The design analog of the code-side SDD→TDD→BDD loop (`docs/director-playbook.md` §2). The **Director**
 orchestrates this and **owns the human-UX checkpoint** — taste is the owner's gate, the way spec
 sign-off is. `DESIGN.md` at repo root is the single source of truth. Adapted from PMO's
-`docs/design-workflow.md`; the four-lens battery (Visual / IxD / IA / Product-Intent) and the "e2e
+`docs/design-workflow.md`; the layered design battery (OD-REDESIGN-89: guards → census → stories/axe → interaction-contract → Luna+JTBD; supersedes the former four-lens essay battery) and the "e2e
 encodes the natural journey" rule are inherited because PMO paid for them with real shipped defects —
 PMO added the fourth lens (Product/Intent, JTBD) after intent-failures shipped clean past code review
 and the first three lenses. MOS adopts the lens and its oracle (`docs/jtbd.md`); the content is Gordi's
@@ -20,7 +20,7 @@ The app exists but has never been used. For the E7 redesign, existing routes and
    differences. Use realistic scenarios spanning a Café Run, monthly close, Signal→Task, Standard
    adoption, cross-Team management, and Admin access configuration.
 3. **Verify the oracle** — confirm current `docs/jtbd.md` journeys cover the prototype brief and update
-   them only for genuinely new outcomes, then run the four-lens review on desktop and phone.
+   them only for genuinely new outcomes, then run the layered design battery (OD-REDESIGN-89) on desktop and phone.
 4. **Owner approves** — record approval/redlines in `docs/decisions.md`; redlines loop back to the
    prototype.
 5. **Gate** — no redesign SDD or implementation proceeds until the owner approves the prototype.
@@ -58,7 +58,7 @@ alters the *intended* journey, update the e2e *steps*, never weaken the goal-ora
    and add/tighten goal-level regression tests before integration. This is a sequencing exception,
    not a quality waiver: proxy assertions, unverified code, and schema/security shortcuts remain
    prohibited.
-3. **Design-review — the standing FOUR-LENS battery** *(read-only; renders + screenshots the running
+3. **Design-review — the LAYERED BATTERY (OD-REDESIGN-89; census artifacts, not lens essays)** *(read-only; renders + screenshots the running
    app at the plan's breakpoints)*. Every UI review runs **all four** lenses, each **explicitly
    directed** — a single generic "UX review" prompt reliably hits only the first and misses the others
    (this gap let real IxD/IA defects ship in PMO; PMO then added a fourth lens after intent-failures
@@ -139,7 +139,7 @@ repeated use of the same components — see the brief's DRY caution). Not before
 |---|---|---|
 | spec-miner / eng-planner | **design-architect** | steward adopted `DESIGN.md`; Phase-0 mockups (Lens-D checked at the mockup gate); per-issue design-plan |
 | implementer | **ui-implementer** | build/refactor UI to tokens + plan; TDD component states; all states + responsive + a11y |
-| spec-reviewer + code-quality-reviewer | **design-reviewer** | render + screenshot; **four-lens** audit (Visual / IxD / IA / Product-Intent vs `DESIGN.md` + plan + mockup + `docs/jtbd.md`); read-only |
+| spec-reviewer + code-quality-reviewer | **design-reviewer** | render + screenshot; **layered battery** (guards → census Steps 1–6 → interaction-contract → JTBD intent vs `DESIGN.md` + plan + mockup + `docs/jtbd.md`); read-only |
 | Director (main session) | **Director (main session)** | orchestrates the loop; owns the **human-UX checkpoint** |
 
 ### Skills → exact commands per agent (one owner per command — no overlap)
