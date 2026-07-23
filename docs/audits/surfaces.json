@@ -83,8 +83,8 @@
       ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/src/components/home/guard-do16-home-layout.css.test.ts",
@@ -258,7 +258,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "1be4fd3",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-430-post-a-signal.spec.ts"
@@ -429,7 +429,7 @@
       "generation": 1,
       "auditedAt": "542c48b",
       "ratifiedBy": "Director",
-      "lockedAt": "3d5b147",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-090-kitchen-log-approve.spec.ts"
@@ -564,7 +564,7 @@
       "generation": 1,
       "auditedAt": "3d550af",
       "ratifiedBy": "Director",
-      "lockedAt": "7689133",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/src/pages/guard-r2-naked-heads.test.tsx",
@@ -650,7 +650,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "6d32409",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-524-follow-up.spec.ts"
@@ -728,7 +728,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "3d5b147",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/src/components/admin/guard-flex-basis-balloon.css.test.ts"
@@ -960,8 +960,8 @@
       ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "shell-nav backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "7b67d86",
       "bumped": false,
       "pins": [
         "mos-app/e2e/shell-nav.spec.ts",
