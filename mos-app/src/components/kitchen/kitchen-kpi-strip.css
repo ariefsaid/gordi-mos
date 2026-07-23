@@ -18,6 +18,11 @@
 .kks-tile {
   display: flex;
   flex-direction: column;
+  /* cafe-2: default (stretch) cross-stretches the delta <Pill> to the tile's full
+     width — its --secondary background then paints as a full-width grey bar,
+     reading as a loading skeleton. flex-start keeps every child (incl. the basis
+     pill) sized to its own content, left-aligned under the value. */
+  align-items: flex-start;
   gap: 6px;
   padding: 16px;
   background: var(--card);
