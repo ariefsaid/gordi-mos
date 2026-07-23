@@ -520,7 +520,8 @@ export const messages = {
     'catalog.projects.loading': 'Loading projects & processes…',
     'job.events': "See what's happening around our outlets and when.",
     'job.money': 'Trust the financial figures and act on money exceptions.',
-    'job.inbox': 'Triage what asked for me and return to its source.',
+    // DO-24(b) (census F-INBOX-7): plain second person — "what asked for me" was ungrammatical.
+    'job.inbox': 'Triage what was directed to you and return to its source.',
     'job.cafe': "Run today's café floor work — openings, checks, stock, shifts.",
     'job.ecommerce': "Fulfil today's online orders against the right stock.",
     'job.roastery': 'Record today’s roasts, yield, and transfers truthfully.',
@@ -679,8 +680,10 @@ export const messages = {
     'home.stream.reason.blocked': 'Blocked',
     'home.stream.reason.failedCheck': 'Check failed',
     'home.stream.reason.mention': 'Mentions you',
-    // "All tasks · N →" — the my-work band drills to the full My-work saved view.
-    'home.stream.allTasks': 'All tasks · ${count} →',
+    // DO-16(b) (census home F4): the count is MY open tasks and the link drills to the
+    // My-work saved view — "All tasks · N" mislabeled the scope and collided with the
+    // rail's own Tasks badge. The label now states its scope.
+    'home.stream.allTasks': 'My open tasks · ${count} →',
     'home.stream.myWorkEmpty': 'Nothing else open — anything needing you is ranked above.',
     'home.order.toggle': 'Home order',
     'home.order.attentionFirst': 'Attention first',
@@ -1242,7 +1245,7 @@ export const messages = {
     'catalog.projects.loading': 'Memuat proyek & proses…',
     'job.events': 'Lihat apa yang terjadi di outlet kita dan kapan.',
     'job.money': 'Percayai angka keuangan dan bertindak pada pengecualian uang.',
-    'job.inbox': 'Triage apa yang meminta saya dan kembali ke sumbernya.',
+    'job.inbox': 'Triase apa yang ditujukan kepada Anda dan kembali ke sumbernya.',
     'job.cafe': 'Jalankan kerja floor kafe hari ini — pembukaan, cek, stok, shift.',
     'job.ecommerce': 'Penuhi pesanan online hari ini terhadap stok yang tepat.',
     'job.roastery': 'Catat roast hari ini, yield, dan transfer dengan jujur.',
@@ -1390,7 +1393,7 @@ export const messages = {
     'home.stream.reason.blocked': 'Terhambat',
     'home.stream.reason.failedCheck': 'Pemeriksaan gagal',
     'home.stream.reason.mention': 'Menyebut Anda',
-    'home.stream.allTasks': 'Semua tugas · ${count} →',
+    'home.stream.allTasks': 'Tugas terbuka saya · ${count} →',
     'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
     'home.order.toggle': 'Urutan Beranda',
     'home.order.attentionFirst': 'Perhatian dulu',

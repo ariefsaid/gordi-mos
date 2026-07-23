@@ -96,13 +96,16 @@ describe('HomeStream — the consequence-ranked stream', () => {
     expect(screen.getByText("You're all caught up")).toBeInTheDocument()
   })
 
-  it('the my-work band shows the capped rows + an "All tasks · N →" drill link with the full open count', () => {
+  // DELIBERATE copy change (Census R2 DO-16(b) · home F4): the drill link states its true
+  // scope — "My open tasks · N" (count IS my open tasks; "All tasks" mislabeled it and
+  // collided with the rail badge). Goal-oracle unchanged: true count, my-work drill.
+  it('the my-work band shows the capped rows + a "My open tasks · N →" drill link with the full open count', () => {
     renderStream({
       myWork: [item({ id: 'w1', title: 'Open work A' }), item({ id: 'w2', title: 'Open work B' })],
       openCount: 11,
     })
     expect(screen.getByText('Open work A')).toBeInTheDocument()
-    const link = screen.getByRole('link', { name: /all tasks · 11/i })
+    const link = screen.getByRole('link', { name: /my open tasks · 11/i })
     expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
   })
 

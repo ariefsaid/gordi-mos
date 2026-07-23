@@ -26,7 +26,8 @@ export const jobSentences = {
   objectives: 'Track the Objectives the org committed to.',
   events: "See what's happening around our outlets and when.",
   money: 'Trust the financial figures and act on money exceptions.',
-  inbox: 'Triage what asked for me and return to its source.',
+  // DO-24(b) (census F-INBOX-7): "what asked for me" was ungrammatical — plain second person.
+  inbox: 'Triage what was directed to you and return to its source.',
   cafe: "Run today's café floor work — openings, checks, stock, shifts.",
   ecommerce: "Fulfil today's online orders against the right stock.",
   roastery: 'Record today’s roasts, yield, and transfers truthfully.',

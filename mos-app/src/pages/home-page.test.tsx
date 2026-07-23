@@ -243,7 +243,8 @@ describe('Decision context — an overdue task row carries its reason chip + PIC
 })
 
 describe('My work today band — count is true, drills to the My-work saved view', () => {
-  it('shows "All tasks · N →" with the viewer\'s open-task count, linking to /work/tasks?view=my-work', async () => {
+  // DELIBERATE copy change (Census R2 DO-16(b) · home F4): label states its true scope.
+  it('shows "My open tasks · N →" with the viewer\'s open-task count, linking to /work/tasks?view=my-work', async () => {
     const viewerId = financeViewer.viewer.person.id
     mockListTasks.mockResolvedValue([
       { ...overdueTaskRow(viewerId), id: 't-open', title: 'Prep beans', due_date: '2099-01-01', status: 'In Progress' },
@@ -251,7 +252,7 @@ describe('My work today band — count is true, drills to the My-work saved view
     ])
     await renderHome(financeViewer)
     await screen.findByRole('region', STREAM)
-    const link = await screen.findByRole('link', { name: /all tasks · 2/i })
+    const link = await screen.findByRole('link', { name: /my open tasks · 2/i })
     expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
     // A my-work row is visible (these are not overdue → they land in the my-work band).
     expect(screen.getByText('Prep beans')).toBeInTheDocument()

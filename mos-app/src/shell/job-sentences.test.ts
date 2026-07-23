@@ -26,7 +26,9 @@ describe('AC-011/013 prep (T2): jobSentences registry — 12 rows, verbatim', ()
     expect(jobSentences.objectives).toBe('Track the Objectives the org committed to.')
     expect(jobSentences.events).toBe("See what's happening around our outlets and when.")
     expect(jobSentences.money).toBe('Trust the financial figures and act on money exceptions.')
-    expect(jobSentences.inbox).toBe('Triage what asked for me and return to its source.')
+    // DELIBERATE copy change (Census R2 DO-24(b) · F-INBOX-7): the convergence string
+    // "Triage what asked for me…" was ungrammatical — rewritten to plain second person.
+    expect(jobSentences.inbox).toBe('Triage what was directed to you and return to its source.')
     expect(jobSentences.cafe).toBe("Run today's café floor work — openings, checks, stock, shifts.")
     expect(jobSentences.ecommerce).toBe("Fulfil today's online orders against the right stock.")
     expect(jobSentences.roastery).toBe('Record today’s roasts, yield, and transfers truthfully.')

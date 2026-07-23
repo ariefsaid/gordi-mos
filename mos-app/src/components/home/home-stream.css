@@ -120,9 +120,15 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--foreground);
+  /* DO-16(c) (census home F5): 2-line clamp instead of single-line nowrap — the Urgent
+     Signal's identity truncated to uselessness at 768/1024. Two lines keep the row
+     rhythm bounded while the title stays legible. (≤480 already wraps fully via the
+     phone column reflow below.) */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* Decision-context subline: PIC (avatar + name) · owning Team/BU · due date. */
@@ -214,6 +220,10 @@
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
+    /* Phone keeps the FULL wrap (Luna P0-1(b)) — undo the ≥481 2-line clamp (DO-16(c)). */
+    display: block;
+    -webkit-line-clamp: none;
+    line-clamp: none;
   }
   .stream-row-tail {
     flex-wrap: wrap;
