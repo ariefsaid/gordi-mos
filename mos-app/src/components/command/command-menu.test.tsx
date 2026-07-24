@@ -309,6 +309,57 @@ describe('default groups (empty query): Recent + Actions + Navigate', () => {
   })
 })
 
+// ── OD-REDESIGN-91 #15 / GAP-10: the phone `+` launcher opens the reduced create-set ──
+describe('#15/GAP-10: launcher mode opens the REDUCED create-set (per OD-46)', () => {
+  function renderLauncher(onShareSignal = vi.fn()) {
+    localStorage.setItem('mos.locale', 'en')
+    return render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <LocationProbe />
+          <Routes>
+            <Route path="*" element={<CommandMenu open mode="launcher" onClose={vi.fn()} onShareSignal={onShareSignal} />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+  }
+
+  it('#15: the default view is the universal Actions ONLY — no Navigate, no full palette', () => {
+    renderLauncher()
+    // The reduced create-set: the three universal actions.
+    expect(screen.getByRole('option', { name: /Ask Deputy/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Share Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
+    // NOT the full palette: no Navigate group and none of its destinations.
+    expect(screen.queryByText('Navigate')).toBeNull()
+    expect(screen.queryByRole('option', { name: /^Home$/i })).toBeNull()
+    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+  })
+
+  it('#15: launcher mode never shows Recent (the reduced set is create-only)', () => {
+    pushRecentTask({ id: 'r1', title: 'Recently opened task' })
+    renderLauncher()
+    expect(screen.queryByText('Recent')).toBeNull()
+    expect(screen.queryByRole('option', { name: /Recently opened task/i })).toBeNull()
+  })
+
+  it('#15: search mode (the desktop ⌘K default) is UNCHANGED — Navigate still present', () => {
+    // Regression guard: the reduction is scoped to launcher mode only.
+    renderMenu()
+    expect(screen.getByText('Navigate')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
+  })
+
+  it('#15: typing in launcher mode still escalates to the shared record search (OD-46 "More")', async () => {
+    mockSearch.mockResolvedValue([{ id: 't9', title: 'Finalise Q3 forecast', status: 'Open' }])
+    renderLauncher()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'forecast' } })
+    expect(await screen.findByRole('option', { name: /Finalise Q3 forecast/i })).toBeInTheDocument()
+    expect(screen.getByText('Records')).toBeInTheDocument()
+  })
+})
+
 // ── AC-K04: typing loads the Records group ──────────────────────────────────
 describe('AC-K04: typing loads the Records group', () => {
   it('AC-K04: typing debounces, shows a skeleton, then renders Records options', async () => {

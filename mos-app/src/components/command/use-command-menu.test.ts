@@ -47,3 +47,28 @@ describe('useCommandMenu (AC-K02)', () => {
     expect(result.current.open).toBe(false)
   })
 })
+
+// OD-REDESIGN-91 #15 / GAP-10: the palette has an opener mode — the phone `+` opens the reduced
+// 'launcher' create-set; ⌘K + the search trigger open the full 'search' palette.
+describe('useCommandMenu opener mode (#15/GAP-10)', () => {
+  it('starts in search mode', () => {
+    const { result } = renderHook(() => useCommandMenu())
+    expect(result.current.mode).toBe('search')
+  })
+
+  it('openWithMode("launcher") opens in launcher mode', () => {
+    const { result } = renderHook(() => useCommandMenu())
+    act(() => result.current.openWithMode('launcher'))
+    expect(result.current.open).toBe(true)
+    expect(result.current.mode).toBe('launcher')
+  })
+
+  it('⌘K always opens the full search palette, never the reduced launcher', () => {
+    const { result } = renderHook(() => useCommandMenu())
+    act(() => result.current.openWithMode('launcher'))
+    act(() => result.current.setOpen(false))
+    pressKey('k', { metaKey: true })
+    expect(result.current.open).toBe(true)
+    expect(result.current.mode).toBe('search')
+  })
+})

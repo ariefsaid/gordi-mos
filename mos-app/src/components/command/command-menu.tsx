@@ -16,6 +16,7 @@ import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
 import { useT } from '@/i18n/use-t'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
+import type { CommandMenuMode } from './use-command-menu'
 import './command-menu.css'
 
 export type CommandMenuProps = {
@@ -24,6 +25,13 @@ export type CommandMenuProps = {
   /** Opens the Signal composer (C1's useSignalComposer().open(), passed down by app-shell so the
    * palette stays a pure presentational consumer — AC-428/FR-417: never a route navigation). */
   onShareSignal: () => void
+  /**
+   * Opener mode (OD-REDESIGN-91 #15 / GAP-10, per OD-46). 'search' (default) — the full palette
+   * (Recent · Actions · Navigate). 'launcher' — the phone `+` reduced create-set: the default
+   * (empty-query) view is the universal Actions only, NOT the full palette. Typing escalates to
+   * the shared record search in BOTH modes (OD-46 "More opens the full authorized object palette").
+   */
+  mode?: CommandMenuMode
 }
 
 // A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
@@ -83,7 +91,7 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; basePa
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
 // presentation); contents = universal actions + Navigate + Recent + async record
 // search. a11y: role=dialog + aria-modal + focus trap + Esc (returns focus).
-export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps): React.JSX.Element | null {
+export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -191,6 +199,13 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   const groups = useMemo<ItemGroup[]>(() => {
     const out: ItemGroup[] = []
     if (!isSearching) {
+      // OD-REDESIGN-91 #15 / GAP-10 (per OD-46): the phone `+` launcher opens the REDUCED
+      // create-set — the universal Actions only, NOT the full palette. No Recent, no Navigate.
+      // (Typing still escalates to the shared search below — OD-46's "More opens the full palette".)
+      if (mode === 'launcher') {
+        out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: universalActions })
+        return out
+      }
       const recent = readRecentTasks().map<CommandItem>((r) => ({
         id: `recent-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
@@ -224,7 +239,7 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: nav })
     if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actions })
     return out
-  }, [isSearching, trimmed, records, universalActions, visibleNavigate, t])
+  }, [isSearching, trimmed, records, universalActions, visibleNavigate, t, mode])
 
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
   const activeId = flatItems[active]?.id

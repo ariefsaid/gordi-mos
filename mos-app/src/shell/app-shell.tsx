@@ -65,7 +65,7 @@ function ShellContent() {
   const railCompact = !isNarrow && !isSplit
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerOpener, setDrawerOpener] = useState<'hamburger' | 'more'>('hamburger')
-  const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
+  const { open: searchOpen, mode: searchMode, setOpen: setSearchOpen, openWithMode } = useCommandMenu()
   const { open: openSignalComposer } = useSignalComposer()
   const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
@@ -114,7 +114,7 @@ function ShellContent() {
         <TopBar
           drawerOpen={drawerOpen}
           onOpenDrawer={() => { setDrawerOpener('hamburger'); setDrawerOpen(true) }}
-          onOpenSearch={() => setSearchOpen(true)}
+          onOpenSearch={() => openWithMode('search')}
           onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
         />
 
@@ -139,7 +139,7 @@ function ShellContent() {
         {isNarrow && (
           <BottomTabBar
             onOpenMore={() => { setDrawerOpener('more'); setDrawerOpen(true) }}
-            onOpenActionLauncher={() => setSearchOpen(true)}
+            onOpenActionLauncher={() => openWithMode('launcher')}
             onRegisterMoreFocus={(focus) => { focusMoreRef.current = focus }}
           />
         )}
@@ -170,7 +170,7 @@ function ShellContent() {
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). Share
           Signal (AC-428/FR-417) dispatches to the shared composer host (C1), never a route. */}
-      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} onShareSignal={openSignalComposer} />
+      <CommandMenu open={searchOpen} mode={searchMode} onClose={() => setSearchOpen(false)} onShareSignal={openSignalComposer} />
 
       {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,
           behind SHOW_ASSISTANT; OverlayCompanionSlot/RecordPanelHost own its physical chrome. The launcher is a neutral
