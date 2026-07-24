@@ -219,6 +219,9 @@
 .person-picker-option:hover, .person-picker-option:focus-visible {
   background: var(--accent);
 }
+/* GAP-8 (OD-91 #13): the shared listbox keyboard cursor (aria-activedescendant) — the active
+   option reads highlighted even though DOM focus stays on the listbox container. */
+.person-picker-option.is-active { background: var(--accent); }
 .person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 
 /* ── Checklist ── */

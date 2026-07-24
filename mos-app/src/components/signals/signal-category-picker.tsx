@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { SIGNAL_CATEGORIES, type SignalCategory } from '@/lib/db/signals.types'
 
 // The shared 8-family category affordance (D28), extracted from signal-card + signal-record so the
@@ -17,13 +18,21 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
   const t = useT()
   const [open, setOpen] = useState(false)
 
-  if (category) {
-    return <span className="signal-category-pill">{category}</span>
-  }
-
   function pick(next: SignalCategory) {
     onCategorize?.(next)
     setOpen(false)
+  }
+
+  // GAP-8 (OD-91 #13): route the 8-family listbox through the shared keyboard contract — arrows/
+  // Home/End move the aria-activedescendant cursor, Enter/Space picks, Escape closes + returns focus.
+  const { listboxProps, getOptionProps, activeIndex } = useListboxPopover({
+    itemCount: SIGNAL_CATEGORIES.length,
+    onSelect: (index) => { const next = SIGNAL_CATEGORIES[index]; if (next) pick(next) },
+    onClose: () => setOpen(false),
+  })
+
+  if (category) {
+    return <span className="signal-category-pill">{category}</span>
   }
 
   return (
@@ -32,14 +41,15 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
         {t('signals.record.addCategory')}
       </Button>
       {open && (
-        <div role="listbox" aria-label={t('signals.record.categoryPickerLabel')} className="signal-category-picker">
-          {SIGNAL_CATEGORIES.map((option) => (
+        <div {...listboxProps} aria-label={t('signals.record.categoryPickerLabel')} className="signal-category-picker">
+          {SIGNAL_CATEGORIES.map((option, index) => (
             <button
               type="button"
               key={option}
-              role="option"
-              aria-selected={category === option}
-              className="signal-category-option"
+              {...getOptionProps(index)}
+              tabIndex={-1}
+              aria-selected={index === activeIndex}
+              className={`signal-category-option${index === activeIndex ? ' is-active' : ''}`}
               onClick={() => pick(option)}
             >
               {option}

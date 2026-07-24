@@ -9,7 +9,7 @@ import {
 import type { TeamOption, SiteOption, StagedMention, MentionKind } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
-import { SignalMentionPicker } from './signal-mention-picker'
+import { SignalMentionPicker, type SignalMentionPickerHandle } from './signal-mention-picker'
 import './signal-composer.css'
 
 // FB-style Signal composer (PORT convergence `sigComposer` — Rule 11). Capture-minimal (Rule 8 /
@@ -56,6 +56,9 @@ export function SignalComposer({
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
+  // navigation keydowns to the picker's shared listbox contract.
+  const mentionPickerRef = useRef<SignalMentionPickerHandle>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -169,10 +172,16 @@ export function SignalComposer({
           placeholder={t('signals.composer.placeholder')}
           value={body}
           onChange={handleBodyChange}
+          // Combobox aria: while the mention popover is open the textarea is the combobox that
+          // controls the listbox and reflects the active option (aria-activedescendant is on the
+          // listbox; role=combobox marks the input as the driver).
+          role={mentionToken ? 'combobox' : undefined}
+          aria-expanded={mentionToken ? true : undefined}
           onKeyDown={(e) => {
-            // D-B2 isolation: Escape while the mention popover is open dismisses the PICKER only and
-            // is consumed here — it must not bubble to the composer's ModalShell host and close it,
-            // losing the draft. With no popover open, Escape falls through to the host as usual.
+            // GAP-8 combobox idiom: while the popover is open, forward ArrowUp/Down/Home/End/Enter/
+            // Escape to the shared listbox contract. Escape is consumed here regardless (D-B2
+            // isolation: it must not bubble to the composer's ModalShell host and lose the draft).
+            if (mentionToken && mentionPickerRef.current?.handleKeyDown(e)) return
             if (e.key === 'Escape' && mentionToken) {
               e.preventDefault()
               e.stopPropagation()
@@ -190,6 +199,7 @@ export function SignalComposer({
         />
         {mentionToken && (
           <SignalMentionPicker
+            ref={mentionPickerRef}
             people={people}
             teams={teamCandidates}
             businessUnits={businessUnits}
