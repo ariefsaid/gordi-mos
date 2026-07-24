@@ -14,6 +14,8 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
   const mod = await importOriginal<typeof import('react-router-dom')>()
@@ -22,6 +24,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 import { createTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 // Re-homed from the deleted TaskCreate host onto the LIVE create surface (TaskSurface
 // create mode, width="full" — identical to what the host rendered). AC-080 (prefills) +
 // AC-081 (validation) now run against the real component.
@@ -30,6 +34,8 @@ import { TaskSurface } from '@/components/tasks/task-surface'
 const mockCreateTask = vi.mocked(createTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListObjectives = vi.mocked(listObjectives)
+const mockListWorkLines = vi.mocked(listWorkLines)
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 const VIEWER_ID = 'viewer-person-id'
@@ -76,6 +82,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  mockListObjectives.mockResolvedValue([])
+  mockListWorkLines.mockResolvedValue([])
   mockCreateTask.mockResolvedValue('new-task-id')
   mockNavigate.mockReset()
 })
@@ -135,6 +143,24 @@ describe('AC-080 — create form prefills', () => {
         createdBy: VIEWER_ID,
       }))
     })
+  })
+})
+
+// ── F17 (OD-91 #29): optional context pickers behind one "+ Add context" reveal ──
+describe('F17 — create-task context reveal', () => {
+  it('the Objective/Project pickers stay hidden behind "+ Add context"; the reveal shows them', async () => {
+    mockListObjectives.mockResolvedValue([
+      { id: 'obj-1', name: 'Grow retail revenue' } as never,
+    ])
+    renderCreate()
+    // The reveal appears once a context lookup arrives; the Objective picker is NOT shown yet.
+    const reveal = await screen.findByRole('button', { name: /add context/i })
+    expect(screen.queryByLabelText(/objective/i)).not.toBeInTheDocument()
+    // Opening the reveal shows the optional pickers…
+    fireEvent.click(reveal)
+    expect(await screen.findByLabelText(/objective/i)).toBeInTheDocument()
+    // …and the reveal button itself is gone (it stays open once opened).
+    expect(screen.queryByRole('button', { name: /add context/i })).not.toBeInTheDocument()
   })
 })
 

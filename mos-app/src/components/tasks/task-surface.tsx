@@ -812,6 +812,10 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
   const [description, setDescription] = useState('')
   const [workLineId, setWorkLineId] = useState('')
   const [objectiveId, setObjectiveId] = useState('')
+  // F17 (OD-REDESIGN-91 #29): the optional Project/Process + Objective context pickers stay hidden
+  // behind ONE "+ Add context" reveal — a task needs a title, PIC, and supervisor; strategy
+  // attribution is deliberate, not a wall of defaulted selects. Once revealed it stays open.
+  const [contextRevealed, setContextRevealed] = useState(false)
 
   // D-B1: dirty = the user has started composing (any field the user has touched). Programmatic
   // prefills (primaryRoleBU, viewer defaults) set state directly, never through markDirty, so an
@@ -1089,50 +1093,69 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
           )}
         </div>
 
-        {/* Project/Process (optional) — non-blocking; renders once lookups arrive.
-            UI term is Project/Process (OD-C-2 / ADR-0015); table stays mos.work_lines. */}
-        {workLinesDir.length > 0 && (
-          <div className="tc-field">
-            <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
-            <Select
-              id="task-workline"
-              className="tc-select"
-              fullWidth
-              value={workLineId}
-              onChange={e => { setWorkLineId(e.target.value); markDirty() }}
-              disabled={submitting}
-              aria-label={t('tasks.filter.projectProcess')}
-            >
-              <option value="">{t('tasks.create.none')}</option>
-              {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}
-              {workLinesDir.map(wl => (
-                <option key={wl.id} value={wl.id}>
-                  {wl.name} ({wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})
-                </option>
-              ))}
-            </Select>
-          </div>
+        {/* F17 (OD-91 #29): the optional Project/Process + Objective pickers live behind ONE
+            "+ Add context" reveal. Collapsed by default (a task needs only title/PIC/supervisor);
+            the reveal is offered only when at least one context lookup has arrived. Once opened it
+            stays open so a chosen attribution never hides itself. */}
+        {(workLinesDir.length > 0 || objectivesDir.length > 0) && !contextRevealed && (
+          <button
+            type="button"
+            className="tc-add-context"
+            onClick={() => setContextRevealed(true)}
+            disabled={submitting}
+          >
+            {t('tasks.create.addContext')}
+          </button>
         )}
 
-        {/* Objective (optional) — non-blocking; renders once lookups arrive */}
-        {objectivesDir.length > 0 && (
-          <div className="tc-field">
-            <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
-            <Select
-              id="task-objective"
-              className="tc-select"
-              fullWidth
-              value={objectiveId}
-              onChange={e => { setObjectiveId(e.target.value); markDirty() }}
-              disabled={submitting}
-              aria-label={t('tasks.objective')}
-            >
-              <option value="">{t('tasks.create.none')}</option>
-              {objectivesDir.map(obj => (
-                <option key={obj.id} value={obj.id}>{obj.name}</option>
-              ))}
-            </Select>
-          </div>
+        {contextRevealed && (
+          <>
+            {/* Project/Process (optional) — non-blocking; renders once lookups arrive.
+                UI term is Project/Process (OD-C-2 / ADR-0015); table stays mos.work_lines. */}
+            {workLinesDir.length > 0 && (
+              <div className="tc-field">
+                <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
+                <Select
+                  id="task-workline"
+                  className="tc-select"
+                  fullWidth
+                  value={workLineId}
+                  onChange={e => { setWorkLineId(e.target.value); markDirty() }}
+                  disabled={submitting}
+                  aria-label={t('tasks.filter.projectProcess')}
+                >
+                  <option value="">{t('tasks.create.none')}</option>
+                  {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}
+                  {workLinesDir.map(wl => (
+                    <option key={wl.id} value={wl.id}>
+                      {wl.name} ({wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            {/* Objective (optional) — non-blocking; renders once lookups arrive */}
+            {objectivesDir.length > 0 && (
+              <div className="tc-field">
+                <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
+                <Select
+                  id="task-objective"
+                  className="tc-select"
+                  fullWidth
+                  value={objectiveId}
+                  onChange={e => { setObjectiveId(e.target.value); markDirty() }}
+                  disabled={submitting}
+                  aria-label={t('tasks.objective')}
+                >
+                  <option value="">{t('tasks.create.none')}</option>
+                  {objectivesDir.map(obj => (
+                    <option key={obj.id} value={obj.id}>{obj.name}</option>
+                  ))}
+                </Select>
+              </div>
+            )}
+          </>
         )}
 
         {/* Due date (optional) */}

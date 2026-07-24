@@ -344,6 +344,25 @@
 .tc-label { font-size: var(--font-size-body-lg); font-weight: 500; color: var(--foreground); }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
+/* F17 (OD-91 #29): the "+ Add context" reveal — a quiet, text-first affordance (not a solid
+   button; the one solid primary stays the create action). Token-only. */
+.tc-add-context {
+  align-self: flex-start;
+  margin-bottom: 16px;
+  padding: 6px 0;
+  min-height: 44px;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tc-add-context:hover { text-decoration: underline; }
+.tc-add-context:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+.tc-add-context:disabled { color: var(--muted-foreground); cursor: not-allowed; }
+
 /* Description keeps a native <textarea> — ui/ has no ratified multiline primitive.
    It carries the same token chrome (border/radius/focus-ring/16px) as the other fields. */
 .tc-textarea {
