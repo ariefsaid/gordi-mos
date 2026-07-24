@@ -577,12 +577,13 @@ describe('TaskSurface — saved-view URL preservation', () => {
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })
 
-  it('AC-311: create success from /work/tasks/new?view=mine&r=other-id lands on /work/tasks/:id?view=mine', async () => {
+  it('GAP-6 (OD-91 #11): create success from /work/tasks/new?view=mine returns to the collection with the view preserved + ?highlight=<id>', async () => {
     renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Saved view task' } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
-    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks/new-task-id?view=mine'))
+    // After-create returns to the collection (not the drawer), preserving the view + flagging the new row.
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine&highlight=new-task-id'))
   })
 
   it('AC-311: archive success from /work/tasks/task-abc?view=mine returns to /work/tasks?view=mine', async () => {

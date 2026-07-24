@@ -847,7 +847,13 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       // NOT trip the host leave-guard as we navigate onto it.
       setDirty(false)
       onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
-      navigate({ pathname: `/work/tasks/${newId}`, search: collectionSearchString })
+      // GAP-6 (OD-REDESIGN-91 #11): after-create returns to the ORIGINATING collection with the
+      // new row highlighted (a brief accent that fades) — Tasks changes to match the app-wide rule
+      // (it used to open the new record in the drawer). The `?highlight=<id>` param tells the
+      // collection which row to flash; it preserves the collection's view query.
+      const highlightParams = new URLSearchParams(collectionSearchString)
+      highlightParams.set('highlight', newId)
+      navigate({ pathname: '/work/tasks', search: `?${highlightParams.toString()}` })
     } catch {
       setSubmitError(t('tasks.create.error'))
       setSubmitting(false)

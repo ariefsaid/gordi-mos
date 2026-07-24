@@ -28,6 +28,8 @@ export type TaskRowProps = {
   isSelected: boolean
   /** Keyboard cursor row → the `kfocus` class + aria-current. */
   isCursor: boolean
+  /** GAP-6 (OD-91 #11): the just-created row → the `row-just-created` fade-out accent. */
+  justCreated?: boolean
   leafIndex: number
   /** Ref applied to the <tr> when it is the cursor row (scrollIntoView wiring). */
   cursorRowRef?: Ref<HTMLTableRowElement>
@@ -56,7 +58,7 @@ export type TaskRowProps = {
 }
 
 export function TaskRow({
-  task, now, condensed, isSelected, isCursor, leafIndex, cursorRowRef,
+  task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
   onEditTitle,
@@ -172,7 +174,7 @@ export function TaskRow({
   return (
     <tr
       ref={isCursor ? cursorRowRef : undefined}
-      className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}`}
+      className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}${justCreated ? ' row-just-created' : ''}`}
       // I7 (cohesion-debt 2026-07-19): the rail/breadcrumb own aria-current="page";
       // a row's open/cursor state is a SELECTION, so expose aria-selected — never a
       // second aria-current on the page (interaction-contract I7 "exactly one").

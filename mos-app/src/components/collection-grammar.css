@@ -304,3 +304,20 @@
 .collection-grammar-table tbody tr.kfocus td { box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
 .collection-grammar-table tbody tr.kfocus td:first-child { box-shadow: inset 2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
 .collection-grammar-table tbody tr.kfocus td:last-child { box-shadow: inset -2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+
+/* ── After-create highlight (GAP-6 / OD-REDESIGN-91 #11) ─────────────────────────────────────
+   The row a create just landed in returns highlighted with a brief accent that fades back to the
+   resting row — the "one rule app-wide" after-create feedback. Tokens only (--primary at low
+   alpha), a single ~1.8s ease-out that ends at transparent so the class may safely linger. */
+@keyframes collection-row-just-created {
+  0%   { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+  100% { background: transparent; }
+}
+.task-row.row-just-created td,
+.collection-grammar-table tbody tr.row-just-created td {
+  animation: collection-row-just-created 1800ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-row.row-just-created td,
+  .collection-grammar-table tbody tr.row-just-created td { animation: none; }
+}

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { To } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
@@ -348,6 +349,21 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const [cursor, setCursor] = useState(-1)
   const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // GAP-6 (OD-91 #11): after-create returns here with `?highlight=<id>` — the just-created row
+  // gets a brief accent that fades (row-just-created). The table stays MOUNTED across the
+  // create→list navigation, so react to the param arriving (not just at mount), record the id,
+  // then strip the param from the URL so a refresh/back doesn't re-flash a stale row.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
+  useEffect(() => {
+    const highlight = searchParams.get('highlight')
+    if (!highlight) return
+    setJustCreatedId(highlight)
+    const next = new URLSearchParams(searchParams)
+    next.delete('highlight')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
   const desktopLayout = runtime.isDesktop && !cardLayout
   const virtualize = desktopLayout && leafTasks.length >= 50
   const rowVirtualizer = useVirtualizer({
@@ -424,6 +440,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         now={context.now}
         condensed={runtime.drawerOpen && runtime.splitLayout}
         isSelected={runtime.selectedId === task.id}
+        justCreated={task.id === justCreatedId}
         isCursor={keyboard.cursor === leafIndex}
         leafIndex={leafIndex}
         cursorRowRef={keyboard.cursor === leafIndex ? cursorRowRef : undefined}

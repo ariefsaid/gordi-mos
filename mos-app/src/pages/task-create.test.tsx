@@ -205,7 +205,7 @@ describe('AC-081 — create form validation', () => {
     expect(mockCreateTask).not.toHaveBeenCalled()
   })
 
-  it('on valid submit: calls createTask with correct payload and navigates to detail', async () => {
+  it('GAP-6 (OD-91 #11): on valid submit, createTask is called and it returns to the collection with the new row highlighted', async () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
 
@@ -221,7 +221,8 @@ describe('AC-081 — create form validation', () => {
         accountablePersonId: VIEWER_ID,
         createdBy: VIEWER_ID,
       }))
-      expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/work/tasks/new-task-id', search: '' })
+      // GAP-6: after-create returns to the collection with ?highlight=<new id> (not the drawer).
+      expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/work/tasks', search: '?highlight=new-task-id' })
     })
   })
 })

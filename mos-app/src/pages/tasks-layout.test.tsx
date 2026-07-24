@@ -405,11 +405,13 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })
     expect(screen.getByText('Freshly created')).toBeInTheDocument()
     expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 tasks')
-    // and the create task's row is the selected one (we navigated to /tasks/task-new)
+    // GAP-6 (OD-91 #11): after-create returns to the collection with the new row HIGHLIGHTED
+    // (row-just-created) — not opened in the drawer. The create drawer is gone.
     await waitFor(() => {
-      const sel = document.querySelector('tr.task-row.row-selected')
-      expect(sel?.textContent).toContain('Freshly created')
+      const flashed = document.querySelector('tr.task-row.row-just-created')
+      expect(flashed?.textContent).toContain('Freshly created')
     })
+    expect(screen.queryByRole('complementary', { name: /create task|task detail/i })).toBeNull()
   })
 
   // AC-109: keyboard navigation — j/k move the cursor, Enter opens, n opens create,
