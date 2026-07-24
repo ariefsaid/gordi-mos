@@ -490,7 +490,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'AR Follow-ups' })).toBeInTheDocument()
     // DELIBERATE goal change (record-collection plan §Task-11): the legacy Team-work chip is removed
     // until Issue 8 lands the real Task team_id contract.
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
@@ -568,7 +568,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
 
     // The view chips stay — they are the door out of the reserved view.
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'AR Follow-ups' })).toBeInTheDocument()
   })
 
   it('AC-305: after view=mine loads, Group / Unit / Status / Person still work without rewriting the saved view', async () => {
