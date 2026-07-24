@@ -48,6 +48,7 @@ import { WhatsComingStrip } from '@/components/dashboard/whats-coming-strip'
 import { FreshnessLabel } from '@/components/dashboard/freshness-label'
 import { DailyRevenueChart } from '@/components/sales/daily-revenue-chart'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { Button } from '@/components/ui/button'
 import './dashboard-page.css'
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -272,7 +273,15 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
           title={t('money.empty.title')}
           copy={t('money.empty.copy')}
           className="dash-empty-fill"
-        />
+        >
+          {/* F11 (OD-REDESIGN-91 #24): the awaiting-sync ↻ is a REAL refresh, not a decorative
+              badge. It re-fetches the snapshot (retryKey → fetchRows); the page flips to its
+              loading branch while it runs and to the honest error branch if the fetch fails, so
+              the affordance never lies about pending/success. */}
+          <Button variant="outline" onClick={() => setRetryKey(k => k + 1)}>
+            {t('money.empty.refresh')}
+          </Button>
+        </EmptyState>
       </PageFamilyFrame>
     )
   }

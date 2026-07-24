@@ -125,6 +125,20 @@ describe('WindowSelector — custom date range', () => {
     }
   })
 
+  it('DO F12 (OD-91 #25): when the window is custom, the Custom tab carries the selected state (white-card style binds to aria-selected)', () => {
+    render(
+      <WindowSelector
+        value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
+        onChange={vi.fn()}
+        bounds={BOUNDS}
+      />,
+    )
+    // The Custom tab — not a preset — owns aria-selected while custom is active; the seg's
+    // `[aria-selected='true']` white-card rule follows it, so the active tab reads as selected.
+    expect(screen.getByRole('tab', { name: /custom/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /30d/i })).toHaveAttribute('aria-selected', 'false')
+  })
+
   it('AC-014: when Custom is active, two bounded date inputs render', () => {
     render(
       <WindowSelector

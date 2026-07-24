@@ -145,6 +145,27 @@ describe('DashboardPage — states', () => {
     expect(screen.queryByText(/^Rp 0/)).not.toBeInTheDocument()
   })
 
+  it('F11 (OD-91 #24): the awaiting-sync affordance is a REAL refresh — it re-fetches the snapshot and can recover to populated', async () => {
+    // Empty on first load, then a real snapshot lands on the refresh re-fetch.
+    mockRev.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysRevenue())
+    mockMarg.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysMargin())
+    renderPage()
+    const refresh = await screen.findByRole('button', { name: /check for new snapshot/i })
+    fireEvent.click(refresh)
+    // Re-fetched the snapshot (not a decorative badge) and recovered to the populated page.
+    await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('heading', { name: /daily revenue/i })).toBeInTheDocument()
+  })
+
+  it('F11 (OD-91 #24): a refresh that fails lands the honest error state — the affordance never lies about success', async () => {
+    mockRev.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('boom'))
+    mockMarg.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysMargin())
+    renderPage()
+    const refresh = await screen.findByRole('button', { name: /check for new snapshot/i })
+    fireEvent.click(refresh)
+    expect(await screen.findByRole('button', { name: /retry|try again/i })).toBeInTheDocument()
+  })
+
   it('money-3: the empty state carries the dash-empty-fill scoping class so it centers within the full remaining viewport at ≥1280px instead of a stranded fixed-height block', async () => {
     mockRev.mockResolvedValue([])
     mockMarg.mockResolvedValue([])
