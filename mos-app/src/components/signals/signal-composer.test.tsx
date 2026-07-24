@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TeamOption } from '@/lib/db/signals.types'
@@ -38,6 +38,10 @@ const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
   { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-retail', site_id: 'site-radiant', is_primary: false },
 ]
+// OD-REDESIGN-91 #19: a single eligible Team auto-picks, so the default author is on ONE team —
+// the common journey. The multi-team must-pick journey has its own describe block below, and
+// listAllTeams (the canCreateForTeam widening) still returns the full set.
+const SOLE_TEAM: TeamOption[] = [TEAMS[0]]
 const BUS: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 const PEOPLE: PersonOption[] = [{ id: AUTHOR_ID, full_name: 'Cahya Cafe' }, { id: 'person-peer', full_name: 'Peer Person' }]
 
@@ -60,7 +64,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mockListAuthorTeams.mockResolvedValue(TEAMS)
+  mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
   mockListAllTeams.mockResolvedValue(TEAMS)
   mockGetTeamSite.mockResolvedValue(null)
   mockGetBusinessUnits.mockResolvedValue(BUS)
@@ -137,6 +141,64 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     expect(call.body).toBe('The freezer alarm went off')
     expect(call.owningTeamId).toBe('team-hq')
     expect(call.mentions).toEqual([])
+  })
+})
+
+describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', () => {
+  it('with more than one eligible Team, pre-selects nothing and keeps Share disabled until a Team is picked', async () => {
+    mockListAuthorTeams.mockResolvedValue(TEAMS) // author on two teams → must pick
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+
+    const teamSelect = await screen.findByRole('combobox', { name: /team/i })
+    expect(teamSelect).toHaveValue('') // no pre-pick, no arbitrary first
+
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    const shareButton = screen.getByRole('button', { name: /share signal/i })
+    expect(shareButton).toBeDisabled() // body typed, but no owning Team chosen → still blocked
+
+    await userEvent.selectOptions(teamSelect, 'team-radiant')
+    expect(shareButton).toBeEnabled()
+    await userEvent.click(shareButton)
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].owningTeamId).toBe('team-radiant')
+  })
+
+  it('with a single eligible Team, auto-picks it (no needless pick)', async () => {
+    mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+
+    const teamSelect = await screen.findByRole('combobox', { name: /team/i })
+    expect(teamSelect).toHaveValue('team-hq')
+
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    expect(screen.getByRole('button', { name: /share signal/i })).toBeEnabled()
+  })
+})
+
+describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #20)', () => {
+  it('#10: Shift+Enter posts the Signal; plain Enter is a newline (not a post)', async () => {
+    renderComposer() // single team auto-picks, so only the body is needed
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+
+    fireEvent.keyDown(body, { key: 'Enter' }) // plain Enter → newline
+    expect(mockCreateSignal).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(body, { key: 'Enter', shiftKey: true }) // Shift+Enter → send
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].body).toBe('The freezer alarm went off')
+  })
+
+  it('#20: keeps the native datetime picker and shows a WIB hint beside it', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    expect(screen.getByLabelText(/occurred/i)).toHaveAttribute('type', 'datetime-local')
+    expect(screen.getByText('WIB')).toBeInTheDocument()
   })
 })
 

@@ -65,7 +65,13 @@ export function SignalComposer({
       if (cancelled) return
       setTeams(teamOptions)
       const primary = teamOptions.find((o) => o.is_primary) ?? teamOptions[0]
-      if (primary) { setTeamId(primary.id); setPrimaryTeamId(primary.id) }
+      // primaryTeamId always tracks the author's home Team (drives the cross-Team destination
+      // preview), independent of what is *selected*.
+      if (primary) setPrimaryTeamId(primary.id)
+      // OD-REDESIGN-91 #19 (F4): a single eligible Team auto-picks; with more than one the poster
+      // MUST pick the owning Team — no pre-select, no arbitrary first (Share stays disabled until
+      // a Team is chosen).
+      if (teamOptions.length === 1) setTeamId(teamOptions[0].id)
       setPeople(peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })))
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
@@ -171,6 +177,13 @@ export function SignalComposer({
               e.preventDefault()
               e.stopPropagation()
               setMentionToken(null)
+              return
+            }
+            // OD-REDESIGN-91 #10: Shift+Enter SENDS; plain Enter stays a newline. Held back while
+            // the mention popover is open so a stray Shift+Enter never posts mid-mention.
+            if (e.key === 'Enter' && e.shiftKey && !mentionToken) {
+              e.preventDefault()
+              void submit()
             }
           }}
           rows={3}
@@ -194,13 +207,22 @@ export function SignalComposer({
           value={teamId}
           onChange={(e) => setTeamId(e.target.value)}
         >
+          {/* #19: with more than one eligible Team, an unselectable placeholder forces a deliberate
+              pick (the native select would otherwise show the first option while value stays ''). */}
+          {teams.length > 1 && (
+            <option value="" disabled>{t('signals.composer.teamPlaceholder')}</option>
+          )}
           {teams.map((team) => (
             <option key={team.id} value={team.id}>{team.name}</option>
           ))}
         </Select>
 
         <label className="signal-composer-datetime">
-          <span className="signal-composer-field-label">{t('signals.composer.occurredLabel')}</span>
+          <span className="signal-composer-field-label">
+            {t('signals.composer.occurredLabel')}
+            {/* OD-REDESIGN-91 #20: native picker stays; a quiet WIB hint states the zone. */}
+            <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
+          </span>
           <input
             type="datetime-local"
             aria-label={t('signals.composer.occurredLabel')}
@@ -224,15 +246,19 @@ export function SignalComposer({
 
       <div className="signal-composer-foot">
         <span className="muted-2">{t('signals.composer.categoryHelp')}</span>
-        <Button
-          variant="primary"
-          disabled={!body.trim() || !teamId || posting}
-          aria-busy={posting}
-          onClick={() => { void submit() }}
-        >
-          {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
-          {posting ? t('signals.action.sharing') : t('signals.action.share')}
-        </Button>
+        <div className="signal-composer-send">
+          {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden on touch. */}
+          <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
+          <Button
+            variant="primary"
+            disabled={!body.trim() || !teamId || posting}
+            aria-busy={posting}
+            onClick={() => { void submit() }}
+          >
+            {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
+            {posting ? t('signals.action.sharing') : t('signals.action.share')}
+          </Button>
+        </div>
       </div>
     </div>
   )

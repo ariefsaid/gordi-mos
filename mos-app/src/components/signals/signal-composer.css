@@ -31,6 +31,11 @@
 .signal-composer-field-label {
   font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500;
 }
+/* OD-REDESIGN-91 #20: the WIB timezone hint sits beside the "Occurred at" label — quiet, micro. */
+.signal-composer-field-hint {
+  margin-left: 6px; font-size: var(--font-size-micro); font-weight: 600;
+  letter-spacing: 0.04em; color: var(--text-light);
+}
 .signal-composer-datetime input {
   display: block; width: 100%; height: 32px; padding: 0 10px; box-sizing: border-box;
   background: var(--background); border: 1px solid var(--input);
@@ -56,6 +61,16 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .signal-composer-foot .muted-2 { flex: 1; min-width: 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
+
+/* OD-REDESIGN-91 #10: Send button + its quiet Shift+Enter hint; the hint hides on touch (no
+   physical keyboard to press Shift+Enter). */
+.signal-composer-send { display: flex; align-items: center; gap: 8px; }
+.signal-composer-send-hint {
+  font-size: var(--font-size-micro); color: var(--muted-foreground); white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .signal-composer-send-hint { display: none; }
+}
 
 /* SYS-2 phone tap-target floor: the datetime-local control is 32px tall (no styled-kit
    primitive backs it, so it never inherited the DO-15(a) field floor). Raise it to the 44px
