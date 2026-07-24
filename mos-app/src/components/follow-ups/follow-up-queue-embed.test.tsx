@@ -85,7 +85,7 @@ describe('FollowUpQueueEmbed', () => {
   it('AC-904: renders the live queue via the same table used by the canonical page', async () => {
     renderEmbed()
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Follow-up queue' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'AR Follow-up queue' })).toBeInTheDocument()
   })
 
   it('AC-907: exposes the same lifecycle-action buttons as the canonical page', async () => {

@@ -515,7 +515,7 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Follow-ups' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'AR Follow-ups' })).toBeTruthy()
     // DELIBERATE goal change (record-collection plan §Task-11): no Team-work chip until Issue 8.
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
   })

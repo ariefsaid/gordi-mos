@@ -181,7 +181,7 @@ export function FollowUpQueueTable({
       {state === 'ready' && detailRow && (
         <aside
           role="complementary"
-          aria-label="Follow-up detail"
+          aria-label="AR Follow-up detail"
           style={{
             marginTop: 16,
             padding: 16,

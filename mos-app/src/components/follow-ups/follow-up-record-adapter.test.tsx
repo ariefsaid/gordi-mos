@@ -50,7 +50,7 @@ describe('createFollowUpRecordAdapter', () => {
   it('projects a Follow-up into the shared RecordViewer grammar as its own kind, not a Task', () => {
     const adapter = createFollowUpRecordAdapter({ row, events, people })
     expect(adapter.kind).toBe('follow-up')
-    expect(adapter.typeLabel).toBe('Follow-up')
+    expect(adapter.typeLabel).toBe('AR Follow-up')
     expect(adapter.title).toBe('PT Big Buyer')
     // Never a Task: no status control, no checklist content slot, no Business Unit owner.
     const keys = slotFields(adapter).map((f) => f.key)

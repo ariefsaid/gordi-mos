@@ -174,7 +174,7 @@ export function createFollowUpRecordAdapter(input: FollowUpRecordAdapterInput): 
     kind: 'follow-up',
     id: row.id,
     title: row.counterparty,
-    typeLabel: 'Follow-up',
+    typeLabel: 'AR Follow-up',
     eyebrow: row.source_invoice_ref ?? KIND_LABEL[row.kind],
     metadata: [],
     relations: [],

@@ -14,7 +14,7 @@ import { useT } from '@/i18n/use-t'
 const VIEW_LEAF: Record<string, string> = {
   mine: 'My work',
   overdue: 'Overdue',
-  followups: 'Follow-ups',
+  followups: 'AR Follow-ups',
 }
 
 function viewLeaf(search: string): string | null {

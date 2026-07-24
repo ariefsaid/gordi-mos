@@ -102,7 +102,7 @@ describe('FollowUpsPage', () => {
   it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
     const { container } = render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Follow-up queue' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'AR Follow-up queue' })).toBeInTheDocument()
     expect(container.querySelector('.dt-table')).toBeTruthy()
     expect(container.querySelector('.follow-ups-table')).toBeNull()
     expect(screen.getAllByText(/Rp/).length).toBeGreaterThan(0)
@@ -122,8 +122,8 @@ describe('FollowUpsPage', () => {
 
   it('AC-520: /work/follow-ups/:id opens a read-only detail panel for that follow-up', async () => {
     renderRoute('/work/follow-ups/fu-1')
-    expect(await screen.findByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent('INV-1001')
-    expect(screen.getByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent('PT Big Buyer')
+    expect(await screen.findByRole('complementary', { name: 'AR Follow-up detail' })).toHaveTextContent('INV-1001')
+    expect(screen.getByRole('complementary', { name: 'AR Follow-up detail' })).toHaveTextContent('PT Big Buyer')
   })
 
   it('AC-520: renders queue rows with lifecycle actions', async () => {
@@ -161,7 +161,7 @@ describe('FollowUpsPage', () => {
 
     mockListFollowUps.mockResolvedValueOnce([])
     const empty = render(createElement(FollowUpsPage), { wrapper })
-    await waitFor(() => expect(screen.getByText('No follow-ups in your lane')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('No AR Follow-ups in your lane')).toBeInTheDocument())
     expect(empty.container.querySelector('.empty-state')).toBeTruthy()
     empty.unmount()
 

@@ -11,7 +11,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { FollowUpRecordHost } from '@/components/follow-ups/follow-up-record-host'
 
 export function FollowUpRecordPage() {
-  useDocumentTitle('Follow-up — Gordi MOS')
+  useDocumentTitle('AR Follow-up — Gordi MOS')
   const t = useT()
   const { id } = useParams<{ id: string }>()
   if (!id) return <Navigate to="/money/follow-ups" replace />

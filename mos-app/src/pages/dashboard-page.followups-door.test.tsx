@@ -27,7 +27,7 @@ describe('DashboardPage — Follow-up queue door (Step 9, AC-902)', () => {
         <DashboardPage />
       </MemoryRouter>,
     )
-    const link = screen.getByRole('link', { name: 'Follow-up queue' })
+    const link = screen.getByRole('link', { name: 'AR Follow-up queue' })
     expect(link).toHaveAttribute('href', '/money/follow-ups')
   })
 })
