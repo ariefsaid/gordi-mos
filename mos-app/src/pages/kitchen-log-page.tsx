@@ -53,6 +53,7 @@ import { DataTable, type DataTableColumn, type DataTableGroup } from '@/componen
 import { Pill } from '@/components/ui/pill'
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -458,6 +459,9 @@ export function KitchenLogPage() {
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : submitError ? 'validation' : 'default'}
     >
       <div className="kl-page">
+        {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
+            stay/discard when leaving the route with unsaved entries. */}
+        <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
 
         {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}

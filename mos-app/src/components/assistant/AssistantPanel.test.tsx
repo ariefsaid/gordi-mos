@@ -211,6 +211,8 @@ describe('AssistantPanel (T27)', () => {
     // …and carries NO Stop button — the single Stop lives on the stuck-run banner only.
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+  })
+
   it('OD-REDESIGN-91 #10: Shift+Enter sends; plain Enter is a newline (not a send)', async () => {
     const runtime = makeFakeRuntime()
     renderPanel({ narrow: false, open: true, runtime })

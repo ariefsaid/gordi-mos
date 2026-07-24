@@ -5,7 +5,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -950,5 +951,82 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.getByRole('table', { name: /café production log/i })).toBeInTheDocument()
     expect(document.querySelector('.dt-cards')).toBeNull()
+  })
+})
+
+// GAP-4 / OD-REDESIGN-91 #9 — the route-leave dirty guard. The live-reproduced loss (staged
+// quantities silently vanishing on navigation) must become impossible: leaving with staged-but-
+// unsubmitted entries asks stay/discard. Mounted under a DATA router (the guard's useBlocker seam,
+// matching the app's createBrowserRouter) — the rest of this suite uses a bare <MemoryRouter>,
+// under which the guard degrades to inert, which is why those tests stay green unchanged.
+describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
+  async function renderPageInDataRouter() {
+    mockUseAuth.mockReturnValue(VIEWER_MEMBER)
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/mos/kitchen/log',
+          element: (
+            <>
+              <KitchenLogPage />
+              <Link to="/mos/elsewhere">Go to dashboard</Link>
+            </>
+          ),
+        },
+        { path: '/mos/elsewhere', element: <h1>Elsewhere</h1> },
+      ],
+      { initialEntries: ['/mos/kitchen/log'] },
+    )
+    await act(async () => {
+      render(<RouterProvider router={router} />)
+      await Promise.resolve()
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+  }
+
+  it('with NO staged entries, navigation leaves freely (no prompt)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    await renderPageInDataRouter()
+
+    await userEvent.click(screen.getByRole('link', { name: /go to dashboard/i }))
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(await screen.findByRole('heading', { name: 'Elsewhere' })).toBeInTheDocument()
+    confirmSpy.mockRestore()
+  })
+
+  it('with staged entries, "stay" (Cancel) vetoes navigation and keeps the entries', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await renderPageInDataRouter()
+
+    // Stage a quantity for Ayam Bakar — the page now holds unsaved work.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '5' } })
+      await Promise.resolve()
+    })
+
+    await userEvent.click(screen.getByRole('link', { name: /go to dashboard/i }))
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1))
+    // Vetoed — still on the log page, the staged qty intact.
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Elsewhere' })).toBeNull()
+    expect((screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i }) as HTMLInputElement).value).toBe('5')
+    confirmSpy.mockRestore()
+  })
+
+  it('with staged entries, "discard" (OK) completes the navigation', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await renderPageInDataRouter()
+
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '5' } })
+      await Promise.resolve()
+    })
+
+    await userEvent.click(screen.getByRole('link', { name: /go to dashboard/i }))
+    expect(await screen.findByRole('heading', { name: 'Elsewhere' })).toBeInTheDocument()
+    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    confirmSpy.mockRestore()
   })
 })
