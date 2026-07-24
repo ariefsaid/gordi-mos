@@ -55,6 +55,27 @@ export async function listFollowUps(filters: FollowUpFilters = {}): Promise<Foll
   return (data ?? []) as FollowUpRow[]
 }
 
+/** A lightweight AR Follow-up reference for the ⌘K command palette (OD-REDESIGN-91 #4/B2). */
+export interface FollowUpTitleRef { id: string; counterparty: string }
+
+/**
+ * Search AR Follow-ups by counterparty for the command palette (OD-REDESIGN-91 #4/B2). The
+ * counterparty is the follow-up's title-grain identity; RLS governs read (finance/AR only).
+ * Gated behind SHOW_FOLLOWUPS at the caller — this stays a plain read. Newest-touched first.
+ */
+export async function searchFollowUpsByCounterparty(q: string, limit = 20): Promise<FollowUpTitleRef[]> {
+  const term = q.trim()
+  if (!term) return []
+  const { data, error } = await mos()
+    .from('follow_ups')
+    .select('id,counterparty')
+    .ilike('counterparty', `%${term}%`)
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`searchFollowUpsByCounterparty failed — ${error.message}`)
+  return (data ?? []) as unknown as FollowUpTitleRef[]
+}
+
 export async function getFollowUp(id: string): Promise<FollowUpRow | null> {
   const { data, error } = await mos().from('follow_ups').select('*').eq('id', id).maybeSingle()
   if (error) throw new Error(`getFollowUp failed — ${error.message}`)

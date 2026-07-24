@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
+import { searchSignalsByBody } from '@/lib/db/signals'
+import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
+import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import {
@@ -9,6 +12,7 @@ import {
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
 import { useT } from '@/i18n/use-t'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
@@ -42,10 +46,15 @@ type CommandItem = {
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
 
+// OD-REDESIGN-91 #4/B2: the palette searches ALL record kinds now — Tasks + Signals +
+// AR Follow-ups — so a hit carries its kind (drives the row icon, route, and kind label).
+type RecordKind = 'task' | 'signal' | 'follow-up'
+type RecordHit = { id: string; title: string; kind: RecordKind }
+
 type RecordsState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'ready'; rows: { id: string; title: string }[] }
+  | { status: 'ready'; rows: RecordHit[] }
   | { status: 'error' }
 
 // Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
@@ -53,6 +62,22 @@ type RecordsState =
 // composer host, C1 — never a route navigation, AC-428/FR-417); Create Task navigates /work/tasks/new.
 function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
+}
+
+// Signals have no title — their body is the identity. Collapse to the first non-empty line so a
+// multi-line body renders as one clean, CSS-truncated palette row (OD-REDESIGN-91 #4/B2).
+function firstLine(body: string): string {
+  const line = body.split('\n').map((s) => s.trim()).find((s) => s.length > 0)
+  return line ?? body.trim()
+}
+
+// Per-kind row config for the widened Records group (OD-REDESIGN-91 #4/B2): the icon, the
+// canonical record route (mirrors record-deep-link-resolver's pageTo paths), and the muted kind
+// label. AR Follow-ups borrow the Money glyph — they are the finance/AR settlement record.
+const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; basePath: string; kindLabelKey: 'commandMenu.kind.task' | 'commandMenu.kind.signal' | 'commandMenu.kind.followUp' }> = {
+  task: { Icon: TasksIcon, basePath: '/work/tasks', kindLabelKey: 'commandMenu.kind.task' },
+  signal: { Icon: SignalsIcon, basePath: '/work/signals', kindLabelKey: 'commandMenu.kind.signal' },
+  'follow-up': { Icon: MoneyIcon, basePath: '/work/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
 }
 
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
@@ -63,6 +88,9 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   const auth = useAuth()
   const t = useT()
   const { openPanel } = useAgentRuntime()
+  // OD-REDESIGN-91 #41 (G5): the ⌘K keyboard hints (footer + the esc chip) are meaningless on a
+  // touch device — hide them on a coarse pointer so a phone launcher shows no un-pressable keys.
+  const isCoarse = useIsCoarsePointer()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [records, setRecords] = useState<RecordsState>({ status: 'idle' })
@@ -128,17 +156,35 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
   }, [open])
 
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
+  // OD-REDESIGN-91 #4/B2: one debounced fan-out across every readable record kind — Tasks +
+  // Signals always; AR Follow-ups only when SHOW_FOLLOWUPS is lit (the settlement bridge ships
+  // dark). RLS is the read authority for each. Any one search failing fails the group (the
+  // existing "Couldn't search records" affordance); Navigate/Actions still filter client-side.
   useEffect(() => {
     if (!open) return
     if (!isSearching) { setRecords({ status: 'idle' }); return }
     setRecords({ status: 'loading' })
     let cancelled = false
-    const t = setTimeout(() => {
-      searchTasksByTitle(trimmed)
-        .then((rows) => { if (!cancelled) setRecords({ status: 'ready', rows }) })
+    const timer = setTimeout(() => {
+      Promise.all([
+        searchTasksByTitle(trimmed).then((rows) =>
+          rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
+        ),
+        searchSignalsByBody(trimmed).then((rows) =>
+          rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
+        ),
+        SHOW_FOLLOWUPS
+          ? searchFollowUpsByCounterparty(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.counterparty, kind: 'follow-up' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
+      ])
+        .then(([tasks, signals, followUps]) => {
+          if (!cancelled) setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps] })
+        })
         .catch(() => { if (!cancelled) setRecords({ status: 'error' }) })
     }, 150)
-    return () => { cancelled = true; clearTimeout(t) }
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [open, trimmed, isSearching])
 
   // ── Group model ──────────────────────────────────────────────────────────────
@@ -156,10 +202,21 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
     }
     const actions = universalActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
-    const recordItems = recordRows.map<CommandItem>((r) => ({
-      id: `record-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
-      to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
-    }))
+    const recordItems = recordRows.map<CommandItem>((r) => {
+      const cfg = RECORD_KIND_CONFIG[r.kind]
+      return {
+        // Namespace the id by kind — a Task and a Signal can share a uuid across tables.
+        id: `record-${r.kind}-${r.id}`,
+        label: r.title,
+        Icon: cfg.Icon,
+        kind: 'record',
+        to: `${cfg.basePath}/${r.id}`,
+        // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
+        meta: t(cfg.kindLabelKey),
+        // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
+        record: r.kind === 'task' ? { id: r.id, title: r.title } : undefined,
+      }
+    })
     if (records.status === 'ready' && recordItems.length) {
       out.push({ key: 'records', label: t('commandMenu.group.records'), items: recordItems })
     }
@@ -229,7 +286,8 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
           />
-          <kbd className="cm-foot-key">esc</kbd>
+          {/* #41 (G5): the esc key chip hides on a coarse pointer (no keyboard to press it). */}
+          {!isCoarse && <kbd className="cm-foot-key">esc</kbd>}
         </div>
 
         <div className="cm-body">
@@ -289,11 +347,14 @@ export function CommandMenu({ open, onClose, onShareSignal }: CommandMenuProps):
           </div>
         </div>
 
-        <div className="cm-foot" aria-hidden="true">
-          <span><span className="cm-foot-key">↑↓</span> {t('commandMenu.footer.navigate')}</span>
-          <span><span className="cm-foot-key">↵</span> {t('commandMenu.footer.open')}</span>
-          <span><span className="cm-foot-key">esc</span> {t('commandMenu.footer.close')}</span>
-        </div>
+        {/* #41 (G5): the whole keyboard-hint footer hides on a coarse pointer — un-pressable keys. */}
+        {!isCoarse && (
+          <div className="cm-foot" aria-hidden="true">
+            <span><span className="cm-foot-key">↑↓</span> {t('commandMenu.footer.navigate')}</span>
+            <span><span className="cm-foot-key">↵</span> {t('commandMenu.footer.open')}</span>
+            <span><span className="cm-foot-key">esc</span> {t('commandMenu.footer.close')}</span>
+          </div>
+        )}
       </div>
     </ModalShell>
   )

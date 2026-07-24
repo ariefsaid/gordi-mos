@@ -13,7 +13,7 @@ vi.mock('../supabase', () => {
 vi.mock('./tasks', () => ({ createTask: vi.fn() }))
 
 import {
-  listReadableSignals, getSignal, createSignal, correctSignal, retractSignal,
+  listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask, createFollowUpTask,
   listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
   listSignalRevisions, loadMentionRosters, summarizeLinkedTasks,
@@ -30,6 +30,8 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  ilikes: Array<[string, unknown]>
+  limits: number[]
   inserts: unknown[]
   updates: unknown[]
   orders: Array<[string, unknown]>
@@ -39,7 +41,7 @@ interface Recorder {
 type Result = { data: unknown; error: unknown }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], orders: [], rpcs: [] }
+  return { fromTables: [], selects: [], eqs: [], ilikes: [], limits: [], inserts: [], updates: [], orders: [], rpcs: [] }
 }
 
 function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
@@ -60,7 +62,9 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.in = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.ilike = vi.fn((c: string, v: unknown) => { rec.ilikes.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.single = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.maybeSingle = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(nextResult(key)).then(resolve)
@@ -122,6 +126,37 @@ describe('listReadableSignals', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'boom' } }] }, rec)
     await expect(listReadableSignals()).rejects.toThrow(/boom/)
+  })
+})
+
+// ── searchSignalsByBody (⌘K palette read path, OD-REDESIGN-91 #4/B2) ──────────
+describe('searchSignalsByBody', () => {
+  it('#B2: selects id,body from mos.signals ilike body, excludes retracted, newest first, limited', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: [{ id: 's1', body: 'Freezer alarm' }], error: null }] }, rec)
+
+    const rows = await searchSignalsByBody('  freezer  ', 5)
+    expect(rows).toEqual([{ id: 's1', body: 'Freezer alarm' }])
+    expect(rec.fromTables).toContain('mos.signals')
+    expect(rec.selects).toContain('id,body')
+    expect(rec.ilikes).toContainEqual(['body', '%freezer%'])
+    expect(rec.eqs).toContainEqual(['retracted_at', null])
+    expect(rec.orders[0]).toEqual(['created_at', { ascending: false }])
+    expect(rec.limits).toContain(5)
+    expect(rec.eqs.filter(([c]) => c === 'org_id')).toHaveLength(0)
+  })
+
+  it('#B2: an empty/whitespace query short-circuits to [] without querying', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: [], error: null }] }, rec)
+    expect(await searchSignalsByBody('   ')).toEqual([])
+    expect(rec.fromTables).not.toContain('mos.signals')
+  })
+
+  it('#B2: throws on a non-null PostgREST error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'search boom' } }] }, rec)
+    await expect(searchSignalsByBody('x')).rejects.toThrow(/searchSignalsByBody failed — search boom/)
   })
 })
 

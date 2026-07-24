@@ -30,6 +30,28 @@ export async function listReadableSignals(f: ListSignalsFilters = {}): Promise<S
   return (data ?? []) as unknown as SignalRow[]
 }
 
+/** A lightweight Signal reference for the ⌘K command palette (OD-REDESIGN-91 #4/B2). */
+export interface SignalTitleRef { id: string; body: string }
+
+/**
+ * Search Signals by body for the command palette (OD-REDESIGN-91 #4/B2 — the palette now
+ * spans all record kinds, so "Records" is finally true). RLS-governed read (mos.can_read_signal
+ * — org_id/author_id never sent). Excludes retracted tombstones, newest first.
+ */
+export async function searchSignalsByBody(q: string, limit = 20): Promise<SignalTitleRef[]> {
+  const term = q.trim()
+  if (!term) return []
+  const { data, error } = await mos()
+    .from('signals')
+    .select('id,body')
+    .ilike('body', `%${term}%`)
+    .is('retracted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`searchSignalsByBody failed — ${error.message}`)
+  return (data ?? []) as unknown as SignalTitleRef[]
+}
+
 export interface SignalMentionRow {
   id: string
   signal_id: string

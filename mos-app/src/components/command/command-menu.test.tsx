@@ -4,13 +4,19 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn() }))
+vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn() }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
+import { searchSignalsByBody } from '@/lib/db/signals'
+import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { CommandMenu } from './command-menu'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 
 const mockSearch = vi.mocked(searchTasksByTitle)
+const mockSearchSignals = vi.mocked(searchSignalsByBody)
+const mockSearchFollowUps = vi.mocked(searchFollowUpsByCounterparty)
 const mockUseAuth = vi.mocked(useAuth)
 
 function setAuth(accessRoles: string[] = ['admin']) {
@@ -48,6 +54,8 @@ beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
   mockSearch.mockResolvedValue([])
+  mockSearchSignals.mockResolvedValue([])
+  mockSearchFollowUps.mockResolvedValue([])
   setAuth(['admin'])
 })
 afterEach(() => vi.useRealTimers())
@@ -313,6 +321,80 @@ describe('AC-K04: typing loads the Records group', () => {
     resolve([{ id: 't1', title: 'Finalise Q3 forecast', status: 'Open' }])
     await waitFor(() => expect(screen.getByText('Records')).toBeInTheDocument())
     expect(screen.getByRole('option', { name: /Finalise Q3 forecast/i })).toBeInTheDocument()
+  })
+})
+
+// ── OD-REDESIGN-91 #4/B2: the Records group spans ALL kinds ──────────────────
+describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
+  it('#B2: a Signal hit appears under Records, carries the "Signal" kind, and navigates to /work/signals/:id', async () => {
+    mockSearch.mockResolvedValue([])
+    mockSearchSignals.mockResolvedValue([{ id: 's1', body: 'Fridge temperature high\nchecked at 8am' }])
+    const { onClose } = renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'fridge' } })
+    const opt = await screen.findByRole('option', { name: /Fridge temperature high/i })
+    // Rows carry their kind — the muted kind label rides the row (collapsed to the first line).
+    expect(opt).toHaveTextContent('Signal')
+    expect(opt).not.toHaveTextContent('checked at 8am')
+    expect(screen.getByText('Records')).toBeInTheDocument()
+    fireEvent.click(opt)
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/s1')
+    expect(onClose).toHaveBeenCalled()
+    // A Signal must NOT pollute the task-scoped Recent ring buffer.
+    expect(readRecentTasks()).toHaveLength(0)
+  })
+
+  it('#B2: Tasks and Signals coexist in one Records group, each labelled by kind', async () => {
+    mockSearch.mockResolvedValue([{ id: 't1', title: 'Roast beans', status: 'Open' }])
+    mockSearchSignals.mockResolvedValue([{ id: 's1', body: 'Grinder jammed' }])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'r' } })
+    const task = await screen.findByRole('option', { name: /Roast beans/i })
+    const signal = await screen.findByRole('option', { name: /Grinder jammed/i })
+    expect(task).toHaveTextContent('Task')
+    expect(signal).toHaveTextContent('Signal')
+  })
+
+  it('#B2/GAP-3: AR Follow-ups stay dark while SHOW_FOLLOWUPS is off — the search is never fired', async () => {
+    mockSearch.mockResolvedValue([])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'acme' } })
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('acme'))
+    await waitFor(() => expect(mockSearchSignals).toHaveBeenCalledWith('acme'))
+    expect(mockSearchFollowUps).not.toHaveBeenCalled()
+  })
+})
+
+// ── OD-REDESIGN-91 #41 (G5): ⌘K keyboard hints hide on a coarse pointer ───────
+describe('#41: keyboard hints hide on touch (coarse pointer)', () => {
+  function stubCoarsePointer(coarse: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes('coarse') ? coarse : false,
+        media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    })
+  }
+
+  // Restore the fine-pointer default so later suites aren't left on a coarse stub.
+  afterEach(() => stubCoarsePointer(false))
+
+  it('#41: a fine pointer keeps the footer hints and the esc chip', () => {
+    stubCoarsePointer(false)
+    const { container } = renderMenu()
+    expect(container.querySelector('.cm-foot')).not.toBeNull()
+    // Two esc chips on a fine pointer: the input chip + the footer hint.
+    expect(container.querySelectorAll('.cm-foot-key')).not.toHaveLength(0)
+    expect(Array.from(container.querySelectorAll('.cm-foot-key')).some((k) => k.textContent === 'esc')).toBe(true)
+  })
+
+  it('#41: a coarse pointer hides the footer hints and the esc chip', () => {
+    stubCoarsePointer(true)
+    const { container } = renderMenu()
+    // No footer and no key chips at all when there is no keyboard to press.
+    expect(container.querySelector('.cm-foot')).toBeNull()
+    expect(container.querySelectorAll('.cm-foot-key')).toHaveLength(0)
   })
 })
 
