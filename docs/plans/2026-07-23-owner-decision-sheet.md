@@ -1,4 +1,8 @@
-# Owner decision sheet — one sitting (assembled 2026-07-23)
+# Owner decision sheet — RESOLVED 2026-07-24 (grilled live, one sitting)
+
+> **Every item below is RULED — see `docs/decisions.md` OD-REDESIGN-91 batches 1–8 for the
+> dispositions (owner verbatims preserved). This sheet is now historical evidence; the ODs are
+> the authority.**
 
 > Every item below survived the grill-corpus check (nothing here is answered by OD-1..90, the
 > experience contract, or the provenance transcripts). Each carries the Director's recommendation —

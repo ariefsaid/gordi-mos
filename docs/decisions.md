@@ -2205,3 +2205,21 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
     the same ruling: Bahasa Indonesia copy is INTENT-FIRST, never literal** — find the sentence's
     intent, build a natural ID sentence; literal word-for-word translation is a defect. DO: re-audit
     the locale sweep's fresh ID strings against this rule; Pricing ID re-draft owed to the owner.
+
+### OD-REDESIGN-91 — grill batch 8 (owner 2026-07-24): FINAL — sitting complete
+
+36. **Pricing ID sentence approved:** "Cek harga baru terhadap biaya yang tercatat sebelum
+    diberlakukan." (intent-first pair to the owner's Budget sentence).
+37. **G1 · Phone bottom tabs stay COUNT-FREE.** NEW owner directive from the same ruling: the
+    mobile nav drawer must open from the LEFT (matches the ☰ position + rail side) — the current
+    right-slide is "not natural / intuitive". Filed as a DO.
+38. **G2 · Home "Failed checks" kitchen door = kitchen roles only** (ratifies the security-fix gating).
+39. **G3 · "Objective" stays an English loanword app-wide in ID** (mixed Tujuan usage normalizes).
+40. **G4 · One Deputy Stop — the banner owns it**; the composer duplicate goes.
+41. **G5 · ⌘K keyboard hints hide on touch.**
+42. **G6 · The 404 page gets its own line** — no borrowed Home job sentence.
+
+**The 2026-07-23 decision sheet is fully resolved** — 40 sheet items + 6 grill-emergent rulings
+(AR Follow-up naming · top-bar Create removal [Rule 7 enforcement] · Deputy mark redesign ·
+Enter=newline/Shift+Enter=send · intent-first ID rule · left-slide mobile nav). Zero conflicts
+with prior owner statements (4-source verified). Everything above feeds the post-grill build batch.
