@@ -84,7 +84,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "9b222c1",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/components/home/guard-do16-home-layout.css.test.ts",
@@ -130,7 +130,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "9b222c1",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx",
@@ -177,7 +177,7 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "9b222c1",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
@@ -220,7 +220,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7e31910",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/shell/record-panel-host.test.tsx",
@@ -258,7 +258,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "9b222c1",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-430-post-a-signal.spec.ts"
@@ -299,7 +299,7 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7e31910",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/components/records/guard-record-page-measure.css.test.tsx"
@@ -338,7 +338,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "3d5b147",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/shell/inbox-deputy-host.regression.test.ts",
@@ -564,7 +564,7 @@
       "generation": 1,
       "auditedAt": "3d550af",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/pages/guard-r2-naked-heads.test.tsx",
@@ -728,7 +728,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "9b222c1",
+      "lockedAt": "843f047",
       "bumped": false,
       "pins": [
         "mos-app/src/components/admin/guard-flex-basis-balloon.css.test.ts"
