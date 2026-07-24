@@ -4,13 +4,10 @@
    StatusPill, the weekly-update StatePill, ProgressMarker, the Ops source badge,
    and the My Week strip pills.
    Shell: height 22, padding 0 var(--pill-inline-pad) (9px), var(--radius-sm) (8px,
-   rounded-rect), 8px leading dot, var(--font-size-label)/600. Tint differs by tone only.
+   rounded-rect — RATIFIED OD-REDESIGN-91 #30/E1; DESIGN.md §Shapes now specs the
+   rounded-rect, the 999px capsule spec is retired for this shell), 8px leading dot,
+   var(--font-size-label)/600. Tint differs by tone only.
    All values resolve to semantic tokens (v3 kit-normalize).
-   NOTE (code↔DESIGN.md divergence, flagged for owner): DESIGN.md §Shapes says
-   "Pills / status badges use full (999px)"; the shipped v3 Pill is a rounded-rect. The
-   raw 6px was off the radius ladder — snapped to --radius-sm (8px) to get on-scale while
-   preserving the rounded-rect look (minimal visual delta). Revert to --radius-pill only
-   on owner word.
    ════════════════════════════════════════════════════════════════════════════ */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;

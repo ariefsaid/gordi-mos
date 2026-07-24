@@ -171,7 +171,8 @@ components:
   badge-status:
     backgroundColor: "{colors.secondary}"
     textColor: "{colors.muted-foreground}"
-    rounded: "{rounded.full}"
+    # OD-REDESIGN-91 #30/E1 (2026-07-24): rounded-rect ratified — was {rounded.full}.
+    rounded: "{rounded.sm}"
     padding: "0 9px"
     height: "22px"
   table-header-cell:
@@ -331,7 +332,7 @@ The system was gradient-free at rest by default. The owner ratified **two bounde
 
 ## Shapes
 
-Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tight at 8px** (`rounded.sm`) — buttons, inputs, nav-items, badges — so 32px controls don't go bubbly. **Cards / containers / overlays take the 12px card radius** (`rounded.lg`, OD-P3-10). Checkbox / tiny inner corners use 4px (`rounded.xs`). Pills / status badges use `full` (999px). Nested radii compose so inner corners sit inside outer ones.
+Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tight at 8px** (`rounded.sm`) — buttons, inputs, nav-items, badges — so 32px controls don't go bubbly. **Cards / containers / overlays take the 12px card radius** (`rounded.lg`, OD-P3-10). Checkbox / tiny inner corners use 4px (`rounded.xs`). **Status pills are rounded-rects at the 8px control radius** (`rounded.sm` — ratified OD-REDESIGN-91 #30/E1; the former 999px capsule spec is retired for the status-pill shell). `full` (999px) remains for genuinely circular/capsule marks: leading dots, count badges, the basis chip. Nested radii compose so inner corners sit inside outer ones.
 
 ## Components
 
@@ -347,14 +348,14 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 
 ### Badges / Status Pills
-- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
+- **Status pill:** 22px tall, **8px `rounded.sm` radius (rounded-rect — ratified OD-REDESIGN-91 #30/E1)**, 12px/600 label, with a leading 6px colored `dot` (the dot itself stays circular, `rounded.full`). Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
 - **Count badge** (nav rail / kanban): `secondary` bg + `muted-foreground` text, full radius; active nav item flips to `primary/15%` bg + `primary` text. Kanban column count adds a 1px border on `background`.
 - **Basis chip** (RATIFIED 2026-07-07, OD-DASH — the `/money` KPI "interim/basis" label): a neutral explanatory chip that names the data basis under a number (e.g. "interim-stock-movement"). 20px tall, `rounded.full`, **no dot** (it is metadata, not status), `secondary` bg + `muted-foreground` text, 11px/600 label. It reuses the default/neutral badge pair verbatim — `--basis-chip` is **not a new token**; it is the *role name* for "neutral badge used as a basis label" (the same `secondary`/`muted-foreground` values as the count badge). Distinct from a status pill on two counts: (1) no dot, (2) neutral-only — a basis is never good/bad, it is a provenance note.
 - **Data-quality (DQ) badge** (RATIFIED 2026-07-07, OD-DASH — `/money` BOM-coverage signal "good/partial/unknown"): a status pill **reusing the existing Tinted-Status hues — no new token**. The DQ state maps onto the established status families via the dot+text convention:
   - `good` → `success` family (dot `success`, text `success-foreground` over a `success/14%` tint).
   - `partial` → `warning` family (dot `warning`, text `warning-foreground` over a `warning/18%` tint). "Partial" is a *caveat*, not an error — `warning` (amber), never `destructive` (red).
   - `unknown` → neutral (dot `muted-foreground/40%`, text `muted-foreground` over `secondary`). Reads as "no signal," not "bad."
-  - The label is always the literal "BOM coverage: \<state\>" so the dot is never the sole carrier (WCAG 1.4.1). Same 22px / full-radius / 12px-600 shell as a status pill.
+  - The label is always the literal "BOM coverage: \<state\>" so the dot is never the sole carrier (WCAG 1.4.1). Same 22px / rounded-rect (`rounded.sm`) / 12px-600 shell as a status pill.
 
 #### Status-pill text tokens (Wave-6 H3 — named source of truth in `index.css` `:root`)
 The darkened-AA text values for the four non-neutral pill variants are defined as named CSS custom properties. The `StatusPill` component applies them as `hsl(var(--token))` inline styles — the token IS the applied value.
@@ -639,7 +640,7 @@ The visual result is one calm MOS application, not a new visual identity per mod
 | Action | One Blue is the only saturated interactive color. Brand navy carries structural weight; brand orange is a restrained sprinkle of no more than two marks per screen and is never an action or status. |
 | Status | Green, amber, red, and categorical violet are data semantics with tinted surfaces and AA-safe text; they are not alternate action colors. |
 | Type | Plus Jakarta Sans is display/headings; DM Sans is body, UI, and proportional table text; Inter-tabular is permitted only for verified numeric alignment; SF Mono is for IDs, codes, and keyboard hints. |
-| Geometry | Spacing uses 4/8/12/16/20/24/32/48px steps. Cards and overlays use 12px radius; controls use 8px radius; pills use 999px. |
+| Geometry | Spacing uses 4/8/12/16/20/24/32/48px steps. Cards and overlays use 12px radius; controls use 8px radius; status pills are 8px rounded-rects (OD-REDESIGN-91 #30/E1); 999px is reserved for circular marks (dots, count badges, basis chip). |
 | Density | Standard controls are 32px; phone targets are at least 44px; E7 table rows are 52px; the content measure is 1180px; the desktop rail is 232px and the header is 56px. |
 | Depth | Borders and surface tone carry structure. One subtle navy-tinted resting shadow is allowed on cards/KPI/kanban only; overlays use the defined overlay shadow. No shadow soup. |
 | Focus | Every focusable control exposes a visible `:focus-visible` ring using the One Blue ring token with a 2px offset. |
