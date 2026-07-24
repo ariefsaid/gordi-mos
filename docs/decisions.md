@@ -2157,3 +2157,12 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
 14. **GAP-9 · j/k row-walking promotes to the shared collection engine** — every table responds.
 15. **GAP-10 · The phone `+` opens the reduced create-set** per OD-46 as written (implementation
     filters; the rule stands).
+
+### OD-REDESIGN-91 — grill batch 4 (owner 2026-07-24): census flags F1-F3
+
+16. **F1 · The top-bar Create button is REMOVED app-wide** — owner-initiated, and on inspection it
+    enforces experience-contract Rule 7 verbatim ("live in the ⌘K palette, not as header buttons").
+    Desktop: ⌘K + page-contextual CTAs. Phone: the + launcher (reduced set per GAP-10). One solid
+    primary per screen falls out for free.
+17. **F2 · Counts: OPEN everywhere** (rail badge + page), page meta reads "9 open · 11 total".
+18. **F3 · Amber row-fill = URGENT ONLY**; Needs-attention keeps its pill on a calm row.
