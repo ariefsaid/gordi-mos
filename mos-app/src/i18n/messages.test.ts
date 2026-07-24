@@ -114,7 +114,6 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
     'assistant.empty.suggestion3',
     'assistant.composer.placeholder',
     'assistant.send',
-    'assistant.stop',
     'assistant.retry',
     'assistant.streaming',
     'assistant.approval.header',

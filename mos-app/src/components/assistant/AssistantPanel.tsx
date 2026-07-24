@@ -192,11 +192,10 @@ export function AssistantPanel() {
           <StuckRunBanner banner={t('assistant.stuck.banner')} stopLabel={t('assistant.stuck.stop')} onStop={() => panel.stop()} />
         )}
 
-        {/* Composer */}
+        {/* Composer — no Stop here (OD-REDESIGN-91 #40): the stuck-run banner owns the one Stop. */}
         <Composer
           placeholder={t('assistant.composer.placeholder')}
           sendLabel={t('assistant.send')}
-          stopLabel={t('assistant.stop')}
           streamingLabel={t('assistant.streaming')}
           value={draft}
           onChange={setDraft}
@@ -204,7 +203,6 @@ export function AssistantPanel() {
           onKeyDown={onKeyDown}
           canSend={canSend}
           running={panel.phase === 'running'}
-          onStop={() => panel.stop()}
         />
           </div>
         ),
@@ -523,11 +521,10 @@ function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLab
 }
 
 function Composer({
-  placeholder, sendLabel, stopLabel, streamingLabel, value, onChange, onSubmit, onKeyDown, canSend, running, onStop,
+  placeholder, sendLabel, streamingLabel, value, onChange, onSubmit, onKeyDown, canSend, running,
 }: {
   placeholder: string
   sendLabel: string
-  stopLabel: string
   streamingLabel: string
   value: string
   onChange: (v: string) => void
@@ -535,7 +532,6 @@ function Composer({
   onKeyDown: (e: ReactKeyboardEvent<HTMLTextAreaElement>) => void
   canSend: boolean
   running: boolean
-  onStop: () => void
 }) {
   return (
     <form
@@ -554,17 +550,9 @@ function Composer({
         onKeyDown={onKeyDown}
       />
       {running ? (
-        <>
-          <span className="text-muted-foreground" style={{ fontSize: 13 }} aria-live="polite">{streamingLabel}</span>
-          <button
-            type="button"
-            onClick={onStop}
-            className="rounded-sm border border-border text-foreground flex-none"
-            style={{ height: 40, padding: '0 0.75rem', fontSize: 14 }}
-          >
-            {stopLabel}
-          </button>
-        </>
+        // OD-REDESIGN-91 #40 (G4): ONE Deputy Stop — the stuck-run banner owns Stop. The composer
+        // no longer duplicates it; while running it shows only the streaming indicator.
+        <span className="text-muted-foreground" style={{ fontSize: 13 }} aria-live="polite">{streamingLabel}</span>
       ) : (
         <button
           type="submit"

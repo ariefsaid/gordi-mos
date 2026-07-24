@@ -187,6 +187,32 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
   })
 
+  // OD-REDESIGN-91 #40 (G4): ONE Deputy Stop — the stuck-run banner owns it; the composer's
+  // duplicate is gone. While a run is in flight the composer shows only the streaming indicator.
+  it('#40: while running, the composer shows the streaming indicator and NO Stop button', async () => {
+    const runningRuntime: AgentRuntime = {
+      createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
+      followUp: vi.fn(async () => {}),
+      openThread: vi.fn(),
+      control: vi.fn(async () => {}),
+      // Yield a partial reply, then hang — the run never completes, so phase stays 'running'.
+      subscribe: vi.fn(async function* () {
+        yield { id: 'a1', runId: 'r1', type: 'assistant', text: 'partial…', createdAt: '2026-01-01T00:00:00.000Z' } as AgentEvent
+        await new Promise(() => {})
+      }),
+    }
+    renderPanel({ narrow: false, open: true, runtime: runningRuntime })
+    const input = screen.getByRole('textbox', { name: /ask the deputy/i }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    // The composer swaps the Send button for the streaming indicator…
+    await waitFor(() => expect(screen.getByText('Working…')).toBeInTheDocument())
+    // …and carries NO Stop button — the single Stop lives on the stuck-run banner only.
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+  })
+
   it('AC-AP-004: assistant prose renders safe markdown while user turns stay literal', async () => {
     renderPanel({
       narrow: false,
