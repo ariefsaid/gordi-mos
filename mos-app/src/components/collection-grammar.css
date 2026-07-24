@@ -295,3 +295,12 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ── Shared j/k row cursor (GAP-9 / OD-REDESIGN-91 #14) ──────────────────────────────────────
+   Promoted out of the Tasks-only `.task-row.kfocus` rule so EVERY collection-grammar table
+   inherits ONE cursor treatment (a 2px primary top/bottom inset rule that reads as "the row the
+   keyboard is on"). Signals and any future engine table light up identically via the shared
+   useCollectionKeyboard hook + a `kfocus` class on the cursor <tr>. */
+.collection-grammar-table tbody tr.kfocus td { box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+.collection-grammar-table tbody tr.kfocus td:first-child { box-shadow: inset 2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+.collection-grammar-table tbody tr.kfocus td:last-child { box-shadow: inset -2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }

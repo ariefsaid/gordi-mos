@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useTasksKeyboard } from './use-tasks-keyboard'
+import { useCollectionKeyboard } from './use-collection-keyboard'
 
 function fireKey(key: string) {
   window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
 }
 
-describe('useTasksKeyboard (AC-109)', () => {
+describe('useCollectionKeyboard — shared collection j/k cursor (AC-109, GAP-9)', () => {
   let onOpen: ReturnType<typeof vi.fn>
   let onClose: ReturnType<typeof vi.fn>
   let onNew: ReturnType<typeof vi.fn>
@@ -21,7 +21,7 @@ describe('useTasksKeyboard (AC-109)', () => {
   })
 
   function setup(rowCount = 3, enabled = true, overlayActive = false) {
-    return renderHook(() => useTasksKeyboard({ rowCount, enabled, overlayActive, onOpen, onClose, onNew }))
+    return renderHook(() => useCollectionKeyboard({ rowCount, enabled, overlayActive, onOpen, onClose, onNew }))
   }
 
   it('AC-109: j moves the cursor down and k moves it up (clamped to bounds)', () => {
@@ -120,7 +120,7 @@ describe('useTasksKeyboard (AC-109)', () => {
 
   it('cursor clamps when rowCount shrinks below the current cursor', () => {
     const { result, rerender } = renderHook(
-      ({ rc }) => useTasksKeyboard({ rowCount: rc, enabled: true, onOpen, onClose, onNew }),
+      ({ rc }) => useCollectionKeyboard({ rowCount: rc, enabled: true, onOpen, onClose, onNew }),
       { initialProps: { rc: 5 } },
     )
     act(() => { fireKey('j'); fireKey('j'); fireKey('j'); fireKey('j') }) // cursor → 3

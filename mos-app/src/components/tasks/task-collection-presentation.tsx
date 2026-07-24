@@ -18,7 +18,7 @@ import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embe
 import { EmptyState } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
-import { useTasksKeyboard } from './use-tasks-keyboard'
+import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { TasksTableBody } from './tasks-table-body'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
@@ -373,7 +373,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   // window keyboard layer stands down so a dirty-field guard is never raced by an unguarded close.
   const overlayHost = useOptionalOverlayHost()
   const overlayActive = (overlayHost?.session?.frames.length ?? 0) > 0
-  const keyboard = useTasksKeyboard({
+  const keyboard = useCollectionKeyboard({
     rowCount: leafTasks.length,
     enabled: desktopLayout,
     overlayActive,

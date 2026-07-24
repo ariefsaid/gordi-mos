@@ -90,6 +90,25 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
   })
 
+  it('GAP-9 (OD-91 #14): the Signal table inherits the shared j/k row cursor — j moves it, Enter opens the cursor row', async () => {
+    const onOpenRecord = vi.fn()
+    renderTable(
+      [row({ id: 's-1', body: 'First signal' }), row({ id: 's-2', body: 'Second signal' })],
+      new Set<string>(), vi.fn(), onOpenRecord,
+    )
+    const user = userEvent.setup()
+    // j lands the cursor on the first row…
+    await user.keyboard('j')
+    expect(screen.getByText('First signal').closest('tr')).toHaveClass('kfocus')
+    // …a second j moves it to the second row…
+    await user.keyboard('j')
+    expect(screen.getByText('Second signal').closest('tr')).toHaveClass('kfocus')
+    expect(screen.getByText('First signal').closest('tr')).not.toHaveClass('kfocus')
+    // …and Enter opens the cursor row through the shared onOpenRecord seam.
+    await user.keyboard('{Enter}')
+    expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 's-2' }))
+  })
+
   it('F3 (OD-91 #18): the amber row-fill class is Urgent-only; Needs attention / FYI / retracted stay calm', () => {
     renderTable([
       row({ id: 's-attn', body: 'Grinder is down', attention: 'Needs attention' }),

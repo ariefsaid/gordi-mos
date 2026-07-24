@@ -1,6 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-export type UseTasksKeyboardArgs = {
+/**
+ * The SHARED collection keyboard layer (GAP-9 / OD-REDESIGN-91 #14). Promoted out of the
+ * Tasks-only `use-tasks-keyboard` so EVERY RecordCollection table inherits the same j/k row
+ * cursor — Tasks, Signals, and any future engine table walk rows identically.
+ *
+ * Contract: j/k move a row cursor across `rowCount` rows, Enter/o open the cursor row, Esc runs
+ * the optional `onClose` (a drawer close), n runs the optional `onNew` (open create). Collections
+ * that own neither simply omit those callbacks and inherit the j/k/Enter core.
+ *
+ * Coexists with native Tab order — it never replaces Tab. All single-letter hotkeys are SUPPRESSED
+ * while a text input/textarea/select (or contentEditable) has focus, so typing in a field never
+ * triggers a hotkey.
+ *
+ * Escape single-path (D-B3/D-F1, RULED I2 — the gating carried over verbatim from the merged
+ * use-tasks-keyboard work): the window Escape stands down while an overlay session is active (the
+ * panel host owns the guarded close) and while a field has focus (the field owns its own Escape,
+ * I5 isolation). It fires `onClose` only when the table region itself would otherwise swallow it.
+ */
+export type UseCollectionKeyboardArgs = {
   /** Number of rows the cursor can move across. */
   rowCount: number
   /** When false, no key is handled (e.g. focus is outside the table region). */
@@ -8,21 +26,21 @@ export type UseTasksKeyboardArgs = {
   /** Open the row at this index (Enter / o). */
   onOpen: (index: number) => void
   /**
-   * Close the drawer (Esc). NOT fired while an overlay session is active (the overlay host owns
-   * the guarded Escape path — D-B3/D-F1) nor while a field has focus (the field owns its own
-   * Escape — I5 field isolation).
+   * Close the open drawer (Esc). Optional — omit for a collection with no drawer. NOT fired while
+   * an overlay session is active (the overlay host owns the guarded Escape path — D-B3/D-F1) nor
+   * while a field has focus (the field owns its own Escape — I5 field isolation).
    */
-  onClose: () => void
+  onClose?: () => void
   /**
    * True while a shared overlay-host session is live. Gates the window Escape off so the host's
-   * guarded close is the ONE Escape path — never a race between host.close and onCloseDrawer.
+   * guarded close is the ONE Escape path — never a race between host.close and onClose.
    */
   overlayActive?: boolean
-  /** Open the create drawer (n). */
-  onNew: () => void
+  /** Open the create surface (n). Optional — omit for a read-only collection. */
+  onNew?: () => void
 }
 
-export type UseTasksKeyboardResult = {
+export type UseCollectionKeyboardResult = {
   /** Current keyboard cursor row index; -1 when nothing is focused yet. */
   cursor: number
   /** Lets the host sync the cursor (e.g. to the open/selected row). */
@@ -38,21 +56,7 @@ function isTypingTarget(): boolean {
   return false
 }
 
-/**
- * The Tasks keyboard layer (OD-P3-4, AC-109): j/k move a row cursor, Enter/o
- * open the cursor row, Esc closes the drawer, n opens create. (GAP-2 / OD-91 #7:
- * the `e` expand-toggle key is retired with expand-in-place.)
- *
- * Coexists with native Tab order — these never replace Tab. All single-letter
- * hotkeys are SUPPRESSED while a text input/textarea/select (or contentEditable)
- * has focus, so typing "n" in a field never opens a new task.
- *
- * Escape single-path (D-B3/D-F1, RULED I2): the window Escape stands down while
- * an overlay session is active (the panel host owns the guarded close) and while
- * a field has focus (the field owns its own Escape — I5 isolation). It fires only
- * when the table region itself would otherwise swallow the key.
- */
-export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardResult {
+export function useCollectionKeyboard(args: UseCollectionKeyboardArgs): UseCollectionKeyboardResult {
   const { rowCount, enabled, onOpen, onClose, onNew, overlayActive = false } = args
   const [cursor, setCursorState] = useState(-1)
 
@@ -77,7 +81,7 @@ export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardRe
       // closes the drawer when neither deeper owner is in play.
       if (e.key === 'Escape') {
         if (overlay || isTypingTarget()) return
-        close()
+        close?.()
         return
       }
 
@@ -106,6 +110,7 @@ export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardRe
           break
         }
         case 'n':
+          if (!nw) return
           e.preventDefault()
           nw()
           break

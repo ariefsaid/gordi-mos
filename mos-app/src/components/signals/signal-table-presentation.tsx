@@ -6,6 +6,8 @@
 import { useT } from '@/i18n/use-t'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
@@ -33,6 +35,23 @@ export function SignalTablePresentation({
   const t = useT()
   const isDesktop = useIsDesktop()
   const actions = useSignalCollectionActions()
+
+  // GAP-9 (OD-REDESIGN-91 #14): the Signal table inherits the shared j/k row cursor from the
+  // collection engine. Cursor walks the visible rows in display order (grouped rows flattened
+  // group-by-group so j/k tracks what the eye sees); Enter/o opens the cursor row; the shared
+  // Escape-gating (overlay host owns Esc while a session is live) carries over verbatim.
+  const overlayHost = useOptionalOverlayHost()
+  const overlayActive = (overlayHost?.session?.frames.length ?? 0) > 0
+  const flatRows: SignalRow[] = projection.groups && projection.groups.length > 0
+    ? projection.groups.flatMap((group) => [...group.rows])
+    : [...projection.visibleRecords]
+  const keyboard = useCollectionKeyboard({
+    rowCount: flatRows.length,
+    enabled: isDesktop,
+    overlayActive,
+    onOpen: (index) => { const signal = flatRows[index]; if (signal) onOpenRecord(signal) },
+  })
+  const cursorId = keyboard.cursor >= 0 ? flatRows[keyboard.cursor]?.id ?? null : null
 
   const columns: DataTableColumn<SignalRow>[] = [
     {
@@ -118,6 +137,8 @@ export function SignalTablePresentation({
         }}
         rowClassName={(signal) =>
           [
+            // GAP-9: the shared j/k cursor row lights up with the collection-grammar `kfocus` rule.
+            signal.id === cursorId ? 'kfocus' : undefined,
             signal.retracted_at ? 'signal-table-row--retracted' : undefined,
             // F3 (OD-REDESIGN-91 #18): amber row-fill is URGENT ONLY — the warning/7% fill + 2px
             // warning left rule reads as "act now", so it is reserved for the top tier. Needs
