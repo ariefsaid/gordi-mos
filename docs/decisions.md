@@ -2166,3 +2166,16 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
     primary per screen falls out for free.
 17. **F2 · Counts: OPEN everywhere** (rail badge + page), page meta reads "9 open · 11 total".
 18. **F3 · Amber row-fill = URGENT ONLY**; Needs-attention keeps its pill on a calm row.
+
+### OD-REDESIGN-91 — grill batch 5 (owner 2026-07-24): census flags F4-F11
+
+19. **F4 · Multi-team signal posters MUST pick the owning team** — no pre-pick, no arbitrary first.
+20. **F5 · Composer datetime stays NATIVE + a WIB hint label.**
+21. **F6 · "Needs attention" lives on the view chip ONLY** — the duplicate filter entry dies.
+22. **F7 · Overdue keeps BOTH doors** (chip = stay-and-filter; attention line = triage jump) — a
+    deliberate double, recorded so it is never re-flagged.
+23. **F9 (owner variant) · The DEPUTY MARK is redesigned app-wide** — a distinctive identity icon
+    replacing the thin spark everywhere (launcher, record actions, panel); collapse keeps its glyph.
+    Icon proposals owed to the owner as a visual round.
+24. **F11 (owner variant) · The Money awaiting-sync ↻ becomes a REAL refresh action** (small
+    feature: re-fetch the snapshot), not a restyled badge.
