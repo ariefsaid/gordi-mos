@@ -21,10 +21,10 @@ function uiCssFiles(): { rel: string; css: string }[] {
 }
 
 // The declared, deliberate type ladder (index.css SEMANTIC layer). DESIGN.md §Typography
-// is the authority: page-title 24 / heading 20 / subheading 18 / body 14 / control 13.5 /
-// mono 13 / label 12 / overline 11 / micro 10.
+// is the authority: page-title 24 / heading 20 / subheading 18 / body-lg 15 (minted
+// OD-REDESIGN-91 #6/B4) / body 14 / control 13.5 / mono 13 / label 12 / overline 11 / micro 10.
 const FONT_SIZE_TOKENS = new Set([
-  'page-title', 'heading', 'subheading', 'body', 'control', 'mono', 'label', 'overline', 'micro',
+  'page-title', 'heading', 'subheading', 'body-lg', 'body', 'control', 'mono', 'label', 'overline', 'micro',
 ])
 const RADIUS_VALUES = new Set([
   'var(--radius-xs)', 'var(--radius-sm)', 'var(--radius-md)', 'var(--radius-lg)', 'var(--radius-pill)',

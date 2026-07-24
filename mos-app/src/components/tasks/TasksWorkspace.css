@@ -110,7 +110,7 @@
 .mobile-task-options-trigger {
   display: flex; align-items: center; width: 100%; min-height: 44px;
   padding: 0 12px; border: 0; background: transparent; color: var(--foreground);
-  font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer;
+  font: inherit; font-size: var(--font-size-body-lg); font-weight: 600; text-align: left; cursor: pointer;
 }
 .mobile-task-options-trigger:hover { background: var(--secondary); }
 .mobile-task-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense row trigger — inset ring */
@@ -144,7 +144,7 @@
   position: relative; display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 10px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  background: var(--background); font-size: 15px; color: var(--secondary-foreground); cursor: pointer;
+  background: var(--background); font-size: var(--font-size-body-lg); color: var(--secondary-foreground); cursor: pointer;
 }
 .chip:hover { border-color: var(--border-strong); }
 .chip:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
@@ -152,11 +152,11 @@
 .chip .ch-v { color: var(--foreground); font-weight: 500; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip .chip-chev { color: var(--muted-foreground); pointer-events: none; flex: none; }
 /* The native select sits invisibly over the chip — clicks open the native menu. */
-.chip-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 15px; border: 0; }
+.chip-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--font-size-body-lg); border: 0; }
 
 .seg { display: inline-flex; height: 32px; padding: 3px; background: var(--secondary); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */ }
 .seg-btn {
-  border: 0; background: transparent; font: inherit; font-size: 15px; padding: 0 10px;
+  border: 0; background: transparent; font: inherit; font-size: var(--font-size-body-lg); padding: 0 10px;
   border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
   color: var(--secondary-foreground); cursor: pointer; white-space: nowrap;
 }
@@ -170,15 +170,15 @@
   height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   color: var(--muted-foreground);
-  font-size: 15px; min-width: 180px;
+  font-size: var(--font-size-body-lg); min-width: 180px;
 }
-.search-input { border: none; outline: none; background: transparent; font: inherit; font-size: 15px; color: var(--foreground); width: 100%; }
+.search-input { border: none; outline: none; background: transparent; font: inherit; font-size: var(--font-size-body-lg); color: var(--foreground); width: 100%; }
 .search-input::placeholder { color: var(--muted-foreground); }
 .archived-toggle {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
   border: 1px solid var(--input); background: var(--background);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  font-size: 15px; cursor: pointer; color: var(--foreground);
+  font-size: var(--font-size-body-lg); cursor: pointer; color: var(--foreground);
 }
 /* Custom checkbox (DESIGN.md §5 checkbox spec) so 'Show archived' reads as a deliberate
    control, not a raw native checkbox — consistent with the other toolbar pills. */
@@ -190,7 +190,7 @@
 .archived-checkbox:checked { background: var(--primary); border-color: var(--primary); }
 .archived-checkbox:checked::after { content: "✓"; color: var(--primary-foreground); font-size: var(--font-size-overline); font-weight: 700; line-height: 1; }
 .archived-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.archived-label { font-size: 15px; }
+.archived-label { font-size: var(--font-size-body-lg); }
 .toolbar-overdue-controls { display: inline-flex; align-items: center; gap: 8px; }
 
 /* ── M6: condensed (drawer-open) toolbar ──
@@ -353,7 +353,7 @@
 }
 .row-menu-item {
   padding: 6px 10px; border-radius: var(--radius-xs); color: var(--foreground);
-  text-decoration: none; font-size: 15px; white-space: nowrap;
+  text-decoration: none; font-size: var(--font-size-body-lg); white-space: nowrap;
 }
 .row-menu-item:hover { background: var(--accent); }
 tr:hover .row-menu,
@@ -383,7 +383,7 @@ tr:focus-within .row-menu { visibility: visible; }
   background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
   color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
 }
-.own-name { font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role name>"
    line stacks below the PIC name (never widens the compact owner cell). */
 .owner-name-stack { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
@@ -397,9 +397,9 @@ tr:focus-within .row-menu { visibility: visible; }
 .td-bu { font-size: var(--font-size-mono); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
-.due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: 15px; }
-.due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: 15px; }
-.due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: 15px; }
+.due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: var(--font-size-body-lg); }
+.due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: var(--font-size-body-lg); }
+.due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: var(--font-size-body-lg); }
 .act { color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; }
 
 /* ── Loading skeleton ── */
@@ -559,7 +559,7 @@ tr.grp td { padding: 0; }
 @media (prefers-reduced-motion: reduce) {
   .gbar .caret .grp-chev { transition: none; }
 }
-.gbar .glabel { font-size: 15px; font-weight: 700; color: var(--brand-navy-text); }
+.gbar .glabel { font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .gbar .gcount { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .gbar .gsub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
@@ -593,7 +593,7 @@ tr.grp td { padding: 0; }
 @media (prefers-reduced-motion: reduce) {
   .mgc-caret .mgc-chev { transition: none; }
 }
-.mgc-label { font-size: 15px; font-weight: 700; color: var(--brand-navy-text); }
+.mgc-label { font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;

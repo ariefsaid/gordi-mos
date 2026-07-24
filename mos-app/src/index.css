@@ -218,6 +218,8 @@
   --font-size-page-title: 24px;   /* page title (Plus Jakarta 600) — DESIGN.md page-title */
   --font-size-heading:    20px;   /* section/card heading — DESIGN.md heading */
   --font-size-subheading: 18px;   /* sub-section header, empty-state title — DESIGN.md subheading */
+  --font-size-body-lg:    15px;   /* emphasized body — record titles, primary row text, lead copy.
+                                     MINTED OD-REDESIGN-91 #6/B4: the ~65-use 15px family is lawful. */
   --font-size-body:       14px;   /* base body, table cells, meta — DESIGN.md body (== the html base) */
   --font-size-control:    13.5px; /* buttons/inputs/select/date/tabs — DESIGN.md "controls run 13.5px" */
   --font-size-mono:       13px;   /* SF Mono IDs/codes, dense compact text — DESIGN.md mono */

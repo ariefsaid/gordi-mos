@@ -195,7 +195,7 @@ export function LoginPage() {
                 {confirmText}
               </p>
               {email && (
-                <p className="text-muted-foreground mt-1" style={{ fontSize: 15 }}>
+                <p className="text-muted-foreground mt-1" style={{ fontSize: 'var(--font-size-body-lg)' }}>
                   Sent to {email}
                 </p>
               )}
@@ -231,7 +231,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
             role="alert"
           >
@@ -265,7 +265,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
               color: 'var(--status-lost-text)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
           >
             {error}
@@ -369,7 +369,7 @@ export function LoginPage() {
         {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
         <div className="my-5 flex items-center gap-3">
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
-          <span className="text-muted-foreground" style={{ fontSize: 15 }}>or</span>
+          <span className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body-lg)' }}>or</span>
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
         </div>
 

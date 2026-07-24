@@ -77,7 +77,7 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
                 height: '32px',
                 padding: '0 12px',
                 borderRadius: 'var(--radius-sm)', // 8px control radius
-                fontSize: '15px',
+                fontSize: 'var(--font-size-body-lg)',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
@@ -94,7 +94,7 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
             height: '32px',
             padding: '0 12px',
             borderRadius: 'var(--radius-sm)', // 8px control radius
-            fontSize: '15px',
+            fontSize: 'var(--font-size-body-lg)',
             fontWeight: 600,
             cursor: 'pointer',
             ...(onReset ? { marginTop: '12px' } : {}),

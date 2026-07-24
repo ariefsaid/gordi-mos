@@ -97,7 +97,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
           <div className={isFullWidth ? 'flex-1 text-left min-w-0' : 'text-left'}>
             <div
               className="truncate font-semibold text-foreground"
-              style={{ fontSize: 15, lineHeight: 1.1 }}
+              style={{ fontSize: 'var(--font-size-body-lg)', lineHeight: 1.1 }}
               title={viewer.person.full_name}
             >
               {viewer.person.full_name}
@@ -141,7 +141,7 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
             // SYS-2: reachable on phone via the 'drawer' variant menu — raise the 32px row to the
             // 44px touch floor on phone (tap-target-phone, Button.css). Desktop rhythm unchanged.
             className="tap-target-phone w-full text-left px-3 rounded-sm hover:bg-accent text-foreground"
-            style={{ height: 32, fontSize: 15 }}
+            style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
             onClick={() => {
               close()
               signOut?.()

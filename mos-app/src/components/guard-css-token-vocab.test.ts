@@ -18,7 +18,8 @@
  * hex/rgb/hsl-clean today and must stay that way.
  *
  * The ledger entries themselves are the guard-6 "non-trivial" list: values with no
- * byte-identical token (15px, 16px, 23px, 12.5px …) that need a DESIGN decision — remap
+ * byte-identical token (16px, 23px, 12.5px …) that need a DESIGN decision — remap
+ * (15px graduated: minted as --font-size-body-lg, OD-REDESIGN-91 #6/B4)
  * or mint a token — not a mechanical swap. They are pinned, not endorsed.
  * NOTE src/components/signals/signal-table-presentation.css: its former 11px sizes are
  * tokenized; its owner-approved side-stripe exception (see that file's comments) is a
@@ -33,7 +34,7 @@ const KIT_DIR = resolve(SRC, 'components/ui') // stricter kit-vocab.test.ts owns
 const TOKENS_DIR = resolve(SRC, 'styles/tokens') // token definitions (--ds-* source), not consumers
 
 const FONT_SIZE_TOKENS = new Set([
-  'page-title', 'heading', 'subheading', 'body', 'control', 'mono', 'label', 'overline', 'micro',
+  'page-title', 'heading', 'subheading', 'body-lg', 'body', 'control', 'mono', 'label', 'overline', 'micro',
 ])
 
 /**
@@ -42,18 +43,11 @@ const FONT_SIZE_TOKENS = new Set([
  * fate (remap vs mint) is a design-architect call, not a mechanical one.
  */
 const EXCEPTIONS: Record<string, Record<string, number>> = {
-  'src/components/admin/people-toolbar.css': {
-    'font-size: 15px': 1,
-  },
   'src/components/cafe/cafe-opening-panel.css': {
     'font-size: 16px': 1,
   },
-  'src/components/catalog/catalog-collection.css': {
-    'font-size: 15px': 1,
-  },
   'src/components/collection-grammar.css': {
     'font-size: 10.5px': 1,
-    'font-size: 15px': 1,
     'border-radius: 2px': 1,
   },
   'src/components/command/command-menu.css': {
@@ -76,7 +70,6 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'font-size: 11.5px': 1,
   },
   'src/components/home/home-stream.css': {
-    'font-size: 15px': 2,
     'font-size: 11.5px': 1,
     'border-radius: 6px': 1,
   },
@@ -96,18 +89,8 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
   'src/components/kitchen/wip-item-stepper.css': {
     'font-size: 16px': 1,
   },
-  'src/components/processes/due-runs.css': {
-    'font-size: 15px': 1,
-  },
-  'src/components/processes/pending-resolution.css': {
-    'font-size: 15px': 1,
-  },
-  'src/components/record-collection/collection-toolbar.css': {
-    'font-size: 15px': 3,
-  },
   'src/components/record-collection/record-collection.css': {
     'font-size: 0.8125rem': 1,
-    'font-size: 15px': 1,
   },
   'src/components/records/record-viewer.css': {
     // Two-mode kv sizing indirection with raw px fallbacks — needs its vars grounded in tokens.
@@ -118,25 +101,17 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'font-size: 11.5px': 2,
   },
   'src/components/signals/signal-composer.css': {
-    'font-size: 15px': 1,
     'font-size: 11.5px': 1,
-  },
-  'src/components/signals/signal-feed-rows.css': {
-    'font-size: 15px': 1,
   },
   'src/components/signals/signal-mention-picker.css': {
     'font-size: 10.5px': 1,
     'font-size: 12.5px': 1,
   },
-  'src/components/signals/signal-record-host.css': {
-    'font-size: 15px': 1,
-  },
   // signal-record.css raw font-sizes (12.5px ×2, 14.5px ×1) were paid off by the OD-REDESIGN-90
   // anatomy rewrite — every region now speaks var(--font-size-*). Ledger entry pruned (ratchet).
+  // The former 15px family (46 uses across this surface) was paid off wholesale by the
+  // OD-REDESIGN-91 #6/B4 mint of --font-size-body-lg — the ratchet's biggest single payoff.
   'src/components/tasks/TaskSurface.css': {
-    // -1 font-size:15px and the lone border-radius:2px paid off by retiring the tabbed feed's
-    // .rf-* rules (content-first anatomy split Checklist/Activity into stacked slots, OD-REDESIGN-90).
-    'font-size: 15px': 15,
     'font-size: 26px': 3,
     // 16px on form inputs is deliberate (mobile-zoom floor); 7th added by the tc TextInput port.
     'font-size: 16px': 7,
@@ -144,7 +119,6 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'border-radius: 6px': 3,
   },
   'src/components/tasks/TasksWorkspace.css': {
-    'font-size: 15px': 15,
     'font-size: 15.5px': 1,
     'font-size: 10.5px': 1,
     'border-radius: 6px': 2,
@@ -171,14 +145,8 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
   'src/pages/pricing-page.css': {
     'font-size: 22px': 1, // .pp-result-value big-number, same class as the kpi-tile 23px display size
   },
-  'src/shell/page-head.css': {
-    'font-size: 15px': 1,
-  },
   'src/shell/rail-nav.css': {
     'font-size: 9px': 1,
-  },
-  'src/shell/signal-composer-host.css': {
-    'font-size: 15px': 1,
   },
 }
 

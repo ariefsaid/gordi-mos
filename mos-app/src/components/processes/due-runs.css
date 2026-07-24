@@ -32,7 +32,7 @@
 }
 .due-runs-row:last-child { border-bottom: none; }
 .due-runs-row-labels { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.due-runs-row-process { font-size: 15px; font-weight: 600; color: var(--foreground); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-runs-row-process { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .due-runs-row-team { font-size: var(--font-size-mono); color: var(--muted-foreground); }
 
 /* Design fix wave item 5 — the composed "Start · <process name>" button label clamps a long

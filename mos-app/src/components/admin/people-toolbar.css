@@ -30,7 +30,7 @@
   border: 1px solid var(--input);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   color: var(--muted-foreground);
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
   min-width: 180px;
   flex: 1 1 180px;
   max-width: 280px;

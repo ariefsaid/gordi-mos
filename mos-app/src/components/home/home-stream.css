@@ -117,7 +117,7 @@
   gap: 2px;
 }
 .stream-row-title {
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   color: var(--foreground);
   /* DO-16(c) (census home F5): 2-line clamp instead of single-line nowrap — the Urgent
@@ -202,7 +202,7 @@
 }
 .stream-all-clear .empty-state-icon { width: 28px; height: 28px; flex: none; }
 .stream-all-clear .empty-state-glyph { font-size: var(--font-size-mono); }
-.stream-all-clear .empty-title { font-size: 15px; }
+.stream-all-clear .empty-title { font-size: var(--font-size-body-lg); }
 
 /* Phone (Luna P0-1(b), ≤390 measured): the row becomes a single column — the metadata
    subline AND the attention tail (reason chip + status pill) stack BENEATH the primary

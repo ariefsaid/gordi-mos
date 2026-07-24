@@ -68,6 +68,13 @@ typography:
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.45
+  body-lg:
+    # OD-REDESIGN-91 #6/B4 (2026-07-24): minted — the shipped ~65-use 15px family is a
+    # deliberate rung (emphasized body: record titles, primary row text, lead copy).
+    fontFamily: "DM Sans, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.45
   label:
     fontFamily: "DM Sans, system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: "12px"
@@ -287,6 +294,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 - **Heading** (Plus Jakarta Sans, 600, 20px, lh 1.25, ls normal): Section/card titles, kanban column titles (~13.5px/600 in compact contexts).
 - **Subheading** (Plus Jakarta Sans, 600, 18px, lh 1.3): Sub-section headers inside detail panels.
 - **Body** (DM Sans, 400, 14px, lh 1.45): Default text. Controls and table cells run 13.5px; the base run is 14px.
+- **Body Large** (DM Sans, 400–600 by role, 15px, lh 1.45): Emphasized body — record titles in rows, primary row text, lead copy on auth/empty surfaces. *(Minted OD-REDESIGN-91 #6/B4, 2026-07-24: the shipped ~65-use 15px family became a deliberate rung — `--font-size-body-lg`.)*
 - **Label** (DM Sans, 600, 12px, lh 1.3): Status pills, badge counts, dense metadata, button text at small sizes.
 - **Overline** (DM Sans, 600, 11px, lh 1.3, ls 0.06em, UPPERCASE): Rail group labels and table column headers (`thead th` at 11.5px). The uppercase + tracked treatment is the system's section-divider voice.
 - **Mono** (SF Mono, 500, 13px): Project codes / IDs (`.pc-id`), keyboard hints (`.kbd`, `⌘K`). Never for prose or numbers-in-tables (those use tabular DM Sans).

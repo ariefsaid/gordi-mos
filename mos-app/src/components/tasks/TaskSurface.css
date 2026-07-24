@@ -4,7 +4,7 @@
 /* All raw values are DESIGN.md CSS-var tokens — no hardcoded hex/spacing literals.       */
 
 /* ── Breadcrumb ── */
-.breadcrumb { font-size: 15px; color: var(--muted-foreground); margin-bottom: 12px; }
+.breadcrumb { font-size: var(--font-size-body-lg); color: var(--muted-foreground); margin-bottom: 12px; }
 .breadcrumb-link { color: var(--muted-foreground); text-decoration: none; }
 .breadcrumb-link:hover { color: var(--foreground); }
 .breadcrumb-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -17,7 +17,7 @@
   padding: 10px 16px; margin-bottom: 12px;
   background: var(--secondary); border: 1px solid var(--border);
   border-radius: var(--radius-sm); /* 8px — banner/strip, OD-P3-10 */
-  font-size: 15px; color: var(--muted-foreground);
+  font-size: var(--font-size-body-lg); color: var(--muted-foreground);
 }
 
 /* ── Head card ── */
@@ -130,7 +130,7 @@
 .btn-ghost {
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 0;
-  background: transparent; font: inherit; font-size: 15px; font-weight: 500;
+  background: transparent; font: inherit; font-size: var(--font-size-body-lg); font-weight: 500;
   color: var(--muted-foreground); cursor: pointer;
 }
 .btn-ghost:hover { background: var(--accent); color: var(--foreground); }
@@ -153,7 +153,7 @@
   font-size: var(--font-size-overline); font-weight: 600; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--muted-foreground);
 }
-.meta-value { font-size: 15px; color: var(--foreground); }
+.meta-value { font-size: var(--font-size-body-lg); color: var(--foreground); }
 
 /* ── Generic card (OD-P3-10/11) ── */
 .card {
@@ -169,7 +169,7 @@
 
 /* ── Description ── */
 .desc-body { font-size: 16px; line-height: 1.5; color: var(--foreground); }
-.empty-substate { font-size: 15px; color: var(--muted-foreground); }
+.empty-substate { font-size: var(--font-size-body-lg); color: var(--muted-foreground); }
 
 .person-field {
   height: 36px; border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
@@ -197,7 +197,7 @@
   color: var(--primary-foreground); display: grid; place-items: center;
   font-size: var(--font-size-micro); font-weight: 700;
 }
-.person-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-name { font-size: var(--font-size-body-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rd-source-value { font-weight: 500; }
 .task-mark-complete { align-self: flex-start; min-height: 36px; }
 @media (max-width: 767px) {
@@ -214,7 +214,7 @@
 }
 .person-picker-option {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-  border-radius: 6px; cursor: pointer; font-size: 15px;
+  border-radius: 6px; cursor: pointer; font-size: var(--font-size-body-lg);
 }
 .person-picker-option:hover, .person-picker-option:focus-visible {
   background: var(--accent);
@@ -222,7 +222,7 @@
 .person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 
 /* ── Checklist ── */
-.checklist-count { font-size: 15px; font-weight: 400; color: var(--muted-foreground); }
+.checklist-count { font-size: var(--font-size-body-lg); font-weight: 400; color: var(--muted-foreground); }
 .checklist-list { list-style: none; padding: 0; margin: 0 0 8px; }
 .checklist-item {
   display: flex; align-items: center; gap: 10px;
@@ -246,7 +246,7 @@
 }
 .checklist-add-input {
   width: 100%; border: 0; outline: none; background: transparent;
-  font: inherit; font-size: 15px; color: var(--muted-foreground);
+  font: inherit; font-size: var(--font-size-body-lg); color: var(--muted-foreground);
   padding: 6px 0; border-top: 1px solid var(--border);
 }
 .checklist-add-input::placeholder { color: var(--muted-foreground); }
@@ -277,7 +277,7 @@
   font-size: var(--font-size-micro); font-weight: 700;
 }
 .event-body { flex: 1; min-width: 0; }
-.event-who { font-size: 15px; font-weight: 600; color: var(--foreground); margin-right: 6px; }
+.event-who { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); margin-right: 6px; }
 .event-when { font-size: var(--font-size-label); color: var(--muted-foreground); }
 .event-label { font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
 
@@ -289,7 +289,7 @@
 .comment-composer { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; position: relative; }
 .comment-composer__input {
   width: 100%; box-sizing: border-box; min-height: 76px; resize: vertical;
-  padding: 10px 12px; font: inherit; font-size: 15px; line-height: 1.5; color: var(--foreground);
+  padding: 10px 12px; font: inherit; font-size: var(--font-size-body-lg); line-height: 1.5; color: var(--foreground);
   background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
 }
 .comment-composer__input::placeholder { color: var(--muted-foreground); }
@@ -337,11 +337,11 @@
      the tinted bg + border keep the saturated --destructive hue (non-text affordances). */
   padding: 10px 12px; margin-bottom: 16px; border-radius: 6px;
   background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text);
-  font-size: 15px; border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  font-size: var(--font-size-body-lg); border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
 }
 
 .tc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
-.tc-label { font-size: 15px; font-weight: 500; color: var(--foreground); }
+.tc-label { font-size: var(--font-size-body-lg); font-weight: 500; color: var(--foreground); }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
 /* Description keeps a native <textarea> — ui/ has no ratified multiline primitive.
@@ -468,7 +468,7 @@
 .btn-ghost-danger {
   height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   border: 0;
-  background: transparent; font: inherit; font-size: 15px; font-weight: 500;
+  background: transparent; font: inherit; font-size: var(--font-size-body-lg); font-weight: 500;
   color: var(--muted-foreground); cursor: pointer;
 }
 .btn-ghost-danger:hover { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text); } /* --status-lost-text */

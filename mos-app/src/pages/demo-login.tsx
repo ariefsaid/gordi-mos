@@ -48,7 +48,7 @@ export function DemoLogin({
               onClick={() => onPick(p.email)}
               className="text-primary font-medium hover:underline focus-visible:underline inline-flex items-center gap-1"
               style={{
-                fontSize: 15,
+                fontSize: 'var(--font-size-body-lg)',
                 minHeight: 44, // ≥44px touch target (design-plan §4)
                 opacity: disabled && !busy ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : undefined,

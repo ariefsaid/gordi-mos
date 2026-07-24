@@ -8,7 +8,7 @@
   padding: 12px 12px 0 16px; flex: none;
 }
 .signal-composer-host-title {
-  flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--foreground);
+  flex: 1; min-width: 0; font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground);
   margin: 0;
 }
 .signal-composer-host-head button {

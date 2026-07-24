@@ -128,7 +128,7 @@ function GordiLogoMark() {
     <div className="relative flex-none" style={{ width: 26, height: 26 }}>
       <div
         className="flex h-full w-full items-center justify-center rounded-sm bg-brand-navy font-bold text-primary-foreground"
-        style={{ fontSize: 15 }}
+        style={{ fontSize: 'var(--font-size-body-lg)' }}
       >
         G
       </div>
@@ -354,7 +354,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onOpenC
             onClick={onOpenSearch}
           >
             <SearchIcon />
-            <span className="flex-1 text-left" style={{ fontSize: 15 }}>
+            <span className="flex-1 text-left" style={{ fontSize: 'var(--font-size-body-lg)' }}>
               {t('topBar.searchPlaceholder')}
             </span>
             <kbd

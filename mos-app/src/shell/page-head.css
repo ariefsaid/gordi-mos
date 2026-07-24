@@ -50,7 +50,7 @@
 
 .ch-submeta {
   color: var(--muted-foreground);
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
 }
 
 /* R2 (owner review r2): the ONE muted meta sentence for a workspace head — "14 tasks · 2 blocked".

@@ -22,7 +22,7 @@ function ProfileCard({ title, children }: { title: string; children: React.React
       className="bg-card border border-border"
       style={{ borderRadius: 'var(--radius-lg)', padding: 16, maxWidth: 560 }}
     >
-      <h2 className="text-foreground font-semibold" style={{ fontSize: 15, margin: '0 0 12px' }}>{title}</h2>
+      <h2 className="text-foreground font-semibold" style={{ fontSize: 'var(--font-size-body-lg)', margin: '0 0 12px' }}>{title}</h2>
       {children}
     </section>
   )

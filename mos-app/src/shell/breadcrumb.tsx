@@ -76,7 +76,7 @@ export function Breadcrumb() {
   // home / events / inbox / profile / ecommerce / roastery → bare destLabel.
 
   return (
-    <span style={{ fontSize: 15 }}>
+    <span style={{ fontSize: 'var(--font-size-body-lg)' }}>
       {crumbs.length === 1 ? (
         <b className="truncate text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
           {crumbs[0]}

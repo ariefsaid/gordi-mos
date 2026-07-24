@@ -68,7 +68,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       {/* Foot line: body 13px, muted-foreground */}
       <p
         className="mt-6 text-muted-foreground text-center"
-        style={{ fontSize: 15 }}
+        style={{ fontSize: 'var(--font-size-body-lg)' }}
       >
         Trouble signing in? Contact Arief.
       </p>

@@ -200,7 +200,7 @@
   background: transparent;
   color: var(--foreground);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
 }
 
 .collection-toolbar__search input::placeholder { color: var(--muted-foreground); }
@@ -241,7 +241,7 @@
   background: var(--background);
   color: var(--foreground);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
 }
 
 .collection-toolbar__save-field input:focus-visible {
@@ -265,7 +265,7 @@
   background: transparent;
   color: var(--foreground);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   text-align: left;
   cursor: pointer;
