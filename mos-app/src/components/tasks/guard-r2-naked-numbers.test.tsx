@@ -86,7 +86,6 @@ import { DashboardPage } from '@/pages/dashboard-page'
 import { BudgetPage } from '@/pages/budget-page'
 import { PricingPage } from '@/pages/pricing-page'
 import { TasksWorkspace } from './tasks-workspace'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 
 const VIEWER_ID = 'viewer-id'
@@ -155,7 +154,6 @@ function renderWorkspace() {
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   __resetTasksViewPrefForTests()
   stubMatchMedia()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Kitchen' }])

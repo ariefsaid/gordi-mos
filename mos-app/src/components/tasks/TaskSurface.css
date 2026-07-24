@@ -454,7 +454,6 @@
 }
 .dw-iconbtn:hover { background: var(--accent); color: var(--foreground); }
 .dw-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.dw-iconbtn-on { color: var(--primary); }
 
 @media (pointer: fine) {
   .dw-iconbtn { width: 30px; height: 30px; }
@@ -493,9 +492,8 @@
 .btn-ghost-danger:hover { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text); } /* --status-lost-text */
 .btn-ghost-danger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
-/* ── Expanded (focus mode) reflow ── */
-.dw-surface-expanded .dw-tabpane { max-width: 880px; margin: 0 auto; width: 100%; padding: 22px 28px 36px; }
-.dw-surface-expanded .desc-body { max-width: 62ch; }
+/* GAP-2 (OD-91 #7): the expand-in-place (.dw-surface-expanded) reflow is retired with the
+   width toggle — the drawer holds a fixed width; "Open full page" is the one escalation. */
 
 /* ── Create mode inside the drawer (no double card frame) ── */
 .tc-create-drawer { max-width: none; }

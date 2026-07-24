@@ -10,10 +10,9 @@ describe('useTasksKeyboard (AC-109)', () => {
   let onOpen: ReturnType<typeof vi.fn>
   let onClose: ReturnType<typeof vi.fn>
   let onNew: ReturnType<typeof vi.fn>
-  let onExpand: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    onOpen = vi.fn(); onClose = vi.fn(); onNew = vi.fn(); onExpand = vi.fn()
+    onOpen = vi.fn(); onClose = vi.fn(); onNew = vi.fn()
     // Reset focus to the body between tests so single-key suppression is off.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
   })
@@ -22,7 +21,7 @@ describe('useTasksKeyboard (AC-109)', () => {
   })
 
   function setup(rowCount = 3, enabled = true, overlayActive = false) {
-    return renderHook(() => useTasksKeyboard({ rowCount, enabled, overlayActive, onOpen, onClose, onNew, onExpand }))
+    return renderHook(() => useTasksKeyboard({ rowCount, enabled, overlayActive, onOpen, onClose, onNew }))
   }
 
   it('AC-109: j moves the cursor down and k moves it up (clamped to bounds)', () => {
@@ -55,14 +54,12 @@ describe('useTasksKeyboard (AC-109)', () => {
     expect(onOpen).toHaveBeenCalledWith(0)
   })
 
-  it('AC-109: Esc closes; n opens create; e toggles expand', () => {
+  it('AC-109: Esc closes; n opens create (GAP-2: the e expand key is retired)', () => {
     setup(3)
     act(() => fireKey('Escape'))
     expect(onClose).toHaveBeenCalled()
     act(() => fireKey('n'))
     expect(onNew).toHaveBeenCalled()
-    act(() => fireKey('e'))
-    expect(onExpand).toHaveBeenCalled()
   })
 
   it('AC-109: single-letter hotkeys are SUPPRESSED while a text input has focus', () => {
@@ -72,9 +69,7 @@ describe('useTasksKeyboard (AC-109)', () => {
     input.focus()
     act(() => fireKey('n'))
     act(() => fireKey('j'))
-    act(() => fireKey('e'))
     expect(onNew).not.toHaveBeenCalled()
-    expect(onExpand).not.toHaveBeenCalled()
   })
 
   // D-B3 / RULED I5 (fix work-order item 11): a focused field owns its own Escape (discard the
@@ -111,8 +106,8 @@ describe('useTasksKeyboard (AC-109)', () => {
     const ta = document.createElement('textarea')
     document.body.appendChild(ta)
     ta.focus()
-    act(() => fireKey('e'))
-    expect(onExpand).not.toHaveBeenCalled()
+    act(() => fireKey('n'))
+    expect(onNew).not.toHaveBeenCalled()
   })
 
   it('disabled: no key is handled when enabled=false', () => {
@@ -125,7 +120,7 @@ describe('useTasksKeyboard (AC-109)', () => {
 
   it('cursor clamps when rowCount shrinks below the current cursor', () => {
     const { result, rerender } = renderHook(
-      ({ rc }) => useTasksKeyboard({ rowCount: rc, enabled: true, onOpen, onClose, onNew, onExpand }),
+      ({ rc }) => useTasksKeyboard({ rowCount: rc, enabled: true, onOpen, onClose, onNew }),
       { initialProps: { rc: 5 } },
     )
     act(() => { fireKey('j'); fireKey('j'); fireKey('j'); fireKey('j') }) // cursor → 3

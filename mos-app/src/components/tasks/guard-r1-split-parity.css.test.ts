@@ -8,8 +8,9 @@
  * awkward gaps" (.claude/skills/taste/SKILL.md, Layout & Spacing).
  *
  * jsdom has no layout engine, so this layer pins the CSS grammar of the fix verbatim:
- * inside the ≥1100px media block, the non-expanded split grid stretches both tracks to one
+ * inside the ≥1100px media block, the drawer-open split grid stretches both tracks to one
  * shared height, and the drawer becomes a flex column that fills it and owns its overflow.
+ * (GAP-2 / OD-91 #7: expand-in-place is retired, so the selectors no longer carry :not(.expanded).)
  * The rendered-pixel proof (bounding boxes actually sharing a bottom edge) lives in
  * e2e/guards.geometry.spec.ts (GUARD-R1).
  */
@@ -41,11 +42,11 @@ function mediaBody(query: string): string {
 describe('GUARD-R1: split table + drawer share ONE track height at the split width', () => {
   const body = mediaBody('min-width: 1100px')
 
-  it('GUARD-R1: the live (non-expanded, drawer-open) split grid stretches its items', () => {
+  it('GUARD-R1: the drawer-open split grid stretches its items', () => {
     // The exact fix: align-items:stretch scoped to the real split regime only. `start`
     // must stay the base (the nodrawer/modal regimes), so this pins the scoped override.
     expect(body).toMatch(
-      /\.split:not\(\.nodrawer\):not\(\.expanded\)\s*\{[^}]*align-items:\s*stretch/,
+      /\.split:not\(\.nodrawer\)\s*\{[^}]*align-items:\s*stretch/,
     )
   })
 
@@ -53,13 +54,13 @@ describe('GUARD-R1: split table + drawer share ONE track height at the split wid
     // Without these, stretch would just grow the aside frame while its content overflowed
     // the card — parity in the grid but not in the rendered surface.
     expect(body).toMatch(
-      /\.split:not\(\.expanded\)\s+\.drawer:not\(\.expanded\)\s*\{[^}]*flex-direction:\s*column/,
+      /\.split\s+\.drawer\s*\{[^}]*flex-direction:\s*column/,
     )
     expect(body).toMatch(
-      /\.split:not\(\.expanded\)\s+\.drawer:not\(\.expanded\)\s*>\s*\.dw-surface\s*\{[^}]*flex:\s*1 1 auto/,
+      /\.split\s+\.drawer\s*>\s*\.dw-surface\s*\{[^}]*flex:\s*1 1 auto/,
     )
     expect(body).toMatch(
-      /\.split:not\(\.expanded\)\s+\.drawer:not\(\.expanded\)\s*>\s*\.dw-surface\s*\{[^}]*overflow:\s*auto/,
+      /\.split\s+\.drawer\s*>\s*\.dw-surface\s*\{[^}]*overflow:\s*auto/,
     )
   })
 
@@ -75,10 +76,10 @@ describe('DO-18(a) (census-sweep R2 tasks FINDING1): condensed-tier Task identit
     // In the squashed split track the one-line ellipsis truncated 6/11 titles at 1280.
     // The condensed tier overrides .task-name's nowrap with a 2-line clamp.
     expect(css).toMatch(
-      /\.split:not\(\.nodrawer\):not\(\.expanded\)\s+\.task-name\s*\{[^}]*white-space:\s*normal/,
+      /\.split:not\(\.nodrawer\)\s+\.task-name\s*\{[^}]*white-space:\s*normal/,
     )
     expect(css).toMatch(
-      /\.split:not\(\.nodrawer\):not\(\.expanded\)\s+\.task-name\s*\{[^}]*-webkit-line-clamp:\s*2/,
+      /\.split:not\(\.nodrawer\)\s+\.task-name\s*\{[^}]*-webkit-line-clamp:\s*2/,
     )
   })
 

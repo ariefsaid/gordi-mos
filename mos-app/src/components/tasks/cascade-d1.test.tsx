@@ -20,7 +20,6 @@ import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -137,7 +136,6 @@ function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>>
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
@@ -422,7 +420,6 @@ describe('Mobile cards: Work-line + Objective shown in card detail list', () => 
   beforeEach(() => {
     stubMatchMedia(false, false) // mobile viewport
     __resetTasksViewPrefForTests()
-    __resetExpandPrefForTests()
   })
 
   it('mobile card shows Work-line name + type label for a task with a work line', async () => {

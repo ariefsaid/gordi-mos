@@ -506,13 +506,13 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     expect(within(actions as HTMLElement).getByRole('button', { name: /archive task/i })).toBeInTheDocument()
   })
 
-  it('AC-104 (drawer): expand toggle calls onExpandToggle without navigation', async () => {
+  it('GAP-2 (OD-91 #7): the drawer has no expand/collapse toggle — Open full page is the one escalation', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    const onExpandToggle = vi.fn()
-    renderDrawer({ onExpandToggle })
+    renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
-    expect(onExpandToggle).toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /expand to full width|collapse to split/i })).toBeNull()
+    // The drawer's own utility bar carries the one escalation verb instead.
+    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
   })
 
   it('AC-112 (drawer): archived deep-link shows the archived banner + Unarchive, edit affordances suppressed', async () => {
@@ -686,7 +686,7 @@ describe('TaskSurface — create mode', () => {
         <MemoryRouter initialEntries={['/tasks/new']}>
           <TaskSurface
             taskId={null} mode="create" width="drawer"
-            expanded={false} onExpandToggle={vi.fn()} onClose={vi.fn()}
+            onClose={vi.fn()}
             showPanelUtility={false}
           />
         </MemoryRouter>
@@ -700,42 +700,20 @@ describe('TaskSurface — create mode', () => {
     expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
   })
 
-  // M5: the create-mode drawer bar must include the expand toggle for parity
-  // with view mode (mockup Screen 2). It reflects `expanded` and calls back.
-  it('M5: create-mode drawer bar shows the expand toggle and calls onExpandToggle', async () => {
-    const onExpandToggle = vi.fn()
+  // GAP-2 (OD-91 #7): expand-in-place is retired — the create-mode drawer bar carries no
+  // expand toggle at any width (only the title + the one ✕).
+  it('GAP-2: create-mode drawer bar shows NO expand toggle', async () => {
     render(
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks/new']}>
-          <TaskSurface
-            taskId={null} mode="create" width="drawer"
-            expanded={false} onExpandToggle={onExpandToggle} onClose={vi.fn()}
-          />
+          <TaskSurface taskId={null} mode="create" width="drawer" onClose={vi.fn()} />
         </MemoryRouter>
       </AuthContext.Provider>,
     )
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
-    const toggle = screen.getByRole('button', { name: /expand to full width/i })
-    expect(toggle).toBeInTheDocument()
-    fireEvent.click(toggle)
-    expect(onExpandToggle).toHaveBeenCalled()
-  })
-
-  it('M5: create-mode drawer bar reflects expanded=true (collapse affordance + full-width crumb)', async () => {
-    render(
-      <AuthContext.Provider value={authedState}>
-        <MemoryRouter initialEntries={['/tasks/new']}>
-          <TaskSurface
-            taskId={null} mode="create" width="drawer"
-            expanded onExpandToggle={vi.fn()} onClose={vi.fn()}
-          />
-        </MemoryRouter>
-      </AuthContext.Provider>,
-    )
-    await waitFor(() => screen.getByRole('button', { name: /create task/i }))
-    expect(screen.getByRole('button', { name: /collapse to split/i })).toBeInTheDocument()
-    expect(screen.getByText(/create task · full width/i)).toBeInTheDocument()
-    expect(document.querySelector('.dw-surface-expanded')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /expand to full width|collapse to split/i })).toBeNull()
+    // The surface never carries the retired expanded-width class.
+    expect(document.querySelector('.dw-surface-expanded')).toBeNull()
   })
 
   // C2: a successful create reports the new id back to the host (so the table

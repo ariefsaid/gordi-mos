@@ -44,17 +44,15 @@ export type TaskSurfaceProps = {
   /** panel = in-list split drawer; page = standalone canonical record page. */
   presentation?: 'panel' | 'page'
   width: 'drawer' | 'full'
-  onClose?: () => void           // drawer/expanded use this; full host passes navigate('/work/tasks')
+  onClose?: () => void           // drawer uses this; full host passes navigate('/work/tasks')
   /** Canonical promotion callback supplied by the shared overlay host. */
   onOpenPage?: () => void
-  onExpandToggle?: () => void    // wired in PR-B
   /**
    * R6(a) (owner review r2): the inverse of "Open full page" on the STANDALONE full canonical page —
    * re-open this same record in the split drawer over the table. Supplied only by TaskRecordPage;
    * when present, the full-width chrome renders a "back to split" control (a dead-end page otherwise).
    */
   onCollapseToSplit?: () => void
-  expanded?: boolean
   /** Suppress the task-local utility bar when RecordPanelHost owns the chrome. */
   showPanelUtility?: boolean
   onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
@@ -105,8 +103,8 @@ export function TaskSurface(props: TaskSurfaceProps) {
 
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
-  taskId, width, presentation = width === 'drawer' ? 'panel' : 'page', expanded,
-  onClose, onOpenPage, onExpandToggle, onCollapseToSplit, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
+  taskId, width, presentation = width === 'drawer' ? 'panel' : 'page',
+  onClose, onOpenPage, onCollapseToSplit, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
   showPanelUtility = true,
   identityHeadingLevel,
   fieldCommitsFrozen,
@@ -546,10 +544,10 @@ function ViewSurface({
 
   const task = localTask
 
-  // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host
-  // does not supply onOpenPage (the expand toggle promotes in place); a tenant opened from
-  // another surface (Inbox/Follow-ups via the OverlayHostSlot) supplies it explicitly. In panel
-  // mode without an explicit callback we fall back to the canonical task page route.
+  // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host may
+  // not supply onOpenPage; a tenant opened from another surface (Inbox/Follow-ups via the
+  // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
+  // back to the canonical task page route. GAP-2 (OD-91 #7): "Open full page" is the ONE escalation.
   const openPageTarget = presentation === 'panel'
     ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
     : undefined
@@ -558,39 +556,21 @@ function ViewSurface({
   // ── Drawer width: the shared RecordViewer owns identity, metadata, content and actions ──
   if (width === 'drawer') {
     return (
-      <div className={expanded ? 'dw-surface dw-surface-expanded' : 'dw-surface'}>
+      <div className="dw-surface">
         <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
         {/* Utility bar — host-owned chrome around the canonical RecordViewer (NOT the old
             TaskDrawerHeader composition: identity/status/ownership/actions live in the viewer).
-            Open full page · Expand to full width · Close. Suppressed when the overlay host owns
-            its own chrome (showPanelUtility=false). */}
+            GAP-2 (OD-91 #7): expand-in-place is retired — Open full page · Close (no width toggle).
+            Suppressed when the overlay host owns its own chrome (showPanelUtility=false). */}
         {showPanelUtility && (
           <div className="dw-bar">
-            <span className="dw-crumb-mini">{expanded ? t('tasks.fullWidth') : t('tasks.label.task')}</span>
+            <span className="dw-crumb-mini">{t('tasks.label.task')}</span>
             <span className="dw-bar-spacer" />
             {openPageTarget && (
               <button type="button" className="dw-open-page" onClick={openPageTarget}>
                 {t('tasks.openFullPage')}
               </button>
             )}
-            <button
-              type="button"
-              className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
-              aria-pressed={Boolean(expanded)}
-              aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
-              title={expanded ? t('tasks.collapse') : t('tasks.expand')}
-              onClick={() => onExpandToggle?.()}
-            >
-              {expanded ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                </svg>
-              )}
-            </button>
             <button
               type="button"
               className="dw-iconbtn"
@@ -645,22 +625,17 @@ function ViewSurface({
 
       {/* Record chrome — P1-2 (Luna: record identity behind a generic page head + utility strip
           at y≈234, vs E7's compact y≈124). ONE compact row: a Back affordance on the leading
-          edge, the record actions (Ask Deputy, incl. expand/close when promoted from the drawer)
-          trailing — no separate page head above it (tasks-layout.tsx TaskRecordPage passes
-          hideHead). When promoted from the drawer (expanded@split) the host passes collapse/close
-          callbacks; carry them in this same row so the expand control stays reversible (collapse
-          back to split) and the surface is never a dead end — in that case the row's leading edge
-          stays the crumb (Close already serves as "back"), never a redundant Back link. A
-          standalone full-page route host (TaskRecordPage) passes neither, so this row is the ONLY
+          edge, the record actions (Ask Deputy, collapse-to-split/close) trailing — no separate
+          page head above it (tasks-layout.tsx TaskRecordPage passes hideHead). GAP-2 (OD-91 #7):
+          expand-in-place is retired, so there is no width toggle here; the only reversal offered is
+          collapse-back-to-split (the inverse of "Open full page"). A standalone full-page route host
+          (TaskRecordPage) passes neither onClose nor onCollapseToSplit, so this row is the ONLY
           header the record has: its leading edge is a real Back-to-collection affordance, and it
-          still carries the record-scoped Ask Deputy affordance (E7 floor F3, J05) — RecordPanelHost
-          already supplies that button when showPanelUtility is false (the drawer/expanded@split
-          host owns its own chrome instead), so this internal bar only needs to fill the gap the
-          host doesn't cover. */}
+          still carries the record-scoped Ask Deputy affordance (E7 floor F3, J05). */}
       {showPanelUtility && (
         <div className="dw-bar record-chrome">
           {onClose ? (
-            <span className="dw-crumb-mini">{t('tasks.fullWidth')}</span>
+            <span className="dw-crumb-mini">{t('tasks.label.task')}</span>
           ) : (
             <Link
               to={{ pathname: '/work/tasks', search: location.search }}
@@ -675,8 +650,7 @@ function ViewSurface({
           <AskDeputyAction draft={t('assistant.askAbout.task', { title: task.title })} />
           {/* R6(a): the inverse of "Open full page" — collapse this standalone page back to the
               split drawer over the table (the "resize back to drawer" the owner asked for), so the
-              full page is never a dead end whose only exit is back to the bare table. Uses the same
-              collapse ("shrink") glyph as the drawer's expanded-state toggle. */}
+              full page is never a dead end whose only exit is back to the bare table. */}
           {onCollapseToSplit && (
             <button
               type="button"
@@ -684,20 +658,6 @@ function ViewSurface({
               aria-label={t('tasks.backToSplit')}
               title={t('tasks.backToSplit')}
               onClick={() => onCollapseToSplit()}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-              </svg>
-            </button>
-          )}
-          {onExpandToggle && (
-            <button
-              type="button"
-              className="dw-iconbtn dw-iconbtn-on"
-              aria-pressed={true}
-              aria-label={t('tasks.collapse')}
-              title={t('tasks.collapse')}
-              onClick={() => onExpandToggle()}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
@@ -752,7 +712,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true }: TaskSurfaceProps) {
+function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -894,36 +854,14 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
     }
   }
 
-  // M5: create mode keeps the expand toggle for parity with view mode (mockup Screen 2).
-  // The chrome bar renders in BOTH widths — drawer uses .dw-bar, full width uses the
-  // .record-chrome strip above the card (mirrors ViewSurface) so the collapse control
-  // is never lost when expanded promotes the surface to full width.
+  // GAP-2 (OD-91 #7): expand-in-place is retired — create mode holds a fixed width too, so the
+  // chrome bar carries only the title + the one ✕ (no width toggle).
   const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchString })
   // D-B1: the create form's own leave controls (chrome ✕ / Cancel) defer to the host leave-guard
   // when one is present (TaskDrawer), so a typed draft prompts a discard confirm instead of
   // vanishing. Standalone (no host) the leave runs directly, unchanged.
   const requestClose = () => (onRequestLeave ? onRequestLeave(closeToCollection) : closeToCollection())
 
-  const expandBtn = (
-    <button
-      type="button"
-      className={expanded ? 'dw-iconbtn dw-iconbtn-on' : 'dw-iconbtn'}
-      aria-pressed={Boolean(expanded)}
-      aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
-      title={expanded ? t('tasks.collapse') : t('tasks.expand')}
-      onClick={() => onExpandToggle?.()}
-    >
-      {expanded ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-        </svg>
-      )}
-    </button>
-  )
   const closeBtn = (
     <button
       type="button"
@@ -939,12 +877,11 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
   // (showPanelUtility=false — same contract ViewSurface already honors), the surface renders NO
   // bar of its own. Before this, RecordPanelHost's "Create task ✕" bar and this near-identical
   // bar stacked (~92–120px of pure duplication, two same-named close buttons on one dismiss
-  // axis). The host carries the title, the expand toggle (its create-mode actions), and the one ✕.
+  // axis). The host carries the title and the one ✕.
   const chromeBar = showPanelUtility ? (
     <div className={inDrawer ? 'dw-bar' : 'dw-bar record-chrome'}>
-      <span className="dw-crumb-mini">{expanded ? t('tasks.create.newFullWidth') : t('tasks.create.new')}</span>
+      <span className="dw-crumb-mini">{t('tasks.create.new')}</span>
       <span className="dw-bar-spacer" />
-      {onExpandToggle && expandBtn}
       {closeBtn}
     </div>
   ) : null
@@ -1199,7 +1136,7 @@ function CreateSurface({ width, expanded, onExpandToggle, onTaskCreated, onDirty
 
   if (inDrawer) {
     return (
-      <div className={`dw-surface tc-create-drawer${expanded ? ' dw-surface-expanded' : ''}`}>
+      <div className="dw-surface tc-create-drawer">
         {chromeBar}
         {formMarkup}
       </div>

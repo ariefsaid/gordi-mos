@@ -34,7 +34,6 @@
   box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
   overflow: hidden; min-width: 0;
 }
-.drawer.expanded { border: 0; background: transparent; }
 
 /* ── Shell-mounted split panel (Luna audit B1) ───────────────────────────────
    The shell OverlayHostSlot sits above the page Outlet (no page-level .record-split wrapper),

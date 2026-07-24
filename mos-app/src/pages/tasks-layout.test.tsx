@@ -42,7 +42,6 @@ import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
-import { __resetExpandPrefForTests } from '@/components/tasks/use-expand-pref'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
@@ -116,7 +115,6 @@ const PEOPLE = [{ id: VIEWER_ID, full_name: 'Arief Said' }]
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   stubMatchMedia(true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
@@ -360,33 +358,22 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(screen.queryByRole('link', { name: /\+ create task/i })).toBeNull()
   })
 
-  // RI-1 (C1): the expand toggle must collapse the table live — the .split grid
-  // and the layout-driving `expanded` prop share ONE source of truth. Previously
-  // useExpandPref was instantiated twice (read-only in TasksLayout, setter in
-  // TaskDrawer) so toggling flipped the drawer + localStorage but the grid never
-  // re-rendered until reload. Both panes must reflect the toggle in the SAME render.
-  it('RI-1: toggling expand in the drawer collapses the .split grid to one column live (no reload)', async () => {
+  // GAP-2 (OD-91 #7): expand-in-place is retired — the drawer never collapses the table grid;
+  // there is no .split.expanded state and no expand toggle. The split stays two-column with the
+  // table assembly visible while a drawer is open; "Open full page" is the one escalation.
+  it('GAP-2: an open drawer keeps the two-column split with no expand toggle or .split.expanded', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
     renderAt('/work/tasks/task-1')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    // Split view (not expanded): grid is two-column, table assembly visible
     const split = document.querySelector('.split')
     expect(split).toBeTruthy()
     expect(split?.classList.contains('expanded')).toBe(false)
     expect(document.querySelector('.assembly')).toBeTruthy()
-
-    // Toggle expand from the drawer header
-    fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
-
-    // SAME render: the layout grid collapses to one column (.split.expanded) —
-    // no reload required.
-    await waitFor(() => {
-      expect(document.querySelector('.split.expanded')).toBeTruthy()
-    })
-    // and the surface itself promotes to the full-width shared RecordViewer page.
-    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
-    expect(document.querySelector('.dw-surface')).toBeNull()
+    // No width toggle anywhere, and the grid never enters an expanded state.
+    expect(screen.queryByRole('button', { name: /expand to full width|collapse to split/i })).toBeNull()
+    expect(document.querySelector('.split.expanded')).toBeNull()
+    expect(document.querySelector('.dw-surface')).toBeTruthy()
   })
 
   // RI-2 (C2): after creating a task in the drawer, the table must show the new

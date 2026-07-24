@@ -41,7 +41,6 @@ import type {
 export interface TaskCollectionRuntime {
   selectedId: string | null
   drawerOpen: boolean
-  expanded: boolean
   splitLayout: boolean
   isDesktop: boolean
   recordSearch: string
@@ -52,7 +51,6 @@ export interface TaskCollectionRuntime {
   onEditTitle: (taskId: string, title: string) => Promise<void>
   onCloseDrawer: () => void
   onNewTask: () => void
-  onToggleExpand: () => void
   onAddTask: (prefillParam: string) => void
   onRetry: () => void
   onClearFilters: () => void
@@ -103,7 +101,6 @@ const EMPTY_DUE_RUNS: UseDueRunsResult = {
 const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   selectedId: null,
   drawerOpen: false,
-  expanded: false,
   splitLayout: false,
   isDesktop: true,
   recordSearch: '',
@@ -112,7 +109,6 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onEditTitle: async () => {},
   onCloseDrawer: () => {},
   onNewTask: () => {},
-  onToggleExpand: () => {},
   onAddTask: () => {},
   onRetry: () => {},
   onClearFilters: () => {},
@@ -384,7 +380,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     onOpen: (index) => { const task = leafTasks[index]; if (task) openTask(task.id) },
     onClose: runtime.onCloseDrawer,
     onNew: runtime.onNewTask,
-    onExpand: runtime.onToggleExpand,
   })
 
   useEffect(() => { setCursor(keyboard.cursor) }, [keyboard.cursor])
@@ -427,7 +422,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         key={task.id}
         task={task}
         now={context.now}
-        condensed={runtime.drawerOpen && !runtime.expanded && runtime.splitLayout}
+        condensed={runtime.drawerOpen && runtime.splitLayout}
         isSelected={runtime.selectedId === task.id}
         isCursor={keyboard.cursor === leafIndex}
         leafIndex={leafIndex}

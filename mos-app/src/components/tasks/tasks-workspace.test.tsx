@@ -46,7 +46,6 @@ import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
 import { taskCollectionDescriptor } from './task-collection-adapter'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
@@ -156,7 +155,6 @@ function renderTable(
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)

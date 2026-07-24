@@ -30,7 +30,7 @@ afterEach(() => {
 })
 
 // Node 26+ no longer provides a global localStorage by default; jsdom does not
-// inject one either. Several hooks (useExpandPref, useTasksViewPref, useTheme)
+// inject one either. Several hooks (useTasksViewPref, useTheme)
 // persist to localStorage, and tests call localStorage.clear() in beforeEach.
 // Provide a minimal spec-compliant stub so the test environment is usable.
 if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage === null) {

@@ -27,8 +27,6 @@ export type RecordPanelHostProps = {
   onClose: (via?: 'explicit-close' | 'escape') => void
   /** The record content (e.g. TaskSurface, SignalRecordHost) — chrome-free. */
   children: ReactNode
-  /** Promotes the split aside to full width (Task expand) → adds `.expanded`. */
-  expanded?: boolean
   /** Re-run the open-focus + trap wiring when this changes (e.g. a fresh record mounts). */
   focusKey?: string
   /** When set, the host renders its chrome header (title zone · optional Open-full-page · ✕). */
@@ -76,7 +74,7 @@ function OpenPageIcon() {
  * closing returns it); <1100px modal dialog (scrim + focus-trap + Esc + return-focus).
  */
 export function RecordPanelHost({
-  label, onClose, children, expanded, focusKey, title, actions, onOpenPage, rootClassName,
+  label, onClose, children, focusKey, title, actions, onOpenPage, rootClassName,
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
   escapeCapture = false, escapeOnDocument = false, companion = false,
 }: RecordPanelHostProps) {
@@ -226,7 +224,7 @@ export function RecordPanelHost({
 
   // ── Non-modal split (≥1100px): plain <aside>, no scrim, no trap ─────────────
   if (!isModal) {
-    const asideClass = ['drawer', expanded ? 'expanded' : '', rootClassName ?? '']
+    const asideClass = ['drawer', rootClassName ?? '']
       .filter(Boolean).join(' ')
     return (
       <aside ref={panelRef} className={asideClass} aria-label={label} {...overlayAttrs}>
@@ -240,7 +238,6 @@ export function RecordPanelHost({
   const sheetClass = [
     'drawer', 'drawer-modal',
     isFullScreen ? 'drawer-fullscreen' : 'drawer-sheet',
-    expanded ? 'expanded' : '',
   ].filter(Boolean).join(' ')
 
   // The oracle attrs ride the sheet <aside> (the panel itself), matching the split regime,

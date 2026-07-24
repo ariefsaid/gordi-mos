@@ -28,7 +28,6 @@ import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskDrawer } from './task-drawer'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 
 const mockGetTask = vi.mocked(getTask)
 const VIEWER_ID = 'viewer-person-id'
@@ -82,7 +81,6 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   stubWidths({ split: true, desktop: true }) // default: the ≥1100px non-modal split regime
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Cafe Operations' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
@@ -155,36 +153,22 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     localStorage.removeItem('mos.locale')
   })
 
-  it('AC-104/105: when the expand pref is persisted true (@split), the surface renders the full-width single-column record document', async () => {
-    localStorage.setItem('mos.tasks.expandDefault', 'true')
-    __resetExpandPrefForTests() // sync the shared snapshot to the freshly-set storage
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/work/tasks/task-abc')
-    // AC-R06: expanded@split promotes to the E7 full-width single-column record document.
-    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
-    expect(document.querySelector('.drawer.expanded')).toBeTruthy() // the host aside still collapses the table column
-  })
-
-  it('AC-104: toggling expand persists the preference and flips the surface width', async () => {
+  it('GAP-2 (OD-91 #7): expand-in-place is retired — the drawer offers no expand/collapse toggle, only Open full page', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
+    // No width toggle anywhere; the drawer stays the compact stacked record (never .record-doc).
+    expect(screen.queryByRole('button', { name: /expand to full width|collapse to split/i })).toBeNull()
     expect(document.querySelector('.record-doc')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
-    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
-    expect(localStorage.getItem('mos.tasks.expandDefault')).toBe('true')
+    expect(document.querySelector('.dw-surface')).toBeTruthy()
   })
 })
 
-// ── Regression-invariant: the expand control must MOUNT the full record
-// document in the live host (the gap that shipped green — unit tests asserted
-// width='full' in isolation but nothing asserted TaskDrawer mounts it).
-// AC-R06: expanded@split promotes to E7's full-width single-column record
-// document — details sections stacked on top, the tabbed feed below. The
-// goal-oracle is unchanged (expanded shows the FULL record incl. its feed); only
-// the layout changed from the ADR-0013 D3 side-by-side grid to E7's stacked form.
-describe('TaskDrawer — expanded@split mounts the full-width record document (E7 canonical, AC-R06)', () => {
-  it('AC-R06: un-expanded @≥1100px renders the COMPACT stacked drawer (not the record document)', async () => {
+// GAP-2 (OD-REDESIGN-91 #7): expand-in-place is RETIRED. The drawer stays the compact stacked
+// record at every width; the ONLY escalation to the full record document is "Open full page"
+// (a navigation to the canonical /work/tasks/:id page), never an in-place width toggle.
+describe('TaskDrawer — no expand-in-place (GAP-2)', () => {
+  it('@≥1100px renders the COMPACT stacked drawer (never the in-place full record document)', async () => {
     stubWidths({ split: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
@@ -194,56 +178,26 @@ describe('TaskDrawer — expanded@split mounts the full-width record document (E
     expect(document.querySelector('.record-doc')).toBeNull()
     // The compact details panel suppresses its own identity <h1> (drawer header owns it).
     expect(document.querySelector('.record-details-compact')).toBeTruthy()
+    // No width toggle exists at any width.
+    expect(screen.queryByRole('button', { name: /expand to full width|collapse to split/i })).toBeNull()
   })
 
-  it('AC-R06: toggling expand @≥1100px MOUNTS the full record document (.record-doc — content-first single column)', async () => {
-    stubWidths({ split: true, desktop: true })
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/work/tasks/task-abc')
-    await screen.findByText('Fix the coffee machine')
-    // RED against the pre-fix code: expand only widened the compact drawer.
-    fireEvent.click(screen.getByRole('button', { name: /expand to full width/i }))
-
-    // The single-column record document is mounted (not the compact stack).
-    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
-    expect(document.querySelector('.dw-surface')).toBeNull()
-
-    // Details panel is in its NON-compact (full) form — its own identity <h1> shows.
-    const details = document.querySelector('.record-doc [data-testid="record-details"]')
-    expect(details).toBeTruthy()
-    expect(details?.classList.contains('record-details-compact')).toBe(false)
-
-    // Goal-oracle: the FULL content-first record shows — content leads, then the ordered content
-    // slots (ownership → relations → checklist → activity) stacked in ONE column (no tabbed feed).
-    const slots = [...document.querySelectorAll('.record-doc [data-content-slot]')].map((n) => (n as HTMLElement).dataset.contentSlot)
-    expect(slots).toEqual(['content', 'ownership', 'relations', 'checklist', 'activity'])
-    expect(document.querySelector('.record-doc')!.querySelector('[role="tablist"]')).toBeNull()
-
-    // Collapse stays reachable (no dead end): a collapse control returns to split.
-    fireEvent.click(screen.getByRole('button', { name: /collapse to split/i }))
-    await waitFor(() => expect(document.querySelector('.record-doc')).toBeNull())
-    expect(document.querySelector('.dw-surface')).toBeTruthy()
-  })
-
-  it('AC-110: expanded but <1100px (modal) stays the COMPACT stacked sheet, NOT the full record document', async () => {
-    // Expanded preference set, but the regime is modal (the compact sheet, no promotion).
-    localStorage.setItem('mos.tasks.expandDefault', 'true')
-    __resetExpandPrefForTests()
+  it('<1100px (modal) stays the COMPACT stacked sheet with no expand toggle', async () => {
     stubWidths({ split: false, band: true, desktop: true })
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderAt('/work/tasks/task-abc')
     await screen.findByText('Fix the coffee machine')
     expect(document.querySelector('.record-doc')).toBeNull()
     expect(document.querySelector('.dw-surface')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /expand to full width/i })).toBeNull()
   })
 })
 
 // DO-4 (census-sweep R2, task-create F1): ONE create header. RecordPanelHost owns the chrome
-// ("Create task" title · expand · ✕); CreateSurface suppresses its own near-identical bar via
+// ("Create task" title · ✕); CreateSurface suppresses its own near-identical bar via
 // showPanelUtility=false, so the doubled ~92–120px header and the second same-named close
-// button are gone. DO-15(f) (F9): the expand toggle only renders at ≥1100px, where the
-// full-width promotion it triggers actually exists.
-describe('TaskDrawer — single create header (DO-4) + expand gating (DO-15f)', () => {
+// button are gone. GAP-2 (OD-91 #7): no expand toggle in that header at any width.
+describe('TaskDrawer — single create header (DO-4), no expand toggle (GAP-2)', () => {
   it('DO-4: the create drawer renders ONE chrome bar — host-owned, no surface .dw-bar', async () => {
     renderAt('/work/tasks/new', 'create')
     const aside = await screen.findByRole('complementary', { name: /create task/i })
@@ -255,25 +209,9 @@ describe('TaskDrawer — single create header (DO-4) + expand gating (DO-15f)', 
     expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
   })
 
-  it('DO-4: the host bar carries the expand toggle at split width (create-mode actions)', async () => {
+  it('GAP-2: the create header carries NO expand toggle at split width', async () => {
     renderAt('/work/tasks/new', 'create')
-    const aside = await screen.findByRole('complementary', { name: /create task/i })
-    const toggle = screen.getByRole('button', { name: /expand to full width/i })
-    expect(aside.querySelector('.record-panel-chrome')).toContainElement(toggle)
-  })
-
-  it('DO-15(f): below the split width the expand toggle does not render (it would be a no-op)', async () => {
-    stubWidths({ split: false, band: true, desktop: true })
-    renderAt('/work/tasks/new', 'create')
-    await screen.findByRole('dialog', { name: /create task/i })
-    expect(screen.queryByRole('button', { name: /expand to full width/i })).toBeNull()
-  })
-
-  it('DO-15(f): view mode also hides the expand toggle below the split width', async () => {
-    stubWidths({ split: false, band: true, desktop: true })
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
-    renderAt('/work/tasks/task-abc')
-    await screen.findByRole('dialog', { name: /task detail/i })
+    await screen.findByRole('complementary', { name: /create task/i })
     expect(screen.queryByRole('button', { name: /expand to full width/i })).toBeNull()
   })
 })

@@ -134,6 +134,12 @@ function renderCreate() {
   )
 }
 
+// F17 (OD-91 #29): the optional Project/Process + Objective pickers live behind the "+ Add context"
+// reveal on create — open it before asserting on those selects.
+async function revealCreateContext() {
+  fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
+}
+
 function renderView(taskOverrides: Partial<TaskListRow> = {}) {
   const task = makeTask(taskOverrides)
   mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -164,6 +170,7 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     renderCreate()
     // The form is usable before lookups arrive (non-blocking); wait for the form title
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    await revealCreateContext()
     // Work-line options load asynchronously — wait for them
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     expect(wlSelect).toBeInTheDocument()
@@ -177,6 +184,7 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
   it('FR-242: shows an Objective select with "— None —" as the first option', async () => {
     renderCreate()
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    await revealCreateContext()
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     expect(objSelect).toBeInTheDocument()
     const options = Array.from(objSelect.querySelectorAll('option')).map(o => o.textContent)
@@ -203,6 +211,7 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     // Fill required fields
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with work line' } })
     // Select a work-line
+    await revealCreateContext()
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-1' } })
     // Submit
@@ -218,6 +227,7 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with objective' } })
+    await revealCreateContext()
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: 'obj-2' } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
@@ -235,6 +245,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No work line task' } })
     // Do not change work-line — leave at "— None —"
+    await revealCreateContext()
     await screen.findByRole('combobox', { name: /project\/process/i }) // wait for it to render
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
@@ -248,6 +259,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No objective task' } })
+    await revealCreateContext()
     await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())

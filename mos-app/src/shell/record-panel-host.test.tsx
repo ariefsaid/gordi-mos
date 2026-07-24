@@ -71,9 +71,11 @@ describe('RecordPanelHost — dual modal regime (FR-1)', () => {
     expect(document.querySelector('.drawer-modal.drawer-sheet')).toBeNull()
   })
 
-  it('expanded promotes the split aside to full width (.drawer.expanded)', () => {
-    renderHost({ label: 'Signal', expanded: true })
-    expect(document.querySelector('.drawer.expanded')).toBeTruthy()
+  it('GAP-2 (OD-91 #7): the host has no expand-to-full-width promotion (expand-in-place retired)', () => {
+    renderHost({ label: 'Signal' })
+    // The split aside is a plain fixed-width .drawer — never the retired .drawer.expanded.
+    expect(document.querySelector('.drawer')).toBeTruthy()
+    expect(document.querySelector('.drawer.expanded')).toBeNull()
   })
 
   it('rootClassName rides the panel for tenant identity', () => {

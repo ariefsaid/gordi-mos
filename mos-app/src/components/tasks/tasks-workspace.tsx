@@ -71,11 +71,9 @@ export type TasksTableProps = {
   onSavedViewChange?: (next: TasksSavedViewChip | 'all') => void
   selectedId?: string | null
   drawerOpen?: boolean
-  expanded?: boolean
   splitLayout?: boolean
   statusOverrides?: Map<string, TaskStatus>
   refreshKey?: number
-  onToggleExpand?: () => void
   drawerSlot?: ReactNode
   /** Collection callback to sync optimistic row changes back into the table. */
   onTaskChanged?: (task: import('@/lib/db/tasks.types').TaskListRow) => void
@@ -118,13 +116,11 @@ function viewLabel(view: TaskCollectionView, t: ReturnType<typeof useT>): string
 export function TasksWorkspace({
   selectedId = null,
   drawerOpen = false,
-  expanded = false,
   splitLayout = true,
   statusOverrides,
   refreshKey = 0,
   savedView,
   onSavedViewChange,
-  onToggleExpand,
   drawerSlot,
   onTaskChanged,
   onTaskArchived,
@@ -414,7 +410,6 @@ export function TasksWorkspace({
       ? host.session.frames.at(-1)?.entry.key.replace(/^task:/, '') ?? selectedId
       : selectedId,
     drawerOpen: drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks',
-    expanded,
     splitLayout,
     isDesktop,
     recordSearch: currentSearch,
@@ -423,7 +418,6 @@ export function TasksWorkspace({
     onEditTitle,
     onCloseDrawer,
     onNewTask,
-    onToggleExpand: onToggleExpand ?? (() => {}),
     onAddTask,
     onRetry: retry,
     onClearFilters,
@@ -436,8 +430,8 @@ export function TasksWorkspace({
     followupsEnabled: SHOW_FOLLOWUPS,
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
-    accessRoles, currentSearch, drawerOpen, dueRuns, expanded, host.session, isDesktop, onAddTask,
-    onCloseDrawer, onEditTitle, onNewTask, onOpenTask, onToggleExpand, onClearFilters, onSort,
+    accessRoles, currentSearch, drawerOpen, dueRuns, host.session, isDesktop, onAddTask,
+    onCloseDrawer, onEditTitle, onNewTask, onOpenTask, onClearFilters, onSort,
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
 
@@ -486,8 +480,8 @@ export function TasksWorkspace({
         </span>
       }
     >
-      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? (expanded ? ' expanded' : '') : ' nodrawer'}`}>
-        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && !expanded && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
+        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface
               controller={controller}

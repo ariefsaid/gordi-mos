@@ -3,7 +3,6 @@ import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationTyp
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
-import { useExpandPref } from '@/components/tasks/use-expand-pref'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
@@ -19,15 +18,14 @@ import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
  *   /work/tasks         → table full width (.split.nodrawer), no drawer
  *   /work/tasks/:id     → table + that task's drawer open
  *   /work/tasks/new     → table + drawer in create mode
- * Expand is a per-user-global view toggle on the SAME URL (read here so the
- * grid can collapse to full width when the surface is expanded).
+ * GAP-2 (OD-REDESIGN-91 #7): expand-in-place is retired — the drawer holds a fixed
+ * width; "Open full page" is the one escalation to the standalone canonical page.
  */
 export function TasksLayout() {
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
   const navigationType = useNavigationType()
-  const [expanded, setExpanded] = useExpandPref()
   // ≥1100px is the live push/squash split; below it the drawer floats as a modal
   // overlay over a full-width (un-squashed) table, so the table must NOT condense.
   const isSplit = useIsSplitWidth()
@@ -79,10 +77,8 @@ export function TasksLayout() {
       selectedId={taskId ?? null}
       drawerOpen={drawerOpen}
       splitLayout={isSplit}
-      expanded={expanded}
       statusOverrides={statusOverrides}
       refreshKey={refreshKey}
-      onToggleExpand={() => setExpanded(e => !e)}
       drawerSlot={<Outlet context={outletContext} />}
     />
   )

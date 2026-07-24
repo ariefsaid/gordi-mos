@@ -20,8 +20,6 @@ export type UseTasksKeyboardArgs = {
   overlayActive?: boolean
   /** Open the create drawer (n). */
   onNew: () => void
-  /** Toggle expand ⇄ split (e). */
-  onExpand: () => void
 }
 
 export type UseTasksKeyboardResult = {
@@ -42,7 +40,8 @@ function isTypingTarget(): boolean {
 
 /**
  * The Tasks keyboard layer (OD-P3-4, AC-109): j/k move a row cursor, Enter/o
- * open the cursor row, Esc closes the drawer, n opens create, e toggles expand.
+ * open the cursor row, Esc closes the drawer, n opens create. (GAP-2 / OD-91 #7:
+ * the `e` expand-toggle key is retired with expand-in-place.)
  *
  * Coexists with native Tab order — these never replace Tab. All single-letter
  * hotkeys are SUPPRESSED while a text input/textarea/select (or contentEditable)
@@ -54,12 +53,12 @@ function isTypingTarget(): boolean {
  * when the table region itself would otherwise swallow the key.
  */
 export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardResult {
-  const { rowCount, enabled, onOpen, onClose, onNew, onExpand, overlayActive = false } = args
+  const { rowCount, enabled, onOpen, onClose, onNew, overlayActive = false } = args
   const [cursor, setCursorState] = useState(-1)
 
   // Keep the latest callbacks/values in a ref so the window listener is stable.
-  const ref = useRef({ rowCount, onOpen, onClose, onNew, onExpand, cursor, overlayActive })
-  ref.current = { rowCount, onOpen, onClose, onNew, onExpand, cursor, overlayActive }
+  const ref = useRef({ rowCount, onOpen, onClose, onNew, cursor, overlayActive })
+  ref.current = { rowCount, onOpen, onClose, onNew, cursor, overlayActive }
 
   const setCursor = useCallback((index: number) => setCursorState(index), [])
 
@@ -71,7 +70,7 @@ export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardRe
   useEffect(() => {
     if (!enabled) return
     function handler(e: KeyboardEvent) {
-      const { rowCount: rc, onOpen: open, onClose: close, onNew: nw, onExpand: exp, cursor: cur, overlayActive: overlay } = ref.current
+      const { rowCount: rc, onOpen: open, onClose: close, onNew: nw, cursor: cur, overlayActive: overlay } = ref.current
 
       // Escape single-path (D-B3): while an overlay session is live the HOST owns the guarded
       // Escape; while a field has focus the FIELD owns its Escape (I5). The window layer only
@@ -109,10 +108,6 @@ export function useTasksKeyboard(args: UseTasksKeyboardArgs): UseTasksKeyboardRe
         case 'n':
           e.preventDefault()
           nw()
-          break
-        case 'e':
-          e.preventDefault()
-          exp()
           break
       }
     }

@@ -22,7 +22,6 @@ import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -155,7 +154,6 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
@@ -578,6 +576,8 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
       </AuthContext.Provider>,
     )
 
+    // F17 (OD-91 #29): the Project/Process picker lives behind the "+ Add context" reveal now.
+    fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
     // Wait for work-line select to appear
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')

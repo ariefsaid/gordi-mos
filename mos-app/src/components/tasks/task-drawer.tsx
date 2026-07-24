@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface } from './task-surface'
-import { useExpandPref } from './use-expand-pref'
-import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -125,24 +123,24 @@ function BreadcrumbTitleSync({ title }: { title: string }) {
 
 /**
  * The task record drawer (ADR-0007 §4, design-plan §1.2 / §5.1). Reads the route
- * param, owns the per-user-global expand preference (AC-104/105), and mounts the
- * single TaskSurface as the CONTENT of the shared RecordPanelHost.
+ * param and mounts the single TaskSurface as the CONTENT of the shared RecordPanelHost.
  *
  * The host owns the overlay grammar (spec record-panel-host.spec.md, FR-1/FR-2):
  * the dual modal regime (≥1100px non-modal <aside> split / <1100px role=dialog
  * aria-modal sheet), the .drawer shell, the focus contract, Esc, and return-focus.
- * This drawer keeps only the task-specific plumbing (param, expand pref, breadcrumb
- * title, close target) and passes the chrome-free TaskSurface through. The shared host
- * owns the title, Open-full-page, expand/collapse, Close, Esc, and focus grammar; the
- * RecordViewer owns the Task identity, metadata, content, and actions.
+ * This drawer keeps only the task-specific plumbing (param, breadcrumb title, close
+ * target) and passes the chrome-free TaskSurface through. The shared host owns the
+ * title, Open-full-page, Close, Esc, and focus grammar; the RecordViewer owns the
+ * Task identity, metadata, content, and actions.
+ *
+ * GAP-2 (OD-REDESIGN-91 #7): expand-in-place is RETIRED — "Open full page" is the one
+ * escalation verb, so the drawer holds a fixed width and no expand toggle/preference.
  */
 export function TaskDrawer({ mode }: TaskDrawerProps) {
   const { taskId } = useParams<{ taskId: string }>()
   const location = useLocation()
   const navigate = useNavigate()
   const ctx = useOutletContext<TaskDrawerOutletContext | null>()
-  const [expanded, setExpanded] = useExpandPref()
-  const isSplit = useIsSplitWidth()
   const t = useT()
 
   // ADR-0013 D1 / OD-P4-9: track the resolved task title so BreadcrumbTitleSync can
@@ -195,25 +193,6 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   // not a host fork — mirrors the create-mode chrome bar's existing tasks.close button) so a
   // keyboard/SR user gets an explicit close control that names the Esc shortcut this host already
   // wires up (both the split and modal regimes close on Escape).
-  // DO-15(f) (census-sweep R2, task-create F9): the expand toggle PROMOTES to the full-width
-  // two-column regime, which only exists at ≥1100px (see the D3/AC-R06 note below) — below the
-  // split threshold it was a visible no-op, so it renders only when isSplit.
-  const expandToggle = isSplit ? (
-    <button
-      type="button"
-      className="record-panel-btn"
-      aria-pressed={expanded}
-      aria-label={expanded ? t('tasks.collapse') : t('tasks.expand')}
-      title={expanded ? t('tasks.collapse') : t('tasks.expand')}
-      onClick={() => setExpanded(value => !value)}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        {expanded
-          ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-          : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />}
-      </svg>
-    </button>
-  ) : null
   const hostActions = mode === 'view' ? (
     <>
       {/* Record-scoped "Ask Deputy": opens the Deputy panel pre-seeded with a compact reference to
@@ -222,7 +201,6 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
       {resolvedTitle && (
         <AskDeputyAction draft={t('assistant.askAbout.task', { title: resolvedTitle })} />
       )}
-      {expandToggle}
       <button
         type="button"
         className="record-panel-btn"
@@ -235,18 +213,12 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
     </>
   ) : (
     // DO-4: create mode — the host bar is the ONE chrome (CreateSurface suppresses its own via
-    // showPanelUtility=false below). One title, one expand (host actions), one ✕ (the host's own).
-    expandToggle ?? undefined
+    // showPanelUtility=false below). One title, one ✕ (the host's own); no expand toggle (GAP-2).
+    undefined
   )
 
-  // ADR-0013 D3 / AC-R06: the expand control PROMOTES the surface to the full-width
-  // two-column record page — but only where there's room for two columns (the split
-  // regime, ≥1100px). Below split (modal sheet / mobile full-screen) "expanded" keeps
-  // the compact stacked drawer; there isn't horizontal room for the side-by-side grid.
-  const fullWidth = expanded && isSplit
-  const width = fullWidth ? 'full' : 'drawer'
-
-  // ADR-0013 D1 / OD-P4-9: BreadcrumbTitleSync mounts when the title is resolved and
+  // GAP-2 (OD-91 #7): expand-in-place is retired, so the drawer is a fixed-width panel — the only
+  // escalation is "Open full page". ADR-0013 D1 / OD-P4-9: BreadcrumbTitleSync mounts when the title is resolved and
   // calls useSetBreadcrumbTitle so the shell Breadcrumb shows "Tasks › <task name>".
   // It unmounts (clearing the crumb) when the drawer closes or taskId changes.
   const surface = (
@@ -255,9 +227,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
       <TaskSurface
         taskId={taskId ?? null}
         mode={mode}
-        width={width}
-        expanded={expanded}
-        onExpandToggle={() => setExpanded(e => !e)}
+        width="drawer"
         onClose={close}
         onTaskChanged={ctx?.onTaskChanged}
         onTaskCreated={ctx?.onTaskCreated}
@@ -279,7 +249,6 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
       <RecordPanelHost
         label={label}
         onClose={close}
-        expanded={expanded}
         focusKey={`${taskId ?? mode}-${mode}`}
         title={label}
         actions={hostActions}
