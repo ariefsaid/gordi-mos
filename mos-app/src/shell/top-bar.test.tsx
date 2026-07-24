@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -51,12 +51,12 @@ const viewer = {
   accessRoles: [],
 }
 
-function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn(), onOpenCreate = vi.fn()) {
+function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} onOpenCreate={onOpenCreate} />} />
+          <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} />} />
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
@@ -122,40 +122,18 @@ describe('AC-014: TopBar layout (OD-57)', () => {
   })
 })
 
-// E7 topbar parity — the Create button (Action Launcher trigger). Desktop-only; opens the
-// shared command registry (the same command menu the mobile plus opens). TB-3 (WCAG 2.5.3
-// label-in-name): its accessible name is the visible "Create" label — no aria-label override —
-// while aria-haspopup carries the popup semantics. It is still NOT "Create Task", so AC-014's
-// no-universal-action assertion above still holds.
-describe('E7 parity: Create button (Action Launcher)', () => {
-  it('renders the Create button after the deputy launcher on desktop', () => {
+// OD-REDESIGN-91 #16 (F1) — the top-bar Create button is REMOVED app-wide (enforces
+// experience-contract Rule 7: creation lives in the ⌘K palette, not as a header button).
+// Desktop creation = ⌘K + page CTAs; the phone keeps its bottom-tab + launcher. This is a
+// deliberate UX change: the journey (no header Create control) changed, and the goal — one
+// solid primary per screen, creation via the palette — is asserted below.
+describe('OD-REDESIGN-91 #16: no top-bar Create button', () => {
+  it('renders NO Create button on desktop', () => {
     renderTopBar()
-    const create = screen.getByRole('button', { name: 'Create' })
-    expect(create).toBeInTheDocument()
-    expect(create).toHaveTextContent('Create')
-    expect(create).toHaveAttribute('aria-haspopup', 'dialog')
-    const deputy = screen.getByRole('button', { name: /Open deputy/i })
-    const precedes = (a: Node, b: Node) =>
-      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(precedes(deputy, create)).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()
   })
 
-  // TB-3: the visible label ("Create") is contained in the accessible name ("Create").
-  it('TB-3: accessible name contains the visible label (WCAG 2.5.3)', () => {
-    renderTopBar()
-    const create = screen.getByRole('button', { name: 'Create' })
-    const visible = within(create).getByText('Create')
-    expect(create).toHaveAccessibleName(new RegExp(visible.textContent!))
-  })
-
-  it('clicking Create calls onOpenCreate', () => {
-    const onOpenCreate = vi.fn()
-    renderTopBar('/work/tasks', vi.fn(), vi.fn(), onOpenCreate)
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
-    expect(onOpenCreate).toHaveBeenCalledOnce()
-  })
-
-  it('is desktop-only — absent at <920px (the bottom-tab plus is the phone launcher)', () => {
+  it('renders NO Create button at <920px either (the bottom-tab plus is the phone launcher)', () => {
     mockUseIsNarrow.mockReturnValue(true)
     renderTopBar()
     expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()

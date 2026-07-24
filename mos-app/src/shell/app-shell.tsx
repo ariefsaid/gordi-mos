@@ -115,7 +115,6 @@ function ShellContent() {
           drawerOpen={drawerOpen}
           onOpenDrawer={() => { setDrawerOpener('hamburger'); setDrawerOpen(true) }}
           onOpenSearch={() => setSearchOpen(true)}
-          onOpenCreate={() => setSearchOpen(true)}
           onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
         />
 
