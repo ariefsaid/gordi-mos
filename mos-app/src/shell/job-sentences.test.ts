@@ -76,7 +76,10 @@ describe('jobKeyForPath — route → owning job key (Work child / record resolu
     expect(jobKeyForPath('/admin')).toBe('job.admin')
   })
 
-  it('falls back to the home job sentence for a genuinely unknown route', () => {
-    expect(jobKeyForPath('/unknown-xyz')).toBe('job.home')
+  // OD-REDESIGN-91 #42: an unrecognized route renders the 404 page, so it now owns its own
+  // job-sentence line (job.notFound) instead of borrowing Home's ("What needs my attention…").
+  it('resolves a genuinely unknown route (the 404) to its own line, not Home’s', () => {
+    expect(jobKeyForPath('/unknown-xyz')).toBe('job.notFound')
+    expect(jobKeyForPath('/unknown-xyz')).not.toBe('job.home')
   })
 })

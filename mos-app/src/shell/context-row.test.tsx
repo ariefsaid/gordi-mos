@@ -242,4 +242,12 @@ describe('R-OWNER-1: ContextRow job sentence is suppressed on migrated V3 page-f
     expect(region.textContent?.trim()).toBe('')
     expect(region).toHaveStyle({ height: '0px' })
   })
+
+  // OD-REDESIGN-91 #42: an unrecognized route renders the 404 page, so its context line is the
+  // 404's own — never Home's borrowed "What needs my attention right now?".
+  it('#42: a 404 (unknown route) shows its own line, not Home’s job sentence', () => {
+    renderCtx('/nope-not-a-route')
+    expect(screen.getByText('This page doesn’t exist — head back to a destination you know.')).toBeInTheDocument()
+    expect(screen.queryByText('What needs my attention right now?')).toBeNull()
+  })
 })

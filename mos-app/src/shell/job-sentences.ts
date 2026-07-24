@@ -67,7 +67,8 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
  *  - `/work` (bare) → `tasks` (Work parent default child).
  *  - top-level destinations + Modules → their own job key.
  *  - `/profile` → `job.profile`; `/admin/*` → `job.admin`.
- *  - unknown (e.g. a 404) → `job.home` (the always-present fallback).
+ *  - unknown (a 404 — the only page an unrecognized route renders) → `job.notFound`
+ *    (OD-REDESIGN-91 #42: the 404 owns its own line, no longer borrowing Home's sentence).
  */
 export function jobKeyForPath(pathname: string): MessageKey {
   const segments = pathname.replace(/^\/+/, '').split('/').filter(Boolean)
@@ -86,6 +87,7 @@ export function jobKeyForPath(pathname: string): MessageKey {
   // Module sub-routes resolve to the module job key (e.g. /cafe/log → job.cafe).
   if (SEG_TO_JOB[root]) return SEG_TO_JOB[root]
 
-  // Unknown route → home fallback (context row is minimal on stubs / admin).
-  return 'job.home'
+  // Unknown route → the 404 line (OD-REDESIGN-91 #42). An unrecognized path renders the
+  // NotFoundPage, so its context sentence is the 404's own, never Home's borrowed one.
+  return 'job.notFound'
 }
