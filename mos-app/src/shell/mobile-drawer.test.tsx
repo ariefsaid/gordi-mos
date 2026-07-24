@@ -191,4 +191,14 @@ describe('More menu navigation + a11y', () => {
     renderDrawer({ open: false, accessRoles: ['admin'] })
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  // OD-REDESIGN-91 #37: the drawer opens from the LEFT (matches the ☰ position + rail side) —
+  // the prior right-slide was judged "not natural / intuitive". Deliberate UX change.
+  it('#37: the panel is anchored to the LEFT edge (not the right)', () => {
+    renderDrawer({ accessRoles: ['admin'] })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.className).toMatch(/\bleft-0\b/)
+    expect(dialog.className).not.toMatch(/\bright-0\b/)
+    expect(dialog.className).toMatch(/\bmobile-drawer-panel\b/)
+  })
 })

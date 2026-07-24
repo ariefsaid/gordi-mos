@@ -5,6 +5,7 @@ import { UserChip } from './user-chip'
 import { CloseIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import './mobile-drawer.css'
 
 interface MobileDrawerProps {
   open: boolean
@@ -107,7 +108,9 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         role="dialog"
         aria-modal="true"
         aria-label="More"
-        className="fixed inset-y-0 right-0 bg-secondary flex flex-col overflow-auto"
+        // OD-REDESIGN-91 #37: opens from the LEFT (left-0 + slide-in-from-left) to match the ☰
+        // hamburger position (top-left) and the rail side — the prior right-slide was "not natural".
+        className="mobile-drawer-panel fixed inset-y-0 left-0 bg-secondary flex flex-col overflow-auto"
         style={{ width: 'min(320px, 80vw)', zIndex: 'var(--z-drawer)' }}
       >
         <div className="flex items-center justify-between px-4" style={{ height: 'var(--header-h)' }}>
