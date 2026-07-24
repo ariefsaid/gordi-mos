@@ -2179,3 +2179,13 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
     Icon proposals owed to the owner as a visual round.
 24. **F11 (owner variant) · The Money awaiting-sync ↻ becomes a REAL refresh action** (small
     feature: re-fetch the snapshot), not a restyled badge.
+
+### OD-REDESIGN-91 — grill batch 6 (owner 2026-07-24): census flags F12-F15
+
+25. **F12 · Money phone controls APPROVED-FOR-NOW** (owner-viewed live: range-row + reachable tabs)
+    — explicitly provisional ("fine for now. will need to change as we go"); a future generation
+    bump re-opens it. NEW DO filed from the same look: the Custom tab does not take the selected
+    (white-card) style when active — selected-state binding fix.
+26. **F13 · Inbox empty copy is FILTER-AWARE** ("No unread · N read hidden — show all").
+27. **F15 · The quiet Home signal tail renames to "Recent"** (owner pick over "FYI" — avoids the
+    attention-level collision).
