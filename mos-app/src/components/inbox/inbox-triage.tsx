@@ -35,6 +35,13 @@ export type InboxTriageProps = {
   state: InboxTriageState
   rows: readonly TriageNotificationRow[]
   filter: InboxFilter
+  /**
+   * F13 (OD-REDESIGN-91 #26): how many notifications the ACTIVE filter is hiding. When the
+   * unread view is empty but this is > 0, the empty state is filter-aware ("No unread · N read
+   * hidden — show all") instead of the false all-clear affirmation. 0 (or the All view) keeps the
+   * earned ✓ all-clear.
+   */
+  hiddenCount?: number
   /** Whether Handled is a real, ratified persisted view; false omits it entirely. */
   handledFilterAvailable: boolean
   onFilterChange(filter: InboxFilter): void
@@ -64,6 +71,7 @@ export function InboxTriage({
   state,
   rows,
   filter,
+  hiddenCount = 0,
   handledFilterAvailable,
   onFilterChange,
   onOpen,
@@ -100,7 +108,25 @@ export function InboxTriage({
           retryLabel={t('inbox.retry')}
         />
       ) : state === 'empty' ? (
-        <EmptyState variant="quiet" title={t('inbox.empty')} copy={t('inbox.emptyCopy')} />
+        // F13 (OD-91 #26): when the unread view is empty but read notifications are hidden by the
+        // filter, name what's hidden and offer a one-tap escape to All — never a false all-clear.
+        filter !== 'all' && hiddenCount > 0 ? (
+          <EmptyState
+            variant="blank"
+            title={t('inbox.emptyUnread.title')}
+            copy={t('inbox.emptyUnread.hidden', { count: hiddenCount })}
+          >
+            <button
+              type="button"
+              className="inbox-triage__show-all"
+              onClick={() => onFilterChange('all')}
+            >
+              {t('inbox.emptyUnread.showAll')}
+            </button>
+          </EmptyState>
+        ) : (
+          <EmptyState variant="quiet" title={t('inbox.empty')} copy={t('inbox.emptyCopy')} />
+        )
       ) : (
         <>
           <ul className="inbox-list" aria-label={t('inbox.title')}>

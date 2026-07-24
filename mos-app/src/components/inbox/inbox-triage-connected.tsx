@@ -51,6 +51,9 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
 
   const rows = notifications.filter((n) => matchesFilter(n, filter))
+  // F13 (OD-91 #26): notifications the active (non-All) filter is hiding — the count behind the
+  // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
+  const hiddenCount = filter === 'all' ? 0 : notifications.length - rows.length
 
   const state: InboxTriageState = loading
     ? 'loading'
@@ -88,6 +91,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         state={state}
         rows={rows}
         filter={filter}
+        hiddenCount={hiddenCount}
         handledFilterAvailable={false}
         onFilterChange={setFilter}
         onOpen={onOpen}

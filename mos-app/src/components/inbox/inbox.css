@@ -119,6 +119,22 @@
   font-weight: 600;
 }
 
+/* F13 (OD-91 #26): the filter-aware empty state's "Show all" escape — token-only, mirrors the
+   collection "Clear filters" affordance so the two empty-state escapes read as one grammar. */
+.inbox-triage__show-all {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+}
+.inbox-triage__show-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* A row is [open button | Mark handled]; the open button keeps its full-width target. */
 .inbox-row {
   display: flex;

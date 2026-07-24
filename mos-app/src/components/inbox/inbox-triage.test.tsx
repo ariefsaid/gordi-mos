@@ -80,6 +80,22 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(empty).toHaveTextContent(/caught up/i)
   })
 
+  it('F13 (OD-91 #26): the unread view empty with read items hidden shows filter-aware copy + a Show all escape (not a false all-clear)', () => {
+    const props = renderTriage({ state: 'empty', rows: [], filter: 'unread', hiddenCount: 3 })
+    const empty = screen.getByTestId('empty-state')
+    expect(empty).toHaveTextContent(/no unread/i)
+    expect(empty).toHaveTextContent(/3 read hidden/i)
+    // The all-clear affirmation is NOT shown — that would be dishonest while read items exist.
+    expect(empty).not.toHaveTextContent(/caught up/i)
+    fireEvent.click(screen.getByRole('button', { name: /show all/i }))
+    expect(props.onFilterChange).toHaveBeenCalledWith('all')
+  })
+
+  it('F13 (OD-91 #26): a truly empty unread view (nothing hidden) keeps the earned all-clear', () => {
+    renderTriage({ state: 'empty', rows: [], filter: 'unread', hiddenCount: 0 })
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(/caught up/i)
+  })
+
   it('ready state renders one row per notification with title and body', () => {
     renderTriage()
     expect(screen.getByText('Title a')).toBeInTheDocument()
