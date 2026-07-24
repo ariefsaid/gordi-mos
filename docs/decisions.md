@@ -2130,3 +2130,18 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
    running balance, evidence-gated settle) keeps its model but renders as "AR Follow-up" in UI copy.
 4. **B2 · ⌘K record search widens to ALL kinds** — Tasks + Signals + AR Follow-ups; the "Records"
    label becomes true (OD-REDESIGN-7 honored).
+
+### OD-REDESIGN-91 — grill batch 2 (owner 2026-07-24)
+
+5. **B3 · SHOW_PLAN_BUDGET ships ENABLED** in the V3 cut (finance/admin see Budget + Pricing).
+6. **B4 · `--font-size-body-lg: 15px` is MINTED** — the ~65-use family becomes lawful; DESIGN.md
+   ladder gains the rung; the ratchet ledger empties for this class.
+7. **GAP-2 · Expand-in-place RETIRES** — "Open full page" is the one escalation verb; the
+   Tasks-only width toggle + its pref die.
+8. **GAP-3 · People + Inbox MIGRATE to the RecordCollection grammar; Kitchen + AR Follow-ups stay
+   off the engine FOR NOW** — not a permanent exemption: revisit after the owner sees the migrated
+   pair in practice ("need to confirm first how it works").
+9. **GAP-4 · Kitchen LOG gets the leave-guard** — leaving with unsaved staged quantities asks
+   stay/discard (the live-reproduced 20-dish silent loss becomes impossible).
+10. **GAP-5 · Composer Enter rule (owner's variant): Enter = newline, Shift+Enter = SEND, with a
+    small hint on/near the Send button — BOTH composers (Deputy changes to match).**
