@@ -73,10 +73,11 @@ export function SignalFeedRows({
             }
             const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
             const teamName = teamNamesById[signal.owning_team_id] ?? ''
-            // Attention-worthy = anything above FYI (Needs attention / Urgent — the same amber
-            // family). The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the
-            // row here is inert on Home and lights up only in the archive Feed.
-            const attentionRow = signal.attention !== 'FYI' ? ' home-signal-row--attention' : ''
+            // F3 (OD-REDESIGN-91 #18): the archive row-fill is URGENT ONLY — the amber fill + 2px
+            // rule is the "act now" top tier. Needs attention keeps its amber pill on a calm row.
+            // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
+            // is inert on Home and lights up only in the archive Feed.
+            const attentionRow = signal.attention === 'Urgent' ? ' home-signal-row--urgent' : ''
             return (
               <li
                 key={signal.id}

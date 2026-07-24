@@ -73,9 +73,10 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
   })
 
-  it('gives an attention-worthy archive row the Operations-event row treatment; FYI rows stay quiet (P1-1)', () => {
+  it('F3 (OD-91 #18): the amber row-fill is Urgent-only; Needs attention + FYI rows stay calm (P1-1)', () => {
     renderFeed(
       [
+        row({ id: 'sig-urgent', body: 'Freezer alarm went off', attention: 'Urgent' }),
         row({ id: 'sig-attn', body: 'Grinder is down', attention: 'Needs attention' }),
         row({ id: 'sig-fyi', body: 'Restocked cups', attention: 'FYI' }),
       ],
@@ -83,12 +84,15 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     )
     // The archive Feed opts into the attention treatment via the shared component's variant.
     expect(document.querySelector('.home-signal-feed--archive')).toBeInTheDocument()
-    // Attention-worthy row carries the modifier the CSS lights up (warning fill + 2px left rule);
-    // FYI does not. Home's ambient variant never sets `--archive`, so Home is untouched.
+    // Only the Urgent row carries the fill modifier the CSS lights up (warning fill + 2px left rule).
+    // Needs attention keeps its amber pill on a calm row; FYI is neutral. Home's ambient variant
+    // never sets `--archive`, so Home is untouched.
+    const urgentRow = document.querySelector('[data-signal-id="sig-urgent"]')
     const attnRow = document.querySelector('[data-signal-id="sig-attn"]')
     const fyiRow = document.querySelector('[data-signal-id="sig-fyi"]')
-    expect(attnRow?.classList.contains('home-signal-row--attention')).toBe(true)
-    expect(fyiRow?.classList.contains('home-signal-row--attention')).toBe(false)
+    expect(urgentRow?.classList.contains('home-signal-row--urgent')).toBe(true)
+    expect(attnRow?.classList.contains('home-signal-row--urgent')).toBe(false)
+    expect(fyiRow?.classList.contains('home-signal-row--urgent')).toBe(false)
   })
 
   it('D-D2: the archive Feed no longer renders the in-feed Share row (it is ambient-only; the toolbar hosts the one door)', () => {

@@ -90,21 +90,22 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
   })
 
-  it('P1-1: an attention-worthy row carries the Operations-event row class; FYI / retracted do not', () => {
+  it('F3 (OD-91 #18): the amber row-fill class is Urgent-only; Needs attention / FYI / retracted stay calm', () => {
     renderTable([
       row({ id: 's-attn', body: 'Grinder is down', attention: 'Needs attention' }),
       row({ id: 's-urgent', body: 'Gas leak', attention: 'Urgent' }),
       row({ id: 's-fyi', body: 'Restocked cups', attention: 'FYI' }),
       row({ id: 's-dead', body: 'Dupe', attention: 'Urgent', retracted_at: '2026-07-16T05:00:00Z' }),
     ])
-    const isAttentionRow = (text: string) =>
-      screen.getByText(text).closest('tr')?.classList.contains('signal-table-row--needs-attention')
-    expect(isAttentionRow('Grinder is down')).toBe(true)
-    expect(isAttentionRow('Gas leak')).toBe(true)
-    expect(isAttentionRow('Restocked cups')).toBe(false)
-    // A retracted row is a tombstone, never an attention row (state supersedes attention).
+    const isUrgentRow = (text: string) =>
+      screen.getByText(text).closest('tr')?.classList.contains('signal-table-row--urgent')
+    // Only Urgent fills; Needs attention keeps its amber pill on a calm row.
+    expect(isUrgentRow('Gas leak')).toBe(true)
+    expect(isUrgentRow('Grinder is down')).toBe(false)
+    expect(isUrgentRow('Restocked cups')).toBe(false)
+    // A retracted row is a tombstone, never a filled row (state supersedes attention).
     expect(screen.getByText(/this signal was retracted/i).closest('tr')?.classList
-      .contains('signal-table-row--needs-attention')).toBe(false)
+      .contains('signal-table-row--urgent')).toBe(false)
   })
 
   it('AC-V3-014: Signal table headers use the same native keyboard-sort contract as Tasks', async () => {

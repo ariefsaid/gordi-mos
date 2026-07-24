@@ -116,9 +116,10 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // Feed's lean row leads with search + the saved-view axis (both always visible).
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Needs attention' })).toBeInTheDocument()
-    // The meaningful ambient filters (attention / category / team) live behind the one door.
+    // The meaningful ambient filters (category / team) live behind the one door. F6 (OD-91 #21):
+    // "Needs attention" lives on the view chip ONLY — the duplicate Attention filter dropdown is gone.
     openViewOptions()
-    expect(screen.getByRole('combobox', { name: 'Attention' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Attention' })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
     // Feed is chronological + flat: no Group/Sort selects, and never a board/calendar tab.

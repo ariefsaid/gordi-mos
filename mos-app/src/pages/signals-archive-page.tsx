@@ -217,16 +217,10 @@ export function SignalsArchivePage() {
         onChange: (q) => setQuery({ q }),
       }}
       filters={[
-        {
-          id: 'attention', label: t('signals.archive.filterAttention'), value: query.attention ?? '',
-          options: [
-            { value: '', label: t('signals.archive.filterAnyAttention') },
-            { value: 'FYI', label: 'FYI' },
-            { value: 'Needs attention', label: t('signals.archive.viewAttention') },
-            { value: 'Urgent', label: t('signals.archive.attentionUrgent') },
-          ],
-          onChange: (attention) => setQuery({ attention: attention ? attention as SignalCollectionQuery['attention'] : null }),
-        },
+        // F6 (OD-REDESIGN-91 #21): "Needs attention" lives on the view chip ONLY — the duplicate
+        // Attention filter dropdown died here. The needs-attention view already surfaces every
+        // attention-worthy Signal (Urgent + Needs attention); grouping-by-attention and
+        // sort-by-Urgent below cover the remaining slices without re-duplicating the chip.
         {
           id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
           options: [

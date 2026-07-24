@@ -119,11 +119,12 @@ export function SignalTablePresentation({
         rowClassName={(signal) =>
           [
             signal.retracted_at ? 'signal-table-row--retracted' : undefined,
-            // Operations-event row treatment (DESIGN.md §Operations event tokens): an
-            // attention-worthy row (Needs attention / Urgent, never a retracted one) carries the
-            // warning/7% fill + 2px warning left rule — the same treatment the Feed presentation
-            // gives it, so both /work/signals presentations read the state identically.
-            !signal.retracted_at && signal.attention !== 'FYI' ? 'signal-table-row--needs-attention' : undefined,
+            // F3 (OD-REDESIGN-91 #18): amber row-fill is URGENT ONLY — the warning/7% fill + 2px
+            // warning left rule reads as "act now", so it is reserved for the top tier. Needs
+            // attention keeps its amber pill on a CALM row (the pill cell still carries the state,
+            // WCAG 1.4.1), so the fill escalates Urgent above it. Both /work/signals presentations
+            // read the state identically (the Feed applies the same urgent-only rule).
+            !signal.retracted_at && signal.attention === 'Urgent' ? 'signal-table-row--urgent' : undefined,
           ]
             .filter(Boolean)
             .join(' ') || undefined
