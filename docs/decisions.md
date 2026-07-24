@@ -2114,3 +2114,19 @@ content-first/strip-to-essence, taste hierarchy, ui-ux-pro-max detail-view guida
 conformance**: assert the rendered section order matches the kind's declared anatomy; a page
 whose leading section is not its content FAILS. Provenance micro-copy never repeats per field
 (the R4 rule generalized to captions).
+
+### OD-REDESIGN-91 — decision-sheet grill session, batch 1 (owner 2026-07-24)
+
+Grilled live (grill-with-docs format, docs resolved inline). Rulings:
+1. **A1 · Deputy chrome = C HYBRID.** Chat-first confirmed ("its chat first. but there will be
+   widgets inside like approvals, graphs etc") — user turns bubble; Deputy prose renders bare with
+   a small speaker label; widgets (approvals, charts, drafts) are FULL-WIDTH first-class blocks,
+   never inside bubbles (no card-in-bubble). Mockup: scratchpad deputy-bubble-pick.html (C).
+2. **B1 · Pricing pre-flight = WARN-ONLY in MVP** (all tiers incl. missing cost line); blocking is
+   a later policy (consistent with ADR-0022 OQ#3).
+3. **Terminology: the AR record kind is "AR Follow-up"** — disambiguating the collision the owner
+   caught ("follow ups are no longer available right? its a task right?"): a follow-up TASK from a
+   Signal is just a Task; the AR kind (CONTEXT.md "Follow-up": invoice-grain settlement lifecycle,
+   running balance, evidence-gated settle) keeps its model but renders as "AR Follow-up" in UI copy.
+4. **B2 · ⌘K record search widens to ALL kinds** — Tasks + Signals + AR Follow-ups; the "Records"
+   label becomes true (OD-REDESIGN-7 honored).
