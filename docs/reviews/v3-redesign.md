@@ -4,6 +4,43 @@
 
 An `OD-REDESIGN-NN` label means a recorded owner decision in `docs/decisions.md`; the plain-language rule below each evidence item is the operative explanation. The Issue 1 material below is historical evidence; the Issue 2 ledger is appended after it. Neither section claims rendered representative application acceptance.
 
+## Independent verification — 2026-07-24 (tip `c99de7d` plus local verification fixes)
+
+This is a Director-run verification pass, not a new Luna score and not owner-eyes acceptance. The
+local branch had no dev server listening on `:5199`, `:5173`, or `:4173`; no Vite/Supabase process was
+started because the owner flagged a prior 27 GB OOM. Therefore current computed-style, driven
+interaction, and three-width render evidence remains **UNVERIFIED**.
+
+The earlier branch drift was real and is now recorded/fixed in the working tree:
+
+- `scripts/v3-live-inventory.mjs` no longer inventories the intentionally deleted `StackedUnionHome`
+  route or fossil components (`signal-feed`, `task-drawer-header`, `record-details-panel`,
+  `record-feed`). It points at the surviving Signal feed presentation.
+- `scripts/v3-record-collection-conformance.mjs` no longer requires the intentionally deleted
+  `record-collection/index.ts` barrel.
+- Tasks goal tests now assert the ratified head grammar **“N open · M total”**, rather than the
+  retired “N tasks” copy. This is a deliberate OD-REDESIGN-91/F2 goal update, not a weakened test.
+- Generated inventory is current at **57 routes · 13 shared jobs · 79 CSS families**.
+
+Fresh evidence:
+
+| Check | Result |
+|---|---:|
+| Full Vitest, single worker | **333 files · 3,530 tests passed** |
+| Typecheck | **PASS** |
+| ESLint + Stylelint | **PASS** |
+| Production build | **PASS** (699 modules; Vite warns the main JS chunk is ~1.25 MB) |
+| Live inventory + RecordCollection conformance | **PASS** |
+| Storybook matrix | **PASS** (35 stories · 36 states · 3 responsive) |
+| Audit staleness | **PASS mechanically; 16 FRESH · 9 DUE** |
+| `pre-merge-check.sh` | **BLOCKED**: spec/design verdicts absent and 7 touched surfaces are not register-locked |
+
+The branch remains **NO-SHIP / owner-eyes pending**. The official Luna score is still the latest
+recorded **27/40 · 6.5/10 · 3 floor violations, BAR NOT MET** (Phase-3 re-score deferred by quota),
+not “34 Nielsen.” People + Inbox RecordCollection migration, Deputy visual review, live Shift+Enter
+verification, the 9 DUE audit-register surfaces, formal spec/code-quality verdicts, and the live
+1280/1024/390 walkthrough remain open. No push, merge, deploy, or Supabase startup occurred.
+
 ## Scope and exclusions
 
 Issue 1 completed the documentation truth reset, the live source inventory, the root DESIGN.md reconciliation, and the automated source/conformance guards.
@@ -1755,3 +1792,41 @@ kept here so the next wave starts smarter:
 (census ledgers + guards + anatomy tests + Luna interim 27/40; OFFICIAL deferred) · security = PASS
 (SEC-1 audit + verified remediation) · spec + code-quality = **NOT-RUN as formal verdicts for the
 whole branch** — run both before offering merge-to-main, per the gate.
+
+## PHASE-3 OFFICIAL — Luna verdict (2026-07-24)
+
+**OFFICIAL: 30/40 · 8.0/10 · floor violations 5 · BAR NOT MET** (bar: ≥32/40 · >8.5/10 · 0 floors).
+Scored by gpt-5.6-luna, direct via pi, live-driving a PINNED detached checkout at **`c99de7d`**
+(:5601; E7 floor at :8766). Same rubric lineage as the 26/40 → 27/40 rounds. First dispatch died on
+a transient `fetch failed`; the retry ran clean. Full review: session scratchpad
+`luna-phase3-official-r2.log` (verbatim), summarized here as evidence of record.
+
+**The 5 floor violations (the remediation queue, in Luna's order):**
+1. **Task drawer→full-page escalation fails in place** — `Open full page` rewrites the URL to
+   `/work/tasks/:id` but leaves the table + drawer mounted (`history.state.usr` null, no
+   `.record-page-chrome`); hard reload of the same URL renders correctly. I1 / E7 contract.
+2. **Signal title identity clipping** — at 1024/390 the first Signal title line-clamps
+   (35px client vs 53px scroll height); the interim floor is STILL failing.
+3. **Urgent semantic-color regression on Home** — Home styles Urgent with destructive red
+   (`--status-lost-text`) where Signals uses amber; owner law: urgency = amber, red = destructive.
+   Persists in dark mode.
+4. **URL-owned view state not preserved** — Signal full-page `Back to Signals` drops
+   `?layout=table` (reverts to Feed); `Clear filters` repopulates rows but leaves `q=` in the URL
+   so refresh returns the empty result. Rule 4 / I7.
+5. **Kitchen member sees 8 enabled edit controls on a task record** — Description/Status/Due/BU/
+   PIC/Supervisor/Project/Objective all editable; register contract says member = read-only
+   (+ Mark complete, which is correctly present).
+
+**Interim-floor recheck:** Signal record Back/chrome PASSED · signal title clipping STILL FAILS ·
+phone overflow/density geometry PASSED (metadata verbosity noted).
+
+**Also noted (not floors):** primary-button metrics run warmer/larger than E7 (32px/13.5 vs
+28px/12 — minor fidelity drift); composer's disabled state under-explained when Owning Team is
+empty; Home Urgent styling inconsistency is the same item as floor 3. Informational survey: Money,
+Café, and dark mode all read clean. Structural anti-slop 8.0/10 (title-hierarchy Fail; overlay-IxD
+and responsive Partial). Luna's own assessment: **fix-then-ship**.
+
+**Gate consequence:** Phase-3 remains OPEN. Next round = fix the 5 floors (+ retest the two
+Partials), then a fresh OFFICIAL from a new pinned checkout. Floors 1/2/4 look like shared-seam
+fixes (overlay host escalation, title clamp, URL state); floor 5 is a capability-gating fix with a
+register/pin update; floor 3 is a token swap + guard.
