@@ -21,8 +21,9 @@ export const SHOW_ASSISTANT = true
 // Follow-up settlement bridge v1 ships dark until the owner backup/restore go-live gate.
 export const SHOW_FOLLOWUPS = false
 // ADR-0022 (Issue D) — the Plan destination's budget/COGS capture + pricing pre-flight surfaces
-// (/plan/budget, /plan/pricing) and their Plan-destination nav links. Hide-first (default false):
-// the routes redirect to / and the nav links are absent when false. Flip true for a rollout cohort;
-// the unit/pgTAP layers prove correctness regardless (the e2e is authored runnable when true).
+// (/plan/budget, /plan/pricing) and their Plan-destination nav links. Ships ENABLED by default
+// (OD-REDESIGN-91 #5/B3 — finance/admin see Budget + Pricing in the V3 cut); set
+// VITE_SHOW_PLAN_BUDGET=false to hide for a cohort. Routes redirect to / and nav links are
+// absent when off; the unit/pgTAP layers prove correctness regardless.
 export const SHOW_PLAN_BUDGET =
-  (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SHOW_PLAN_BUDGET === 'true'
+  (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SHOW_PLAN_BUDGET !== 'false'
