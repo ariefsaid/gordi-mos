@@ -2189,3 +2189,19 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
 26. **F13 · Inbox empty copy is FILTER-AWARE** ("No unread · N read hidden — show all").
 27. **F15 · The quiet Home signal tail renames to "Recent"** (owner pick over "FYI" — avoids the
     attention-level collision).
+
+### OD-REDESIGN-91 — grill batch 7 (owner 2026-07-24): F16-F17 + the ratify register
+
+28. **F16 · My-work rows drop the self-avatar** (zero information); avatars stay where the person varies.
+29. **F17 · Create-task optional pickers stay hidden behind one "+ Add context" reveal.**
+30. **E1 · Pill rounded-rect RATIFIED**; DESIGN.md updates to match the shipped shape.
+31. **E2 · Attention Signals inside the ranked Home stream RATIFIED.**
+32. **E3 · Consequence ranking RATIFIED-FOR-NOW** — owner: "ok for now. may change home later"
+    (provisional; a Home generation bump re-opens it).
+33. **E4 · Signals archive feed-first RATIFIED.**
+34. **E5 · Phone View & filters sheet RATIFIED.**
+35. **E7 · Money job sentences: EN approved as drafted. ID REWRITTEN by the owner** — Budget (verbatim):
+    "Catat skenario anggaran biaya yang bisa dipakai untuk penetapan harga". **STANDING RULE from
+    the same ruling: Bahasa Indonesia copy is INTENT-FIRST, never literal** — find the sentence's
+    intent, build a natural ID sentence; literal word-for-word translation is a defect. DO: re-audit
+    the locale sweep's fresh ID strings against this rule; Pricing ID re-draft owed to the owner.
