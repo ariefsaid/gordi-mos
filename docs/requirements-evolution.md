@@ -92,6 +92,35 @@ Usability + speed beat model completeness · `org_id` + RLS on every business ta
 spec/mockup/deploy, Director gates merge · review battery before merge · reversible migrations ·
 the SDD loop (spec → plan → build → review → accept).
 
+## E9 — the convergence + Standing Audit Program era (2026-07-22 → 24)
+
+**What happened.** A two-day owner-driven convergence closed the V3 redesign's quality loop. The
+owner's frustrations drove it, verbatim on record (OD-86..91 + `docs/reference/provenance/` for the
+earlier era): "i'm still seeing consistency issue at pixel level… i thought the new process should
+remove me from the pixel level audit" · "it doesnt flow intuitively… among the 3 skills available,
+there should be a best practise" · "what else am i missing? i dont know what i dont know. you do" ·
+"either do it, defer it or delete it" · "the defect i catch are not my defects. it should be common
+industry practise".
+
+**What changed (authority docs):**
+- **OD-REDESIGN-87** capture → grammar → score → features sequence · **OD-88** tests-as-oracle
+  (red-first only where red is evidence) · **OD-89** the layered design battery replaces the 4-lens
+  essay review · **OD-90** declared page anatomy + census Step 2.5
+  (`docs/specs/record-page-anatomy.spec.md`) · **OD-91** the 46-ruling decision sitting, grilled
+  live, all landed.
+- **The Standing Audit Program** (`docs/plans/wise-discovering-frog.md`, approved): the coverage
+  register `docs/audits/` (surface × persona matrix, generation lifecycle battery → RATIFY → LOCK
+  → pins, re-audit only on bump / pin-insufficiency / milestone Luna), enforced by
+  `scripts/pre-merge-check.sh`. Quality dimensions: `docs/quality-model.md`.
+- **Evidence chain of the wave:** `docs/reviews/v3-redesign.md` (Luna interim 27/40 + the wave
+  retrospective) · `docs/plans/2026-07-23-*.md` (interrogation, parity ledger, interaction
+  consistency, census r2, journey audit, backfill census, skill-rule mechanization, decision sheet).
+
+**Requirement-level shifts:** every surface owes a once-per-generation battery + mechanical pins;
+page composition is a declared, checkable anatomy; the owner's role is rulings + acceptance, never
+defect-hunting; Bahasa copy is intent-first; the Phase-3 Luna score gates Phase-4 features (S1–S7
+restoration queue, `docs/plans/2026-07-23-feature-parity-ledger.md` §5).
+
 ## Maintenance
 When an owner decision moves the bar again, add an era here **in the same PR** that records the
 decision (ADR/OD), and banner any doc the new era obsoletes. Do not rewrite old docs to match new

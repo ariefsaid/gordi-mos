@@ -1,23 +1,19 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **REDESIGN CONVERGENCE QUEUE (re-sequenced per OD-REDESIGN-87, 2026-07-23):**
-> **PHASE 1 — CAPTURE (close it out):** ✅ owner-r2 + 8 sweep lanes merged (`d798e90`) · ✅ component
-> interrogation 111/111 (`docs/plans/2026-07-23-component-interrogation.md`, flag-owner pre-answered) ·
-> ✅ parity ledger S1–S7 (`docs/plans/2026-07-23-feature-parity-ledger.md`) · ⏳ interaction-consistency
-> divergence ledger (in flight) · ⏳ last 3 sweep fixers (profile/auth/admin-people).
-> **PHASE 2 — GRAMMAR:** execute the interrogation work-order (fossil-deletes → replaces → redesigns)
-> + interaction-divergence fixes · mechanical guard suite (`v3/mech-guards` lane) + top-10 from
-> `docs/plans/2026-07-23-skill-rule-mechanization.md` wired into `pre-merge-check.sh` · Storybook
-> coverage (shared engine first: record-field/record-collection/collection-toolbar/state-kit, then
-> the ~35 flagged) · orphan sweeps (entries below) · P&P/Objectives record panels.
-> **PHASE 3 — SCORE:** full suite + reseed + owner walkthrough (impeccable `live`) · Luna pass on
-> fresh attested renders (Nielsen ≥32 / anti-slop >8.5 / no axis below E7 + consistency) · RATIFY
-> register (pill radius · A12 re-expression · OD-18 re-expression · Signals feed default · phone
-> View&filters non-dedup) + the 3 surviving owner items (deputy-bubble mockup pick · block-vs-warn ·
-> ⌘K Signals scope).
-> **PHASE 4 — FEATURES:** the S1–S7 restoration queue (ledger §5; S2/S3 need their deferred schema
-> ADRs first) + Issue-10 editor, Shifts, module stubs. Feature work before the Phase-3 gate is out
-> of order (OD-87).
+> **STATE 2026-07-24 — the convergence is DONE; five open items remain (banner:
+> `docs/agent-context.md`):**
+> ① **Phase-3 OFFICIAL Luna** — deferred ~1 week (Codex quota, owner-confirmed 07-24); on return:
+> fresh pinned checkout at the then-tip, full register scope, verdict → `docs/reviews/v3-redesign.md`.
+> ② **People + Inbox → RecordCollection grammar** (OD-91 #8) — owner-gated on a grammar walkthrough
+> (:5199); Kitchen + AR Follow-ups stay off the engine for now, revisit after.
+> ③ **Deputy mark redesign** (OD-91 #23) — icon proposals owed to the owner as a visual round.
+> ④ **Shift+Enter live-keyboard verify** (OD-91 #10) — unit-green; browser automation could not
+> synthesize the chord; one real-keyboard check at the next walkthrough.
+> ⑤ **Phase-4 features** — the S1–S7 restoration queue
+> (`docs/plans/2026-07-23-feature-parity-ledger.md` §5; S2/S3 owe their schema ADRs first) +
+> Issue-10 editor, Shifts, module stubs. Opens after the Luna gate per OD-87, or earlier on owner
+> word. **Merge-to-main** additionally requires the review-battery ledger verdicts
+> (spec · code-quality) for the branch + `pre-merge-check.sh` exit 0.
 
 - **R6(b) record-door unification (deferred from `v3/owner-r2`, 2026-07-23):** Tasks opens
   records path-based (`/work/tasks/:id`) while Signals uses the `?record=` query seam — two door

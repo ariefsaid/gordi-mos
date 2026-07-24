@@ -1715,3 +1715,43 @@ auto-retry watcher is stopped, the pinned checkout + servers torn down. The Phas
 score runs when quota returns — from a FRESH pinned checkout at the then-tip (the afbafe0 pin is
 obsolete once the post-grill lanes merge). Everything else proceeds: merges keep flowing through
 the guard battery + coverage gate; the never-self-score rule stands — no substitute scorer.
+
+## Wave retrospective — 2026-07-22 → 24 (lessons of record; gotchas live in agent-context)
+
+The convergence wave closed with all OD-91 rulings landed (tip `c3923a9`). What the wave taught,
+kept here so the next wave starts smarter:
+
+1. **Enumeration beats essays.** Five 4-lens rounds passed surfaces the owner failed on sight; the
+   census protocol (count every number/control/state/pixel) and the mechanical guards caught what
+   impressions missed → OD-89. A score without its per-element artifacts is void.
+2. **Element checks don't judge composition.** A page can pass every element check and still read
+   as noise — page anatomy had no owner until OD-90 declared it per kind and Step 2.5 asserts it.
+3. **Coverage needs a denominator.** Direction-triggered auditing had no memory; "what else am I
+   missing?" was unanswerable until the register (surfaces × personas × axes, generations, locks).
+   Dark mode, the id locale, and the finance persona had NEVER been audited — found by enumeration,
+   not by luck.
+4. **Fix at the shared seam, then pin every sibling.** The tasks-only width fix that left Signals
+   broken is the canonical counter-example; the record-measure guard now pins both kinds.
+5. **The ratchet works.** The token-vocabulary count-ledger caught cross-lane drift three times in
+   one day (a pre-mint 15px, a deleted fossil's counts, new error-CSS) — each a would-be silent
+   regression.
+6. **Some bugs exist only live.** The DO-18 close-resurrection (double history entry) was
+   irreproducible in jsdom; the lane that refused to fix it blind was right. Reproduce-then-fix,
+   red-first, rendered re-verify.
+7. **The grill corpus ends re-asking.** 7 of 10 "owner questions" were already answered in his own
+   prior words; the 4-source verify (code · ODs · provenance · raw transcripts) found ZERO
+   conflicting prior prompts — the sitting asked only genuinely new questions.
+8. **Rulings want plain language and visible options.** "Too techy wording" stalled a ruling;
+   restating it operationally un-stalled it. Self-contained dialogs; render the thing when the
+   ruling is visual (the F12 live look; the deputy mockup).
+9. **Owner preferences generalize.** One rejected translation became the standing intent-first ID
+   rule; one "why not remove it altogether" became Rule-7 enforcement. Record the rule, not just
+   the instance.
+10. **External providers are part of the plan.** Two 5-hour Claude quota cuts and a week-long Codex
+    exhaustion hit mid-wave; resumable lanes (transcripts), journal-cached workflows, and
+    stop-tolerant infrastructure made them pauses, not losses.
+
+**Review-battery status for merge-to-main (open):** design = the layered battery ran wave-long
+(census ledgers + guards + anatomy tests + Luna interim 27/40; OFFICIAL deferred) · security = PASS
+(SEC-1 audit + verified remediation) · spec + code-quality = **NOT-RUN as formal verdicts for the
+whole branch** — run both before offering merge-to-main, per the gate.

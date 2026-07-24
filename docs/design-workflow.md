@@ -122,6 +122,25 @@ from the per-issue build:
 
 ## 3a. e2e encodes the NATURAL journey, not the app's current shape
 The review battery **discovers** UX issues; **e2e locks the observable ones so they can't regress.**
+
+## The generation lifecycle (Standing Audit Program, owner-approved 2026-07-24)
+
+Every surface lives a **generation lifecycle** tracked in `docs/audits/REGISTER.md`
+(`surfaces.json` machine half; `scripts/audit-register.sh bump|lock|status`):
+
+1. **BUMP** — the Director opens a deliberate build/redesign lane for the surface (recorded).
+2. **BATTERY** — once per generation: census Steps 1–6 + anatomy Step 2.5
+   (`docs/plans/2026-07-23-skill-rule-mechanization.md`, `docs/specs/record-page-anatomy.spec.md`),
+   stories + axe, interaction-contract conformance, the Luna leg at the next milestone pass.
+3. **RATIFY** — grammar/anatomy sign-off recorded (never pin an unratified design).
+4. **LOCK** — the passing state becomes mechanical pins (structural guards, play-tests, goal tests);
+   regression is pins-per-merge, free; `pre-merge-check.sh` blocks UI diffs on unlocked+unbumped
+   surfaces.
+
+Re-audit happens ONLY on: a new bump · pin-insufficiency (a defect slipped past green pins = process
+bug → new pin + targeted re-audit) · the milestone Luna pass. Small fixes ride the pins — no blanket
+re-censusing. Quality dimensions and their owning checks: `docs/quality-model.md`.
+
 Author each acceptance test to the user's *ideal, conventional* journey and assert the
 convention-invariants + expected post-states — so the test is RED until the app behaves naturally.
 The PMO anti-pattern to avoid: authoring the e2e to the app's current steps, which keeps an unnatural
