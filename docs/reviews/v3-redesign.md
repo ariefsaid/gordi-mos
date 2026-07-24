@@ -1707,3 +1707,11 @@ downstream conformance debt to reconcile.
   team membership — wire retail_ops memberships IN THE SAME staging deploy as this migration or
   they fail-closed out of log submission (Riri survives via ops_lead). LOW follow-ups: 3 positive-
   branch pgTAP cases; viewerSeesCafe role-name basis vs RLS membership basis (cosmetic mismatch).
+
+## Phase-3 Luna gate — DEFERRED (owner, 2026-07-24)
+
+The Codex/gpt-5.6-luna provider quota is exhausted **for the week** (owner-confirmed). The
+auto-retry watcher is stopped, the pinned checkout + servers torn down. The Phase-3 OFFICIAL
+score runs when quota returns — from a FRESH pinned checkout at the then-tip (the afbafe0 pin is
+obsolete once the post-grill lanes merge). Everything else proceeds: merges keep flowing through
+the guard battery + coverage gate; the never-self-score rule stands — no substitute scorer.
