@@ -232,7 +232,7 @@ describe('AdminUsersPage — confirm dialogs', () => {
 // ── Success toasts (item 6) ────────────────────────────────────────────────────
 
 describe('AdminUsersPage — success toasts', () => {
-  it('shows a success toast after enable-login succeeds', async () => {
+  it('GAP-7 (OD-91 #12): enable-login (an in-place edit) confirms with an inline "Saved" at the row, not a floating toast', async () => {
     const user = userEvent.setup()
     const disabledPerson: AdminPersonRow = { ...TWO_PEOPLE[1], login: 'disabled' }
     mockListAdminPeople.mockResolvedValue([TWO_PEOPLE[0], disabledPerson])
@@ -244,10 +244,10 @@ describe('AdminUsersPage — success toasts', () => {
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
     await user.click(screen.getByRole('menuitem', { name: /enable login/i }))
 
-    // Toast should appear
-    await screen.findByRole('status')
-    const toast = screen.getByRole('status')
-    expect(toast.textContent).toMatch(/budi santoso|login enabled/i)
+    // The inline "Saved" appears at the locus (the record grammar); no floating toast copy.
+    const saved = await screen.findByText(/^saved$/i)
+    expect(saved.closest('.people-row-saved')).toBeInTheDocument()
+    expect(screen.queryByText(/login enabled/i)).not.toBeInTheDocument()
   })
 
   it('shows a success toast after restore succeeds', async () => {

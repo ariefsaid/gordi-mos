@@ -441,12 +441,31 @@ function MobileManageSheet({ person, people, onAction }: MobileManageSheetProps)
 
 // ── DesktopTable ──────────────────────────────────────────────────────────────
 
+// GAP-7 (OD-91 #12): the inline "Saved" confirmation shown at a person's row after an in-place
+// edit (enable/disable login) — the record-grammar success channel, not a floating toast. It uses
+// the shared record "Saved" label + success token, and is a polite live region for SR users.
+function InlineSaved() {
+  const t = useT()
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className="people-row-saved inline-flex items-center gap-1 text-xs font-medium"
+      style={{ color: 'var(--success)' }}
+    >
+      <span aria-hidden="true">✓</span> {t('record.field.saved')}
+    </span>
+  )
+}
+
 function DesktopTable({
   people,
   onAction,
+  justSavedId,
 }: {
   people: AdminPersonRow[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
+  justSavedId: string | null
 }) {
   const t = useT()
   return (
@@ -521,7 +540,10 @@ function DesktopTable({
               </div>
             </td>
             <td className="px-4">
-              <LoginStatusPill status={person.login} />
+              <div className="flex items-center gap-2">
+                <LoginStatusPill status={person.login} />
+                {justSavedId === person.id && <InlineSaved />}
+              </div>
             </td>
             <td className="px-4">
               <RoleChips roles={person.access_roles} />
@@ -541,9 +563,11 @@ function DesktopTable({
 function MobileCardList({
   people,
   onAction,
+  justSavedId,
 }: {
   people: AdminPersonRow[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
+  justSavedId: string | null
 }) {
   const t = useT()
   return (
@@ -571,6 +595,7 @@ function MobileCardList({
               {person.full_name}
             </div>
             <LoginStatusPill status={person.login} />
+            {justSavedId === person.id && <InlineSaved />}
           </div>
 
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm mb-3">
@@ -730,9 +755,11 @@ export interface UserTableProps {
   viewerPersonId: string
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   onAddPerson: () => void
+  /** GAP-7 (OD-91 #12): the person whose in-place edit just committed → shows an inline "Saved". */
+  justSavedId?: string | null
 }
 
-export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: UserTableProps) {
+export function UserTable({ people, viewerPersonId, onAction, onAddPerson, justSavedId = null }: UserTableProps) {
   const presentsCards = usePeopleListPresentsCards()
   const t = useT()
 
@@ -802,9 +829,9 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson }: Use
           </EmptyState>
         </div>
       ) : presentsCards ? (
-        <MobileCardList people={filteredPeople} onAction={onAction} />
+        <MobileCardList people={filteredPeople} onAction={onAction} justSavedId={justSavedId} />
       ) : (
-        <DesktopTable people={filteredPeople} onAction={onAction} />
+        <DesktopTable people={filteredPeople} onAction={onAction} justSavedId={justSavedId} />
       )}
     </>
   )

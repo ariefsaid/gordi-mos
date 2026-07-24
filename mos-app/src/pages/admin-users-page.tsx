@@ -9,7 +9,7 @@
 //   item 7: alertdialog reveal has aria-describedby on the alertdialog element itself
 //   item 9: route renamed /admin/users → /admin/people
 
-import { useState, useEffect, useCallback, useId } from 'react'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -68,6 +68,19 @@ export function AdminUsersPage() {
 
   const { toast, showToast, clearToast } = useToast()
 
+  // GAP-7 (OD-REDESIGN-91 #12): ONE success channel — an IN-PLACE edit (enable/disable login, which
+  // updates the person's row where the user is already looking) confirms with an inline "Saved" at
+  // the row locus (the record grammar), never a floating toast. The toast is reserved for changes
+  // that land ELSEWHERE (archive/restore move the row out of the current segment view).
+  const [justSavedId, setJustSavedId] = useState<string | null>(null)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashSaved = useCallback((personId: string) => {
+    setJustSavedId(personId)
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    savedTimerRef.current = setTimeout(() => setJustSavedId(null), 1600)
+  }, [])
+  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current) }, [])
+
   // IDs for alertdialog aria-labelledby/describedby (item 7)
   const revealHeadingId = useId()
   const revealWarningId = useId()
@@ -112,10 +125,10 @@ export function AdminUsersPage() {
           break
 
         case 'enable-login':
-          // No confirm — low-stakes reversible action
+          // No confirm — low-stakes reversible action. GAP-7: in-place edit → inline Saved at the row.
           await setLoginEnabled(person.id, true)
           await load()
-          showToast(t('admin.people.toast.loginEnabled', { name: person.full_name }))
+          flashSaved(person.id)
           break
 
         case 'create-login': {
@@ -152,10 +165,11 @@ export function AdminUsersPage() {
   }
 
   async function handleConfirmDisable(person: AdminPersonRow) {
+    // GAP-7: disabling login is an in-place edit (the row's login pill flips) → inline Saved at the row.
     await setLoginEnabled(person.id, false)
     setPendingConfirm(null)
     await load()
-    showToast(t('admin.people.toast.loginDisabled', { name: person.full_name }))
+    flashSaved(person.id)
   }
 
   async function handleConfirmArchive(person: AdminPersonRow) {
@@ -260,6 +274,7 @@ export function AdminUsersPage() {
             viewerPersonId={viewerPersonId}
             onAction={handleAction}
             onAddPerson={() => setAddOpen(true)}
+            justSavedId={justSavedId}
           />
         )}
       </div>
