@@ -3,8 +3,9 @@
  *
  * Owner catch (review r2, missed by 5 audit rounds): the head rendered a bare "14" count
  * pill next to a differently-sized "2 blocked" fragment — number soup with no label
- * sentence ("size soup" incident). The fix: ONE muted meta sentence, "14 tasks · 2 blocked",
- * in a single `.ch-meta-line` at one font token.
+ * sentence ("size soup" incident). The fix: ONE muted meta sentence in a single
+ * `.ch-meta-line` at one font token. Since OD-REDESIGN-91 #17 the Tasks sentence reads
+ * "N open · M total" (counts are OPEN everywhere; the head agrees with the rail badge).
  * Skill rule mechanized: impeccable distill "Every element should justify its existence"
  * (.claude/skills/impeccable/reference/distill.md) — a digit with no attached noun carries
  * no meaning; plus the one-type-scale rule (ui-ux-pro-max ux-guidelines "Font Size Scale —
@@ -184,9 +185,10 @@ describe('GUARD-R2: the Tasks page head never shows a number without a label sen
     const head = screen.getByTestId('page-head')
 
     // ONE meta sentence, and it reads as a sentence: every number is followed by its noun.
+    // OD-REDESIGN-91 #17: counts are OPEN — "N open · M total" (none Done here → open === total).
     const metaLines = head.querySelectorAll('.ch-meta-line')
     expect(metaLines).toHaveLength(1)
-    expect(metaLines[0].textContent?.trim()).toBe('3 tasks · 1 blocked')
+    expect(metaLines[0].textContent?.trim()).toBe('3 open · 3 total')
 
     // The size-soup pill is gone from this head — count lives inside the sentence.
     expect(head.querySelectorAll('.ch-count')).toHaveLength(0)

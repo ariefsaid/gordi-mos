@@ -1324,6 +1324,25 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
+// ── OD-REDESIGN-91 #17: the head meta reads "N open · M total" (counts are OPEN) ──
+describe('#17 — Tasks head meta is "N open · M total" (open excludes Done)', () => {
+  it('#17: a Done task lowers the open count but not the total', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 't2', title: 'Open two', status: 'Blocked' }),
+      makeTask({ id: 't3', title: 'Resolved', status: 'Done' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    await switchToAll()
+    await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
+    // Blocked still counts as open (not Done); only the Done task is excluded from open.
+    await waitFor(() =>
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open · 3 total'),
+    )
+  })
+})
+
 // ── F3 (design review): one overdue token everywhere, no density-dependent glyph ──
 describe('F3 — overdue label stays consistent across densities (no bare "!" glyph)', () => {
   it('F3: in condensed split-view, overdue keeps a dated label with the overdue treatment — never a bare "!" and never clipped (owner-eyes item 3: the "Overdue ·" prefix yields at condensed width; color + full label at normal density carry it)', async () => {

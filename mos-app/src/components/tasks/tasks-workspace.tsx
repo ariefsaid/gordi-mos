@@ -63,7 +63,7 @@ type LegacySavedView = {
   search: string
 }
 
-export type TasksTableStats = { total: number; blocked: number; overdue: number } | null
+export type TasksTableStats = { total: number; open: number; blocked: number; overdue: number } | null
 
 export type TasksTableProps = {
   /** Legacy test/embedding bridge. Production TasksLayout now derives this from the typed URL query. */
@@ -349,6 +349,9 @@ export function TasksWorkspace({
     ? null
     : {
         total: recordsForStats.length,
+        // OD-REDESIGN-91 #17: "open" mirrors the rail badge's open-count definition
+        // (lib/db/rail-counts: not archived AND not Done) so the head and the rail agree.
+        open: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null).length,
         blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
         overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
       }
@@ -468,20 +471,18 @@ export function TasksWorkspace({
         <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
       ) : undefined}
       meta={
-        // R2 (owner review r2): ONE muted meta sentence in the E7 grammar — "14 tasks · 2 blocked",
-        // a single font size (the body token). Replaces the superscript count pill + a differently
-        // sized "blocked" fragment (the "size soup" the owner flagged). Live counts; blocked only
-        // when >0; "—" while loading/error (AC-M2). The count also lives in the result-header inside
-        // the card, so dropping the page-head pill loses no information.
+        // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
+        // "9 open · 11 total" (the rail badge already carries the open-count; the head now
+        // agrees). ONE muted meta sentence in the E7 grammar, a single font size (the body
+        // token), every number followed by its noun (the naked-numbers guard). Live counts;
+        // "—" while loading/error or on the Follow-ups placeholder view (AC-M2).
         <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
           {stats === null || followupsView
             ? '—'
             : [
-                t('tasks.meta.taskCount', { count: stats.total }),
-                stats.blocked > 0 ? t('tasks.filter.blockedCount', { count: stats.blocked }) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
+                t('tasks.meta.openCount', { count: stats.open }),
+                t('tasks.meta.totalCount', { count: stats.total }),
+              ].join(' · ')}
         </span>
       }
     >
