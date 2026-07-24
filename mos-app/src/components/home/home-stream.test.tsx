@@ -109,6 +109,20 @@ describe('HomeStream — the consequence-ranked stream', () => {
     expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
   })
 
+  it('F16 (OD-91 #28): my-work rows drop the self-avatar (zero information) while attention rows keep the PIC where the person varies', () => {
+    const pic = { initials: 'AR', name: 'Arief' }
+    renderStream({
+      myWork: [item({ id: 'w1', title: 'My own task', pic })],
+      overdue: [item({ id: 'o1', title: 'Overdue by someone', pic, reason: { tone: 'overdue', days: 2 } })],
+    })
+    // The my-work row shows the task but NOT the self PIC name/avatar…
+    const myRow = screen.getByText('My own task').closest('li')!
+    expect(myRow.querySelector('.stream-row-pic')).toBeNull()
+    // …while the attention (overdue) row keeps the PIC, where the person can vary.
+    const attnRow = screen.getByText('Overdue by someone').closest('li')!
+    expect(attnRow.querySelector('.stream-row-pic')).not.toBeNull()
+  })
+
   it('a ready-but-empty my-work band teaches, never a silent void', () => {
     renderStream({ overdue: [item({ title: 'Late' })], myWork: [], openCount: 1 })
     expect(screen.getByText(/nothing else open/i)).toBeInTheDocument()

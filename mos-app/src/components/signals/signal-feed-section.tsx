@@ -77,7 +77,9 @@ export function SignalFeedSection({
           + right-aligned link as the stream's OVERDUE / MY WORK TODAY bands — Signals is a peer
           section in the one scroll, not a bolted-on card with its own heading weight. */}
       <div className="signal-feed-head">
-        <h3 id={titleId} className="signal-feed-label">{t('nav.signals')}</h3>
+        {/* F15 (OD-REDESIGN-91 #27): the Home quiet tail is titled "Recent" — the owner's pick over
+            "FYI"/"Signals" here, avoiding the attention-level collision with the ranked stream above. */}
+        <h3 id={titleId} className="signal-feed-label">{t('signals.feed.recentTitle')}</h3>
         <Link to="/work/signals" className="signal-feed-link">
           {t('nav.work.signals')} →
         </Link>

@@ -173,7 +173,7 @@ describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () 
   it('renders the ranked stream + the ambient Signals tail for a member', async () => {
     await renderHome(memberViewer)
     expect(await screen.findByRole('region', STREAM)).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: 'Signals' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Recent' })).toBeInTheDocument()
     expect(mockListRevenue).not.toHaveBeenCalled()
   })
 })
@@ -215,7 +215,7 @@ describe('OD-REDESIGN-82: the stream + Signals tail are chromeless section landm
   it('renders as SECTIONs with accessible headings and no card-shell chrome on the region wrappers', async () => {
     await renderHome(financeViewer)
     const shellClasses = ['bg-card', 'border', 'border-border', 'rounded-lg', 'shadow-rest']
-    for (const name of [STREAM.name, 'Signals']) {
+    for (const name of [STREAM.name, 'Recent']) {
       const region = await screen.findByRole('region', { name })
       expect(region.tagName).toBe('SECTION')
       for (const c of shellClasses) expect(region).not.toHaveClass(c)
@@ -256,7 +256,7 @@ describe('OD-84.1 / Luna P0-1 — attention-worthy Signals lead the stream; only
     expect(within(attn).queryByText('New oat-milk brand in stock')).toBeNull()
 
     // The FYI Signal is the ambient Signals tail; the Urgent one is not duplicated there.
-    const tail = await screen.findByRole('region', { name: 'Signals' })
+    const tail = await screen.findByRole('region', { name: 'Recent' })
     expect(within(tail).getByText('New oat-milk brand in stock')).toBeInTheDocument()
     expect(within(tail).queryByText('Freezer alarm went off')).toBeNull()
   })
