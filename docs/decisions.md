@@ -2145,3 +2145,15 @@ Grilled live (grill-with-docs format, docs resolved inline). Rulings:
    stay/discard (the live-reproduced 20-dish silent loss becomes impossible).
 10. **GAP-5 · Composer Enter rule (owner's variant): Enter = newline, Shift+Enter = SEND, with a
     small hint on/near the Send button — BOTH composers (Deputy changes to match).**
+
+### OD-REDESIGN-91 — grill batch 3 (owner 2026-07-24): interaction gaps closed
+
+11. **GAP-6 · After-create = return to the originating collection, new row highlighted** (one rule
+    app-wide; Tasks changes to match the majority).
+12. **GAP-7 · Save feedback = inline "Saved" at the locus for edits; toast reserved for creates
+    that land elsewhere.**
+13. **GAP-8 · One shared picker keyboard contract** (useListboxPopover-class), all pickers route
+    through it.
+14. **GAP-9 · j/k row-walking promotes to the shared collection engine** — every table responds.
+15. **GAP-10 · The phone `+` opens the reduced create-set** per OD-46 as written (implementation
+    filters; the rule stands).
