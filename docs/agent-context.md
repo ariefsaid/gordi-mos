@@ -1,48 +1,30 @@
 # Agent context — read me first (owner prefs · hard rules · gotchas · pointers)
 
-> ## CANONICAL CURRENT STATE — 2026-07-23 evening (supersedes every dated banner below)
+> ## CANONICAL CURRENT STATE — 2026-07-24 (supersedes every dated banner below)
 >
 > **Branch `v3-redesign`** (worktree `.claude/worktrees/v3-redesign`, dev :5199, base `/mos`).
-> **The Standing Audit Program is ACTIVE** (owner-approved plan `~/.claude/plans/wise-discovering-frog.md`):
-> coverage register `docs/audits/REGISTER.md` + `surfaces.json` is the design-coverage authority —
-> 25 surfaces, generation lifecycle (battery → RATIFY → LOCK → pins), re-audit only on bump /
-> pin-insufficiency / milestone-Luna. `scripts/audit-register.sh bump|lock|status|render`,
-> `scripts/audit-staleness.sh`; `pre-merge-check.sh` runs the guard battery AND the coverage gate
-> (UI diff on unlocked+unbumped surface = FAIL). Quality model: `docs/quality-model.md`.
-> Anatomy law: `docs/specs/record-page-anatomy.spec.md` (OD-90, census Step 2.5).
+> **The owner decision sitting is COMPLETE and fully LANDED**: 46 rulings (OD-REDESIGN-91 batches
+> 1–8, owner verbatims) grilled live and implemented via four post-grill lanes, all merged +
+> register-locked. Highlights now in the product: top-bar Create removed (Rule 7 enforced) ·
+> mobile nav slides left · ⌘K spans Tasks+Signals+AR Follow-ups, phone + = reduced create-set ·
+> Deputy hybrid chrome (user bubbles, bare prose, full-width widgets) + Enter=newline /
+> Shift+Enter=send + one Stop · kitchen LOG leave-guard · expand-in-place retired ·
+> after-create returns highlighted · one save-feedback channel · useListboxPopover + j/k in the
+> shared engine · amber=Urgent-only · --font-size-body-lg minted · pill rounded-rect ratified in
+> DESIGN.md · "AR Follow-up" naming · intent-first ID rule + 24 rewrites · SHOW_PLAN_BUDGET ON.
 >
-> **Merged this wave:** owner-r2 rounds · 9 sweep fix lanes · mechanical guard suite (~15 guard
-> files + vocab ratchet, skill-cited) · interaction Tier-1/2 RULED fixes (visible save errors,
-> create dirty-guard, Escape isolation, `?record=` URL door + deep-link resolver, follow-ups/inbox
-> Back) · census-r2 DO-1..24 · Money designed+seeded (rounds 1-4: seed.dev-money.sql, FreshnessLabel,
-> custom-range row, guards, stories) · Kitchen designed+seeded (seed.dev-kitchen.sql, useInlineCommit
-> parity) · storybook 29+5 stories · OD-87..90 + tests-as-oracle (OD-88) + layered battery replaces
-> 4-lens (OD-89). **Luna INTERIM verdict: 27/40 · 6.5/10 · 3 floors (ledgered, at ba6459e).**
+> **The Standing Audit Program is ACTIVE** (register `docs/audits/`, generation lifecycle,
+> pre-merge coverage gate; quality model `docs/quality-model.md`; anatomy spec OD-90 with
+> executable Step-2.5 tests on all three record kinds). All census DO-lists closed; SEC-1
+> remediated (audit-verified; STAGING DEPLOY CAVEAT in backlog — wire kitchen memberships).
 >
-> **IN FLIGHT:** luna-floor lane (Signal OD-90 anatomy + 3 floor residuals; worktree v3-luna-floor,
-> tree mid-refactor) · kitchen r2 (census fixes, worktree v3-g-kitchen) · money r5 (census fixes,
-> worktree v3-g-money) · journey-quality audit (6 JTBD walks → docs/plans/2026-07-23-journey-quality-audit.md).
-> **QUEUE after those:** backfill batch (register DUE set: 11 surfaces + locale-id + dark-mode +
-> finance/member personas) · mechanical token pass (census DO-9/10 + guard C3 → pages/**; runs LAST)
-> · Task/Follow-up anatomy conformance (FR-ANAT-009/010, RATIFY line) · pinned-checkout Luna over
-> the register scope · owner decision sheet (`docs/plans/2026-07-23-owner-decision-sheet.md`,
-> 30 items + 3 open slots).
->
-> **Owner law additions today:** no suggested-task chips from agents (findings in returns; Director
-> does do/defer/delete) · tests-as-oracle replaces red-first on understood seams (OD-88) · page
-> anatomy is declared + checkable (OD-90) · fix-generalization: fix at the shared seam, sweep
-> siblings, extend the guard · grill-corpus answers first (never re-ask) · Luna dispatches go
-> DIRECT via pi (never wrapped in a Claude agent), from a PINNED checkout (serving the live
-> integration worktree drifted 2 merges mid-audit — tolerated once, never again).
->
-> **GOTCHAS (append-only; all prior ones stand):** owner interrupts kill ALL background tasks —
-> workflows resume via resumeFromRunId (journal cache), agents via SendMessage (transcript); but
-> agents the USER stopped need explicit owner sign-off to relaunch · 5h quota cuts kill agents
-> mid-work — resume from their last words · workflow args MUST be passed as a JSON object (a
-> stringified args reached scripts as undefined → the round-1 sweep captured the WRONG TREE; always
-> provenance-gate captures with a commit attestation + ABORT) · pi -p prints output only at the end
-> (0-byte log ≠ stall; check the spawned browser processes) · agent-browser shared default session:
-> concurrent agents MUST use --session <name> isolation (a lane touched Luna's live session once).
+> **OPEN ITEMS (the complete list):** ① Phase-3 OFFICIAL Luna — DEFERRED ~a week (Codex provider
+> quota exhausted, owner-confirmed; re-pin at the then-tip; never-self-score stands) ② People +
+> Inbox RecordCollection migration (owner-gated: wants to see the grammar first — walkthrough on
+> :5199 anytime) ③ Deputy mark redesign — icon proposals owed to the owner (visual round) ④
+> Shift+Enter live-keyboard verify (unit-green; browser automation couldn't synthesize it) ⑤
+> Phase-4 features (S1–S7 restoration queue) open after the Luna gate per OD-87 — or earlier on
+> owner word. Gotchas + rules: all prior banner entries stand.
 
 
 Fast cold-start for a fresh agent (esp. post-compaction). This is the human/process layer; the
