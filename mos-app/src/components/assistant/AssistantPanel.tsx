@@ -87,8 +87,9 @@ export function AssistantPanel() {
   }
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter sends; Shift+Enter inserts a newline. (Enter-without-Shift only when not composing.)
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // OD-REDESIGN-91 #10 (owner's variant): Shift+Enter SENDS; plain Enter inserts a newline.
+    // Deputy changed from Enter=send to match the Signal composer — one composer contract app-wide.
+    if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault()
       void submit(draft)
     }
@@ -165,6 +166,7 @@ export function AssistantPanel() {
             <Transcript
               items={panel.transcript}
               chips={panel.chips}
+              speakerLabel={t('assistant.title')}
               error={panel.error}
               errorTitle={t('assistant.error.title')}
               errorCta={t('assistant.error.cta')}
@@ -196,6 +198,7 @@ export function AssistantPanel() {
         <Composer
           placeholder={t('assistant.composer.placeholder')}
           sendLabel={t('assistant.send')}
+          sendHint={t('assistant.composer.sendHint')}
           streamingLabel={t('assistant.streaming')}
           value={draft}
           onChange={setDraft}
@@ -214,12 +217,13 @@ export function AssistantPanel() {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function Transcript({
-  items, chips, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
+  items, chips, speakerLabel, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
   pendingQuestion, onAnswer, freeTextPlaceholder, freeTextSubmitLabel,
   ratings, onRate, ratingLabels,
 }: {
   items: TranscriptItem[]
   chips: ChipState[]
+  speakerLabel: string
   error: string | null
   errorTitle: string
   errorCta: string
@@ -234,51 +238,45 @@ function Transcript({
   onRate: (eventId: string, rating: AssistantRating, reason?: string) => void
   ratingLabels: RatingLabels
 }) {
+  // OD-REDESIGN-91 #1 — HYBRID chrome (variant C, deputy-bubble-pick.html):
+  //  · user turns  → a compact right-aligned bubble
+  //  · Deputy prose → BARE (no bubble), left-aligned, under a small DEPUTY speaker label
+  //  · widgets / tool-output → FULL-WIDTH first-class blocks, never inside a bubble
   return (
     <div className="flex flex-col gap-3">
-      {items.map((item) => (
-        <div key={item.id} className="flex flex-col" style={{ alignItems: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
-          <div
-            className="flex"
-            style={{ justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}
-          >
-            {item.widget ? (
-              <div
-                className="rounded-md text-sm"
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  padding: '0.75rem',
-                  background: 'var(--surface-secondary)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <AssistantWidgetSlot widget={item.widget} />
-              </div>
-            ) : (
-              <div
-                className="rounded-md text-sm whitespace-pre-wrap break-words"
-                style={{
-                  maxWidth: '85%',
-                  padding: '0.5rem 0.75rem',
-                  background: item.role === 'user' ? 'var(--accent)' : 'var(--surface-secondary)',
-                  color: item.role === 'user' ? 'var(--text-inverted)' : 'var(--text-primary)',
-                }}
-              >
-                {item.role === 'assistant' ? <AssistantMarkdown source={item.text} /> : item.text}
-              </div>
-            )}
-          </div>
-          {item.role === 'assistant' && (
+      {items.map((item) => {
+        // Widgets stand alone as full-width first-class blocks (their own chrome, no tint/bubble).
+        if (item.widget) {
+          return (
+            <div key={item.id} className="assistant-turn assistant-turn--widget">
+              <AssistantWidgetSlot widget={item.widget} />
+            </div>
+          )
+        }
+        // User turns keep the chat bubble (right-aligned).
+        if (item.role === 'user') {
+          return (
+            <div key={item.id} className="assistant-turn assistant-turn--user">
+              <div className="assistant-bubble assistant-bubble--user">{item.text}</div>
+            </div>
+          )
+        }
+        // Deputy prose — bare, with a small speaker label; rating hangs below.
+        return (
+          <div key={item.id} className="assistant-turn assistant-turn--deputy">
+            <div className="assistant-speaker">{speakerLabel}</div>
+            <div className="assistant-prose">
+              <AssistantMarkdown source={item.text} />
+            </div>
             <RatingControl
               eventId={item.id}
               rating={ratings[item.id]}
               onRate={onRate}
               labels={ratingLabels}
             />
-          )}
-        </div>
-      ))}
+          </div>
+        )
+      })}
       {chips.map((chip) => (
         <ApprovalChip key={chip.pendingId} chip={chip} onApprove={onApprove} onDeny={onDeny} />
       ))}
@@ -521,10 +519,11 @@ function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLab
 }
 
 function Composer({
-  placeholder, sendLabel, streamingLabel, value, onChange, onSubmit, onKeyDown, canSend, running,
+  placeholder, sendLabel, sendHint, streamingLabel, value, onChange, onSubmit, onKeyDown, canSend, running,
 }: {
   placeholder: string
   sendLabel: string
+  sendHint: string
   streamingLabel: string
   value: string
   onChange: (v: string) => void
@@ -536,40 +535,44 @@ function Composer({
   return (
     <form
       onSubmit={onSubmit}
-      className="border-border flex items-end gap-2 flex-none"
+      className="assistant-composer border-border flex-none"
       style={{ padding: '0.625rem 0.75rem', borderTopWidth: 1, borderTopStyle: 'solid' }}
     >
-      <textarea
-        className="bg-secondary border-border text-foreground rounded-md flex-1 min-w-0 resize-none"
-        style={{ padding: '0.5rem 0.625rem', fontSize: 14, minHeight: 40, maxHeight: 140 }}
-        aria-label={placeholder}
-        placeholder={placeholder}
-        rows={1}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      {running ? (
-        // OD-REDESIGN-91 #40 (G4): ONE Deputy Stop — the stuck-run banner owns Stop. The composer
-        // no longer duplicates it; while running it shows only the streaming indicator.
-        <span className="text-muted-foreground" style={{ fontSize: 13 }} aria-live="polite">{streamingLabel}</span>
-      ) : (
-        <button
-          type="submit"
-          disabled={!canSend}
-          className="rounded-sm font-medium flex-none"
-          style={{
-            height: 40,
-            padding: '0 0.875rem',
-            fontSize: 14,
-            background: 'var(--accent)',
-            color: 'var(--text-inverted)',
-            opacity: canSend ? 1 : 0.5,
-          }}
-        >
-          {sendLabel}
-        </button>
-      )}
+      <div className="assistant-composer-row flex items-end gap-2">
+        <textarea
+          className="bg-secondary border-border text-foreground rounded-md flex-1 min-w-0 resize-none"
+          style={{ padding: '0.5rem 0.625rem', fontSize: 14, minHeight: 40, maxHeight: 140 }}
+          aria-label={placeholder}
+          placeholder={placeholder}
+          rows={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+        {running ? (
+          // OD-REDESIGN-91 #40 (G4): ONE Deputy Stop — the stuck-run banner owns Stop. The composer
+          // shows only the streaming indicator while running.
+          <span className="text-muted-foreground" style={{ fontSize: 13 }} aria-live="polite">{streamingLabel}</span>
+        ) : (
+          <button
+            type="submit"
+            disabled={!canSend}
+            className="rounded-sm font-medium flex-none"
+            style={{
+              height: 40,
+              padding: '0 0.875rem',
+              fontSize: 14,
+              background: 'var(--accent)',
+              color: 'var(--text-inverted)',
+              opacity: canSend ? 1 : 0.5,
+            }}
+          >
+            {sendLabel}
+          </button>
+        )}
+      </div>
+      {/* OD-REDESIGN-91 #10 — quiet Send hint; hidden on touch (no physical keyboard). */}
+      {!running && <span className="assistant-composer-hint">{sendHint}</span>}
     </form>
   )
 }

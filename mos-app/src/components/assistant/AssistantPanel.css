@@ -12,3 +12,48 @@
   font-size: var(--font-size-body);
   font-weight: 600;
 }
+
+/* OD-REDESIGN-91 #1 — hybrid transcript chrome (variant C). User turns bubble; Deputy prose is
+   bare under a small speaker label; widgets are full-width first-class blocks. */
+.assistant-turn { display: flex; flex-direction: column; min-width: 0; }
+.assistant-turn--user { align-items: flex-end; }
+.assistant-turn--deputy { align-items: flex-start; }
+.assistant-turn--widget { width: 100%; }
+
+.assistant-bubble--user {
+  max-width: 85%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--text-inverted);
+  font-size: var(--font-size-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-speaker {
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 2px;
+}
+
+.assistant-prose {
+  max-width: 65ch;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
+
+/* OD-REDESIGN-91 #10 — quiet "Shift+Enter to send" hint under the composer, hidden on touch. */
+.assistant-composer { display: flex; flex-direction: column; }
+.assistant-composer-hint {
+  margin-top: 4px;
+  text-align: right;
+  font-size: var(--font-size-micro);
+  color: var(--muted-foreground);
+}
+@media (pointer: coarse) {
+  .assistant-composer-hint { display: none; }
+}

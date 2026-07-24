@@ -342,6 +342,7 @@ export const messages = {
     'assistant.empty.suggestion2': 'Summarize my week',
     'assistant.empty.suggestion3': "Show last week's revenue",
     'assistant.composer.placeholder': 'Ask the deputy…',
+    'assistant.composer.sendHint': 'Shift+Enter to send',
     'assistant.send': 'Send',
     'assistant.retry': 'Retry',
     'assistant.streaming': 'Working…',
@@ -441,6 +442,8 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Note required — off plan',
     'kitchen.log.stepper.capCue': 'Insufficient stock — produce first',
     'kitchen.log.footer.noteRequired': 'Note required to submit',
+    // GAP-4/#9: leaving with unsaved staged quantities prompts stay/discard.
+    'kitchen.log.leave.confirm': 'Leave without submitting? Your staged entries will be discarded.',
     // ── I18N-1 (census DO-8): Café Log table headers + group labels ──
     'kitchen.log.col.dish': 'Dish',
     'kitchen.log.col.plan': 'Plan',
@@ -798,7 +801,10 @@ export const messages = {
     // ── Step 4 — Signal composer (capture-minimal, Rule 8; docs/specs/signals-v1.spec.md §4) ──
     'signals.composer.placeholder': 'What happened? Type @ to mention a person, team, or BU.',
     'signals.composer.teamLabel': 'Owning Team',
+    'signals.composer.teamPlaceholder': 'Choose a team…',
     'signals.composer.occurredLabel': 'Occurred at',
+    'signals.composer.occurredHint': 'WIB',
+    'signals.composer.sendHint': 'Shift+Enter to send',
     'signals.composer.author': 'Posted by ${name}',
     'signals.composer.categoryHelp': 'Category is added after posting — it never blocks capture.',
     // SIG-2 — the honest empty state when the viewer belongs to no team (nothing to post to).
@@ -1339,6 +1345,7 @@ export const messages = {
     'assistant.empty.suggestion2': 'Rangkum minggu saya',
     'assistant.empty.suggestion3': 'Tampilkan pendapatan minggu lalu',
     'assistant.composer.placeholder': 'Tanya deputi…',
+    'assistant.composer.sendHint': 'Shift+Enter untuk kirim',
     'assistant.send': 'Kirim',
     'assistant.retry': 'Coba lagi',
     'assistant.streaming': 'Memproses…',
@@ -1434,6 +1441,8 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
     'kitchen.log.stepper.capCue': 'Stok kurang — produksi dulu',
     'kitchen.log.footer.noteRequired': 'Catatan wajib diisi sebelum kirim',
+    // GAP-4/#9: keluar dengan entri belum tersimpan meminta konfirmasi tetap/buang.
+    'kitchen.log.leave.confirm': 'Keluar tanpa submit? Entri yang belum disimpan akan dibuang.',
     // ── I18N-1 (census DO-8): header tabel Log Kafe + label grup ──
     'kitchen.log.col.dish': 'Hidangan',
     'kitchen.log.col.plan': 'Rencana',
@@ -1774,7 +1783,10 @@ export const messages = {
     'actionLauncher.open': 'Buka aksi',
     'signals.composer.placeholder': 'Apa yang terjadi? Ketik @ untuk menyebut orang, tim, atau BU.',
     'signals.composer.teamLabel': 'Tim Pemilik',
+    'signals.composer.teamPlaceholder': 'Pilih tim…',
     'signals.composer.occurredLabel': 'Terjadi pada',
+    'signals.composer.occurredHint': 'WIB',
+    'signals.composer.sendHint': 'Shift+Enter untuk kirim',
     'signals.composer.author': 'Diposting oleh ${name}',
     'signals.composer.categoryHelp': 'Kategori ditambahkan setelah diposting — tidak pernah menghalangi pencatatan.',
     // SIG-2 — status kosong yang jujur ketika pengguna tidak tergabung dalam tim mana pun.

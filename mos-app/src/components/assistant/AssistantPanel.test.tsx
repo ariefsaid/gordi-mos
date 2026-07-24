@@ -211,6 +211,63 @@ describe('AssistantPanel (T27)', () => {
     // …and carries NO Stop button — the single Stop lives on the stuck-run banner only.
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+  it('OD-REDESIGN-91 #10: Shift+Enter sends; plain Enter is a newline (not a send)', async () => {
+    const runtime = makeFakeRuntime()
+    renderPanel({ narrow: false, open: true, runtime })
+    const input = screen.getByRole('textbox', { name: /ask the deputy/i })
+    fireEvent.change(input, { target: { value: 'hello deputy' } })
+
+    // Plain Enter must NOT send (owner's variant: Enter inserts a newline).
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(runtime.createRun).not.toHaveBeenCalled()
+
+    // Shift+Enter sends.
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
+    expect(runtime.createRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('OD-REDESIGN-91 #1: user turns bubble, Deputy prose is bare under a speaker label', async () => {
+    renderPanel({ narrow: false, open: true })
+    const input = screen.getByRole('textbox', { name: /ask the deputy/i })
+    fireEvent.change(input, { target: { value: 'hello deputy' } })
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
+
+    // User turn keeps the chat bubble.
+    expect(screen.getByText('hello deputy')).toHaveClass('assistant-bubble--user')
+
+    // Deputy prose is bare (no bubble) beneath a small speaker label.
+    const deputyTurn = document.querySelector('.assistant-turn--deputy')
+    expect(deputyTurn).not.toBeNull()
+    expect(deputyTurn?.querySelector('.assistant-speaker')?.textContent).toBe('Deputy')
+    expect(deputyTurn?.querySelector('.assistant-prose')?.textContent).toContain('Sure — here is your answer.')
+  })
+
+  it('OD-REDESIGN-91 #1: widgets render as full-width blocks, never inside a bubble', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime([
+        {
+          id: 'w1', runId: 'r1', type: 'artifact', createdAt: '2026-01-01T00:00:00.000Z',
+          payload: {
+            kind: 'data_table', title: 'Blocked tasks',
+            columns: [{ key: 'title', header: 'Task' }],
+            rows: [{ title: 'Fix stock sync' }],
+          },
+        },
+        { id: 's1', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
+      ]),
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'show blocked' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const heading = await screen.findByRole('heading', { name: 'Blocked tasks' })
+    // The widget lives in a full-width widget turn, not inside a user/deputy bubble.
+    expect(heading.closest('.assistant-turn--widget')).not.toBeNull()
+    expect(heading.closest('.assistant-bubble--user')).toBeNull()
+
   })
 
   it('AC-AP-004: assistant prose renders safe markdown while user turns stay literal', async () => {
