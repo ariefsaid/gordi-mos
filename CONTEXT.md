@@ -88,7 +88,7 @@ A **reporting lens for money** — Cafe Ops (kitchen + bar POS), Ecommerce, B2B.
 Activity or span several; owned by the reporting plane, not the org chart.
 _Avoid_: activity / BU (when grouping revenue), channel (reserve for the POS/B2B source field)
 
-**Follow-up**:
+**Follow-up** *(UI name: **AR Follow-up** — OD-REDESIGN-91.3 disambiguation; a "follow-up Task" from a Signal is just a Task)*:
 A work item for chasing an outstanding commitment — a **B2B AR invoice** or a retail **Pending bill**.
 A task-family record (counterparty, amount, due) attached to the underlying money record; worked from
 a queue in **Work**, with comments/@mentions like any task. **Settlement lifecycle MOS owns:** open (aging)
