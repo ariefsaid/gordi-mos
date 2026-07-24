@@ -84,7 +84,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7e31910",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/src/components/home/guard-do16-home-layout.css.test.ts",
@@ -130,7 +130,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "669f14f",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r2-naked-numbers.test.tsx",
@@ -177,7 +177,7 @@
       "generation": 2,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7e31910",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/src/components/tasks/guard-r4-permission-notes.test.tsx",
@@ -258,7 +258,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7e31910",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-430-post-a-signal.spec.ts"
@@ -429,7 +429,7 @@
       "generation": 1,
       "auditedAt": "542c48b",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-090-kitchen-log-approve.spec.ts"
@@ -472,8 +472,8 @@
       ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/src/components/catalog/guard-catalog-identity-phone.css.test.ts",
@@ -517,8 +517,8 @@
       ],
       "generation": 1,
       "auditedAt": "ab61009",
-      "ratifiedBy": "census-r2 backfill",
-      "lockedAt": "3d550af",
+      "ratifiedBy": "Director",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/src/components/catalog/guard-catalog-identity-phone.css.test.ts",
@@ -650,7 +650,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/e2e/AC-524-follow-up.spec.ts"
@@ -728,7 +728,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7e31910",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/src/components/admin/guard-flex-basis-balloon.css.test.ts"
@@ -961,7 +961,7 @@
       "generation": 1,
       "auditedAt": "ab61009",
       "ratifiedBy": "Director",
-      "lockedAt": "7b67d86",
+      "lockedAt": "9b222c1",
       "bumped": false,
       "pins": [
         "mos-app/e2e/shell-nav.spec.ts",
