@@ -29,7 +29,7 @@
 }
 .home-tab:hover { color: var(--foreground); }
 .home-tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--primary); }
-.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .home-tab-count { color: var(--muted-foreground); font-weight: 400; margin-left: 4px; }
 
 @media (max-width: 940px) {
