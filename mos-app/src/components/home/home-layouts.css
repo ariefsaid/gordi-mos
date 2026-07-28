@@ -1,0 +1,46 @@
+/* Shared Home layout primitives (OD-V4-9, FR-930/FR-932).
+   ONE definition each: the work/feed layout, the tile grid and tile, and the region tabs.
+   A layout option may override only what genuinely differs, and must say why at the override. */
+
+.home-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 32px; align-items: start; }
+.home-layout > * { min-width: 0; }
+
+.home-bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+/* Gap (20px) deliberately EXCEEDS .home-tile padding (16px): separation between groups must beat
+   spacing within them, or the grid reads as one mush. */
+.home-tile {
+  display: flex; flex-direction: column; min-width: 0; padding: 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+  box-shadow: var(--shadow-rest); /* Soft-Elevation Rule, DESIGN.md OD-P3-11 */
+}
+.home-tile[data-weight="lead"]  { grid-column: span 4; }
+.home-tile[data-weight="major"] { grid-column: span 2; }
+.home-tile[data-weight="half"]  { grid-column: span 3; }
+.home-tile[data-weight="full"]  { grid-column: span 6; }
+.home-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.home-tile-name { font-family: var(--font-display); font-size: var(--font-size-label); font-weight: 600; }
+.home-tile-count { font-size: var(--font-size-label); color: var(--muted-foreground); white-space: nowrap; }
+
+.home-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+.home-tab {
+  font: inherit; font-weight: 500; border: 0; background: none; color: var(--muted-foreground);
+  padding: 8px 12px; cursor: pointer; min-height: 44px; /* coarse-pointer floor, NFR-921 */
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.home-tab:hover { color: var(--foreground); }
+.home-tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--primary); }
+.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.home-tab-count { color: var(--muted-foreground); font-weight: 400; margin-left: 4px; }
+
+@media (max-width: 940px) {
+  .home-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .home-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .home-tile[data-weight="lead"]  { grid-column: span 4; }
+  .home-tile[data-weight="major"] { grid-column: span 2; }
+  .home-tile[data-weight="half"]  { grid-column: span 2; }
+  .home-tile[data-weight="full"]  { grid-column: span 4; }
+}
+@media (max-width: 620px) {
+  .home-bento { grid-template-columns: minmax(0, 1fr); }
+  .home-tile { grid-column: span 1 !important; }
+}
