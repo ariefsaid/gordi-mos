@@ -205,11 +205,21 @@ function isRetractedVisible(signal: SignalRow, query: SignalCollectionQuery): bo
   return query.showRetracted || query.view === 'retracted'
 }
 
-function matchesText(signal: SignalRow, term: string, context: SignalCollectionContext): boolean {
+/** The ONE definition of "does this Signal match this text" — body + author + owning Team.
+ *  Exported so the Home ambient feed's search cannot drift into a rival matcher. */
+export function signalMatchesText(
+  signal: SignalRow,
+  term: string,
+  names: { authorNamesById: ReadonlyMap<string, string>; teamNamesById: ReadonlyMap<string, string> },
+): boolean {
   if (!term) return true
-  const author = context.authorNamesById.get(signal.author_id) ?? ''
-  const team = context.teamNamesById.get(signal.owning_team_id) ?? ''
+  const author = names.authorNamesById.get(signal.author_id) ?? ''
+  const team = names.teamNamesById.get(signal.owning_team_id) ?? ''
   return `${signal.body} ${author} ${team}`.toLowerCase().includes(term)
+}
+
+function matchesText(signal: SignalRow, term: string, context: SignalCollectionContext): boolean {
+  return signalMatchesText(signal, term, context)
 }
 
 function filterSignals(

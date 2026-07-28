@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/state-kit'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { orderSignalsForFeed } from '@/lib/db/signals'
 import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { signalMatchesText } from './signal-collection-adapter'
 import { attentionLabel } from './signal-attention-label'
 import { SignalCategoryPicker } from './signal-category-picker'
 import './signal-feed-rows.css'
@@ -44,18 +45,22 @@ export function SignalFeedRows({
   const t = useT()
   const [query, setQuery] = useState('')
   const searchable = variant === 'ambient' && !!onShareClick
-  // Search matches the body and the author's display name — the two things a reader actually
-  // remembers about a Signal ("what Cahya said about the grinder"). Author names are resolved
-  // upstream, so no second lookup here.
+  // Matching reuses the collection engine's OWN predicate (`signalMatchesText` — body + author +
+  // owning Team) rather than a second definition. The engine already owns text search as the `q`
+  // query key on the Signal collection; what it cannot do here is scope the filter to the ambient
+  // tail alone. Home splits ONE signal read into the attention band (stream band 0) and this FYI
+  // tail, so driving the shared `q` would also empty the attention band — searching the quiet feed
+  // must not hide what needs you. Hence: engine's matcher, ambient-only scope.
   const ordered = useMemo(() => {
     const all = orderSignalsForFeed([...signals])
     const q = query.trim().toLowerCase()
     if (!searchable || q === '') return all
-    return all.filter((s) => {
-      const author = authorNamesById[s.author_id] ?? ''
-      return s.body.toLowerCase().includes(q) || author.toLowerCase().includes(q)
-    })
-  }, [signals, query, searchable, authorNamesById])
+    const names = {
+      authorNamesById: new Map(Object.entries(authorNamesById)),
+      teamNamesById: new Map(Object.entries(teamNamesById)),
+    }
+    return all.filter((s) => signalMatchesText(s, q, names))
+  }, [signals, query, searchable, authorNamesById, teamNamesById])
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
 
   return (
