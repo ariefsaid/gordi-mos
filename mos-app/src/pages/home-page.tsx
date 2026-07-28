@@ -4,8 +4,8 @@
 // column of uniform record rows with reason chips and quiet band dividers (components/home/HomeStream).
 // E7 is the FLOOR (chromeless rows, calm rhythm); this beats it on one-glance "what do I do next".
 //
-// The stream has two ordered GROUPS (attention bands + the my-work band). The OD-18 order preference
-// reorders those two groups (attention-first / my-work-first) — never removing a band.
+// The stream has two GROUPS (attention bands + the my-work band); attention always leads (the
+// OD-18 order preference that used to reorder them was retired — OD-V4-10).
 //
 // A12 RE-EXPRESSED (OD-REDESIGN-84.1 / Luna P0-1 — RATIFY-BEFORE-MERGE): the attention-vs-ambient
 // boundary runs THROUGH Signals by attention level, not around the record type. Attention-worthy
@@ -36,7 +36,6 @@ import {
   mentionStreamItems, myWorkStreamItems, openTaskCount, signalStreamItems, isAttentionSignal,
   type StreamBand, type StreamBandState,
 } from '@/lib/home-stream'
-import { resolveRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
 import { HomeStream } from '@/components/home/home-stream'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -289,67 +288,23 @@ export function HomePage() {
 
   const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
 
-  // ── The "Needs attention · N" head summary (OD-REDESIGN-18) ────────────────────────────────
-  // PRODUCT.md principle 4 — a figure is traceable or visibly absent:
-  //  (1) N counts the REAL attention-worthy Signal total, not `signalsBand.items` — that array is
-  //      sliced to SIGNAL_BAND_CAP for display, so a viewer with 9 urgent Signals was being told
-  //      "6". A count derived from a display cap is the same defect class as Café Log's band
-  //      deriving "made so far" from unsaved form state (DD-7).
-  //  (2) It renders only once EVERY contributing read is ready. A partial sum is a confident wrong
-  //      number, which is worse than no number, so mid-load the summary is absent rather than low.
-  const attentionSignalCount = useMemo(
-    () => allSignals.filter(isAttentionSignal).length, [allSignals])
-  const attentionCountTraceable =
-    taskState === 'ready' && toBandState(signalController.state.status) === 'ready' &&
-    failedChecksState === 'ready' && notificationsState === 'ready'
-  const attentionCountN = attentionSignalCount + overdue.length + dueToday.length + blocked.length +
-    failedChecksBand.items.length + mentionsBand.items.length
-
-  // ── Order preference (OD-18) — per-user, default attention-first. The control that SETS this
-  // now lives in Personal Profile (OD-18 completion, 2026-07-27); Home only reads it (on mount/
-  // personId change, which covers both navigation back from Profile and a full reload) and owes
-  // the required "Needs attention · N" summary + jump target below when personal-first leads. ──
-  const [order, setOrder] = useState<HomeRegionOrder>('attention-first')
-  useEffect(() => {
-    if (personId) setOrder(resolveRegionOrder(personId))
-  }, [personId])
-
   // ONE muted meta line beside the greeting (the shared workspace-head `.ch-meta-line` grammar):
   // the viewer's role identity — which is what makes a cross-BU brief legible as the stacked union
-  // of the roles they hold — plus, when the personal canvas leads, the required "Needs attention · N"
-  // summary + jump target (OD-REDESIGN-18). This replaces the separate full-width subtitle line,
-  // whose only content was that same role string; the decorative "Your week at a glance" fallback
-  // for a role-less viewer is dropped rather than restyled (it stated nothing).
+  // of the roles they hold. This replaces the separate full-width subtitle line, whose only content
+  // was that same role string; the decorative "Your week at a glance" fallback for a role-less
+  // viewer is dropped rather than restyled (it stated nothing).
   const roleLabel = viewer && viewer.roles.length > 0
     ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
     : null
-  const showAttentionSummary = order === 'personal-first' && personId != null && attentionCountTraceable
 
-  // g-home audit P3: the "Needs attention · N" figure is live — N can change after the initial
-  // settle (e.g. sharing a Signal from Home retriggers the shared Signals read via the
-  // signalPostCount effect above, which can move attentionSignalCount and so N; a band's own
-  // "Retry" can do the same for the other four contributors). A sighted viewer sees the digit
-  // move; a screen-reader viewer got nothing (0 live regions measured on Home). This mirrors the
-  // sr-only aria-live="polite" role="status" pattern already used on Task detail / Objectives.
-  // Effect-driven (not a raw render bind) so it announces once per SETTLED value — never the
-  // mid-load partial states attentionCountTraceable already suppresses visually.
-  const [attentionAnnouncement, setAttentionAnnouncement] = useState('')
-  useEffect(() => {
-    if (showAttentionSummary) setAttentionAnnouncement(t('home.attention.summary', { n: attentionCountN }))
-  }, [showAttentionSummary, attentionCountN, t])
-
-  // H10 fix (design audit, 2026-07-28): the "?" HelpTip always rides beside the role/attention
-  // meta line (never conditional on it) — it explains the attention bands + ordering regardless
-  // of whether a role label or the personal-first summary happens to be present this render.
+  // H10 fix (design audit, 2026-07-28): the "?" HelpTip always rides beside the role meta line
+  // (never conditional on it) — it explains the attention bands regardless of whether a role
+  // label happens to be present this render.
   const headMeta = (
     <>
-      {(roleLabel || showAttentionSummary) && (
+      {roleLabel && (
         <span className="ch-meta-line home-head-meta">
           {roleLabel}
-          {roleLabel && showAttentionSummary && <span aria-hidden="true"> · </span>}
-          {showAttentionSummary && (
-            <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n: attentionCountN })}</a>
-          )}
         </span>
       )}
       <HelpTip label={t('home.help')} />
@@ -364,9 +319,7 @@ export function HomePage() {
       jobSentence={t('job.home')}
       meta={headMeta}
     >
-      <div className="home-visually-hidden" aria-live="polite" role="status">{attentionAnnouncement}</div>
-
-      {/* THE STREAM — one consequence-ranked flow; the two groups reorder per `order`. */}
+      {/* THE STREAM — one consequence-ranked flow: attention bands, then my work today. */}
       <HomeStream
         taskState={taskState}
         onRetryTasks={loadTasks}
@@ -378,7 +331,6 @@ export function HomePage() {
         signals={signalsBand}
         failedChecks={failedChecksBand}
         mentions={mentionsBand}
-        order={order}
         attentionAnchorId="attention-brief"
       />
 

@@ -2,15 +2,15 @@
 // consequence-ranked stream, be braver than E7"). Home is a single prioritised flow ranked across
 // record types (overdue → due-today → blocked → failed-checks → mentions → my work today) rendered
 // as one column of uniform record rows with reason chips + quiet band dividers, plus an ambient
-// Signals tail. The order preference reorders the two stream GROUPS (attention / my-work).
+// Signals tail. Attention always leads the two stream GROUPS (attention / my-work) — the OD-18
+// order preference that used to reorder them was retired (OD-V4-10).
 //
 // These are the SAME goal-oracles the two-region Home had, re-expressed against the stream anatomy
-// (attention items visible with decision context, the order toggle reorders + persists, counts are
-// true, no finance tiles, no legacy dead-link cards) — never bent to the app's current state.
+// (attention items visible with decision context, counts are true, no finance tiles, no legacy
+// dead-link cards) — never bent to the app's current state.
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -76,7 +76,6 @@ import type { SignalRow } from '@/lib/db/signals.types'
 const mockListReadableSignals = vi.mocked(listReadableSignals)
 
 import { HomePage } from './home-page'
-import { setRegionOrder, resolveRegionOrder } from '@/lib/home-region-order'
 
 const financeViewer: AuthState = {
   status: 'authenticated',
@@ -299,132 +298,14 @@ describe('My work today band — count is true, drills to the My-work saved view
   })
 })
 
-describe('AC-512: default order = attention-first', () => {
-  it('renders the attention group before the my-work group when nothing is stored', async () => {
+describe('OD-V4-10: attention always leads the my-work group (the order toggle is retired)', () => {
+  it('renders the attention group before the my-work group', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     await renderHome(financeViewer)
     await screen.findByRole('region', STREAM)
     const attn = screen.getByTestId('attention-group')
     const mine = screen.getByTestId('my-work-group')
     expect(Boolean(attn.compareDocumentPosition(mine) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-  })
-})
-
-describe('AC-513: personal-first reorders the groups + the header summary survives', () => {
-  it('renders the my-work group first, plus a "Needs attention · N →" header summary that jumps to the attention group', async () => {
-    const personId = financeViewer.viewer.person.id
-    setRegionOrder(personId, 'personal-first')
-    mockListTasks.mockResolvedValue([overdueTaskRow(personId)])
-
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-    const attn = screen.getByTestId('attention-group')
-    const mine = screen.getByTestId('my-work-group')
-    expect(Boolean(mine.compareDocumentPosition(attn) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-
-    const summaryLink = screen.getByRole('link', { name: /needs attention · \d+/i })
-    expect(summaryLink.getAttribute('href')).toBe('#attention-brief')
-    expect(summaryLink).toHaveClass('home-attention-jump')
-    expect(summaryLink.textContent).toMatch(/→\s*$/)
-    // The anchor target exists on the attention group.
-    expect(attn.id).toBe('attention-brief')
-  })
-})
-
-describe('AC-514: the order preference reorders + persists', () => {
-  it('reorders the groups and persists personal-first when "My items first" is chosen', async () => {
-    const personId = financeViewer.viewer.person.id
-    mockListTasks.mockResolvedValue([overdueTaskRow(personId)])
-    const user = userEvent.setup()
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-
-    await act(async () => { await user.click(screen.getByRole('radio', { name: /my items first/i })) })
-
-    const attn = screen.getByTestId('attention-group')
-    const mine = screen.getByTestId('my-work-group')
-    expect(Boolean(mine.compareDocumentPosition(attn) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-    expect(resolveRegionOrder(personId)).toBe('personal-first')
-  })
-})
-
-describe('RI-1: the order control is a radiogroup, not a tablist', () => {
-  it('exposes role=radiogroup/radio and never role=tab', async () => {
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-    expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /attention first/i })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /my items first/i })).toBeInTheDocument()
-    expect(screen.queryByRole('tab')).toBeNull()
-  })
-})
-
-function stubMatchMedia(overrides: Record<string, boolean>) {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => {
-      let matches = false
-      for (const [needle, value] of Object.entries(overrides)) {
-        if (query.includes(needle)) { matches = value; break }
-      }
-      return { matches, media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }
-    },
-  })
-}
-
-describe('RI-2: the order toggle folds behind a disclosure at ≤390px', () => {
-  afterEach(() => stubMatchMedia({}))
-
-  it('collapses the radiogroup behind a compact "View options" trigger at ≤390px', async () => {
-    stubMatchMedia({ '390': true, '768': false })
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-    expect(screen.queryByRole('radiogroup')).toBeNull()
-    expect(screen.getByRole('button', { name: /view options/i })).toHaveAttribute('aria-expanded', 'false')
-  })
-
-  it('expanding the trigger reveals the radiogroup', async () => {
-    stubMatchMedia({ '390': true, '768': false })
-    const user = userEvent.setup()
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-    await act(async () => { await user.click(screen.getByRole('button', { name: /view options/i })) })
-    expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
-  })
-
-  it('renders the radiogroup inline above ≤390px (desktop unchanged)', async () => {
-    stubMatchMedia({ '390': false, '768': true })
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-    expect(screen.getByRole('radiogroup', { name: /home order/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /view options/i })).toBeNull()
-  })
-})
-
-describe('AC-515: group order is width-independent (DOM order, no CSS reflow)', () => {
-  it('keeps the my-work group before the attention group at 390px and desktop, via DOM order not CSS `order`', async () => {
-    const personId = financeViewer.viewer.person.id
-    setRegionOrder(personId, 'personal-first')
-    mockUseAuth.mockReturnValue(financeViewer)
-
-    for (const width of [390, 1280]) {
-      let utils!: ReturnType<typeof render>
-      await act(async () => {
-        utils = render(createElement(MemoryRouter, null, createElement(I18nProvider, null,
-          createElement('div', { style: { width } }, createElement(HomePage)))))
-        await Promise.resolve(); await Promise.resolve()
-      })
-      await waitFor(() => expect(within(utils.container).getByRole('region', STREAM)).toBeInTheDocument())
-
-      const stream = utils.container.querySelector('.home-stream') as HTMLElement
-      expect(stream.getAttribute('data-region-order')).toBe('personal-first')
-      const attn = within(utils.container).getByTestId('attention-group')
-      const mine = within(utils.container).getByTestId('my-work-group')
-      expect(Boolean(mine.compareDocumentPosition(attn) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-      expect(attn.style.order).toBe('')
-      expect(mine.style.order).toBe('')
-      utils.unmount()
-    }
   })
 })
 
@@ -448,49 +329,5 @@ describe('Home retry/projection convergence: one retriable error for the shared 
     expect(mockListTasks.mock.calls.length).toBe(callsBefore + 1)
     await waitFor(() => expect(within(attn).getByText('Restock oat milk')).toBeInTheDocument())
     expect(within(attn).queryByText("Couldn't load this list. Refresh to try again.")).toBeNull()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DD-10 regression guard — a headline count computed from a truncated DISPLAY array.
-//
-// `attentionCountN` summed `signalsBand.items`, which is `.slice(0, SIGNAL_BAND_CAP)` for
-// display, so a viewer with 9 attention-worthy Signals was told "Needs attention · 6". The
-// number a viewer plans their day around silently inherited a rendering cap.
-// PRODUCT.md principle 4: a figure is traceable or visibly absent — never quietly capped.
-//
-// The fixture MUST exceed the display cap; a fixture of ≤6 cannot fail and is not a guard.
-// ─────────────────────────────────────────────────────────────────────────────
-describe('DD-10: the "Needs attention · N" head summary counts the true total, never the display cap', () => {
-  // Nine Urgent Signals, oldest → newest. The band ranks newest-first and shows six, so
-  // signals 1–3 are off-screen: exactly the gap the old count fell into.
-  function attentionSig(n: number): SignalRow {
-    const at = `2026-07-16T0${n}:00:00Z`
-    return {
-      id: `sig-${n}`, author_id: 'a', owning_team_id: 'tm', occurred_at: at,
-      body: `Attention signal ${n}`, attention: 'Urgent', category: null, source: 'human',
-      retracted_at: null, retract_reason: null, edited_at: null, created_at: at,
-    }
-  }
-
-  it('DD-10: a viewer with 9 attention Signals — more than the 6-row display cap — is told 9, not 6', async () => {
-    const personId = financeViewer.viewer.person.id
-    // The head summary is owed when the personal canvas leads (OD-REDESIGN-18).
-    setRegionOrder(personId, 'personal-first')
-    mockListReadableSignals.mockResolvedValue([1, 2, 3, 4, 5, 6, 7, 8, 9].map(attentionSig))
-
-    await renderHome(financeViewer)
-    await screen.findByRole('region', STREAM)
-
-    // The stream really is truncated — the three oldest attention Signals are not on screen…
-    const attn = await screen.findByTestId('attention-group')
-    expect(await within(attn).findByText('Attention signal 9')).toBeInTheDocument()
-    for (const n of [1, 2, 3]) {
-      expect(within(attn).queryByText(`Attention signal ${n}`)).toBeNull()
-    }
-
-    // …and the headline still tells the viewer how many things actually need them.
-    const summary = await screen.findByRole('link', { name: /needs attention · \d+/i })
-    expect(summary).toHaveTextContent('Needs attention · 9')
   })
 })
