@@ -79,7 +79,10 @@ export function SignalFeedSection({
       <div className="signal-feed-head">
         {/* F15 (OD-REDESIGN-91 #27): the Home quiet tail is titled "Recent" — the owner's pick over
             "FYI"/"Signals" here, avoiding the attention-level collision with the ranked stream above. */}
-        <h3 id={titleId} className="signal-feed-label">{t('signals.feed.recentTitle')}</h3>
+        {/* h2, matching its peer sections: this renders only on Home, where PageFamilyFrame owns
+            the sole h1 and there is no intermediate level — an h3 skipped one (detector:
+            skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
+        <h2 id={titleId} className="signal-feed-label">{t('signals.feed.recentTitle')}</h2>
         <Link to="/work/signals" className="signal-feed-link">
           {t('nav.work.signals')} →
         </Link>

@@ -85,6 +85,16 @@
   color: var(--muted-foreground);
 }
 
+/* "N more" — the remainder a distilled region does NOT render. Deliberately quieter than
+   `.stream-band-link`: it is a fact about the region, not a second destination competing with
+   the band's own drill link. Same 4px row gutter so it hangs off the list, not the tile edge. */
+.stream-band-more {
+  margin: 0;
+  padding: 6px 4px 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
 /* ── Uniform record row ─────────────────────────────────────────────────────── */
 .stream-row + .stream-row {
   border-top: 1px solid var(--row-divider);

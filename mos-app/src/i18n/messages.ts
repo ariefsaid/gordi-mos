@@ -113,7 +113,10 @@ export const messages = {
     'home.subtitle': 'Your week at a glance',
     // H10 fix (design audit, 2026-07-28): the "?" HelpTip beside the page title — what the
     // attention bands are and how the stream is ordered.
-    'home.help': 'One ranked list, most urgent first: overdue, due today, blocked, failed checks, then mentions — followed by your other open work. Change which comes first in View options.',
+    // The old copy described Home as "one ranked list" and sent people to a "View options"
+    // control that OD-V4-10 retired — an instruction pointing at nothing. Home is now one of
+    // three arrangements over the same ranked regions, chosen in Personal profile.
+    'home.help': 'Ranked by consequence: overdue, due today, blocked, failed checks, then mentions — followed by your other open work. Change how Home is arranged in Personal profile.',
     'home.greeting.morning': 'Good morning, ${name}',
     'home.greeting.afternoon': 'Good afternoon, ${name}',
     'home.greeting.evening': 'Good evening, ${name}',
@@ -357,7 +360,9 @@ export const messages = {
     'profile.roles': 'Roles',
     'profile.managedByAdmin': 'Managed by Admin — ask an admin to correct your name or role.',
     'profile.homeLayout': 'Home layout',
-    'profile.homeLayout.help': 'How your Home page is arranged. Everyone sees the same information — this only changes the shape.',
+    // Third sentence restored from the signed mockup: every thumbnail draws a right-hand strip
+    // and nothing else on the page said what it is.
+    'profile.homeLayout.help': 'How your Home page is arranged. Everyone sees the same information — this only changes the shape. The Signals column is always on the right.',
     'profile.homeLayout.focused': 'Focused',
     'profile.homeLayout.focused.desc': 'One section at a time, chosen from tabs. Counts stay visible so nothing hides.',
     'profile.homeLayout.overview': 'Overview',
@@ -1301,6 +1306,8 @@ export const messages = {
     // rail's own Tasks badge. The label now states its scope.
     'home.stream.allTasks': 'My open tasks · ${count} →',
     'home.stream.myWorkEmpty': 'Nothing else open — anything needing you is ranked above.',
+    // Overview renders a region's top rows only; this states the rest rather than dropping it.
+    'home.region.more': '${count} more',
     'home.order.toggle': 'Home order',
     'home.order.attentionFirst': 'Attention first',
     // Minor (c), RATIFY-BEFORE-MERGE — "My canvas first" renamed to plain language ("canvas"
@@ -1460,7 +1467,7 @@ export const messages = {
     'nav.kitchen.pushes': 'Antrean',
     'home.title': 'Beranda',
     'home.subtitle': 'Minggu Anda sekilas',
-    'home.help': 'Satu daftar berurutan, paling mendesak lebih dulu: terlambat, jatuh tempo hari ini, terhambat, pemeriksaan gagal, lalu sebutan — diikuti pekerjaan terbuka Anda yang lain. Ubah urutan mana yang tampil dulu di Opsi tampilan.',
+    'home.help': 'Diurutkan menurut konsekuensi: terlambat, jatuh tempo hari ini, terhambat, pemeriksaan gagal, lalu sebutan — diikuti pekerjaan terbuka Anda yang lain. Ubah tata letak Beranda di Profil Pribadi.',
     'home.greeting.morning': 'Selamat pagi, ${name}',
     'home.greeting.afternoon': 'Selamat siang, ${name}',
     'home.greeting.evening': 'Selamat sore, ${name}',
@@ -1683,7 +1690,7 @@ export const messages = {
     'profile.roles': 'Peran',
     'profile.managedByAdmin': 'Dikelola Admin — hubungi admin untuk memperbaiki nama atau peran Anda.',
     'profile.homeLayout': 'Tata letak Beranda',
-    'profile.homeLayout.help': 'Bagaimana halaman Beranda Anda disusun. Semua orang melihat informasi yang sama — ini hanya mengubah bentuknya.',
+    'profile.homeLayout.help': 'Bagaimana halaman Beranda Anda disusun. Semua orang melihat informasi yang sama — ini hanya mengubah bentuknya. Kolom Sinyal selalu ada di sebelah kanan.',
     'profile.homeLayout.focused': 'Fokus',
     'profile.homeLayout.focused.desc': 'Satu bagian dalam satu waktu, dipilih dari tab. Jumlah tetap terlihat sehingga tidak ada yang tersembunyi.',
     'profile.homeLayout.overview': 'Ikhtisar',
@@ -2519,6 +2526,7 @@ export const messages = {
     'home.stream.reason.mention': 'Menyebut Anda',
     'home.stream.allTasks': 'Tugas terbuka saya · ${count} →',
     'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
+    'home.region.more': '${count} lagi',
     'home.order.toggle': 'Urutan Beranda',
     'home.order.attentionFirst': 'Perhatian dulu',
     'home.order.personalFirst': 'Item saya dulu',
