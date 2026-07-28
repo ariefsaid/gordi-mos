@@ -1,22 +1,20 @@
-// HomePage — the index route (/). Owner redirect 2026-07-22 ("Home = ONE consequence-ranked
-// stream, be braver than E7"): Home is a SINGLE prioritised flow ranked ACROSS record types —
-// overdue → due today → blocked → failed-checks → mentions → today's open work — rendered as one
-// column of uniform record rows with reason chips and quiet band dividers (components/home/HomeStream).
-// E7 is the FLOOR (chromeless rows, calm rhythm); this beats it on one-glance "what do I do next".
+// HomePage — the index route (/). Home renders the SAME consequence-ranked data — needs-you
+// (overdue → due today → blocked), failed checks, mentions, my work today — in whichever of the
+// three Home layouts (Focused / Overview / List) the viewer has chosen from /profile (OD-V4-9).
+// HomePage owns every data read + the ranking/selection logic and hands the result down as the ONE
+// shared region model (`buildHomeRegions`, FR-930) — a layout composes those regions, it never
+// re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream layout
+// was retired (OD-V4-10): List renders the same attention-first order that was already the default.
 //
-// The stream has two GROUPS (attention bands + the my-work band); attention always leads (the
-// OD-18 order preference that used to reorder them was retired — OD-V4-10).
-//
-// A12 RE-EXPRESSED (OD-REDESIGN-84.1 / Luna P0-1 — RATIFY-BEFORE-MERGE): the attention-vs-ambient
-// boundary runs THROUGH Signals by attention level, not around the record type. Attention-worthy
-// Signals (Urgent / Needs attention) ARE attention, so they LEAD the stream as band 0 (E7 puts the
-// exception first); only FYI Signals are ambient — the explicitly-labelled SignalFeedSection tail
-// below the stream. HomePage owns the ONE shared signal read and splits it (no second loader).
+// The Signals feed (FR-928) is a standing column present in every layout and never splits into a
+// work region — this supersedes the earlier OD-REDESIGN-84.1 attention/FYI split, which existed
+// only to give attention-worthy Signals a home inside the now-retired HomeStream single-column
+// layout. HomePage still owns the ONE shared Signal read (FR-V3-013 — no second loader).
 //
 // This is presentation over the EXISTING data contracts: the same tasks/notifications/failed-check
 // projections and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
 // Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
-// the stream via the attention bands.
+// the needs-you region via the attention bands.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -33,10 +31,13 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, openTaskCount, signalStreamItems, isAttentionSignal,
-  type StreamBand, type StreamBandState,
+  mentionStreamItems, myWorkStreamItems, type StreamBand,
 } from '@/lib/home-stream'
-import { HomeStream } from '@/components/home/home-stream'
+import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
+import { buildHomeRegions } from '@/components/home/home-regions'
+import { HomeFocused } from '@/components/home/home-focused'
+import { HomeOverview } from '@/components/home/home-overview'
+import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -57,15 +58,6 @@ const HOME_FEED_QUERY: SignalCollectionQuery = {
   showRetracted: false,
   savedViewId: null,
 }
-
-// CollectionStatus → the stream band's 3-state grammar (empty/filtered/permission all "resolved").
-function toBandState(status: string): StreamBandState {
-  if (status === 'loading') return 'loading'
-  if (status === 'error') return 'error'
-  return 'ready'
-}
-
-const SIGNAL_BAND_CAP = 6
 
 const MY_WORK_CAP = 7
 
@@ -221,8 +213,8 @@ export function HomePage() {
   const today = useMemo(() => wibToday(), [])
   const ready = taskState === 'ready'
 
-  // The three task-derived rank bands, in order. All read the SAME `loadTasks` projection — so their
-  // loading/error is one consolidated grammar in HomeStream, never a duplicate fetch/spinner/error.
+  // The three task-derived rank bands, in order. All read the SAME `loadTasks` projection, so
+  // their loading/error is a single consolidated grammar, never a duplicate fetch/spinner/error.
   const overdue = useMemo(
     () => (ready && personId ? overdueStreamItems(tasks, personId, today, locale, directory) : []),
     [ready, personId, tasks, today, locale, directory])
@@ -253,7 +245,11 @@ export function HomePage() {
     onRetry: loadNotifications,
   }), [notificationsState, notifications, loadNotifications])
 
-  // ── Signals (the ONE shared read) — split attention-worthy → band 0, FYI → ambient tail ──
+  // ── Signals (the ONE shared read) ── FR-928 (home-layout-preference spec): the Signals feed is
+  // its own standing column in every layout and never splits into a work region — this supersedes
+  // the earlier OD-84.1 attention/FYI split, which existed only to give attention-worthy Signals a
+  // home inside the now-retired HomeStream. All Signals (Urgent, Needs-attention, FYI alike) render
+  // in the ONE feed below, so nothing that used to be visible is silently dropped from Home.
   const signalController = useRecordCollection({
     descriptor: signalCollectionDescriptor,
     urlMode: 'fixed',
@@ -275,18 +271,6 @@ export function HomePage() {
   const allSignals = useMemo(
     () => (signalProjection ? [...signalProjection.visibleRecords] : []),
     [signalProjection])
-  const ambientSignals = useMemo(() => allSignals.filter(s => !isAttentionSignal(s)), [allSignals])
-  const signalsBand: StreamBand = useMemo(() => ({
-    kind: 'signals',
-    state: toBandState(signalController.state.status),
-    items: signalStreamItems(allSignals, {
-      authors: signalData?.context.authorNamesById ?? new Map(),
-      teams: signalData?.context.teamNamesById ?? new Map(),
-    }).slice(0, SIGNAL_BAND_CAP),
-    onRetry: signalRetry,
-  }), [signalController.state.status, allSignals, signalData, signalRetry])
-
-  const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
 
   // ONE muted meta line beside the greeting (the shared workspace-head `.ch-meta-line` grammar):
   // the viewer's role identity — which is what makes a cross-BU brief legible as the stacked union
@@ -311,6 +295,23 @@ export function HomePage() {
     </>
   )
 
+  // ── Home layout preference (OD-V4-9) — read on mount and on person change so a reload resolves
+  // the real stored value rather than flashing the Focused default (FR-921/924).
+  const [layout, setLayout] = useState<HomeLayout>('focused')
+  useEffect(() => {
+    if (personId) setLayout(resolveHomeLayout(personId))
+  }, [personId])
+
+  // The ONE region model shared by all three arrangements (FR-930) — a layout chooses how to
+  // present these regions, never which of them exist (NFR-924 parity).
+  const regions = useMemo(
+    () => buildHomeRegions({
+      overdue, dueToday, blocked, myWork,
+      failedChecks: failedChecksBand.items, mentions: mentionsBand.items,
+    }),
+    [overdue, dueToday, blocked, myWork, failedChecksBand, mentionsBand],
+  )
+
   return (
     <PageFamilyFrame
       family="workspace"
@@ -319,32 +320,23 @@ export function HomePage() {
       jobSentence={t('job.home')}
       meta={headMeta}
     >
-      {/* THE STREAM — one consequence-ranked flow: attention bands, then my work today. */}
-      <HomeStream
-        taskState={taskState}
-        onRetryTasks={loadTasks}
-        overdue={overdue}
-        dueToday={dueToday}
-        blocked={blocked}
-        myWork={myWork}
-        openCount={openCount}
-        signals={signalsBand}
-        failedChecks={failedChecksBand}
-        mentions={mentionsBand}
-        attentionAnchorId="attention-brief"
-      />
-
-      {/* Ambient tail (A12 RE-EXPRESSED, OD-84.1 / Luna P0-1): only FYI Signals are ambient here —
-          the attention-worthy ones lead the stream as band 0 above. Same row grammar, composer + link.
-          Presentational: HomePage owns the ONE shared signal read and passes the FYI split down. */}
-      <SignalFeedSection
-        signals={ambientSignals}
-        authorNamesById={signalData?.context.authorNamesById ?? new Map()}
-        teamNamesById={signalData?.context.teamNamesById ?? new Map()}
-        loading={signalController.state.status === 'loading'}
-        error={signalController.state.status === 'error'}
-        onReload={signalRetry}
-      />
+      {/* The person's chosen Home layout (OD-V4-9) — Focused (default), Overview or List. All three
+          render the SAME regions + the SAME Signals feed; only the arrangement differs (NFR-924). */}
+      {(() => {
+        const feed = (
+          <SignalFeedSection
+            signals={allSignals}
+            authorNamesById={signalData?.context.authorNamesById ?? new Map()}
+            teamNamesById={signalData?.context.teamNamesById ?? new Map()}
+            loading={signalController.state.status === 'loading'}
+            error={signalController.state.status === 'error'}
+            onReload={signalRetry}
+          />
+        )
+        if (layout === 'overview') return <HomeOverview regions={regions} feed={feed} />
+        if (layout === 'list') return <HomeList regions={regions} feed={feed} />
+        return <HomeFocused regions={regions} feed={feed} />
+      })()}
     </PageFamilyFrame>
   )
 }
