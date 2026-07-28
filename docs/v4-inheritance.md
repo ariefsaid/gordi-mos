@@ -170,6 +170,46 @@ regress another.
 | OD-V4-3 | IA carryover | **RESOLVED** — inherit v3's IA wholesale minus the above; owner reserves the right to revisit specific items later, without re-opening the whole IA |
 | OD-V4-7 | Home may use a tile layout — the one-column density rule is era-bound | **RESOLVED** 2026-07-28 (below) |
 | OD-V4-8 | Display type above 24px | **DEFERRED** 2026-07-28 (below) |
+| OD-V4-9 | Home layout is a per-person preference, not one imposed shape | **RESOLVED** 2026-07-28 (below) |
+
+## `OD-V4-9` — Home layout is a per-person preference (owner, 2026-07-28)
+
+**The problem.** Home has to serve four personas whose relationship to volume is opposite. A
+contributor mid-shift wants one short answer; an owner-director scanning six Business Units wants
+everything at once. One imposed layout makes Home wrong for somebody by construction, and the
+owner's brief — *"how best to structure this in a way that even there's lots to do, its still seems
+manageable"* — has no single answer that is true for both.
+
+**Decision.** Home's arrangement becomes a **per-user setting in Personal profile**. Three options,
+the **same information in all three** — only the shape changes. This is explicitly **not** scoped to
+the owner: every user picks their own, and the setting is theirs, not an admin assignment.
+
+| Option | Shape | Suits |
+|---|---|---|
+| **Focused** *(default)* | One section at a time, chosen from tabs, counts pinned to the tabs so nothing hides | Anyone with a lot on who wants to work through it. Default because it is the only option where volume **cannot** overwhelm |
+| **Overview** | Every area at once as tiles, sized by consequence | Whole-company scanning where a click is the cost, not the volume |
+| **List** | One continuous list grouped by kind | The most familiar and the most complete; nothing behind a click |
+
+**Binding details.**
+
+- **The Signals feed is in all three, always** (owner: *"C is always with feed"*). Signals are the
+  only feed-shaped record on Home — chronological messages from many named people — so they leave the
+  work stack in every option rather than being a property of one of them.
+- **User-facing names are Focused / Overview / List.** The A–J letters are working shorthand from the
+  mockup rounds and must never reach the product.
+- **The picker is a wireframe-thumbnail chooser**, the standing convention for a page-structure
+  choice: the diagram carries the shape so the label does not have to describe it. Mockup:
+  `docs/design-mockups/home-priority-2026-07-28/index.html` → *Profile picker*.
+- **Default for a new account is Focused.** A new user has no basis to choose, and the least
+  overwhelming option is the safest default.
+
+**Rejected: a fourth "Table in tiles" option.** Its whole value was density, and density is the
+property that broke twice under test — it overflowed at every width above 620px, and the same
+label-left interior failed again when tried inside the feed layout, because that rhythm needs full
+width. Three options is also the practical ceiling for a preference nobody will study.
+
+**Owed before build:** the stored preference needs a home on the person record and a sane fallback
+when the value is missing or unknown. Not specced here.
 
 ## `OD-V4-7` — Home's one-column rule is amended for tiles (owner, 2026-07-28)
 

@@ -237,6 +237,9 @@ ul { list-style: none; }
    instead of a scroll: nothing is hidden, but only one thing is present.
    ═════════════════════════════════════════════════════════════════════════ */
 #j .layout { display: grid; grid-template-columns: 1fr 300px; gap: var(--sp-8); align-items: start; }
+#c .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: var(--sp-8); align-items: start; }
+#c .layout > * { min-width: 0; }
+@container (max-width: 940px) { #c .layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); } }
 #j .tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-3); flex-wrap: wrap; }
 #j .rtab { font: inherit; font-weight: 500; font-size: var(--fs-xs); border: 0; background: none;
   color: var(--fg-2); padding: var(--sp-2) var(--sp-3); cursor: pointer; min-height: 44px;
@@ -256,6 +259,45 @@ ul { list-style: none; }
    that single omission is what lets long titles push a grid wider than its
    container.
    ═════════════════════════════════════════════════════════════════════════ */
+/* ═══ Personal profile — Home layout picker ══════════════════════════════
+   The convention for a page-structure choice is a wireframe thumbnail, not a
+   worded list: the diagram shows the shape, the label names it, and the
+   sentence says who it suits. Drawn in CSS — no image assets.
+   ═════════════════════════════════════════════════════════════════════════ */
+#profile .setting { max-width: 720px; }
+#profile .setting-name { font-family: var(--display); font-size: var(--fs-sm); font-weight: 600; margin-bottom: var(--sp-1); }
+#profile .setting-help { color: var(--fg-2); font-size: var(--fs-xs); margin-bottom: var(--sp-4); }
+#profile .opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); margin: 0; padding: 0; border: 0; }
+#profile .opt { display: block; cursor: pointer; }
+#profile .opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+#profile .card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-3);
+  background: var(--bg-1); display: block; height: 100%; }
+#profile .opt:hover .card { border-color: var(--line-strong); }
+#profile .opt input:checked + .card { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); background: var(--bg-2); }
+#profile .opt input:focus-visible + .card { outline: 2px solid var(--blue); outline-offset: 2px; }
+#profile .opt-name { display: flex; align-items: center; gap: var(--sp-2); font-weight: 600; margin-top: var(--sp-3); }
+#profile .opt-name .badge { font-size: var(--fs-xxs); font-weight: 500; color: var(--fg-2);
+  background: var(--bg-3); border-radius: var(--r-pill); padding: 2px var(--sp-2); }
+#profile .opt-desc { font-size: var(--fs-xxs); color: var(--fg-2); margin-top: var(--sp-1); }
+
+/* The wireframe itself */
+.thumb { aspect-ratio: 16 / 10; background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 7px; display: grid; grid-template-columns: 1fr 32%; gap: 5px; }
+#profile .opt input:checked + .card .thumb { background: var(--bg-1); }
+.thumb-main { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.thumb-side { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.tl { height: 4px; border-radius: var(--r-pill); background: var(--line-strong); }
+.tl.short { width: 60%; }
+.tl.tiny { width: 38%; background: var(--line); }
+.thumb-tabs { display: flex; gap: 3px; margin-bottom: 1px; }
+.thumb-tabs i { display: block; height: 5px; width: 16px; border-radius: var(--r-pill); background: var(--line); }
+.thumb-tabs i:first-child { background: var(--blue); width: 20px; }
+.thumb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.thumb-box { border: 1px solid var(--line-strong); border-radius: var(--r-sm); height: 26px; }
+.thumb-box.wide { grid-column: span 2; height: 22px; }
+.thumb-rowpair { display: grid; grid-template-columns: 26% 1fr; gap: 4px; align-items: center; }
+.thumb-post { display: grid; gap: 3px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+
 .frame { container-type: inline-size; }
 #cplus .bento, #f .bento, #i .bento { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 #i .layout, #j .layout { grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); }
@@ -308,11 +350,12 @@ ul { list-style: none; }
   <div class="bar">
     <div class="seg" role="group" aria-label="Direction">
       <button class="tab" data-view="cur" aria-pressed="true">Current</button>
-      <button class="tab" data-view="c" aria-pressed="false">C · Table</button>
+      <button class="tab" data-view="c" aria-pressed="false">C · List + feed</button>
       <button class="tab" data-view="cplus" aria-pressed="false">C+ · Table in tiles</button>
       <button class="tab" data-view="f" aria-pressed="false">F · Bento</button>
       <button class="tab" data-view="i" aria-pressed="false">I · Bento + feed</button>
       <button class="tab" data-view="j" aria-pressed="false">J · Tabs + feed</button>
+      <button class="tab" data-view="profile" aria-pressed="false">▣ Profile picker</button>
     </div>
     <span class="spacer"></span>
     <div class="seg" role="group" aria-label="Load">
@@ -428,6 +471,7 @@ ul { list-style: none; }
     <div class="pane view" id="f" hidden></div>
     <div class="pane view" id="i" hidden></div>
     <div class="pane view" id="j" hidden></div>
+    <div class="pane view" id="profile" hidden></div>
   </div>
 </div>
 
@@ -587,12 +631,15 @@ const renderCur = () => HEAD
   + band('My work today', by('mine'), { noWho: true });
 
 /* ── C · Table (complete, not distilled) ─────────────────────────────── */
-const renderC = () => header()
-  + band('Signals', by('signal'))
-  + band('Tasks', bySeverity(by('task')))
-  + band('Café logs', by('check'))
-  + band('Waiting on people', by('wait'))
-  + `<div class="group--mine">` + band('My work', by('mine'), { noWho: true }) + `</div>`;
+/* C always ships WITH the feed (owner, 2026-07-28): signals leave the stack in every
+   shipped option, so the list holds work only. */
+const renderC = () => {
+  const work = band('Tasks', bySeverity(by('task')))
+    + band('Café logs', by('check'))
+    + band('Waiting on people', by('wait'))
+    + `<div class="group--mine">` + band('My work', by('mine'), { noWho: true }) + `</div>`;
+  return header() + `<div class="layout">${work}${feed()}</div>`;
+};
 
 /* ── C+ · Table in tiles (distilled) ─────────────────────────────────── */
 function tileC(name, count, body, weight) {
@@ -702,7 +749,56 @@ function renderJ() {
   return header() + `<div class="layout">${work}${feed()}</div>`;
 }
 
-const RENDER = { cur: renderCur, c: renderC, cplus: renderCplus, f: renderF, i: renderI, j: renderJ };
+/* ── Personal profile · Home layout picker ───────────────────────────────
+   Three shipped options. User-facing names, never our A–J shorthand.
+   Wireframe thumbnails are the convention for a page-structure choice: the
+   diagram carries the shape, so the label does not have to describe it. */
+const LAYOUT_OPTIONS = [
+  { id: 'focused', name: 'Focused', badge: 'Default', maps: 'J',
+    desc: 'One section at a time, chosen from tabs. Counts stay visible so nothing hides. Best when there is a lot on and you want to work through it.',
+    thumb: `<span class="thumb-main">
+      <span class="thumb-tabs"><i></i><i></i><i></i><i></i></span>
+      <span class="tl"></span><span class="tl"></span><span class="tl short"></span><span class="tl"></span>
+    </span>` },
+  { id: 'overview', name: 'Overview', badge: '', maps: 'I',
+    desc: 'Every area at once as tiles, sized by how much they matter. Best when you scan the whole company and want no clicks.',
+    thumb: `<span class="thumb-main"><span class="thumb-grid">
+      <span class="thumb-box wide"></span><span class="thumb-box"></span><span class="thumb-box"></span>
+    </span></span>` },
+  { id: 'list', name: 'List', badge: '', maps: 'C',
+    desc: 'One continuous list, grouped by kind. The most familiar and the most complete — nothing is behind a click.',
+    thumb: `<span class="thumb-main">
+      <span class="thumb-rowpair"><span class="tl tiny"></span><span class="tl"></span></span>
+      <span class="thumb-rowpair"><span class="tl tiny"></span><span class="tl"></span></span>
+      <span class="thumb-rowpair"><span class="tl tiny"></span><span class="tl short"></span></span>
+      <span class="thumb-rowpair"><span class="tl tiny"></span><span class="tl"></span></span>
+    </span>` },
+];
+let layoutChoice = 'focused';
+const SIDE = `<span class="thumb-side">
+  <span class="thumb-post"><span class="tl tiny"></span><span class="tl"></span><span class="tl short"></span></span>
+  <span class="thumb-post"><span class="tl tiny"></span><span class="tl"></span></span>
+  <span class="thumb-post" style="border-bottom:0"><span class="tl tiny"></span><span class="tl short"></span></span>
+</span>`;
+function renderProfile() {
+  return `<h1 class="hdr-title">Personal profile</h1>
+    <div class="setting" style="margin-top:var(--sp-5)">
+      <p class="setting-name">Home layout</p>
+      <p class="setting-help">How your Home page is arranged. Everyone sees the same information —
+        this only changes the shape. The Signals column is always on the right.</p>
+      <fieldset class="opts">
+        ${LAYOUT_OPTIONS.map(o => `<label class="opt">
+          <input type="radio" name="home-layout" value="${o.id}" ${o.id === layoutChoice ? 'checked' : ''}>
+          <span class="card">
+            <span class="thumb">${o.thumb}${SIDE}</span>
+            <span class="opt-name">${esc(o.name)}${o.badge ? `<span class="badge">${esc(o.badge)}</span>` : ''}</span>
+            <span class="opt-desc">${esc(o.desc)}</span>
+          </span></label>`).join('')}
+      </fieldset>
+    </div>`;
+}
+
+const RENDER = { cur: renderCur, c: renderC, cplus: renderCplus, f: renderF, i: renderI, j: renderJ, profile: renderProfile };
 const paint = () => { document.getElementById(view).innerHTML = RENDER[view](); };
 function show(v) {
   view = v;
@@ -724,6 +820,9 @@ document.querySelectorAll('[data-width]').forEach(b => b.addEventListener('click
 document.getElementById('j').addEventListener('click', e => {
   const t = e.target.closest('[data-rtab]');
   if (t) { jTab = t.dataset.rtab; paint(); }
+});
+document.getElementById('profile').addEventListener('change', e => {
+  if (e.target.name === 'home-layout') { layoutChoice = e.target.value; }
 });
 document.getElementById('nudge-btn').addEventListener('click', () => { nudge++; paint(); });
 document.getElementById('day-btn').addEventListener('click', e => {
