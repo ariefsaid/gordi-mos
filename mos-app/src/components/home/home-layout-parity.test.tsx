@@ -63,3 +63,60 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     expect(list).toEqual(overview)
   })
 })
+
+describe('DIV-G5 (home-layout-preference.spec.md §7): a failed or still-loading region never renders as an indistinguishable empty region', () => {
+  const loadingRegions = buildHomeRegions({
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    taskState: 'loading',
+  })
+  const erroredRegions = buildHomeRegions({
+    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    taskState: 'error', onRetryTasks: () => {},
+  })
+
+  it('a loading needs-you region shows a busy status, in every layout (never an empty list)', () => {
+    for (const node of [
+      <HomeFocused key="f" regions={loadingRegions} feed={FEED} />,
+      <HomeOverview key="o" regions={loadingRegions} feed={FEED} />,
+      <HomeList key="l" regions={loadingRegions} feed={FEED} />,
+    ]) {
+      const { unmount } = renderLayout(node)
+      // At least one region is busy-loading (needs-you AND my-work share the tasks projection
+      // state, so Overview/List — which render every region at once — legitimately show two).
+      expect(screen.getAllByRole('status').length).toBeGreaterThan(0)
+      unmount()
+    }
+  })
+
+  it('an errored region shows an alert with a working Retry, in every layout', () => {
+    for (const node of [
+      <HomeFocused key="f" regions={erroredRegions} feed={FEED} />,
+      <HomeOverview key="o" regions={erroredRegions} feed={FEED} />,
+      <HomeList key="l" regions={erroredRegions} feed={FEED} />,
+    ]) {
+      const { unmount } = renderLayout(node)
+      expect(screen.getAllByRole('alert').length).toBeGreaterThan(0)
+      expect(screen.getAllByRole('button', { name: /retry/i }).length).toBeGreaterThan(0)
+      unmount()
+    }
+  })
+})
+
+describe('Restored affordance: the my-work drill link (the full open-task count, never just the capped region items)', () => {
+  const regionsWithDrillLink = buildHomeRegions({
+    overdue: [], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [], mentions: [],
+    myWorkFullCount: 9,
+  })
+
+  it('renders "My open tasks · 9" to /work/tasks?view=my-work, in Overview and List', () => {
+    for (const node of [
+      <HomeOverview key="o" regions={regionsWithDrillLink} feed={FEED} />,
+      <HomeList key="l" regions={regionsWithDrillLink} feed={FEED} />,
+    ]) {
+      const { unmount } = renderLayout(node)
+      const link = screen.getByRole('link', { name: /my open tasks · 9/i })
+      expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
+      unmount()
+    }
+  })
+})

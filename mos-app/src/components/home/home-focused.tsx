@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
-import { StreamRow } from './stream-row'
+import { RegionDrillLink, RegionRows } from './region-rows'
 import type { HomeLayoutProps } from './home-list'
 import './home-layouts.css'
 
@@ -29,9 +29,8 @@ export function HomeFocused({ regions, feed }: HomeLayoutProps) {
             </button>
           ))}
         </div>
-        <ul className="stream-band-list">
-          {active?.items.map((i) => <StreamRow key={i.id} item={i} />)}
-        </ul>
+        {active && <RegionRows region={active} />}
+        {active && <RegionDrillLink region={active} />}
       </div>
       {feed}
     </div>

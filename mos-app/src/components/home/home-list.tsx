@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
-import { StreamRow } from './stream-row'
+import { RegionDrillLink, RegionRows } from './region-rows'
 import type { HomeRegion } from './home-regions'
 import './home-layouts.css'
 
@@ -18,10 +18,11 @@ export function HomeList({ regions, feed }: HomeLayoutProps) {
       <div>
         {regions.map((region) => (
           <section key={region.id} className="home-band" aria-label={t(region.labelKey)}>
-            <h3 className="stream-band-label">{t(region.labelKey)} · {region.count}</h3>
-            <ul className="stream-band-list">
-              {region.items.map((i) => <StreamRow key={i.id} item={i} />)}
-            </ul>
+            <div className="stream-band-head">
+              <h3 className="stream-band-label">{t(region.labelKey)} · {region.count}</h3>
+              <RegionDrillLink region={region} />
+            </div>
+            <RegionRows region={region} />
           </section>
         ))}
       </div>
