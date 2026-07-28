@@ -114,9 +114,24 @@ Three names for one concept family ship simultaneously: `Events` as a workspace 
 Work child, and `Signal` as the record type. The owner's 2026-07-27 word was *"add signal"* — he
 named the object, not the root. `CONTEXT.md` is the binding glossary and one noun should win.
 
-**RESOLVED — owner, 2026-07-27 (`OD-V4-2`): Signals everywhere.** The rail root becomes **Signals**;
-the Work child is the archive; the record type stays **Signal**. The noun "Events" is retired from
-the UI.
+**~~RESOLVED — owner, 2026-07-27 (`OD-V4-2`): Signals everywhere.~~ REVERTED 2026-07-28 — the
+ratification rested on a false premise supplied by the Director (see X-11).**
+
+The Director reported an audit line — *"Signals (Work child) directly above Events (root) — two names,
+one concept"* — as fact and put it to the owner as *"one noun wins"*. That is **adjacency, not
+synonymy**: `events-page.tsx` is a 38-line stub spec'd as `docs/specs/events-stub.spec.md` whose copy
+reads *"Outlet events — cuppings, workshops, bookings"*. An outlet calendar is a different domain from
+a **Signal** (an intentional post carrying attention level, mentions and location). The rename briefly
+put "Signals" over calendar copy, duplicating Work's child.
+
+**Reverted (owner-directed, i18n strings only):** root back to **Events / Acara**, Work child back to
+plain **Signals / Sinyal**, `job.events` back to the outlet sentence in both catalogues and in
+`job-sentences.ts`. The `/events` route, the `Signal` record type and all internal ids were never
+touched, so nothing structural unwound. **The real INC-2 defect — two adjacent rail entries reading
+identically — does not exist in this state**; it only appeared *because of* the rename.
+
+*Lesson recorded in `prove-the-check-can-fail`: a finding from an audit is a hypothesis. One `Read`
+of the page it describes would have caught this before it reached the owner as a decision premise.*
 
 ### INC-3 — `redesign-decision-index.md` has drifted from the code `[SEVERITY: low — doc only]`
 

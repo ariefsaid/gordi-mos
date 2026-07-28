@@ -28,7 +28,7 @@ export const jobSentences = {
   // label "Signals", registry id/route unchanged — see destinations.tsx) — its one job is
   // reading what is happening now, distinct from `signals` above (the Work archive's job:
   // searching and revisiting past Signals).
-  events: "See what's happening across Gordi right now.",
+  events: "See what's happening around our outlets and when.",
   money: 'Trust the financial figures and act on money exceptions.',
   // DO-24(b) (census F-INBOX-7): "what asked for me" was ungrammatical — plain second person.
   inbox: 'Triage what was directed to you and return to its source.',

@@ -875,15 +875,15 @@ export const messages = {
     // dest.events/nav.events now render "Signals" — the live company-wide feed (root). The Work
     // child (nav.work.signals / nav.signals) is the archive of the same Signal records, disambiguated
     // as "Signals Archive" so the two rail entries are never visually identical.
-    'dest.events': 'Signals',
+    'dest.events': 'Events',
     'dest.money': 'Money',
     'dest.cafe': 'Café',
     'dest.ecommerce': 'Ecommerce',
     'dest.roastery': 'Roastery',
     'dest.admin': 'Admin Settings',
     'dest.profile': 'Personal Profile',
-    'nav.signals': 'Signals Archive',
-    'nav.events': 'Signals',
+    'nav.signals': 'Signals',
+    'nav.events': 'Events',
     'nav.money': 'Money',
     'nav.cafe': 'Café',
     'nav.cafe.opening': 'Opening',
@@ -897,7 +897,7 @@ export const messages = {
     'nav.admin': 'Admin Settings',
     'nav.admin.people': 'People',
     'nav.profile': 'Personal Profile',
-    'nav.work.signals': 'Signals Archive',
+    'nav.work.signals': 'Signals',
     'nav.work.projects': 'Projects & Processes',
     'nav.work.objectives': 'Objectives',
     'nav.work.tasks': 'Tasks',
@@ -1008,7 +1008,7 @@ export const messages = {
     'catalog.relations.empty.objective': 'No Projects, Processes, or Tasks linked yet.',
     'catalog.relations.empty.workLine': 'Not linked to an Objective or any Tasks yet.',
     'catalog.relations.moreTasks': '+${count} more — open Tasks',
-    'job.events': "See what's happening across Gordi right now.",
+    'job.events': "See what's happening around our outlets and when.",
     'job.money': 'Trust the financial figures and act on money exceptions.',
     // ── I18N-1 (census DO-8): the Money dashboard — KPI tiles, tabs, chart, detail table,
     //    footnote, states, and the Cut/window toolbar. Numbers/currency stay locale-formatted
@@ -2129,15 +2129,15 @@ export const messages = {
     // OD-V4-2 ("Signals everywhere"): noun "Acara"/"Events" pensiun. dest.events/nav.events kini
     // "Sinyal" (feed langsung, akar rail); anak Work (nav.work.signals / nav.signals) adalah
     // arsipnya — "Arsip Sinyal" — agar dua entri rail tidak pernah identik.
-    'dest.events': 'Sinyal',
+    'dest.events': 'Acara',
     'dest.money': 'Keuangan',
     'dest.cafe': 'Kafe',
     'dest.ecommerce': 'Ecommerce',
     'dest.roastery': 'Roastery',
     'dest.admin': 'Pengaturan Admin',
     'dest.profile': 'Profil Pribadi',
-    'nav.signals': 'Arsip Sinyal',
-    'nav.events': 'Sinyal',
+    'nav.signals': 'Sinyal',
+    'nav.events': 'Acara',
     'nav.money': 'Keuangan',
     'nav.cafe': 'Kafe',
     'nav.cafe.opening': 'Pembukaan',
@@ -2151,7 +2151,7 @@ export const messages = {
     'nav.admin': 'Pengaturan Admin',
     'nav.admin.people': 'Orang',
     'nav.profile': 'Profil Pribadi',
-    'nav.work.signals': 'Arsip Sinyal',
+    'nav.work.signals': 'Sinyal',
     'nav.work.projects': 'Proyek & Proses',
     'nav.work.objectives': 'Objective',
     'nav.work.tasks': 'Tugas',
@@ -2231,7 +2231,7 @@ export const messages = {
     'catalog.relations.empty.objective': 'Belum ada Proyek, Proses, atau Tugas yang terhubung.',
     'catalog.relations.empty.workLine': 'Belum terhubung ke Objective atau Tugas apa pun.',
     'catalog.relations.moreTasks': '+${count} lainnya — buka Tugas',
-    'job.events': 'Lihat apa yang sedang terjadi di Gordi sekarang.',
+    'job.events': 'Lihat apa yang terjadi di outlet kita dan kapan.',
     'job.money': 'Percayai angka keuangan dan bertindak pada pengecualian uang.',
     // ── I18N-1 (census DO-8): dasbor Keuangan — kartu KPI, tab, grafik, tabel rincian. ──
     'money.documentTitle': 'Keuangan — Gordi MOS',
