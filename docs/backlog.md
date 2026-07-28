@@ -322,48 +322,61 @@ bar itself moved (era timeline E1→E8/V3): `docs/requirements-evolution.md`.
 > *(Both resolved 2026-07-28: X-11 reverted in `8cf4976`; X-4 answered by `OD-V4-6` — FR-022 stands.
 > The register is now empty of open items.)*
 
-> ## 2026-07-28 — TRUNCATED-MOCKUP INDEX: features brainstormed pre-E7 → E7 → v3 → v4
+> # W1–W13 — FEATURES TO BUILD (the design-phase wanted list)
 >
-> **Owner ask (2026-07-28):** *"we have several truncation of feature mockup … make sure it's
-> captured in the backlog"* — naming widgets, Deputy authoring widgets, an Events calendar, and
-> barista shifts. This block is an **index, not a new queue**: each row points at the tracker that
-> already owns the item. Verified against **code, not docs** (routes, migrations, `grep` over
-> `mos-app/src`) on `v4-redesign` @ `1e459b0`.
+> **Owner ask (2026-07-28):** *"the feature I'm highlighting are features I want to add… the whole
+> app is not live yet, still in design phase. The mockups had added these previously but the current
+> implementation doesn't have them. Make sure these discussions are captured in a backlog of features
+> needed to be added, and not get lost."*
 >
-> The two standing registers this defers to:
-> **`docs/plans/2026-07-23-feature-parity-ledger.md` §2/§5** (the S1–S7 silent-loss table) and
-> **`docs/reference/provenance/owner-directives-index.md`** (P-01…P-39, per-directive status).
+> **What this list is.** Every feature that was designed, mocked up or decided across the eras
+> (pre-E7 → E7 → v3 → v4) and is **not in the current implementation**. These are *wanted*, not
+> defects and not disposals. Nothing here is "shipped and broken" — the app has never gone live.
 >
-> | Owner's name for it | Code reality on `v4-redesign` | Already tracked as |
-> |---|---|---|
-> | **Widgets** | **Shipped, read-only.** `lib/agent/widgets.ts` defines 3 typed kinds (`data_table`, `data_insight`, `data_chart`); `AssistantWidgetSlot.tsx` renders them **inside the Deputy transcript only** | ADR-0045 (Accepted) — done, no action |
-> | **Deputy can write / make widgets** | **Not wired.** The storage seam exists — `mos.user_views` (migration `20260705000001`, `spec jsonb`, private/shared_team) + `lib/db/user-views.ts` — but **zero references to `user_views` anywhere under `lib/agent/` or `components/assistant/`**. The Deputy renders widgets; it cannot persist one. Surfaced only behind dev-only `SHOW_USER_VIEWS` (`DevViewsPage`) | parity ledger **S4** (compose-to-workspace, one of the six Deputy gaps) + **S5** (composable Home canvas) — both `[REDESIGN · HIGH]`, ADR-0017 D5 |
-> | **Events calendar** | **Deliberate stub.** `/events` is a rail root (`OD-REDESIGN-57(iii)`) rendering `PageFamilyFrame` + a permanent `EmptyState`. Its own spec (`docs/specs/events-stub.spec.md` §2) puts **out of scope**: "any `mos.*`/`ops.*` events schema, table, or RLS policy" and "any DAL module or live data fetch". It exists to prove the Rule-10 extension path | **NOT TRACKED — see F12 below.** The parity ledger calls it "scope-tracked" as a module stub; no backlog line actually carries it |
-> | **Barista shifts** | **No roster.** Occurrence→Task spawn and job-function binding shipped (ADR-0051, `mos_spawn_process_run`), but **`job_function`/`shift` appear in zero of 85 migrations and zero non-test app files**. P-09's promised provenance line renders "PIC: Ayu — via Barista" and **silently drops "on shift"** | backlog "Near-term follow-ups" (:663) — owner-flagged NEAR-TERM, *"manual today, needed sooner than later"*; provenance **P-09 = PARTIAL** |
+> **Ordering is by user value, not by effort.** "Current state" was verified against **code, not
+> docs** — routes, all 85 migrations, and `grep` over `mos-app/src` on `v4-redesign` @ `1e459b0` —
+> because the era docs drift and the mockups outran the build.
 >
-> **Two more the sweep surfaced that the owner did not name:**
-> - **Structured authored content + typed embeds (ADR-0052).** Status *Proposed*, blocked at a storage
->   gate — and `authored_content` / revision tables are **absent from every migration**. Tracked as
->   backlog **Issue 10** (:253) and parity-ledger TRACKED-LOSS "structured-content editor / `/` slash canvas".
-> - **Roastery Activity module (ADR-0024).** Accepted-as-boundary only; mockup `roastery.html` exists,
->   **no code**. Explicitly step 6 of 6 in ADR-0019 D14. Tracked in "Deferred (post-MVP)" (:676).
+> **Cross-refs:** `S#` = the silent-loss table in `docs/plans/2026-07-23-feature-parity-ledger.md` §2;
+> `P-##` = `docs/reference/provenance/owner-directives-index.md`. Where one exists, it holds the
+> longer history — this list is the single place that says **what still needs building**.
 >
-> **F12 — the one genuine gap. `[SCOPE · owner call]` Give Events a disposition.**
-> Events is the only named feature with **no tracker at all**. It occupies a permanent rail root —
-> one of five destinations — while being structurally incapable of ever showing content, so every
-> viewer pays navigation cost for a surface that cannot pay them back. Three honest options:
-> **(a)** build the collection + calendar view renderer (the extension path the stub was built to
-> prove — collection + view renderer + feed posts, no shell change needed); **(b)** demote Events out
-> of the rail until it has data, keeping the route; **(c)** ratify the empty root as intentional
-> (it advertises a committed direction). *Director recommendation: **(b)*** — a rail root that can
-> never fill is the "label-only slot" dead-end this project already named as a defect class
-> (anchor A4, `jtbd.md`), and (a) is real module work that should compete on its merits, not arrive
-> by way of an empty nav entry. **No estimate given — this is scope, not score.**
+> ### Owner-named 2026-07-28
 >
-> **Not truncations — do not re-file.** The parity ledger's "mockup-only fiction" list already rules
-> these out: persona/impersonation switcher, 4-button role-switch preview, drag-widgets-to-reorder
-> chips, the Deputy-composed AR-aging/plan-adherence demo widgets (fixtures, never real), the IA
-> comparison-matrix page, the text-size S/M/L/XL picker, the settings rail stub.
+> | # | Feature | What it gives the user | Where it was designed | Current state |
+> |---|---|---|---|---|
+> | **W1** | **Events calendar** | Outlet events — cuppings, workshops, bookings — as a real calendar: what's happening, where, when, who's running it. The Events rail root exists *for* this | `OD-REDESIGN-57(iii)` promoted Events to a rail root; `docs/specs/events-stub.spec.md` §1 names "a real calendar surface" as the intended collection | **Nothing but a shell.** `/events` renders `PageFamilyFrame` + a permanent `EmptyState`. The spec put schema, RLS and any data fetch explicitly out of scope. **Needs: `mos.events` schema + RLS → DAL → calendar view renderer.** The stub was built to prove this exact extension path — collection + view renderer + feed posts, no shell change |
+> | **W2** | **Deputy composes a widget into the workspace** | Ask the Deputy a question, get a widget back, and **keep** it — pinned to Home or a workspace — instead of losing it when the transcript scrolls | ADR-0017 **D5** (declarative artifacts; `user_views` as an ordinary tenant row); prototype F028; e7-099/100/101/102. Headline `OD-REDESIGN-9/24/32` | **Half-built, and the half that exists is the hard half.** `mos.user_views` is a real table (migration `20260705000001` — `spec jsonb`, private/shared_team scope) with a working DAL. But **zero references to `user_views` anywhere under `lib/agent/` or `components/assistant/`** — the Deputy can render a widget and cannot save one. Reachable only behind dev-only `SHOW_USER_VIEWS` (`DevViewsPage`). **S4/S5** |
+> | **W3** | **Composable Home canvas** | Arrange your own Home from widgets you're authorized to see — the manager's Home and the barista's Home stop being the same page | `OD-REDESIGN-17/25/26`; e7-025/102; prototype F019 | Home is a fixed attention/personal stream (`home-stream.tsx`); the only personal control is an order toggle. **W2 is its prerequisite** — the canvas is what W2's widgets land on. **S5** |
+> | **W4** | **Shift scheduling / rostering** | Who is on shift, right now and this week. Feeds "your shift today" on the contributor Home, and completes the task-provenance line **"PIC: Ayu — via Barista *on shift* (Café HQ)"** | `OD-5`; prototype F093; e7. Owner-flagged NEAR-TERM: *"manual today, needed sooner than later"*. Demoed verbatim in the F2 café walkthrough (**P-09**) | **`job_function` and `shift` appear in zero of 85 migrations and zero non-test app files.** Occurrence→Task spawn and job-function binding did ship (ADR-0051, `mos_spawn_process_run`), so the Task knows the *role* — it renders "via Barista" and **silently drops "on shift"** because no roster exists to ask |
+>
+> ### Also designed, also missing — same era, same status
+>
+> | # | Feature | What it gives the user | Where it was designed | Current state |
+> |---|---|---|---|---|
+> | **W5** | **Multi-view database — Board/Kanban, then Timeline** | The same records as a status board or a date rail, not only a table. The signature "multi-view database" promise | `OD-REDESIGN-2/7/8` (locked); e7-033/034 had both live | `task-collection-adapter.tsx` presentation is `'table' \| 'card'`; its own line 230 reads *"There is no disabled Board/Calendar presentation."* **S1** |
+> | **W6** | **Standards library + quality loop** | The "prove it was done right" spine: typed Standard steps → live pass/fail Checks → evidence required on fail → auto-raised Exception → correction Task → audit trail | `OD-REDESIGN-4/30/31` (locked); prototype F068/094/095; e7-066/067 | No Standard, Check or Exception record anywhere in `pages/` or `components/`. Needs the deferred typed-Standard schema ADR first. **S2** — the governance value proposition of the whole redesign |
+> | **W7** | **Process designer + Process Runs** | Author a recurring workflow once; each occurrence spawns its Tasks and keeps run-level completion + history | `OD-REDESIGN-11/12/13/58` (locked); prototype F090; e7-060/065 | **The surfacing half shipped** — occurrence roll-up + due-runs list + assign-pending. The **definition half is absent**: no designer, no Run record, no Standard binding. Schema ADR owed since "buildout step 6". **S3** |
+> | **W8** | **Agentic Deputy — the remaining five gaps** | A Deputy that *acts*: navigates you to a record, reaches `@`-people inline from any text box, makes reversible writes in context, keeps a thread per surface | `OD-REDESIGN-9/24/32` — the stated "agent-native" identity of the app | `AssistantPanel.tsx` has transcript, approval, rating and record-seed but **no navigate tool, no inline `@`, no in-context write**. Context-*aware*, not context-*acting*. **S4** (W2 is the widget-composition gap from the same set) |
+> | **W9** | **Structured content editor + typed embeds** | Write a real document — a Standard, a brief, a process note — with `/` slash blocks and live typed embeds instead of a plain description field | ADR-0052 (**Proposed**, blocked at an owner storage gate); `OD-16`; prototype F050 | `authored_content` and its revision tables are **absent from every migration**. Tracked as backlog **Issue 10** (:253) |
+> | **W10** | **Admin governance matrix** | See and set who can actually do what: the effective person × capability matrix, preview-as-person, role defaults, transfer-person, org/BU/Team config | `OD-REDESIGN-28/52`; e7-134..139 | `components/admin/` is people list + role editor + login management only. **S6** |
+> | **W11** | **Cascade ladder view** | One screen showing Objective → Project/Process → Task end to end, with Mine/All and a workload caption | baseline BL-052 (this one was **built once and removed**) | `/work/cascade` now redirects to `/work/tasks` (`router.tsx:130`). Up/down-trace survives inside the catalogs. **S7** — lowest stakes of the set; may be genuinely absorbed |
+> | **W12** | **Roastery Activity module** | The roastery's own operating surface — B2B sales orders, QC/cupping | ADR-0024 (boundary accepted); mockup `roastery.html` | No code. Explicitly **step 6 of 6** in ADR-0019 D14, so it is last by design, not by neglect |
+> | **W13** | **Ecommerce Activity module** | Same, for the ecommerce line | ADR-0019 D14 Activity roll-in | No code. Pairs with W12 |
+>
+> ### Sequencing note (Director)
+>
+> Three of these unlock the others and should not be picked by appetite:
+> **W2 before W3** (the canvas needs something to place on it). **W6 before/with W7** (a Process
+> without Standards has nothing to check, and the two share one schema conversation). **W1, W12 and
+> W13 are module work** — self-contained, parallelizable, and each needs its own schema + RLS slice.
+>
+> **Not on this list, deliberately.** The parity ledger's "mockup-only fiction" set was demo scaffolding
+> that never described a real feature — persona/impersonation switcher, 4-button role-switch preview,
+> drag-widgets-to-reorder chips, the Deputy-composed AR-aging/plan-adherence demo widgets (fixtures),
+> the IA comparison-matrix page, the text-size S/M/L/XL picker, the settings rail stub. Retired
+> cadence surfaces (Weekly Updates, Daily Log, My Week) are covered by `OD-REDESIGN-33/48` and are
+> superseded, not missing.
 
 > **NEXT SESSION:** read `docs/redesign-decision-index.md` first for product direction, then
 > `docs/platform-workstream-status.md` only for legacy implementation and infrastructure facts.
