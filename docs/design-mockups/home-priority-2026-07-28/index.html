@@ -167,58 +167,47 @@ ul { list-style: none; }
 .frame[data-w="phone"] #c .band { grid-template-columns: 1fr; gap: var(--sp-2); }
 .frame[data-w="phone"] #c .band-label { padding-top: 0; }
 
-/* ═══ C+ · TABLE IN TILES ════════════════════════════════════════════════
-   C's label-left rhythm, laid out as tiles instead of a single stack. Rows
-   are distilled: the essentials plus a count, never the whole set.
+/* ═══ SHARED PRIMITIVES ══════════════════════════════════════════════════
+   One definition each, used by every layout option. Before this refactor
+   `.bento` was declared 3x, `.tile` 3x, `.layout` 4x and the weight spans 12x,
+   once per view — three implementations of one idea, which is how three
+   "options" quietly become three surfaces to maintain and drift apart.
+   A layout option may now only override what genuinely differs from the
+   primitive, and each override below says what it is doing and why.
    ═════════════════════════════════════════════════════════════════════════ */
-#cplus .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-3); align-items: stretch; }
-#cplus .tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4) var(--sp-4) var(--sp-2);
-  background: var(--bg-1); min-width: 0; display: grid; grid-template-columns: 88px minmax(0, 1fr);
-  gap: var(--sp-4); align-items: start; }
-#cplus .tile[data-weight="lead"] { grid-column: span 4; background: var(--bg-3); }
-#cplus .tile[data-weight="major"] { grid-column: span 2; grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); }
-#cplus .tile[data-weight="half"] { grid-column: span 3; }
-#cplus .tile[data-weight="full"] { grid-column: span 6; }
-#cplus .tile-name { font-family: var(--display); font-size: var(--fs-xs); font-weight: 600; padding-top: var(--sp-1); }
-#cplus .tile-count { display: block; font-size: var(--fs-xxs); font-weight: 400; color: var(--fg-3);
-  letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
-#cplus .row-link { padding-block: var(--sp-1_5); min-height: 36px; }
-#cplus .row-title { font-weight: 400; font-size: 13px; }
-.frame[data-w="phone"] #cplus .bento { grid-template-columns: 1fr; }
-.frame[data-w="phone"] #cplus .tile { grid-column: span 1 !important; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
 
-/* ═══ F · BENTO ══════════════════════════════════════════════════════════ */
-#f .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-3); align-items: stretch; }
-#f .tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4);
+/* Work + feed, side by side. Used by List, Overview and Focused alike. */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: var(--sp-8); align-items: start; }
+.layout > * { min-width: 0; }
+
+/* The tile grid. Six columns so a tile can be sized by consequence. */
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-3); align-items: stretch; }
+.tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4);
   background: var(--bg-1); min-width: 0; display: flex; flex-direction: column; }
-#f .tile[data-weight="lead"] { grid-column: span 4; background: var(--bg-3); }
-#f .tile[data-weight="major"] { grid-column: span 2; }
-#f .tile[data-weight="half"] { grid-column: span 3; }
-#f .tile[data-weight="full"] { grid-column: span 6; }
+.tile[data-weight="lead"]  { grid-column: span 4; background: var(--bg-3); }
+.tile[data-weight="major"] { grid-column: span 2; }
+.tile[data-weight="half"]  { grid-column: span 3; }
+.tile[data-weight="full"]  { grid-column: span 6; }
 .tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
 .tile-name { font-family: var(--display); font-size: var(--fs-xs); font-weight: 600; }
 .tile-count { font-size: var(--fs-xxs); color: var(--fg-3); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .tile-group { font-size: var(--fs-xxs); font-weight: 600; color: var(--fg-3); letter-spacing: 0.04em;
   text-transform: uppercase; margin: var(--sp-2) 0 var(--sp-1); }
 .tile-group:first-of-type { margin-top: 0; }
-.frame[data-w="phone"] #f .bento { grid-template-columns: 1fr; }
-.frame[data-w="phone"] #f .tile { grid-column: span 1 !important; }
 
-/* ═══ I · BENTO + SIGNAL FEED ════════════════════════════════════════════ */
-#i .layout { display: grid; grid-template-columns: 1fr 300px; gap: var(--sp-8); align-items: start; }
-#i .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-3); align-items: stretch; }
-#i .tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4);
-  background: var(--bg-1); min-width: 0; display: flex; flex-direction: column; }
-#i .tile[data-weight="lead"] { grid-column: span 4; background: var(--bg-3); }
-#i .tile[data-weight="major"] { grid-column: span 2; }
-#i .tile[data-weight="half"] { grid-column: span 3; }
-#i .tile[data-weight="full"] { grid-column: span 6; }
-.frame[data-w="phone"] #i .layout { grid-template-columns: 1fr; gap: var(--sp-6); }
-.frame[data-w="phone"] #i .bento { grid-template-columns: 1fr; }
-.frame[data-w="phone"] #i .tile { grid-column: span 1 !important; }
+/* Dense variant: label-left interior. A MODIFIER on the primitive, not a
+   second tile. Only C+ uses it, because it needs full tile width to read. */
+.tile.dense { display: grid; grid-template-columns: 88px minmax(0, 1fr);
+  gap: var(--sp-4); align-items: start; padding: var(--sp-4) var(--sp-4) var(--sp-2); }
+.tile.dense[data-weight="major"] { grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); }
+.tile.dense .tile-name { padding-top: var(--sp-1); }
+.tile.dense .tile-count { display: block; white-space: normal; margin-top: 2px; font-weight: 400; }
+.tile.dense .row-link { padding-block: var(--sp-1_5); min-height: 36px; }
+.tile.dense .row-title { font-weight: 400; font-size: 13px; }
 
-/* Feed — shared by I and J. Separation is by space, never a second border
-   colour (DESIGN.md Single-Border Rule). */
+/* The signal feed. Separation from the work is by space, never a second
+   border colour (DESIGN.md Single-Border Rule). */
 .feed-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--sp-3); }
 .feed-name { font-family: var(--display); font-size: var(--fs-xs); font-weight: 600; }
 .feed-post { padding: var(--sp-3) 0; border-top: 1px solid var(--line); }
@@ -232,22 +221,19 @@ ul { list-style: none; }
   margin-bottom: var(--sp-3); cursor: pointer; min-height: 44px; }
 .feed-compose:hover { background: var(--bg-3); color: var(--fg-1); }
 
-/* ═══ J · TABS + FEED ════════════════════════════════════════════════════
-   One region visible at a time, chosen by tab. Volume becomes a choice
-   instead of a scroll: nothing is hidden, but only one thing is present.
-   ═════════════════════════════════════════════════════════════════════════ */
-#j .layout { display: grid; grid-template-columns: 1fr 300px; gap: var(--sp-8); align-items: start; }
-#c .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: var(--sp-8); align-items: start; }
-#c .layout > * { min-width: 0; }
-@container (max-width: 940px) { #c .layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); } }
-#j .tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-3); flex-wrap: wrap; }
-#j .rtab { font: inherit; font-weight: 500; font-size: var(--fs-xs); border: 0; background: none;
+/* Region tabs. Focused uses them today; any collection surface could. */
+.tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-3); flex-wrap: wrap; }
+.rtab { font: inherit; font-weight: 500; font-size: var(--fs-xs); border: 0; background: none;
   color: var(--fg-2); padding: var(--sp-2) var(--sp-3); cursor: pointer; min-height: 44px;
   border-bottom: 2px solid transparent; margin-bottom: -1px; }
-#j .rtab:hover { color: var(--fg-1); }
-#j .rtab[aria-selected="true"] { color: var(--fg-1); border-bottom-color: var(--blue); }
-#j .rtab:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
-#j .rtab .n { color: var(--fg-3); font-weight: 400; margin-left: var(--sp-1); }
+.rtab:hover { color: var(--fg-1); }
+.rtab[aria-selected="true"] { color: var(--fg-1); border-bottom-color: var(--blue); }
+.rtab:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.rtab .n { color: var(--fg-3); font-weight: 400; margin-left: var(--sp-1); }
+
+/* ── The ONLY per-option overrides that remain ──────────────────────────── */
+/* C+ keeps its rows tighter than the shared row rhythm; that IS its identity. */
+#cplus .row-title { font-weight: 400; font-size: 13px; }
 #j .rtab[aria-selected="true"] .n { color: var(--fg-2); }
 
 /* ═══ Responsive — driven by the frame's ACTUAL width ════════════════════
@@ -299,25 +285,25 @@ ul { list-style: none; }
 .thumb-post { display: grid; gap: 3px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
 
 .frame { container-type: inline-size; }
-#cplus .bento, #f .bento, #i .bento { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-#i .layout, #j .layout { grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); }
-#i .layout > *, #j .layout > * { min-width: 0; }
-
+/* Breakpoints act on the PRIMITIVES, so every layout option inherits the same
+   responsive behaviour and none of them can drift from it independently. */
 @container (max-width: 940px) {
   /* The feed drops below the work rather than squeezing it. */
-  #i .layout, #j .layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
-  #cplus .bento, #f .bento, #i .bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  #cplus .tile[data-weight="lead"], #f .tile[data-weight="lead"], #i .tile[data-weight="lead"] { grid-column: span 4; }
-  #cplus .tile[data-weight="half"], #f .tile[data-weight="half"], #i .tile[data-weight="half"] { grid-column: span 2; }
-  #cplus .tile[data-weight="major"], #f .tile[data-weight="major"], #i .tile[data-weight="major"] { grid-column: span 2; }
-  #cplus .tile[data-weight="full"], #f .tile[data-weight="full"], #i .tile[data-weight="full"] { grid-column: span 4; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
+  .bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tile[data-weight="lead"]  { grid-column: span 4; }
+  .tile[data-weight="major"] { grid-column: span 2; }
+  .tile[data-weight="half"]  { grid-column: span 2; }
+  .tile[data-weight="full"]  { grid-column: span 4; }
+  #profile .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @container (max-width: 620px) {
-  #cplus .bento, #f .bento, #i .bento { grid-template-columns: minmax(0, 1fr); }
-  #cplus .tile, #f .tile, #i .tile { grid-column: span 1 !important; }
-  #cplus .tile { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
+  .bento { grid-template-columns: minmax(0, 1fr); }
+  .tile { grid-column: span 1 !important; }
+  .tile.dense { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
   #c .band { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
   #c .band-label { padding-top: 0; }
+  #profile .opts { grid-template-columns: minmax(0, 1fr); }
   .row-link { flex-wrap: wrap; gap: var(--sp-2); }
   .row-tail { width: 100%; }
   .pane { padding: var(--sp-4) var(--sp-4) var(--sp-8); }

@@ -208,6 +208,19 @@ property that broke twice under test — it overflowed at every width above 620p
 label-left interior failed again when tried inside the feed layout, because that rhythm needs full
 width. Three options is also the practical ceiling for a preference nobody will study.
 
+**Binding: three options, ONE component set.** The options are *arrangements of the same primitives*,
+never three implementations of a page. The shared set is `layout` (work + feed), `bento` + `tile`
+(+ a `dense` modifier), the row grammar, the feed, and the region tabs. A layout option may override
+only what genuinely differs, and must say why at the override.
+
+This is the reusability bar the owner has restated throughout, and it is not cosmetic: the mockup
+had already drifted into `.bento` declared 3×, `.tile` 3×, `.layout` 4× and the weight spans 12×,
+one copy per view. That is how three *options* quietly become three *surfaces* — they diverge on the
+next change, and a fix applied to one silently misses the others. **Responsive breakpoints act on the
+primitives**, so no option can drift from the others' behaviour independently. If a proposed option
+cannot be expressed as an arrangement of the shared set, that is the signal it is a different
+surface and does not belong in this setting.
+
 **Owed before build:** the stored preference needs a home on the person record and a sane fallback
 when the value is missing or unknown. Not specced here.
 
