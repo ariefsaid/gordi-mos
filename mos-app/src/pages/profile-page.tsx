@@ -8,6 +8,7 @@
  * preference (OD-18) was retired (OD-V4-10) in favour of a Home layout preference
  * (OD-V4-9). Notification prefs land with their own slice (OD-26 profile store).
  */
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
@@ -15,6 +16,8 @@ import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { Select } from '@/components/ui/select'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { HomeLayoutPicker } from '@/components/home/home-layout-picker'
+import { resolveHomeLayout, setHomeLayout, type HomeLayout } from '@/lib/home-layout'
 
 function ProfileCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -64,6 +67,17 @@ export function ProfilePage() {
   useDocumentTitle(t('common.docTitle', { page: t('dest.profile') }))
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const personId = viewer?.person.id ?? null
+
+  const [homeLayout, setHomeLayoutState] = useState<HomeLayout>('focused')
+  useEffect(() => {
+    if (personId) setHomeLayoutState(resolveHomeLayout(personId))
+  }, [personId])
+
+  function handleHomeLayoutChange(next: HomeLayout) {
+    setHomeLayoutState(next)
+    if (personId) setHomeLayout(personId, next)
+  }
 
   return (
     // V3 Management family (Issue 11): the shared frame owns the h1 + job sentence
@@ -104,6 +118,10 @@ export function ProfilePage() {
             <option value="en">{t('locale.en')}</option>
             <option value="id">{t('locale.id')}</option>
           </Select>
+        </ProfileCard>
+
+        <ProfileCard title={t('profile.homeLayout')}>
+          <HomeLayoutPicker value={homeLayout} onChange={handleHomeLayoutChange} />
         </ProfileCard>
       </div>
     </PageFamilyFrame>
