@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { resolveHomeLayout, setHomeLayout, type HomeLayout } from './home-layout'
+import { resolveHomeLayout, setHomeLayout } from './home-layout'
 
 describe('home layout preference (OD-V4-9)', () => {
   beforeEach(() => { window.localStorage.clear() })
