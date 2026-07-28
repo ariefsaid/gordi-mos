@@ -27,7 +27,7 @@ import {
  * provisional semantics.
  */
 
-export type InboxTriageState = 'loading' | 'ready' | 'empty' | 'error'
+export type InboxTriageState = 'loading' | 'ready' | 'empty' | 'error' | 'unauthorized'
 
 export type InboxTriageProps = {
   /** `page` for `/inbox`, `quick` for the bell's ephemeral host root. Tags the surface only. */
@@ -49,7 +49,18 @@ export type InboxTriageProps = {
   onOpen(row: TriageNotificationRow): void
   /** Explicit "Mark handled" — private notification triage; absent = not offered. */
   onMarkHandled?(row: TriageNotificationRow): void
+  /**
+   * H7 fix (design audit, 2026-07-27): mark a row read WITHOUT opening its record — the keyboard
+   * shortcut ('R', see handleListKeyDown) and the fastest triage path for a row that doesn't need
+   * opening. Absent = the shortcut is not offered (matches the onMarkHandled optionality pattern).
+   */
+  onQuickMarkRead?(row: TriageNotificationRow): void
   onRetry(): void
+  /**
+   * H9 fix (design audit, 2026-07-27): the `unauthorized` state's ONE action — sign out and let
+   * ProtectedRoute route to /login. Never a re-fire of the same failing call (see `state`).
+   */
+  onSignInAgain?(): void
   /** Rows with an in-flight open/action; their open button is busy+disabled. */
   pendingIds?: readonly string[]
 }
@@ -76,12 +87,38 @@ export function InboxTriage({
   onFilterChange,
   onOpen,
   onMarkHandled,
+  onQuickMarkRead,
   onRetry,
+  onSignInAgain,
   pendingIds,
 }: InboxTriageProps) {
   const t = useT()
   const pending = new Set(pendingIds ?? [])
   const filters = INBOX_FILTERS.filter((f) => f !== 'handled' || handledFilterAvailable)
+
+  // H7 fix (design audit, 2026-07-27): ↑/↓ moves focus between rows (Tab already reaches every
+  // row one at a time — this is the fast path); 'R' marks the FOCUSED row read without opening it.
+  // Scoped to keydowns that bubble from an actual row button, so it never hijacks the filter
+  // buttons or any other control outside the list. Discoverable via the visible hint below the
+  // filters (H10 — an invisible shortcut scores nothing).
+  const handleListKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.inbox-row__button')
+    if (!button) return
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('.inbox-row__button'))
+    const index = buttons.indexOf(button)
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      buttons[Math.min(index + 1, buttons.length - 1)]?.focus()
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      buttons[Math.max(index - 1, 0)]?.focus()
+    } else if (onQuickMarkRead && (event.key === 'r' || event.key === 'R') && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault()
+      const id = button.closest<HTMLLIElement>('.inbox-row')?.dataset.notificationId
+      const row = rows.find((r) => r.id === id)
+      if (row) onQuickMarkRead(row)
+    }
+  }
 
   return (
     <div className="inbox-triage" data-mode={mode}>
@@ -101,6 +138,15 @@ export function InboxTriage({
 
       {state === 'loading' ? (
         <LoadingShell count={4} label={t('inbox.title')} />
+      ) : state === 'unauthorized' ? (
+        // H9 fix (design audit, 2026-07-27): the session is gone, not just a failed fetch — name
+        // that reason and offer the ONE action that can actually succeed (sign in again), never
+        // the old "Try again" that re-fired the identical, permanently-failing call.
+        <ErrorState
+          message={t('inbox.sessionExpired')}
+          onRetry={onSignInAgain}
+          retryLabel={t('inbox.signInAgain')}
+        />
       ) : state === 'error' ? (
         <ErrorState
           message={t('inbox.errorTitle')}
@@ -129,13 +175,18 @@ export function InboxTriage({
         )
       ) : (
         <>
-          <ul className="inbox-list" aria-label={t('inbox.title')}>
+          {onQuickMarkRead ? (
+            <p className="inbox-triage__kbd-hint" aria-hidden="true">
+              {t('inbox.kbdHint')}
+            </p>
+          ) : null}
+          <ul className="inbox-list" aria-label={t('inbox.title')} onKeyDown={handleListKeyDown}>
             {rows.map((n) => {
               const unread = n.read_at == null
               const isPending = pending.has(n.id)
               const canHandle = onMarkHandled != null && !isHandled(n)
               return (
-                <li key={n.id} className={`inbox-row${unread ? ' inbox-row--unread' : ''}`}>
+                <li key={n.id} className={`inbox-row${unread ? ' inbox-row--unread' : ''}`} data-notification-id={n.id}>
                   <button
                     type="button"
                     className="inbox-row__button"

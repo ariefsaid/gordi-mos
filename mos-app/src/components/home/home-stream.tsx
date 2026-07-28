@@ -73,15 +73,46 @@ export interface HomeStreamProps {
   attentionAnchorId?: string
 }
 
-function ReasonChip({ reason }: { reason: StreamReason }) {
+/**
+ * How a band renders its rows' reason.
+ *
+ * `chip`  — the tinted pill. Correct where the reason VARIES row to row inside the band, so the
+ *           mark is exceptional/sparse (the Signals band mixes Urgent/Needs attention; the my-work
+ *           band flags the odd Blocked row). DESIGN.md § Row status as text: "Pills remain correct
+ *           where status is exceptional or sparse."
+ * `text`  — toned text, same tone semantics, no fill. For a reason that is true of EVERY row in the
+ *           band at rest but still carries information the band label does not (the overdue age,
+ *           "Overdue · 11d"). DESIGN.md § Row status as text (v4).
+ * `none`  — the reason restates the band label verbatim ("Due today" under DUE TODAY · 2,
+ *           "Check failed" under FAILED CHECKS · 2, "Mentions you" under MENTIONS · 1, "Blocked"
+ *           under BLOCKED · 1 beside a Blocked status pill). DESIGN.md Don't: "Don't repeat a value
+ *           under a control that the row or card already renders as its own column/field."
+ */
+type ReasonStyle = 'chip' | 'text' | 'none'
+
+const BAND_REASON_STYLE: Record<StreamBandKind | 'my-work', ReasonStyle> = {
+  signals: 'chip',
+  overdue: 'text',
+  'due-today': 'none',
+  blocked: 'none',
+  'failed-checks': 'none',
+  mentions: 'none',
+  'my-work': 'chip',
+}
+
+function Reason({ reason, style }: { reason: StreamReason; style: ReasonStyle }) {
   const t = useT()
+  if (style === 'none') return null
   const label = reason.tone === 'overdue'
     ? t('home.stream.reason.overdue', { days: reason.days ?? 0 })
     : t(REASON_KEY[reason.tone])
-  return <span className={`stream-reason stream-reason--${reason.tone}`}>{label}</span>
+  const shell = style === 'text' ? 'stream-reason stream-reason--flat' : 'stream-reason'
+  return <span className={`${shell} stream-reason--${reason.tone}`}>{label}</span>
 }
 
-function StreamRow({ item, hidePic = false }: { item: StreamItem; hidePic?: boolean }) {
+function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
+  item: StreamItem; hidePic?: boolean; reasonStyle?: ReasonStyle
+}) {
   // Compact decision-context subline = PIC (avatar + name) · owning Team/BU · due date, so "what
   // should I do next" is answerable without opening the record (Luna J01/J02). Each segment is its
   // own span (dot separators decorative, aria-hidden) so caption + due stay addressable.
@@ -118,7 +149,7 @@ function StreamRow({ item, hidePic = false }: { item: StreamItem; hidePic?: bool
           )}
         </span>
         <span className="stream-row-tail">
-          {item.reason && <ReasonChip reason={item.reason} />}
+          {item.reason && <Reason reason={item.reason} style={reasonStyle} />}
           {/* F3 (design-review): Open shares no attention hierarchy with Urgent/Needs-
               attention when it's amber too — neutral treatment restores the ranking
               (rule:product-color-state-vocab, rule:product-ban-heavy-inactive-color). */}
@@ -139,7 +170,7 @@ function BandRows({ kind, label, items }: { kind: StreamBandKind; label: string;
         <h3 className="stream-band-label">{t('home.attention.laneTitleCount', { title: label, count: items.length })}</h3>
       </div>
       <ul className="stream-band-list">
-        {items.map(item => <StreamRow key={item.id} item={item} />)}
+        {items.map(item => <StreamRow key={item.id} item={item} reasonStyle={BAND_REASON_STYLE[kind]} />)}
       </ul>
     </div>
   )
@@ -233,7 +264,9 @@ export function HomeStream({
             <p className="stream-band-empty">{t('home.stream.myWorkEmpty')}</p>
           ) : (
             <ul className="stream-band-list">
-              {myWork.map(item => <StreamRow key={item.id} item={item} hidePic />)}
+              {myWork.map(item => (
+                <StreamRow key={item.id} item={item} hidePic reasonStyle={BAND_REASON_STYLE['my-work']} />
+              ))}
             </ul>
           )}
         </div>

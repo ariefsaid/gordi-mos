@@ -767,7 +767,15 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [title, setTitle] = useState('')
   const [businessUnitId, setBusinessUnitId] = useState(prefillBu || primaryRoleBU)
   const [responsiblePersonId, setResponsiblePersonId] = useState(prefillR || viewerId)
-  const [accountablePersonId, setAccountablePersonId] = useState(viewerId)
+  // Supervisor starts EMPTY, deliberately not defaulted to the creator/PIC (OD-REDESIGN-3/14/41 —
+  // PIC and Supervisor are distinct accountable roles; auto-collapsing them defeats the model).
+  // CONTEXT.md's Supervisor resolution order is explicit selection → generated-Task override →
+  // parent Project/Process A → PIC's direct manager (role matching Task BU) → PIC when no manager
+  // exists — but resolving "PIC's manager" needs a person→role→reports-to lookup this surface has
+  // no directory call for (only the viewer's OWN roles are known here, and the PIC can be reassigned
+  // to anyone). Rather than fabricate a default from data this form doesn't have, Supervisor is a
+  // required, explicit choice — the first, always-correct step of that same resolution order.
+  const [accountablePersonId, setAccountablePersonId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [workLineId, setWorkLineId] = useState('')
@@ -798,12 +806,19 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // moment focus leaves it empty, not only on submit. Typing clears the error.
   const [titleError, setTitleError] = useState('')
   const [buError, setBuError] = useState('')
+  // Supervisor is now empty by default (see accountablePersonId above), so — unlike PIC, which
+  // always carries a viewer/prefill default — it needs the same on-blur + submit-time required
+  // validation Title/Team already get; an unvalidated required asterisk would be decorative.
+  const [supervisorError, setSupervisorError] = useState('')
 
   function validateTitleOnBlur() {
     setTitleError(title.trim() ? '' : t('tasks.create.titleRequired'))
   }
   function validateBuOnBlur() {
     setBuError(businessUnitId ? '' : t('tasks.create.teamRequired'))
+  }
+  function validateSupervisorOnBlur() {
+    setSupervisorError(accountablePersonId ? '' : t('tasks.create.supervisorRequired'))
   }
 
   // ── Submit state ──────────────────────────────────────────────────────────
@@ -825,6 +840,12 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       valid = false
     } else {
       setBuError('')
+    }
+    if (!accountablePersonId) {
+      setSupervisorError(t('tasks.create.supervisorRequired'))
+      valid = false
+    } else {
+      setSupervisorError('')
     }
     if (!valid) return
 
@@ -986,11 +1007,29 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           )}
         </div>
 
-        {/* PIC — pre-filled to creator, editable */}
+        {/* PIC — pre-filled to creator, editable. H10 fix: PIC/Supervisor are unexplained domain
+            terms for a new user — a "?" help affordance reuses KPITile's own button + aria-label
+            grammar (kpi-tile.tsx), the app's existing precedent, rather than inventing a new help
+            control. Fix wave item 3: kpi-tile's tooltip BODY relies on the bare `title` attribute,
+            a native browser tooltip that never renders visibly to a reviewer driving the app (see
+            TaskSurface.css .tc-help-bubble comment) — `.tc-help-wrap`/`.tc-help-bubble` give the
+            body a real, on-hover-and-focus DOM popover using the row-menu's existing chrome. */}
         <div className="tc-field">
-          <label htmlFor="task-responsible" className="tc-label">
-            {t('tasks.pic')} <span aria-hidden="true" className="tc-required">*</span>
-          </label>
+          <span className="tc-label-row">
+            <label htmlFor="task-responsible" className="tc-label">
+              {t('tasks.pic')} <span aria-hidden="true" className="tc-required">*</span>
+            </label>
+            <span className="tc-help-wrap">
+              <button
+                type="button"
+                className="tc-help tap-target-phone--icon"
+                aria-label={t('tasks.pic.help')}
+              >
+                ?
+              </button>
+              <span className="tc-help-bubble" role="tooltip" aria-hidden="true">{t('tasks.pic.help')}</span>
+            </span>
+          </span>
           {dirLoading ? (
             <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingPeople')} />
           ) : (
@@ -1011,11 +1050,24 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           )}
         </div>
 
-        {/* Supervisor — pre-filled to creator, editable */}
+        {/* Supervisor — genuinely empty by default, a required explicit choice (see
+            accountablePersonId above); no longer silently pre-filled to the creator/PIC. */}
         <div className="tc-field">
-          <label htmlFor="task-accountable" className="tc-label">
-            {t('tasks.supervisor')} <span aria-hidden="true" className="tc-required">*</span>
-          </label>
+          <span className="tc-label-row">
+            <label htmlFor="task-accountable" className="tc-label">
+              {t('tasks.supervisor')} <span aria-hidden="true" className="tc-required">*</span>
+            </label>
+            <span className="tc-help-wrap">
+              <button
+                type="button"
+                className="tc-help tap-target-phone--icon"
+                aria-label={t('tasks.supervisor.help')}
+              >
+                ?
+              </button>
+              <span className="tc-help-bubble" role="tooltip" aria-hidden="true">{t('tasks.supervisor.help')}</span>
+            </span>
+          </span>
           {dirLoading ? (
             <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingPeople')} />
           ) : (
@@ -1023,16 +1075,23 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
               id="task-accountable"
               className="tc-select"
               fullWidth
+              error={Boolean(supervisorError)}
               value={accountablePersonId}
-              onChange={e => { setAccountablePersonId(e.target.value); markDirty() }}
+              onChange={e => { setAccountablePersonId(e.target.value); markDirty(); if (supervisorError) setSupervisorError('') }}
+              onBlur={validateSupervisorOnBlur}
               disabled={submitting}
               aria-label={t('tasks.supervisor')}
               aria-required="true"
+              aria-describedby={supervisorError ? 'supervisor-err' : undefined}
             >
+              <option value="">{t('tasks.create.supervisorPlaceholder')}</option>
               {peopleDirectory.map(p => (
                 <option key={p.id} value={p.id}>{p.full_name}</option>
               ))}
             </Select>
+          )}
+          {supervisorError && (
+            <span id="supervisor-err" role="alert" className="tc-field-error">{supervisorError}</span>
           )}
         </div>
 

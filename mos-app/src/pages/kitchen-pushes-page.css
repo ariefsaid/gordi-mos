@@ -2,8 +2,9 @@
    Kitchen Pushes view (S5) — read-only ESB outbox/dead-letter monitoring.
    Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S5.
    Token-only (DESIGN.md).
-   Dead-letter row = warning/7% fill + 2px warning left rule (the owner-approved
-   side-stripe exception — "Ops Log tokens", DESIGN.md MOS-density §555–567).
+   layout/distill pass (v4): dead-letter row hue corrected to destructive (was
+   warning — see note below); phone gets a purpose-built renderCard instead of
+   the generic 8-row <dl> card; header meta gains a severity breakdown.
    ════════════════════════════════════════════════════════════════════════════ */
 
 .kpu-block {
@@ -12,26 +13,34 @@
   box-sizing: border-box;
 }
 
-/* ── Dead-letter row treatment (DESIGN.md "Ops Log tokens" exception).
-   warning/7% fill + 2px warning left rule — the one owner-approved side-stripe.
-   Paired with text label + fill (never color-alone, WCAG 1.4.1). ── */
+/* ── Dead-letter row treatment — the owner-approved side-stripe exception
+   (DESIGN.md "Ops Log tokens", ratified for the Signals archive's warning/amber
+   "needs attention" rows). This surface's own status Tag already renders
+   dead_letter as destructive RED (census FLAG-A: "terminal system failure,
+   distinct from the retryable amber `failed`") — the row fill/left-rule was
+   still on `--warning` (amber), so the SAME status painted two different hues
+   on the SAME row (operate.md: "if the save button looks different in two
+   places, one is wrong"). Corrected to `--destructive` so the row tint matches
+   its own tag. `failed` (retryable, amber) intentionally gets no row stripe —
+   only the terminal state escalates visually. Paired with text label + fill,
+   never color-alone (WCAG 1.4.1). ── */
 .dt-table .kpu-row-dead-letter td {
-  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  background: color-mix(in srgb, var(--destructive) 7%, transparent);
 }
 
 .dt-table .kpu-row-dead-letter td:first-child {
-  border-left: 2px solid var(--warning);
+  border-left: 2px solid var(--destructive);
   padding-left: 12px; /* 14px - 2px border = same optical alignment */
 }
 
 /* Dead-letter hover keeps the tint (don't erase the attention signal on hover) */
 .dt-table .kpu-row-dead-letter:hover td {
-  background: color-mix(in srgb, var(--warning) 11%, transparent);
+  background: color-mix(in srgb, var(--destructive) 11%, transparent);
 }
 
 .dt-card.kpu-row-dead-letter {
-  border-left: 2px solid var(--warning);
-  background: color-mix(in srgb, var(--warning) 7%, var(--card));
+  border-left: 2px solid var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 7%, var(--card));
 }
 
 /* ── Cell types ── */
@@ -64,11 +73,13 @@
   font-size: var(--font-size-label);
 }
 
-/* Escalate hint (dead-letter read-only cue) */
+/* Escalate hint (dead-letter read-only cue). Only ever rendered on a dead_letter
+   row (see renderPushError) — destructive/AA-darkened red to match that row's
+   own status Tag and left-rule, not the amber/warning family. */
 .kpu-escalate-hint {
   display: block;
   font-size: var(--font-size-overline);
-  color: var(--warning-foreground);
+  color: var(--status-lost-text);
   margin-top: 4px;
 }
 
@@ -84,6 +95,74 @@
   color: var(--muted-foreground);
 }
 
+/* ── Header meta — severity breakdown (layout pass, v4) ─────────────────────
+   Reuses the established page-head meta idiom ("N tasks · N blocked" — see
+   page-head.tsx; kl-meta-line/kl-plan-sum on Café · Log): one inline line,
+   label at label size in muted-foreground, the figure at body-lg/600 tabular.
+   The JTBD for this surface is literally "what's stuck, why, escalate" — the
+   naked total alone made an ops_lead open the table to find that out. Dead
+   letter / failed counts render ONLY when >0 (a zero count is a restating
+   caption, not information — the same rule that drops neutral deltas from the
+   v4 metric-summary band). The figure itself carries the state's own hue so it
+   reads as something to act on, not just a count. ── */
+.kpu-meta-line {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.kpu-meta-total {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.kpu-meta-figure {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.kpu-meta-figure strong {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+.kpu-meta-figure--destructive strong { color: var(--status-lost-text); }
+.kpu-meta-figure--warning strong     { color: var(--warning-foreground); }
+
+/* ── Phone card (layout/distill pass, v4) ────────────────────────────────────
+   The generic DataTable <dl> card stacked all 8 remaining columns as labelled
+   rows per push (~8 lines) — correct for reading ONE record, wrong for running
+   down a long outbox on a phone during triage. This purpose-built card (via
+   DataTable's renderCard seam — the same v4 mechanism as Café · Log's compact
+   capture row, DESIGN.md "Compact capture row") keeps the primitive's grouping/
+   empty/loading behaviour and states: batch id + status up front (the one
+   thing worth acting on), target/endpoint/retries/timestamps on one muted
+   wrapped meta line, and the error/escalate block only when the row actually
+   has one to show (DD-6/DD-9's "renders only when it has something to say"). ── */
+.kpu-card { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
+.kpu-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.kpu-card-batch {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.kpu-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+.kpu-card-error {
+  padding-top: 2px;
+}
+
 /* ── States: loading / empty / error are the shared StateKit
    (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
    tokens live in CardHead.css; no kitchen-local skeleton/empty/error CSS here. ── */
@@ -95,7 +174,11 @@
 }
 
 .kpu-forbidden-title {
-  font-size: 16px;
+  /* was a raw 16px, off the DESIGN.md ramp and inconsistent with the shared
+     state-panel title convention (.empty-title uses --font-size-subheading) —
+     aligned to the documented step for consistency (craft-floor: "same
+     visual vocabulary screen to screen is a virtue"). */
+  font-size: var(--font-size-subheading);
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 8px;

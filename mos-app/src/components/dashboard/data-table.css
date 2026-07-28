@@ -24,6 +24,10 @@
   border: 0;
 }
 
+/* Sticky header (DESIGN.md "Data Table (signature)": "Header cells: sticky, `card` bg…").
+   Sticks to the top of the nearest scrolling ancestor (the page's own scroll container —
+   e.g. `.page-frame--v3`); `card` bg + a low z-index keep it opaque over rows that scroll
+   underneath without introducing a new stacking surface. */
 .dt-table thead th {
   text-align: left;
   font-size: var(--font-size-overline);
@@ -35,6 +39,9 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
 }
 .dt-table thead .dt-th-num { text-align: right; }
 
@@ -137,6 +144,16 @@
   box-sizing: border-box;
   min-height: 44px; /* touch target floor (design-plan §4.2) */
 }
+
+/* extract (2026-07-28): moved here from kitchen-log-page.css, where it lived as a page-owned
+   override of a class that PhoneCard (THIS file's own component, data-table.tsx) applies
+   itself whenever a `renderCard` seam is supplied (DD-4/v4-inheritance.md) — three OTHER
+   consumers (Café · Plan, Café · Pushes, Café · Review) render `dt-card--compact` too, and
+   because routes are code-split, kitchen-log-page.css's CSS chunk is not guaranteed loaded on
+   those pages. Live-measured on Café · Plan (a fresh /cafe/plan load, kitchen-log-page.css never
+   fetched): computed padding was 14px (the base `.dt-card` fallback), not the intended 10px 12px.
+   The class is data-table.tsx's own — its style belongs with the component that applies it. */
+.dt-card--compact { padding: 10px 12px; }
 
 .dt-card-title {
   font-size: var(--font-size-control);
@@ -278,6 +295,7 @@
   padding: 12px 4px 2px;
 }
 .dt-cards-group-toggle {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -290,6 +308,20 @@
   color: var(--muted-foreground);
   cursor: pointer;
   border-radius: var(--radius-sm);
+}
+/* 44x44 hit area on a 24x24 glyph — the SAME technique `.help-tip` already proved
+   (help-tip.css: 14x14 visual, `::before{inset:-16px}`), ported here by `polish`
+   (2026-07-28) rather than invented. This toggle collapses a group on the phone
+   capture surfaces (Café · Log, Café · Plan, Objectives cards), so a mis-tap costs a
+   standing floor worker a scroll-and-retry. Measured live at 375x812 before the fix:
+   24.0x24.0 with `::before` content `none` and zero padding — a genuine 24px target,
+   not merely a small-looking one. 24 + (2 x 10) = 44. WCAG 2.5.8 / PRODUCT.md's own
+   44px phone rule. The overlay is transparent and sits under the glyph, so it steals
+   no clicks from the group label beside it (non-interactive text). */
+.dt-cards-group-toggle::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
 }
 .dt-cards-group-toggle:hover { color: var(--foreground); }
 .dt-cards-group-chev { transition: transform var(--dur-fast) ease; }

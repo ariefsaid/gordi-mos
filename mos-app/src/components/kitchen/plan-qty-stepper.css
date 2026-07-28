@@ -38,7 +38,10 @@
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--foreground);
-  font-size: 16px;
+  /* v4: named token, not the bare 16px literal — same value, but this is the one size
+     above the control step that exists so mobile Safari doesn't zoom on focus
+     (DESIGN.md "Touch-input step"); the Café · Log qty field uses the same token. */
+  font-size: var(--font-size-touch-input);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";

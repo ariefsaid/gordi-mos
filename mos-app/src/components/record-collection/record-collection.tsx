@@ -138,7 +138,7 @@ export function RecordCollectionSurface<
           {header}
           <EmptyState variant="blank" title={filteredEmpty.title} copy={filteredEmpty.copy}>
             <button type="button" className="record-collection-clear" onClick={filteredEmpty.clear}>
-              Clear filters
+              {t('common.clearFilters')}
             </button>
             {filteredEmpty.create}
           </EmptyState>

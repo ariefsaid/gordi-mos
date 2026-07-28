@@ -3,6 +3,7 @@ import { useT } from '@/i18n/use-t'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
+import { HelpTip } from '@/components/ui/help-tip'
 
 /**
  * InboxPage — the Inbox destination (ADR-0019 D2/D9). A to-triage list of the viewer's
@@ -28,7 +29,12 @@ export function InboxPage() {
   return (
     // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence
     // (no surface-title glyph — the ✉ was the "several apps" tell).
-    <PageFamilyFrame family="workspace" title={t('inbox.title')} jobSentence={t('job.inbox')}>
+    <PageFamilyFrame
+      family="workspace"
+      title={t('inbox.title')}
+      jobSentence={t('job.inbox')}
+      meta={<HelpTip label={t('inbox.help')} />}
+    >
       <div className={splitOpen ? 'record-split' : undefined}>
         <InboxTriageConnected mode="page" />
         {host ? <OverlayHostSlot owner="inbox" /> : null}

@@ -1,9 +1,11 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   WipItemStepper — one stepper row per WIP item (S1 capture).
-   IconButton − / + flanking a numeric input; plan·stok·tersedia context; inline
-   variance-note field; transfer-availability cap cue. Token-only (DESIGN.md).
+   WipItemStepper — one capture row per WIP item.
+   v4: a single typed numeric input (no − / + buttons — production is typed, not
+   incremented); plan·stok·tersedia context; inline variance-note field; transfer-
+   availability cap cue. Token-only (DESIGN.md).
    Fix #1: viewport-safe at all widths (box-sizing, max-width:100%, no overflow).
-   Fix #7: 44px touch floor on +/− and input.
+   Fix #7: 44px touch floor on the phone card's input; the desktop `dense` variant
+   sizes to the 32px control height instead (no touch-target constraint on desktop).
    ════════════════════════════════════════════════════════════════════════════ */
 
 .kls-card {
@@ -21,12 +23,14 @@
 /* Error/cap state: destructive hairline (non-text affordance may stay --destructive). */
 .kls-card.kls-invalid { border-color: var(--destructive); }
 
-/* cafe-3: dense (desktop DataTable "Made today" cell) — the table row surface already
-   provides containment, so the bordered/padded/full-width card box here creates
-   card-soup + a dead void when the column is wider than the control cluster. Drop the
-   box and size to content; the phone card floor (dense=false) is unchanged. */
+/* cafe-3: `dense` means exactly ONE thing — the host already provides the box, so the
+   stepper must not re-box itself. BOTH call sites pass it: the desktop DataTable
+   "Made today" cell (the row surface is the box) and the phone capture card
+   (.dt-card--compact is the box). Everything that is genuinely desktop-only —
+   sizing to the control cluster, the 32px control height — is scoped by viewport
+   below, NOT carried on this class, because `dense` is not a "this is a pointer
+   surface" signal. */
 .kls-card.kls-dense {
-  width: max-content;
   max-width: 100%;
   border: none;
   background: transparent;
@@ -51,51 +55,66 @@
   white-space: nowrap;
 }
 
-/* ── +/− buttons (44px touch targets, Fix #7) ── */
-.kls-step {
-  flex: 0 0 auto;
-  width: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-subheading);
-  font-family: inherit;
-  cursor: pointer;
-  box-sizing: border-box;
-}
-.kls-step:disabled { cursor: not-allowed; }
-.kls-step-minus {
-  border: 1px solid var(--border);
-  background: var(--background);
-  color: var(--foreground);
-}
-.kls-step-minus:disabled { opacity: 0.4; }
-.kls-step-plus {
-  border: 1px solid var(--border);
-  background: var(--background);
-  color: var(--foreground);
-}
-.kls-step-plus:disabled { opacity: 0.5; }
-
-/* ── qty input (44px tall, fixed visual width but box-safe) ── */
+/* ── qty input (44px tall, fixed visual width but box-safe) ──
+   v4: this is now the row's ONLY control (the -/+ buttons are gone; production is typed, not
+   incremented). Wider and right-aligned so a 2-3 digit amount reads as a figure in a column
+   rather than a centred token, and the greyed placeholder echoes the plan as an anchor.
+   font-size stays 16px: below that, mobile Safari zooms the viewport on focus, which is
+   unacceptable on a field the floor taps ~21 times in a pass. */
 .kls-qty {
   flex: 0 0 auto;
-  width: 56px;
+  width: 68px;
   max-width: 100%;
   height: 44px;
   box-sizing: border-box;
-  text-align: center;
+  text-align: right;
+  padding-right: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--foreground);
-  font-size: 16px;
+  font-size: var(--font-size-touch-input);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-family: inherit;
   padding: 0 4px;
+}
+
+/* ── Desktop table cell (≥768px) ──────────────────────────────────────────────
+   layout pass: the dense (desktop table) qty input inherited the phone card's 44px
+   touch-target height, so the "Made today" cell forced every desktop body row to ~65px
+   against DESIGN.md's "Body cells: 52px tall" Data Table spec (10px cell padding × 2 +
+   44px content = 64px, +1px border). Desktop is pointer input, not a touch surface, so
+   the 44px touch floor doesn't apply here — size the control to DESIGN.md's own 32px
+   control height ("Do: keep controls at 32px…") and its 13.5px control type
+   (--font-size-control). 10px padding × 2 + 32px content = 52px, landing exactly on the
+   Data Table row spec.
+   VIEWPORT-SCOPED (2026-07-28): this used to hang off `.kls-dense` alone, and the phone
+   capture card passes `dense` too (for box-stripping) — so the phone's qty field was
+   measured at 13.5px at 375x812, under the 16px floor that stops mobile Safari zooming
+   the viewport on focus. The rule is desktop's, so it now says so. */
+@media (min-width: 768px) {
+  .kls-card.kls-dense { width: max-content; }
+  .kls-dense .kls-qty {
+    height: 32px;
+    font-size: var(--font-size-control);
+  }
+}
+
+/* ── Phone capture card (<768px) ──────────────────────────────────────────────
+   `dense` here is box-stripping ONLY. This is a touch surface: .kls-qty keeps its 44px
+   floor and --font-size-touch-input (16px). The stepper also takes the row's free space
+   rather than sizing to the control cluster, so the revealed variance note is a usable
+   width instead of a sliver pinned under the qty box; the qty control itself stays on
+   the right (thumb side) via the row's end justification, so the resting layout is
+   unchanged. */
+@media (max-width: 767px) {
+  .kls-card.kls-dense {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .kls-card.kls-dense .kls-row { justify-content: flex-end; }
 }
 
 /* ── plan · stok · tersedia context meta ── */
@@ -137,4 +156,14 @@
   font-size: var(--font-size-mono);
   font-family: inherit;
   resize: vertical;
+}
+/* Once the note carries text the gate is satisfied — the field must stop shouting error
+   at a user who already answered it. Mirrors the aria-invalid the textarea already sets. */
+.kls-note[aria-invalid='false'] { border-color: var(--border); }
+
+/* Unit label beside the typed quantity ("porsi"). Quiet — it names the unit, it is not data. */
+.kls-unit {
+  flex: 0 0 auto;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
 }

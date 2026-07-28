@@ -3,6 +3,8 @@
 // empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
 // BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3).
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -258,13 +260,36 @@ describe('Populated state — WIP items loaded', () => {
     })
   })
 
-  it('B3: the action bar stays in normal flow so it cannot overlap group headers or rows', async () => {
+  // v4 P0 (design critique): the footer is now DELIBERATELY sticky — on phone the scroll
+  // container ran ~3,000px, so Submit was unreachable without a long scroll past the FAB.
+  // jsdom does not compute real layout from imported stylesheets (vite.config.ts `css: false`
+  // — verified project-wide convention), so this asserts against the actual authored CSS
+  // (the same pattern page-head-ownership.test.ts uses), not a jsdom computed style that would
+  // never reflect `position: sticky` either way. The goal — the footer must never permanently
+  // hide the final dish row — now holds via reserved bottom padding on the list container
+  // instead of static flow; that's covered by the sibling assertion below.
+  it('B3: the sticky footer is pinned above the fold with an opaque surface + no resting shadow', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
     const form = document.getElementById('kitchen-log-form') as HTMLFormElement
     const footer = form.querySelector('.kl-footer') as HTMLElement
     expect(footer).not.toBeNull()
-    expect(getComputedStyle(footer).position).not.toBe('sticky')
+
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
+    const rule = css.slice(css.indexOf('.kl-footer {'), css.indexOf('.kl-footer {') + 400)
+    expect(rule).toMatch(/position:\s*sticky/)
+    expect(rule).toMatch(/bottom:\s*0/)
+    expect(rule).toMatch(/background:\s*var\(--card\)/)
+    expect(rule).toMatch(/border-top:\s*1px solid var\(--border\)/)
+    // Soft-Elevation Rule: a flat utility surface never carries a resting shadow.
+    expect(rule).not.toMatch(/box-shadow/)
+  })
+
+  it('B3b: the list container reserves bottom room so the sticky footer cannot permanently cover the final row', async () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
+    expect(css).toMatch(/\.kl-form \.dt-table,\s*\n\.kl-form \.dt-cards \{/)
+    expect(css).toMatch(/margin-bottom:\s*88px/)
+    expect(css).toMatch(/margin-bottom:\s*calc\(140px \+ env\(safe-area-inset-bottom/)
   })
 })
 
@@ -274,16 +299,12 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
-    // Increment Nasi Goreng (plan=12) to a non-plan qty (e.g. 7)
-    const incBtn = screen.getAllByRole('button', { name: /increase nasi goreng/i })[0]
-    // Click 7 times
-    for (let i = 0; i < 7; i++) {
-      fireEvent.click(incBtn)
-    }
-
-    // Submit without note
+    // v4: type the produced qty directly (Nasi Goreng plan=12) to a non-plan qty (7), then
+    // blur — the variance-note gate reveals on blur, not per keystroke.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      fireEvent.change(qtyInput, { target: { value: '7' } })
+      fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
 
@@ -297,17 +318,24 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 
-  it('#6: reveals the note field INLINE as soon as qty != target (no submit needed)', async () => {
+  it('#6: reveals the note field on BLUR once qty != target (no submit needed)', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
     // No note field before any input
     expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
 
-    // One increment (plan=12, qty=1 → off-target) reveals the note inline
-    const incBtn = screen.getAllByRole('button', { name: /increase nasi goreng/i })[0]
+    // Type an off-target qty (plan=12, qty=1 → off-target). v4: the note reveals on BLUR,
+    // never per keystroke (a required textarea must not shove itself into the row mid-number).
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     await act(async () => {
-      fireEvent.click(incBtn)
+      fireEvent.change(qtyInput, { target: { value: '1' } })
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
+
+    await act(async () => {
+      fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
 
@@ -326,12 +354,11 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Increment Ayam Bakar
-    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    fireEvent.click(incBtn)
-
+    // Type a qty for Ayam Bakar, then blur to reveal the gate.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      fireEvent.change(qtyInput, { target: { value: '1' } })
+      fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
 
@@ -355,8 +382,8 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Stage an off-plan line (qty=1, no plan → needs a variance note)
-    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    fireEvent.click(incBtn)
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '1' } })
 
     // Submit is disabled while the note is unresolved (F3 explicit disabled state)
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
@@ -369,13 +396,14 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Stage an off-plan line
-    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    fireEvent.click(incBtn)
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '1' } })
 
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
 
-    // Reveal the note field (it shows inline once off-target) and fill it
+    // Reveal the note field on blur (v4: the reveal is blur-gated, not per keystroke) and fill it
+    fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch' } })
 
@@ -394,8 +422,8 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Stage an off-plan line (qty=1, plan=0 → off-target → variance note required)
-    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    fireEvent.click(incBtn)
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '1' } })
 
     // The Submit button is disabled (F3 existing gate — unchanged)
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
@@ -411,13 +439,14 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const incBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    fireEvent.click(incBtn)
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '1' } })
 
     // Reason message shows while note is empty
     expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
 
-    // Fill the required note
+    // Fill the required note (blur first — v4: the note field reveals on blur)
+    fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch today' } })
 
@@ -444,7 +473,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
     })
 
     // The qty input for Ayam Bakar (w1)
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
 
     // Type 10 (exceeds tersedia 9) — the value is KEPT (not clamped) and the cue shows
     await act(async () => {
@@ -468,7 +497,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '10' } }) // > tersedia 9
       await Promise.resolve()
@@ -492,9 +521,10 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
 
     // w1: plan 10, stok 3 → effective target 7; tersedia 9. Log 9 with a note (off-target
     // 9 != 7 needs a note, but 9 <= tersedia so it's NOT rejected for availability).
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '9' } })
+      fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
     expect(screen.queryByText(/insufficient stock/i)).toBeNull()
@@ -525,7 +555,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     // effective target = max(plan 10 − stok 3, 0) = 7 → log exactly 7 (on-target, no note, no cap)
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '7' } })
@@ -546,10 +576,8 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Set Ayam Bakar (plan=20) to exactly 20 (on-plan — no note required)
-    const ayamIncBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    for (let i = 0; i < 20; i++) {
-      fireEvent.click(ayamIncBtn)
-    }
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -580,10 +608,8 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Set Ayam Bakar to exactly 20 (on-plan)
-    const ayamIncBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    for (let i = 0; i < 20; i++) {
-      fireEvent.click(ayamIncBtn)
-    }
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -606,10 +632,8 @@ describe('Submitting state', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Set Ayam Bakar to exactly 20 (on-plan)
-    const ayamIncBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    for (let i = 0; i < 20; i++) {
-      fireEvent.click(ayamIncBtn)
-    }
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -630,10 +654,8 @@ describe('Submit error state', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Set Ayam Bakar to exactly 20 (on-plan)
-    const ayamIncBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    for (let i = 0; i < 20; i++) {
-      fireEvent.click(ayamIncBtn)
-    }
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -702,8 +724,8 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const ayamIncBtn = screen.getAllByRole('button', { name: /increase ayam bakar/i })[0]
-    for (let i = 0; i < 20; i++) fireEvent.click(ayamIncBtn)
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -800,26 +822,121 @@ const WIP_ITEMS_WITH_OFFPLAN: WipItemOption[] = [
   { id: 'w3', name: 'Sambal Matah', category: 'Side' }, // off-plan for Production
 ]
 
-// task 10a — KPI strip renders the derived values (phone summary + desktop tiles)
-describe('OD-K-5: KPI strip renders derived values from `lines`', () => {
-  it('phone: summary shows the planned dish count + % complete (nothing staged → 0%)', async () => {
+// task 10a — the derived plan figures render in the page-head meta line.
+// v4 (2026-07-27, owner-directed): the standalone KPI-strip band (desktop 4 tiles / phone
+// one-line summary) is gone from this page. The date chip and the planned-total band were
+// "two stacked lines saying very little" — they are now ONE compacted meta line (`kl-meta-
+// line`) in the PageHead, showing the planned total + dish count. `madeSoFar`/`pctComplete`
+// were dropped from the head entirely (plan §"Metric summary rule" — those numbers reflected
+// typed-not-yet-submitted quantities, so the head would report "0 / -548 vs plan" a second
+// after a successful submit; visibly absent beats confidently wrong). The goal this test
+// protects — the day's planned figures are readable at a glance — is unchanged; the STEPS
+// were rewritten to the new meta-line rendering, and per-row feedback (kl-status) already has
+// its own coverage below.
+describe('OD-K-5: the planned total + dish count render in the page-head meta line', () => {
+  it('shows the planned total and dish count regardless of viewport (phone)', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    // 2 planned dishes (w1:20, w2:12), nothing staged → 0%
-    expect(screen.getByText(/2 planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/0%/i)).toBeInTheDocument()
-    expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
+    // 2 planned dishes (w1:20, w2:12) → plannedTotal 32, plannedDishCount 2
+    const head = screen.getByTestId('page-head')
+    expect(within(head).getByText('32')).toBeInTheDocument()
+    expect(within(head).getByText('2')).toBeInTheDocument()
   })
 
-  it('desktop: the 4 tiles render plannedTotal/madeSoFar/%/itemsRemaining', async () => {
+  it('shows the same planned total and dish count on desktop (no width branch)', async () => {
     setDesktopMatchMedia(true)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
-    // plannedTotal = 20 + 12 = 32; madeSoFar = 0; pct = 0%; itemsRemaining = 2
-    expect(within(region).getByText('32')).toBeInTheDocument()
-    expect(within(region).getByText('0%')).toBeInTheDocument()
-    expect(within(region).getByText('2')).toBeInTheDocument()
+    const head = screen.getByTestId('page-head')
+    expect(within(head).getByText('32')).toBeInTheDocument()
+    expect(within(head).getByText('2')).toBeInTheDocument()
+  })
+
+  it('omits the planned-total meta line entirely when nothing is planned for this action_type', async () => {
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(document.querySelector('.kl-plan-sum')).toBeNull()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DD-7 regression guard — the summary band reported TYPED production as LOGGED.
+//
+// The band derived "Made so far", "% complete", "−N vs plan" and "−N portions short" from
+// `lines` — the quantities typed INTO THE FORM, not the day's submitted production — while a
+// provenance note beneath it simultaneously read "No entries logged yet today". One second after
+// a successful submit the same band reset to "Made so far 0 / −548 vs plan" on a day when 548
+// portions HAD been logged. PRODUCT.md principle 4: a confident wrong number is the worst outcome
+// MOS can produce.
+//
+// The fix removed those metrics rather than restyling them, but the INVARIANT is what is guarded
+// here, not the deletion: nothing on the band may present a figure derived from unsaved form state
+// as if it were logged production, and no "nothing has been logged today" claim may be derived
+// from unsaved input either. (The sticky-footer tally is explicitly the staged-work counter —
+// "pending review on Submit" — so it is not a band claim and is deliberately out of scope.)
+const LOGGED_PRODUCTION_CLAIMS = [
+  /made so far/i,      // kitchen.kpi.madeSoFar
+  /% complete/i,       // kitchen.kpi.pctComplete
+  /vs plan/i,          // kitchen.kpi.madeSoFar.behind — "−N vs plan"
+  /portions short/i,   // kitchen.kpi.dishesRemaining.short — "−N portions short"
+  /logged yet today/i, // the provenance note — "No entries logged yet today"
+]
+
+describe('DD-7: the summary band never reports typed-but-unsaved quantities as logged production', () => {
+  // "The band" = everything the screen states ABOVE the capture form: the page head, plus any
+  // summary rendered between it and the form. Read structurally (not by class name) so the guard
+  // survives the band being restyled or moved — it is the CLAIM that is protected, not a selector.
+  function bandText(): string {
+    const head = screen.getByTestId('page-head').textContent ?? ''
+    const page = document.querySelector('.kl-page')
+    const form = document.getElementById('kitchen-log-form')
+    const aboveForm = page
+      ? Array.from(page.childNodes).filter(n => n !== form).map(n => n.textContent ?? '').join('')
+      : ''
+    return head + aboveForm
+  }
+
+  // Asserted at BOTH widths: the band that carried the defect was width-branched (desktop metric
+  // tiles / phone one-line summary), so a guard that only ran one branch could miss the other.
+  async function bandNeverClaimsLoggedProduction() {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // The band as it stands before anyone touches the form: the day's PLAN, and nothing that
+    // claims produced/complete/short figures.
+    const bandAtRest = bandText()
+    for (const claim of LOGGED_PRODUCTION_CLAIMS) {
+      expect(document.body.textContent).not.toMatch(claim)
+    }
+
+    // The floor worker types what they made for Ayam Bakar (plan 20). Staged only — the day's
+    // logged production is still exactly what it was, because nothing has been submitted.
+    const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(ayam, { target: { value: '7' } })
+      await Promise.resolve()
+    })
+    expect((ayam as HTMLInputElement).value).toBe('7')
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+
+    // The band is unmoved — it states the plan, which unsaved input cannot change. Not one figure
+    // above the form may move on a keystroke, whatever it is called…
+    expect(bandText()).toBe(bandAtRest)
+    // …and the surface still makes no produced/complete/short claim, nor the opposite claim that
+    // nothing has been logged today, on the strength of what is only typed into the form.
+    for (const claim of LOGGED_PRODUCTION_CLAIMS) {
+      expect(document.body.textContent).not.toMatch(claim)
+    }
+  }
+
+  it('DD-7: phone — typing a quantity moves no "made / % complete / vs plan" figure on the band, and no "nothing logged today" claim is derived from unsaved input', async () => {
+    await bandNeverClaimsLoggedProduction()
+  })
+
+  it('DD-7: desktop — the same invariant holds on the wide band', async () => {
+    setDesktopMatchMedia(true)
+    await bandNeverClaimsLoggedProduction()
   })
 })
 
@@ -888,16 +1005,16 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // stage Ayam Bakar to 20 (on-plan, no note)
-    const ayamInc = screen.getAllByRole('button', { name: /increase ayam bakar quantity/i })[0]
-    for (let i = 0; i < 20; i++) fireEvent.click(ayamInc)
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
     expect((ayamInput as HTMLInputElement).value).toBe('20')
 
     fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
     expect(confirmSpy).toHaveBeenCalled()
-    // qty reset to 0
+    // v4: qty resets to BLANK (not "0") — a blank field is the at-rest state, distinguishable
+    // from a deliberate zero (wip-item-stepper.tsx).
     await waitFor(() => {
-      expect((ayamInput as HTMLInputElement).value).toBe('0')
+      expect((ayamInput as HTMLInputElement).value).toBe('')
     })
     confirmSpy.mockRestore()
   })
@@ -907,9 +1024,8 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const ayamInc = screen.getAllByRole('button', { name: /increase ayam bakar quantity/i })[0]
-    for (let i = 0; i < 20; i++) fireEvent.click(ayamInc)
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
     expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
@@ -924,8 +1040,8 @@ describe('OD-K-5: sticky-footer tally', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // stage Ayam Bakar (plan=20) to 20 → stagedCount=1, madeSoFar=20
-    const ayamInc = screen.getAllByRole('button', { name: /increase ayam bakar quantity/i })[0]
-    for (let i = 0; i < 20; i++) fireEvent.click(ayamInc)
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
 
     expect(screen.getByText(/1 dish/i)).toBeInTheDocument()
     expect(screen.getByText(/20 units/i)).toBeInTheDocument()
@@ -999,7 +1115,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     await renderPageInDataRouter()
 
     // Stage a quantity for Ayam Bakar — the page now holds unsaved work.
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '5' } })
       await Promise.resolve()
@@ -1010,7 +1126,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     // Vetoed — still on the log page, the staged qty intact.
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Elsewhere' })).toBeNull()
-    expect((screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i }) as HTMLInputElement).value).toBe('5')
+    expect((screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }) as HTMLInputElement).value).toBe('5')
     confirmSpy.mockRestore()
   })
 
@@ -1018,7 +1134,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     await renderPageInDataRouter()
 
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '5' } })
       await Promise.resolve()

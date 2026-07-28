@@ -1,7 +1,8 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath, modulesForRoles } from './destinations'
+import { destinationForPath, modulesForRoles, primaryModuleForViewer } from './destinations'
 import { useBreadcrumbTitle } from './breadcrumb-title'
+import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
@@ -28,21 +29,37 @@ export function Breadcrumb() {
   const { pathname, search } = useLocation()
   const dynamicTitle = useBreadcrumbTitle()
   const auth = useAuth()
+  const isNarrow = useIsNarrow()
   const t = useT()
 
   const destination = destinationForPath(pathname)
   // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
   if (!destination) return null
 
-  // Rule 5 under OD-REDESIGN-68: on a module route the viewer has NO rail entry for (an admin
-  // visiting /cafe), nothing in the rail can carry aria-current="page" — the breadcrumb leaf
-  // takes over so every route still renders exactly one. (Second-pass audit: e2e AC-007 caught
-  // the count dropping to zero on those routes.)
+  // Rule 5 (I7 — "rail owns it; breadcrumb leaf when the viewer has no rail entry"): whichever
+  // location-owning nav surface is on screen for this width takes precedence; the breadcrumb
+  // leaf carries aria-current="page" ONLY for a destination that surface doesn't cover, so
+  // exactly one element carries it on every route, both widths (v4 shell rebuild, Task 3).
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const leafCarriesCurrent =
-    destination.zone === 'modules' &&
-    viewer != null &&
-    !modulesForRoles(viewer.roles.map((r) => r.name), viewer.accessRoles).some((m) => m.id === destination.id)
+  let leafCarriesCurrent: boolean
+  if (isNarrow) {
+    // Phone: the bottom-tab-bar is the location-owning surface, and it covers only Home · Work
+    // (+ every /work/* child) · the viewer's promoted module · Inbox. The More button is a
+    // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
+    // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
+    // non-promoted module) has no tab, so the breadcrumb leaf owns it.
+    const promoted = viewer ? primaryModuleForViewer(viewer.roles.map((r) => r.name), viewer.accessRoles) : null
+    const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
+    leafCarriesCurrent = !tabIds.has(destination.id)
+  } else {
+    // Desktop: the rail renders every live workspace/utility destination plus the viewer's
+    // affiliated modules (OD-REDESIGN-68) — the only gap is a modules-zone route the viewer
+    // has no rail entry for (e.g. an admin visiting /cafe directly).
+    leafCarriesCurrent =
+      destination.zone === 'modules' &&
+      viewer != null &&
+      !modulesForRoles(viewer.roles.map((r) => r.name), viewer.accessRoles).some((m) => m.id === destination.id)
+  }
 
   const destLabel = t(destination.labelKey)
   const crumbs: string[] = [destLabel]
@@ -73,7 +90,7 @@ export function Breadcrumb() {
     const sec = sectionForPath(pathname)
     if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
   }
-  // home / events / inbox / profile / ecommerce / roastery → bare destLabel.
+  // home / events (Signals) / inbox / profile / ecommerce / roastery → bare destLabel.
 
   return (
     <span style={{ fontSize: 'var(--font-size-body-lg)' }}>

@@ -10,6 +10,8 @@
 // `groups` wins. Callers pass exactly one of `rows` (flat) / `groups` (grouped).
 import { Fragment, useState, type ReactNode } from 'react'
 import { Chevron } from '@/shell/icons'
+import { useT } from '@/i18n/use-t'
+import { ErrorState } from '@/components/ui/state-kit'
 import './data-table.css'
 
 export interface DataTableColumn<Row> {
@@ -69,6 +71,14 @@ export interface DataTableProps<Row> {
   onRetry?: () => void
   /** <caption> / aria — a11y table name */
   caption: string
+  /**
+   * v4: opt-in purpose-built phone card body. The default card is a <dl> of every detail
+   * column — correct for READING a record, wrong for a high-frequency capture list where the
+   * label/value stack costs ~200px per row. A surface whose phone job is "run down a long list
+   * and act on each" supplies its own compact body here and still keeps DataTable's grouping,
+   * collapse, empty, loading and skeleton machinery. Desktop is unaffected.
+   */
+  renderCard?: (row: Row, index: number) => ReactNode
 }
 
 function cellValue<Row>(row: Row, column: DataTableColumn<Row>): ReactNode {
@@ -93,15 +103,20 @@ export function DataTable<Row extends object>({
   collapsedGroupKeys,
   onToggleGroup: onToggleGroupProp,
   rowClassName,
+  renderCard,
   sort,
   onSortChange,
   footer,
   isDesktop,
   state = 'ready',
-  emptyLabel = 'No rows to show.',
+  emptyLabel,
   onRetry,
   caption,
 }: DataTableProps<Row>) {
+  // harden (2026-07-28): `emptyLabel` defaulted to the hardcoded English literal
+  // 'No rows to show.' — same class of hole as ErrorState's 'Retry'.
+  const t = useT()
+  const resolvedEmptyLabel = emptyLabel ?? t('common.noRows')
   // Collapse state lives at the top so it is shared by both branches — a re-render
   // with a different isDesktop keeps the same groups open/closed. All-expanded by
   // default. INTERNAL: callers do not control it. (useState is called before the
@@ -121,16 +136,16 @@ export function DataTable<Row extends object>({
   }
   const collapsed = collapsedGroupKeys ?? internalCollapsed
 
+  // harden (2026-07-28): was a bespoke `.dt-error` / `.dt-retry` pair with hardcoded
+  // English copy — the second of Money's three divergent error implementations. Now the
+  // one shared kit, so a failed table recovers with the same control as a failed chart
+  // and a failed page.
   if (state === 'error') {
     return (
-      <div className="dt-error" role="alert">
-        <p className="dt-error-text">Couldn&apos;t load this table. Try again.</p>
-        {onRetry && (
-          <button type="button" className="dt-retry" onClick={onRetry}>
-            Try again
-          </button>
-        )}
-      </div>
+      <ErrorState
+        message={t('common.loadFailed', { what: t('common.what.table') })}
+        onRetry={onRetry}
+      />
     )
   }
 
@@ -146,7 +161,7 @@ export function DataTable<Row extends object>({
           onSortChange={onSortChange}
           footer={footer}
           state={state}
-          emptyLabel={emptyLabel}
+          emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
           onToggleGroup={toggleGroup}
@@ -154,12 +169,13 @@ export function DataTable<Row extends object>({
       )
     : (
         <PhoneCards
+          renderCard={renderCard}
           columns={columns}
           rows={rows}
           groups={groups}
           rowClassName={rowClassName}
           state={state}
-          emptyLabel={emptyLabel}
+          emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
           onToggleGroup={toggleGroup}
@@ -226,6 +242,7 @@ function GroupHeaderRow<Row>({
   collapsed: boolean
   onToggle: () => void
 }) {
+  const t = useT()
   return (
     <tr className="dt-group-row">
       <th scope="colgroup" colSpan={columnCount} className="dt-group-cell">
@@ -234,7 +251,7 @@ function GroupHeaderRow<Row>({
             type="button"
             className="dt-group-toggle"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+            aria-label={collapsed ? t('table.group.expand', { group: group.label ?? '' }) : t('table.group.collapse', { group: group.label ?? '' })}
             onClick={onToggle}
           >
             <Chevron className={`dt-group-chev${collapsed ? ' dt-group-chev-collapsed' : ''}`} />
@@ -374,6 +391,8 @@ interface PhoneCardsProps<Row> {
   rows: Row[]
   groups?: DataTableGroup<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  /** Custom compact card renderer, e.g. Café Log's phone capture row. */
+  renderCard?: (row: Row, index: number) => ReactNode
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
@@ -388,13 +407,25 @@ function PhoneCard<Row>({
   titleColumn,
   detailColumns,
   rowClassName,
+  renderCard,
 }: {
   row: Row
   rowIndex: number
   titleColumn: DataTableColumn<Row>
   detailColumns: DataTableColumn<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  renderCard?: (row: Row, index: number) => ReactNode
 }) {
+  if (renderCard) {
+    return (
+      <div
+        className={['dt-card', 'dt-card--compact', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
+        data-touch-target="true"
+      >
+        {renderCard(row, rowIndex)}
+      </div>
+    )
+  }
   return (
     <div
       className={['dt-card', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
@@ -424,12 +455,14 @@ function PhoneCards<Row>({
   rows,
   groups,
   rowClassName,
+  renderCard,
   state,
   emptyLabel,
   caption,
   collapsed,
   onToggleGroup,
 }: PhoneCardsProps<Row>) {
+  const t = useT()
   if (state === 'loading') {
     return (
       <div className="dt-cards" aria-label={caption}>
@@ -460,6 +493,7 @@ function PhoneCards<Row>({
           titleColumn={titleColumn}
           detailColumns={detailColumns}
           rowClassName={rowClassName}
+          renderCard={renderCard}
         />
       ))}
       {groups && groups.map(group => (
@@ -470,7 +504,7 @@ function PhoneCards<Row>({
                 type="button"
                 className="dt-cards-group-toggle"
                 aria-expanded={!collapsed.has(group.key)}
-                aria-label={collapsed.has(group.key) ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                aria-label={collapsed.has(group.key) ? t('table.group.expand', { group: group.label ?? '' }) : t('table.group.collapse', { group: group.label ?? '' })}
                 onClick={() => onToggleGroup(group.key)}
               >
                 <Chevron className={`dt-cards-group-chev${collapsed.has(group.key) ? ' dt-cards-group-chev-collapsed' : ''}`} />
@@ -491,6 +525,7 @@ function PhoneCards<Row>({
               titleColumn={titleColumn}
               detailColumns={detailColumns}
               rowClassName={rowClassName}
+              renderCard={renderCard}
             />
           ))}
         </Fragment>

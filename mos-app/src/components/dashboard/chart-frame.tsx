@@ -4,7 +4,7 @@
 // doubles as the phone primary view when the chart is unreadable.
 import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
-import { EmptyState } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState } from '@/components/ui/state-kit'
 import './chart-frame.css'
 
 export interface ChartFrameProps {
@@ -49,15 +49,16 @@ export function ChartFrame({
         {state === 'empty' && (
           <EmptyState variant="blank" title={t('chart.empty')} />
         )}
+        {/* harden (2026-07-28): was a bespoke `.chart-frame-error` div with hardcoded
+            English copy and a hand-rolled `.chart-frame-retry` button — one of THREE
+            divergent error implementations inside Money alone (this, DataTable's
+            `.dt-error`, and dashboard-page's shared ErrorState). All three now compose
+            the one kit, so an error looks and recovers the same everywhere. */}
         {state === 'error' && (
-          <div className="chart-frame-error">
-            <p className="chart-frame-error-text">Couldn&apos;t load this chart. Try again.</p>
-            {onRetry && (
-              <button type="button" className="chart-frame-retry" onClick={onRetry}>
-                Try again
-              </button>
-            )}
-          </div>
+          <ErrorState
+            message={t('common.loadFailed', { what: t('common.what.chart') })}
+            onRetry={onRetry}
+          />
         )}
         {state === 'ready' && children}
       </div>

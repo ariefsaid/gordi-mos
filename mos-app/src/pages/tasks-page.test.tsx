@@ -762,12 +762,10 @@ describe('Fix M2 — task count suppressed in error state', () => {
     mockListTasks.mockResolvedValue([makeTask(), makeTask({ id: 'task-2', title: 'Task 2' })])
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
-    // Goal-oracle: the loaded count is visible. R2 (owner review r2) replaced the content-header
-    // count pill with ONE muted meta sentence ("N tasks · M blocked", a single font size) — the
-    // count now reads inside that sentence. In "Mine" segment default, both tasks are by VIEWER_ID
-    // so both appear.
+    // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
+    // explicitly distinguish open work from the total set: "N open · M total".
     const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toContain('2 tasks')
+    expect(countLine?.textContent).toContain('2 open · 2 total')
   })
 })
 

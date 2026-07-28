@@ -9,11 +9,12 @@
    The kv block uses EXACTLY three sizes, declared once here so no accidental size can creep in:
    ONE label size (also the section overline), ONE value size (plain text · entity chip · status
    pill all share it), and the label column width (item 4 — a calm ~148px, not a spreadsheet slab).
-   These map to the kit's small-text step; kept as record-local vars so a future token swap is one
-   edit. */
+   typeset: wired to the ramp's own `label`/`control` tokens (the "future token swap" this
+   comment was already asking for) — same rendered values (12px / 13.5px), no longer a
+   parallel local scale that happens to match by coincidence. */
 .record-viewer {
-  --rec-kv-label-size: 12px;
-  --rec-kv-value-size: 13.5px;
+  --rec-kv-label-size: var(--font-size-label);
+  --rec-kv-value-size: var(--font-size-control);
   --rec-kv-label-w: 148px;
 }
 

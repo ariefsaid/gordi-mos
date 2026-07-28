@@ -450,3 +450,47 @@ describe('Home retry/projection convergence: one retriable error for the shared 
     expect(within(attn).queryByText("Couldn't load this list. Refresh to try again.")).toBeNull()
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DD-10 regression guard — a headline count computed from a truncated DISPLAY array.
+//
+// `attentionCountN` summed `signalsBand.items`, which is `.slice(0, SIGNAL_BAND_CAP)` for
+// display, so a viewer with 9 attention-worthy Signals was told "Needs attention · 6". The
+// number a viewer plans their day around silently inherited a rendering cap.
+// PRODUCT.md principle 4: a figure is traceable or visibly absent — never quietly capped.
+//
+// The fixture MUST exceed the display cap; a fixture of ≤6 cannot fail and is not a guard.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('DD-10: the "Needs attention · N" head summary counts the true total, never the display cap', () => {
+  // Nine Urgent Signals, oldest → newest. The band ranks newest-first and shows six, so
+  // signals 1–3 are off-screen: exactly the gap the old count fell into.
+  function attentionSig(n: number): SignalRow {
+    const at = `2026-07-16T0${n}:00:00Z`
+    return {
+      id: `sig-${n}`, author_id: 'a', owning_team_id: 'tm', occurred_at: at,
+      body: `Attention signal ${n}`, attention: 'Urgent', category: null, source: 'human',
+      retracted_at: null, retract_reason: null, edited_at: null, created_at: at,
+    }
+  }
+
+  it('DD-10: a viewer with 9 attention Signals — more than the 6-row display cap — is told 9, not 6', async () => {
+    const personId = financeViewer.viewer.person.id
+    // The head summary is owed when the personal canvas leads (OD-REDESIGN-18).
+    setRegionOrder(personId, 'personal-first')
+    mockListReadableSignals.mockResolvedValue([1, 2, 3, 4, 5, 6, 7, 8, 9].map(attentionSig))
+
+    await renderHome(financeViewer)
+    await screen.findByRole('region', STREAM)
+
+    // The stream really is truncated — the three oldest attention Signals are not on screen…
+    const attn = await screen.findByTestId('attention-group')
+    expect(await within(attn).findByText('Attention signal 9')).toBeInTheDocument()
+    for (const n of [1, 2, 3]) {
+      expect(within(attn).queryByText(`Attention signal ${n}`)).toBeNull()
+    }
+
+    // …and the headline still tells the viewer how many things actually need them.
+    const summary = await screen.findByRole('link', { name: /needs attention · \d+/i })
+    expect(summary).toHaveTextContent('Needs attention · 9')
+  })
+})

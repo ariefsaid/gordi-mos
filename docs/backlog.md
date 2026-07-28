@@ -1,6 +1,6 @@
 # Gordi MOS — backlog (living doc; created 2026-06-10)
 
-> **STATE 2026-07-24 — the convergence is DONE; five open items remain (banner:
+> **STATE 2026-07-24 — the convergence is DONE; six open workstreams remain (banner:
 > `docs/agent-context.md`):**
 > ① **Phase-3 OFFICIAL Luna** — deferred ~1 week (Codex quota, owner-confirmed 07-24); on return:
 > fresh pinned checkout at the then-tip, full register scope, verdict → `docs/reviews/v3-redesign.md`.
@@ -12,8 +12,10 @@
 > ⑤ **Phase-4 features** — the S1–S7 restoration queue
 > (`docs/plans/2026-07-23-feature-parity-ledger.md` §5; S2/S3 owe their schema ADRs first) +
 > Issue-10 editor, Shifts, module stubs. Opens after the Luna gate per OD-87, or earlier on owner
-> word. **Merge-to-main** additionally requires the review-battery ledger verdicts
-> (spec · code-quality) for the branch + `pre-merge-check.sh` exit 0.
+> word. ⑥ **Acceptance closure** — 9 audit-register surfaces are still DUE, formal spec/design
+> review verdicts are absent, and the live 1280/1024/390 owner walkthrough has not run. **Merge-to-main**
+> additionally requires the review-battery ledger verdicts (spec · code-quality) for the branch +
+> `pre-merge-check.sh` exit 0.
 
 - **R6(b) record-door unification (deferred from `v3/owner-r2`, 2026-07-23):** Tasks opens
   records path-based (`/work/tasks/:id`) while Signals uses the `?record=` query seam — two door
@@ -278,6 +280,45 @@ bar itself moved (era timeline E1→E8/V3): `docs/requirements-evolution.md`.
 > direction (OD-REDESIGN-34) but **no reset/deploy is authorized**; the three redesign-derived
 > deferrals already live at the bottom of this file (Blueprint, clean baseline, MCP). Read the
 > banners below as history of what shipped, not as the live plan.
+
+> ## 2026-07-28 — v4 REDESIGN: feature work the Nielsen gate identified (NOT design work)
+>
+> The v4 redesign ran the impeccable toolchain end to end and plateaued at **28.8/40 app-wide**
+> against the owner gate of **>30** (`OD-V4-4`). Full record: `docs/v4-inheritance.md`,
+> `docs/reviews/v4-nielsen-gate-2026-07-27.md`, `docs/reviews/v4-crosscutting-audit-2026-07-27.md`.
+>
+> **The measured finding that matters:** across three scoring rounds, **layout and aesthetic passes
+> moved zero points**, while fixes that closed a broken interaction moved **5–14 points each**
+> (Café·Log +12 from one submit-flow bug fix; Inbox +6 from error recovery; Café·Plan +14.2pp from a
+> filter). The remaining gap is **not reachable by redesign** — the items below are capability,
+> routing and data work. Estimates are the scorers', not the Director's.
+>
+> | # | Item | Surface | Why it scores | Est. |
+> |---|---|---|---|---|
+> | **F1** | **Wire plan-edit capability for the Kitchen Lead.** `/cafe/plan` renders **fully inert** — zero controls — for the persona `jtbd.md` names as its primary user. Highest single-item gain on the board | Café·Plan | H7 flexibility (2.25/4 app-wide) | **+4–6** |
+> | **F2** | **Objectives row drill-through** to a record view showing its Projects/Processes/Tasks + RACI. Rows are currently inert text where Tasks rows link | Objectives (18→23/40, lowest surface) | H4 consistency, H6 recognition | **+2–4** |
+> | **F3** | **Apply the OD-V4-1 capability migration.** `supabase/migrations/20260727000001_od_v4_1_objective_lead_write.sql` is **authored but not applied**; `destinations.tsx` still gates the rail entry on `objective.manage` (admin only), so a Kitchen Lead sees no Objectives entry and a direct URL silently redirects. Needs RLS + security review — a client-only gate change would show UI that then 403s | Objectives | unblocks F2/F4; closes register item **X-6** | prereq |
+> | **F4** | **Objectives owner/RACI display + BU/status filter**, mirroring Tasks' "View & filters" | Objectives | H7 | **+2** |
+> | **F5** | **Money row/table drill-through to transactions.** `data-table.tsx` has **no row-click/href seam** — this is routing work, not styling | Money | H6, H7 | +1–2 |
+> | **F6** | **Build out the desktop Home layout.** The money strip, ops-KPI row and cascade progress **already exist in source** behind `SHOW_HOME_STACKED` but are not live; desktop currently renders a stretched ~620px mobile feed column on a 1280px viewport | Home | H8, H7 | **+2–3** |
+> | **F7** | **Failed-checks rows need a drill/acknowledge target.** A flagged problem with no adjacent action is the A4 dead-end trap named in `jtbd.md`'s own calibration anchors | Home | H1, H7 | +1–2 |
+> | **F8** | **A real in-app help system.** H10 was the weakest heuristic app-wide (1.25/4, now 2.0/4). A shared HelpTip was extracted but reaches only 3 of 8 surfaces, and it is a `title`-attribute tooltip — genuinely fixing help means more than tooltips | app-wide | **H10, still weakest** | +1 per surface |
+> | **F9** | **Source Café·Log's real logged total.** DD-7 *removed* "Made so far / % complete / vs plan" rather than sourcing them, because they were derived from unsaved form state ("visibly absent beats confidently wrong"). The live kitchen app already has this per dish as a **"sudah N"** badge — port that model | Café·Log | H1 visibility | +1–2 |
+> | **F10** | **Extend the as-of/provenance stamp** (B-iii, PR #96) to Home's feed and Café·Plan's totals — both silently omit it | Home, Café·Plan | H1 | +1–2 |
+>
+> **F11 — test debt (`X-10`, owner decision pending).** **129 tests red across 45 files**, deferred
+> deliberately by `OD-V4-4` while the design moved. This now overrides `OD-REDESIGN-88`
+> ("no untested prod code, ever"; red-first still required for bug fixes). Three real correctness
+> bugs were fixed this session with **no regression guard**: DD-7 (band reported typed-as-logged),
+> DD-10 (attention count summed a `.slice(0,6)` display array), DD-18 (the variance-note field
+> unmounted mid-typing, and Submit then unblocked on a one-character note). Recommendation on record:
+> allow a failing-repro test for **correctness bugs only**, keep the deferral for everything
+> presentational.
+>
+> **Also open, non-feature:** the contradiction register in `docs/v4-inheritance.md` carries
+> **X-4** (FR-022 demands a written note whenever qty ≠ plan on a fast capture field) and **X-11**
+> (the Director conflated "Events" with "Signals"; `OD-V4-2` was ratified on a false premise —
+> recommend reverting the root label). Both need an owner call.
 
 > **NEXT SESSION:** read `docs/redesign-decision-index.md` first for product direction, then
 > `docs/platform-workstream-status.md` only for legacy implementation and infrastructure facts.

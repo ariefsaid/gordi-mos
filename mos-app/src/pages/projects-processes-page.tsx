@@ -1,15 +1,20 @@
 // ProjectsProcessesPage — Projects & Processes catalog, Work's manage-mode (route /work/projects
-// behind RequireCapability workline.manage; FR-424). The physical table is mos.work_lines (ADR-0015);
-// the UI term is Project/Process. It now speaks the V3 collection grammar: a typed RecordCollection
-// descriptor owns load / view (Active/Archived) / name search / a Project·Process type filter, the
-// shared RecordCollectionSurface + CollectionToolbar render it, and the FR-422 up-trace (each
-// work_line's parent objective(s), inferred from task linkage — work_lines has no objective_id column)
-// rides under each active row. A catalog row has no record panel, so its inline management actions
-// (Rename / Archive / Unarchive) are its primary interaction; the ONE primary create affordance is the
-// inline Add bar above the collection, carrying the create-time Type field (FR-013/014).
+// behind RequireCapability workline.manage; FR-424 — UNCHANGED by OD-V4-1, which only re-scopes
+// Objectives' read gate). The physical table is mos.work_lines (ADR-0015); the UI term is
+// Project/Process. It now speaks the V3 collection grammar: a typed RecordCollection descriptor
+// owns load / view (Active/Archived) / name search / a Project·Process type filter, the shared
+// RecordCollectionSurface + CollectionToolbar render it, and the FR-422 up-trace (each work_line's
+// parent objective(s), inferred from task linkage — work_lines has no objective_id column) rides
+// under each active row. Each row also carries a relations disclosure (OD-V4-1 H4) — a real drill
+// target into its parent Objective(s) and its own Tasks, bidirectional with ObjectivesPage's own
+// disclosure (docs/v4-inheritance.md INC-1: relations live on the records, not a new cascade
+// route). A catalog row has no record panel, so its inline management actions (Rename / Archive /
+// Unarchive) are its primary interaction; the ONE primary create affordance is the inline Add bar
+// above the collection, carrying the create-time Type field (FR-013/014).
 import { useCallback, useId, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { useDocumentTitle } from '@/shell/use-document-title'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Select } from '@/components/ui/select'
@@ -30,8 +35,8 @@ import '@/components/catalog/catalog-collection.css'
 
 export function ProjectsProcessesPage() {
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.work.projects') }))
   const nameFieldId = useId()
-  const typeFieldId = useId()
   const controller = useRecordCollection({
     descriptor: projectsProcessesCollectionDescriptor,
     urlMode: 'synced',
@@ -168,20 +173,18 @@ export function ProjectsProcessesPage() {
             placeholder={t('catalog.namePlaceholder')}
           />
         </div>
-        <div>
-          <label htmlFor={typeFieldId} className="catalog-create__type-label">
-            {t('catalog.filter.type')}
-          </label>
-          <Select
-            id={typeFieldId}
-            value={newType}
-            onChange={(e) => setNewType(e.target.value as CatalogType)}
-            disabled={adding}
-          >
-            <option value="project">{t('catalog.tag.project')}</option>
-            <option value="process">{t('catalog.tag.process')}</option>
-          </Select>
-        </div>
+        {/* Select's own `label` prop renders the established .mk-select__label chrome (12px/500
+            muted-foreground, DESIGN.md Label token) — the previous hand-rolled <label> duplicated
+            that role at the wrong size (--font-size-mono, 13px) instead of reusing it. */}
+        <Select
+          label={t('catalog.filter.type')}
+          value={newType}
+          onChange={(e) => setNewType(e.target.value as CatalogType)}
+          disabled={adding}
+        >
+          <option value="project">{t('catalog.tag.project')}</option>
+          <option value="process">{t('catalog.tag.process')}</option>
+        </Select>
         <Button type="submit" variant="primary" disabled={adding} aria-busy={adding}>
           {adding ? t('catalog.projects.adding') : t('catalog.projects.add')}
         </Button>

@@ -15,12 +15,18 @@ import { EmptyState } from '@/components/ui/state-kit'
 export function EventsPage() {
   const t = useT()
   const title = t('dest.events')
-  useDocumentTitle(`${title} — Gordi MOS`)
+  useDocumentTitle(t('common.docTitle', { page: title }))
 
   return (
     // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence
     // (no surface-title glyph — consistent = none). The sanctioned EmptyState is the body.
-    <PageFamilyFrame family="workspace" title={title} jobSentence={t('job.events')}>
+    // impeccable layout/operate pass (v4, 2026-07-27): this destination has no collection
+    // wired yet, so it is ALWAYS in the empty state, never 'default' — state="empty" matches
+    // the V3 conformance matrix's Workspace/empty cell and the convention every other
+    // PageFamilyFrame consumer with a genuine empty condition already follows (e.g.
+    // kitchen-log-page.tsx's state="empty" branch). No visual change (no CSS keys off
+    // data-page-state today) — this is cross-surface state-semantics parity, not decoration.
+    <PageFamilyFrame family="workspace" title={title} jobSentence={t('job.events')} state="empty">
       <EmptyState
         variant="blank"
         headingLevel={2}

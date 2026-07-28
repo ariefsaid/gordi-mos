@@ -4,19 +4,29 @@
 // unsaved work asks the user to stay or discard, instead of silently dropping it (the live-
 // reproduced Kitchen Log "20 dishes vanish on navigate" loss).
 //
-// When `when` is true, an in-app SPA navigation to a DIFFERENT path — or a browser Back — is
-// intercepted and the user is asked to stay or discard via window.confirm (kitchen's OQ-4
-// native-confirm v1 pattern; a same-path search-param change is never blocked). react-router's
-// useBlocker requires a DATA router (createBrowserRouter, which the app uses). Under a non-data
-// router (e.g. a bare <MemoryRouter> unit harness) useBlocker throws, so the blocking hook is
-// mounted only when a data-router context is actually present; otherwise the guard is inert.
-import { useCallback, useContext, useEffect } from 'react'
+// harden (2026-07-28): the prompt was `window.confirm`. Three defects, all H9:
+//   1. DESIGN.md (Overlays) prescribes ONE centered blocking dialog for consequential confirms,
+//      and the app already ships it (`ui/confirm-dialog`) — Café Log's own Discard button uses it.
+//      So the SAME page confirmed one destructive action in the house dialog and the other in a
+//      native alert, two grammars for one decision.
+//   2. Its buttons are the BROWSER's, labelled in the browser's UI language, not the app's — an
+//      Indonesian-locale user got "OK / Cancel" in whatever Chrome was installed as, on the one
+//      prompt whose wrong answer discards their work. The whole point of `common.cancel` /
+//      `common.retry` living in the catalog is defeated by a control the app cannot label.
+//   3. `window.confirm` is blocking and, in a cross-origin iframe (and under some mobile
+//      configurations), suppressed outright — in which case the old code's `leave = true` branch
+//      silently discarded the work the guard exists to protect.
+// The dialog is now the shared ConfirmDialog: house styling, localized labels, focus returned to
+// the invoker, Esc = stay (the SAFE default — Esc must never be the discard path).
+import { useCallback, useContext, useEffect, useState } from 'react'
 import { UNSAFE_DataRouterContext, useBlocker, type BlockerFunction } from 'react-router-dom'
+import { useT } from '@/i18n/use-t'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export interface RouteLeaveGuardProps {
   /** True while the page holds unsaved work that a navigation would discard. */
   when: boolean
-  /** The stay/discard prompt (window.confirm): OK = discard-and-leave, Cancel = stay. */
+  /** The stay/discard prompt body — plain language about what is lost. */
   message: string
 }
 
@@ -28,19 +38,37 @@ export function RouteLeaveGuard({ when, message }: RouteLeaveGuardProps) {
 }
 
 function BlockingGuard({ when, message }: RouteLeaveGuardProps) {
+  const t = useT()
   const shouldBlock = useCallback<BlockerFunction>(
     ({ currentLocation, nextLocation }) =>
       when && currentLocation.pathname !== nextLocation.pathname,
     [when],
   )
   const blocker = useBlocker(shouldBlock)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (blocker.state !== 'blocked') return
-    const leave = typeof window !== 'undefined' ? window.confirm(message) : true
-    if (leave) blocker.proceed()
-    else blocker.reset()
-  }, [blocker, message])
+    setOpen(blocker.state === 'blocked')
+  }, [blocker.state])
 
-  return null
+  if (blocker.state !== 'blocked') return null
+
+  return (
+    <ConfirmDialog
+      open={open}
+      title={t('leaveGuard.title')}
+      body={message}
+      confirmLabel={t('leaveGuard.discard')}
+      cancelLabel={t('leaveGuard.stay')}
+      tone="destructive"
+      onConfirm={async () => {
+        setOpen(false)
+        blocker.proceed()
+      }}
+      onCancel={() => {
+        setOpen(false)
+        blocker.reset()
+      }}
+    />
+  )
 }

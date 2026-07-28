@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -30,20 +31,17 @@ import type {
   KitchenActionType,
 } from '@/lib/db/kitchen-logs.types'
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
-import { ActionTypeSeg } from '@/components/kitchen/action-type-seg'
+import { ActionTypeSeg, actionTypeLabel } from '@/components/kitchen/action-type-seg'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
-import { PlanQtyCell } from '@/components/kitchen/plan-qty-cell'
-import { PlanQtyStepper } from '@/components/kitchen/plan-qty-stepper'
+import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
 import { groupByCategory } from '@/lib/kitchen-category'
 import {
   DataTable,
   type DataTableColumn,
   type DataTableGroup,
 } from '@/components/dashboard/data-table'
-import { usePlanKpiStripData } from '@/lib/kitchen-plan-kpis'
+import { usePlanKpis } from '@/lib/kitchen-plan-kpis'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other kitchen pages.
@@ -54,12 +52,25 @@ function wibToday(): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
 }
 
+// v4 (H4/H7 drill target): a planned dish leads to its Café · Log entry point, on BOTH
+// faces of this page, so the plan→produce journey is one navigable path instead of two
+// disconnected screens. Reuses Café · Log's own `q` URL-synced search param
+// (useSearchParamState in kitchen-log-page.tsx) to land pre-filtered to this exact dish,
+// not just the module's front door — and the app's row-link grammar (the identity cell
+// IS the link — task-row-link, src/components/tasks/task-row.tsx) rather than a bespoke
+// button.
+function cafeLogHref(itemName: string): string {
+  return `/cafe/log?q=${encodeURIComponent(itemName)}`
+}
+
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
 export function KitchenPlanPage() {
-  useDocumentTitle('Café Plan — Gordi MOS')
   const auth = useAuth()
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('doc.cafePlan') }))
+  // I18N sweep: reuse the existing nav.cafe.* family instead of a literal "Café · Plan".
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
 
   // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -67,14 +78,14 @@ export function KitchenPlanPage() {
 
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Plan" jobSentence={t('job.cafe')} state="loading">
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
         <LoadingShell count={3} />
       </PageFamilyFrame>
     )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Plan" jobSentence={t('job.cafe')} state="permission">
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kp-block kp-forbidden">
           <p className="kp-forbidden-msg">You need to sign in to view the Café plan.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
@@ -91,6 +102,8 @@ export function KitchenPlanPage() {
 // ════════════════════════════════════════════════════════════════════════════
 function PlanEditor() {
   const t = useT()
+  // I18N sweep: reuse the existing nav.cafe.* family instead of a literal "Café · Plan".
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   const [action, setAction] = useState<KitchenActionType>('Production')
   const [items, setItems] = useState<WipItemOption[]>([])
@@ -109,9 +122,11 @@ function PlanEditor() {
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useSearchParamState('q', '')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Derived plan KPIs (P-1) — pure view over `cells` for the current action.
-  const kpiData = usePlanKpiStripData(cells, action)
-  const hasPlannedItems = cells.some(cell => cell.action_type === action && cell.qty_porsi > 0)
+  // Derived plan KPIs (P-1) — pure view over `cells` for the current action. `cells` only
+  // updates from a CONFIRMED upsertKitchenPlan result (see saveCell below), never from an
+  // unsaved draft, so plannedTotal/plannedDishCount are real sourced figures (DD-7 —
+  // unlike Log's old typed-not-submitted total, this one is safe to keep).
+  const kpis = usePlanKpis(cells, action)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -206,77 +221,150 @@ function PlanEditor() {
     [visible],
   )
 
-  // Plan editor columns: Dish (name + category sub-label) · Plan (editable cell).
-  // The Plan render picks the desktop compact cell vs the phone 44px stepper from the
-  // useIsDesktop() branch — same props the retired KitchenPlanTable/Cards passed.
+  // Plan editor columns: Dish · Plan (editable cell).
+  // v4 (layout/distill pass): the desktop dish cell no longer repeats the category —
+  // planGroups groups these SAME items by category, so every non-uncategorised row sat
+  // under a group header stating the exact string it then printed again underneath the
+  // name. Mirrors the "don't repeat a value the row/card already renders as its own
+  // column/field" rule (DESIGN.md Do's and Don'ts, v4) that dropped Café · Log's row
+  // category for the same reason.
+  // v4 (typed-qty port): these columns are the DESKTOP table only. The phone path goes
+  // through `renderCard` below, so the old `isDesktop ? PlanQtyCell : PlanQtyStepper`
+  // ternary here had an unreachable second branch — DataTable ignores `columns` entirely
+  // once `renderCard` is supplied. Dropped rather than left as a decoy phone path.
+  //
+  // v4 (H4/H7 drill target): the dish name is now the row link to Café · Log (cafeLogHref
+  // above) — same identity-cell-is-the-link grammar as the phone card below.
+  //
+  // v4 (DD-5 desktop-qty port): the desktop cell used to be PlanQtyCell — a −/+ stepper —
+  // while the phone card next to it already typed the value (DD-5: the owner killed
+  // increment-to-plan on Café · Log because "mostly are 10-20+... incremental is just too
+  // tedious", and Plan is the same job on the next screen). PlanQtyCell/qty-cell.css are
+  // left in place (their own test suite covers them; the owner has deferred test work) but
+  // are no longer wired to a live surface — this cell now renders the SAME typed field as
+  // the phone card, PlanQtyField(dense), not a third variant.
   const planColumns: DataTableColumn<WipItemOption>[] = [
     {
       key: 'dish',
-      header: 'Dish',
-      cardLabel: '', // the phone card title line
+      header: t('kitchen.plan.col.dish'),
       render: item => (
-        <span className="kp-dish">
-          <span className="kp-name">{item.name}</span>
-          {item.category && <span className="kp-cat">{item.category}</span>}
-        </span>
+        <Link
+          to={cafeLogHref(item.name)}
+          className="kp-name kp-row-link"
+          aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
+        >
+          {item.name}
+        </Link>
       ),
     },
     {
       key: 'plan',
-      header: 'Plan',
+      header: t('kitchen.plan.col.plan'),
       numeric: true,
-      render: item => isDesktop ? (
-        <PlanQtyCell
-          itemName={item.name}
-          qty={qtyOf(item.id)}
-          saving={savingId === item.id}
-          justSaved={justSavedId === item.id}
-          disabled={!isOnline}
-          onSave={next => saveCell(item.id, next)}
-        />
-      ) : (
-        <PlanQtyStepper
-          itemName={item.name}
-          qty={qtyOf(item.id)}
-          saving={savingId === item.id}
-          justSaved={justSavedId === item.id}
-          disabled={!isOnline}
-          onSave={next => saveCell(item.id, next)}
-        />
-      ),
+      render: item => {
+        const saving = savingId === item.id
+        const saved = !saving && justSavedId === item.id
+        return (
+          <div className="kp-cell-qty">
+            <PlanQtyField
+              itemName={item.name}
+              qty={qtyOf(item.id)}
+              disabled={!isOnline}
+              onSave={next => saveCell(item.id, next)}
+              dense
+            />
+            {(saving || saved) && (
+              <span className="kp-cell-status" role="status" aria-live="polite">
+                {saving
+                  ? t('kitchen.plan.saving')
+                  : <><span className="kp-cell-tick" aria-hidden="true">✓</span> {t('kitchen.plan.saved')}</>}
+              </span>
+            )}
+          </div>
+        )
+      },
     },
   ]
+
+  // v4 — the phone plan-capture row (DESIGN.md "Compact capture row", supplied through
+  // DataTable's renderCard seam — the same v4 pattern Café · Log's renderLogCard uses).
+  // Identity left, the control right where the thumb is, and a muted meta line beneath
+  // that renders ONLY when it has something to say. Category is dropped for the same
+  // reason as the desktop column above: the group header already names it.
+  //
+  // v4 (typed-qty port, DD-5): the control is PlanQtyField — one typed number — not the
+  // −/+ PlanQtyStepper. Planning a dish at 25 portions cost 25 taps; the owner already
+  // ordered this pattern killed on Café · Log ("mostly are 10-20+. incremental is just
+  // too tedious"), and Plan is the same job on the next screen.
+  //
+  // Commit state moved OUT of the control and onto the meta line. Saving… / ✓ Saved used
+  // to sit inline beside the stepper, which widened the row's control cluster mid-save and
+  // reflowed the dish name around it — a layout shift at the exact moment the user wants
+  // confirmation to hold still. Below the row it says the same thing without moving the
+  // control, and at rest a committed row says nothing at all.
+  const renderPlanCard = (item: WipItemOption) => {
+    const saving = savingId === item.id
+    const saved = !saving && justSavedId === item.id
+    return (
+      <div className="kp-card">
+        <div className="kp-card-head">
+          <Link
+            to={cafeLogHref(item.name)}
+            className="kp-card-name kp-row-link"
+            aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
+          >
+            {item.name}
+          </Link>
+          <PlanQtyField
+            itemName={item.name}
+            qty={qtyOf(item.id)}
+            disabled={!isOnline}
+            onSave={next => saveCell(item.id, next)}
+          />
+        </div>
+        {(saving || saved) && (
+          <div className="kp-card-meta" role="status" aria-live="polite">
+            {saving
+              ? t('kitchen.plan.saving')
+              : <><span className="kp-card-tick" aria-hidden="true">✓</span> {t('kitchen.plan.saved')}</>}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <PageFamilyFrame
       family="workspace"
-      title="Café · Plan"
+      title={pageTitle}
       jobSentence={t('job.cafe')}
+      /* v4 (DD-1): the standalone KitchenKpiStrip + DataProvenanceNote band — the exact
+         device DD-1 removed from Café Log — used to open this capture surface above the
+         toolbar (~85px before a single row was visible). Folded into ONE page-head meta
+         line instead, mirroring kitchen-log-page.tsx's kl-meta-line/kl-plan-sum: date +
+         the planned total, only when there is one. plannedTotal/plannedDishCount come from
+         `cells`, which only updates from a CONFIRMED save (never an unsaved draft), so —
+         unlike the figures DD-7 removed on Log — these are real sourced numbers, safe to
+         keep. "Nothing planned yet" needs no separate note: the summary line simply renders
+         nothing when plannedTotal is 0 (metric summary rule — omit, don't restate zero). */
       meta={
-        // census FLAG-D: labeled meta sentence, not a naked count chip ("N dishes · <date>").
-        <span className="kp-meta">
-          {load.kind === 'ready' && `${items.length} ${items.length === 1 ? 'dish' : 'dishes'} · `}
+        <span className="kp-meta-line">
+          {/* polish (2026-07-28): H10 was the weakest heuristic app-wide (2.0/4) and this was
+              the only scored surface with NO in-app help. Nothing on the screen says the typed
+              number becomes Café Log's placeholder, or that there is no Submit — the two things
+              a first-time planner cannot infer. Rides the existing meta line (DD-15). */}
+          <HelpTip label={t('kitchen.plan.help')} />
           <span className="kp-date tabular">{logDate}</span>
+          {load.kind === 'ready' && kpis.plannedTotal > 0 && (
+            <span className="kp-plan-sum">
+              {t('kitchen.kpi.plannedTotal')} <strong className="tabular">{kpis.plannedTotal}</strong>
+              <span className="kp-plan-dishes tabular">{kpis.plannedDishCount}</span>
+            </span>
+          )}
         </span>
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
-
-      {/* Derived KPI strip (P-1) — only when populated (plan §4.4) */}
-      {load.kind === 'ready' && items.length > 0 && (
-        <>
-          <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
-          <DataProvenanceNote
-            kind="live"
-            show={!hasPlannedItems}
-            note="Nothing planned yet"
-          />
-        </>
-      )}
-
-      <div className="kp-seg-wrap kp-block">
-        <ActionTypeSeg value={action} onChange={setAction} disabled={load.kind !== 'ready'} />
-      </div>
 
       {!isOnline && (
         <div role="alert" className="kp-banner kp-banner-offline kp-block">
@@ -291,7 +379,7 @@ function PlanEditor() {
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't load the plan — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.plan') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -302,30 +390,38 @@ function PlanEditor() {
         // all done" instead of "nothing CAN be planned until items exist").
         <EmptyState
           variant="blank"
-          title="No active WIP items"
-          copy="Ask an admin to add café items first."
+          title={t('kitchen.empty.noActiveItems.title')}
+          copy={t('kitchen.plan.empty.copy')}
         />
       )}
 
       {load.kind === 'ready' && items.length > 0 && (
         <div className="kp-block">
+          {/* v4 chrome merge: the action_type seg used to be its own bordered band stacked
+              above this one — two utility strips for one row of controls. It is now the
+              toolbar's LEADING scope slot (it decides what "Plan" means for every row, so it
+              outranks the filters). It also stops rendering in the loading/error/empty states,
+              where it was a disabled control over a list that does not exist yet. */}
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
             categories={categories}
             category={category}
             onCategoryChange={setCategory}
-            searchPlaceholder="Find a dish to plan"
-            ariaLabel="Plan filters"
-          />
+            searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
+            ariaLabel="Plan scope and filters"
+          >
+            <ActionTypeSeg value={action} onChange={setAction} />
+          </KitchenToolbar>
           <DataTable
             columns={planColumns}
             rows={visible}
             groups={planGroups}
+            renderCard={renderPlanCard}
             isDesktop={isDesktop}
             state={visible.length > 0 ? 'ready' : 'empty'}
-            emptyLabel="No dishes match your filter."
-            caption="Café plan — set planned quantity per dish"
+            emptyLabel={t('kitchen.filter.noMatch')}
+            caption={t('kitchen.plan.caption')}
           />
         </div>
       )}
@@ -338,11 +434,19 @@ function PlanEditor() {
 // ════════════════════════════════════════════════════════════════════════════
 function PesananView() {
   const t = useT()
+  // I18N sweep: reuse the existing nav.cafe.* family instead of a literal "Café · Plan".
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
+  // Nielsen sweep (Café·Plan 16/32): the 14-day horizon ran to ~231 items with no way to
+  // narrow it — Log's KitchenToolbar search + category filter, ported rather than a second
+  // filter grammar invented for this face (URL-synced, same as Log/PlanEditor — I7 / D-E1).
+  // Day grouping (below) already existed; this adds the missing filter on top of it.
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [category, setCategory] = useSearchParamState('category', 'All')
 
   const fetchHorizon = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -357,10 +461,21 @@ function PesananView() {
 
   useEffect(() => { fetchHorizon() }, [fetchHorizon, retryKey])
 
-  // Group the flat rows by date (already date-sorted by the query) for the read view.
+  const categories = useMemo(
+    () => ['All', ...Array.from(new Set(rows.map(r => r.category ?? '').filter(Boolean))).sort()],
+    [rows],
+  )
+  const visibleRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return rows.filter(r =>
+      (!q || r.wip_item_name.toLowerCase().includes(q)) &&
+      (category === 'All' || (r.category ?? '') === category))
+  }, [rows, search, category])
+
+  // Group the filtered rows by date (already date-sorted by the query) for the read view.
   const pesananGroups: DataTableGroup<PesananRow>[] = useMemo(() => {
     const byDate = new Map<string, PesananRow[]>()
-    for (const r of rows) {
+    for (const r of visibleRows) {
       const list = byDate.get(r.log_date) ?? []
       list.push(r)
       byDate.set(r.log_date, list)
@@ -371,46 +486,78 @@ function PesananView() {
       count: dateRows.length,
       rows: dateRows,
     }))
-  }, [rows])
+  }, [visibleRows])
 
   // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
   // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
+  //
+  // v4 (H4/H7 drill target): the item is the ONE affordance this read-only face gets —
+  // it leads to Café · Log, pre-filtered to this dish (cafeLogHref above), so a viewer
+  // who can only look at the plan still has somewhere to go act on it.
   const pesananColumns: DataTableColumn<PesananRow>[] = [
     {
       key: 'item',
-      header: 'Item',
+      header: t('kitchen.plan.pesanan.col.item'),
       cardLabel: '', // the phone card title line
       render: r => (
-        <span className="kp-dish">
+        <Link
+          to={cafeLogHref(r.wip_item_name)}
+          className="kp-dish kp-row-link"
+          aria-label={t('kitchen.plan.row.logAria', { item: r.wip_item_name })}
+        >
           <span className="kp-name">{r.wip_item_name}</span>
           {r.category && <span className="kp-cat">{r.category}</span>}
-        </span>
+        </Link>
       ),
     },
-    { key: 'action_type', header: 'Action' },
-    { key: 'qty_porsi', header: 'Planned', numeric: true },
+    {
+      key: 'action_type',
+      header: t('kitchen.plan.pesanan.col.action'),
+      render: r => actionTypeLabel(t, r.action_type),
+    },
+    { key: 'qty_porsi', header: t('kitchen.plan.pesanan.col.planned'), numeric: true },
   ]
 
   return (
     <PageFamilyFrame
       family="workspace"
-      title="Café · Plan"
+      title={pageTitle}
       jobSentence={t('job.cafe')}
       meta={
         // census FLAG-D: labeled meta sentence, not a naked count chip ("N planned · next 14 days").
+        // v4 (header/filter honesty): this used to count `rows` (the full unfiltered fetch)
+        // while the table below rendered `visibleRows` (search + category filtered) — a
+        // scorer caught the two disagreeing the moment a filter was active. Counting the
+        // same set that is actually on screen makes the header true in every state,
+        // filtered or not (no filter active → the two counts are equal anyway).
         <span className="kp-meta">
-          {load.kind === 'ready' && `${rows.length} planned · `}
-          <span className="kp-date tabular">next {PESANAN_HORIZON_DAYS} days</span>
+          {load.kind === 'ready' && `${t('kitchen.plan.pesanan.meta.plannedCount', { count: visibleRows.length })} · `}
+          <span className="kp-date tabular">{t('kitchen.plan.pesanan.meta.horizon', { days: PESANAN_HORIZON_DAYS })}</span>
         </span>
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
 
+      {/* v4 (H1/H10 legibility): this face renders no editable affordance by design
+          (client role gate mirrors the server's RLS — see canEdit above); it used to say
+          nothing about why or what to do instead, which a scorer flagged as the surface's
+          deepest problem for its PRIMARY user. Names the gate and points at the one thing
+          this viewer can do (log the dish — the row link above, and this general door). */}
+      <p className="kp-readonly-note">
+        {t('kitchen.plan.pesanan.readOnlyNote')}{' '}
+        {/* v4 note: composed from dest.cafe + nav.cafe.log (same as pageTitle above), not a
+            baked "Café · Log" literal — stays "Buka Kafe · Log" in `id`, matching the
+            breadcrumb, instead of mixing an untranslated "Café" into Indonesian body copy. */}
+        <Link to="/cafe/log" className="kp-readonly-cta">
+          {t('kitchen.plan.pesanan.openLogVerb')} {t('dest.cafe')} · {t('nav.cafe.log')} →
+        </Link>
+      </p>
+
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't load the upcoming plan — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.upcomingPlan') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -421,19 +568,32 @@ function PesananView() {
         // / kitchen-pushes), never the 'quiet' ✓ earned-all-clear.
         <EmptyState
           variant="awaiting"
-          title="Nothing planned"
-          copy={`No planned items in the next ${PESANAN_HORIZON_DAYS} days yet.`}
+          title={t('kitchen.plan.pesanan.empty.title')}
+          copy={t('kitchen.plan.pesanan.empty.copy', { days: PESANAN_HORIZON_DAYS })}
         />
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        <DataTable
-          columns={pesananColumns}
-          rows={rows}
-          groups={pesananGroups}
-          isDesktop={isDesktop}
-          caption={`Planned items — next ${PESANAN_HORIZON_DAYS} days`}
-        />
+        <div className="kp-block">
+          <KitchenToolbar
+            search={search}
+            onSearchChange={setSearch}
+            categories={categories}
+            category={category}
+            onCategoryChange={setCategory}
+            searchPlaceholder={t('kitchen.log.searchPlaceholder')}
+            ariaLabel="Upcoming plan filters"
+          />
+          <DataTable
+            columns={pesananColumns}
+            rows={visibleRows}
+            groups={pesananGroups}
+            isDesktop={isDesktop}
+            state={visibleRows.length > 0 ? 'ready' : 'empty'}
+            emptyLabel={t('kitchen.filter.noMatch')}
+            caption={`Planned items — next ${PESANAN_HORIZON_DAYS} days`}
+          />
+        </div>
       )}
     </PageFamilyFrame>
   )

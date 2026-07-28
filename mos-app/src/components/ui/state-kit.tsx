@@ -17,13 +17,19 @@ export interface ErrorStateProps {
   className?: string
 }
 
-export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }: ErrorStateProps) {
+export function ErrorState({ message, onRetry, retryLabel, className }: ErrorStateProps) {
+  // harden (2026-07-28): the default was the hardcoded English literal 'Retry'. ~15 of the
+  // ~20 ErrorState call sites pass no retryLabel, so the recovery button — the single
+  // control an error state exists to offer — stayed English in the Indonesian locale
+  // app-wide. Defaulting against the catalog fixes every one of those call sites at the
+  // primitive, which is where a systemic i18n hole belongs (fix the system, not screens).
+  const t = useT()
   return (
     <div role="alert" className={`error-state${className ? ` ${className}` : ''}`}>
       <span className="error-state-text">{message}</span>
       {onRetry && (
         <Button variant="outline" onClick={onRetry}>
-          {retryLabel}
+          {retryLabel ?? t('common.retry')}
         </Button>
       )}
     </div>
@@ -49,10 +55,15 @@ export interface EmptyStateProps {
   /** Drop the region landmark when this sits inside an already-labelled landmark
    * (e.g. the Assistant drawer) — avoids a redundant nested region. */
   nested?: boolean
-  /** AUTH-1 (census DO-14): the heading level for the empty-state title. Defaults to 3 (the
-   * common case: an empty state nested under a section h2). When the empty state IS the first
-   * content region directly under a page h1 (e.g. the /events destination), pass 2 so the
-   * document outline reads h1 → h2 with no skipped level. */
+  /** AUTH-1 (census DO-14) / FINDING 4 (v4 shell a11y audit, 2026-07-27): the heading level for
+   * the empty-state title. Defaults to 2 — the EmptyState is most commonly the first content
+   * region directly under a page's own h1 (PageFamilyFrame's PageHead), and h1 → h3 with no h2
+   * between is an outline skip (measured live on Task detail, Money, Inbox, Café Review — four
+   * independent call sites via this ONE shared component). Raising the default to the
+   * non-skipping level fixes every un-annotated call site at once; a call site whose EmptyState
+   * sits under its OWN section h2 (nested one level deeper) still passes an explicit
+   * `headingLevel={3}` to stay correct in that context — the default only covers the common,
+   * previously-broken case. */
   headingLevel?: 2 | 3 | 4 | 5 | 6
   /** Actions row (CTAs). */
   children?: ReactNode
@@ -81,7 +92,7 @@ export function EmptyState({
   icon,
   suggestions,
   nested = false,
-  headingLevel = 3,
+  headingLevel = 2,
   children,
   className,
 }: EmptyStateProps) {

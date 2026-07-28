@@ -15,7 +15,10 @@
 >
 > **The Standing Audit Program is ACTIVE** (register `docs/audits/`, generation lifecycle,
 > pre-merge coverage gate; quality model `docs/quality-model.md`; anatomy spec OD-90 with
-> executable Step-2.5 tests on all three record kinds). All census DO-lists closed; SEC-1
+> executable Step-2.5 tests on all three record kinds). The prior census DO-lists are closed, but
+> the current register still reports 9 DUE surfaces (follow-up record, Events, Profile,
+> Login/Recovery, Not-found/stubs, and four chrome surfaces); this is an audit-register status gap,
+> not evidence of rendered acceptance. SEC-1
 > remediated (audit-verified; STAGING DEPLOY CAVEAT in backlog — wire kitchen memberships).
 >
 > **OPEN ITEMS (the complete list):** ① Phase-3 OFFICIAL Luna — DEFERRED ~a week (Codex provider

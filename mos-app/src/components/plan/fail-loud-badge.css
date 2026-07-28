@@ -1,34 +1,38 @@
 /* FailLoudBadge — the freshness/certification badge (ADR-0022 D6 / anchor A7).
-   Destructive tint for stale/uncertified; quiet ok tint for certified+fresh. Token-only (DESIGN.md). */
+   Same tinted-status shell as the shared <Pill> (DESIGN.md §5 Badges / Tinted-Status
+   Rule + the OD-REDESIGN-91 #30/E1 rounded-rect ratification): 8px control radius,
+   8px leading dot, AA-darkened status text over a light tint (never the base hue —
+   base destructive/success both fail AA as small text on a light tint, the same bug
+   class DESIGN.md's field-error tokens exist to close). Unlike the fixed-height
+   <Pill>, the reason copy here is free-length prose (assessCostStatus can report 1-2
+   sentences), so the shell wraps instead of truncating; the dot aligns to the first
+   line rather than the wrapped block's vertical center. Token-only (DESIGN.md). */
 .fail-loud {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 3px 10px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-label);
   font-weight: 600;
   line-height: 1.4;
-  border: 1px solid transparent;
-  white-space: nowrap;
 }
 .fail-loud-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
   flex: none;
+  margin-top: 4px;
   background: currentColor;
 }
 .fail-loud-text {
   white-space: normal;
 }
 .fail-loud--warn {
-  color: var(--destructive);
-  background: color-mix(in srgb, var(--destructive) 10%, transparent);
-  border-color: color-mix(in srgb, var(--destructive) 35%, transparent);
+  color: var(--status-lost-text);
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
 }
 .fail-loud--ok {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  color: var(--status-won-text);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
 }

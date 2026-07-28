@@ -3,16 +3,6 @@
    Desktop: page head → global toolbar → tab strip → one pane (Summary or Detail).
    Token-only (DESIGN.md). Soft-Elevation: shadow on KPI tiles/chart/table only.
    ════════════════════════════════════════════════════════════════════════════ */
-.dash-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 22px 24px 6px;
-  box-sizing: border-box;
-}
-
 .dash-pane {
   padding: 16px 24px 24px;
   box-sizing: border-box;
@@ -81,9 +71,30 @@
   }
 }
 
+/* g-money audit P2: the shared KPITile "?" help button (kpi-tile.css) renders its
+   glyph at 14x14 — well under the 44x44 touch-target floor (ui-ux-pro-max
+   app-interface row 6). Scoped to this page's KPI grids only (kpi-tile.css itself
+   is out of scope for this fix) via an invisible ::before hit area — the glyph's
+   own box stays 14x14 so nothing repaints larger. inset:-16px (not -15px): the
+   button is box-sizing:border-box with a 1px border, so the ::before's containing
+   block is the 12px PADDING box (14 - 2x1px border), not the 14px border box —
+   verified live (getComputedStyle) that -15px only reached 42x42. -16px pads the
+   CLICKABLE region to the full 44x44 (12 + 16 + 16) without shifting layout (no
+   margin/padding change on the real box). The pad stays inside the tile's own
+   16px padding + the grid's 12px inter-tile gap, so it never reaches a
+   neighbouring target (row 7: >=8dp between adjacent touch targets). */
+.dash-kpi-grid .kpi-tile-help {
+  position: relative;
+}
+.dash-kpi-grid .kpi-tile-help::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+}
+
 .dash-footnote {
   padding: 10px 0 4px;
-  font-size: 11.5px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
   display: flex;
   gap: 16px;
@@ -110,9 +121,6 @@
 
 /* Mobile (<768px): phone-first. 2-up KPI tiles, sticky toolbar rail, padding shrinks. */
 @media (max-width: 767px) {
-  .dash-head {
-    padding: 16px 14px 6px;
-  }
   .dash-pane {
     padding: 10px 14px 16px;
   }

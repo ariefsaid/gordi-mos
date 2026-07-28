@@ -1,60 +1,10 @@
-/* SignalsArchivePage — Work → Signals search/archive list (design-review step-4 CRITICAL-1).
-   A styled search field (PORT convergence .searchbar grammar), the "Show retracted" toggle
-   row, and bounded archive rows with a hairline between them. */
+/* SignalsArchivePage — route-level layout only. The collection's visual grammar (list rows,
+   table rows, toolbar, attention pills) is owned by the shared RecordCollection/DataTable
+   primitives and the Signal presentation components (signal-table-presentation.css,
+   signal-feed-rows.css) — this file carries no row/list styling of its own (distill pass,
+   v4 redesign: the pre-Issue-6 archive-row rules that used to live here were dead — the page
+   stopped rendering that markup when it became a thin RecordCollection consumer). */
+
 /* The list column of the split (list | record). min-width:0 lets it squash cleanly beside the
    record panel at >=1100px (the .record-split grid track lives in styles/drawer.css). */
 .signals-archive-main { min-width: 0; }
-
-.signals-archive-list {
-  display: flex; flex-direction: column;
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  background: var(--card); overflow: hidden;
-}
-/* Cohesion-debt 2026-07-19, item #4 (owner call: "proceed with all items"): the
-   Signals feed stays an activity stream (not forced into a table), but its rows
-   now share the ONE list-row rhythm — divider colour, padding scale, row height —
-   with the dense table (.dt-table) via the --row-* tokens, so the two list
-   grammars stop DISAGREEING. */
-.signal-row {
-  display: flex; align-items: center; gap: 12px; min-height: var(--row-min-h);
-  padding: var(--row-pad-y) var(--row-pad-x); text-decoration: none; color: inherit;
-  border-bottom: 1px solid var(--row-divider);
-}
-.signals-archive-list > :last-child { border-bottom: none; }
-.signal-row:hover { background: var(--secondary); }
-.signal-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense feed row — inset ring (outward +2 collides with the adjacent row) */
-
-.signal-row-body {
-  flex: 1; min-width: 0; font-size: var(--font-size-body); color: var(--foreground);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.signal-row-meta {
-  /* Right-aligned meta — same treatment as the table's right-aligned meta column
-     (.dt-num), so a "list of records" reads the same way in both grammars (item #4). */
-  flex: none; font-size: var(--font-size-label); color: var(--muted-foreground); text-align: right;
-  max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-
-.signal-row-attention {
-  flex: none; display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
-  border-radius: var(--radius-pill); font-size: var(--font-size-overline); font-weight: 600; white-space: nowrap;
-}
-.signal-row-attention--urgent {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-/* DESIGN.md §Status and Signal semantics: attention is warning/amber, never destructive/red.
-   Urgent = top attention tier, escalated with the leading amber dot (§569 marker). */
-.signal-row-attention--urgent::before {
-  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
-  border-radius: var(--radius-pill); background: var(--warning);
-}
-.signal-row-attention--needs-attention {
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-.signal-row-attention--fyi { background: var(--secondary); color: var(--muted-foreground); }
-
-.signal-row--retracted {
-  color: var(--muted-foreground); font-style: italic; font-size: var(--font-size-mono); gap: 8px;
-}

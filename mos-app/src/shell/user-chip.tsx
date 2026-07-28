@@ -3,6 +3,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
 import { AppearanceControl } from './appearance-control'
+import { Chevron } from './icons'
 
 interface UserChipProps {
   /**
@@ -108,6 +109,13 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
               </div>
             )}
           </div>
+        )}
+        {/* v4 shell rebuild (Task 7 a11y): a visible disclosure cue on the drawer identity row —
+            the row opens a menu and needs a static affordance beyond aria-haspopup/aria-expanded
+            alone. Scoped to the phone drawer (the rail footer's affordance is already established
+            chrome elsewhere in that surface). */}
+        {variant === 'drawer' && showText && (
+          <Chevron className="flex-none text-muted-foreground" size={14} />
         )}
       </button>
 

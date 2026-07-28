@@ -13,8 +13,8 @@ import { FollowUpQueueTable } from '@/components/follow-ups/follow-up-queue-tabl
 import { useFollowUpRecordOpener } from '@/components/follow-ups/use-follow-up-record-opener'
 
 export function FollowUpsPage() {
-  useDocumentTitle('AR Follow-up queue — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('doc.followUpQueue') }))
   const route = useParams<{ id?: string }>()
   const queue = useFollowUpQueue({ detailId: route.id })
 

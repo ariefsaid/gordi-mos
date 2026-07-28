@@ -42,8 +42,8 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
 
 export function BudgetPage() {
-  useDocumentTitle('Budget — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('plan.budget.title') }))
   const auth = useAuth()
   const personId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
 
@@ -179,7 +179,7 @@ export function BudgetPage() {
     return (
       <PageFamilyFrame family="workspace" title={t('plan.budget.title')} jobSentence={t('job.plan.budget')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
-          message="Couldn't load the BOM + ingredient cost lines. Try again."
+          message={t('common.loadFailed', { what: t('common.what.costLines') })}
           onRetry={() => setRetryKey((k) => k + 1)}
         />
       </PageFamilyFrame>

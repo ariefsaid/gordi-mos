@@ -24,7 +24,11 @@ export const jobSentences = {
   signals: 'Search and revisit the Signals your Teams have shared.',
   projects: 'Govern the Processes and Projects that generate the work.',
   objectives: 'Track the Objectives the org committed to.',
-  events: "See what's happening around our outlets and when.",
+  // OD-V4-2 ("Signals everywhere"): this row is the workspace-root Signals feed (rendered
+  // label "Signals", registry id/route unchanged — see destinations.tsx) — its one job is
+  // reading what is happening now, distinct from `signals` above (the Work archive's job:
+  // searching and revisiting past Signals).
+  events: "See what's happening across Gordi right now.",
   money: 'Trust the financial figures and act on money exceptions.',
   // DO-24(b) (census F-INBOX-7): "what asked for me" was ungrammatical — plain second person.
   inbox: 'Triage what was directed to you and return to its source.',

@@ -5,8 +5,11 @@
   align-items: center;
   gap: 10px;
   min-height: 48px;
-  margin-bottom: 16px;
-  padding-bottom: 14px;
+  /* v4 chrome-reduction pass (shared-chrome fix): 16/14 → 12/8, both on the DESIGN.md
+     4/8/12/16/20/24/32/48 geometry scale (14 was itself off-scale). Tightened further,
+     mobile-only, below — this base value is the desktop/tablet floor. */
+  margin-bottom: 12px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -84,14 +87,20 @@
 }
 
 .page-head--v3:not(.content-header) .page-head-job {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
 }
 
 @media (max-width: 767.98px) {
   .content-header {
     flex-wrap: wrap;
     align-items: flex-start;
-    row-gap: 8px;
+    /* v4 chrome-reduction pass: the title/job-sentence/meta wrap stack is exactly the
+       "several full-width rows" cost the fix targets on phone — row-gap 8→4 and an
+       extra margin-bottom cut (12→8, still on-scale) stack with the base padding-bottom
+       cut above. The job sentence itself is UNCHANGED (kept full-text, no truncation —
+       experience-contract Rule 1 / OD-REDESIGN-57): only the whitespace around it shrinks. */
+    row-gap: 4px;
+    margin-bottom: 8px;
   }
 
   .content-header .ch-title {

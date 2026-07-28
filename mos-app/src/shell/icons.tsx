@@ -290,7 +290,9 @@ export function WorkIcon() {
   )
 }
 
-// EventsIcon — calendar, the Events destination root (OD-57).
+// EventsIcon — calendar. Icon for the Signals destination root (id 'events', legacy internal
+// name — OD-57 original naming; label retired to "Signals" by OD-V4-2). Icon glyph unchanged;
+// out of this fix's scope (not named in OD-V4-2, no icon change requested).
 export function EventsIcon() {
   return (
     <svg

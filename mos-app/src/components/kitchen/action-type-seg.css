@@ -13,7 +13,9 @@
   background: var(--secondary);
   border: 1px solid var(--border); /* the track reads as a control container */
   border-radius: var(--radius-sm);
-  padding: 3px;
+  /* Chrome-reduction pass: 3px → 2px track cushion. The 44px tab floor below is
+     untouched (touch target, not negotiable) — only the track's own air shrinks. */
+  padding: 2px;
 }
 
 .kseg-tab {
@@ -52,6 +54,17 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .kseg-tab { transition: none; }
+}
+
+/* ── Inline in the shared toolbar band (≥640px) ────────────────────────────────
+   v4 chrome merge: the seg no longer owns a full-width band of its own — it is the
+   KitchenToolbar's leading scope slot and is sized by its own content there. An equal
+   `flex: 1 1 0` third of a container that is itself measured FROM these tabs is
+   circular, and it resolved short: "Transfer to Radiant" truncated to "Transfer to Ra…".
+   Inline, each tab takes its label; it may still shrink under pressure (0 1 auto), and
+   the phone band below is a real 100%-wide track, so equal thirds stay correct there. */
+@media (min-width: 640px) {
+  .kseg-tab { flex: 0 1 auto; }
 }
 
 /* Full label by default; short "→ Radiant" label on small phones. */

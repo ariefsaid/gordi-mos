@@ -17,6 +17,12 @@ import {
   listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
 } from '@/lib/db/work-lines'
 import { listTasks } from '@/lib/db/tasks'
+// clarify (2026-07-28): a collection descriptor's `load()` runs outside React, so `useT()` is
+// unavailable — which is exactly why the FR-422 trace strings were left as English template
+// literals and shipped untranslated onto the Indonesian Objectives page ("3 tasks · …").
+// `translateFor` closes that seam without faking a hook outside a render.
+import { translateFor, type Translate } from '@/i18n/use-t'
+import { readPersistedLocale } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { ObjectiveAdminRow } from '@/lib/db/objectives'
 import type { WorkLineAdminRow } from '@/lib/db/work-lines'
@@ -45,6 +51,12 @@ export interface CatalogRow {
 
 export type CatalogView = 'active' | 'archived'
 export type CatalogTypeFilter = 'all' | CatalogType
+/**
+ * OD-V4-1 H7 fix: a "does this record have any linked work" filter. Objectives is the only
+ * descriptor that exposes it in the toolbar today (Projects/Processes already had the `type`
+ * filter); the field is shared on the query type so either descriptor could opt in later.
+ */
+export type CatalogCoverageFilter = 'all' | 'has-tasks' | 'no-tasks'
 export type CatalogPresentation = 'list'
 export type CatalogAction = never
 
@@ -54,12 +66,43 @@ export interface CatalogCollectionQuery {
   q: string
   /** Work-line type filter. Objectives never populate it (their descriptor omits the filter). */
   type: CatalogTypeFilter
+  /** Task-coverage filter (OD-V4-1 H7). Projects/Processes never populate it today. */
+  coverage: CatalogCoverageFilter
   savedViewId: string | null
 }
 
-/** Display context the list presentation reads — the FR-422 trace line per row id. */
+/** One related record a catalog row links to — a real drill target, never inert text. */
+export interface CatalogRelationGroup {
+  id: string
+  name: string
+  taskCount: number
+}
+
+/** One task a catalog row links to directly (real record door: /work/tasks/:id). */
+export interface CatalogRelationTask {
+  id: string
+  title: string
+}
+
+/**
+ * OD-V4-1 H4 fix: the bidirectional relations a row can drill into, "on the records themselves"
+ * (not a separate cascade page/route — docs/v4-inheritance.md INC-1). An Objective's `groups` are
+ * its child Projects/Processes; a Project/Process's `groups` are its parent Objective(s). `tasks`
+ * is the row's own tasks either way, each a real link to the existing /work/tasks/:id record door.
+ */
+export interface CatalogRelations {
+  groups: readonly CatalogRelationGroup[]
+  tasks: readonly CatalogRelationTask[]
+}
+
+/** Which side of the Objective ⇄ Project/Process relation a catalog's rows sit on. */
+export type CatalogRelationsKind = 'objective' | 'work_line'
+
+/** Display context the list presentation reads — the FR-422 trace line + the relations per row id. */
 export interface CatalogCollectionContext {
   traceById: ReadonlyMap<string, string>
+  relationsById: ReadonlyMap<string, CatalogRelations>
+  relationsKind: CatalogRelationsKind
 }
 
 /** A projection group — a catalog renders a single flat group (the active view). */
@@ -70,7 +113,7 @@ export interface CatalogRenderGroup {
 }
 
 const CATALOG_QUERY_KEYS: readonly QueryKey<CatalogCollectionQuery>[] = [
-  'layout', 'view', 'q', 'type', 'savedViewId',
+  'layout', 'view', 'q', 'type', 'coverage', 'savedViewId',
 ]
 
 const CATALOG_NEUTRAL_QUERY: CatalogCollectionQuery = {
@@ -78,11 +121,13 @@ const CATALOG_NEUTRAL_QUERY: CatalogCollectionQuery = {
   view: 'active',
   q: '',
   type: 'all',
+  coverage: 'all',
   savedViewId: null,
 }
 
 const VIEWS: readonly CatalogView[] = ['active', 'archived']
 const TYPE_FILTERS: readonly CatalogTypeFilter[] = ['all', 'project', 'process']
+const COVERAGE_FILTERS: readonly CatalogCoverageFilter[] = ['all', 'has-tasks', 'no-tasks']
 
 function parseCatalogQuery(params: URLSearchParams): CollectionQueryParse<CatalogCollectionQuery> {
   const query: CatalogCollectionQuery = { ...CATALOG_NEUTRAL_QUERY }
@@ -96,6 +141,11 @@ function parseCatalogQuery(params: URLSearchParams): CollectionQueryParse<Catalo
   const type = params.get('type')
   if (type !== null && TYPE_FILTERS.includes(type as CatalogTypeFilter)) query.type = type as CatalogTypeFilter
 
+  const coverage = params.get('coverage')
+  if (coverage !== null && COVERAGE_FILTERS.includes(coverage as CatalogCoverageFilter)) {
+    query.coverage = coverage as CatalogCoverageFilter
+  }
+
   query.savedViewId = params.get('saved')
 
   return { ok: true, query }
@@ -107,6 +157,7 @@ function serializeCatalogQuery(query: CatalogCollectionQuery): URLSearchParams {
   if (query.view !== 'active') p.set('view', query.view)
   if (query.q) p.set('q', query.q)
   if (query.type !== 'all') p.set('type', query.type)
+  if (query.coverage !== 'all') p.set('coverage', query.coverage)
   if (query.savedViewId) p.set('saved', query.savedViewId)
   return p
 }
@@ -128,7 +179,12 @@ export const catalogCollectionQuery: CollectionQuerySchema<CatalogCollectionQuer
 function buildObjectiveDownTrace(
   tasks: readonly TaskListRow[],
   workLines: readonly WorkLineAdminRow[],
+  t: Translate,
 ): Map<string, string> {
+  // clarify (2026-07-28): the two trace strings below were English template literals rendered
+  // verbatim into the UI, so the Indonesian Objectives page read "3 tasks · Daily IG Content (2)".
+  const taskCount = (n: number) =>
+    t(n === 1 ? 'catalog.trace.taskCount.one' : 'catalog.trace.taskCount.other', { count: n })
   const wlName = new Map(workLines.map((w) => [w.id, w.name]))
   // objectiveId → (workLineId → task count)
   const byObjective = new Map<string, Map<string, number>>()
@@ -147,8 +203,8 @@ function buildObjectiveDownTrace(
       .filter(([wlKey]) => wlKey !== '__none__' && wlName.has(wlKey))
       .map(([wlKey, n]) => `${wlName.get(wlKey)} (${n})`)
     map.set(objectiveId, named.length > 0
-      ? `${total} task${total === 1 ? '' : 's'} · ${named.join(', ')}`
-      : `${total} task${total === 1 ? '' : 's'}`)
+      ? `${taskCount(total)} · ${named.join(', ')}`
+      : taskCount(total))
   }
   return map
 }
@@ -161,7 +217,10 @@ function buildObjectiveDownTrace(
 function buildWorkLineUpTrace(
   tasks: readonly TaskListRow[],
   objectives: readonly ObjectiveAdminRow[],
+  t: Translate,
 ): Map<string, string> {
+  const taskCount = (n: number) =>
+    t(n === 1 ? 'catalog.trace.taskCount.one' : 'catalog.trace.taskCount.other', { count: n })
   const objName = new Map(objectives.map((o) => [o.id, o.name]))
   const NO_OBJ = ''
   // workLineId → (objectiveId | '' → task count)
@@ -179,23 +238,91 @@ function buildWorkLineUpTrace(
       .filter(([objId]) => objId !== NO_OBJ && objName.has(objId))
       .map(([objId, n]) => `${objName.get(objId)} (${n})`)
     const orphan = objCounts.get(NO_OBJ) ?? 0
-    if (orphan > 0) segments.push(`no parent objective (${orphan})`)
+    if (orphan > 0) segments.push(t('catalog.trace.noParent', { count: orphan }))
     if (segments.length === 0) continue
     // Census R2 DO-20(a) (objectives F3): the up-trace units its counts exactly like the sibling
     // down-trace ("3 tasks · Menu launch (2)") — a trailing "· N tasks" total gives the bare
     // per-objective "(n)" figures their noun instead of leaving naked numbers (GUARD-R2 class).
     const total = [...objCounts.values()].reduce((sum, n) => sum + n, 0)
-    map.set(workLineId, `Under: ${segments.join(', ')} · ${total} task${total === 1 ? '' : 's'}`)
+    map.set(workLineId, t('catalog.trace.under', { segments: segments.join(', '), total: taskCount(total) }))
   }
   return map
 }
 
-// ── Projection (view + name search + work-line type; single flat group) ────────────────────────────
+// ── OD-V4-1 H4 relations (bidirectional, on the records themselves — NOT a separate cascade
+// route: docs/v4-inheritance.md INC-1). Computed independently from the trace builders above
+// (deliberate duplication, not a refactor of them) so the existing FR-422 trace-string tests keep
+// asserting the exact literal copy they already pin, unaffected by this additive feature. ───────────
+
+/** Objective → its child Projects/Processes (by task co-occurrence) + its own tasks, each a real link. */
+function buildObjectiveRelations(
+  tasks: readonly TaskListRow[],
+  workLines: readonly WorkLineAdminRow[],
+): Map<string, CatalogRelations> {
+  const wlName = new Map(workLines.map((w) => [w.id, w.name]))
+  const byObjective = new Map<string, TaskListRow[]>()
+  for (const task of tasks) {
+    if (!task.objective_id) continue
+    const list = byObjective.get(task.objective_id) ?? []
+    list.push(task)
+    byObjective.set(task.objective_id, list)
+  }
+  const map = new Map<string, CatalogRelations>()
+  for (const [objectiveId, objTasks] of byObjective) {
+    const counts = new Map<string, number>()
+    for (const task of objTasks) {
+      if (!task.work_line_id) continue
+      counts.set(task.work_line_id, (counts.get(task.work_line_id) ?? 0) + 1)
+    }
+    const groups: CatalogRelationGroup[] = [...counts.entries()]
+      .filter(([wlId]) => wlName.has(wlId))
+      .map(([wlId, taskCount]) => ({ id: wlId, name: wlName.get(wlId)!, taskCount }))
+    map.set(objectiveId, {
+      groups,
+      tasks: objTasks.map((t) => ({ id: t.id, title: t.title })),
+    })
+  }
+  return map
+}
+
+/** Project/Process → its parent Objective(s) (by task co-occurrence) + its own tasks, each a real link. */
+function buildWorkLineRelations(
+  tasks: readonly TaskListRow[],
+  objectives: readonly ObjectiveAdminRow[],
+): Map<string, CatalogRelations> {
+  const objName = new Map(objectives.map((o) => [o.id, o.name]))
+  const byWorkLine = new Map<string, TaskListRow[]>()
+  for (const task of tasks) {
+    if (!task.work_line_id) continue
+    const list = byWorkLine.get(task.work_line_id) ?? []
+    list.push(task)
+    byWorkLine.set(task.work_line_id, list)
+  }
+  const map = new Map<string, CatalogRelations>()
+  for (const [workLineId, wlTasks] of byWorkLine) {
+    const counts = new Map<string, number>()
+    for (const task of wlTasks) {
+      if (!task.objective_id) continue
+      counts.set(task.objective_id, (counts.get(task.objective_id) ?? 0) + 1)
+    }
+    const groups: CatalogRelationGroup[] = [...counts.entries()]
+      .filter(([objId]) => objName.has(objId))
+      .map(([objId, taskCount]) => ({ id: objId, name: objName.get(objId)!, taskCount }))
+    map.set(workLineId, {
+      groups,
+      tasks: wlTasks.map((t) => ({ id: t.id, title: t.title })),
+    })
+  }
+  return map
+}
+
+// ── Projection (view + name search + work-line type + task coverage; single flat group) ─────────────
 
 function isFiltered(query: CatalogCollectionQuery, visible: number, total: number): boolean {
-  // Anything hidden by the current view/search/type narrows the set — an empty result is then
-  // "filtered-empty" (clearable), never the teaching "empty" reserved for a truly empty catalog.
-  return visible < total || query.q.trim() !== '' || query.type !== 'all' || query.view !== 'active'
+  // Anything hidden by the current view/search/type/coverage narrows the set — an empty result is
+  // then "filtered-empty" (clearable), never the teaching "empty" reserved for a truly empty catalog.
+  return visible < total || query.q.trim() !== '' || query.type !== 'all'
+    || query.coverage !== 'all' || query.view !== 'active'
 }
 
 function projectCatalog(
@@ -207,6 +334,11 @@ function projectCatalog(
     if (query.view === 'active' && row.archived_at != null) return false
     if (query.view === 'archived' && row.archived_at == null) return false
     if (query.type !== 'all' && row.type !== query.type) return false
+    if (query.coverage !== 'all') {
+      const hasTasks = (data.context.relationsById.get(row.id)?.tasks.length ?? 0) > 0
+      if (query.coverage === 'has-tasks' && !hasTasks) return false
+      if (query.coverage === 'no-tasks' && hasTasks) return false
+    }
     if (term && !row.name.toLowerCase().includes(term)) return false
     return true
   })
@@ -292,14 +424,21 @@ function makeCatalogDescriptor(config: {
 
 export const objectivesCollectionDescriptor = makeCatalogDescriptor({
   id: 'objectives',
-  filterKeys: [],
+  // OD-V4-1 H7: 'coverage' (Has tasks / No tasks) is the one filter dimension Objectives has
+  // data for — mirrors Projects/Processes' existing 'type' filter (same CollectionToolbar
+  // `filters` mechanism, no second filter grammar).
+  filterKeys: ['coverage'],
   load: async () => {
     const [objectives, tasks, workLines] = await Promise.all([
       listObjectivesAll(), listTasks({}), listWorkLinesAll(),
     ])
     return {
       records: objectives.map((o) => ({ id: o.id, name: o.name, archived_at: o.archived_at })),
-      context: { traceById: buildObjectiveDownTrace(tasks, workLines) },
+      context: {
+        traceById: buildObjectiveDownTrace(tasks, workLines, translateFor(readPersistedLocale())),
+        relationsById: buildObjectiveRelations(tasks, workLines),
+        relationsKind: 'objective',
+      },
     }
   },
 })
@@ -324,7 +463,11 @@ export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
     ])
     return {
       records: workLines.map((w) => ({ id: w.id, name: w.name, archived_at: w.archived_at, type: w.type })),
-      context: { traceById: buildWorkLineUpTrace(tasks, objectives) },
+      context: {
+        traceById: buildWorkLineUpTrace(tasks, objectives, translateFor(readPersistedLocale())),
+        relationsById: buildWorkLineRelations(tasks, objectives),
+        relationsKind: 'work_line',
+      },
     }
   },
 })

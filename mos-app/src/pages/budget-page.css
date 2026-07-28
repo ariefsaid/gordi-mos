@@ -3,7 +3,9 @@
   margin-top: 24px;
 }
 .bp-h2 {
-  font-size: 16px;
+  /* typeset: was 16px off-ramp — these <h2>s are page-level section titles ("Budgeted COGS…",
+     "Capture a budget scenario", …), exactly DESIGN.md's `heading` role (20px/600). */
+  font-size: var(--font-size-heading);
   font-weight: 600;
   margin: 0 0 4px;
   color: var(--foreground);
@@ -27,7 +29,10 @@
   margin-bottom: 6px;
 }
 .bp-total {
-  font-size: 22px;
+  /* typeset: was 22px — a stray near-duplicate of the app's one documented headline-figure
+     size. Now the --font-size-kpi-value token dashboard/kpi-tile.css's .kpi-tile-value also
+     carries (DESIGN.md: "KPI values reuse ~23px/600 for the headline number"). */
+  font-size: var(--font-size-kpi-value);
   font-weight: 600;
   margin: 4px 0 12px;
   color: var(--foreground);
@@ -58,7 +63,7 @@
 }
 .bp-table thead th {
   font-size: var(--font-size-overline);
-  font-weight: 400;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted-foreground);

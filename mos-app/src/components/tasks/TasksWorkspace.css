@@ -88,7 +88,9 @@
 .drawer-modal.drawer-fullscreen .dw-iconbtn { width: 44px; height: 44px; }
 .drawer-modal.drawer-fullscreen .dw-tabs { overflow-x: auto; flex-wrap: nowrap; }
 .drawer-modal.drawer-fullscreen .dw-tab { min-height: 44px; white-space: nowrap; }
-.drawer-modal.drawer-fullscreen .btn-ghost-danger,
+/* extract (2026-07-28): the `.btn-ghost-danger` half of this selector list was dropped —
+   TaskSurface.css's `.btn-ghost-danger` class (the only thing that made it match anything)
+   was removed as confirmed-dead alongside `.btn-ghost`/`.btn-outline-sm`. */
 .drawer-modal.drawer-fullscreen .checklist-checkbox { min-height: 44px; }
 
 /* ── Toolbar ── (mockup `.toolbar`: view-tabs · spacer · segment · chips · search) */
@@ -359,7 +361,8 @@ tr.row-selected .row-menu,
 tr:focus-within .row-menu { visibility: visible; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .task-name {
-  font-weight: 600; font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* typeset: was 15.5px off-ramp — the row's own .own-name sibling already runs body-lg (15px). */
+  font-weight: 600; font-size: var(--font-size-body-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   display: block; color: var(--foreground); min-width: 0;
 }
 .task-name-archived { font-weight: 500; color: var(--muted-foreground); }
@@ -379,7 +382,9 @@ tr:focus-within .row-menu { visibility: visible; }
      (~8:1 light, ~7:1 dark at the gradient centre). The prior solid --accent + dark
      --brand-navy-text was only ~3.67:1 — the illegible initials. Keep this pairing. */
   background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
-  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: 10.5px; font-weight: 700; flex: none;
+  /* typeset: was 10.5px off-ramp — avatar-initial glyphs use micro (10px) everywhere else
+     (TaskSurface.css .person-av). Kept identical to collection-grammar.css's byte-identical rule. */
+  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: var(--font-size-micro); font-weight: 700; flex: none;
 }
 .own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role name>"
@@ -398,7 +403,6 @@ tr:focus-within .row-menu { visibility: visible; }
 .due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: var(--font-size-body-lg); }
 .due-soon    { color: var(--warning-foreground); font-weight: 600; font-size: var(--font-size-body-lg); }
 .due-calm    { color: var(--muted-foreground); font-weight: 500; font-size: var(--font-size-body-lg); }
-.act { color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; }
 
 /* ── Loading skeleton ── */
 .sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
@@ -649,7 +653,9 @@ tr.grp td { padding: 0; }
    (FR-231/232/233/236) — only the table COLUMNS were trimmed. */
 
 /* ── Utility ── */
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }
+/* extract (2026-07-28, DD-12): local `.sr-only` removed — see TaskSurface.css's identical note.
+   Tailwind's own `@layer utilities .sr-only` (index.css `@import "tailwindcss"`) is now the one
+   definition app-wide; this file no longer competes with it. */
 .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
 /* Keyboard-sortable header button (WCAG 2.1.1, convention audit 2026-07-18): the <th> keeps

@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-28T00:00:00Z",
+  "title": "Design System: Gordi MOS",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "The One Blue",
+        "canonical": "oklch(0.546 0.2153 262.8719)",
+        "tonalRamp": [
+          "oklch(0.20 0.09 262.87)", "oklch(0.29 0.13 262.87)", "oklch(0.38 0.17 262.87)",
+          "oklch(0.47 0.20 262.87)", "oklch(0.546 0.2153 262.87)", "oklch(0.66 0.17 262.87)",
+          "oklch(0.80 0.10 262.87)", "oklch(0.94 0.03 262.87)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Warm White Canvas",
+        "canonical": "oklch(0.994 0.002 85.0)",
+        "tonalRamp": [
+          "oklch(0.20 0.002 85)", "oklch(0.31 0.002 85)", "oklch(0.43 0.002 85)",
+          "oklch(0.55 0.002 85)", "oklch(0.67 0.002 85)", "oklch(0.80 0.002 85)",
+          "oklch(0.92 0.002 85)", "oklch(0.994 0.002 85)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Warm Near-Black",
+        "canonical": "oklch(0.145 0.004 30.0)",
+        "tonalRamp": [
+          "oklch(0.145 0.004 30)", "oklch(0.25 0.004 30)", "oklch(0.36 0.004 30)",
+          "oklch(0.47 0.006 30)", "oklch(0.58 0.006 30)", "oklch(0.70 0.005 30)",
+          "oklch(0.84 0.004 30)", "oklch(0.95 0.003 30)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Quiet Label Grey",
+        "canonical": "oklch(0.388 0.012 30.0)",
+        "tonalRamp": [
+          "oklch(0.16 0.012 30)", "oklch(0.27 0.012 30)", "oklch(0.388 0.012 30)",
+          "oklch(0.50 0.012 30)", "oklch(0.62 0.010 30)", "oklch(0.74 0.008 30)",
+          "oklch(0.86 0.005 30)", "oklch(0.96 0.003 30)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "The Single Border",
+        "canonical": "oklch(0.922 0.004 38.0)",
+        "tonalRamp": [
+          "oklch(0.22 0.004 38)", "oklch(0.34 0.004 38)", "oklch(0.46 0.004 38)",
+          "oklch(0.58 0.004 38)", "oklch(0.70 0.004 38)", "oklch(0.82 0.004 38)",
+          "oklch(0.922 0.004 38)", "oklch(0.97 0.003 38)"
+        ]
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Signal Red",
+        "canonical": "oklch(0.6368 0.2078 25.3259)",
+        "tonalRamp": [
+          "oklch(0.24 0.09 25.33)", "oklch(0.34 0.13 25.33)", "oklch(0.44 0.17 25.33)",
+          "oklch(0.54 0.20 25.33)", "oklch(0.6368 0.2078 25.33)", "oklch(0.74 0.16 25.33)",
+          "oklch(0.86 0.09 25.33)", "oklch(0.95 0.03 25.33)"
+        ]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Aging Amber",
+        "canonical": "oklch(0.8334 0.1641 83.8666)",
+        "tonalRamp": [
+          "oklch(0.30 0.07 83.87)", "oklch(0.42 0.10 83.87)", "oklch(0.53 0.13 83.87)",
+          "oklch(0.64 0.15 83.87)", "oklch(0.74 0.16 83.87)", "oklch(0.8334 0.1641 83.87)",
+          "oklch(0.91 0.10 83.87)", "oklch(0.97 0.04 83.87)"
+        ]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Settled Green",
+        "canonical": "oklch(0.7205 0.192 149.4926)",
+        "tonalRamp": [
+          "oklch(0.26 0.08 149.49)", "oklch(0.37 0.11 149.49)", "oklch(0.47 0.14 149.49)",
+          "oklch(0.57 0.17 149.49)", "oklch(0.66 0.19 149.49)", "oklch(0.7205 0.192 149.49)",
+          "oklch(0.86 0.11 149.49)", "oklch(0.95 0.04 149.49)"
+        ]
+      },
+      "brand-navy": {
+        "role": "secondary",
+        "displayName": "Structural Navy",
+        "canonical": "oklch(0.3154 0.0639 260.7289)",
+        "tonalRamp": [
+          "oklch(0.18 0.04 260.73)", "oklch(0.3154 0.0639 260.73)", "oklch(0.42 0.08 260.73)",
+          "oklch(0.53 0.09 260.73)", "oklch(0.64 0.08 260.73)", "oklch(0.76 0.06 260.73)",
+          "oklch(0.87 0.03 260.73)", "oklch(0.96 0.01 260.73)"
+        ]
+      },
+      "brand-orange": {
+        "role": "secondary",
+        "displayName": "Brand Sprinkle Orange",
+        "canonical": "oklch(0.619 0.1833 39.9351)",
+        "tonalRamp": [
+          "oklch(0.24 0.08 39.94)", "oklch(0.34 0.12 39.94)", "oklch(0.44 0.15 39.94)",
+          "oklch(0.53 0.17 39.94)", "oklch(0.619 0.1833 39.94)", "oklch(0.74 0.14 39.94)",
+          "oklch(0.86 0.08 39.94)", "oklch(0.95 0.03 39.94)"
+        ]
+      },
+      "violet": {
+        "role": "tertiary",
+        "displayName": "Categorical Violet",
+        "canonical": "oklch(0.5424 0.2454 293.016)",
+        "tonalRamp": [
+          "oklch(0.20 0.10 293.02)", "oklch(0.29 0.15 293.02)", "oklch(0.38 0.19 293.02)",
+          "oklch(0.46 0.22 293.02)", "oklch(0.5424 0.2454 293.02)", "oklch(0.68 0.19 293.02)",
+          "oklch(0.82 0.11 293.02)", "oklch(0.94 0.04 293.02)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "page-title": { "displayName": "Page Title", "purpose": "One per page, in .page-head. Plus Jakarta Sans 600/24px." },
+      "heading": { "displayName": "Heading", "purpose": "Section and card headings." },
+      "body-lg": { "displayName": "Emphasised Body", "purpose": "Record titles, primary row text, the v4 capture-row dish name and summary-rule values." },
+      "body": { "displayName": "Body", "purpose": "Base body, table cells, meta. Equals the html base size." },
+      "control": { "displayName": "Control", "purpose": "Buttons, inputs, selects, tabs — controls run 13.5px." },
+      "label": { "displayName": "Label", "purpose": "Pill and field labels, dense metadata, the v4 summary-rule labels and row status." },
+      "overline": { "displayName": "Overline", "purpose": "Counts, column headers, captions." },
+      "mono": { "displayName": "Mono", "purpose": "SF Mono. Machine IDs and codes only — never a costume for 'technical'." }
+    },
+    "shadows": [
+      { "name": "rest", "value": "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)", "purpose": "The one resting lift. Cards, KPI tiles, kanban cards ONLY — co-signs the 1px border, never replaces it (OD-P3-11). Flat utility surfaces (toolbars, rows, strips, the v4 summary rule) get none." },
+      { "name": "state-lift", "value": "0 2px 10px hsl(240 6% 10% / 0.06)", "purpose": "Card or KPI tile on hover — deepens from rest." },
+      { "name": "kanban-hover", "value": "0 4px 14px hsl(240 6% 10% / 0.10)", "purpose": "Draggable kanban card on hover; lifts more because it is grabbable." },
+      { "name": "brand-button", "value": "0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)", "purpose": "Faint brand-tinted lift under the primary button." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "background 0.2s, border-color 0.2s, box-shadow 0.2s", "purpose": "Default control state easing. Motion here is a response to state, never decoration." }
+    ],
+    "breakpoints": [
+      { "name": "phone-toolbar", "value": "639px", "purpose": "v4: below this the Café toolbar keeps search + category on one line instead of wrapping." },
+      { "name": "table-reflow", "value": "768px", "purpose": "DataTable switches between the desktop <table> and phone cards (OD-W4-4). Exactly one branch renders." },
+      { "name": "rail-collapse", "value": "920px", "purpose": "The desktop rail collapses. Distinct from table-reflow — do not conflate the two." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action affordance. The One Blue, kept under ~10% of any screen.",
+      "html": "<button class=\"ds-btn-primary\">Submit</button>",
+      "css": ".ds-btn-primary { height: 32px; padding: 0 14px; background: var(--primary); color: var(--primary-foreground); border: 1px solid var(--primary); border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; box-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent); transition: background .2s, box-shadow .2s; } .ds-btn-primary:hover { filter: brightness(1.06); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Bordered neutral action. Discard, Cancel, and every non-primary verb.",
+      "html": "<button class=\"ds-btn-secondary\">Discard</button>",
+      "css": ".ds-btn-secondary { height: 32px; padding: 0 14px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; transition: background .2s; } .ds-btn-secondary:hover { background: var(--secondary); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "The toolbar search-mini. Single border, 8px control radius, One-Blue focus ring.",
+      "html": "<input class=\"ds-input-search\" type=\"search\" placeholder=\"Find a dish\" />",
+      "css": ".ds-input-search { height: 36px; padding: 0 10px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box; } .ds-input-search::placeholder { color: var(--muted-foreground); } .ds-input-search:focus { outline: 2px solid var(--ring); outline-offset: 2px; border-color: var(--ring); }"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "pill-status",
+      "description": "6px dot plus tinted background and darkened text. For SPARSE or exceptional status only — see Row Status Text when the status is on every row.",
+      "html": "<span class=\"ds-pill ds-pill--destructive\"><span class=\"ds-pill-dot\"></span>Blocked</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text, var(--destructive)); } .ds-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card-surface",
+      "description": "Border AND the one resting shadow — co-equal, never shadow-alone (Soft-Elevation Rule).",
+      "html": "<div class=\"ds-card\">Planned total<br><strong>548</strong></div>",
+      "css": ".ds-card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); transition: box-shadow .2s; } .ds-card:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); }"
+    },
+    {
+      "name": "Rail Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-rail-item",
+      "description": "Destination row in the two-zone rail. Active state is a quiet wash, not a blue fill.",
+      "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\">Home</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--foreground); text-decoration: none; font-size: 13.5px; } .ds-nav-item:hover { background: var(--secondary); } .ds-nav-item--active { background: var(--secondary); font-weight: 600; } .ds-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Metric Summary Rule",
+      "kind": "custom",
+      "refersTo": "summary-rule",
+      "description": "v4 signature. The derived-figure band for surfaces whose job is DOING, not reading. One line, no card, no shadow, hairline underneath. Replaces the KPI tile row on capture surfaces.",
+      "html": "<section class=\"ds-summary-rule\"><span class=\"ds-metric\"><span class=\"ds-metric-label\">Planned total</span><span class=\"ds-metric-value\">548</span></span><span class=\"ds-metric\"><span class=\"ds-metric-label\">Made so far</span><span class=\"ds-metric-value\">421</span><span class=\"ds-metric-delta\">−127 vs plan</span></span><span class=\"ds-metric\"><span class=\"ds-metric-label\">% complete</span><span class=\"ds-metric-value\">77%</span></span></section>",
+      "css": ".ds-summary-rule { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 22px; row-gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); } .ds-metric { display: inline-flex; align-items: baseline; gap: 7px; } .ds-metric-label { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; } .ds-metric-value { font-size: 15px; font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; } .ds-metric-delta { font-size: 12px; font-weight: 500; color: var(--destructive); white-space: nowrap; }"
+    },
+    {
+      "name": "Compact Capture Row",
+      "kind": "custom",
+      "refersTo": "capture-row",
+      "description": "v4 signature. The phone row for running a long list and acting on each item. Identity left, TYPED numeric field right at the thumb, meta line beneath that renders only when it has something to say. ~66px against the generic record card's ~200px. The control is a typed field, NOT a stepper: amounts here are 10-20+, so -/+ meant ~20 taps per row (owner-corrected, DD-5). font-size is 16px so mobile Safari does not zoom the viewport on focus.",
+      "html": "<div class=\"ds-capture-row\"><div class=\"ds-capture-head\"><span class=\"ds-capture-name\">Ayam Garang Asem</span><span class=\"ds-qty-wrap\"><input class=\"ds-qty\" type=\"number\" inputmode=\"decimal\" enterkeyhint=\"next\" placeholder=\"25\" aria-label=\"Quantity produced for Ayam Garang Asem\" /><span class=\"ds-qty-unit\">porsi</span></span></div><div class=\"ds-capture-meta\"><span class=\"ds-capture-status\">Under −7</span></div></div>",
+      "css": ".ds-capture-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; } .ds-capture-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; } .ds-capture-name { font-size: 15px; font-weight: 600; color: var(--foreground); overflow-wrap: anywhere; } .ds-capture-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12px; color: var(--muted-foreground); } .ds-capture-status { color: var(--status-lost-text); font-weight: 500; } .ds-qty-wrap { display: inline-flex; align-items: center; gap: 6px; flex: none; } .ds-qty { width: 68px; height: 44px; box-sizing: border-box; text-align: right; padding-right: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; font-family: inherit; } .ds-qty::placeholder { color: var(--muted-foreground); } .ds-qty:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-qty-unit { font-size: 12px; color: var(--muted-foreground); }"
+    },
+    {
+      "name": "Segmented Track",
+      "kind": "custom",
+      "refersTo": "segmented-track",
+      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and Home's order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css, @import'ed by both consumers.",
+      "html": "<div class=\"ds-seg\" role=\"tablist\"><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"true\">Branch</button><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"false\">Activity</button></div>",
+      "css": ".ds-seg { display: inline-flex; gap: 4px; height: 32px; padding: 3px; background: var(--secondary); border-radius: 8px; box-sizing: border-box; } .ds-seg-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: var(--muted-foreground); font-size: 13px; font-weight: 600; cursor: pointer; } .ds-seg-opt[aria-selected='true'] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Control Surface",
+    "overview": "A near-monochrome system whose only saturated colour in normal use is the primary blue. Status colours appear only on data state, and a single categorical violet is reserved for KPI and timeline accents — never as an action colour. Structure comes from one 1px border and surface-tone contrast, plus one subtle resting lift on cards. The system is calm, dense and data-first: it is meant to be looked at all day by people who came to get something done, on a café floor or at a desk.",
+    "keyCharacteristics": [
+      "One blue for every interactive affordance, under ~10% of any screen",
+      "One border value; structure by line and tone, not by shadow",
+      "Exactly one resting shadow, on cards/KPI/kanban only",
+      "Tabular figures on every number that can be compared",
+      "Density is a feature — usability and speed beat model completeness",
+      "Colour is rationed to what needs action"
+    ],
+    "rules": [
+      { "name": "The One Blue Rule", "body": "Every interactive affordance uses the one primary blue, kept under ~10% of any screen. The primary-button sheen is the same blue, not a second action colour.", "section": "colors" },
+      { "name": "The Single-Border Rule", "body": "border equals input. One border value defines all structure.", "section": "colors" },
+      { "name": "The Tabular-Numbers Rule", "body": "Every figure that can change or be compared is tabular-nums. DM Sans tnum is a verified no-op in its fontsource build, so the .tabular utility is scoped to Inter Variable; proportional body text stays DM Sans.", "section": "typography" },
+      { "name": "The Soft-Elevation Rule", "body": "Cards, KPI tiles and kanban cards carry exactly one subtle resting shadow in addition to their 1px border. Every other surface stays flat at rest. Never stack resting shadows; never exceed ~0.06 total alpha (OD-P3-11).", "section": "elevation" },
+      { "name": "The Restrained-Gradient Rule", "body": "Only the two ratified navy-tinted whispers: the primary-button sheen and the home/digest surface wash. Never purple (OD-P3-12).", "section": "colors" },
+      { "name": "The Surface-Job Rule", "body": "Pick the metric treatment from the surface's job: the summary rule where the user came to act, KPI tiles where they came to read. A capture surface never opens with a row of tiles (v4).", "section": "components" },
+      { "name": "The No-Restated-Value Rule", "body": "Never repeat a value under a control that the row or card already renders as its own column or field (v4).", "section": "components" },
+      { "name": "The One-Definition Rule", "body": "A CSS class name is global regardless of which component file declares it, so exactly one file may define any given selector. A second, differently-valued definition of the same class elsewhere in the app is not a harmless local override — it silently wins or loses the cascade by import order, not intent (extract, 2026-07-28: found live on four separate classes — .sr-only in four page/component files, and a dead .btn-ghost that was shadowing the canonical Button ghost variant app-wide). Shared visual grammar used by more than one component belongs in one file the consumers @import, not re-authored per surface.", "section": "components" }
+    ],
+    "dos": [
+      "Do drive every interactive affordance with the one primary blue, and keep it under ~10% of any screen.",
+      "Do define structure with the single 1px border and surface-tone contrast; cards also carry the one subtle resting lift.",
+      "Do apply tabular-nums to every figure in tables, KPIs, kanban and funnels.",
+      "Do show status as a 6px dot plus a tinted pill, and reserve solid fills for the destructive button only.",
+      "Do keep controls at 32px with the 8px control radius; cards and overlays take the 12px card radius.",
+      "Do set headings in Plus Jakarta Sans 600 and body/UI/table text in DM Sans; SF Mono for machine IDs only.",
+      "Do expose the global focus-visible ring on every focusable element.",
+      "Do reserve categorical violet and the status hues for non-interactive meaning.",
+      "Do pick the metric treatment from the surface's job: the summary rule where the user came to act, KPI tiles where they came to read.",
+      "Do drop a status pill's fill to toned text when the status is present on every row at rest."
+    ],
+    "donts": [
+      "Don't ship the AI-SaaS marketing aesthetic: no neon accents, no glassmorphism, no oversized hero type, no floating-card soup, no purple gradients.",
+      "Don't stack resting shadows or give a flat utility surface a resting shadow.",
+      "Don't use high-opacity black for shadows.",
+      "Don't introduce a second action colour, a fourth typeface, a new gradient hue, or a new border value.",
+      "Don't use mono or proportional figures for money in tables.",
+      "Don't colour body text with a fully saturated status hue or fill a status pill solid.",
+      "Don't invent radii outside the 4/8/10/12/999 scale.",
+      "Don't open a capture surface with a row of KPI tiles.",
+      "Don't repeat a value under a control that the row or card already renders as its own column or field.",
+      "Don't ship the generic record card on a surface whose phone job is running a long capture list."
+    ]
+  }
+}

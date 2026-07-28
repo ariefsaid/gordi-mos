@@ -9,6 +9,7 @@
 // Back-compat: Home v1 + revenue tiles omit all four and render unchanged.
 import type { ReactNode } from 'react'
 import { Pill, type PillTone } from '@/components/ui/pill'
+import { HelpTip } from '@/components/ui/help-tip'
 import { LoadingShell } from '@/components/ui/state-kit'
 import { BasisChip } from './basis-chip'
 import { DQBadge, type DqState } from './dq-badge'
@@ -82,14 +83,15 @@ export function KPITile({
     <>
       <span className="kpi-tile-label">
         {label}
-        {help && (
-          // r5 F-8: a REAL button — keyboard/AT reachable (was a cursor:help span
-          // only pointer users could discover). It carries no action; the tooltip
-          // surfaces on hover AND focus via title, and AT announces the aria-label.
-          <button type="button" className="kpi-tile-help" aria-label={help} title={help}>
-            ?
-          </button>
-        )}
+        {/* onboard (2026-07-28): this was a SECOND, hand-rolled copy of the "?" help control,
+            carrying the same native-`title` defect as the shared one — it did nothing when
+            tapped, on the surface (Money) that was the app's only source of in-app help. Two
+            implementations of one affordance also meant a fix to either left the other broken.
+            Converged on the shared HelpTip primitive, so Money's tiles inherit tap-to-open,
+            Escape-dismiss and viewport clamping for free, and there is one thing to fix next
+            time. `.kpi-tile-help` styling is retained in kpi-tile.css only as the 44px hit-area
+            note; the glyph now comes from help-tip.css. */}
+        {help && <HelpTip label={help} className="kpi-tile-help" />}
       </span>
       <span className="kpi-tile-value kpi-tile-value--nowrap tabular">{value}</span>
       {delta && (

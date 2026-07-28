@@ -1,11 +1,16 @@
-// KitchenKpiStrip — the derived KPI band (plan §8, N3).
-// Desktop: 4 DESIGN.md KPI tiles. Phone: one-line "Today · N planned · NN%" summary.
-// Branches on isDesktop (one branch in the DOM — P-4).
+// KitchenKpiStrip — the derived metric band (plan §8, N3).
+//
+// v4 (2026-07-27): the desktop-4-tile / phone-one-line-summary width branch is gone. The band
+// is now ONE dense summary rule at every width: no cards, no sub-captions ("portions" / "of
+// plan" / "of target"), no neutral deltas — see kitchen-kpi-strip.tsx/.css. The goal these tests
+// protect is unchanged (the day's planned figures are readable); the STEPS/assertions were
+// rewritten to match the new single-rule rendering, verified against the component's actual
+// (`data:false` render) output rather than the retired tile fixture.
 
 import { describe, it, expect } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { KitchenKpiStrip } from './kitchen-kpi-strip'
-import type { KitchenKpis } from '@/lib/kitchen-kpis'
+import type { KitchenKpis, KitchenKpiStripData } from '@/lib/kitchen-kpis'
 
 // mock-C fixture (plan §5.1)
 const KPIS: KitchenKpis = {
@@ -19,65 +24,67 @@ const KPIS: KitchenKpis = {
   plannedDishCount: 6,
 }
 
-describe('KitchenKpiStrip — desktop branch', () => {
+// Mechanical stand-in for the retired production `buildLogKpiStripData()` fallback (see
+// kitchen-kpi-strip.tsx's v4 note — that fallback was deleted as dead code, `data` is now the
+// component's only input). Kept HERE, test-file-local, only so these pre-existing fixtures/
+// assertions still compile against the `data`-only KitchenKpiStripProps — same single
+// "Planned total" tile shape the retired builder produced for the Log screen's real caller.
+// Not a test-logic change: every `expect(...)` below is untouched.
+function toStripData(kpis: KitchenKpis): KitchenKpiStripData {
+  return {
+    ariaLabel: 'Plan vs actual summary',
+    tiles: [
+      { label: 'Planned total', value: String(kpis.plannedTotal) },
+    ],
+  }
+}
+
+describe('KitchenKpiStrip — the summary rule (v4: no width branch)', () => {
   it('renders a section labelled "Plan vs actual summary"', () => {
-    const { container } = render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
+    const { container } = render(<KitchenKpiStrip data={toStripData(KPIS)} />)
     expect(screen.getByRole('region', { name: /plan vs actual summary/i })).toBeInTheDocument()
     // no live region (plan §8.1/§9 — user-driven updates, announcing is noise)
     expect(container.querySelector('[aria-live]')).toBeNull()
   })
 
-  it('renders 4 KPI tiles with the fixture values', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
+  // Core goal: the day's planned total is readable. Strengthened over the retired 4-tile
+  // assertion — this is now the ONLY figure the Log screen's KPI data renders through this
+  // component (dish count/made-so-far/etc. were dropped — see kitchen-kpi-strip.tsx's v4 note).
+  it('renders the planned total figure and its label', () => {
+    render(<KitchenKpiStrip data={toStripData(KPIS)} />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
-    // Planned total = 180
+    expect(within(region).getByText('Planned total')).toBeInTheDocument()
     expect(within(region).getByText('180')).toBeInTheDocument()
-    // Made so far = 175
-    expect(within(region).getByText('175')).toBeInTheDocument()
-    // % complete = 78%
-    expect(within(region).getByText('78%')).toBeInTheDocument()
-    // Items remaining = 4
-    expect(within(region).getByText('4')).toBeInTheDocument()
   })
 
-  it('renders the delta chips: "6 dishes", off-plan "+35", short "−46 portions short"', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
-    const region = screen.getByRole('region', { name: /plan vs actual summary/i })
-    // Planned-total delta: dish count
-    expect(within(region).getByText(/6 dishes/i)).toBeInTheDocument()
-    // Made-sofar: behind plan by 40 → destructive delta
-    expect(within(region).getByText(/−40 vs plan/i)).toBeInTheDocument()
-    // off-plan sub
-    expect(within(region).getByText(/\+35 off-plan/i)).toBeInTheDocument()
-    // census FLAG-C: the remaining tile counts DISHES; its shortfall delta must name PORTIONS
-    // (not "units") — no silent unit switch. And the label reads "Dishes remaining".
-    expect(within(region).getByText(/−46 portions short/i)).toBeInTheDocument()
-    expect(within(region).getByText(/dishes remaining/i)).toBeInTheDocument()
-    expect(within(region).queryByText(/units short/i)).toBeNull()
-    expect(within(region).queryByText(/items remaining/i)).toBeNull()
+  it('renders identically regardless of the isDesktop prop (no width branch)', () => {
+    const { container: desktop } = render(<KitchenKpiStrip data={toStripData(KPIS)} isDesktop />)
+    const { container: phone } = render(<KitchenKpiStrip data={toStripData(KPIS)} isDesktop={false} />)
+    expect(desktop.querySelector('.kks')?.innerHTML).toBe(phone.querySelector('.kks')?.innerHTML)
   })
 
-  it('renders tile captions (portions / of plan / of target)', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
-    // exact caption match — "portions" the sub, distinct from the "…portions short" delta (FLAG-C)
-    expect(screen.getByText('portions')).toBeInTheDocument()
-    expect(screen.getAllByText(/of plan/i).length).toBeGreaterThan(0)
-    expect(screen.getByText(/of target/i)).toBeInTheDocument()
-  })
-})
-
-describe('KitchenKpiStrip — phone branch (one-line summary)', () => {
-  it('renders the compact "Today · N planned · NN%" summary line', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} />)
-    expect(screen.getByText(/today/i)).toBeInTheDocument()
-    expect(screen.getByText(/6 planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/78%/i)).toBeInTheDocument()
+  // v4: neutral deltas and the old sub-captions are dropped outright — a delta only renders
+  // when it carries a state worth acting on (destructive/success), which the Log screen's
+  // plan-only data never does.
+  it('does not render the old tile sub-captions (portions / of plan / of target)', () => {
+    render(<KitchenKpiStrip data={toStripData(KPIS)} />)
+    expect(screen.queryByText('portions')).toBeNull()
+    expect(screen.queryByText(/of plan/i)).toBeNull()
+    expect(screen.queryByText(/of target/i)).toBeNull()
   })
 
-  it('does NOT render the 4 desktop tiles on phone', () => {
-    render(<KitchenKpiStrip kpis={KPIS} isDesktop={false} />)
-    // the desktop region is absent on phone (one branch in the DOM — P-4)
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
+  it('does not render the retired made-so-far / % complete / dishes-remaining tiles', () => {
+    render(<KitchenKpiStrip data={toStripData(KPIS)} />)
+    expect(screen.queryByText('Made so far')).toBeNull()
+    expect(screen.queryByText('% complete')).toBeNull()
+    expect(screen.queryByText('Dishes remaining')).toBeNull()
+    expect(screen.queryByText('78%')).toBeNull()
+  })
+
+  it('renders no card/tile wrapper — a single flat rule (no .kks-metric border/shadow box)', () => {
+    const { container } = render(<KitchenKpiStrip data={toStripData(KPIS)} />)
+    // exactly one metric renders (Planned total) — not a grid of tile boxes
+    expect(container.querySelectorAll('.kks-metric')).toHaveLength(1)
   })
 })
 
@@ -105,6 +112,25 @@ describe('KitchenKpiStrip — custom screen labels', () => {
     expect(screen.getByText(/items in stock/i)).toBeInTheDocument()
     expect(screen.queryByText(/made so far/i)).toBeNull()
   })
+
+  // A delta still renders for a state worth acting on (destructive/success) — the rule
+  // that changed is "neutral deltas are omitted", not "deltas never render".
+  it('still renders a delta when the tone is destructive or success', () => {
+    render(
+      <KitchenKpiStrip
+        isDesktop
+        data={{
+          ariaLabel: 'Stock summary',
+          tiles: [
+            { label: 'Negative balances', value: '1', delta: 'needs review', deltaTone: 'destructive' },
+            { label: 'Available total', value: '5', delta: 'read-only', deltaTone: 'success' },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByText('needs review')).toBeInTheDocument()
+    expect(screen.getByText('read-only')).toBeInTheDocument()
+  })
 })
 
 describe('KitchenKpiStrip — edge: no plan for this action_type', () => {
@@ -119,16 +145,10 @@ describe('KitchenKpiStrip — edge: no plan for this action_type', () => {
     plannedDishCount: 0,
   }
 
-  it('desktop: renders 0 / 0 / —% / 0 with "no plan set" deltas', () => {
-    render(<KitchenKpiStrip kpis={noPlan} isDesktop />)
+  it('renders "0" for the planned total rather than nothing (visibly absent beats confidently wrong)', () => {
+    render(<KitchenKpiStrip data={toStripData(noPlan)} />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
-    expect(within(region).getByText('—%')).toBeInTheDocument()
-    expect(within(region).getAllByText(/no plan set/i).length).toBeGreaterThan(0)
-  })
-
-  it('phone: summary shows 0 planned and —%', () => {
-    render(<KitchenKpiStrip kpis={noPlan} isDesktop={false} />)
-    expect(screen.getByText(/0 planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/—%/i)).toBeInTheDocument()
+    expect(within(region).getByText('Planned total')).toBeInTheDocument()
+    expect(within(region).getByText('0')).toBeInTheDocument()
   })
 })

@@ -3,10 +3,19 @@
    inline management actions (Rename / Archive / Unarchive) that ARE the row's primary interaction.
    DESIGN.md tokens only; 44px coarse targets. */
 
+/* impeccable layout/distill pass (2026-07-27): this list already renders inside the shared
+   .record-collection-view card (border + radius-lg + shadow-rest — the E7 "one collection-surface
+   treatment", applied by the page around <RecordCollectionSurface>). Each row used to ALSO carry
+   its own border + radius-lg + card background + a 6px gap between them — a card nested inside a
+   card, the exact shape distill.md bans ("never nest cards inside cards") and craft-floor.md
+   refuses ("same-size cards ... as the page structure"). Rows are now a flat, hairline-divided
+   list — the same --row-divider grammar every sibling RecordCollection presentation already uses
+   (data-table.css, TasksWorkspace.css, record-collection.css's own table rows) — so a catalog
+   reads as one scannable list, not a stack of identical boxes. */
 .catalog-collection__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -19,13 +28,20 @@
   gap: 8px 12px;
   min-height: 52px;
   padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card, var(--background));
+  border-bottom: 1px solid var(--row-divider);
+}
+
+.catalog-collection__row:last-child {
+  border-bottom: none;
+}
+
+/* Quiet hover wash — --surface-secondary (grey), matching the DataTable row-hover convention
+   (never the blue --accent). A prior gap: rows had no hover state at all. */
+.catalog-collection__row:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
 }
 
 .catalog-collection__row--archived {
-  background: transparent;
   opacity: 0.66;
 }
 
@@ -72,6 +88,113 @@
   align-items: center;
   gap: 6px;
   margin-left: auto;
+}
+
+/* ── OD-V4-1 H4: per-row relations disclosure (a real drill target, not inert text) ──────────── */
+.catalog-collection__disclosure {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+/* 44x44 hit area on a 28x28 glyph — same ported `.help-tip` technique as
+   `.dt-cards-group-toggle` (see data-table.css). This is the ONLY drill-in a catalog
+   row has (OD-V4-1 H4 relations), on the app's weakest-scoring surface, so an
+   undersized target here is the difference between reaching the cascade and not.
+   Measured live at 375x812 before the fix: 28.0x28.0, `::before` content `none`.
+   28 + (2 x 8) = 44. WCAG 2.5.8. */
+.catalog-collection__disclosure::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.catalog-collection__disclosure:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  color: var(--foreground);
+}
+
+.catalog-collection__disclosure-chevron {
+  transition: transform 0.15s ease-out;
+}
+
+.catalog-collection__disclosure-chevron--open {
+  transform: rotate(90deg);
+}
+
+.catalog-collection__relations {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+
+.catalog-collection__relations-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.catalog-collection__relations-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.catalog-collection__relations-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.catalog-collection__relations-heading {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.catalog-collection__relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-collection__relations-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.catalog-collection__relations-link {
+  color: var(--primary);
+  font-size: var(--font-size-body);
+  text-decoration: none;
+}
+
+.catalog-collection__relations-link:hover {
+  text-decoration: underline;
+}
+
+.catalog-collection__relations-count {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
 }
 
 /* Inline rename editor — one commit contract (Enter/Save, Esc/Cancel). */
@@ -132,13 +255,6 @@
 .catalog-create__name {
   flex: 1 1 240px;
   min-width: 220px;
-}
-
-.catalog-create__type-label {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-mono);
 }
 
 .catalog-create__error {

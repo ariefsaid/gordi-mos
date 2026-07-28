@@ -25,9 +25,11 @@ export interface KitchenKpiTileData {
 
 export interface KitchenKpiStripData {
   ariaLabel: string
-  phoneLabel: string
-  phoneValue: string
-  phoneMeta: string
+  /** v4: dead payload from the tile era — nothing renders these. Optional so existing
+   *  callers that still set them keep type-checking; new code must not add them. */
+  phoneLabel?: string
+  phoneValue?: string
+  phoneMeta?: string
   /** 1–4 metric tiles. Most strips carry 4; the Plan editor carries 2 real metrics
    *  (portions + dishes) — its status is a plain `statusLine`, not a word crammed into a
    *  metric slot (census DEFECT-1). The desktop grid sizes its columns to the tile count. */

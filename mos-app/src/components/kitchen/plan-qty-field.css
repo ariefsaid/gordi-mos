@@ -1,0 +1,55 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   PlanQtyField — the phone plan-qty control (DESIGN.md "Compact capture row").
+   The SAME field as Café · Log's `.kls-qty` (wip-item-stepper.css), ported here per
+   DD-5 — one typed right-aligned number at the thumb, not a −/+ stepper. Declarations
+   are held identical to `.kls-qty` on purpose: this is one pattern appearing on two
+   surfaces of one module, not a second look. Token-only (DESIGN.md); .pqf-* namespace.
+   Focus is the global `*:focus-visible` ring (index.css) — no local focus style, so the
+   two surfaces cannot drift.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.pqf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* 44px touch floor; 16px type so mobile Safari does not zoom the viewport on focus. */
+.pqf-qty {
+  flex: 0 0 auto;
+  width: 68px;
+  max-width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  text-align: right;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: var(--font-size-touch-input);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  padding: 0 4px;
+}
+.pqf-qty:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ── Desktop DataTable cell (dense) ──────────────────────────────────────────
+   v4 (DD-5 desktop port): the desktop "Plan" cell is pointer input, not a touch
+   surface, so it sizes to DESIGN.md's 32px control height + 13.5px control type
+   instead of the 44px/16px touch floor above — same field, same behavior, just the
+   sizing rung WipItemStepper's own `.kls-dense .kls-qty` already uses for Café · Log's
+   desktop "Made today" cell (wip-item-stepper.css). 10px cell padding × 2 + 32px content
+   lands on the Data Table's 52px body-row spec. */
+.pqf-dense .pqf-qty {
+  height: 32px;
+  font-size: var(--font-size-control);
+}
+
+/* Unit label beside the typed quantity ("porsi"). Quiet — it names the unit, it is not data. */
+.pqf-unit {
+  flex: 0 0 auto;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}

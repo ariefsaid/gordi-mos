@@ -16,7 +16,10 @@
 
 @media (max-width: 767px) {
   .page-frame--v3 {
-    padding: 16px 16px calc(16px + var(--tabbar-h, 60px));
+    /* v4 chrome-reduction pass (shared-chrome fix): top gutter 16→12 (DESIGN.md geometry
+       scale) — horizontal/bottom untouched (bottom keeps its tab-bar clearance + the
+       DO-23(c) scroll-landing math, which stays keyed to the ORIGINAL 16px below). */
+    padding: 12px 16px calc(16px + var(--tabbar-h, 60px));
     /* DO-23(c) (census-sweep R2 task-record P3-4): the frame IS the mobile scroll container —
        focus/scroll-into-view (e.g. a record's edit textarea + Save/Cancel) must land clear of
        the tab-bar band, not tucked against the scrollport's bottom edge. Landing at this seam,

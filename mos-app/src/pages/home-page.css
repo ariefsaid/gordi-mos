@@ -1,8 +1,10 @@
 /* ════════════════════════════════════════════════════════════════════════════
    HomePage — the consequence-ranked stream layout (owner redirect 2026-07-22).
    The stream + its ambient Signals tail own their own row texture (home-stream.css
-   / signal-feed-section.css); this file owns only the page-level toolbar (the
-   order preference control) and the personal-first jump affordance. Token-only.
+   / signal-feed-section.css); this file owns only the personal-first jump
+   affordance in the head's meta line. The order-preference control itself moved
+   to Personal Profile (OD-REDESIGN-18 completion, 2026-07-27) — its segmented-
+   radiogroup CSS now lives in components/home/home-order-toggle.css. Token-only.
    ════════════════════════════════════════════════════════════════════════════ */
 
 /* Personal-first header summary ("Needs attention · N →", AC-513) — must READ as a
@@ -19,92 +21,25 @@
   outline-offset: 2px;
 }
 
-/* ── Order-preference toolbar — a compact, right-aligned control above the stream.
-   The sticky ViewTabs strip has left Home (owner redirect): the control never spans
-   the width nor leads ahead of the stream. ── */
-.home-stream-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
+/* ── The head's meta line: role identity (+ the personal-first attention summary).
+   Shares the workspace head's `.ch-meta-line` grammar; only the nowrap is relaxed so a
+   long role name plus the summary wraps instead of overflowing at phone width. ── */
+.content-header .ch-meta .home-head-meta {
+  white-space: normal;
 }
 
-/* Compact segmented radiogroup (still role=radiogroup/radio — RI-1). */
-.home-order-seg {
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-}
-.home-order-seg-opt {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  font-size: var(--font-size-mono);
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 6px;
-  cursor: pointer;
+/* g-home audit P3: visually-hidden host for the aria-live="polite" announcement of the
+   "Needs attention · N" figure (see home-page.tsx) — standard clip-based hidden-but-
+   announced pattern, scoped to this page (own class name; no shared/global .sr-only
+   exists to reuse here). */
+.home-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
-  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
-}
-.home-order-seg-opt:hover { color: var(--foreground); }
-.home-order-seg-opt.is-active {
-  background: var(--secondary);
-  color: var(--foreground);
-}
-.home-order-seg-opt:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-/* ── ≤390px: the order control folds behind a compact "View options" disclosure so
-   it's never the lead, full-width element ahead of the stream (RI-2). ── */
-.home-order-disclosure {
-  /* Census R2 DO-16(a) (home F3): column — the opened panel STACKS BELOW its trigger
-     instead of sharing one phone-width row (the row layout squeezed and clipped the
-     trigger when the panel opened). Everything stays right-aligned. */
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.home-order-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px; /* P1-4: phone-only "View options" trigger meets the 44px coarse-pointer floor */
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--font-size-control);
-  font-weight: 600;
-  cursor: pointer;
-}
-.home-order-trigger:hover { background: var(--secondary); }
-.home-order-trigger:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-.home-order-summary {
-  color: var(--muted-foreground);
-  font-weight: 500;
-}
-.home-order-chevron {
-  color: var(--muted-foreground);
-  transition: transform var(--dur-med) ease;
-}
-.home-order-chevron--open { transform: rotate(180deg); }
-.home-order-panel {
-  margin-top: 8px;
-  display: flex;
-  justify-content: flex-end;
-}
-@media (prefers-reduced-motion: reduce) {
-  .home-order-chevron { transition: none; }
+  border-width: 0;
 }

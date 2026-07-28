@@ -1,47 +1,79 @@
 import { useEffect, useRef, useCallback } from 'react'
+import type React from 'react'
 import { Link } from 'react-router-dom'
-import { DESTINATIONS, UTILITY, isLive, modulesForRoles, primaryModuleForViewer, type Destination } from './destinations'
+import {
+  DESTINATIONS,
+  UTILITY,
+  isLive,
+  modulesByBUForRoles,
+  primaryModuleForViewer,
+  type Destination,
+} from './destinations'
+import type { Section } from './sections'
 import { UserChip } from './user-chip'
 import { CloseIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { can } from '@/lib/capabilities'
 import './mobile-drawer.css'
 
 interface MobileDrawerProps {
   open: boolean
   onClose: () => void
-  /** Called to return focus to the opener (More button / hamburger) on close. */
+  /** Called to return focus to the opener (the bottom-tab More button) on close. */
   focusOpener?: () => void
 }
 
-// The bottom-nav owns the primary slots; the More menu owns every authorized NON-primary
-// destination (Events, Money, Ecommerce, Roastery, Admin, Profile) so exactly-one
-// aria-current holds on phone for every route (Rule 5/9). The primary slots are Home ·
-// Work · Inbox plus the viewer's role-scoped module (OD-REDESIGN-68) — so the module the
-// bottom-nav promotes is NOT also listed in More.
-const FIXED_PRIMARY_IDS = ['home', 'work', 'inbox']
+// Work's four always-expanded children, capability-filtered exactly as the desktop rail
+// filters them (rail-nav.tsx) — a capability-gated child (Projects & Processes, Objectives)
+// renders only for a viewer whose access roles grant it.
+function workChildren(d: Destination, accessRoles: string[]): Section[] {
+  return (d.children ?? []).filter((c) => !c.capability || can(accessRoles, c.capability))
+}
 
-function moreDestinations(accessRoles: string[], roleNames: string[]): Destination[] {
-  // OD-REDESIGN-68: modules appear only when they're the viewer's work (same rule as the
-  // rail) — the More menu stops carrying the org chart for unaffiliated roles. The one
-  // module promoted to the bottom-nav slot is excluded here so it lives on exactly one
-  // surface (any additional modules still surface in More).
-  const primaryModule = primaryModuleForViewer(roleNames, accessRoles)
-  const primaryIds = new Set(primaryModule ? [...FIXED_PRIMARY_IDS, primaryModule.id] : FIXED_PRIMARY_IDS)
-  const all = [
-    ...DESTINATIONS,
-    ...modulesForRoles(roleNames, accessRoles),
-    ...UTILITY,
-  ]
-  return all.filter((d) => !primaryIds.has(d.id) && isLive(d, accessRoles))
+// One row renderer shared by both Destination and Work-child (Section) rows — same visual
+// grammar, same touch-target floor, one place to change it.
+function DrawerRow({ to, label, Icon, onNavigate }: { to: string; label: string; Icon: React.FC; onNavigate: () => void }) {
+  return (
+    <Link
+      to={to}
+      onClick={onNavigate}
+      // SYS-2: the More drawer is a phone-only surface, so its 36px rows fall below the
+      // 44px touch floor. The shared tap-target-phone marker (Button.css) raises them.
+      className="tap-target-phone flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
+      style={{ height: 36 }}
+    >
+      <span className="text-muted-foreground">
+        <Icon />
+      </span>
+      <span className="text-foreground">{label}</span>
+    </Link>
+  )
+}
+
+// Overline group label — mirrors RailGroupLabel (rail-nav.tsx): aria-hidden visual divider,
+// not a nav landmark; the group's rows stay directly reachable in document order.
+function DrawerGroupLabel({ children }: { children: string }) {
+  return (
+    <div
+      className="px-2 text-muted-foreground select-none uppercase"
+      style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 10 }}
+      aria-hidden="true"
+    >
+      {children}
+    </div>
+  )
 }
 
 /**
- * MobileDrawer — Redesign Step 2 (T15). The phone "More" menu: a focus-trapped
- * dialog listing every authorized non-primary destination as plain links (no
- * aria-current — the bottom-nav owns the single `page`). Every close path — Esc,
- * backdrop click, the ✕, and clicking a destination link — routes through the
- * SAME `closeAndReturn` so focus always returns to the launcher (interaction-
+ * MobileDrawer — v4 shell rebuild (Task 4). The real two-zone nav drawer, derived from the SAME
+ * destinations.tsx registry the desktop rail reads (no second hand-maintained list): workspace
+ * roots (+ Work's 4 always-expanded children) · Modules grouped by BU (modulesByBUForRoles,
+ * viewer-scoped) · Utility. The viewer's promoted module is already a bottom-tab, so it's
+ * excluded from the Modules zone here — it lives on exactly one nav surface. Links carry no
+ * aria-current (the bottom-tab-bar / breadcrumb leaf own that; Rule 5 — see breadcrumb.tsx).
+ * Every close path — Esc, backdrop click, the ✕, and clicking a destination link — routes
+ * through the SAME `closeAndReturn` so focus always returns to the launcher (interaction-
  * contract I2), never left dangling on a link about to unmount.
  */
 export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
@@ -51,6 +83,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const roleNames = viewer ? viewer.roles.map((r) => r.name) : []
 
   const closeAndReturn = useCallback(() => {
     focusOpener?.()
@@ -97,8 +130,15 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   if (!open) return null
 
-  const roleNames = auth.status === 'authenticated' ? auth.viewer.roles.map((r) => r.name) : []
-  const items = moreDestinations(accessRoles, roleNames)
+  // Zone 1 — workspace roots (Home · Work · Signals · Money[gated] · Inbox), same isLive gate
+  // the rail applies. Zone 2 — modules grouped by BU, viewer-scoped, minus the one already
+  // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
+  const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
+  const promotedModule = primaryModuleForViewer(roleNames, accessRoles)
+  const moduleGroups = modulesByBUForRoles(roleNames, accessRoles)
+    .map((g) => ({ bu: g.bu, items: g.items.filter((m) => m.id !== promotedModule?.id) }))
+    .filter((g) => g.items.length > 0)
+  const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
 
   return (
     <>
@@ -129,33 +169,75 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         {/* Identity + sign-out row (security audit HIGH-1, 2026-07-17). Phone has no rail, so the
             drawer is the only place a viewer can see who is signed in and end the session — the
             'drawer' variant reuses UserChip (Rule 11) with a downward-opening menu (there is no
-            room above the drawer's fixed top edge, unlike the desktop rail footer). */}
+            room above the drawer's fixed top edge, unlike the desktop rail footer) and a visible
+            disclosure chevron (Task 7 a11y — a menu-opening row needs a visible affordance cue). */}
         {viewer && (
           <div className="px-2 pt-2">
             <UserChip variant="drawer" />
           </div>
         )}
 
-        <nav aria-label="More destinations" className="flex flex-col gap-[2px] p-2">
-          {items.map((d) => {
-            const href = d.primaryPath ?? d.links[0].path
-            return (
-              <Link
-                key={d.id}
-                to={href}
-                onClick={closeAndReturn}
-                // SYS-2: the More drawer is a phone-only surface, so its 36px rows fall below the
-                // 44px touch floor. The shared tap-target-phone marker (Button.css) raises them.
-                className="tap-target-phone flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
-                style={{ height: 36 }}
-              >
-                <span className="text-muted-foreground">
-                  <d.Icon />
-                </span>
-                <span className="text-foreground">{t(d.labelKey)}</span>
-              </Link>
-            )
-          })}
+        <nav aria-label="More destinations" className="flex flex-col gap-2 p-2 overflow-auto">
+          <div>
+            <DrawerGroupLabel>{t('rail.destinations')}</DrawerGroupLabel>
+            <ul className="flex flex-col gap-[2px]">
+              {liveWorkspace.map((d) => {
+                if (d.id === 'work') {
+                  const children = workChildren(d, accessRoles)
+                  return (
+                    <li key={d.id}>
+                      <DrawerRow to={d.primaryPath ?? d.links[0].path} label={t(d.labelKey)} Icon={d.Icon} onNavigate={closeAndReturn} />
+                      {children.length > 0 && (
+                        <ul className="flex flex-col gap-[2px] pl-4">
+                          {children.map((c) => (
+                            <li key={c.path}>
+                              <DrawerRow
+                                to={c.path}
+                                label={c.labelKey ? t(c.labelKey) : c.label}
+                                Icon={c.Icon}
+                                onNavigate={closeAndReturn}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  )
+                }
+                return (
+                  <li key={d.id}>
+                    <DrawerRow to={d.primaryPath ?? d.links[0].path} label={t(d.labelKey)} Icon={d.Icon} onNavigate={closeAndReturn} />
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
+          {/* Zone 2 — modules grouped by BU (OD-REDESIGN-1: "Modules grouped by Business
+              Unit"), viewer-scoped exactly as the rail scopes them. Empty for an org-wide role. */}
+          {moduleGroups.map((g) => (
+            <div key={g.bu}>
+              <DrawerGroupLabel>{t(g.bu)}</DrawerGroupLabel>
+              <ul className="flex flex-col gap-[2px]">
+                {g.items.map((m) => (
+                  <li key={m.id}>
+                    <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          {/* Zone 3 — utility (Admin Settings[gated] · Personal Profile). */}
+          {liveUtility.length > 0 && (
+            <ul className="flex flex-col gap-[2px]">
+              {liveUtility.map((u) => (
+                <li key={u.id}>
+                  <DrawerRow to={u.primaryPath ?? u.links[0].path} label={t(u.labelKey)} Icon={u.Icon} onNavigate={closeAndReturn} />
+                </li>
+              ))}
+            </ul>
+          )}
         </nav>
       </div>
     </>

@@ -87,16 +87,15 @@ state-rich components (interrogation plan) and F2/F5 land.
 unclipped, urgency with it, actions as one "what to do" register, provenance/audit last and quiet. The
 judgment **no element-level layer makes**: guards/census/storybook all enumerate ELEMENTS, none scores
 COMPOSITION.
-**Owns it.** *Missing (P0):* `docs/specs/record-page-anatomy.spec.md` — the per-kind JTBD-ordered
-anatomy, derived FROM the skills (impeccable content-first/strip-to-essence · taste hierarchy ·
-ui-ux-pro-max detail-view) — **is not yet authored** (verified absent 2026-07-23). Plus census
-**Step 2.5 — anatomy conformance** (assert rendered section order matches the kind's declared anatomy;
-a page whose leading section is not its content FAILS). Provenance micro-copy never repeats per field
-(R4 generalized to captions).
+**Owns it.** `docs/specs/record-page-anatomy.spec.md` is the per-kind JTBD-ordered anatomy, derived
+from the skills (impeccable content-first/strip-to-essence · taste hierarchy · ui-ux-pro-max
+detail-view). The executable **Step 2.5 — anatomy conformance** tests assert that rendered section
+order matches each kind's declared anatomy; a page whose leading section is not its content FAILS.
+Provenance micro-copy never repeats per field (R4 generalized to captions).
 **Cadence.** per-surface (anatomy conformance) + defined once per record-kind/destination.
-**Status.** **GAP** → PARTIAL the day the anatomy spec lands for the Signal record (the surface that
-triggered OD-90) and Step 2.5 is added to the audit protocol; COVERED when every record kind +
-destination has a declared, checked anatomy. **Highest-priority open item in the model.**
+**Status.** **PARTIAL** — the spec and Step 2.5 checks exist and pass for Signal, Task, and Follow-up
+record kinds. It is not yet COVERED for every destination or for rendered desktop/phone composition;
+the remaining gap is live evidence and destination coverage, not a missing anatomy specification.
 
 ### D4 · Interaction verbs
 **Means.** The seven cross-surface verbs — open/URL-addressability/Back, close/Escape/focus-return,
@@ -274,7 +273,7 @@ per surface, converging as specs consistently cite their journeys.
 |---|---|---|---|---|
 | D1 | Element craft | per-merge | PARTIAL | Wire `impeccable` detector as blocking (token-ladder half already ratcheted) |
 | D2 | Component quality | per-surface | PARTIAL | Storybook states + axe for shared components; F2/F5 guards |
-| D3 | **Page composition (OD-90)** | per-surface | **PARTIAL** | Spec AUTHORED (`docs/specs/record-page-anatomy.spec.md`, census Step 2.5 defined); Signal conformance in flight; Task/Follow-up conformance owed (FR-ANAT-009/010) |
+| D3 | **Page composition (OD-90)** | per-surface | **PARTIAL** | Spec authored and Step 2.5 green for Signal, Task, and Follow-up; destination coverage and rendered desktop/phone evidence remain |
 | D4 | Interaction verbs | per-merge | PARTIAL | Land Tier-1..4 work-order; get the 10 owner rulings; conformance harness |
 | D5 | Integration seams | per-merge | PARTIAL | Wire `deepLinkResolver`; build Signal→Task (OD-39) |
 | D6 | Journey quality | per-milestone | GAP→PARTIAL | This audit done; fold journeys into curated E2E |
@@ -289,11 +288,12 @@ per surface, converging as specs consistently cite their journeys.
 | D15 | Taste ceiling | per-milestone | JUDGMENT | Owned by Luna (never self-score); guard = artifacts-before-score |
 | D16 | Product fit | per-surface | PARTIAL | Specs cite their journeys; intent lens vs A1–A14 anchors |
 
-**Reading the map.** Two dimensions are genuine **GAPs with no owning check** — **D3 page composition**
-(the OD-90 finding: every battery layer enumerates elements, none judges composition) and **D9 motion**
-and **D13 performance-as-UX**. D3 is the highest priority: it is *why* a mechanically-clean, census-passed,
-storybook-covered Signal record still read as "not neat and tidy" to the owner. **D6 journey quality**
-was the fourth structural blind spot and is closed to PARTIAL by the companion audit. Everything else is
+**Reading the map.** Two dimensions are genuine **GAPs with no owning check** — **D9 motion** and
+**D13 performance-as-UX**. D3 is now PARTIAL: its anatomy spec and executable Step 2.5 checks exist,
+but they do not replace rendered composition review or prove every destination. It remains a major
+reason a mechanically-clean, census-passed, storybook-covered surface can still read as "not neat and
+tidy" to the owner. **D6 journey quality** was the fourth structural blind spot and is closed to
+PARTIAL by the companion audit. Everything else is
 PARTIAL (a real check exists, scoped narrow or advisory) or deliberate JUDGMENT (Luna, by design).
 
 The dominant PARTIAL→COVERED pattern is proven and repeated: the repo has shown the **source-scan CSS-lock**

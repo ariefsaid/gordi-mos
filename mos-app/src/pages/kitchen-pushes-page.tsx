@@ -12,9 +12,18 @@
 // - Status badges via Tag (green=posted, neutral=pending/in_flight, amber=failed
 //   [retryable], red=dead_letter [terminal system failure, census FLAG-A]). target_env
 //   shown as its humanized ESB name (GOO staging / GKID prod / Dry run — census FLAG-E).
-// - Dead-letter rows: warning/7% fill + 2px warning left rule (the owner-approved
-//   side-stripe exception, DESIGN.md "Ops Log tokens").
+// - Dead-letter rows: destructive/7% fill + 2px destructive left rule (the owner-
+//   approved side-stripe exception, DESIGN.md "Ops Log tokens" — hue corrected to
+//   match this row's own destructive status Tag; the warning/amber version of that
+//   exception is reserved for the Signals archive's warning-severity rows).
 // - All states: loading / empty / error+retry / forbidden / populated.
+//
+// v4 layout/distill pass (impeccable): rows sort severity-first (dead_letter →
+// failed → in_flight → pending → posted) so the surface answers "what's stuck"
+// without scrolling past healthy rows (layout.md reading-order). The header
+// meta gains a "Dead letter N / Failed N" breakdown, shown only when >0. Phone
+// gets a purpose-built renderCard (batch+status head, one muted meta line,
+// error block only when present) instead of the generic 8-row <dl> card.
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
@@ -22,7 +31,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
-import { useT } from '@/i18n/use-t'
+import { useT, type Translate } from '@/i18n/use-t'
 import { Tag } from '@/components/ui/tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
@@ -95,6 +104,42 @@ function formatDate(iso: string | null): string {
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
+// ── Severity-first ordering (layout pass, v4) ──
+// The query already returns created_at-desc (kitchen-pushes.ts); Array.sort is
+// stable, so this reorders by severity while keeping recency as the tiebreak
+// within each status. dead_letter (terminal, needs escalation) leads; posted
+// (already succeeded) trails — matching the surface's own JTBD ordering.
+const PUSH_SEVERITY: Record<EsbPushStatus, number> = {
+  dead_letter: 0,
+  failed: 1,
+  in_flight: 2,
+  pending: 3,
+  posted: 4,
+}
+
+function sortPushesBySeverity(rows: EsbPushRow[]): EsbPushRow[] {
+  return [...rows].sort((a, b) => PUSH_SEVERITY[a.status] - PUSH_SEVERITY[b.status])
+}
+
+// ── Error / escalate content — shared by the desktop column and the phone
+// card so the two branches can never drift on what counts as "showing an
+// error" (a single-render primitive per row.status, DRY across both). ──
+function renderPushError(row: EsbPushRow, t: Translate) {
+  const isDeadLetter = row.status === 'dead_letter'
+  const showError = row.status === 'failed' || isDeadLetter
+  if (!showError || !row.last_error) return null
+  return (
+    <>
+      <span className="kpu-cell-muted">{row.last_error}</span>
+      {isDeadLetter && (
+        <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
+          {t('kitchen.pushes.escalate')}
+        </span>
+      )}
+    </>
+  )
+}
+
 // Column factory (mirrors kitchen-stock-page's stockColumns(t)) so the Target/Status tag
 // labels resolve through the i18n seam (census FLAG-E). BATCH + ENDPOINT carry nowrap
 // classes so the 81 batch IDs stop wrapping 2–3 lines (census DEFECT-3).
@@ -102,18 +147,18 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
  return [
   {
     key: 'source_ref',
-    header: 'Batch',
+    header: t('kitchen.pushes.col.batch'),
     cardLabel: '',
     render: row => <span className="mono kpu-batch">{row.source_ref}</span>,
   },
   {
     key: 'endpoint',
-    header: 'Endpoint',
+    header: t('kitchen.pushes.col.endpoint'),
     render: row => <span className="kpu-cell-muted kpu-endpoint">{row.endpoint}</span>,
   },
   {
     key: 'target_env',
-    header: 'Target',
+    header: t('kitchen.pushes.col.target'),
     render: row => {
       const cfg = envConfig(row.target_env)
       return <Tag color={cfg.color} weight="medium">{t(cfg.labelKey)}</Tag>
@@ -121,59 +166,86 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
   },
   {
     key: 'status',
-    header: 'Status',
+    header: t('kitchen.pushes.col.status'),
     render: row => {
       const cfg = statusConfig(row.status)
       return <Tag color={cfg.color} weight="medium">{t(cfg.labelKey)}</Tag>
     },
   },
-  { key: 'retry_count', header: 'Retries', numeric: true },
+  { key: 'retry_count', header: t('kitchen.pushes.col.retries'), numeric: true },
   {
     key: 'last_error',
-    header: 'Error',
-    render: row => {
-      const isDeadLetter = row.status === 'dead_letter'
-      const showError = row.status === 'failed' || isDeadLetter
-      if (!showError || !row.last_error) return <span className="kpu-dash">—</span>
-      return (
-        <>
-          <span className="kpu-cell-muted">{row.last_error}</span>
-          {isDeadLetter && (
-            <span className="kpu-escalate-hint" aria-label="Manual intervention required">
-              Escalate to platform
-            </span>
-          )}
-        </>
-      )
-    },
+    header: t('kitchen.pushes.col.error'),
+    render: row => renderPushError(row, t) ?? <span className="kpu-dash">—</span>,
   },
   {
     key: 'esb_doc_num',
-    header: 'ESB Doc',
+    header: t('kitchen.pushes.col.esbDoc'),
     render: row => row.esb_doc_num
       ? <span className="mono">{row.esb_doc_num}</span>
       : <span className="kpu-dash">—</span>,
   },
   {
     key: 'created_at',
-    header: 'Created',
+    header: t('kitchen.pushes.col.created'),
     render: row => <span className="kpu-time tabular">{formatDate(row.created_at)}</span>,
   },
   {
     key: 'posted_at',
-    header: 'Posted',
+    header: t('kitchen.pushes.col.posted'),
     render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
   },
  ]
 }
 
+/**
+ * v4 — the phone card (DataTable's renderCard seam, the same mechanism as
+ * Café · Log's compact capture row). The generic <dl> card stacked all 8
+ * remaining columns as labelled rows (~8 lines) per push — right for reading
+ * one record, wrong for running down a long outbox during triage. Batch +
+ * status lead (the one thing worth acting on); target/endpoint/retries/
+ * timestamps sit on one muted wrapped meta line; the error/escalate block
+ * renders only when the row actually has one (DD-6/DD-9 "only when it has
+ * something to say" — a healthy row stays a two-line card).
+ */
+function pushCardRenderer(t: ReturnType<typeof useT>) {
+  return function renderPushCard(row: EsbPushRow) {
+    const statusCfg = statusConfig(row.status)
+    const envCfg = envConfig(row.target_env)
+    const errorContent = renderPushError(row, t)
+    return (
+      <div className="kpu-card">
+        <div className="kpu-card-head">
+          <span className="mono kpu-card-batch">{row.source_ref}</span>
+          <Tag color={statusCfg.color} weight="medium">{t(statusCfg.labelKey)}</Tag>
+        </div>
+        <div className="kpu-card-meta">
+          <Tag color={envCfg.color} weight="medium">{t(envCfg.labelKey)}</Tag>
+          <span className="kpu-endpoint">{row.endpoint}</span>
+          {row.retry_count > 0 && (
+            <span className="tabular">
+              {row.retry_count} {row.retry_count === 1 ? 'retry' : 'retries'}
+            </span>
+          )}
+          <span className="tabular">{formatDate(row.created_at)}</span>
+          {row.posted_at && <span className="tabular">→ {formatTime(row.posted_at)}</span>}
+          {row.esb_doc_num && <span className="mono">{row.esb_doc_num}</span>}
+        </div>
+        {errorContent && <div className="kpu-card-error">{errorContent}</div>}
+      </div>
+    )
+  }
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function KitchenPushesPage() {
-  useDocumentTitle('Café Pushes — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('doc.cafePushes') }))
   const auth = useAuth()
   const isDesktop = useIsDesktop()
+  // I18N sweep: reuse the existing nav.cafe.* family instead of a literal "Café · Pushes".
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.pushes')}`
 
   // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -203,7 +275,7 @@ export function KitchenPushesPage() {
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="loading">
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
         <LoadingShell count={3} />
       </PageFamilyFrame>
     )
@@ -211,7 +283,7 @@ export function KitchenPushesPage() {
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="permission">
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden">
           <p className="kpu-forbidden-msg">You need to sign in to view Café pushes.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
@@ -223,11 +295,11 @@ export function KitchenPushesPage() {
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Pushes" jobSentence={t('job.cafe')} state="permission">
-        <div className="kpu-block kpu-forbidden" role="region" aria-label="Access restricted">
-          <p className="kpu-forbidden-title">Pushes is available to ops leads only.</p>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+        <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.forbidden.region')}>
+          <p className="kpu-forbidden-title">{t('kitchen.pushes.forbidden.title')}</p>
           <p className="kpu-forbidden-msg">
-            The ESB outbox is visible to ops leads and admins.
+            {t('kitchen.pushes.forbidden.copy')}
           </p>
           <Link to="/cafe/log" className="btn btn-outline">Back to Log</Link>
         </div>
@@ -235,15 +307,44 @@ export function KitchenPushesPage() {
     )
   }
 
+  // Severity breakdown for the header meta + the row sort below — reads once
+  // per render off the fetched rows, no extra state.
+  const deadLetterCount = rows.filter(r => r.status === 'dead_letter').length
+  const failedCount = rows.filter(r => r.status === 'failed').length
+  const sortedRows = sortPushesBySeverity(rows)
+
   return (
     <PageFamilyFrame
       family="workspace"
-      title="Café · Pushes"
+      title={pageTitle}
       jobSentence={t('job.cafe')}
       meta={
         // census FLAG-D: labeled meta sentence, not a naked count chip ("N in outbox").
+        // v4: a severity breakdown rides beside the total (page-head's own documented
+        // idiom — "N tasks · N blocked") so the JTBD ("what's stuck, why") is answered
+        // before opening the table. Zero counts are omitted — a healthy outbox states
+        // only its total, same as before.
         load.kind === 'ready'
-          ? <span className="kpu-meta">{rows.length} in outbox</span>
+          ? (
+            <span className="kpu-meta-line">
+              <span className="kpu-meta-total">{t('kitchen.pushes.meta.total', { count: rows.length })}</span>
+              {/* "· " chains each figure onto the total — the same dot-joined idiom
+                  page-head.tsx documents for this slot ("11 tasks · 2 blocked"). It
+                  also keeps each figure's own text distinct from the row Tag's exact
+                  "Dead letter"/"Failed" label so the two don't read as one repeated
+                  value. */}
+              {deadLetterCount > 0 && (
+                <span className="kpu-meta-figure kpu-meta-figure--destructive">
+                  · {t('kitchen.push.status.dead_letter')} <strong className="tabular">{deadLetterCount}</strong>
+                </span>
+              )}
+              {failedCount > 0 && (
+                <span className="kpu-meta-figure kpu-meta-figure--warning">
+                  · {t('kitchen.push.status.failed')} <strong className="tabular">{failedCount}</strong>
+                </span>
+              )}
+            </span>
+            )
           : undefined
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'}
@@ -253,7 +354,7 @@ export function KitchenPushesPage() {
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't load pushes — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.pushes') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -261,16 +362,16 @@ export function KitchenPushesPage() {
       {load.kind === 'ready' && rows.length === 0 && (
         <EmptyState
           variant="awaiting"
-          title="No pushes yet"
-          copy="The ESB outbox is empty right now."
-          note="Pull again to check for new push activity."
+          title={t('kitchen.pushes.empty.title')}
+          copy={t('kitchen.pushes.empty.copy')}
+          note={t('kitchen.pushes.empty.note')}
         >
           <button
             type="button"
             className="btn btn-outline"
             onClick={() => setRetryKey(k => k + 1)}
           >
-            Refresh
+            {t('kitchen.refresh')}
           </button>
         </EmptyState>
       )}
@@ -278,10 +379,11 @@ export function KitchenPushesPage() {
       {load.kind === 'ready' && rows.length > 0 && (
         <DataTable
           columns={pushColumns(t)}
-          rows={rows}
+          rows={sortedRows}
+          renderCard={pushCardRenderer(t)}
           isDesktop={isDesktop}
           rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
-          caption="Café ESB push outbox"
+          caption={t('kitchen.pushes.caption')}
         />
       )}
     </PageFamilyFrame>

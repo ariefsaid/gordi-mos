@@ -46,5 +46,26 @@
   height: 14px;
   min-width: 14px;
   padding: 0 4px;
-  font-size: 9px;
+  font-size: var(--font-size-micro); /* typeset: was 9px, below the ramp's own documented floor (micro = "the one sub-11 mark") */
+}
+
+/* FINDING 3 (v4 shell a11y audit, 2026-07-27) — touch targets / adjacent-target spacing.
+   Measured: rail-nav rows are 36px tall (matching the DESIGN.md-ratified "Nav item: 36px
+   tall" spec) with ~2px between adjacent rows, both below ui-ux-pro-max's app-interface floor
+   (>=44x44 targets, >=8dp between adjacent targets). The rail is desktop chrome and the 36px/2px
+   values are the owner-ratified nav-item spec for a fine pointer (mouse) — unchanged here on
+   purpose. The floor is real for a COARSE pointer at rail width (a touch laptop or tablet),
+   so the exception is gated on `(pointer: coarse)`, not taken unconditionally. */
+@media (pointer: coarse) {
+  .rail-item {
+    min-height: 44px;
+  }
+  .rail-item-list {
+    gap: 8px;
+  }
+  /* The Utility rows (Admin/Profile) aren't a `gap` flex list — they're individually margined
+     — so the floor is expressed as inter-row margin on every row after the first instead. */
+  .rail-item-list-item + .rail-item-list-item {
+    margin-top: 8px;
+  }
 }

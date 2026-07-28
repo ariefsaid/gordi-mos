@@ -5,7 +5,7 @@ import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
-import { formatAge, formatDate, taskSourceLabel } from './task-formatters'
+import { formatDate } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 
@@ -83,10 +83,7 @@ type TaskCardProps = {
   now: Date
   buName: string
   rName: string
-  workLineName: string
-  objectiveName: string
   supervisorName: string
-  sourceName: string
   recordSearch?: string
   onOpenTask: (taskId: string) => void
   /** Design fix wave item 4 — the generated-ownership source ("via <role name>"), Rule 11 reuse of
@@ -94,12 +91,11 @@ type TaskCardProps = {
   provenanceRoleName?: string
 }
 
-function TaskCard({ task, now, buName, rName, workLineName, objectiveName, supervisorName, sourceName, recordSearch = '', provenanceRoleName, onOpenTask }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
-  const age = formatAge(task.last_activity_at, now)
   const isArchived = task.archived_at != null
   // C1: only genuinely-overdue (non-Done, non-archived) gets red class / "Overdue · " prefix.
   const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
@@ -124,7 +120,14 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
-        {/* Fix-5: dt labels are visible (label:value) per mockup — not sr-only */}
+        {/* v4 distill (layout.md/distill.md): PIC + Supervisor + Due are the decision-relevant
+            fields for weekly triage (WHAT GOOD LOOKS LIKE) — the same set the desktop row already
+            settled on (Wave 2c, OD-REDESIGN-61..64). Project/Process, Objective, Source, and the
+            recency "Updated" line were restated metadata that rendered an empty "—" line for every
+            task with no project/objective — noise wearing information's clothes (distill.md
+            "remove redundancy"). Cuts a phone card from ~230px toward ~100px, more than doubling
+            rows visible without scrolling. Full typed metadata still lives one tap away on the
+            record (DESIGN.md "Progressive disclosure"). */}
         <dl className="task-card-meta collection-grammar-card-details">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
@@ -134,26 +137,9 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
             <dt>{t('tasks.supervisor')}</dt>
             <dd>{supervisorName || '—'}</dd>
           </span>
-          {/* FR-234: Work-line + Objective in mobile card */}
-          <span className="task-card-meta-pair">
-            <dt>{t('tasks.filter.projectProcess')}</dt>
-            <dd className="td-empty-inline">{workLineName || '—'}</dd>
-          </span>
-          <span className="task-card-meta-pair">
-            <dt>{t('tasks.objective')}</dt>
-            <dd className="td-empty-inline">{objectiveName || '—'}</dd>
-          </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.dueLabel')}</dt>
             <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
-          </span>
-          <span className="task-card-meta-pair">
-            <dt>{t('tasks.source')}</dt>
-            <dd className="td-empty-inline">{sourceName}</dd>
-          </span>
-          <span className="task-card-meta-pair">
-            <dt>{t('tasks.activityLabel')}</dt>
-            <dd className="act tabular-nums">{age}</dd>
           </span>
         </dl>
       </Link>
@@ -175,7 +161,7 @@ function TaskCard({ task, now, buName, rName, workLineName, objectiveName, super
 export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
-  workLineMap, objectiveMap, onAssignPending, provenanceByTaskDefId, onOpenTask,
+  onAssignPending, provenanceByTaskDefId, onOpenTask,
 }: MobileGroupedCardsProps) {
   const t = useT()
   const openTask = onOpenTask ?? (() => {})
@@ -196,14 +182,7 @@ export function MobileGroupedCards({
               now={now}
               buName={buMap.get(task.business_unit_id) ?? ''}
               rName={personMap.get(task.responsible_person_id) ?? ''}
-              workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
-              objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
               supervisorName={personMap.get(task.accountable_person_id) ?? ''}
-              sourceName={taskSourceLabel(
-                task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
-                task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
-                t('tasks.adHoc'),
-              )}
               recordSearch={recordSearch}
               onOpenTask={openTask}
               provenanceRoleName={provenanceFor(task)}
@@ -292,14 +271,7 @@ export function MobileGroupedCards({
                 now={now}
                 buName={buMap.get(task.business_unit_id) ?? ''}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
-                workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
-                objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
                 supervisorName={personMap.get(task.accountable_person_id) ?? ''}
-                sourceName={taskSourceLabel(
-                  task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : '',
-                  task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : '',
-                  t('tasks.adHoc'),
-                )}
                 recordSearch={recordSearch}
                 onOpenTask={openTask}
                 provenanceRoleName={provenanceFor(task)}

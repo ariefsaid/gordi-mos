@@ -377,9 +377,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   })
 
   // RI-2 (C2): after creating a task in the drawer, the table must show the new
-  // row + updated count without a reload. Previously TasksTable fetched only on
-  // [businessUnitId, statusFilter, includeArchived] so create had no refetch
-  // channel — the count + empty-copy said "0 tasks" while the drawer showed it.
+  // row + updated open/total count without a reload.
   it('RI-2: creating a task in the drawer adds its row to the table + updates the count (no reload)', async () => {
     // First load: empty list. After create: the new row is present.
     mockListTasks
@@ -389,10 +387,10 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockCreateTask.mockResolvedValue('task-new')
     renderAt('/work/tasks/new')
     await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
-    // Initially the table is empty. R2 (owner review r2): the count reads inside the ONE muted
-    // meta sentence ("N tasks · M blocked") — the content-header count pill was removed.
+    // Initially the table is empty. The count reads inside the ONE muted meta sentence
+    // ("N open · M total") — the content-header count pill was removed.
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 tasks')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open · 0 total')
     })
 
     // Fill + submit the create form (title required; BU pre-fills from role)
@@ -404,7 +402,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
     })
     expect(screen.getByText('Freshly created')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 tasks')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open · 1 total')
     // GAP-6 (OD-91 #11): after-create returns to the collection with the new row HIGHLIGHTED
     // (row-just-created) — not opened in the drawer. The create drawer is gone.
     await waitFor(() => {
@@ -528,7 +526,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 tasks'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open · 2 total'))
 
     // Archive from the drawer foot (collapsed split shows "Archive task")
     fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
@@ -547,7 +545,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 tasks')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open · 1 total')
   }, 10_000)
 })
 

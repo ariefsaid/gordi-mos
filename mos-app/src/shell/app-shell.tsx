@@ -19,6 +19,56 @@ import { createRecordDeepLinkResolver } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { useT } from '@/i18n/use-t'
 
+// v4 shell rebuild (Task 7 a11y): the skip link — the FIRST focusable element in the app, so a
+// keyboard/screen-reader user can bypass the header (and, on phone, any opened drawer) chrome and
+// land directly on the content region (id="main-content" below). Visually hidden until focused.
+//
+// NOT Tailwind's `sr-only`/`focus:not-sr-only` combo: several component CSS files in this repo
+// (TaskSurface.css, TasksWorkspace.css, kitchen-plan-page.css, kitchen-review-page.css) define
+// their OWN global (unscoped) `.sr-only` class, and whichever stylesheet Vite happens to inject
+// last wins the cascade — verified live: the `focus:` variant utilities were silently overridden,
+// so the link stayed clipped to 1×1px even while focused. Toggling the visible/hidden styles via
+// React state sidesteps that CSS ordering hazard entirely.
+function SkipLink() {
+  const [focused, setFocused] = useState(false)
+  return (
+    <a
+      href="#main-content"
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={
+        focused
+          ? {
+              position: 'fixed',
+              left: 8,
+              top: 8,
+              zIndex: 'var(--z-toast)',
+              background: 'var(--background)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '8px 12px',
+              fontSize: 'var(--font-size-body-lg)',
+              boxShadow: 'var(--shadow-overlay)',
+            }
+          : {
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }
+      }
+    >
+      Skip to main content
+    </a>
+  )
+}
+
 /**
  * Wires the shared overlay host to react-router (V3 Issue 4 route seam): the history driver
  * reads the browser history index from `window.history.state.idx` and routes relative
@@ -63,11 +113,11 @@ function ShellContent() {
   // "narrow vs split" breakpoint set.
   const isSplit = useIsSplitWidth()
   const railCompact = !isNarrow && !isSplit
+  // v4 shell rebuild (Task 1): the header hamburger is gone — the bottom-tab More button is
+  // the drawer's sole opener now, so there's only ever one opener to track focus-return for.
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [drawerOpener, setDrawerOpener] = useState<'hamburger' | 'more'>('hamburger')
   const { open: searchOpen, mode: searchMode, setOpen: setSearchOpen, openWithMode } = useCommandMenu()
   const { open: openSignalComposer } = useSignalComposer()
-  const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
 
   // Lane B2 — reconcile the shared-host Deputy companion with any shell-owner overlay (Inbox
@@ -82,6 +132,7 @@ function ShellContent() {
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
     // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
     <BreadcrumbTitleProvider>
+      <SkipLink />
       {/* R6-P2 (owner review r2): dvh, not vh, so the mobile browser's collapsing URL bar can't
           crop the bottom tab bar / content. h-dvh (dynamic HEIGHT), NOT min-h-dvh: the shell is a
           fixed-height grid whose content row (minmax(0,1fr)) scrolls INTERNALLY — min-height would
@@ -111,12 +162,7 @@ function ShellContent() {
         }}
       >
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
-        <TopBar
-          drawerOpen={drawerOpen}
-          onOpenDrawer={() => { setDrawerOpener('hamburger'); setDrawerOpen(true) }}
-          onOpenSearch={() => openWithMode('search')}
-          onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
-        />
+        <TopBar onOpenSearch={() => openWithMode('search')} />
 
         {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
             icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}
@@ -129,8 +175,16 @@ function ShellContent() {
         >
           {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}
           <ContextRow />
-          {/* Region 3 — content (the page <Outlet>; the page's own PageHead H1 lives here). */}
-          <div data-anatomy="content" className="min-w-0 flex-1 min-h-0 overflow-hidden flex flex-col">
+          {/* Region 3 — content (the page <Outlet>; the page's own PageHead H1 lives here).
+              id="main-content" is the skip link's jump target (Task 7 a11y) — this wrapper exists
+              on every route regardless of what the page itself renders inside; tabIndex={-1} lets
+              it take programmatic focus without joining the normal Tab order. */}
+          <div
+            id="main-content"
+            tabIndex={-1}
+            data-anatomy="content"
+            className="min-w-0 flex-1 min-h-0 overflow-hidden flex flex-col focus:outline-none"
+          >
             <Outlet />
           </div>
         </div>
@@ -138,9 +192,10 @@ function ShellContent() {
         {/* BottomTabBar — grid-area: tabbar, phone-first primary nav (ADR-0019 D8, plan §4.4) */}
         {isNarrow && (
           <BottomTabBar
-            onOpenMore={() => { setDrawerOpener('more'); setDrawerOpen(true) }}
+            onOpenMore={() => setDrawerOpen(true)}
             onOpenActionLauncher={() => openWithMode('launcher')}
             onRegisterMoreFocus={(focus) => { focusMoreRef.current = focus }}
+            moreOpen={drawerOpen}
           />
         )}
 
@@ -162,10 +217,7 @@ function ShellContent() {
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        focusOpener={() => {
-          if (drawerOpener === 'more') focusMoreRef.current?.()
-          else focusHamburgerRef.current?.()
-        }}
+        focusOpener={() => focusMoreRef.current?.()}
       />
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). Share

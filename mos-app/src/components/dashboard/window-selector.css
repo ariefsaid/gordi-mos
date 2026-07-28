@@ -81,7 +81,8 @@
 }
 
 .window-selector-field-label {
-  font-size: 11.5px;
+  /* typeset: was 11.5px off-ramp — dense metadata label, matches DESIGN.md's `label` role. */
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 

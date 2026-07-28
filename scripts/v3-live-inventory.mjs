@@ -110,7 +110,7 @@ const SOURCE_COMPONENTS = [
       { file: 'mos-app/src/components/tasks/tasks-workspace.tsx', symbol: 'TasksWorkspace' },
       { file: 'mos-app/src/components/admin/user-table.tsx', symbol: 'UserTable' },
       { file: 'mos-app/src/components/inbox/InboxList.tsx', symbol: 'InboxList' },
-      { file: 'mos-app/src/components/signals/signal-feed.tsx', symbol: 'SignalFeed' },
+      { file: 'mos-app/src/components/signals/signal-feed-presentation.tsx', symbol: 'SignalFeedPresentation' },
     ],
     stateCoverage: ['default', 'loading', 'empty', 'error', 'filtered-empty'],
     tokenSources: ['mos-app/src/components/dashboard/data-table.css', 'mos-app/src/components/tasks/TasksWorkspace.css'],
@@ -118,7 +118,7 @@ const SOURCE_COMPONENTS = [
   {
     job: 'page-head',
     canonical: [{ file: 'mos-app/src/shell/page-head.tsx', symbol: 'PageHead' }],
-    rawOrDuplicate: [{ file: 'mos-app/src/components/tasks/task-drawer-header.tsx', symbol: 'TaskDrawerHeader' }],
+    rawOrDuplicate: [],
     stateCoverage: ['title', 'context', 'actions', 'responsive collapse'],
     tokenSources: ['mos-app/src/shell/page-head.tsx', 'mos-app/src/index.css'],
   },
@@ -138,10 +138,7 @@ const SOURCE_COMPONENTS = [
       { file: 'mos-app/src/components/tasks/task-surface.tsx', symbol: 'TaskSurface' },
       { file: 'mos-app/src/components/signals/signal-record-host.tsx', symbol: 'SignalRecordHost' },
     ],
-    rawOrDuplicate: [
-      { file: 'mos-app/src/components/tasks/record-details-panel.tsx', symbol: 'RecordDetailsPanel' },
-      { file: 'mos-app/src/components/tasks/record-feed.tsx', symbol: 'RecordFeed' },
-    ],
+    rawOrDuplicate: [],
     stateCoverage: ['read', 'edit', 'saving', 'saved', 'error', 'read-only'],
     tokenSources: ['mos-app/src/components/tasks/task-surface.tsx', 'mos-app/src/components/signals/signal-record-host.tsx'],
   },
@@ -162,7 +159,7 @@ const SOURCE_COMPONENTS = [
     canonical: [{ file: 'mos-app/src/components/tasks/tasks-workspace.tsx', symbol: 'TasksWorkspace' }],
     rawOrDuplicate: [
       { file: 'mos-app/src/components/dashboard/data-table.tsx', symbol: 'DataTable' },
-      { file: 'mos-app/src/components/signals/signal-feed.tsx', symbol: 'SignalFeed' },
+      { file: 'mos-app/src/components/signals/signal-feed-presentation.tsx', symbol: 'SignalFeedPresentation' },
       { file: 'mos-app/src/components/inbox/InboxList.tsx', symbol: 'InboxList' },
       { file: 'mos-app/src/components/admin/user-table.tsx', symbol: 'UserTable' },
     ],
@@ -229,12 +226,7 @@ const ROUTE_SPECS = [
   }),
   page('/login', '/login', 'LoginPage', 'mos-app/src/pages/login-page.tsx', 'LoginPage', 'not-applicable', { auth: 'public' }),
   page('/recovery', '/recovery', 'RecoveryPage', 'mos-app/src/pages/recovery-page.tsx', 'RecoveryPage', 'not-applicable', { auth: 'public' }),
-  page('/', '<index>', 'HomePage | StackedUnionHome', 'mos-app/src/pages/home-page.tsx', 'HomePage', 'workspace', {
-    notes: ['Runtime flag SHOW_HOME_STACKED can select StackedUnionHome.'],
-  }),
-  page('/__home-stacked', '__home-stacked', 'StackedUnionHome', 'mos-app/src/pages/stacked-union-home.tsx', 'StackedUnionHome', 'workspace', {
-    kind: 'dev-only', status: 'conditional', auth: 'dev', notes: ['DEV-only alternate home route.'],
-  }),
+  page('/', '<index>', 'HomePage', 'mos-app/src/pages/home-page.tsx', 'HomePage', 'workspace'),
   redirect('/work', 'work', 'Navigate', { notes: ['Canonical work entry redirects to /work/tasks.'] }),
   page('/work/tasks', 'work/tasks', 'TasksLayout', 'mos-app/src/pages/tasks-layout.tsx', 'TasksLayout', 'workspace', {
     notes: ['Collection host with nested TaskDrawer outlet.'],

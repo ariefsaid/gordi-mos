@@ -6,13 +6,37 @@
   height: var(--tabbar-h);
   border-top: 1px solid var(--border);
   background: var(--background);
-  padding-right: 68px;
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Task 6: the right gutter reserved for the fixed + Action Launcher — applied ONLY while the
+   launcher renders. Absent (Task 6/capture surfaces), the bar reclaims the full width for tabs.
+   76px, not the launcher's raw 64px inset (right:8px + 56px width), so the last tab (More) and
+   the launcher stay >=8px apart (Task 5 target-spacing floor), not the ~4px the raw inset left. */
+.bottom-tab-bar--with-launcher {
+  padding-right: 76px;
+}
+
+.bottom-tab-list {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: stretch;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bottom-tab-list > li {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .bottom-tab {
   display: flex;
-  flex: 1 1 0;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   flex-direction: column;
   align-items: center;
@@ -20,7 +44,11 @@
   gap: 2px;
   text-decoration: none;
   color: var(--muted-foreground);
+  border: 0;
   border-top: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
 }
 
 .bottom-tab-icon {
@@ -35,7 +63,9 @@
 
 .bottom-tab-label {
   font-family: var(--font-sans);
-  font-size: var(--font-size-micro);
+  /* v4 shell rebuild (Task 5): raised off the sub-11px micro rung onto the documented label
+     ramp (DESIGN.md Typography — Label: 12px/600). */
+  font-size: var(--font-size-label);
   font-weight: 500;
   letter-spacing: 0.02em;
   color: inherit;

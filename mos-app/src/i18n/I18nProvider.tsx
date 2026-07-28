@@ -39,6 +39,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, [locale])
 
+  // a11y audit fix: document.documentElement.lang was never updated on locale switch, so
+  // assistive tech kept pronouncing Indonesian copy with English phonemes app-wide even
+  // though every visible string (and document.title) switched correctly. `lang` is a plain
+  // BCP 47 code, not a message-catalog key, so it is set directly rather than through useT.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.documentElement.lang = locale
+  }, [locale])
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next)
   }, [])

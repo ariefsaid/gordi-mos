@@ -1,4 +1,3 @@
-import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
 import { useIsNarrow } from './use-is-narrow'
 import { useIsSplitWidth } from './use-is-split-width'
@@ -11,13 +10,14 @@ import { useOptionalOverlayHost } from './overlay-host'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 
 type TopBarProps = {
-  /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
-  drawerOpen?: boolean
-  onOpenDrawer: () => void
   /** Opens the ⌘K command menu (wired in AppShell). */
   onOpenSearch?: () => void
-  /** Receives a function that focuses the hamburger; used by MobileDrawer to restore focus on close. */
-  onRegisterHamburgerFocus?: (focusFn: () => void) => void
+  /**
+   * @deprecated The header hamburger was removed (v4 shell rebuild) — the phone nav's sole
+   * opener is now the bottom-tab-bar's More button. Kept optional so existing call sites/tests
+   * compile unchanged; TopBar no longer reads it.
+   */
+  onOpenDrawer?: () => void
 }
 
 // Bell icon — 16px, stroke-2, aria-hidden (notification stub, ADR-0013 D1)
@@ -52,25 +52,6 @@ function SearchIcon() {
     >
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />
-    </svg>
-  )
-}
-
-// Hamburger icon — 18px, stroke-2, aria-hidden
-function HamburgerIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
   )
 }
@@ -208,9 +189,10 @@ function NotificationBell() {
 // The top-bar Create button was REMOVED app-wide (OD-REDESIGN-91 #16 / F1) — it enforces
 // experience-contract Rule 7 verbatim ("live in the ⌘K palette, not as header buttons").
 // Desktop creation is ⌘K + page-contextual CTAs; the phone keeps the bottom-tab + launcher.
-// At <920px the leading hamburger appears and calls onOpenDrawer.
+// The header hamburger was removed (v4 shell rebuild, Task 1) — the phone nav's sole opener is
+// the bottom-tab-bar's More button (aria-haspopup="dialog" + aria-expanded there).
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
-export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegisterHamburgerFocus }: TopBarProps) {
+export function TopBar({ onOpenSearch }: TopBarProps) {
   const t = useT()
   const isNarrow = useIsNarrow()
   // OD-REDESIGN-84.2 (P1-1): the brand column's width must track the rail's own compact
@@ -218,12 +200,6 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
   // text is dropped at that width too (72px only has room for the mark).
   const isSplit = useIsSplitWidth()
   const railCompact = !isNarrow && !isSplit
-  const hamburgerRef = useRef<HTMLButtonElement>(null)
-
-  // Register focus-return function so the mobile drawer can refocus hamburger on close.
-  useEffect(() => {
-    onRegisterHamburgerFocus?.(() => hamburgerRef.current?.focus())
-  }, [onRegisterHamburgerFocus])
 
   return (
     <header
@@ -231,23 +207,6 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
       className="bg-background border-b border-border flex items-stretch flex-none"
       style={{ height: 'var(--header-h)', gridArea: 'topbar' }}
     >
-      {/* Hamburger — shown only at <920px, before the brand column */}
-      {isNarrow && (
-        <div className="flex items-center px-2">
-          <button
-            ref={hamburgerRef}
-            type="button"
-            aria-label={t('topBar.openNavigation')}
-            aria-expanded={drawerOpen}
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent flex-none"
-            style={{ width: 32, height: 32 }}
-            onClick={onOpenDrawer}
-          >
-            <HamburgerIcon />
-          </button>
-        </div>
-      )}
-
       {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1).
           At <920px the rail is gone (drawer-nav), so the brand shrinks to content width (no 224px reserve)
           and drops the divider — otherwise it forces horizontal overflow on phones. */}
@@ -268,15 +227,14 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
       </div>
 
       {/* Breadcrumb track — min-w-0 so a long crumb ellipsizes and cannot shove the brand (AC-S02/S03).
-          Hidden at <920px: it's redundant with the page's own H1 there, and its min-content width
-          otherwise forces header overflow on phones. */}
-      {!isNarrow && (
-        <div className="flex items-center px-4 flex-1 min-w-0">
-          <nav aria-label="Breadcrumb">
-            <Breadcrumb />
-          </nav>
-        </div>
-      )}
+          v4 shell rebuild (Task 2): now ALSO rendered at <920px, in the space freed by deleting
+          the hamburger — it's the phone's only current-location signal once the page's own H1
+          scrolls out of view, and it lives in this fixed header row so it survives scrolling. */}
+      <div className={`flex items-center flex-1 min-w-0${isNarrow ? ' px-2' : ' px-4'}`}>
+        <nav aria-label="Breadcrumb">
+          <Breadcrumb />
+        </nav>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />

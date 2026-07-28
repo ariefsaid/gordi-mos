@@ -23,12 +23,22 @@
   flex-direction: column;
   gap: 2px;
   font-weight: 500;
+  /* layout pass: matches Café · Plan's kp-name and Café · Log's kl-dish-name fix — the
+     page's 1.45 base line-height stretched this two-line name+category stack past the
+     Data Table's 52px desktop row spec. A name+category label doesn't need reading-prose
+     leading; 1.2 is tight enough to stay legible stacked. Unitless line-height is
+     inherited as a ratio, so the un-classed name span below picks this up too. */
+  line-height: 1.2;
 }
 
 .ks-category {
-  font-size: var(--font-size-label);
+  /* distill pass: was --font-size-label (12px) — the only one of the three sibling
+     name+category patterns (kp-cat, kl-dish-cat, ks-category) off the shared 11px
+     overline size. Same visual vocabulary screen to screen (DESIGN.md). */
+  font-size: var(--font-size-overline);
   font-weight: 400;
   color: var(--muted-foreground);
+  line-height: 1.2;
 }
 
 /* ── States: loading / empty / error are the shared StateKit

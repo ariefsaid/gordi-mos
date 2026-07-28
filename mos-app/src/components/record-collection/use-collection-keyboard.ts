@@ -56,6 +56,47 @@ function isTypingTarget(): boolean {
   return false
 }
 
+/**
+ * Controls that ALREADY own Enter as their native activation key. `polish` (2026-07-28) measured a
+ * live keyboard trap: this hook binds Enter on `window`, so while Tasks or Signals was mounted at
+ * desktop width it swallowed Enter for EVERY focused control in the whole app shell — the
+ * saved-view chips, the Table/Card toggle, "View & filters", the sortable column headers, the
+ * per-row action buttons, and (worst) the sidebar rail links and the header Search button. Verified
+ * live on `/mos/work/tasks`: focusing `a[href="/mos/work/objectives"]` and pressing Enter left
+ * `defaultPrevented === true` — which cancels the browser's synthesized click — and pushed
+ * `?record=<the j/k cursor row>` instead. A keyboard-only user could move the row cursor but could
+ * not activate a single control, nor navigate away via the rail: WCAG 2.1.1 / 2.1.2.
+ *
+ * Only Enter needs this gate. `j`/`k`/`o`/`n` are bare letters with no native activation semantics
+ * on a button or link, and `isTypingTarget` already stands them down inside fields — so the
+ * power-user path (Tab into the list, then j/k/o) keeps working exactly as before. The row title is
+ * a real `<a>` with its own `onKeyDown` (task-row.tsx) that opens the correct record, so gating the
+ * window layer here loses no row-opening path: it only stops the window layer from firing when a
+ * more specific owner is focused.
+ */
+const NATIVE_ENTER_TARGETS = [
+  'a[href]',
+  'button',
+  'summary',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="tab"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  '[role="option"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[role="switch"]',
+  '[role="combobox"]',
+].join(',')
+
+function ownsEnterNatively(): boolean {
+  const el = document.activeElement
+  if (!el || el === document.body || !(el instanceof Element)) return false
+  return el.closest(NATIVE_ENTER_TARGETS) !== null
+}
+
 export function useCollectionKeyboard(args: UseCollectionKeyboardArgs): UseCollectionKeyboardResult {
   const { rowCount, enabled, onOpen, onClose, onNew, overlayActive = false } = args
   const [cursor, setCursorState] = useState(-1)
@@ -103,6 +144,10 @@ export function useCollectionKeyboard(args: UseCollectionKeyboardArgs): UseColle
           break
         case 'Enter':
         case 'o': {
+          // A focused button/link/menu item owns its own Enter — never cancel it (see
+          // ownsEnterNatively above). `o` needs no such gate: it is not an activation key,
+          // so a focused control does nothing with it and the row hotkey stays available.
+          if (e.key === 'Enter' && ownsEnterNatively()) return
           if (rc <= 0) return
           e.preventDefault()
           const idx = cur < 0 ? 0 : cur

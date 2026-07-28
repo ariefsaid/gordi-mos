@@ -32,6 +32,30 @@ function redirectToBase(base = '/mos/'): Plugin {
 export default defineConfig({
   base: '/mos/',
   plugins: [redirectToBase('/mos/'), react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Perf (impeccable/optimize, 2026-07-28): group stable third-party deps into their
+        // own named chunks, separate from the app's own eager code (main.tsx/app.tsx/router
+        // guards/AppShell/HomePage/LoginPage). These libraries change far less often than app
+        // code, so on a repeat visit — the normal case for the primary café/kitchen-floor
+        // persona on intermittent connectivity — a browser/CDN cache hit on `vendor-*` means
+        // only the small app chunk needs to be re-fetched after a deploy, not the whole bundle.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (/react-dom|\/react\/|scheduler/.test(id)) return 'vendor-react'
+          if (/react-router/.test(id)) return 'vendor-router'
+          if (/@supabase/.test(id)) return 'vendor-supabase'
+          if (/@tanstack/.test(id)) return 'vendor-tanstack'
+          if (/react-markdown|remark-|micromark|mdast|unist|unified|vfile|hast|property-information|space-separated|comma-separated|html-void-elements|zwitch|longest-streak|ccount|escape-string-regexp|markdown-table|trim-lines|bail|decode-named-character-reference|character-entities|is-plain-obj|trough/.test(
+              id,
+            ))
+            return 'vendor-markdown'
+          return 'vendor'
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

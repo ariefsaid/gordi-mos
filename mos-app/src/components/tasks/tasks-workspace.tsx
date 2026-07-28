@@ -9,6 +9,7 @@ import { can } from '@/lib/capabilities'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { HelpTip } from '@/components/ui/help-tip'
 import type { PageFamilyState } from '@/shell/page-families'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
@@ -324,12 +325,31 @@ export function TasksWorkspace({
     const search = params.toString()
     navigate({ pathname: '/work/tasks/new', search: search ? `?${search}` : '' })
   }, [currentSearch, navigate])
+  // H3 fix (owner review r2 gap — "Clear filters" didn't persist past reload): the shared
+  // RecordCollection engine's URL sync (useRecordCollection's effect, via
+  // lib/record-collection/query-state.ts writeCollectionQuery) infers which URL keys a query
+  // "owns" by re-serializing the NEUTRAL query and diffing its keys — but serializeTaskQuery
+  // (task-collection-adapter.tsx) deliberately OMITS every field that already equals its neutral
+  // value (clean canonical URLs: `if (query.q) p.set('q', …)` etc.), so serializing the neutral
+  // query itself always yields an EMPTY key set. A key that was populated and is now cleared back
+  // to neutral therefore never appears in the inferred "keys to delete" set — the visible state
+  // clears correctly (state.query is right, the table re-renders empty-filtered), but the stale
+  // `?q=…`/`&bu=…`/etc param is never removed from the URL, so a reload re-parses it and restores
+  // the filters the user just cleared. Rather than widen the shared engine's diffing for every
+  // RecordCollection consumer in this pass, strip the exact Task filter URL keys locally.
   const onClearFilters = useCallback(() => {
+    const nextView = query.view === 'overdue' ? 'all' : query.view
     setQuery({
       q: '', businessUnitId: null, status: null, picId: null, supervisorId: null, personId: null,
-      overdueOnly: false, includeArchived: false, view: query.view === 'overdue' ? 'all' : query.view,
+      overdueOnly: false, includeArchived: false, view: nextView,
     })
-  }, [query.view, setQuery])
+    const next = new URLSearchParams(params)
+    for (const key of ['q', 'bu', 'status', 'pic', 'supervisor', 'person', 'overdue', 'archived']) {
+      next.delete(key)
+    }
+    if (nextView === 'all') next.delete('view')
+    setParams(next, { replace: true })
+  }, [params, query.view, setParams, setQuery])
   const onSort = useCallback((sort: TaskCollectionSort) => {
     const direction = query.sort === sort
       ? query.direction === 'ascending' ? 'descending' : 'ascending'
@@ -470,13 +490,23 @@ export function TasksWorkspace({
         // agrees). ONE muted meta sentence in the E7 grammar, a single font size (the body
         // token), every number followed by its noun (the naked-numbers guard). Live counts;
         // "—" while loading/error or on the Follow-ups placeholder view (AC-M2).
-        <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
+        // onboard (2026-07-28): PIC vs Supervisor and what a saved view IS are the two things
+        // new leads reliably ask about this surface; neither was explained anywhere in the app.
+        // The tip is a SIBLING of the count line, never inside it — nesting it made the "?"
+        // glyph part of `tasks-count-line`'s textContent, so the meta read "? 2 open · 3 total".
+        // Tailwind utilities, not a new class: `.ch-meta-line`'s own rule is a descendant
+        // selector (`.content-header .ch-meta-line`), so it survives this extra wrapper, and
+        // the shell stylesheet that owns it stays untouched.
+        <span className="flex items-center gap-2">
+          <HelpTip label={t('tasks.help')} />
+          <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
           {stats === null || followupsView
             ? '—'
             : [
                 t('tasks.meta.openCount', { count: stats.open }),
                 t('tasks.meta.totalCount', { count: stats.total }),
               ].join(' · ')}
+          </span>
         </span>
       }
     >

@@ -30,18 +30,17 @@ import { listNotifications } from '@/lib/db/notifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import { useIsPhone } from '@/shell/use-is-phone'
-import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
   mentionStreamItems, myWorkStreamItems, openTaskCount, signalStreamItems, isAttentionSignal,
   type StreamBand, type StreamBandState,
 } from '@/lib/home-stream'
-import { resolveRegionOrder, setRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
+import { resolveRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
 import { HomeStream } from '@/components/home/home-stream'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { HelpTip } from '@/components/ui/help-tip'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import {
   signalCollectionDescriptor, SIGNAL_COLLECTION_NEUTRAL_QUERY, type SignalCollectionQuery,
@@ -71,37 +70,9 @@ const SIGNAL_BAND_CAP = 6
 
 const MY_WORK_CAP = 7
 
-// Compact, right-aligned order preference (OD-18) — the sticky ViewTabs strip has left Home. It
-// stays a radiogroup (RI-1) so the a11y contract is unchanged; it reorders the stream's two groups.
-function OrderToggle({ order, onChange, label }: {
-  order: HomeRegionOrder; onChange: (next: HomeRegionOrder) => void; label: string
-}) {
-  const t = useT()
-  const options: { id: HomeRegionOrder; label: string }[] = [
-    { id: 'attention-first', label: t('home.order.attentionFirst') },
-    { id: 'personal-first', label: t('home.order.personalFirst') },
-  ]
-  return (
-    <div role="radiogroup" aria-label={label} className="home-order-seg">
-      {options.map(opt => (
-        <button
-          key={opt.id}
-          type="button"
-          role="radio"
-          aria-checked={order === opt.id}
-          className={`home-order-seg-opt${order === opt.id ? ' is-active' : ''}`}
-          onClick={() => onChange(opt.id)}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export function HomePage() {
-  useDocumentTitle('Home — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.home') }))
   const { locale } = useI18n()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -116,11 +87,6 @@ export function HomePage() {
   const seesCafe = useMemo(
     () => viewerSeesCafe((viewer?.roles ?? []).map(r => r.name), viewer?.accessRoles ?? []),
     [viewer])
-
-  // At ≤390px the order toggle folds behind a single compact disclosure so it's never the lead,
-  // full-width element ahead of the stream; desktop/tablet keep the inline radiogroup (RI-2).
-  const isPhone = useIsPhone()
-  const [orderPanelOpen, setOrderPanelOpen] = useState(false)
 
   // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
   // effect BODY (not just useRef's initial value) so StrictMode's mount→cleanup→remount cycle doesn't
@@ -322,62 +288,83 @@ export function HomePage() {
   }), [signalController.state.status, allSignals, signalData, signalRetry])
 
   const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
-  const attentionCountN = signalsBand.items.length + overdue.length + dueToday.length + blocked.length +
+
+  // ── The "Needs attention · N" head summary (OD-REDESIGN-18) ────────────────────────────────
+  // PRODUCT.md principle 4 — a figure is traceable or visibly absent:
+  //  (1) N counts the REAL attention-worthy Signal total, not `signalsBand.items` — that array is
+  //      sliced to SIGNAL_BAND_CAP for display, so a viewer with 9 urgent Signals was being told
+  //      "6". A count derived from a display cap is the same defect class as Café Log's band
+  //      deriving "made so far" from unsaved form state (DD-7).
+  //  (2) It renders only once EVERY contributing read is ready. A partial sum is a confident wrong
+  //      number, which is worse than no number, so mid-load the summary is absent rather than low.
+  const attentionSignalCount = useMemo(
+    () => allSignals.filter(isAttentionSignal).length, [allSignals])
+  const attentionCountTraceable =
+    taskState === 'ready' && toBandState(signalController.state.status) === 'ready' &&
+    failedChecksState === 'ready' && notificationsState === 'ready'
+  const attentionCountN = attentionSignalCount + overdue.length + dueToday.length + blocked.length +
     failedChecksBand.items.length + mentionsBand.items.length
 
-  // ── Order preference (OD-18) — per-user, default attention-first ──
+  // ── Order preference (OD-18) — per-user, default attention-first. The control that SETS this
+  // now lives in Personal Profile (OD-18 completion, 2026-07-27); Home only reads it (on mount/
+  // personId change, which covers both navigation back from Profile and a full reload) and owes
+  // the required "Needs attention · N" summary + jump target below when personal-first leads. ──
   const [order, setOrder] = useState<HomeRegionOrder>('attention-first')
   useEffect(() => {
     if (personId) setOrder(resolveRegionOrder(personId))
   }, [personId])
 
-  function handleOrderChange(next: HomeRegionOrder) {
-    setOrder(next)
-    if (personId) setRegionOrder(personId, next)
-  }
+  // ONE muted meta line beside the greeting (the shared workspace-head `.ch-meta-line` grammar):
+  // the viewer's role identity — which is what makes a cross-BU brief legible as the stacked union
+  // of the roles they hold — plus, when the personal canvas leads, the required "Needs attention · N"
+  // summary + jump target (OD-REDESIGN-18). This replaces the separate full-width subtitle line,
+  // whose only content was that same role string; the decorative "Your week at a glance" fallback
+  // for a role-less viewer is dropped rather than restyled (it stated nothing).
+  const roleLabel = viewer && viewer.roles.length > 0
+    ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
+    : null
+  const showAttentionSummary = order === 'personal-first' && personId != null && attentionCountTraceable
 
-  const orderLabel = order === 'attention-first' ? t('home.order.attentionFirst') : t('home.order.personalFirst')
-  const orderToggle = <OrderToggle order={order} onChange={handleOrderChange} label={t('home.order.toggle')} />
+  // g-home audit P3: the "Needs attention · N" figure is live — N can change after the initial
+  // settle (e.g. sharing a Signal from Home retriggers the shared Signals read via the
+  // signalPostCount effect above, which can move attentionSignalCount and so N; a band's own
+  // "Retry" can do the same for the other four contributors). A sighted viewer sees the digit
+  // move; a screen-reader viewer got nothing (0 live regions measured on Home). This mirrors the
+  // sr-only aria-live="polite" role="status" pattern already used on Task detail / Objectives.
+  // Effect-driven (not a raw render bind) so it announces once per SETTLED value — never the
+  // mid-load partial states attentionCountTraceable already suppresses visually.
+  const [attentionAnnouncement, setAttentionAnnouncement] = useState('')
+  useEffect(() => {
+    if (showAttentionSummary) setAttentionAnnouncement(t('home.attention.summary', { n: attentionCountN }))
+  }, [showAttentionSummary, attentionCountN, t])
+
+  // H10 fix (design audit, 2026-07-28): the "?" HelpTip always rides beside the role/attention
+  // meta line (never conditional on it) — it explains the attention bands + ordering regardless
+  // of whether a role label or the personal-first summary happens to be present this render.
+  const headMeta = (
+    <>
+      {(roleLabel || showAttentionSummary) && (
+        <span className="ch-meta-line home-head-meta">
+          {roleLabel}
+          {roleLabel && showAttentionSummary && <span aria-hidden="true"> · </span>}
+          {showAttentionSummary && (
+            <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n: attentionCountN })}</a>
+          )}
+        </span>
+      )}
+      <HelpTip label={t('home.help')} />
+    </>
+  )
 
   return (
     <PageFamilyFrame
       family="workspace"
       surfaceWash
       title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
-      subtitle={viewer && viewer.roles.length > 0
-        ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
-        : t('home.subtitle')}
       jobSentence={t('job.home')}
-      meta={
-        order === 'personal-first' && personId ? (
-          <a href="#attention-brief" className="home-attention-jump">{t('home.attention.summary', { n: attentionCountN })}</a>
-        ) : undefined
-      }
+      meta={headMeta}
     >
-      {/* e7 head transplant: greeting + role identity (the warmth the build had lost). The order
-          preference (OD-18) is a compact right-aligned control — never rendered until a viewer is
-          resolved. At ≤390px it folds behind a compact "View options" disclosure so it's never the
-          lead, full-width element ahead of the stream. */}
-      {personId && (
-        <div className="home-stream-toolbar">
-          {isPhone ? (
-            <ViewOptionsDisclosure
-              open={orderPanelOpen}
-              onToggle={() => setOrderPanelOpen(open => !open)}
-              label={t('home.order.viewOptions')}
-              summary={orderLabel}
-              panelId="home-order-panel"
-              className="home-order-disclosure"
-              triggerClassName="home-order-trigger"
-              summaryClassName="home-order-summary"
-              chevronClassName="home-order-chevron"
-              panelClassName="home-order-panel"
-            >
-              {orderToggle}
-            </ViewOptionsDisclosure>
-          ) : orderToggle}
-        </div>
-      )}
+      <div className="home-visually-hidden" aria-live="polite" role="status">{attentionAnnouncement}</div>
 
       {/* THE STREAM — one consequence-ranked flow; the two groups reorder per `order`. */}
       <HomeStream

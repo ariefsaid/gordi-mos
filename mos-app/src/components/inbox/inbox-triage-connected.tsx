@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { useAuth } from '@/auth/use-auth'
+import { supabase } from '@/lib/supabase'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
@@ -11,6 +12,7 @@ import { InboxTriage, type InboxTriageState } from './inbox-triage'
 import { matchesFilter, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
 import { resolveNotificationTarget } from './inbox-target'
 import { buildInboxTargetDeps } from './inbox-record-door'
+import { isSessionExpiredMessage } from './session-expired'
 
 /**
  * InboxTriageConnected — the ONE wiring that turns the chrome-free InboxTriage surface into a live
@@ -50,18 +52,43 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   }
   const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
 
+  // H9 fix (design audit, 2026-07-27): the 401 dead-loop. An expired/invalid token surfaced the
+  // SAME generic error as any other failure, with a "Try again" that re-fires the identical call
+  // forever — it can never succeed once the token itself is dead. Detect the auth-shaped failure
+  // and try ONE silent session refresh before ever showing the user anything; `authRetried` bounds
+  // it to exactly one attempt (never re-armed), so this can't loop even if the refreshed session
+  // still fails the same way.
+  const isAuthError = isSessionExpiredMessage(error)
+  const [authRetried, setAuthRetried] = useState(false)
+  useEffect(() => {
+    if (!isAuthError || authRetried) return
+    let live = true
+    setAuthRetried(true)
+    void supabase.auth.refreshSession().then(({ data, error: refreshError }) => {
+      if (live && !refreshError && data.session) void refresh()
+    })
+    return () => {
+      live = false
+    }
+  }, [isAuthError, authRetried, refresh])
+
   const rows = notifications.filter((n) => matchesFilter(n, filter))
   // F13 (OD-91 #26): notifications the active (non-All) filter is hiding — the count behind the
   // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
   const hiddenCount = filter === 'all' ? 0 : notifications.length - rows.length
 
-  const state: InboxTriageState = loading
-    ? 'loading'
-    : error
-      ? 'error'
-      : rows.length === 0
-        ? 'empty'
-        : 'ready'
+  const state: InboxTriageState = loading || (isAuthError && !authRetried)
+    ? 'loading' // masks the single silent refresh attempt above — never flashes the dead-retry error
+    : isAuthError
+      ? 'unauthorized'
+      : error
+        ? 'error'
+        : rows.length === 0
+          ? 'empty'
+          : 'ready'
+
+  const canSignOut = auth.status === 'authenticated' || auth.status === 'orphan'
+  const onSignInAgain = canSignOut ? () => void auth.signOut() : undefined
 
   const onOpen = (row: TriageNotificationRow) => {
     setUnavailableKey(null)
@@ -95,7 +122,9 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         handledFilterAvailable={false}
         onFilterChange={setFilter}
         onOpen={onOpen}
+        onQuickMarkRead={(row) => void markRead(row.id)}
         onRetry={() => void refresh()}
+        onSignInAgain={onSignInAgain}
       />
       {unavailableKey ? (
         <p className="inbox-triage__unavailable" role="status" aria-live="polite">

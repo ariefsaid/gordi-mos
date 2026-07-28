@@ -106,7 +106,9 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
             hiding WHICH one it chose was audit finding F10. Bound as the panel's subject eyebrow
             (census DO-24a) — same header block as the started body below, so it doesn't read as
             an orphan that disappears on start. */}
-        <p className="cafe-opening-team">{teamName}</p>
+        <header className="cafe-opening-head">
+          <p className="cafe-opening-team">{teamName}</p>
+        </header>
         {canStart ? (
           <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
             <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
@@ -129,21 +131,28 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
   return (
     <div className="cafe-opening-panel cafe-opening-panel--started">
       {/* Same subject eyebrow as the not-started body (census DO-24a) — the bound Team
-          now heads the panel in every state, not only before Start. */}
-      <p className="cafe-opening-team">{teamName}</p>
-      <h2 className="cafe-opening-caption">{rollup.caption}</h2>
-      <p className="cafe-opening-rollup tabular-nums">
-        {/* Design fix wave item 6 — the café member dead-end minor: a non-capable member has no
-            resolve editor below (canStart-gated), so "N to assign" read like an instruction with
-            nothing to click. Neutral "N unassigned" wording for that viewer only — a capable
-            viewer keeps "to assign" (the editor is right below, no stutter risk here). */}
-        {t(
-          rollup.pending_unresolved === 0 || canStart
-            ? 'processes.rollup.summary'
-            : 'processes.rollup.summaryUnassigned',
-          { done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved },
-        )}
-      </p>
+          now heads the panel in every state, not only before Start. layout pass (v4):
+          eyebrow + caption + rollup are one semantic header block (kicker/title/subtitle),
+          grouped into its own tight rhythm (cafe-opening-head, 4px) rather than sharing the
+          panel's looser 16px rhythm with the unrelated action link and pending-resolution
+          section below — a single blanket gap between every child had made a title and an
+          unrelated button read as equally related (layout.md "Rhythm"). */}
+      <header className="cafe-opening-head">
+        <p className="cafe-opening-team">{teamName}</p>
+        <h2 className="cafe-opening-caption">{rollup.caption}</h2>
+        <p className="cafe-opening-rollup tabular-nums">
+          {/* Design fix wave item 6 — the café member dead-end minor: a non-capable member has no
+              resolve editor below (canStart-gated), so "N to assign" read like an instruction with
+              nothing to click. Neutral "N unassigned" wording for that viewer only — a capable
+              viewer keeps "to assign" (the editor is right below, no stutter risk here). */}
+          {t(
+            rollup.pending_unresolved === 0 || canStart
+              ? 'processes.rollup.summary'
+              : 'processes.rollup.summaryUnassigned',
+            { done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved },
+          )}
+        </p>
+      </header>
       <Link to={`/work/tasks?occurrence=${runId}`} className="btn btn-outline">
         {t('cafe.opening.viewTasks')}
       </Link>

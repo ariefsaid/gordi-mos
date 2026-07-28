@@ -1,9 +1,20 @@
-/* CafeOpeningPage — the capture-links row (Log/Plan/Stock/Review, FR-708). Step 7 minor (item
-   7b): real button-styled links (btn-outline — visible border/background, never plain unstyled
-   text) that stack to full-width ≥44px tap targets at ≤390px. Token-only (DESIGN.md); mirrors the
-   .btn hierarchy (Button.css) — this file only owns the layout wrapper. */
+/* CafeOpeningPage — the team-choice field and the capture-links row (Log/Plan/Stock/Review,
+   FR-708). layout pass (v4): this is a narrow single-focus action surface (choose a Team / start
+   an opening / jump to a capture screen), not a data table — full-bleed (the "workspace" family's
+   `variant="data"` frame) left the Team <select> and the capture-link row stretching to whatever
+   the viewport happened to be, ballooning short-label buttons past their content and reading as
+   sparse rather than composed on a wide monitor. Both cap to the same 560px column (reusing
+   profile-page.tsx's existing single-card width — not a new arbitrary value) so the two states
+   read as one column, never edge-to-edge. */
+.cafe-team-choice {
+  max-width: 560px;
+}
+/* Step 7 minor (item 7b): real button-styled links (btn-outline — visible border/background,
+   never plain unstyled text) that stack to full-width ≥44px tap targets at ≤390px. Token-only
+   (DESIGN.md); mirrors the .btn hierarchy (Button.css) — this file only owns the layout wrapper. */
 .cafe-capture-links {
   display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px;
+  max-width: 560px;
 }
 .cafe-capture-link {
   flex: 1 1 140px; justify-content: center;

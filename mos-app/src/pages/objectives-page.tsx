@@ -1,13 +1,23 @@
-// ObjectivesPage — admin-only Objectives catalog, Work's manage-mode (route /work/objectives behind
-// RequireCapability objective.manage; FR-424). It now speaks the V3 collection grammar: a typed
-// RecordCollection descriptor owns load / view (Active/Archived) / name search, the shared
-// RecordCollectionSurface + CollectionToolbar render it, and the FR-422 down-trace (each objective's
-// child work_lines + per-work_line task count) rides under each active row. A catalog row has no
-// record panel, so its inline management actions (Rename / Archive / Unarchive) are its primary
-// interaction; the ONE primary create affordance is the inline Add bar above the collection.
+// ObjectivesPage — the Objectives catalog, Work's manage-mode (route /work/objectives). OD-V4-1
+// (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible to everyone
+// and writeable at lead level" — the route carries NO RequireCapability read gate (RLS's
+// objectives_select_org policy already grants SELECT to every authenticated org member with only
+// the org_id tenancy check, FR-333); write (create/rename/archive) stays behind `can('objective.manage')`,
+// held by admin + ops_lead (mos.objectives INSERT/UPDATE RLS via shared.can()). It speaks the V3
+// collection grammar: a typed RecordCollection descriptor owns load / view (Active/Archived) / name
+// search / task-coverage filter (H7), the shared RecordCollectionSurface + CollectionToolbar render
+// it, and the FR-422 down-trace (each objective's child work_lines + per-work_line task count) rides
+// under each active row. Each row also carries a relations disclosure (H4) — a real drill target
+// into its child Projects/Processes and its own Tasks, bidirectional with ProjectsProcessesPage's
+// own disclosure (docs/v4-inheritance.md INC-1: relations live on the records, not a new cascade
+// route). A catalog row has no record panel, so its inline management actions (Rename / Archive /
+// Unarchive) are its primary interaction; the ONE primary create affordance is the inline Add bar
+// above the collection.
 import { useCallback, useId, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { useDocumentTitle } from '@/shell/use-document-title'
+import { HelpTip } from '@/components/ui/help-tip'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -26,6 +36,10 @@ import '@/components/catalog/catalog-collection.css'
 
 export function ObjectivesPage() {
   const t = useT()
+  // harden (2026-07-28): this page set NO document title at all, so the browser tab, the PWA
+  // task switcher and any bookmark all read the generic index fallback "Gordi MOS — Management
+  // OS" — untranslated, and identical for every unlabelled route.
+  useDocumentTitle(t('common.docTitle', { page: t('nav.work.objectives') }))
   const nameFieldId = useId()
   const controller = useRecordCollection({
     descriptor: objectivesCollectionDescriptor,
@@ -87,7 +101,7 @@ export function ObjectivesPage() {
       await objectivesCatalogActions.create(name)
       setNewName('')
       announce(t('catalog.announce.added', { name }))
-      controller.setQuery({ ...query, view: 'active', q: '' })
+      controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
       controller.retry()
     } catch (err) {
       setAddError(err instanceof Error ? err.message : t('catalog.addFailed'))
@@ -98,6 +112,8 @@ export function ObjectivesPage() {
 
   const viewLabel = t(query.view === 'archived' ? 'catalog.view.archived' : 'catalog.view.active')
 
+  // OD-V4-1 H7: Objectives' one filter dimension — reuses the same CollectionToolbar `filters`
+  // mechanism Projects/Processes already uses for its Type filter (no second filter grammar).
   const toolbar = (
     <CollectionToolbar
       presentation={{
@@ -121,6 +137,19 @@ export function ObjectivesPage() {
         value: query.q,
         onChange: (q) => setQuery({ q }),
       }}
+      filters={[
+        {
+          id: 'coverage',
+          label: t('catalog.filter.coverage'),
+          value: query.coverage,
+          options: [
+            { value: 'all', label: t('catalog.coverage.all') },
+            { value: 'has-tasks', label: t('catalog.coverage.hasTasks') },
+            { value: 'no-tasks', label: t('catalog.coverage.noTasks') },
+          ],
+          onChange: (coverage) => setQuery({ coverage: coverage as CatalogCollectionQuery['coverage'] }),
+        },
+      ]}
     />
   )
 
@@ -133,6 +162,11 @@ export function ObjectivesPage() {
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
+      /* onboard (2026-07-28): Objectives scored 18/40 (the app's weakest surface) and OD-V4-1
+         has just made it visible to EVERY role, so most of its readers are meeting it for the
+         first time. The one thing they cannot infer from the screen is that the cascade is
+         walked through the records rather than shown on a screen of its own. */
+      meta={<HelpTip label={t('objectives.help')} />}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 
@@ -168,7 +202,7 @@ export function ObjectivesPage() {
             }}
             controls={toolbar}
             empty={{ title: t('catalog.objectives.empty.title'), copy: t('catalog.objectives.empty.copy') }}
-            filteredEmpty={{ title: t('catalog.filteredEmpty.title'), clear: () => setQuery({ view: 'active', q: '' }) }}
+            filteredEmpty={{ title: t('catalog.filteredEmpty.title'), clear: () => setQuery({ view: 'active', q: '', coverage: 'all' }) }}
             error={{ message: t('catalog.objectives.error'), retry: () => controller.retry() }}
             loadingLabel={t('catalog.objectives.loading')}
           />

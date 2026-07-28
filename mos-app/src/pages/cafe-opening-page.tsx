@@ -43,7 +43,7 @@ const LEAD_LINKS = [
 
 export function CafeOpeningPage() {
   const t = useT()
-  useDocumentTitle('Café Operations — Gordi MOS')
+  useDocumentTitle(t('common.docTitle', { page: t('doc.cafeOps') }))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -128,8 +128,12 @@ export function CafeOpeningPage() {
         <EmptyState variant="blank" title={t('cafe.opening.noTeam')} />
       )}
       {state === 'choice' && (
+        // distill: the Select's own visible label already says "Choose a Team" — a
+        // standalone prompt paragraph above it (formerly "Choose the Team whose opening
+        // you want to view.") restated the same instruction a second time for a
+        // one-field form. The section's aria-label keeps the region navigable by AT
+        // landmark; the field label is the single remaining copy of the instruction.
         <section className="cafe-team-choice" aria-label={t('cafe.opening.chooseTeam')}>
-          <p>{t('cafe.opening.chooseTeamPrompt')}</p>
           <Select
             label={t('cafe.opening.chooseTeam')}
             fullWidth

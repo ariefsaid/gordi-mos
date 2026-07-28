@@ -11,6 +11,7 @@
 //   can be launched from — the confirm-behind-drawer bug, cohesion-debt item #3).
 
 import { useState, useId } from 'react'
+import { useT } from '@/i18n/use-t'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 
@@ -44,12 +45,19 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
-  cancelLabel = 'Cancel',
-  busyLabel = 'Working…',
+  cancelLabel,
+  busyLabel,
   tone = 'primary',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  // harden (2026-07-28): the three defaults below were hardcoded English literals
+  // ('Cancel', 'Working…', 'Something went wrong. Try again.'). Because they are
+  // DEFAULTS, no call site had to opt in to the bug — every confirm that did not pass a
+  // cancelLabel showed an English Cancel next to a translated confirm button, on the
+  // dialog that gates destructive actions. Defaulting against the catalog fixes all of
+  // them at the primitive.
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const titleId = useId()
@@ -62,7 +70,7 @@ export function ConfirmDialog({
     try {
       await onConfirm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+      setError(err instanceof Error ? err.message : t('common.unexpectedError'))
       setBusy(false)
     }
     // On success the caller closes (setBusy(false) not needed; component unmounts)
@@ -107,7 +115,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             disabled={busy}
           >
-            {cancelLabel}
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button
             type="button"
@@ -115,7 +123,7 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={busy}
           >
-            {busy ? busyLabel : confirmLabel}
+            {busy ? (busyLabel ?? t('common.working')) : confirmLabel}
           </button>
         </div>
       </div>

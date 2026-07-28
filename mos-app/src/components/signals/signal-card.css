@@ -70,12 +70,14 @@
 
 .signal-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .signal-meta-pill {
+  /* typeset: was 11.5px off-ramp — a 22px pill of dense metadata is exactly DESIGN.md's
+     documented `label` role (12px/600, "status pills… dense metadata"). */
   display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
   border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
-  font-size: 11.5px;
+  font-size: var(--font-size-label);
 }
 
-.signal-vis { display: block; font-size: 11.5px; color: var(--muted-foreground); margin-top: 8px; }
+.signal-vis { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 8px; } /* typeset: was 11.5px off-ramp */
 
 .signal-actions {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

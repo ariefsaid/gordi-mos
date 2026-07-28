@@ -165,6 +165,21 @@
   outline-offset: 2px;
 }
 
+/* H7/H10 fix (design audit, 2026-07-27): the discoverable hint for the ↑/↓ + R keyboard triage
+   shortcut (inbox-triage.tsx handleListKeyDown) — a keyboard-only affordance is invisible unless
+   named somewhere a sighted user will see it. Meaningless on a touch device (no physical keys), so
+   it hides under a coarse pointer, mirroring the rail's own (pointer: coarse) precedent. */
+.inbox-triage__kbd-hint {
+  margin: 0;
+  font-size: var(--font-size-mono);
+  color: var(--muted-foreground);
+}
+@media (pointer: coarse) {
+  .inbox-triage__kbd-hint {
+    display: none;
+  }
+}
+
 /* Honest unavailable-target notice (denied/malformed/feature-off) — inline, not a dead link. */
 .inbox-triage__unavailable {
   margin: 8px 0 0;

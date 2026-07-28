@@ -1,3 +1,4 @@
+import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate, useLocation, useParams, type RouteObject } from 'react-router-dom'
 import { SHOW_USER_VIEWS, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from './config/features'
 import { ProtectedRoute } from './auth/protected-route'
@@ -7,34 +8,61 @@ import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
-import { TasksLayout } from './pages/tasks-layout'
-import { FollowUpsPage } from './pages/follow-ups-page'
-import { FollowUpRecordPage } from './pages/follow-up-record-page'
-import { TaskDrawer } from './components/tasks/task-drawer'
-import { InboxPage } from './pages/inbox-page'
-import { CafeOpeningPage } from './pages/cafe-opening-page'
-import { KitchenLogPage } from './pages/kitchen-log-page'
-import { KitchenPlanPage } from './pages/kitchen-plan-page'
-import { KitchenReviewPage } from './pages/kitchen-review-page'
-import { KitchenStockPage } from './pages/kitchen-stock-page'
-import { KitchenPushesPage } from './pages/kitchen-pushes-page'
-import { AdminUsersPage } from './pages/admin-users-page'
-import { ObjectivesPage } from './pages/objectives-page'
-import { ProjectsProcessesPage } from './pages/projects-processes-page'
-import { DashboardPage } from './pages/dashboard-page'
-import { BudgetPage } from './pages/budget-page'
-import { PricingPage } from './pages/pricing-page'
-import { SliceStubPage } from './pages/slice-stub-page'
-import { ProfilePage } from '@/pages/profile-page'
-import { EventsPage } from './pages/events-page'
-import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
-import { NotFoundPage } from './pages/not-found-page'
 import { LoginPage } from './pages/login-page'
-import { RecoveryPage } from './pages/recovery-page'
-import { UiGallery } from './pages/ui-gallery'
-import { DevViewsPage } from './pages/dev-views-page'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+import { LoadingShell } from './components/ui/state-kit'
 import { v3Infrastructure, v3Page, v3Redirect } from './shell/route-classification'
+
+// Perf (impeccable/optimize, 2026-07-28): every non-landing route is code-split via
+// React.lazy — the pre-split bundle shipped all ~25 routes in one 1.27 MB entry chunk to
+// every viewer regardless of which single screen they opened, a real cost on the primary
+// persona's phone-on-café-wifi connection. HomePage (index route) and LoginPage (the
+// unauthenticated landing screen) stay eager — both are above-the-fold first paints, so
+// lazy-loading them would trade a bundle-size win for a perceived-load regression.
+// `withSuspense` wraps each split route's element with the app's one sanctioned loading
+// grammar (LoadingShell, state-kit.tsx) — router.tsx-local, no app-shell.tsx change needed.
+const TasksLayout = lazy(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
+const FollowUpsPage = lazy(() => import('./pages/follow-ups-page').then((m) => ({ default: m.FollowUpsPage })))
+const FollowUpRecordPage = lazy(() =>
+  import('./pages/follow-up-record-page').then((m) => ({ default: m.FollowUpRecordPage })),
+)
+const TaskDrawer = lazy(() => import('./components/tasks/task-drawer').then((m) => ({ default: m.TaskDrawer })))
+const InboxPage = lazy(() => import('./pages/inbox-page').then((m) => ({ default: m.InboxPage })))
+const CafeOpeningPage = lazy(() => import('./pages/cafe-opening-page').then((m) => ({ default: m.CafeOpeningPage })))
+const KitchenLogPage = lazy(() => import('./pages/kitchen-log-page').then((m) => ({ default: m.KitchenLogPage })))
+const KitchenPlanPage = lazy(() => import('./pages/kitchen-plan-page').then((m) => ({ default: m.KitchenPlanPage })))
+const KitchenReviewPage = lazy(() =>
+  import('./pages/kitchen-review-page').then((m) => ({ default: m.KitchenReviewPage })),
+)
+const KitchenStockPage = lazy(() => import('./pages/kitchen-stock-page').then((m) => ({ default: m.KitchenStockPage })))
+const KitchenPushesPage = lazy(() =>
+  import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
+)
+const AdminUsersPage = lazy(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
+const ObjectivesPage = lazy(() => import('./pages/objectives-page').then((m) => ({ default: m.ObjectivesPage })))
+const ProjectsProcessesPage = lazy(() =>
+  import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
+)
+const DashboardPage = lazy(() => import('./pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
+const BudgetPage = lazy(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
+const PricingPage = lazy(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
+const SliceStubPage = lazy(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
+const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
+const EventsPage = lazy(() => import('./pages/events-page').then((m) => ({ default: m.EventsPage })))
+const SignalsArchivePage = lazy(() =>
+  import('./pages/signals-archive-page').then((m) => ({ default: m.SignalsArchivePage })),
+)
+const SignalRecordPage = lazy(() =>
+  import('./pages/signals-archive-page').then((m) => ({ default: m.SignalRecordPage })),
+)
+const NotFoundPage = lazy(() => import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage })))
+const RecoveryPage = lazy(() => import('./pages/recovery-page').then((m) => ({ default: m.RecoveryPage })))
+const UiGallery = lazy(() => import('./pages/ui-gallery').then((m) => ({ default: m.UiGallery })))
+const DevViewsPage = lazy(() => import('./pages/dev-views-page').then((m) => ({ default: m.DevViewsPage })))
+
+function withSuspense(element: ReactNode) {
+  return <Suspense fallback={<LoadingShell />}>{element}</Suspense>
+}
 
 // Route layout (Redesign Step 2 — the IA move):
 // / (RedirectIfAuthed gate) — unauthenticated users
@@ -49,7 +77,7 @@ import { v3Infrastructure, v3Page, v3Redirect } from './shell/route-classificati
 //     /work/signals             → SignalsArchivePage (Signals archive/search; ?record=<id> opens the shared RecordPanelHost drawer)
 //       /work/signals/:signalId → SignalRecordPage (full canonical record page — OD-63; ?record= hard-loads redirect here)
 //     /work/projects           → ProjectsProcessesPage (RequireCapability workline.manage)
-//     /work/objectives         → ObjectivesPage (RequireCapability objective.manage)
+//     /work/objectives         → ObjectivesPage (no read gate — OD-V4-1; write behind can('objective.manage'))
 //     /events                   → EventsPage (Step 10 — job sentence + sanctioned empty state)
 //     /ecommerce /roastery /profile → SliceStubPage (later steps)
 //     /money/*                 → Money page (DashboardPage)/Budget/Pricing (RequireAccessRole finance/admin);
@@ -81,15 +109,16 @@ export function TasksIdRedirect() {
 export const routeConfig: RouteObject[] = [
   // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell.
   ...(import.meta.env.DEV
-    ? [{ path: '/dev/ui', element: <UiGallery />, handle: v3Infrastructure('dev-only') }]
+    ? [{ path: '/dev/ui', element: withSuspense(<UiGallery />), handle: v3Infrastructure('dev-only') }]
     : []),
   {
     element: <RedirectIfAuthed />,
     errorElement: <RouteErrorBoundary />,
     handle: v3Infrastructure('auth'),
     children: [
+      // LoginPage stays eager (above-the-fold first paint for logged-out users).
       { path: '/login', element: <LoginPage />, handle: v3Infrastructure('public') },
-      { path: '/recovery', element: <RecoveryPage />, handle: v3Infrastructure('public') },
+      { path: '/recovery', element: withSuspense(<RecoveryPage />), handle: v3Infrastructure('public') },
     ],
   },
   {
@@ -107,86 +136,88 @@ export const routeConfig: RouteObject[] = [
           { path: 'work', element: <Navigate to="/work/tasks" replace />, handle: v3Redirect('/work/tasks') },
           {
             path: 'work/tasks',
-            element: <TasksLayout />,
+            element: withSuspense(<TasksLayout />),
             handle: v3Page('workspace'),
             children: [
-              { path: 'new', element: <TaskDrawer mode="create" />, handle: v3Page('focused-record') },
-              { path: ':taskId', element: <TaskDrawer mode="view" />, handle: v3Page('focused-record') },
+              { path: 'new', element: withSuspense(<TaskDrawer mode="create" />), handle: v3Page('focused-record') },
+              { path: ':taskId', element: withSuspense(<TaskDrawer mode="view" />), handle: v3Page('focused-record') },
             ],
           },
-          { path: 'work/signals', element: <SignalsArchivePage />, handle: v3Page('workspace') },
-          { path: 'work/signals/:signalId', element: <SignalRecordPage />, handle: v3Page('focused-record') },
+          { path: 'work/signals', element: withSuspense(<SignalsArchivePage />), handle: v3Page('workspace') },
+          { path: 'work/signals/:signalId', element: withSuspense(<SignalRecordPage />), handle: v3Page('focused-record') },
           { path: 'work/projects-processes', element: <SearchRedirect to="/work/projects" />, handle: v3Redirect('/work/projects') },
           {
             element: <RequireCapability capability="workline.manage" />,
             handle: v3Infrastructure('capability'),
-            children: [{ path: 'work/projects', element: <ProjectsProcessesPage />, handle: v3Page('management') }],
+            children: [{ path: 'work/projects', element: withSuspense(<ProjectsProcessesPage />), handle: v3Page('management') }],
           },
-          {
-            element: <RequireCapability capability="objective.manage" />,
-            handle: v3Infrastructure('capability'),
-            children: [{ path: 'work/objectives', element: <ObjectivesPage />, handle: v3Page('management') }],
-          },
+          // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are
+          // visible to everyone" — NO RequireCapability read gate. mos.objectives SELECT RLS has
+          // no role check (only org_id tenancy), so gating the route hid a screen RLS already let
+          // every authenticated viewer read (the bug: a direct hit on /work/objectives silently
+          // redirected to /work/tasks). Write (create/rename/archive) stays behind
+          // `can('objective.manage')` inside ObjectivesPage's own mutation handlers.
+          { path: 'work/objectives', element: withSuspense(<ObjectivesPage />), handle: v3Page('management') },
           { path: 'work/cascade', element: <Navigate to="/work/tasks" replace />, handle: v3Redirect('/work/tasks') },
           { path: 'work/follow-ups', element: <Navigate to="/work/tasks?view=followups" replace />, handle: v3Redirect('/work/tasks?view=followups') },
           // The follow-up RECORD door (focused-record) — the canonical FollowUpRecordHost via
           // the shared RecordViewer, not the queue page's bespoke in-flow aside (audit fix).
-          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpRecordPage /> : <Navigate to="/" replace />, handle: v3Page('focused-record') },
+          { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? withSuspense(<FollowUpRecordPage />) : <Navigate to="/" replace />, handle: v3Page('focused-record') },
 
           // ── Events / Money / Inbox (canonical) ──
-          { path: 'events', element: <EventsPage />, handle: v3Page('workspace') },
+          { path: 'events', element: withSuspense(<EventsPage />), handle: v3Page('workspace') },
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
             handle: v3Infrastructure('capability'),
             children: [
-              { path: 'money', element: <DashboardPage />, handle: v3Page('workspace') },
-              { path: 'money/detail', element: <DashboardPage defaultTab="detail" />, handle: v3Page('workspace') },
-              { path: 'money/budget', element: SHOW_PLAN_BUDGET ? <BudgetPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
-              { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? <PricingPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
+              { path: 'money', element: withSuspense(<DashboardPage />), handle: v3Page('workspace') },
+              { path: 'money/detail', element: withSuspense(<DashboardPage defaultTab="detail" />), handle: v3Page('workspace') },
+              { path: 'money/budget', element: SHOW_PLAN_BUDGET ? withSuspense(<BudgetPage />) : <Navigate to="/" replace />, handle: v3Page('workspace') },
+              { path: 'money/pricing', element: SHOW_PLAN_BUDGET ? withSuspense(<PricingPage />) : <Navigate to="/" replace />, handle: v3Page('workspace') },
               // R-OWNER-5 (provisional Director ruling): the follow-ups QUEUE is a workspace
               // destination — it renders a record count + overdue meta, which is workspace grammar.
               // The follow-up RECORD (/work/follow-ups/:id) stays focused-record.
-              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace />, handle: v3Page('workspace') },
+              { path: 'money/follow-ups', element: SHOW_FOLLOWUPS ? withSuspense(<FollowUpsPage />) : <Navigate to="/" replace />, handle: v3Page('workspace') },
             ],
           },
-          { path: 'inbox', element: <InboxPage />, handle: v3Page('workspace') },
+          { path: 'inbox', element: withSuspense(<InboxPage />), handle: v3Page('workspace') },
 
           // ── Café (Kitchen re-homed, OD-15; Step 7 RATIFY-7D — /cafe hosts the opening home) ──
-          { path: 'cafe', element: <CafeOpeningPage />, handle: v3Page('workspace') },
-          { path: 'cafe/log', element: <KitchenLogPage />, handle: v3Page('workspace') },
-          { path: 'cafe/plan', element: <KitchenPlanPage />, handle: v3Page('workspace') },
-          { path: 'cafe/stock', element: <KitchenStockPage />, handle: v3Page('workspace') },
+          { path: 'cafe', element: withSuspense(<CafeOpeningPage />), handle: v3Page('workspace') },
+          { path: 'cafe/log', element: withSuspense(<KitchenLogPage />), handle: v3Page('workspace') },
+          { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: v3Page('workspace') },
+          { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: v3Page('workspace') },
           {
             element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
             handle: v3Infrastructure('capability'),
             children: [
-              { path: 'cafe/review', element: <KitchenReviewPage />, handle: v3Page('workspace') },
-              { path: 'cafe/pushes', element: <KitchenPushesPage />, handle: v3Page('workspace') },
+              { path: 'cafe/review', element: withSuspense(<KitchenReviewPage />), handle: v3Page('workspace') },
+              { path: 'cafe/pushes', element: withSuspense(<KitchenPushesPage />), handle: v3Page('workspace') },
             ],
           },
 
           // ── Ecommerce / Roastery / Profile (stubs) ──
-          { path: 'ecommerce', element: <SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" />, handle: v3Page('workspace') },
-          { path: 'roastery', element: <SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" />, handle: v3Page('workspace') },
-          { path: 'profile', element: <ProfilePage />, handle: v3Page('management') }, // OD-70: real page (language selection lives here)
+          { path: 'ecommerce', element: withSuspense(<SliceStubPage jobKey="job.ecommerce" nameKey="dest.ecommerce" />), handle: v3Page('workspace') },
+          { path: 'roastery', element: withSuspense(<SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" />), handle: v3Page('workspace') },
+          { path: 'profile', element: withSuspense(<ProfilePage />), handle: v3Page('management') }, // OD-70: real page (language selection lives here)
 
           // ── Admin (canonical; /admin → /admin/people) ──
           { path: 'admin', element: <Navigate to="/admin/people" replace />, handle: v3Redirect('/admin/people') },
           {
             element: <AdminRoute />,
             handle: v3Infrastructure('capability'),
-            children: [{ path: 'admin/people', element: <AdminUsersPage />, handle: v3Page('management') }],
+            children: [{ path: 'admin/people', element: withSuspense(<AdminUsersPage />), handle: v3Page('management') }],
           },
 
           // ADR-0018 P1 — view-composition dev harness (DEV + SHOW_USER_VIEWS).
           {
             path: 'dev/views',
-            element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+            element: import.meta.env.DEV && SHOW_USER_VIEWS ? withSuspense(<DevViewsPage />) : <Navigate to="/" replace />,
             handle: v3Infrastructure('dev-only'),
           },
           {
             path: 'dev/views/:viewId',
-            element: import.meta.env.DEV && SHOW_USER_VIEWS ? <DevViewsPage /> : <Navigate to="/" replace />,
+            element: import.meta.env.DEV && SHOW_USER_VIEWS ? withSuspense(<DevViewsPage />) : <Navigate to="/" replace />,
             handle: v3Infrastructure('dev-only'),
           },
 
@@ -213,7 +244,7 @@ export const routeConfig: RouteObject[] = [
           { path: 'plan/budget', element: <SearchRedirect to="/money/budget" />, handle: v3Redirect('/money/budget') },
           { path: 'plan/pricing', element: <SearchRedirect to="/money/pricing" />, handle: v3Redirect('/money/pricing') },
 
-          { path: '*', element: <NotFoundPage />, handle: v3Infrastructure('not-found') },
+          { path: '*', element: withSuspense(<NotFoundPage />), handle: v3Infrastructure('not-found') },
         ],
       },
     ],

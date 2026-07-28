@@ -7,6 +7,7 @@ import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
+import { useUnreadCount } from '@/hooks/useUnreadCount'
 import './rail-nav.css'
 
 // E7 Work sub-section grammar (e7-views.js `workNavModel`) ported to our ratified IA: OD-REDESIGN-1
@@ -66,8 +67,14 @@ type RailNavProps = {
 // item's horizontal padding (the label collapses to zero visual width), and tag a
 // `rail-tooltip-target` class so the CSS-only hover/focus-visible tooltip (rail-nav.css)
 // can surface the label back via `data-label` — no extra DOM node.
+// FINDING 3 (v4 shell a11y audit, 2026-07-27): the rail is desktop chrome sized to the
+// DESIGN.md-ratified 36px nav-item ("Navigation — Rail: Nav item: 36px tall") for a fine
+// pointer (mouse) — that spec stays authoritative here, unchanged. `rail-item` is a stable
+// hook for a `(pointer: coarse)` override in rail-nav.css that raises touch laptops/tablets
+// to the >=44px target floor without touching the documented mouse-regime height.
 const itemBase = (isActive: boolean, compact = false) =>
   [
+    'rail-item',
     'relative flex items-center gap-[10px] h-9 rounded-sm no-underline text-sm',
     compact ? 'justify-center px-0 rail-tooltip-target' : 'px-2.5',
     isActive
@@ -77,15 +84,22 @@ const itemBase = (isActive: boolean, compact = false) =>
 
 // A destination rail item: NavLink to its primaryPath, labelled by the destination
 // labelKey (e.g. "Admin Settings", "Money"), default aria-current="page" (Rule 5).
-function DestLink({ d, onNavigate, compact = false }: { d: Destination; onNavigate?: () => void; compact?: boolean }) {
+// H1 fix (design audit, 2026-07-27): `badge`/`badgeLabelKey` are optional — wired ONLY for Inbox
+// (unread count) below — and follow the EXACT WorkChild pattern (DO-18(d)): the accessible NAME
+// is built on the link itself by joining the already-localized label + badge sentence, so AT
+// never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
+function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey }) {
   const t = useT()
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
+  const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
+  const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : undefined
   return (
     <NavLink
       to={to}
       end={to === '/'}
       onClick={onNavigate}
+      aria-label={accessibleName}
       data-label={compact ? label : undefined}
       className={({ isActive }) => itemBase(isActive, compact)}
     >
@@ -95,6 +109,7 @@ function DestLink({ d, onNavigate, compact = false }: { d: Destination; onNaviga
             <d.Icon />
           </span>
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
+          <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}
     </NavLink>
@@ -143,7 +158,9 @@ function WorkSubLabel({ children }: { children: string }) {
 // (rail-count-badge--compact, rail-nav.css) — still quiet, still omitted at zero/undefined.
 // DO-18(d): with a `label` the badge is EXPOSED to AT under that name (aria-label replaces the
 // naked digit in the accname); without one it stays a hidden redundant glance cue.
-function RailCountBadge({ count, label, compact = false }: { count?: number; label?: string; compact?: boolean }) {
+// Exported (H1/H8 fix, design audit 2026-07-27) so bottom-tab-bar.tsx can put the SAME quiet
+// count-badge on the phone Inbox tab instead of inventing a second badge component/visual.
+export function RailCountBadge({ count, label, compact = false }: { count?: number; label?: string; compact?: boolean }) {
   if (count === undefined || count <= 0) return null
   return (
     <span
@@ -165,10 +182,18 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
   const t = useT()
   const label = section.labelKey ? t(section.labelKey) : section.label
   const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
+  // FINDING 2 (v4 shell a11y audit, 2026-07-27): the visible label span and the badge's own
+  // aria-label span are adjacent DOM nodes with no whitespace between them, so AT concatenates
+  // them with no separator — measured live as "Tugas12" / "Sinyal2". An explicit aria-label on
+  // the LINK is the accessible name once present (subtree text alternatives are then ignored),
+  // built by joining the SAME already-localized label + rail.badge.* sentence already computed
+  // above — no new i18n keys, just a natural-reading combination of existing strings.
+  const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : undefined
   return (
     <NavLink
       to={section.path}
       onClick={onNavigate}
+      aria-label={accessibleName}
       data-label={compact ? label : undefined}
       className={({ isActive }) => itemBase(isActive, compact)}
     >
@@ -200,6 +225,11 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
 export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
+  // H1 fix (design audit, 2026-07-27): Inbox's unread badge — the SAME cheap, dedicated,
+  // unread-only read the header bell already uses (useUnreadCount → countUnread, backed by the
+  // owner-unread index), not a per-render full-list count. Fetched once per shell mount like the
+  // rest of the rail's counts; no polling.
+  const { unreadCount } = useUnreadCount()
 
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -223,7 +253,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
     <>
       <nav aria-label="Primary" className="flex flex-1 flex-col px-2 pt-3">
         {!compact && <RailGroupLabel>{t('rail.destinations')}</RailGroupLabel>}
-        <div className="flex flex-col gap-[2px]">
+        <div className="flex flex-col gap-[2px] rail-item-list">
           {liveDestinations.map((d) => {
             if (d.id === 'work') {
               // Work parent: aria-current="location" when any /work/* route is active
@@ -261,7 +291,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                       child stays one reachable link (the overline, when shown, is an aria-hidden
                       divider). A capability-gated child (Projects & Processes, Objectives) that
                       filters out empties its family, which then renders nothing. */}
-                  <div className={compact ? 'flex flex-col gap-[2px]' : 'flex flex-col gap-[2px] pl-3'}>
+                  <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list pl-3'}>
                     {WORK_SUBSECTIONS.map((sub) => {
                       const items = children.filter((c) => sub.paths.includes(c.path))
                       if (items.length === 0) return null
@@ -269,7 +299,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                       // no room for a sub-section eyebrow once the item itself is icon-only.
                       const showOverline = !compact && items.length >= 2
                       return (
-                        <div key={sub.labelKey} className="flex flex-col gap-[2px]">
+                        <div key={sub.labelKey} className="flex flex-col gap-[2px] rail-item-list">
                           {showOverline && <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>}
                           {items.map((c) => (
                             <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
@@ -281,7 +311,14 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                 </div>
               )
             }
-            return <DestLink key={d.id} d={d} onNavigate={onNavigate} compact={compact} />
+            // H1 fix (design audit, 2026-07-27): Inbox is the only Destination-zone item that
+            // carries a count badge — reuses the same DestLink badge slot Work children already
+            // have, just scoped to this one id.
+            return d.id === 'inbox' ? (
+              <DestLink key={d.id} d={d} onNavigate={onNavigate} compact={compact} badge={unreadCount} badgeLabelKey="rail.badge.unreadInbox" />
+            ) : (
+              <DestLink key={d.id} d={d} onNavigate={onNavigate} compact={compact} />
+            )
           })}
         </div>
 
@@ -291,7 +328,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
         {myModuleGroups.map((g) => (
           <div key={g.bu} className="mt-3">
             {!compact && <RailGroupLabel>{t(g.bu)}</RailGroupLabel>}
-            <div className="flex flex-col gap-[2px]">
+            <div className="flex flex-col gap-[2px] rail-item-list">
               {g.items.map((m) => (
                 <DestLink key={m.id} d={m} onNavigate={onNavigate} compact={compact} />
               ))}
@@ -303,7 +340,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
             identity/sign-out chip, not a nav link, so /profile needs its own entry here. mt-3
             matches the group rhythm above (Destinations / BU module overlines). */}
         {liveUtility.map((u, i) => (
-          <div key={u.id} className={i === 0 ? 'mt-3' : 'mt-1'}>
+          <div key={u.id} className={`rail-item-list-item ${i === 0 ? 'mt-3' : 'mt-1'}`}>
             <DestLink d={u} onNavigate={onNavigate} compact={compact} />
           </div>
         ))}

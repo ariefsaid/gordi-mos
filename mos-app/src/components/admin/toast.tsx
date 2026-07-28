@@ -3,10 +3,12 @@
 // Auto-dismisses after a timeout (controlled by useToast).
 // Single toast at a time (last action wins).
 //
-// Tokens per DESIGN.md (DIV-G6 conformance, fix work-order item 25): popover surface
-// (white popover bg + foreground text, single 1px border), the 3px left accent stripe
-// (success green — this is the success toast; the generic accent stripe is Action
-// Blue), bottom-RIGHT placement, overlay shadow. No behavior change.
+// Tokens per DESIGN.md: popover surface (white popover bg + foreground text, single
+// 1px border on all sides), bottom-RIGHT placement, overlay shadow. v4 impeccable pass
+// (2026-07-27) dropped the colored left-accent stripe — craft-floor.md's refuse list
+// names "a colored border-left/border-right above 1px" as the side-tab slop tell, and
+// the mechanical scan (`impeccable detect`) flagged this exact line. The success state
+// is already carried by the message copy; the border stays a single uniform hairline.
 
 import type { ToastState } from './use-toast'
 
@@ -32,7 +34,6 @@ export function Toast({ toast, onDismiss }: ToastProps) {
             background: 'var(--popover)',
             color: 'var(--popover-foreground)',
             border: '1px solid var(--border)',
-            borderLeft: '3px solid var(--success)',
             boxShadow: 'var(--shadow-overlay)',
           }}
         >

@@ -22,6 +22,7 @@ import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
  * width; "Open full page" is the one escalation to the standalone canonical page.
  */
 export function TasksLayout() {
+  const t = useT()
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
@@ -35,7 +36,7 @@ export function TasksLayout() {
   // the record name. Child effects run before parent effects, so without this the parent's generic
   // "Tasks — Gordi MOS" would clobber the child's record title on every mount.
   const pageMode = isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && Boolean(taskId)
-  useDocumentTitle(pageMode ? null : 'Tasks — Gordi MOS')
+  useDocumentTitle(pageMode ? null : t('common.docTitle', { page: t('nav.tasks') }))
 
   // Optimistic status overrides fed by the open drawer (AC-103) so the table row
   // reflects an inline status change without a full reload.
@@ -102,7 +103,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   useSetBreadcrumbTitle(title ?? '')
   // R6-P2 (owner review r2): reflect the open record in document.title (the browser tab / history).
   // TasksLayout deferred the generic title (passed null) precisely so this record name wins.
-  useDocumentTitle(title ? `${title} · ${t('tasks.title')} — Gordi MOS` : `${t('tasks.label.task')} — Gordi MOS`)
+  useDocumentTitle(t('common.docTitle', { page: title ? `${title} · ${t('tasks.title')}` : t('tasks.label.task') }))
   // R6(a) (owner verbatim: "blow up to full page, there should be resize back to drawer. currently
   // just back to table"): the inverse of "Open full page". Re-opens the SAME task in the split drawer
   // over the table by navigating to the same URL with the panel page-state (isTaskPageMode → false),

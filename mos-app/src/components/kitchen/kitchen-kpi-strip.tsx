@@ -1,122 +1,63 @@
-// KitchenKpiStrip — the derived KPI band (plan §8, N3).
-// Desktop: 4 DESIGN.md KPI tiles. Phone: a one-line summary.
-// Branches on isDesktop (one branch in the DOM — P-4).
+// KitchenKpiStrip — the derived metric band.
+//
+// v4 (2026-07-27): was four hero-metric cards on desktop and a one-line summary on phone.
+// Both are gone. It is now ONE dense summary rule at every width.
+//
+// Why: the craft floor refuses "same-size cards as the page structure" and the
+// "hero-metric template: big number, small label, supporting stats, accent" — the old band was
+// both, and it consumed the top half of the first viewport on Café · Log. The floor persona's
+// job is to log a dish in under a minute; they were scrolling past a management summary to
+// reach the one control they came for. The numbers still matter, so they stay — at reading
+// size, on one line, above the rows instead of in front of them.
+//
+// Colours and type are unchanged: existing tokens only, on the documented ramp.
+//
+// distill pass: this used to also carry a `kpis` prop + a `buildLogKpiStripData()` fallback
+// for Café · Log — built when the log page still rendered this strip. DD-1 replaced that with
+// the inline "Planned total" summary rule in kitchen-log-page.tsx's meta line, so the log page
+// has never called this component with `kpis` since; every real caller (Plan/Stock/Review)
+// always passes `data`. That fallback path was dead code carrying its own dead fields
+// (`deltaDot`, an always-neutral `delta` that `Metric` never shows for a neutral tone) — the
+// exact "nothing renders these" finding. Removed rather than trimmed field-by-field: `data` is
+// now the only input, matching what every caller already does.
 
-import type { KitchenKpis, KitchenKpiStripData, KitchenKpiTileData } from '@/lib/kitchen-kpis'
-import { Pill } from '@/components/ui/pill'
-import { useT, type Translate } from '@/i18n/use-t'
+import type { KitchenKpiStripData, KitchenKpiTileData } from '@/lib/kitchen-kpis'
 import './kitchen-kpi-strip.css'
 
 interface KitchenKpiStripProps {
-  kpis?: KitchenKpis
-  data?: KitchenKpiStripData
-  isDesktop: boolean
+  data: KitchenKpiStripData
+  /** Retained for call-site compatibility; the band no longer branches on width. */
+  isDesktop?: boolean
 }
 
-export function KitchenKpiStrip({ kpis, data, isDesktop }: KitchenKpiStripProps) {
-  const t = useT()
-  const resolved = data ?? buildLogKpiStripData(kpis!, t)
-  if (isDesktop) return <DesktopStrip data={resolved} />
-  return <PhoneSummary data={resolved} />
-}
-
-// I18N-1: the Log KPI strip labels/deltas/subs route through the catalog. Numbers stay numeric;
-// only the words localize. (Other Kitchen surfaces pass their own pre-built `data`.)
-function buildLogKpiStripData(kpis: KitchenKpis, t: Translate): KitchenKpiStripData {
-  const {
-    plannedTotal, madeOfPlan, madeSoFar, madeOffPlan, pctComplete,
-    itemsRemaining, unitsShort, plannedDishCount,
-  } = kpis
-  const hasPlan = plannedTotal > 0
-  const behind = plannedTotal - madeOfPlan
-
-  return {
-    ariaLabel: t('kitchen.kpi.ariaLabel'),
-    phoneLabel: t('kitchen.kpi.phone.today'),
-    phoneValue: t('kitchen.kpi.phone.planned', { count: plannedDishCount }),
-    phoneMeta: hasPlan ? `${pctComplete}%` : '—%',
-    tiles: [
-      {
-        label: t('kitchen.kpi.plannedTotal'),
-        value: hasPlan ? String(plannedTotal) : '0',
-        delta: t('kitchen.kpi.plannedTotal.delta', { count: plannedDishCount }),
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: t('kitchen.kpi.plannedTotal.sub'),
-      },
-      {
-        label: t('kitchen.kpi.madeSoFar'),
-        value: String(madeSoFar),
-        delta: hasPlan
-          ? behind > 0
-            ? t('kitchen.kpi.madeSoFar.behind', { count: behind })
-            : t('kitchen.kpi.madeSoFar.onPlan')
-          : t('kitchen.kpi.noPlanSet'),
-        deltaTone: hasPlan ? (behind > 0 ? 'destructive' : 'success') : 'neutral',
-        deltaDot: hasPlan ? undefined : false,
-        sub: madeOffPlan > 0 ? t('kitchen.kpi.madeSoFar.offPlan', { count: madeOffPlan }) : undefined,
-      },
-      {
-        label: t('kitchen.kpi.pctComplete'),
-        value: hasPlan ? `${pctComplete}%` : '—%',
-        delta: hasPlan ? t('kitchen.kpi.pctComplete.delta', { made: madeOfPlan, total: plannedTotal }) : t('kitchen.kpi.noPlanSet'),
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: t('kitchen.kpi.pctComplete.sub'),
-      },
-      {
-        // census FLAG-C: the value counts DISHES but the delta counts PORTIONS — the label
-        // said "Items" and the delta said "units", a silent unit switch. Name both units.
-        label: t('kitchen.kpi.dishesRemaining'),
-        value: String(itemsRemaining),
-        delta: hasPlan
-          ? itemsRemaining > 0
-            ? t('kitchen.kpi.dishesRemaining.short', { count: unitsShort })
-            : t('kitchen.kpi.dishesRemaining.allOnPlan')
-          : t('kitchen.kpi.noPlanSet'),
-        deltaTone: hasPlan ? (itemsRemaining > 0 ? 'destructive' : 'success') : 'neutral',
-        deltaDot: hasPlan ? undefined : false,
-        sub: t('kitchen.kpi.dishesRemaining.sub'),
-      },
-    ],
-  }
-}
-
-function DesktopStrip({ data }: { data: KitchenKpiStripData }) {
+export function KitchenKpiStrip({ data }: KitchenKpiStripProps) {
   return (
     <div className="kks-wrap">
-      {/* Grid sizes to the tile count — 4 for Log/Stock/Review, 2 for the Plan editor
-          (census DEFECT-1), so two tiles don't strand two empty columns. data-tiles
-          drives the column rule in CSS so the tablet responsive collapse still applies. */}
-      <section className="kks" data-tiles={data.tiles.length} aria-label={data.ariaLabel}>
-        {data.tiles.map(tile => <KpiTile key={tile.label} tile={tile} />)}
+      <section className="kks" aria-label={data.ariaLabel}>
+        {data.tiles.map(tile => <Metric key={tile.label} tile={tile} />)}
       </section>
       {data.statusLine && <p className="kks-status">{data.statusLine}</p>}
     </div>
   )
 }
 
-function KpiTile({ tile }: { tile: KitchenKpiTileData }) {
+/**
+ * One metric: label, value, and a delta ONLY when it carries a state worth acting on.
+ * Neutral deltas and the old `sub` captions ("portions", "of plan", "of target") are dropped —
+ * they restated the label or a number already on the row.
+ */
+function Metric({ tile }: { tile: KitchenKpiTileData }) {
+  const tone = tile.deltaTone ?? 'neutral'
+  const showDelta = tile.delta != null && (tone === 'destructive' || tone === 'success')
   return (
-    <div className="kks-tile">
+    <div className="kks-metric">
       <span className="kks-label">{tile.label}</span>
       <span className="kks-value tabular">{tile.value}</span>
-      {tile.delta != null && (
-        typeof tile.delta === 'string'
-          ? <Pill tone={tile.deltaTone ?? 'neutral'} dot={tile.deltaDot}>{tile.delta}</Pill>
-          : tile.delta
+      {showDelta && (
+        <span className={`kks-delta kks-delta--${tone}`}>
+          {typeof tile.delta === 'string' ? tile.delta : tile.delta}
+        </span>
       )}
-      {tile.sub && <span className="kks-sub">{tile.sub}</span>}
-    </div>
-  )
-}
-
-function PhoneSummary({ data }: { data: KitchenKpiStripData }) {
-  return (
-    <div className="kks-phone" aria-label={data.ariaLabel}>
-      <span className="kks-phone-label">{data.phoneLabel}</span>
-      <span className="tabular">{data.phoneValue}</span>
-      <span className="tabular">{data.phoneMeta}</span>
     </div>
   )
 }

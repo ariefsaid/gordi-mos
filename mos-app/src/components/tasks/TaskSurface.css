@@ -30,7 +30,9 @@
 .head-top { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .head-title-block { flex: 1; min-width: 0; }
 .task-title {
-  font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; /* OD-P3-9: Jakarta tracking relaxed */
+  /* typeset: was 26px/700 (off-ramp + pre-OD-P3-9 weight) — this is the record's page title,
+     the same role page-head.css's h1 already carries at 24px/600 app-wide. */
+  font-size: var(--font-size-page-title); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; /* OD-P3-9: Jakarta tracking relaxed */
   color: var(--foreground);
 }
 .actions-cluster {
@@ -46,7 +48,6 @@
     flex-wrap: wrap; gap: 8px;
   }
   .actions-cluster > * { min-height: 44px; }
-  .btn-ghost { height: 44px; width: 100%; text-align: left; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -125,21 +126,16 @@
 /* IXD-4 (PR-2): the one button hierarchy lives in ui/Button.css (.btn .btn-{variant}).
    The per-surface .btn-outline-link / .confirm-cancel / .btn-archive rules were removed;
    TaskSurface + ConfirmArchive now apply .btn .btn-outline / .btn .btn-destructive.
-   .btn-ghost / .btn-outline-sm are specialized size/variant controls (Archive task,
-   Unarchive) kept local — not part of the shared hierarchy's duplication target. */
-.btn-ghost {
-  height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  border: 0;
-  background: transparent; font: inherit; font-size: var(--font-size-body-lg); font-weight: 500;
-  color: var(--muted-foreground); cursor: pointer;
-}
-.btn-ghost:hover { background: var(--accent); color: var(--foreground); }
-.btn-ghost:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.btn-outline-sm {
-  height: 28px; padding: 0 10px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  border: 1px solid var(--border); background: var(--background);
-  font: inherit; font-size: var(--font-size-label); cursor: pointer; color: var(--foreground);
-}
+   extract (2026-07-28): the standalone `.btn-ghost` / `.btn-outline-sm` this comment used to
+   document as "kept local — specialized size/variant controls (Archive task, Unarchive)" were
+   confirmed DEAD — no .tsx anywhere renders a bare `className="btn-ghost"` or `"btn-outline-sm"`
+   any more (Archive/Unarchive now go through the shared `<Button variant="ghost">`, which emits
+   `class="btn btn-ghost"`). Worse than unused: because Button.css (`.btn-ghost`: 13.5px/600)
+   loads eagerly at app boot and this file loads later whenever a Task record opens, this file's
+   `.btn-ghost` (equal specificity, later in source order) was SILENTLY WINNING the cascade for
+   every `<Button variant="ghost">` in the whole app, not just Tasks — live-measured on Home
+   ("+ Tambah kategori"): 15px/500 instead of the canonical 13.5px/600. Deleted rather than kept
+   as a documented exception; `.btn .btn-{variant}` in ui/Button.css is the one hierarchy again. */
 
 /* ── Archive confirm ── */
 /* The bespoke .confirm-overlay/.confirm-box/.confirm-msg/.confirm-actions modal was
@@ -168,7 +164,7 @@
 }
 
 /* ── Description ── */
-.desc-body { font-size: 16px; line-height: 1.5; color: var(--foreground); }
+.desc-body { font-size: var(--font-size-body-lg); line-height: 1.5; color: var(--foreground); } /* typeset: was 16px off-ramp */
 .empty-substate { font-size: var(--font-size-body-lg); color: var(--muted-foreground); }
 
 .person-field {
@@ -234,7 +230,7 @@
 }
 .checklist-item:last-child { border-bottom: none; }
 .checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
-.checklist-label { font-size: 16px; flex: 1; cursor: pointer; }
+.checklist-label { font-size: var(--font-size-body-lg); flex: 1; cursor: pointer; } /* typeset: was 16px off-ramp; matches sibling .checklist-count/.own-name at body-lg */
 .checklist-done { color: var(--muted-foreground); text-decoration: line-through; }
 /* OD-REDESIGN-22 (D-C1): a failed checklist write shows a visible error + Retry. */
 .checklist-save-error {
@@ -301,8 +297,8 @@
 
 /* ── Not found ── */
 .not-found-panel { padding: 48px 0; }
-.not-found-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--foreground); }
-.not-found-copy { font-size: 16px; color: var(--muted-foreground); margin-bottom: 16px; }
+.not-found-title { font-size: var(--font-size-page-title); font-weight: 600; margin-bottom: 8px; color: var(--foreground); } /* typeset: was 22px/700 off-ramp; this panel's page title */
+.not-found-copy { font-size: var(--font-size-body-lg); color: var(--muted-foreground); margin-bottom: 16px; } /* typeset: was 16px off-ramp; matches sibling .empty-substate at body-lg */
 
 /* ── Loading skeleton ── */
 .sk-block { margin-bottom: 16px; }
@@ -313,10 +309,13 @@
 }
 
 /* ── Utility ── */
-.sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
-}
+/* extract (2026-07-28, DD-12): the local `.sr-only` was removed — this file, TasksWorkspace.css,
+   kitchen-plan-page.css and kitchen-review-page.css each shipped their OWN global (unscoped)
+   copy, and because they are all unlayered plain CSS, whichever loaded last won the cascade
+   over Tailwind's own `@layer utilities .sr-only` (which this app already ships via
+   `@import "tailwindcss"` in index.css — verified live in the built bundle: Tailwind's
+   `clip-path: inset(50%)` form was present but always shadowed by one of the four duplicates).
+   Tailwind's canonical utility is the ONE `.sr-only` now; nothing else needs to define it. */
 .tabular-nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
 /* ── Create form (create mode — moved verbatim from TaskCreate.tsx) ── */
@@ -325,7 +324,7 @@
    (and the OpsAddForm in-page crumb) are gone — one breadcrumb, one `›` separator. */
 
 .tc-page-head { margin-bottom: 16px; }
-.tc-page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed */
+.tc-page-title { font-size: var(--font-size-page-title); font-weight: 600; letter-spacing: -0.01em; color: var(--foreground); } /* OD-P3-9: Jakarta tracking relaxed. typeset: was 26px/700 off-ramp */
 
 .tc-card {
   max-width: 640px;
@@ -347,6 +346,49 @@
 .tc-label { font-size: var(--font-size-body-lg); font-weight: 500; color: var(--foreground); }
 .tc-required { color: var(--destructive); margin-left: 2px; }
 
+/* H10 fix (PIC/Supervisor help): the label + "?" affordance sit on one row. The "?" itself
+   mirrors dashboard/kpi-tile.css's .kpi-tile-help exactly — same tokens, same real-button +
+   aria-label grammar — the app's existing help precedent (Money's KPI tiles), reused rather
+   than invented. tap-target-phone--icon (ui/Button.css) raises the real hit area to 44×44 on
+   phone/coarse pointers; the 14px circle stays the visual size elsewhere.
+   Fix wave item 3 (H10, live-drive regression): kpi-tile's own grammar relies on the bare
+   `title` attribute for the tooltip body — a NATIVE browser tooltip that only ever shows on
+   a slow mouse hover, never on keyboard focus (despite the kpi-tile comment's claim), and
+   renders as invisible OS chrome outside the page's own paint (a live reviewer driving the
+   app — mouse OR keyboard — could not see it, hence "never renders visibly"). `.tc-help-bubble`
+   below is a REAL DOM popover — the SAME chrome the row `⋯` menu already uses one file over
+   (TasksWorkspace.css `.row-menu-pop`: `--popover` bg, `--border`, `--radius-sm`, one
+   `box-shadow` token) — shown on both `:hover` and `:focus-visible` via a plain adjacent-sibling
+   CSS rule, no JS positioning library. `aria-label` stays on the button as the accessible-name
+   fallback; the bubble is `aria-hidden` (the button already names itself). Anchored left-aligned
+   BELOW the button (not centered/above): the field sits inside the drawer's narrow, scrollable
+   `.dw-tabpane` (`.dw-surface` is `overflow: hidden` for its rounded corners) — a centered bubble
+   above the button clipped the card's rounded top, and the PIC/Supervisor "?" sits near the LEFT
+   of its label row, so growing the bubble from the button's own left edge (not centering it, and
+   not growing leftward off a right anchor) is what actually stays inside the panel's right bound;
+   downward into the pane's own scroll room stays clear of the top clip too. */
+.tc-label-row { display: flex; align-items: center; gap: 6px; }
+.tc-help-wrap { position: relative; display: inline-flex; }
+.tc-help {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; padding: 0; background: transparent;
+  font-family: inherit; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); color: var(--muted-foreground);
+  font-size: var(--font-size-micro); cursor: help; flex: none;
+}
+.tc-help:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.tc-help-bubble {
+  position: absolute; left: 0; top: calc(100% + 6px);
+  z-index: var(--z-popover); width: max-content; max-width: 200px;
+  background: var(--popover); color: var(--foreground); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-overlay);
+  padding: 6px 10px; font-size: var(--font-size-label); font-weight: 400; line-height: 1.4;
+  text-align: left; opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.tc-help:hover + .tc-help-bubble,
+.tc-help:focus-visible + .tc-help-bubble { opacity: 1; visibility: visible; }
+
 /* F17 (OD-91 #29): the "+ Add context" reveal — a quiet, text-first affordance (not a solid
    button; the one solid primary stays the create action). Token-only. */
 .tc-add-context {
@@ -367,11 +409,13 @@
 .tc-add-context:disabled { color: var(--muted-foreground); cursor: not-allowed; }
 
 /* Description keeps a native <textarea> — ui/ has no ratified multiline primitive.
-   It carries the same token chrome (border/radius/focus-ring/16px) as the other fields. */
+   It carries the same token chrome (border/radius/focus-ring/16px) as the other fields.
+   typeset: the literal 16px IS the --font-size-touch-input mechanical case (a mobile-tapped
+   field); now spelled with the token so the rule and the value agree. */
 .tc-textarea {
   width: 100%; padding: 8px 12px;
   border: 1px solid var(--input); border-radius: var(--radius-sm); /* 8px — control/input, OD-P3-10 */
-  background: var(--background); font: inherit; font-size: 16px;
+  background: var(--background); font: inherit; font-size: var(--font-size-touch-input);
   color: var(--foreground); resize: vertical;
 }
 .tc-textarea:focus-visible {
@@ -381,14 +425,15 @@
 /* F2 fix: the shared TextInput/Select/DateField primitives own their own token chrome
    (box, chevron/calendar glyph, focus ring); scale their box to this form's 36px/16px
    field rhythm (same override pattern the record-field__select rule uses to raise
-   Select to the record's 44px floor — see record-viewer.css). */
+   Select to the record's 44px floor — see record-viewer.css). typeset: 16px → the
+   --font-size-touch-input token (same mechanical anti-zoom case, now named). */
 .tc-input .mk-textinput__box { height: 36px; padding: 0 12px; }
-.tc-input .mk-textinput__field { font-size: 16px; }
+.tc-input .mk-textinput__field { font-size: var(--font-size-touch-input); }
 .tc-select .mk-select__box { height: 36px; padding: 0 34px 0 12px; }
-.tc-select .mk-select__field { font-size: 16px; }
+.tc-select .mk-select__field { font-size: var(--font-size-touch-input); }
 .tc-select .mk-select__chevron { right: 10px; }
 .tc-date .mk-date__box { height: 36px; padding: 0 12px; }
-.tc-date .mk-date__display { font-size: 16px; }
+.tc-date .mk-date__display { font-size: var(--font-size-touch-input); }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
    --status-lost-text). The invalid field's border (the ratified components' own
@@ -486,14 +531,10 @@
 
 /* ── Pinned foot — Archive always reachable ── */
 .dw-foot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; flex: none; }
-.btn-ghost-danger {
-  height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  border: 0;
-  background: transparent; font: inherit; font-size: var(--font-size-body-lg); font-weight: 500;
-  color: var(--muted-foreground); cursor: pointer;
-}
-.btn-ghost-danger:hover { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--status-lost-text); } /* --status-lost-text */
-.btn-ghost-danger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* extract (2026-07-28): `.btn-ghost-danger` removed — confirmed dead alongside `.btn-ghost` /
+   `.btn-outline-sm` above (no live .tsx consumer). A destructive-tinted ghost button, if this
+   surface needs one again, belongs as a variant on the shared ui/Button.css hierarchy, not a
+   fourth one-off class here. */
 
 /* GAP-2 (OD-91 #7): the expand-in-place (.dw-surface-expanded) reflow is retired with the
    width toggle — the drawer holds a fixed width; "Open full page" is the one escalation. */

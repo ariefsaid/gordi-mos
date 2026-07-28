@@ -26,6 +26,64 @@ export const messages = {
     'common.save': 'Save',
     'common.cancel': 'Cancel',
     'common.saving': 'Saving…',
+    // ── harden (2026-07-28): the shared recovery vocabulary ────────────────────────────
+    // Every ErrorState's Retry button used to render the hardcoded English default
+    // 'Retry' — ~15 call sites passed no retryLabel, so the whole app said "Retry"
+    // in Indonesian. Fixed in the primitive (state-kit.tsx) against this key.
+    'common.retry': 'Try again',
+    'common.working': 'Working…',
+    'common.unexpectedError': 'Something went wrong. Try again.',
+    // One offline-shaped load-failure sentence, reused by every surface whose read can
+    // fail on a café/roastery floor with intermittent connectivity (PRODUCT.md scene).
+    // ${what} names the thing that did not load, so the message is specific without
+    // needing N separate translated sentences that then drift apart.
+    'common.loadFailed': 'Couldn’t load ${what}. Check your connection and try again.',
+    'common.what.plan': 'today’s plan',
+    'common.what.upcomingPlan': 'the upcoming plan',
+    'common.what.items': 'the dish list',
+    'common.what.queue': 'the review queue',
+    'common.what.pushes': 'the push history',
+    'common.what.stock': 'stock',
+    'common.what.budgets': 'budgets',
+    'common.what.costLines': 'the BOM and ingredient cost lines',
+    'common.what.chart': 'this chart',
+    'common.what.table': 'this table',
+    'common.noRows': 'No rows to show.',
+    // onboard (2026-07-28): the "?" disclosure's accessible name. It used to BE the entire help
+    // paragraph, so a screen reader announced ~40 words as a button label with no indication it
+    // was a control or that anything could be opened. The button is now named as a control; the
+    // text lives in the panel it expands, announced politely when it opens.
+    'common.help': 'Help',
+    // The document-title frame. 12 pages hardcoded an English '<Page> — Gordi MOS'
+    // literal, so the browser tab / PWA task-switcher / bookmark — the one piece of app
+    // chrome that survives outside the app — stayed English for an Indonesian-reading
+    // floor user. One frame key so the pages cannot drift apart.
+    'common.docTitle': '${page} — Gordi MOS',
+    'doc.cafePlan': 'Café Plan',
+    'doc.cafeStock': 'Café Stock',
+    'doc.cafeReview': 'Café Review',
+    'doc.cafePushes': 'Café Pushes',
+    'doc.cafeOps': 'Café Operations',
+    'doc.followUp': 'AR Follow-up',
+    'doc.followUpQueue': 'AR Follow-up queue',
+    'doc.notFound': 'Page not found',
+    'notFound.title': 'That page isn’t here',
+    'notFound.copy': 'The link may be out of date, or the record may have been archived. Going back usually works.',
+    'notFound.back': 'Go back',
+    'notFound.home': 'Go to Home',
+    // RouteLeaveGuard, now the shared ConfirmDialog instead of window.confirm — so these
+    // buttons are the APP's, in the app's language, on the prompt whose wrong answer
+    // discards unsaved work.
+    // ErrorBoundary / RouteErrorBoundary. The old copy promised "the error has been logged
+    // and our team will look into it" — no telemetry sink is registered anywhere in the app,
+    // so nothing leaves the device. Says what is true, and gives the one instruction that
+    // actually helps.
+    'errorBoundary.title': 'This screen stopped working',
+    'errorBoundary.copy': 'Reloading usually fixes it. If it keeps happening, tell your lead what you were doing — nothing about this error is sent anywhere automatically.',
+    'errorBoundary.reload': 'Reload the app',
+    'leaveGuard.title': 'Leave without saving?',
+    'leaveGuard.stay': 'Stay on this page',
+    'leaveGuard.discard': 'Discard and leave',
     // Shared E7 result-header framing (OD-REDESIGN-72/79 collection convergence; E7-floor
     // reframe 2026-07-22 replaces "N results" with E7's own "N items in your scope").
     'common.savedView': 'Saved view',
@@ -53,6 +111,9 @@ export const messages = {
     'nav.kitchen.pushes': 'Pushes',
     'home.title': 'Home',
     'home.subtitle': 'Your week at a glance',
+    // H10 fix (design audit, 2026-07-28): the "?" HelpTip beside the page title — what the
+    // attention bands are and how the stream is ordered.
+    'home.help': 'One ranked list, most urgent first: overdue, due today, blocked, failed checks, then mentions — followed by your other open work. Change which comes first in View options.',
     'home.greeting.morning': 'Good morning, ${name}',
     'home.greeting.afternoon': 'Good afternoon, ${name}',
     'home.greeting.evening': 'Good evening, ${name}',
@@ -146,6 +207,10 @@ export const messages = {
     'tasks.create.title': 'Title',
     'tasks.create.titlePlaceholder': 'What needs to be done?',
     'tasks.create.teamPlaceholder': 'Select team…',
+    // Supervisor is a required, deliberate choice (no longer defaulted to the creator/PIC) — same
+    // placeholder + required-field convention as Team above.
+    'tasks.create.supervisorPlaceholder': 'Select supervisor…',
+    'tasks.create.supervisorRequired': 'Supervisor is required',
     'tasks.create.none': '— None —',
     'tasks.create.addContext': '+ Add context',
     'tasks.create.dueDate': 'Due date',
@@ -193,7 +258,11 @@ export const messages = {
     // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership source, shown
     // beside the PIC on occurrence-grouped rows whose generating def binds a Role.
     'tasks.pic.via': 'via ${role}',
+    // H10 fix — PIC/Supervisor contextual help (create form "?" affordance). Definitions match
+    // CONTEXT.md's domain glossary voice.
+    'tasks.pic.help': 'PIC (Person in Charge) — the person expected to perform and finish this task.',
     'tasks.supervisor': 'Supervisor',
+    'tasks.supervisor.help': 'Supervisor — the person who checks in, unblocks, and verifies this task. A separate, deliberate choice — it may be the same person as PIC, but never defaults to them.',
     'tasks.reassignPic': 'Reassign PIC',
     'tasks.openFullPage': 'Open full page',
     'record.openFullPage': 'Open full page',
@@ -384,6 +453,13 @@ export const messages = {
     'inbox.opening': 'Opening…',
     'inbox.errorTitle': "Couldn't load inbox",
     'inbox.retry': 'Try again',
+    // H9 fix (design audit, 2026-07-27): the honest 401 path — names the reason (session gone,
+    // not just a failed request) and offers the one action that can actually succeed.
+    'inbox.sessionExpired': 'Your session expired',
+    'inbox.signInAgain': 'Sign in again',
+    // H7/H10 fix (design audit, 2026-07-27): the discoverable hint for the ↑/↓ + R keyboard
+    // triage shortcut (mark the focused row read without opening it).
+    'inbox.kbdHint': '↑ ↓ to move · R to mark read',
     'inbox.target.unavailable.malformed': "This notification's target can't be opened.",
     'inbox.target.unavailable.unknownType': "This notification doesn't link to an openable record.",
     'inbox.target.unavailable.legacyRoute': "This notification doesn't link to an openable record.",
@@ -396,6 +472,16 @@ export const messages = {
     'inbox.target.type.signal': 'Signal',
     'inbox.target.type.followUp': 'AR Follow-up',
     'inbox.quickTitle': 'Inbox',
+    // H10 fix (design audit, 2026-07-28): the "?" HelpTip beside the page title — what lands
+    // here, and what the "Handled" state means (it clears triage, it does not undo the action).
+    // clarify (2026-07-28): the previous copy spent its second half explaining how to mark a
+    // notification "Handled" — a control that DOES NOT EXIST for any real user. The connected
+    // component never passes `onMarkHandled`, and it hard-codes `handledFilterAvailable={false}`
+    // pending an owner-gated migration. So the app's only piece of Inbox help documented a
+    // feature nobody can reach: worse than silence, because it sends the user looking for a
+    // button that isn't there. Replaced with what the surface actually does, and with the one
+    // consequence that is genuinely non-obvious — opening a row marks it read.
+    'inbox.help': 'Everything addressed to you — mentions, approvals, task assignments — lands here. Opening a row marks it read and takes you to the record it came from. Use Unread to see only what you haven’t looked at yet.',
     'followUps.title': 'AR Follow-up queue',
     'followUps.subtitle': 'Chase, settle, and confirm invoice-grain commitments',
     'followUps.overdue': 'Overdue',
@@ -426,6 +512,24 @@ export const messages = {
     'plan.pricing.title': 'Pricing pre-flight',
     'plan.pricing.subtitle': 'Check the margin against the linked certified budgeted COGS',
     // Kitchen Stock column headers (audit D7 fix)
+    // harden (2026-07-28): Café · Stock's whole KPI band was hardcoded English in
+    // lib/kitchen-stock-kpis.ts — the last untranslated band in the Café module.
+    'kitchen.stock.kpi.ariaLabel': 'Stock summary',
+    'kitchen.stock.kpi.phoneLabel': 'Stock',
+    'kitchen.stock.kpi.itemCount': '${count} items',
+    'kitchen.stock.kpi.availableCount': '${count} available',
+    'kitchen.stock.kpi.onHand': 'Total on-hand',
+    'kitchen.stock.kpi.onHand.sub': 'usable now',
+    'kitchen.stock.kpi.inStock': 'Items in stock',
+    'kitchen.stock.kpi.inStock.delta': '${count} empty/negative',
+    'kitchen.stock.kpi.inStock.sub': 'with usable stock',
+    'kitchen.stock.kpi.negative': 'Negative balances',
+    'kitchen.stock.kpi.negative.review': 'needs review',
+    'kitchen.stock.kpi.negative.clear': 'clear',
+    'kitchen.stock.kpi.negative.noData': 'no stock data yet',
+    'kitchen.stock.kpi.available': 'Available total',
+    'kitchen.stock.kpi.available.delta': 'transfer-ready',
+    'kitchen.stock.kpi.available.sub': 'cumulative',
     'kitchen.stock.col.dish': 'Dish',
     'kitchen.stock.col.stok': 'Stock',
     'kitchen.stock.col.tersedia': 'Available',
@@ -436,6 +540,9 @@ export const messages = {
     // route through here so a session never mixes locales in one string.
     'kitchen.log.stepper.noPlan': 'no plan',
     'kitchen.log.stepper.plan': 'plan',
+    // Module-neutral (was 'kitchen.log.stepper.unit' — now also consumed by PlanQtyField,
+    // a non-Log surface; renamed so the key name doesn't lie about its scope).
+    'kitchen.unit.porsi': 'porsi',
     'kitchen.log.stepper.stock': 'stock',
     'kitchen.log.stepper.avail': 'avail',
     'kitchen.log.stepper.notePlaceholder': 'Note required — off plan',
@@ -472,6 +579,181 @@ export const messages = {
     'kitchen.kpi.dishesRemaining.short': '−${count} portions short',
     'kitchen.kpi.dishesRemaining.allOnPlan': 'all on plan',
     'kitchen.kpi.dishesRemaining.sub': 'of target',
+    // ── Nielsen sweep (Café·Log 24/40, Café·Plan 16/32) — the id-locale gaps in the exact
+    //    strings a floor worker reads at the moment they save: row status pill, footer
+    //    tally, Discard/Submit, search placeholder, "All" category filter, action-type
+    //    tabs, and the submit success banner. Shared across Log + Plan + Pesanan. ──
+    'kitchen.status.onPlan': 'On plan',
+    'kitchen.status.over': 'Over +${count}',
+    'kitchen.status.under': 'Under −${count}',
+    'kitchen.status.logged': 'Logged',
+    'kitchen.status.notLogged': 'Not logged',
+    'kitchen.log.footer.dish.one': '${count} dish',
+    'kitchen.log.footer.dish.other': '${count} dishes',
+    // clarify (2026-07-28): ONE noun for one measure. This tally said "units" while the KPI
+    // band two lines above it said "portions" and the inline field suffix says "porsi" — three
+    // words for the same quantity on one screen. Aligned to the band. `kitchen.unit.porsi` is
+    // deliberately NOT changed: "porsi" is what the floor actually says and what the incumbent
+    // kitchen app prints beside the field; that is product vocabulary, not a craft slip.
+    'kitchen.log.footer.unit.one': '${count} portion',
+    'kitchen.log.footer.unit.other': '${count} portions',
+    'kitchen.log.footer.pendingReview': 'pending review on Submit',
+    'kitchen.log.discard': 'Discard',
+    'kitchen.log.submit.submitting': 'Submitting…',
+    'kitchen.log.submit.entry.one': 'Submit ${count} entry',
+    'kitchen.log.submit.entry.other': 'Submit ${count} entries',
+    'kitchen.log.submit.default': 'Submit',
+    'kitchen.log.success.one': '${count} line submitted — pending review.',
+    'kitchen.log.success.other': '${count} lines submitted — pending review.',
+    'kitchen.log.searchPlaceholder': 'Find a dish',
+    'kitchen.filter.all': 'All',
+    'kitchen.toolbar.category.ariaLabel': 'Category',
+    'kitchen.actionType.production': 'Production',
+    'kitchen.actionType.transferRadiant': 'Transfer to Radiant',
+    'kitchen.actionType.transferRadiant.short': '→ Radiant',
+    'kitchen.actionType.transferBungur': 'Transfer to Bungur',
+    'kitchen.actionType.transferBungur.short': '→ Bungur',
+    'kitchen.plan.searchPlaceholder': 'Find a dish to plan',
+    // polish (2026-07-28): H10 (Help & Documentation) is the weakest heuristic app-wide, and
+    // Café · Plan was the only scored surface carrying no in-app help at all. Same HelpTip
+    // primitive, same meta-line placement as Café · Log (kitchen.log.help) — it claims no new
+    // chrome, which DD-15 measured as this module's dominant phone cost.
+    'kitchen.plan.help': 'Set how many portions of each dish the café intends to make today. This is the plan the floor logs against — your number shows up as the greyed placeholder on Café Log. Each change saves on its own; there is no Submit button. Only an ops lead can edit the plan.',
+    'kitchen.plan.col.dish': 'Dish',
+    'kitchen.plan.col.plan': 'Plan',
+    'kitchen.filter.noMatch': 'No dishes match your filter.',
+    'kitchen.plan.pesanan.col.item': 'Item',
+    'kitchen.plan.pesanan.col.action': 'Action',
+    'kitchen.plan.pesanan.col.planned': 'Planned',
+    'kitchen.log.discard.confirmTitle': 'Discard all staged entries?',
+    'kitchen.log.discard.qty.one': 'quantity',
+    'kitchen.log.discard.qty.other': 'quantities',
+    'kitchen.log.discard.confirmBody': 'This clears ${count} typed ${qty} for ${actionType}. Search and category filters are kept.',
+    // ── Café v4 sweep — DD-1 KPI-tile removal on Plan + the module's bilingual pass
+    //    (i18n audit: five page H1s + Log/Plan/Stock/Review/Pushes literal strings). ──
+    'kitchen.empty.noActiveItems.title': 'No active WIP items',
+    'kitchen.log.empty.copy': 'Ask an ops lead to add items.',
+    'kitchen.plan.empty.copy': 'Ask an admin to add café items first.',
+    'kitchen.plan.pesanan.empty.title': 'Nothing planned',
+    'kitchen.plan.pesanan.empty.copy': 'No planned items in the next ${days} days yet.',
+    'kitchen.plan.saving': 'Saving…',
+    'kitchen.plan.saved': 'Saved',
+    'kitchen.stock.empty.title': 'No stock to show',
+    'kitchen.stock.empty.copy': 'No approved Café activity for ${date} yet.',
+    'kitchen.review.meta.submitted': 'submitted',
+    'kitchen.review.meta.offPlan': 'off-plan',
+    'kitchen.review.meta.blocked': 'blocked',
+    'kitchen.review.offline': "You're offline — reviewing needs a connection. Reconnect to approve or reject.",
+    'kitchen.review.error.forbidden': 'You are not permitted to review this log.',
+    'kitchen.review.error.generic': 'Something went wrong. Please try again.',
+    'kitchen.review.notice.staleRefresh': 'Already reviewed by someone else — refreshing the queue…',
+    'kitchen.review.notice.approved': 'Approved · batch ${batchId}',
+    'kitchen.review.notice.rejected': 'Rejected — removed from the queue.',
+    'kitchen.review.notice.bulkPartial': '${approved} approved · ${failed} failed — the failed rows remain in the queue.',
+    'kitchen.review.notice.bulkApproved': '${approved} approved · last batch ${batchId}',
+    'kitchen.review.empty.title': 'Nothing to review',
+    'kitchen.review.empty.copy': 'No submitted logs for ${date}.',
+    'kitchen.review.empty.note': 'Pull again to check for newly submitted Café logs.',
+    // clarify + harden (2026-07-28): the ENTIRE approve/reject decision flow and both permission
+    // states on Café · Review were hardcoded English on a module whose users are Indonesian-
+    // reading café staff and their lead. Also: the two confirm buttons said only "Confirm
+    // approve" / "Confirm reject" — clarify asks a destructive/consequential confirm to NAME THE
+    // OBJECT, so they now say what is being approved.
+    // onboard (2026-07-28): the shared HelpTip had reached only Inbox, Home and Money's KPI
+    // tiles. Tasks, Café · Log and Objectives — the three surfaces a new contributor, a new
+    // lead and a new BU-head respectively meet FIRST — had no in-app help at all. Each answers
+    // the question the surface actually raises on first contact, not a description of the
+    // controls (onboard: "helper text answers an implicit question instead of restating the
+    // control"; "teach the 20% that delivers 80%").
+    // harden (2026-07-28): these four accessible names were template literals in English, so a
+    // screen-reader user on the Indonesian locale heard the ONE control on the floor surface —
+    // the per-dish quantity field, 34 of them — announced in a language they may not read.
+    // Invisible strings are still shipped strings.
+    'kitchen.qty.producedAria': 'Quantity produced for ${dish}',
+    'kitchen.qty.plannedAria': 'Planned quantity for ${dish}',
+    'kitchen.qty.decreaseAria': 'Decrease planned quantity for ${dish}',
+    'kitchen.qty.increaseAria': 'Increase planned quantity for ${dish}',
+    'kitchen.log.toolbarAria': 'Café log scope and filters',
+    'table.group.expand': 'Expand ${group}',
+    'table.group.collapse': 'Collapse ${group}',
+    'kitchen.log.help': 'Type how many portions you actually made today next to each dish. The greyed number is the plan, not an entry — leave a dish blank if you made none. If your number differs from the plan you’ll be asked why, once you move off the field. Nothing is recorded until you press Submit; your lead approves it afterwards.',
+    'tasks.help': 'Everything you or your team own. PIC is the person doing the work; Supervisor is the person accountable for it. Overdue work is red. Saved views remember a set of filters so you can come back to the same list — pick one from the chips above.',
+    // clarify (2026-07-28): the FR-422 trace lines rendered "3 tasks · Menu launch (2)" and
+    // "Under: Q3 Growth (2) · 2 tasks" as English template literals — visible, untranslated copy
+    // on Objectives and on Projects & Processes.
+    'catalog.trace.taskCount.one': '${count} task',
+    'catalog.trace.taskCount.other': '${count} tasks',
+    'catalog.trace.under': 'Under: ${segments} · ${total}',
+    'catalog.trace.noParent': 'no parent Objective (${count})',
+    'objectives.help': 'Objectives are what the company committed to this period. Everyone can read them; ops leads and admins can edit. Open one to see the Projects and Processes working toward it — and, through those, the Tasks. There is no separate cascade screen: you walk the records.',
+    'kitchen.review.approve': 'Approve',
+    'kitchen.review.reject': 'Reject',
+    'kitchen.review.approveAria': 'Approve ${dish}',
+    'kitchen.review.rejectAria': 'Reject ${dish}',
+    'kitchen.review.note.approve': 'Approve note',
+    'kitchen.review.note.reject': 'Reject note',
+    'kitchen.review.note.required': 'A note is required.',
+    'kitchen.review.confirm.approve': 'Approve ${dish}',
+    'kitchen.review.confirm.reject': 'Reject ${dish}',
+    'kitchen.review.cancel': 'Cancel',
+    'kitchen.review.noteAriaApprove': 'Approve note for ${dish}',
+    'kitchen.review.noteAriaReject': 'Reject note for ${dish}',
+    'kitchen.review.notePlaceholder.approve': 'Why the quantity differs from plan (required)',
+    'kitchen.review.notePlaceholder.reject': 'Reason for rejection (required)',
+    'kitchen.review.caption': 'Submitted Café logs awaiting review',
+    'kitchen.review.signInMsg': 'You need to sign in to review Café logs.',
+    'kitchen.review.signIn': 'Sign in',
+    'kitchen.review.forbidden.region': 'Access restricted',
+    'kitchen.review.forbidden.title': 'Review is available to ops leads only.',
+    'kitchen.review.forbidden.msg': 'Ask an ops lead to review your submitted Café logs.',
+    'kitchen.review.backToLog': 'Back to Log',
+    // Café · Log — the offline scene. PRODUCT.md names intermittent connectivity as the floor
+    // condition, so this is the one error copy most likely to be read, and it was English-only.
+    'kitchen.log.offline.banner': 'You’re offline — logging needs a connection. Your entries are kept on screen; reconnect to submit.',
+    'kitchen.log.offline.error': 'You’re offline — logging needs a connection. Reconnect and try again.',
+    'kitchen.log.offline.aria': 'Offline',
+    'kitchen.log.retryAria': 'Try loading the dish list again',
+    'kitchen.log.captureAria': 'Café log capture',
+    'kitchen.log.caption': 'Café production log — enter the quantity made today for each dish',
+    'kitchen.plan.caption': 'Café plan — set the planned quantity for each dish',
+    'kitchen.pushes.caption': 'Café ESB push outbox',
+    'kitchen.pushes.escalate': 'Escalate to platform',
+    'kitchen.pushes.escalateAria': 'Manual intervention required',
+    'kitchen.pushes.forbidden.region': 'Access restricted',
+    'kitchen.pushes.col.batch': 'Batch',
+    'kitchen.pushes.col.endpoint': 'Endpoint',
+    'kitchen.pushes.col.target': 'Target',
+    'kitchen.pushes.col.status': 'Status',
+    'kitchen.pushes.col.retries': 'Retries',
+    'kitchen.pushes.col.error': 'Error',
+    'kitchen.pushes.col.esbDoc': 'ESB doc',
+    'kitchen.pushes.col.created': 'Created',
+    'kitchen.pushes.col.posted': 'Posted',
+    'kitchen.actionType.aria': 'Action type',
+    'kitchen.refresh': 'Refresh',
+    'kitchen.pushes.forbidden.title': 'Pushes is available to ops leads only.',
+    'kitchen.pushes.forbidden.copy': 'The ESB outbox is visible to ops leads and admins.',
+    'kitchen.pushes.meta.total': '${count} in outbox',
+    'kitchen.pushes.empty.title': 'No pushes yet',
+    'kitchen.pushes.empty.copy': 'The ESB outbox is empty right now.',
+    'kitchen.pushes.empty.note': 'Pull again to check for new push activity.',
+    // Found live during the v4 sweep's bilingual re-verify (same defect class — a naked
+    // English count noun in an otherwise-translated `id` page head).
+    'kitchen.stock.meta.dishCount.one': '${count} dish',
+    'kitchen.stock.meta.dishCount.other': '${count} dishes',
+    'kitchen.plan.pesanan.meta.plannedCount': '${count} planned',
+    'kitchen.plan.pesanan.meta.horizon': 'next ${days} days',
+    // v4 (H1/H10 legibility pass): the member/Kitchen-Lead face renders NO editable
+    // affordance by design (RLS + client role gate — see kitchen-plan-page.tsx), but used
+    // to say nothing about why or what to do instead. This note names the gate and points
+    // at the one thing this viewer CAN do — the row link below logs the exact dish.
+    'kitchen.plan.pesanan.readOnlyNote': "Only an ops lead can edit this plan — you're viewing what's coming. Tap a dish to log what you actually made.",
+    // v4 note: the CTA below is NOT a full "Open X →" literal — composed in JSX from
+    // openLogVerb + dest.cafe + nav.cafe.log (same pattern as pageTitle above) so it reads
+    // "Buka Kafe · Log" in `id`, matching the breadcrumb, instead of a baked-English "Café"
+    // sitting inside an otherwise-Indonesian sentence.
+    'kitchen.plan.pesanan.openLogVerb': 'Open',
+    'kitchen.plan.row.logAria': 'Log production for ${item}',
     // ── I18N-1 (census DO-8): Admin People — the /admin/people list surface (head, table,
     //    filters, row actions, empty states, confirms, toasts). Secondary modal dialogs
     //    (create-person, role-editor, password-reveal) still owe their own pass. ──
@@ -543,7 +825,7 @@ export const messages = {
     'admin.role.finance.desc': 'Sees financial reports',
     'admin.role.manager': 'Manager',
     'admin.role.manager.desc': 'Derived from team ownership',
-    'admin.create.title': 'Add person',
+    'admin.create.title': 'Create person',
     'admin.create.subtitle': 'Create a directory entry, and optionally a sign-in.',
     'admin.create.fullName': 'Full name',
     'admin.create.nameError': 'Enter a name',
@@ -589,15 +871,19 @@ export const messages = {
     'kitchen.push.env.goo': 'GOO staging',
     'kitchen.push.env.dry_run': 'Dry run',
     // ── Redesign Step 2 — new rail/destination/job-sentence/stub keys (spec §3.1, Rule 1/3/7). ──
-    'dest.events': 'Events',
+    // OD-V4-2 ("Signals everywhere", 2026-07-27): the workspace-root noun "Events" is retired.
+    // dest.events/nav.events now render "Signals" — the live company-wide feed (root). The Work
+    // child (nav.work.signals / nav.signals) is the archive of the same Signal records, disambiguated
+    // as "Signals Archive" so the two rail entries are never visually identical.
+    'dest.events': 'Signals',
     'dest.money': 'Money',
     'dest.cafe': 'Café',
     'dest.ecommerce': 'Ecommerce',
     'dest.roastery': 'Roastery',
     'dest.admin': 'Admin Settings',
     'dest.profile': 'Personal Profile',
-    'nav.signals': 'Signals',
-    'nav.events': 'Events',
+    'nav.signals': 'Signals Archive',
+    'nav.events': 'Signals',
     'nav.money': 'Money',
     'nav.cafe': 'Café',
     'nav.cafe.opening': 'Opening',
@@ -611,7 +897,7 @@ export const messages = {
     'nav.admin': 'Admin Settings',
     'nav.admin.people': 'People',
     'nav.profile': 'Personal Profile',
-    'nav.work.signals': 'Signals',
+    'nav.work.signals': 'Signals Archive',
     'nav.work.projects': 'Projects & Processes',
     'nav.work.objectives': 'Objectives',
     'nav.work.tasks': 'Tasks',
@@ -634,13 +920,23 @@ export const messages = {
     // reconciliation (open vs total display semantics) stays FLAG-2.
     'rail.badge.openTasks': '${count} open tasks',
     'rail.badge.attentionSignals': '${count} signals need attention',
+    // H1/H8 fix (design audit, 2026-07-27): the Inbox nav-entry unread badge — rail + phone
+    // bottom tab. Count-only noun phrase (mirrors openTasks/attentionSignals); the accessible
+    // NAME is built by joining this with the destination label ("Inbox, N unread"), same pattern
+    // as WorkChild below, so it never regresses the "Tugas12" run-together defect.
+    'rail.badge.unreadInbox': '${count} unread',
     'nav.more': 'More',
     'job.home': 'What needs my attention right now?',
     'job.work': 'Find and do the work I own or my Team owns.',
     'job.tasks': 'Find and do the work I own or my Team owns.',
     'job.signals': 'Search and revisit the Signals your Teams have shared.',
-    'job.projects': 'Govern the Processes and Projects that generate the work.',
-    'job.objectives': 'Track the Objectives the org committed to.',
+    // OD-V4-1 H10 (partial): the job sentence is the one help affordance these two pages already
+    // have — sharpened to name the Objective ⇄ Project/Process relationship explicitly, since that
+    // is the exact distinction census scoring found undocumented. A fuller contextual-help
+    // affordance is deferred to the shared help primitive another agent is building this round
+    // (src/components/ui/) — see the Director report for the gap.
+    'job.projects': 'Govern the Projects and Processes that generate the work — each one ladders up to an Objective.',
+    'job.objectives': "Track the Objectives the org committed to — the destinations every Project and Process works toward.",
     // Catalog collection grammar (Projects & Processes / Objectives management surfaces).
     'catalog.list': 'List',
     'catalog.layoutLabel': 'Layout',
@@ -673,19 +969,46 @@ export const messages = {
     'catalog.announce.archiveFailed': 'Couldn’t archive ${name}',
     'catalog.announce.restoreFailed': 'Couldn’t restore ${name}',
     'catalog.filteredEmpty.title': 'Nothing matches your filters',
-    'catalog.objectives.add': 'Add objective',
-    'catalog.objectives.adding': 'Adding…',
+    // ── clarify (2026-07-28): ONE verb per concept ───────────────────────────────────────
+    // The app shipped three verbs for the single act of bringing a record into existence:
+    // "Create task", "Add objective", and — inside ONE dialog — a heading reading "Add
+    // person" above a button reading "Create person". clarify: "Keep the same noun and verb
+    // for the same concept throughout the product."
+    // The rule now in force, and the reason it is a real distinction rather than a coin toss:
+    //   • CREATE mints a new record that did not exist  → Create task · Create objective ·
+    //     Create project or process · Create person · Create login
+    //   • ADD attaches something to a container         → Add checklist item · Add category
+    // That maps exactly onto CONTEXT.md's own Task-vs-Checklist-item split, so the verb tells
+    // the user what KIND of thing they are about to make. Casing follows the dominant shipped
+    // form (sentence case, object lowercase): "Create task", not "Create Task".
+    'catalog.objectives.add': 'Create objective',
+    'catalog.objectives.adding': 'Creating…',
     'catalog.objectives.empty.title': 'No objectives yet',
-    'catalog.objectives.empty.copy': 'Add your first objective above.',
+    'catalog.objectives.empty.copy': 'Objectives are what the company committed to this period — every Project, Process and Task ladders up to one. Name the first one above.',
     'catalog.objectives.error': 'Couldn’t load objectives.',
     'catalog.objectives.loading': 'Loading objectives…',
-    'catalog.projects.add': 'Add project or process',
+    'catalog.projects.add': 'Create project or process',
     'catalog.projects.adding': 'Adding…',
     'catalog.projects.empty.title': 'No projects or processes yet',
-    'catalog.projects.empty.copy': 'Add your first project or process above.',
+    'catalog.projects.empty.copy': 'A Project runs once and finishes; a Process repeats on a rhythm. Both hold the Tasks that move an Objective forward. Name the first one above.',
     'catalog.projects.error': 'Couldn’t load projects & processes.',
     'catalog.projects.loading': 'Loading projects & processes…',
-    'job.events': "See what's happening around our outlets and when.",
+    // OD-V4-1 H7: the one filter dimension Objectives has data for (mirrors Projects/Processes'
+    // existing Type filter via the same CollectionToolbar `filters` mechanism).
+    'catalog.filter.coverage': 'Task coverage',
+    'catalog.coverage.all': 'All',
+    'catalog.coverage.hasTasks': 'Has tasks',
+    'catalog.coverage.noTasks': 'No tasks',
+    // OD-V4-1 H4: per-row relations disclosure — the real drill target every row now carries.
+    'catalog.relations.toggleAria': 'Show relations for ${name}',
+    'catalog.relations.hideAria': 'Hide relations for ${name}',
+    'catalog.relations.heading.children': 'Projects & Processes under this',
+    'catalog.relations.heading.parents': 'Parent Objective',
+    'catalog.relations.heading.tasks': 'Tasks',
+    'catalog.relations.empty.objective': 'No Projects, Processes, or Tasks linked yet.',
+    'catalog.relations.empty.workLine': 'Not linked to an Objective or any Tasks yet.',
+    'catalog.relations.moreTasks': '+${count} more — open Tasks',
+    'job.events': "See what's happening across Gordi right now.",
     'job.money': 'Trust the financial figures and act on money exceptions.',
     // ── I18N-1 (census DO-8): the Money dashboard — KPI tiles, tabs, chart, detail table,
     //    footnote, states, and the Cut/window toolbar. Numbers/currency stay locale-formatted
@@ -790,7 +1113,7 @@ export const messages = {
     'commandMenu.kind.followUp': 'AR Follow-up',
     'commandMenu.action.askDeputy': 'Ask Deputy',
     'commandMenu.action.shareSignal': 'Share Signal',
-    'commandMenu.action.createTask': 'Create Task',
+    'commandMenu.action.createTask': 'Create task',
     'commandMenu.error.searchRecords': "Couldn't search records.",
     'commandMenu.status.searchingRecords': 'Searching records',
     'commandMenu.empty.noMatches': 'No matches for “${query}”.',
@@ -835,7 +1158,7 @@ export const messages = {
     'signals.composer.siteHint': "Location derives from the owning Team (Site is never a mention target).",
     'signals.retracted': 'This Signal was retracted.',
     'signals.record.addCategory': 'Add category',
-    'signals.record.createTask': 'Create Task',
+    'signals.record.createTask': 'Create task',
     'signals.record.categoryPickerLabel': 'Choose a category',
     'signals.feed.shareRow': 'Share a Signal',
     'signals.feed.empty': 'No Signals yet. Share the first one above.',
@@ -893,7 +1216,7 @@ export const messages = {
     'signals.record.linkedWorkLabel': 'Linked work',
     'signals.record.linkedWorkSummary': '${total} Tasks · ${open} open',
     'signals.record.linkExistingTask': 'Link existing Task',
-    'signals.record.createFollowUpTask': 'Create follow-up Task',
+    'signals.record.createFollowUpTask': 'Create follow-up task',
     'signals.record.close': 'Close',
     'signals.record.followUpTitleLabel': 'Task title',
     'signals.record.followUpSave': 'Save',
@@ -1036,6 +1359,10 @@ export const messages = {
     'record.action.close': 'Close',
     'record.action.back': 'Back',
     'record.action.openPage': 'Open full page',
+    // Task Work · Tasks fix wave (H10): the shared RecordCollectionSurface filtered-empty
+    // "Clear filters" button was a bare English literal — every other collection (Tasks,
+    // Signals, Catalog, Objectives, Projects/Processes) inherits this one generic key.
+    'common.clearFilters': 'Clear filters',
   },
   id: {
     'common.saveView': 'Simpan tampilan',
@@ -1047,6 +1374,41 @@ export const messages = {
     'common.save': 'Simpan',
     'common.cancel': 'Batal',
     'common.saving': 'Menyimpan…',
+    'common.retry': 'Coba lagi',
+    'common.working': 'Memproses…',
+    'common.unexpectedError': 'Terjadi kesalahan. Coba lagi.',
+    'common.loadFailed': 'Gagal memuat ${what}. Periksa koneksi Anda lalu coba lagi.',
+    'common.what.plan': 'rencana hari ini',
+    'common.what.upcomingPlan': 'rencana mendatang',
+    'common.what.items': 'daftar menu',
+    'common.what.queue': 'antrean tinjauan',
+    'common.what.pushes': 'riwayat kirim',
+    'common.what.stock': 'stok',
+    'common.what.budgets': 'anggaran',
+    'common.what.costLines': 'baris BOM dan biaya bahan',
+    'common.what.chart': 'grafik ini',
+    'common.what.table': 'tabel ini',
+    'common.noRows': 'Tidak ada baris untuk ditampilkan.',
+    'common.help': 'Bantuan',
+    'common.docTitle': '${page} — Gordi MOS',
+    'doc.cafePlan': 'Rencana Kafe',
+    'doc.cafeStock': 'Stok Kafe',
+    'doc.cafeReview': 'Tinjauan Kafe',
+    'doc.cafePushes': 'Antrean Kirim Kafe',
+    'doc.cafeOps': 'Operasi Kafe',
+    'doc.followUp': 'Follow-up AR',
+    'doc.followUpQueue': 'Antrean follow-up AR',
+    'doc.notFound': 'Halaman tidak ditemukan',
+    'notFound.title': 'Halaman ini tidak ada',
+    'notFound.copy': 'Tautannya mungkin sudah usang, atau catatannya sudah diarsipkan. Biasanya kembali ke halaman sebelumnya sudah cukup.',
+    'notFound.back': 'Kembali',
+    'notFound.home': 'Ke Beranda',
+    'errorBoundary.title': 'Layar ini berhenti bekerja',
+    'errorBoundary.copy': 'Biasanya memuat ulang sudah cukup. Kalau terus terjadi, beri tahu atasan Anda apa yang sedang Anda kerjakan — tidak ada data kesalahan ini yang terkirim otomatis ke mana pun.',
+    'errorBoundary.reload': 'Muat ulang aplikasi',
+    'leaveGuard.title': 'Keluar tanpa menyimpan?',
+    'leaveGuard.stay': 'Tetap di halaman ini',
+    'leaveGuard.discard': 'Buang dan keluar',
     'common.savedView': 'Tampilan tersimpan',
     'common.view': 'Tampilan',
     'common.resultCount': '${count} item dalam cakupan Anda',
@@ -1054,14 +1416,18 @@ export const messages = {
     'dest.work': 'Kerja',
     'dest.operate': 'Operasi',
     'dest.plan': 'Rencana',
-    'dest.inbox': 'Kotak Masuk',
+    // OD-V4-5 #8 (owner, verbatim: "use inbox as indonesian label. dont change to kotak
+    // masuk."): 'Kotak Masuk' also overflowed the 61px phone tab slot (74px scrollWidth,
+    // 21% overrun) at 320-375px. 'Inbox' is deliberately identical to the English string.
+    'dest.inbox': 'Inbox',
     'common.loading': 'Memuat',
     'common.comingSoon': 'Segera hadir',
     // Label sub-nav — setiap string nav mengalir melalui katalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id bentuk-identik (AC-409).
     'nav.tasks': 'Tugas',
     'nav.home': 'Beranda',
-    'nav.inbox': 'Kotak Masuk',
+    // OD-V4-5 #8 — same rail-label decision as 'dest.inbox' above.
+    'nav.inbox': 'Inbox',
     'nav.sales': 'Penjualan',
     'nav.dashboard': 'Dasbor',
     'nav.followUps': 'AR Follow-up',
@@ -1077,6 +1443,7 @@ export const messages = {
     'nav.kitchen.pushes': 'Antrean',
     'home.title': 'Beranda',
     'home.subtitle': 'Minggu Anda sekilas',
+    'home.help': 'Satu daftar berurutan, paling mendesak lebih dulu: terlambat, jatuh tempo hari ini, terhambat, pemeriksaan gagal, lalu sebutan — diikuti pekerjaan terbuka Anda yang lain. Ubah urutan mana yang tampil dulu di Opsi tampilan.',
     'home.greeting.morning': 'Selamat pagi, ${name}',
     'home.greeting.afternoon': 'Selamat siang, ${name}',
     'home.greeting.evening': 'Selamat sore, ${name}',
@@ -1170,6 +1537,8 @@ export const messages = {
     'tasks.create.title': 'Judul',
     'tasks.create.titlePlaceholder': 'Apa yang perlu dikerjakan?',
     'tasks.create.teamPlaceholder': 'Pilih tim…',
+    'tasks.create.supervisorPlaceholder': 'Pilih supervisor…',
+    'tasks.create.supervisorRequired': 'Supervisor wajib dipilih',
     'tasks.create.none': '— Tidak ada —',
     'tasks.create.addContext': '+ Tambah konteks',
     'tasks.create.dueDate': 'Jatuh tempo',
@@ -1207,7 +1576,9 @@ export const messages = {
     'tasks.field.readOnlyNoPermission': 'Anda tidak memiliki izin untuk mengubah tugas ini. Minta manajer atau admin untuk mengubah kepemilikannya.',
     'tasks.pic': 'PIC',
     'tasks.pic.via': 'melalui ${role}',
+    'tasks.pic.help': 'PIC (Penanggung Jawab) — orang yang diharapkan mengerjakan dan menyelesaikan tugas ini.',
     'tasks.supervisor': 'Supervisor',
+    'tasks.supervisor.help': 'Supervisor — orang yang memantau, membantu mengatasi hambatan, dan memverifikasi tugas ini. Pilihan terpisah yang disengaja — boleh sama dengan PIC, tetapi tidak pernah ditetapkan otomatis ke orang yang sama.',
     'tasks.reassignPic': 'Tetapkan ulang PIC',
     'tasks.openFullPage': 'Buka halaman penuh',
     'record.openFullPage': 'Buka halaman penuh',
@@ -1368,7 +1739,11 @@ export const messages = {
     'assistant.rating.reason.wrong_tool': 'Salah menggunakan alat',
     'assistant.rating.reason.too_slow': 'Terlalu lama',
     'assistant.rating.reason.submit': 'Kirim',
-    'inbox.title': 'Kotak Masuk',
+    // OD-V4-5 #8 (owner, verbatim: "use inbox as indonesian label. dont change to kotak
+    // masuk.") — the same rail-label decision as 'dest.inbox'/'nav.inbox', applied here to
+    // the page title/quick-panel title (found still reading "Kotak Masuk" — a pre-existing
+    // drift from the ratified decision, fixed under the same directive).
+    'inbox.title': 'Inbox',
     'inbox.subtitle': 'Notifikasi, sebutan, dan persetujuan',
     'inbox.empty': 'Semua sudah terbaca',
     'inbox.emptyCopy': 'Apa pun yang butuh perhatian Anda — sebutan, persetujuan, penugasan — akan muncul di sini.',
@@ -1387,6 +1762,9 @@ export const messages = {
     'inbox.opening': 'Membuka…',
     'inbox.errorTitle': 'Tidak bisa memuat kotak masuk',
     'inbox.retry': 'Coba lagi',
+    'inbox.sessionExpired': 'Sesi Anda telah berakhir',
+    'inbox.signInAgain': 'Masuk lagi',
+    'inbox.kbdHint': '↑ ↓ pindah · R tandai dibaca',
     'inbox.target.unavailable.malformed': 'Tautan notifikasi ini tidak bisa dibuka.',
     'inbox.target.unavailable.unknownType': 'Notifikasi ini tidak menautkan ke catatan yang bisa dibuka.',
     'inbox.target.unavailable.legacyRoute': 'Notifikasi ini tidak menautkan ke catatan yang bisa dibuka.',
@@ -1398,7 +1776,8 @@ export const messages = {
     'inbox.target.type.task': 'Tugas',
     'inbox.target.type.signal': 'Sinyal',
     'inbox.target.type.followUp': 'AR Follow-up',
-    'inbox.quickTitle': 'Kotak Masuk',
+    'inbox.quickTitle': 'Inbox',
+    'inbox.help': 'Semua yang ditujukan kepada Anda — sebutan, persetujuan, penugasan tugas — muncul di sini. Membuka satu baris menandainya sudah dibaca dan membawa Anda ke catatan asalnya. Pakai filter Belum dibaca untuk melihat yang belum Anda buka saja.',
     'followUps.title': 'Antrean AR Follow-up',
     'followUps.subtitle': 'Kejar, lunasi, dan konfirmasi komitmen per invoice',
     'followUps.overdue': 'Terlambat',
@@ -1429,6 +1808,22 @@ export const messages = {
     'plan.pricing.title': 'Pracetak harga',
     'plan.pricing.subtitle': 'Periksa margin terhadap COGS anggaran yang sudah tersertifikasi',
     // Kitchen Stock column headers (audit D7 fix)
+    'kitchen.stock.kpi.ariaLabel': 'Ringkasan stok',
+    'kitchen.stock.kpi.phoneLabel': 'Stok',
+    'kitchen.stock.kpi.itemCount': '${count} item',
+    'kitchen.stock.kpi.availableCount': '${count} tersedia',
+    'kitchen.stock.kpi.onHand': 'Total stok fisik',
+    'kitchen.stock.kpi.onHand.sub': 'siap dipakai sekarang',
+    'kitchen.stock.kpi.inStock': 'Item bersisa stok',
+    'kitchen.stock.kpi.inStock.delta': '${count} kosong/minus',
+    'kitchen.stock.kpi.inStock.sub': 'masih bisa dipakai',
+    'kitchen.stock.kpi.negative': 'Saldo minus',
+    'kitchen.stock.kpi.negative.review': 'perlu ditinjau',
+    'kitchen.stock.kpi.negative.clear': 'aman',
+    'kitchen.stock.kpi.negative.noData': 'belum ada data stok',
+    'kitchen.stock.kpi.available': 'Total tersedia',
+    'kitchen.stock.kpi.available.delta': 'siap ditransfer',
+    'kitchen.stock.kpi.available.sub': 'kumulatif',
     'kitchen.stock.col.dish': 'Hidangan',
     'kitchen.stock.col.stok': 'Stok',
     'kitchen.stock.col.tersedia': 'Tersedia',
@@ -1437,6 +1832,7 @@ export const messages = {
     // Café Log stepper meta/cues (sweep-cafe cafe-1 fix)
     'kitchen.log.stepper.noPlan': 'tanpa rencana',
     'kitchen.log.stepper.plan': 'rencana',
+    'kitchen.unit.porsi': 'porsi',
     'kitchen.log.stepper.stock': 'stok',
     'kitchen.log.stepper.avail': 'tersedia',
     'kitchen.log.stepper.notePlaceholder': 'Catatan wajib — di luar rencana',
@@ -1473,6 +1869,148 @@ export const messages = {
     'kitchen.kpi.dishesRemaining.short': '−${count} porsi kurang',
     'kitchen.kpi.dishesRemaining.allOnPlan': 'semua sesuai rencana',
     'kitchen.kpi.dishesRemaining.sub': 'dari target',
+    // ── Sapuan Nielsen (Café·Log 24/40, Café·Plan 16/32) — celah locale id pada string yang
+    //    dibaca pekerja floor tepat saat menyimpan: pil status baris, tally footer,
+    //    Buang/Kirim, placeholder pencarian, filter kategori "All", tab jenis aksi, dan
+    //    banner sukses submit. Dipakai bersama di Log + Plan + Pesanan. ──
+    'kitchen.status.onPlan': 'Sesuai rencana',
+    'kitchen.status.over': 'Lebih +${count}',
+    'kitchen.status.under': 'Kurang −${count}',
+    'kitchen.status.logged': 'Tercatat',
+    'kitchen.status.notLogged': 'Belum dicatat',
+    'kitchen.log.footer.dish.one': '${count} hidangan',
+    'kitchen.log.footer.dish.other': '${count} hidangan',
+    'kitchen.log.footer.unit.one': '${count} porsi',
+    'kitchen.log.footer.unit.other': '${count} porsi',
+    'kitchen.log.footer.pendingReview': 'menunggu tinjauan setelah dikirim',
+    'kitchen.log.discard': 'Buang',
+    'kitchen.log.submit.submitting': 'Mengirim…',
+    'kitchen.log.submit.entry.one': 'Kirim ${count} entri',
+    'kitchen.log.submit.entry.other': 'Kirim ${count} entri',
+    'kitchen.log.submit.default': 'Kirim',
+    'kitchen.log.success.one': '${count} baris dikirim — menunggu tinjauan.',
+    'kitchen.log.success.other': '${count} baris dikirim — menunggu tinjauan.',
+    'kitchen.log.searchPlaceholder': 'Cari hidangan',
+    'kitchen.filter.all': 'Semua',
+    'kitchen.toolbar.category.ariaLabel': 'Kategori',
+    'kitchen.actionType.production': 'Produksi',
+    'kitchen.actionType.transferRadiant': 'Transfer ke Radiant',
+    'kitchen.actionType.transferRadiant.short': '→ Radiant',
+    'kitchen.actionType.transferBungur': 'Transfer ke Bungur',
+    'kitchen.actionType.transferBungur.short': '→ Bungur',
+    // polish (2026-07-28): was 'Cari hidangan untuk direncanakan' (33 chars), which rendered
+    // hard-clipped mid-word as "Cari hidangan untuk direnc" in a 195px/13px input at 375px —
+    // no ellipsis, just a cut. Shortened to match the sibling kitchen.log.searchPlaceholder,
+    // which fits; the page title already supplies "untuk direncanakan".
+    'kitchen.plan.searchPlaceholder': 'Cari hidangan',
+    'kitchen.plan.help': 'Tentukan berapa porsi tiap hidangan yang akan dibuat kafe hari ini. Inilah rencana yang jadi acuan saat produksi dicatat — angka Anda muncul sebagai angka abu-abu di Log Kafe. Setiap perubahan tersimpan sendiri; tidak ada tombol Kirim. Hanya ops lead yang bisa mengubah rencana.',
+    'kitchen.plan.col.dish': 'Hidangan',
+    'kitchen.plan.col.plan': 'Rencana',
+    'kitchen.filter.noMatch': 'Tidak ada hidangan yang cocok dengan filter Anda.',
+    'kitchen.plan.pesanan.col.item': 'Item',
+    'kitchen.plan.pesanan.col.action': 'Aksi',
+    'kitchen.plan.pesanan.col.planned': 'Direncanakan',
+    'kitchen.log.discard.confirmTitle': 'Buang semua entri yang tersimpan sementara?',
+    'kitchen.log.discard.qty.one': 'kuantitas',
+    'kitchen.log.discard.qty.other': 'kuantitas',
+    'kitchen.log.discard.confirmBody': 'Ini menghapus ${count} ${qty} yang diketik untuk ${actionType}. Pencarian dan filter kategori tetap tersimpan.',
+    // ── Café v4 sweep — penghapusan tile KPI di Plan (DD-1) + penerjemahan modul (audit
+    //    i18n: lima judul halaman + string literal Log/Plan/Stock/Review/Pushes). ──
+    'kitchen.empty.noActiveItems.title': 'Belum ada item WIP aktif',
+    'kitchen.log.empty.copy': 'Minta ops lead menambahkan item.',
+    'kitchen.plan.empty.copy': 'Minta admin menambahkan item kafe terlebih dahulu.',
+    'kitchen.plan.pesanan.empty.title': 'Belum ada rencana',
+    'kitchen.plan.pesanan.empty.copy': 'Belum ada item yang direncanakan dalam ${days} hari ke depan.',
+    'kitchen.plan.saving': 'Menyimpan…',
+    'kitchen.plan.saved': 'Tersimpan',
+    'kitchen.stock.empty.title': 'Tidak ada stok untuk ditampilkan',
+    'kitchen.stock.empty.copy': 'Belum ada aktivitas Kafe yang disetujui untuk ${date}.',
+    'kitchen.review.meta.submitted': 'dikirim',
+    'kitchen.review.meta.offPlan': 'di luar rencana',
+    'kitchen.review.meta.blocked': 'terblokir',
+    'kitchen.review.offline': 'Anda sedang offline — meninjau perlu koneksi. Sambungkan kembali untuk menyetujui atau menolak.',
+    'kitchen.review.error.forbidden': 'Anda tidak memiliki izin untuk meninjau log ini.',
+    'kitchen.review.error.generic': 'Terjadi kesalahan. Silakan coba lagi.',
+    'kitchen.review.notice.staleRefresh': 'Sudah ditinjau oleh orang lain — memuat ulang antrean…',
+    'kitchen.review.notice.approved': 'Disetujui · batch ${batchId}',
+    'kitchen.review.notice.rejected': 'Ditolak — dihapus dari antrean.',
+    'kitchen.review.notice.bulkPartial': '${approved} disetujui · ${failed} gagal — baris yang gagal tetap di antrean.',
+    'kitchen.review.notice.bulkApproved': '${approved} disetujui · batch terakhir ${batchId}',
+    'kitchen.review.empty.title': 'Tidak ada yang perlu ditinjau',
+    'kitchen.review.empty.copy': 'Tidak ada log yang dikirim untuk ${date}.',
+    'kitchen.review.empty.note': 'Muat ulang untuk memeriksa log Kafe yang baru dikirim.',
+    'kitchen.qty.producedAria': 'Jumlah yang diproduksi untuk ${dish}',
+    'kitchen.qty.plannedAria': 'Jumlah rencana untuk ${dish}',
+    'kitchen.qty.decreaseAria': 'Kurangi jumlah rencana untuk ${dish}',
+    'kitchen.qty.increaseAria': 'Tambah jumlah rencana untuk ${dish}',
+    'kitchen.log.toolbarAria': 'Cakupan dan filter log Kafe',
+    'table.group.expand': 'Buka grup ${group}',
+    'table.group.collapse': 'Tutup grup ${group}',
+    'kitchen.log.help': 'Ketik berapa porsi yang benar-benar Anda buat hari ini di samping tiap menu. Angka abu-abu itu rencana, bukan isian — biarkan kosong kalau menu itu tidak dibuat. Kalau angka Anda berbeda dari rencana, Anda akan diminta alasannya setelah keluar dari kolom itu. Belum ada yang tercatat sampai Anda menekan Kirim; atasan Anda yang menyetujuinya kemudian.',
+    'tasks.help': 'Semua pekerjaan milik Anda dan tim Anda. PIC adalah orang yang mengerjakan; Supervisor adalah orang yang bertanggung jawab atasnya. Pekerjaan yang lewat tenggat berwarna merah. Tampilan tersimpan mengingat satu set filter supaya Anda bisa kembali ke daftar yang sama — pilih dari chip di atas.',
+    'catalog.trace.taskCount.one': '${count} tugas',
+    'catalog.trace.taskCount.other': '${count} tugas',
+    'catalog.trace.under': 'Di bawah: ${segments} · ${total}',
+    'catalog.trace.noParent': 'tanpa Objective induk (${count})',
+    'objectives.help': 'Objective adalah komitmen perusahaan untuk periode ini. Semua orang bisa membacanya; ops lead dan admin bisa mengubahnya. Buka satu Objective untuk melihat Proyek dan Proses yang mengarah ke sana — dan lewat itu, Tugas-tugasnya. Tidak ada layar kaskade terpisah: Anda menelusuri lewat catatannya.',
+    'kitchen.review.approve': 'Setujui',
+    'kitchen.review.reject': 'Tolak',
+    'kitchen.review.approveAria': 'Setujui ${dish}',
+    'kitchen.review.rejectAria': 'Tolak ${dish}',
+    'kitchen.review.note.approve': 'Catatan persetujuan',
+    'kitchen.review.note.reject': 'Catatan penolakan',
+    'kitchen.review.note.required': 'Catatan wajib diisi.',
+    'kitchen.review.confirm.approve': 'Setujui ${dish}',
+    'kitchen.review.confirm.reject': 'Tolak ${dish}',
+    'kitchen.review.cancel': 'Batal',
+    'kitchen.review.noteAriaApprove': 'Catatan persetujuan untuk ${dish}',
+    'kitchen.review.noteAriaReject': 'Catatan penolakan untuk ${dish}',
+    'kitchen.review.notePlaceholder.approve': 'Alasan jumlahnya berbeda dari rencana (wajib)',
+    'kitchen.review.notePlaceholder.reject': 'Alasan penolakan (wajib)',
+    'kitchen.review.caption': 'Log Kafe terkirim yang menunggu ditinjau',
+    'kitchen.review.signInMsg': 'Anda harus masuk untuk meninjau log Kafe.',
+    'kitchen.review.signIn': 'Masuk',
+    'kitchen.review.forbidden.region': 'Akses dibatasi',
+    'kitchen.review.forbidden.title': 'Peninjauan hanya untuk ops lead.',
+    'kitchen.review.forbidden.msg': 'Minta ops lead untuk meninjau log Kafe yang Anda kirim.',
+    'kitchen.review.backToLog': 'Kembali ke Log',
+    'kitchen.log.offline.banner': 'Anda sedang offline — mencatat perlu koneksi. Entri Anda tetap tampil di layar; sambungkan kembali untuk mengirim.',
+    'kitchen.log.offline.error': 'Anda sedang offline — mencatat perlu koneksi. Sambungkan kembali lalu coba lagi.',
+    'kitchen.log.offline.aria': 'Offline',
+    'kitchen.log.retryAria': 'Coba muat daftar menu lagi',
+    'kitchen.log.captureAria': 'Pencatatan log Kafe',
+    'kitchen.log.caption': 'Log produksi Kafe — isi jumlah yang dibuat hari ini untuk tiap menu',
+    'kitchen.plan.caption': 'Rencana Kafe — tetapkan jumlah rencana untuk tiap menu',
+    'kitchen.pushes.caption': 'Antrean kirim ESB Kafe',
+    'kitchen.pushes.escalate': 'Naikkan ke tim platform',
+    'kitchen.pushes.escalateAria': 'Perlu penanganan manual',
+    'kitchen.pushes.forbidden.region': 'Akses dibatasi',
+    'kitchen.pushes.col.batch': 'Batch',
+    'kitchen.pushes.col.endpoint': 'Endpoint',
+    'kitchen.pushes.col.target': 'Tujuan',
+    'kitchen.pushes.col.status': 'Status',
+    'kitchen.pushes.col.retries': 'Percobaan',
+    'kitchen.pushes.col.error': 'Kesalahan',
+    'kitchen.pushes.col.esbDoc': 'Dokumen ESB',
+    'kitchen.pushes.col.created': 'Dibuat',
+    'kitchen.pushes.col.posted': 'Terkirim',
+    'kitchen.actionType.aria': 'Jenis aksi',
+    'kitchen.refresh': 'Muat ulang',
+    'kitchen.pushes.forbidden.title': 'Antrean hanya tersedia untuk ops lead.',
+    'kitchen.pushes.forbidden.copy': 'Outbox ESB terlihat oleh ops lead dan admin.',
+    'kitchen.pushes.meta.total': '${count} dalam outbox',
+    'kitchen.pushes.empty.title': 'Belum ada antrean',
+    'kitchen.pushes.empty.copy': 'Outbox ESB sedang kosong.',
+    'kitchen.pushes.empty.note': 'Muat ulang untuk memeriksa aktivitas antrean baru.',
+    // Ditemukan langsung saat verifikasi ulang dwibahasa v4 (kelas defek yang sama — kata
+    // hitung bahasa Inggris tertinggal di kepala halaman yang sudah diterjemahkan).
+    'kitchen.stock.meta.dishCount.one': '${count} hidangan',
+    'kitchen.stock.meta.dishCount.other': '${count} hidangan',
+    'kitchen.plan.pesanan.meta.plannedCount': '${count} direncanakan',
+    'kitchen.plan.pesanan.meta.horizon': '${days} hari ke depan',
+    'kitchen.plan.pesanan.readOnlyNote': 'Hanya ops lead yang bisa mengubah rencana ini — Anda melihat rencana yang akan datang. Ketuk hidangan untuk mencatat yang benar-benar dibuat.',
+    'kitchen.plan.pesanan.openLogVerb': 'Buka',
+    'kitchen.plan.row.logAria': 'Catat produksi untuk ${item}',
     // ── I18N-1 (census DO-8): Admin People — permukaan daftar /admin/people. ──
     'admin.people.title': 'Orang',
     'admin.people.job': 'Kelola siapa yang bisa masuk dan apa yang bisa mereka lakukan.',
@@ -1542,7 +2080,7 @@ export const messages = {
     'admin.role.finance.desc': 'Melihat laporan keuangan',
     'admin.role.manager': 'Manajer',
     'admin.role.manager.desc': 'Berdasarkan kepemilikan tim',
-    'admin.create.title': 'Tambah orang',
+    'admin.create.title': 'Buat orang',
     'admin.create.subtitle': 'Buat entri direktori, dan akses masuk jika perlu.',
     'admin.create.fullName': 'Nama lengkap',
     'admin.create.nameError': 'Masukkan nama',
@@ -1588,15 +2126,18 @@ export const messages = {
     'kitchen.push.env.goo': 'GOO staging',
     'kitchen.push.env.dry_run': 'Uji coba',
     // ── Redesign Step 2 — kunci rail/destinasi/kalimat-kerja/stub baru (spec §3.1, Rule 1/3/7). ──
-    'dest.events': 'Acara',
+    // OD-V4-2 ("Signals everywhere"): noun "Acara"/"Events" pensiun. dest.events/nav.events kini
+    // "Sinyal" (feed langsung, akar rail); anak Work (nav.work.signals / nav.signals) adalah
+    // arsipnya — "Arsip Sinyal" — agar dua entri rail tidak pernah identik.
+    'dest.events': 'Sinyal',
     'dest.money': 'Keuangan',
     'dest.cafe': 'Kafe',
     'dest.ecommerce': 'Ecommerce',
     'dest.roastery': 'Roastery',
     'dest.admin': 'Pengaturan Admin',
     'dest.profile': 'Profil Pribadi',
-    'nav.signals': 'Sinyal',
-    'nav.events': 'Acara',
+    'nav.signals': 'Arsip Sinyal',
+    'nav.events': 'Sinyal',
     'nav.money': 'Keuangan',
     'nav.cafe': 'Kafe',
     'nav.cafe.opening': 'Pembukaan',
@@ -1610,7 +2151,7 @@ export const messages = {
     'nav.admin': 'Pengaturan Admin',
     'nav.admin.people': 'Orang',
     'nav.profile': 'Profil Pribadi',
-    'nav.work.signals': 'Sinyal',
+    'nav.work.signals': 'Arsip Sinyal',
     'nav.work.projects': 'Proyek & Proses',
     'nav.work.objectives': 'Objective',
     'nav.work.tasks': 'Tugas',
@@ -1624,13 +2165,16 @@ export const messages = {
     'rail.work.cadence': 'Irama',
     'rail.badge.openTasks': '${count} tugas terbuka',
     'rail.badge.attentionSignals': '${count} sinyal perlu perhatian',
+    'rail.badge.unreadInbox': '${count} belum dibaca',
     'nav.more': 'Lainnya',
     'job.home': 'Apa yang perlu perhatian saya sekarang?',
     'job.work': 'Temukan dan kerjakan tugas yang jadi tanggung jawab saya atau Tim saya.',
     'job.tasks': 'Temukan dan kerjakan tugas yang jadi tanggung jawab saya atau Tim saya.',
     'job.signals': 'Cari dan tinjau kembali Sinyal yang dibagikan Tim Anda.',
-    'job.projects': 'Kelola Proses dan Proyek yang menghasilkan kerja tersebut.',
-    'job.objectives': 'Pantau Objective yang sudah dikomitmenkan org.',
+    // OD-V4-1 H10 (partial, matches the sharpened en copy above): nama hubungan Objective ⇄
+    // Project/Process secara eksplisit.
+    'job.projects': 'Kelola Proyek dan Proses yang menghasilkan kerja tersebut — masing-masing bermuara ke satu Objective.',
+    'job.objectives': 'Pantau Objective yang sudah dikomitmenkan org — tujuan akhir setiap Proyek dan Proses.',
     // Tata bahasa koleksi katalog (surface pengelolaan Proyek & Proses / Objective).
     'catalog.list': 'Daftar',
     'catalog.layoutLabel': 'Tata letak',
@@ -1663,19 +2207,31 @@ export const messages = {
     'catalog.announce.archiveFailed': 'Tidak dapat mengarsipkan ${name}',
     'catalog.announce.restoreFailed': 'Tidak dapat mengembalikan ${name}',
     'catalog.filteredEmpty.title': 'Tidak ada yang cocok dengan filter Anda',
-    'catalog.objectives.add': 'Tambah objective',
-    'catalog.objectives.adding': 'Menambahkan…',
+    'catalog.objectives.add': 'Buat objective',
+    'catalog.objectives.adding': 'Membuat…',
     'catalog.objectives.empty.title': 'Belum ada objective',
-    'catalog.objectives.empty.copy': 'Tambahkan objective pertama Anda di atas.',
+    'catalog.objectives.empty.copy': 'Objective adalah komitmen perusahaan untuk periode ini — setiap Proyek, Proses, dan Tugas bermuara ke salah satunya. Beri nama yang pertama di atas.',
     'catalog.objectives.error': 'Tidak dapat memuat objective.',
     'catalog.objectives.loading': 'Memuat objective…',
-    'catalog.projects.add': 'Tambah proyek atau proses',
+    'catalog.projects.add': 'Buat proyek atau proses',
     'catalog.projects.adding': 'Menambahkan…',
     'catalog.projects.empty.title': 'Belum ada proyek atau proses',
-    'catalog.projects.empty.copy': 'Tambahkan proyek atau proses pertama Anda di atas.',
+    'catalog.projects.empty.copy': 'Proyek berjalan sekali lalu selesai; Proses berulang secara berkala. Keduanya menampung Tugas yang menggerakkan satu Objective. Beri nama yang pertama di atas.',
     'catalog.projects.error': 'Tidak dapat memuat proyek & proses.',
     'catalog.projects.loading': 'Memuat proyek & proses…',
-    'job.events': 'Lihat apa yang terjadi di outlet kita dan kapan.',
+    'catalog.filter.coverage': 'Cakupan tugas',
+    'catalog.coverage.all': 'Semua',
+    'catalog.coverage.hasTasks': 'Ada tugas',
+    'catalog.coverage.noTasks': 'Belum ada tugas',
+    'catalog.relations.toggleAria': 'Tampilkan relasi ${name}',
+    'catalog.relations.hideAria': 'Sembunyikan relasi ${name}',
+    'catalog.relations.heading.children': 'Proyek & Proses di bawahnya',
+    'catalog.relations.heading.parents': 'Objective induk',
+    'catalog.relations.heading.tasks': 'Tugas',
+    'catalog.relations.empty.objective': 'Belum ada Proyek, Proses, atau Tugas yang terhubung.',
+    'catalog.relations.empty.workLine': 'Belum terhubung ke Objective atau Tugas apa pun.',
+    'catalog.relations.moreTasks': '+${count} lainnya — buka Tugas',
+    'job.events': 'Lihat apa yang sedang terjadi di Gordi sekarang.',
     'job.money': 'Percayai angka keuangan dan bertindak pada pengecualian uang.',
     // ── I18N-1 (census DO-8): dasbor Keuangan — kartu KPI, tab, grafik, tabel rincian. ──
     'money.documentTitle': 'Keuangan — Gordi MOS',
@@ -1775,7 +2331,7 @@ export const messages = {
     'commandMenu.kind.followUp': 'Tindak Lanjut AR',
     'commandMenu.action.askDeputy': 'Tanya Deputi',
     'commandMenu.action.shareSignal': 'Bagikan Sinyal',
-    'commandMenu.action.createTask': 'Buat Tugas',
+    'commandMenu.action.createTask': 'Buat tugas',
     'commandMenu.error.searchRecords': 'Tidak dapat mencari rekaman.',
     'commandMenu.status.searchingRecords': 'Mencari rekaman',
     'commandMenu.empty.noMatches': 'Tidak ada hasil untuk “${query}”.',
@@ -1815,7 +2371,7 @@ export const messages = {
     'signals.composer.siteHint': 'Lokasi berasal dari Tim pemilik (Site tidak pernah menjadi sasaran sebutan).',
     'signals.retracted': 'Sinyal ini telah ditarik kembali.',
     'signals.record.addCategory': 'Tambah kategori',
-    'signals.record.createTask': 'Buat Tugas',
+    'signals.record.createTask': 'Buat tugas',
     'signals.record.categoryPickerLabel': 'Pilih kategori',
     'signals.feed.shareRow': 'Bagikan Sinyal',
     'signals.feed.empty': 'Belum ada Sinyal. Bagikan yang pertama di atas.',
@@ -1873,7 +2429,7 @@ export const messages = {
     'signals.record.linkedWorkLabel': 'Pekerjaan terkait',
     'signals.record.linkedWorkSummary': '${total} Tugas · ${open} terbuka',
     'signals.record.linkExistingTask': 'Tautkan Tugas yang ada',
-    'signals.record.createFollowUpTask': 'Buat Tugas tindak lanjut',
+    'signals.record.createFollowUpTask': 'Buat tugas tindak lanjut',
     'signals.record.close': 'Tutup',
     'signals.record.followUpTitleLabel': 'Judul Tugas',
     'signals.record.followUpSave': 'Simpan',
@@ -1977,6 +2533,7 @@ export const messages = {
     'record.action.close': 'Tutup',
     'record.action.back': 'Kembali',
     'record.action.openPage': 'Buka halaman penuh',
+    'common.clearFilters': 'Hapus filter',
   },
 } as const
 

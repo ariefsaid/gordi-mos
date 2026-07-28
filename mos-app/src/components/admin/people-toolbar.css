@@ -41,7 +41,12 @@
   outline: none;
   background: transparent;
   font: inherit;
-  font-size: var(--font-size-body);
+  /* v4: matches .people-search-mini's own font-size (was --font-size-body, one rung
+     smaller than its wrapper — the typed value read smaller than its own placeholder).
+     Also aligns with the sibling Tasks toolbar, whose .search-input carries the same
+     --font-size-body-lg as its .search-mini wrapper (operate.md: "if the save button
+     looks different in two places, one is wrong"). */
+  font-size: var(--font-size-body-lg);
   color: var(--foreground);
   width: 100%;
 }
@@ -86,15 +91,44 @@
     min-height: 44px;
   }
 
+  /* v4 (2026-07-27): the 5-way equal-share stretch below could not hold once every
+     segment carried its real Indonesian label — "Dinonaktifkan"/"Diarsipkan" pushed the
+     nowrap row (DO-22(d) bans wrapping to two lines) past the toolbar's own width.
+     align-items:stretch still floors a flex item's cross-size at its min-content size,
+     so `.people-status-tabs` overflowed its 295px parent by ~46px and the outer
+     `overflow-hidden` on admin-users-page.tsx's `people-list-container` silently
+     clipped "Diarsipkan" off the visible edge — unreachable, not just ugly. That is
+     the exact "layouts must survive Indonesian string expansion without truncation"
+     failure PRODUCT.md's Accessibility & Inclusion section names.
+     Fix: stop forcing a fit. `min-width: 0` lets the item actually shrink to its
+     parent instead of overflowing it, and the strip becomes a proper horizontal-scroll
+     chip row — the SAME grammar already used for the saved-view chip strip
+     (`collection-toolbar.css` `.collection-toolbar__views`) and the BU filter row
+     (`global-toolbar.css`): intrinsic-width chips, the strip scrolls, nothing clips. */
+  .people-status-tabs {
+    min-width: 0;
+  }
+
   .people-status-tabs .view-tabs {
     width: 100%;
-    justify-content: stretch;
+    max-width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox — a quiet scroll region, not a visible one */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .people-status-tabs .view-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .people-status-tabs .view-tabs__tab {
-    flex: 1 1 0;
+    /* Content-sized, not equal-share (DO-18(b) precedent, collection-toolbar.css) —
+       the strip scrolls, the tab keeps its intrinsic width. */
+    flex: none;
     height: 44px; /* ≥44px touch target — overrides ViewTabs' own 40px mobile height */
-    padding: 0 6px;
+    padding: 0 12px;
     font-size: var(--font-size-label);
     text-align: center;
     justify-content: center;

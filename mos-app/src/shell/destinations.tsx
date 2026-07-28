@@ -12,7 +12,7 @@ import {
  * DESTINATIONS — Redesign Step 2 (D-PLN-4). Three registries map 1:1 to the
  * convergence rail's three zones (Workspace / Modules / Utility):
  *
- *  - `DESTINATIONS` — the 5 workspace roots (Home · Work · Events · Money · Inbox).
+ *  - `DESTINATIONS` — the 5 workspace roots (Home · Work · Signals · Money · Inbox).
  *    Used by the rail Workspace zone + the phone bottom-nav primary tabs.
  *  - `MODULES`     — 2 BU groups (Retail Ops [Café, Ecommerce], B2B Ops [Roastery]).
  *  - `UTILITY`     — 2 entries (Admin Settings [gated admin], Personal Profile).
@@ -71,10 +71,25 @@ export const DESTINATIONS: Destination[] = [
       { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
       { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon, capability: 'workline.manage' },
-      { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon, capability: 'objective.manage' },
+      // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible
+      // to everyone" — NO capability gate on this rail entry. mos.objectives SELECT RLS
+      // (objectives_select_org, …0624000001_mos_cascade_lookups.sql) has no role check, only the
+      // org_id tenancy seam, so every authenticated org member can already read the data the
+      // server serves; the `capability: 'objective.manage'` gate here was hiding a screen RLS
+      // already permitted (the defect this fixes). Write stays behind `can('objective.manage')`
+      // inside ObjectivesPage's own mutations — that capability is a WRITE gate, not a read one.
+      { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
     ],
   },
   {
+    // OD-V4-2 ("Signals everywhere", owner-ratified 2026-07-27, docs/v4-inheritance.md INC-2):
+    // the noun "Events" is retired from the UI. This root's rendered label is now "Signals" (the
+    // live company-wide feed) via dest.events/nav.events in messages.ts — the Work child at
+    // /work/signals is the archive of the same Signal records, labeled "Signals Archive" so the
+    // two rail entries are never visually identical. The `id: 'events'`, `labelKey: 'dest.events'`,
+    // `EventsIcon`, and the `/events` PATH are all left as legacy internal identifiers on purpose —
+    // renaming them is a route/deep-link/test-touching change out of this fix's scope. Only the
+    // rendered i18n string changed; do not confuse the legacy internal name with the shown label.
     id: 'events',
     zone: 'workspace',
     labelKey: 'dest.events',
@@ -126,7 +141,7 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
 /**
  * OD-REDESIGN-68 (owner sketch 2026-07-14, confirmed 2026-07-18): the rail shows YOUR work,
  * not the org chart. The owner's frame sketch has no module blocks — for org-wide roles
- * (Managing Director, admin, finance) the rail is exactly the sketch: Home · Work(4) · Events ·
+ * (Managing Director, admin, finance) the rail is exactly the sketch: Home · Work(4) · Signals ·
  * Money · Inbox + utility. A module renders only for a viewer whose JOB ROLE belongs to that
  * BU (the e7 Ayu pattern: a barista sees Café, flat, no BU heading). Everyone still reaches
  * module routes via ⌘K / Home links / direct URL — this scopes the RAIL, not authorization.

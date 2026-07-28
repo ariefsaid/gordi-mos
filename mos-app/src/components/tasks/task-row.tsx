@@ -142,9 +142,24 @@ export function TaskRow({
     // Tab is left to native focus movement; onBlur commits the draft as it leaves.
   }
   const onTitleKeyDown = (e: React.KeyboardEvent) => {
-    // F2 = the standard rename key. Deliberately NOT Enter (Enter opens the record — the existing
-    // opener grammar the workspace keyboard layer owns). F2 is collision-free, zero-latency, and
-    // works from a keyboard-focused title with no drawer in the way.
+    // Fix wave item 1 (H7): Enter on a keyboard-focused row title must open THIS row — the same
+    // handler the click path uses. The shared window keyboard layer also binds Enter
+    // (use-collection-keyboard.ts, outside this file's ownership), but it opens by its own virtual
+    // j/k CURSOR index, not by which row is actually DOM-focused. A user who reached a row via Tab
+    // (never having pressed j/k) has a cursor still at -1/0, so that global handler opens the
+    // WRONG row (or, before this fix, index 0 regardless of which row Tab landed on) while
+    // preventDefault() also silently swallows the browser's native anchor-Enter click that would
+    // otherwise have opened the right one. Handling Enter HERE, on the actually-focused title, and
+    // stopping propagation so the global handler never runs a second, wrong open, fixes both.
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      onOpen(task.id)
+      return
+    }
+    // F2 = the standard rename key. Deliberately NOT Enter (Enter opens the record — see above).
+    // F2 is collision-free, zero-latency, and works from a keyboard-focused title with no drawer
+    // in the way.
     if (canEdit && e.key === 'F2') {
       e.preventDefault()
       beginEdit()

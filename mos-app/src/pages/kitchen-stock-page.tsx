@@ -57,9 +57,11 @@ function stockColumns(t: ReturnType<typeof useT>): DataTableColumn<KitchenStockR
 }
 
 export function KitchenStockPage() {
-  useDocumentTitle('Café Stock — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('doc.cafeStock') }))
   const auth = useAuth()
+  // I18N sweep: reuse the existing nav.cafe.* family instead of a literal "Café · Stock".
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.stock')}`
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   const [rows, setRows] = useState<KitchenStockRow[]>([])
@@ -96,14 +98,14 @@ export function KitchenStockPage() {
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Stock" jobSentence={t('job.cafe')} state="loading">
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
         <LoadingShell count={3} />
       </PageFamilyFrame>
     )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title="Café · Stock" jobSentence={t('job.cafe')} state="permission">
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="ks-block ks-forbidden">
           <p className="ks-forbidden-msg">You need to sign in to view Café stock.</p>
           <Link to="/login" className="btn btn-primary">Sign in</Link>
@@ -115,12 +117,12 @@ export function KitchenStockPage() {
   return (
     <PageFamilyFrame
       family="workspace"
-      title="Café · Stock"
+      title={pageTitle}
       jobSentence={t('job.cafe')}
       meta={
         // census FLAG-D: no naked count chip — a labeled meta sentence ("N dishes · <date>").
         <span className="ks-meta">
-          {load.kind === 'ready' && `${rows.length} ${rows.length === 1 ? 'dish' : 'dishes'} · `}
+          {load.kind === 'ready' && `${t(rows.length === 1 ? 'kitchen.stock.meta.dishCount.one' : 'kitchen.stock.meta.dishCount.other', { count: rows.length })} · `}
           <span className="ks-date tabular">{asOf}</span>
         </span>
       }
@@ -143,7 +145,7 @@ export function KitchenStockPage() {
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't compute stock — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.stock') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -153,8 +155,8 @@ export function KitchenStockPage() {
         // progresses (matches kitchen-review/pushes' awaiting pattern), never 'quiet' ✓.
         <EmptyState
           variant="awaiting"
-          title="No stock to show"
-          copy={`No approved Café activity for ${asOf} yet.`}
+          title={t('kitchen.stock.empty.title')}
+          copy={t('kitchen.stock.empty.copy', { date: asOf })}
         />
       )}
 

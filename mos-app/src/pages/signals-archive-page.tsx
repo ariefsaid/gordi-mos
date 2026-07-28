@@ -37,8 +37,8 @@ import './signals-archive-page.css'
 // the shared focus/Back/leave-guard session.
 
 export function SignalsArchivePage() {
-  useDocumentTitle('Signals — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.signals') }))
   const host = useOverlayHost()
   const isSplit = useIsSplitWidth()
   const isDesktop = useIsDesktop()
@@ -366,7 +366,7 @@ export function SignalRecordPage() {
   const { signalId } = useParams<{ signalId: string }>()
   const [title, setTitle] = useState<string | null>(null)
   // R6-P2 parity with TaskRecordPage: reflect the resolved record name in the browser tab.
-  useDocumentTitle(title ? `${title} · Signal — Gordi MOS` : 'Signal — Gordi MOS')
+  useDocumentTitle(t('common.docTitle', { page: title ? `${title} · ${t('nav.signals')}` : t('nav.signals') }))
   // Record-scoped Ask-Deputy seed (mirrors the panel's askSignalDraft) — resolved once the record
   // loads; a compact reference so the composer opens with "About Signal: <message>".
   const deputyDraft = title

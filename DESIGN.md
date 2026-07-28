@@ -206,6 +206,50 @@ components:
 
 # Design System: Gordi MOS
 
+> ## Authority — read before trusting any value in this file
+>
+> Three artifacts describe this design system. They are **not** peers, and confusing them is the
+> single easiest way for an agent to do the wrong thing here.
+>
+> | Artifact | Is the truth about | Drifts? |
+> |---|---|---|
+> | `mos-app/src/index.css` | **Token values** — every colour, size, radius, shadow the app actually renders | No. It *is* the running code. |
+> | **This file** | **Design rules** — what to do and what never to do, stated so an agent can follow it while writing CSS | Its *values* can drift; its *rules* are the authority. |
+> | `docs/decisions.md` | **Decisions** — who decided a rule, when, why, and what was rejected (`OD-*`) | No. It is the decision record. |
+> | `.impeccable/design.json` | Machine-readable mirror for tooling | Generated. Never hand-edit. |
+>
+> **This file states rules; it does not host decisions.** A rule lives here because an agent needs
+> it in hand at the moment it writes a component — sending them to another file for every rule means
+> they won't look, and the design hook cannot read prose anyway. The *reasoning* behind a rule, the
+> alternatives weighed, and the ratification belong in `docs/decisions.md`. So a rule here carries a
+> bare `(OD-###)` citation, not a retelling. **If you want to know *why*, follow the citation.**
+>
+> **When a token value here disagrees with `index.css`, the code wins** — the oklch values below are
+> a documentation mirror (the runtime is `color(display-p3 …)`), kept for linter compatibility.
+> **When a *rule* here disagrees with the code, this file wins** — code that violates a named rule
+> is a defect, not a new convention.
+>
+> Do not regenerate this file wholesale. Its rules are owner-ratified; a spec-shaped rewrite would
+> silently drop the ones the canonical eight sections have no slot for. Extend it instead.
+>
+> *Known debt: several older rules still embed their full rationale inline (the Tabular-Numbers
+> verification narrative is the worst offender). That prose belongs in `docs/decisions.md` behind a
+> citation. Not yet migrated — do not add more of it.*
+>
+> **The One-Global-Utility Rule (extract, 2026-07-28).** A utility class meant to be app-wide
+> (`.sr-only` and its kin) is defined in exactly ONE place — `index.css` or, if it doesn't already
+> exist there, the platform library (this app's Tailwind import already ships a correct `.sr-only`).
+> A component or page stylesheet defining its OWN copy of a global-sounding class is not a harmless
+> local convenience: unlayered CSS from different files competing for the same selector resolves by
+> **import order**, not intent, so "whichever chunk happened to load last" silently decides the
+> app's accessibility behaviour. Found live 2026-07-28: four files (`tasks/TaskSurface.css`,
+> `tasks/TasksWorkspace.css`, `pages/kitchen-plan-page.css`, `pages/kitchen-review-page.css`) each
+> shipped their own `.sr-only`, which is why a skip link had to route around the cascade in React
+> state (`shell/app-shell.tsx`) instead of trusting the class — see DD-12, `docs/v4-inheritance.md`.
+> All four were deleted; Tailwind's own utility is the one definition now. The same failure mode
+> applies to any class name, not just utilities — see the Buttons section's `.btn-ghost` note below
+> for a case where it silently changed a *shared component's* rendered style, not just an a11y helper.
+
 > **ADR-0009 (2026-06-19) — token-system adoption.** This file is the identity authority
 > (OD-DIR-8). Runtime tokens live in `mos-app/src/index.css` as `color(display-p3 …)`
 > values ported from the clean-room `mos-design-kit` (990 `--ds-*` tokens, light + dark).
@@ -280,13 +324,23 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Orange-Sprinkle Rule (OD-P3-7).** `brand-orange` is a brand sprinkle used **sparingly** (≤2 marks per screen): the logo dot and the **active view-tab underline marker**. It is kept **OFF all status semantics** (it sits hue-wise between the red/amber status hues and would be misread as a warning) and **OFF all actions**. Never a status, never a link, never a button.
 
-**Deputy launcher and phone Action Launcher (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange Deputy FAB).** Deputy is never a FAB; it uses the shared top-bar/host door on every viewport: a neutral 32px deputy spark button in the header right-cluster beside search/bell, with `muted-foreground` → `foreground` on hover. The only sanctioned phone Action Launcher FAB is the universal capability-filtered `+ Action Launcher`; it may expose at most one high-frequency contextual module action permitted by current law, never orange decorative chrome, never Capture, and never a second launcher. Desktop/tablet use the shared top-bar `+ Create` door. One launcher location app-wide (one app, not "several apps").
+**Deputy launcher and phone Action Launcher (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange Deputy FAB).** Deputy is never a FAB; it uses the shared top-bar/host door on every viewport: a neutral 32px deputy spark button in the header right-cluster beside search/bell, with `muted-foreground` → `foreground` on hover. The only sanctioned phone Action Launcher FAB is the universal capability-filtered `+ Action Launcher`; it may expose at most one high-frequency contextual module action permitted by current law, never orange decorative chrome, never Capture, and never a second launcher. ~~Desktop/tablet use the shared top-bar `+ Create` door.~~ **STALE — superseded by OD-REDESIGN-91 #16
+(owner-initiated): "The top-bar Create button is REMOVED app-wide."** Decisions outrank this file, so
+the code is correct and this clause was the defect. Desktop/tablet creation goes through the ⌘K
+palette (OD-REDESIGN-57(i): universal actions live in ⌘K, not as header buttons). One launcher
+location app-wide (one app, not "several apps").
 
 ## Typography
 
 **Display / Heading Font (OD-P3-9):** Plus Jakarta Sans (with `system-ui, -apple-system, "Segoe UI", sans-serif` fallback) — page titles, section/card headings, subheadings.
 **Body / UI / Table Font (OD-P3-9):** DM Sans (same fallback stack) — body copy, controls, table cells, labels, overlines.
 **Mono Font:** SF Mono (with `ui-monospace, "JetBrains Mono", Menlo, monospace`) — IDs, codes, and the `⌘K` glyph only. *(Unchanged.)*
+
+**Touch-input step (v4).** `--font-size-touch-input: 16px` is the one size above the control step,
+and it exists for a mechanical reason rather than a typographic one: mobile Safari zooms the viewport
+when a focused input renders below 16px. Apply it ONLY to text/number inputs tapped on a coarse
+pointer (the Café Log quantity field is the reference case). Never for display, body, or label text —
+it is not a new headline size, and using it as one is drift.
 
 **Character:** Two geometric-humanist sans share the work: Plus Jakarta Sans gives headings a touch more warmth and presence than Inter did, while DM Sans keeps body and table text quiet, legible, and tight at 14px. The voice stays neutral and engineered, never expressive. **Jakarta tracks looser than Inter** — so the title `letterSpacing` was relaxed from `-0.02em`/`-0.01em` to `-0.01em`/`normal` (over-tightening Jakarta makes counters collide). Base size is 14px with a 1.45 line-height; the app reads like a well-set spreadsheet, not a landing page. **`tabular-nums` (`font-variant-numeric: tabular-nums` + `font-feature-settings: "tnum"`) is mandatory on all money, percentages, counts, deltas, and metric values** so columns align and figures don't jitter on update — both Plus Jakarta Sans and DM Sans ship a `tnum` feature, but this MUST be verified on the live Tasks table (see The Tabular-Numbers Rule + the implementer tnum-verification step).
 
@@ -346,6 +400,7 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 - **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
+- **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home: 15px/500 instead of the documented 13.5px/600, on a page that never renders a Task. Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
 
 ### Badges / Status Pills
 - **Status pill:** 22px tall, **8px `rounded.sm` radius (rounded-rect — ratified OD-REDESIGN-91 #30/E1)**, 12px/600 label, with a leading 6px colored `dot` (the dot itself stays circular, `rounded.full`). Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
@@ -416,7 +471,8 @@ Inside the grouped DataTable, each group is introduced by a full-width `<tr>` re
 The Tasks toolbar uses **bordered** filter controls (the existing `control` chip: 32px, 1px `input` border, **8px control radius**, `muted-foreground` label + `foreground` value + chevron) — A's bordered chrome, not borderless text triggers. The **group-by control is the exception**: it is tinted to read as the active "database" control — `brand-navy/6` bg + 1px `brand-navy` border + `brand-navy-text` text + 600 weight (the structural-navy use). Saved views use **My work / Team work / Overdue**; explicit filters name **PIC / Supervisor / Team**. The saved-view segment stays available unless a more specific capability filter makes a view inapplicable, in which case the control explains that state rather than implying Task governance roles.
 
 ### Tabs / Segmented Controls
-- **Inline segmented (`seg`):** 32px track on `secondary`, buttons 28px, "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. `role="tablist"`/`role="tab"`/`aria-selected`. Used for stage filters.
+- **Inline segmented (`seg`):** 32px track on `secondary` (3px inset padding), options fill the track height (measures 26px, not the previously-stated 28px — corrected by live measurement, extract 2026-07-28), "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. Label size is the `mono` token's 13px *number* reused for sizing only — the face stays DM Sans (`font-family: inherit`), never the SF Mono typeface; this is an established v3 pattern (a token's numeric value borrowed for a non-typographic use), not a new exception.
+  **Canonical implementation:** `src/styles/segmented-track.css`, shared via CSS `@import` by every consumer rather than re-authored per surface (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and `home/home-order-toggle.css`). Two ARIA shapes render this ONE grammar: a `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — e.g. Money's Branch/Activity tabs, stage filters) with roving-tabindex arrow-key navigation, and a `role="radiogroup"`/`"radio"` persistent-setting form (`HomeOrderToggle` — the Home region-order preference, OD-REDESIGN-18, RI-1) using `.is-active` instead of `aria-selected` for its state class. The two ARIA contracts are genuinely different and stay two components; the visual grammar is one file. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
 - **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
 
 ### Overlays
@@ -424,9 +480,61 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 - **Record panel:** the collection click target is a wide right-side panel on desktop (40–45% of the available content area), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
 - **Menus, confirmations, and feedback:** menus/pickers stay anchored to their trigger; destructive confirmation is one centered blocking dialog; toasts are brief status feedback and never a second navigation surface. Every real overlay owns focus entry, Escape/close, and focus return.
 
+### Metric summary rule (v4, 2026-07-27)
+The band that states a surface's derived figures. **Not** a row of KPI tiles: one line, metrics
+inline (`label` at label size in `muted-foreground`, value at body-lg/600 `tabular`), separated by
+~22px, closed by a single 1px `border` hairline underneath. No card, no shadow, no radius, no width
+branch — the same rule renders at every breakpoint. A delta renders **only** when it carries a state
+worth acting on (`destructive` / `success`); neutral deltas and restating captions are omitted.
+
+KPI **tiles** remain correct where the job is *reading* figures (dashboards, Money) and keep their
+Soft-Elevation treatment there. Choose by the surface's job, not by habit.
+*(Director decision, `docs/v4-inheritance.md` § v4 design rules — not yet owner-ratified.)*
+
+### Compact capture row (v4, 2026-07-27)
+The phone row for a long list the user must run down and act on each item (Café · Log). Identity
+left (body-lg/600, wrapping), the control right where the thumb is, a unit label beside it, and a
+muted meta line beneath that renders **only when it has something to say**. ~66px against the ~200px
+of the generic record card. Supplied through `DataTable`'s `renderCard` seam so grouping, collapse,
+empty and loading behaviour are inherited rather than reimplemented. Touch target ≥44px.
+**Padding rhythm (`.dt-card--compact`, 10px 12px) lives in `dashboard/data-table.css`** beside the
+`.dt-card` it modifies — `PhoneCard` (the same file's own component) is what applies the class
+whenever a `renderCard` seam is supplied, and it now has four consumers (Café · Log/Plan/Pushes/
+Review). It previously lived in `pages/kitchen-log-page.css`, a page-specific, route-code-split
+stylesheet — live-measured on a fresh Café · Plan load with that chunk never fetched: 14px (the
+un-compacted `.dt-card` fallback), not 10px 12px (extract, 2026-07-28). A class the shared primitive
+applies belongs with that primitive, not with whichever page happened to author it first.
+
+**The control is a typed field, not a stepper.** Amounts in this domain are 10–20+, so `−`/`+` meant
+~20 taps per row. Use a right-aligned numeric input: `inputmode="decimal"`, `enterkeyhint="next"`,
+**blank at rest with the expected value echoed as a greyed placeholder anchor**, and `font-size: 16px`
+so mobile Safari does not zoom the viewport on focus. Reserve steppers for genuinely small counts
+(0–5). *(Owner-corrected; the pattern is the one the live kitchen app already uses on this job.)*
+
+**Validation that demands typing reveals on `blur`, never per keystroke.** A required note that
+appears while the user is mid-number flags at the first digit and shoves a textarea into the row.
+The *reading* of the divergence updates live — that is the feedback; the interruption waits.
+
+**A status that is true of every row at rest is not feedback.** Render per-row state only once the
+user has entered something to diverge from expectation.
+
+*When to use it:* the surface's phone job is high-frequency capture across many rows. The default
+`<dl>` card stays correct for **reading** a record, where labelled field/value pairs are the point.
+
+### Row status as text (v4, 2026-07-27)
+In a dense collection where a status applies to **every** row at rest, render it as toned text
+(label size, 500) rather than a filled pill. Same tone semantics as the pill — the fill is what is
+dropped. A column of filled pills on every row is colour that marks everything and therefore marks
+nothing, and it out-shouts the actual controls. Pills remain correct where status is *exceptional*
+or sparse.
+
 ## Do's and Don'ts
 
 ### Do:
+- **Do** pick the metric treatment from the surface's job: the **summary rule** where the user came
+  to *act*, KPI **tiles** where they came to *read*. (v4)
+- **Do** drop a status pill's fill to toned text when the status is present on every row at rest,
+  keeping the tone semantics unchanged. (v4)
 - **Do** drive every interactive affordance with the one `primary` blue, and keep it under ~10% of any screen (The One Blue Rule). The optional primary-button sheen is the *same* blue — not a second action color.
 - **Do** define structure with the single 1px `border` (`hsl(240 5.9% 90%)`) and surface-tone contrast (white `card` on `secondary/35%` main); cards/KPI/kanban *also* carry the one subtle `shadows.rest` resting lift (Soft-Elevation Rule) — border and rest-shadow are co-equal, never shadow-alone.
 - **Do** apply `tabular-nums` to every figure — currency, %, counts, deltas, ages — in tables, KPIs, kanban, and funnels; **verify `tnum` actually aligns columns in DM Sans** and fall back to Inter-tabular for numeric cells only if it doesn't (The Tabular-Numbers Rule).
@@ -445,6 +553,14 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 - **Don't** use mono or proportional figures for money in tables — money is DM-Sans-`tabular` (or the scoped Inter-tabular fallback), IDs are mono.
 - **Don't** color body text with a fully saturated status hue, fill a status pill solid, or put a gradient on any status element.
 - **Don't** make interactive controls taller/shorter than 32px or invent radii outside the 4/8/10/12/999 scale, and don't let 32px controls take the 12px card radius (the OD-P3-10 taste guard keeps them at 8px).
+- **Don't** open a capture surface with a row of KPI tiles. Cards-as-page-structure and the
+  big-number/small-label hero metric are the two most recognisable generic-dashboard tells, and on a
+  phone they cost the entire first viewport. Use the summary rule. (v4)
+- **Don't** repeat a value under a control that the row or card already renders as its own
+  column/field. The `plan N` caption under each stepper duplicated the Plan column, cost ~40px per
+  desktop row and ~180px per phone card, and pushed the list off the screen. (v4)
+- **Don't** ship the generic `<dl>` record card on a surface whose phone job is running a long
+  capture list — supply a compact row through `renderCard` instead. (v4)
 
 ---
 

@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import type { KitchenKpis, KitchenKpiStripData } from '@/lib/kitchen-kpis'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
+import { useT, interpolate, type Translate } from '@/i18n/use-t'
+import { messages } from '@/i18n/messages'
 
 export function computeStockKpis(rows: KitchenStockRow[]): KitchenKpis {
   let onHandTotal = 0
@@ -28,7 +30,16 @@ export function computeStockKpis(rows: KitchenStockRow[]): KitchenKpis {
   }
 }
 
-export function computeStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStripData {
+// harden (2026-07-28): every label, delta and sub-line below was a hardcoded English
+// literal, so Café · Stock's whole KPI band stayed English in the Indonesian locale — on
+// the module whose primary reader is floor staff. `t` is injected rather than read from
+// context so the function stays pure and unit-testable; it is optional purely so the
+// existing pure-compute tests keep their single-argument call shape.
+export function computeStockKpiStripData(
+  rows: KitchenStockRow[],
+  t?: Translate,
+): KitchenKpiStripData {
+  const tr: Translate = t ?? ((key, vars) => interpolate(messages.en[key], vars))
   let onHandTotal = 0
   let availableTotal = 0
   let inStockCount = 0
@@ -44,43 +55,48 @@ export function computeStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStr
   }
 
   return {
-    ariaLabel: 'Stock summary',
-    phoneLabel: 'Stock',
-    phoneValue: `${rows.length} items`,
-    phoneMeta: `${availableTotal} available`,
+    ariaLabel: tr('kitchen.stock.kpi.ariaLabel'),
+    phoneLabel: tr('kitchen.stock.kpi.phoneLabel'),
+    phoneValue: tr('kitchen.stock.kpi.itemCount', { count: rows.length }),
+    phoneMeta: tr('kitchen.stock.kpi.availableCount', { count: availableTotal }),
     tiles: [
       {
         // census FLAG-F: label the two bases so on-hand (161) vs available (7080) reads —
         // on-hand is the usable snapshot for the day; available is the cumulative
         // transfer-ready balance across all approved activity.
-        label: 'Total on-hand',
+        label: tr('kitchen.stock.kpi.onHand'),
         value: String(onHandTotal),
-        delta: `${rows.length} items`,
+        delta: tr('kitchen.stock.kpi.itemCount', { count: rows.length }),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'usable now',
+        sub: tr('kitchen.stock.kpi.onHand.sub'),
       },
       {
-        label: 'Items in stock',
+        label: tr('kitchen.stock.kpi.inStock'),
         value: String(inStockCount),
-        delta: `${rows.length - inStockCount} empty/negative`,
+        delta: tr('kitchen.stock.kpi.inStock.delta', { count: rows.length - inStockCount }),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'with usable stock',
+        sub: tr('kitchen.stock.kpi.inStock.sub'),
       },
       {
-        label: 'Negative balances',
+        label: tr('kitchen.stock.kpi.negative'),
         value: String(negativeCount),
-        delta: negativeCount > 0 ? 'needs review' : hasPopulatedStock ? 'clear' : 'no stock data yet',
+        delta:
+          negativeCount > 0
+            ? tr('kitchen.stock.kpi.negative.review')
+            : hasPopulatedStock
+              ? tr('kitchen.stock.kpi.negative.clear')
+              : tr('kitchen.stock.kpi.negative.noData'),
         deltaTone: negativeCount > 0 ? 'destructive' : hasPopulatedStock ? 'success' : 'neutral',
       },
       {
-        label: 'Available total',
+        label: tr('kitchen.stock.kpi.available'),
         value: String(availableTotal),
-        delta: 'transfer-ready',
+        delta: tr('kitchen.stock.kpi.available.delta'),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'cumulative',
+        sub: tr('kitchen.stock.kpi.available.sub'),
       },
     ],
   }
@@ -91,5 +107,6 @@ export function useStockKpis(rows: KitchenStockRow[]): KitchenKpis {
 }
 
 export function useStockKpiStripData(rows: KitchenStockRow[]): KitchenKpiStripData {
-  return useMemo(() => computeStockKpiStripData(rows), [rows])
+  const t = useT()
+  return useMemo(() => computeStockKpiStripData(rows, t), [rows, t])
 }

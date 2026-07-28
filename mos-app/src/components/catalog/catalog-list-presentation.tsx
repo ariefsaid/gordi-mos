@@ -3,7 +3,14 @@
 // type tag, its FR-422 up/down trace, and the inline management actions (Rename / Archive) that ARE
 // the row's primary interaction — a catalog row has no record panel, so it never invents one. The
 // Archived view swaps those for Unarchive. Mutations are read from the page via the actions context.
+//
+// OD-V4-1 H4: every row ALSO carries a disclosure toggle (▸) that expands its bidirectional
+// relations — child Projects/Processes for an Objective, parent Objective(s) for a Project/Process,
+// and either way the row's own Tasks — each a real <Link> to an existing route (/work/objectives,
+// /work/projects, /work/tasks/:id). Not a new cascade page/route (docs/v4-inheritance.md INC-1):
+// the relations live on the rows themselves, reusing routes that already exist.
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
@@ -12,11 +19,97 @@ import type { CollectionPresentationProps, CollectionProjection } from '@/lib/re
 import type {
   CatalogCollectionContext,
   CatalogCollectionQuery,
+  CatalogRelations,
+  CatalogRelationsKind,
   CatalogRenderGroup,
   CatalogRow,
 } from './catalog-collection-adapter'
 import { useCatalogCollectionActions } from './catalog-collection-actions'
 import './catalog-collection.css'
+
+/** OD-V4-1 H4 cap: an objective/work_line with dozens of tasks gets a bounded inline list, not a
+    runaway DOM — the row's disclosure is a real drill-in for the common case, not a full report. */
+const MAX_RELATIONS_TASKS = 12
+
+function DisclosureChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      className={`catalog-collection__disclosure-chevron${expanded ? ' catalog-collection__disclosure-chevron--open' : ''}`}
+      width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  )
+}
+
+function RelationsPanel({
+  relations, kind, t,
+}: {
+  relations: CatalogRelations
+  kind: CatalogRelationsKind
+  t: ReturnType<typeof useT>
+}) {
+  const groupPath = kind === 'objective' ? '/work/projects' : '/work/objectives'
+  const hasGroups = relations.groups.length > 0
+  const hasTasks = relations.tasks.length > 0
+
+  if (!hasGroups && !hasTasks) {
+    return (
+      <p className="catalog-collection__relations-empty">
+        {t(kind === 'objective' ? 'catalog.relations.empty.objective' : 'catalog.relations.empty.workLine')}
+      </p>
+    )
+  }
+
+  const shownTasks = relations.tasks.slice(0, MAX_RELATIONS_TASKS)
+  const overflow = relations.tasks.length - shownTasks.length
+
+  return (
+    <div className="catalog-collection__relations-body">
+      {hasGroups && (
+        <div className="catalog-collection__relations-group">
+          <span className="catalog-collection__relations-heading">
+            {t(kind === 'objective' ? 'catalog.relations.heading.children' : 'catalog.relations.heading.parents')}
+          </span>
+          <ul className="catalog-collection__relations-list">
+            {relations.groups.map((group) => (
+              <li key={group.id}>
+                <Link
+                  className="catalog-collection__relations-link"
+                  to={{ pathname: groupPath, search: `?q=${encodeURIComponent(group.name)}` }}
+                >
+                  {group.name}
+                </Link>
+                <span className="catalog-collection__relations-count">({group.taskCount})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {hasTasks && (
+        <div className="catalog-collection__relations-group">
+          <span className="catalog-collection__relations-heading">{t('catalog.relations.heading.tasks')}</span>
+          <ul className="catalog-collection__relations-list">
+            {shownTasks.map((task) => (
+              <li key={task.id}>
+                <Link className="catalog-collection__relations-link" to={`/work/tasks/${task.id}`}>
+                  {task.title}
+                </Link>
+              </li>
+            ))}
+            {overflow > 0 && (
+              <li>
+                <Link className="catalog-collection__relations-link" to="/work/tasks">
+                  {t('catalog.relations.moreTasks', { count: String(overflow) })}
+                </Link>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type CatalogListProps = CollectionPresentationProps<
   CatalogRow,
@@ -33,6 +126,8 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
   const [editName, setEditName] = useState('')
   const [editError, setEditError] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  // OD-V4-1 H4: one row's relations open at a time (accordion) — a real drill target per row.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const archivedView = query.view === 'archived'
   const viewLabel = t(archivedView ? 'catalog.view.archived' : 'catalog.view.active')
@@ -115,11 +210,33 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
           )
         }
 
+        // OD-V4-1 H4: the row's real drill target — its bidirectional relations (child
+        // Projects/Processes or parent Objective(s), plus its own Tasks), expandable in place.
+        const relations = context.relationsById.get(row.id) ?? { groups: [], tasks: [] }
+        const expanded = expandedId === row.id
+        const relationsPanelId = `catalog-relations-${row.id}`
+
         return (
           <li
             key={row.id}
             className={`catalog-collection__row${archivedView ? ' catalog-collection__row--archived' : ''}`}
           >
+            <button
+              type="button"
+              className="catalog-collection__disclosure"
+              aria-expanded={expanded}
+              aria-controls={relationsPanelId}
+              /* polish (2026-07-28): the name announced "Show relations for X" even while the
+                 panel was open, so a screen-reader user got told to do the thing they had just
+                 done. `aria-expanded` alone carries the state; the NAME has to agree with it. */
+              aria-label={t(
+                expanded ? 'catalog.relations.hideAria' : 'catalog.relations.toggleAria',
+                { name: row.name },
+              )}
+              onClick={() => setExpandedId((current) => (current === row.id ? null : row.id))}
+            >
+              <DisclosureChevron expanded={expanded} />
+            </button>
             <div className="catalog-collection__identity">
               <span className="catalog-collection__name">{row.name}</span>
               {typeTag}
@@ -157,6 +274,15 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
             </div>
             {trace && (
               <span className="catalog-collection__trace" data-testid="catalog-trace">{trace}</span>
+            )}
+            {expanded && (
+              <div
+                id={relationsPanelId}
+                className="catalog-collection__relations"
+                data-testid="catalog-relations"
+              >
+                <RelationsPanel relations={relations} kind={context.relationsKind} t={t} />
+              </div>
             )}
           </li>
         )

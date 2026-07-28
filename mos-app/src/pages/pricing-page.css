@@ -19,56 +19,50 @@
   flex-direction: column;
   gap: 4px;
 }
+/* Metric summary rule (DESIGN.md, v4): one dense line of label:value pairs, closed
+   by a hairline — the surface's derived context (COGS + basis), not a KPI reading. */
 .pp-meta {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 22px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 .pp-meta-item {
-  font-size: var(--font-size-mono);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.pp-meta-label {
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
+.pp-meta-value {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+}
+/* Alert-banner convention (matches kitchen-log-page.css .kl-banner-error): AA-darkened
+   red text over a light destructive tint, never the base --destructive as text. */
 .pp-warn {
-  color: var(--destructive);
+  color: var(--status-lost-text);
   background: color-mix(in srgb, var(--destructive) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--destructive) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: var(--font-size-mono);
   margin: 0 0 16px;
   max-width: 720px;
 }
+/* The margin result — KPITile (DESIGN.md signature) supplies the card/border/shadow/
+   radius; this wrapper only sets the flex row + each tile's min-width. */
 .pp-result {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
 }
 .pp-result-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--background);
   min-width: 140px;
-}
-.pp-result-label {
-  font-size: var(--font-size-overline);
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted-foreground);
-}
-.pp-result-value {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-.pp-floor-warn {
-  color: var(--warning-foreground, var(--warning));
-  font-size: var(--font-size-mono);
-  margin: 8px 0 0;
 }

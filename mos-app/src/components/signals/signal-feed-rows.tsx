@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/ui/state-kit'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { orderSignalsForFeed } from '@/lib/db/signals'
 import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { attentionLabel } from './signal-attention-label'
 import { SignalCategoryPicker } from './signal-category-picker'
 import './signal-feed-rows.css'
 
@@ -113,9 +114,7 @@ export function SignalFeedRows({
                 </div>
                 <div className="home-signal-tail">
                   <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
-                    {signal.attention === 'Urgent' ? t('signals.archive.attentionUrgent')
-                      : signal.attention === 'Needs attention' ? t('signals.archive.viewAttention')
-                      : signal.attention /* FYI — the loanword, catalog-wide (archive filter ditto) */}
+                    {attentionLabel(t, signal.attention)}
                   </span>
                   <SignalCategoryPicker
                     category={signal.category}

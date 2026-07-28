@@ -62,30 +62,22 @@
   color: var(--muted-foreground);
 }
 
-/* r5 F-8: a real <button> now (was a span) — reset native chrome, stack above the
-   hit overlay so it stays independently clickable/focusable on interactive tiles. */
+/* onboard (2026-07-28): this rule used to be a full duplicate of the shared "?" glyph —
+   the same 14x14 bordered circle declared a second time, for a second hand-rolled button
+   that carried the same touch-dead `title` defect. The glyph is now the shared HelpTip
+   (help-tip.css owns its box, border, colour and 44px hit area); this class survives only
+   as the tile-local POSITIONING concern the shared primitive must not know about: stacking
+   above `.kpi-tile-hit`, the stretched transparent overlay that makes a filter-in-place tile
+   clickable. Without the z-index the overlay would swallow the help tap. */
 .kpi-tile-help {
   position: relative;
   z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  background: transparent;
-  font-family: inherit;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-size: var(--font-size-micro);
-  cursor: help;
-  flex: none;
 }
 
 .kpi-tile-value {
-  /* page-title scale — 23px/600 (design-plan §2.1 reflow note) */
-  font-size: 23px;
+  /* page-title scale — 23px/600 (design-plan §2.1 reflow note). typeset: now the
+     --font-size-kpi-value token (minted from this exact documented value). */
+  font-size: var(--font-size-kpi-value);
   font-weight: 600;
   color: var(--foreground);
   line-height: 1.1;
@@ -96,16 +88,17 @@
    floor on narrow viewports (2-col/1-col phone grid, ≤959px) so long values keep
    to one line without a hard-coded per-tile breakpoint. At the 4-up desktop grid
    (≥960px, matches the KPI grid's own 4-col breakpoint) tiles are wide enough
-   that the value always reverts to the DESIGN.md 23px/600 ceiling. Same
-   font-size property — no new token, just a fit-to-width floor. */
+   that the value always reverts to the DESIGN.md 23px/600 ceiling, now the
+   --font-size-kpi-value token. The 17px floor stays a literal fit-to-width value,
+   not a ramp step. */
 .kpi-tile-value--nowrap {
   white-space: nowrap;
-  font-size: clamp(17px, 6.2vw, 23px);
+  font-size: clamp(17px, 6.2vw, var(--font-size-kpi-value));
 }
 
 @media (min-width: 960px) {
   .kpi-tile-value--nowrap {
-    font-size: 23px;
+    font-size: var(--font-size-kpi-value);
   }
 }
 

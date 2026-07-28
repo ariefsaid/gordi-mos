@@ -111,7 +111,6 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   // (90%-employee-first) and were only reachable from the desktop rail. Mirrors the existing
   // Signals entry below — a Work child reachable via ⌘K, not the phone More menu.
   const projectsAuthorized = can(accessRoles, 'workline.manage')
-  const objectivesAuthorized = can(accessRoles, 'objective.manage')
 
   const trimmed = query.trim()
   const isSearching = trimmed.length > 0
@@ -135,9 +134,10 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     if (projectsAuthorized) {
       items.push({ id: 'n-projects', label: t('nav.work.projects'), Icon: WorkLineIcon, kind: 'navigate', to: '/work/projects' })
     }
-    if (objectivesAuthorized) {
-      items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
-    }
+    // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): Objectives are visible to
+    // everyone — this NAVIGATE command carries no capability gate, mirroring the destinations.tsx
+    // rail fix (mos.objectives SELECT RLS has no role check). Write stays gated inside the page.
+    items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
     items.push(
       { id: 'n-events', label: t('dest.events'), Icon: EventsIcon, kind: 'navigate', to: '/events' },
       { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
@@ -145,7 +145,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },
     )
     return items
-  }, [t, projectsAuthorized, objectivesAuthorized])
+  }, [t, projectsAuthorized])
 
   const visibleNavigate = useMemo(
     () => navigateItems.filter((i) => !i.gated || moneyAuthorized),

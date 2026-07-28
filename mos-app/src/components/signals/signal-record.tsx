@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { CommentThread, type TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 import { attentionSlug, type Attention, type MentionKind, type SignalCategory } from '@/lib/db/signals.types'
+import { attentionLabel } from './signal-attention-label'
 import { SignalCategoryPicker } from './signal-category-picker'
 import './signal-card.css'
 import './signal-record.css'
@@ -65,7 +66,7 @@ export function SignalMessage({
   return (
     <div className="signal-message">
       <div className="signal-message-urgency">
-        <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attention}</span>
+        <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attentionLabel(t, attention)}</span>
         <span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span>
       </div>
       <p className="signal-message-body">{body}</p>

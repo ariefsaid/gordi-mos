@@ -39,6 +39,22 @@
   --field-error-text:   var(--status-lost-text); /* I4 field-error text — the alias TaskSurface/catalog reference */
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
   --warning-foreground: color(display-p3 0.28 0.22 0.08);        /* hsl(28 80% 34%) — E7 deep brown */
+  /* a11y audit fix (WCAG AA-1/AA-2): the mos-design-kit's Tag green/amber text (used by
+     kitchen-pushes' "Terkirim"/"Gagal" status tags — 70 of 77 flagged nodes on /cafe/pushes
+     alone) measured 4.36:1 and 4.27:1 against their own tint backgrounds — both below the
+     4.5:1 AA floor for normal text (kit defaults in styles/tokens/theme-light.css:
+     --ds-tag-text-green ≈ rgb(0,130,77) on ≈ rgb(230,246,235); --ds-tag-text-amber ≈
+     rgb(173,98,0) on ≈ rgb(255,247,194)). Overridden at the token level (last write in the
+     light cascade wins over the @import'd kit default) rather than patched at the call site,
+     so every Tag green/amber consumer app-wide inherits the fix. Reuses same-hue tokens
+     already AA-darkened for exactly this purpose instead of inventing new ones:
+     --status-won-text is the established AA-safe green (same family as "posted"/success);
+     --warning-foreground is DESIGN.md's own documented Warning-Amber foreground (deep
+     brown — the amber family's AA text per §Colors/Tertiary). Re-measured: 14.4:1 / 10.4:1
+     on the same backgrounds — both clear AA with margin, no hue change, dark theme untouched
+     (its own tag-text-green/amber already measure 7.9:1 / 10.2:1, no fix needed there). */
+  --ds-tag-text-green: var(--status-won-text);
+  --ds-tag-text-amber: var(--warning-foreground);
   /* SYS-4 (backfill census, MEDIUM) / DO-11: the theme-aware "blue text on a blue tint" pair —
      the active rail pill (The One Blue on --ds-color-blue3) and the @mention person badge (on
      --accent-subtle). In LIGHT this is the mid-blue --ds-color-blue verbatim (both surfaces are
@@ -216,12 +232,23 @@
      are intentionally NOT chained here; these px values are the DESIGN.md ladder verbatim.
      Owner complaint 2026-07 ("multiple font sizes that feel untidy") → this ladder. */
   --font-size-page-title: 24px;   /* page title (Plus Jakarta 600) — DESIGN.md page-title */
+  /* typeset: minted, not invented — this size was already live and already documented in prose
+     ("KPI values reuse ~23px/600 for the headline number", DESIGN.md §Hierarchy) and in a code
+     comment (dashboard/kpi-tile.css .kpi-tile-value: "page-title scale — 23px/600"), just never
+     a token. A parallel headline-figure rung beside page-title (24px text titles vs 23px tabular
+     numerals), not a replacement for it — kept distinct on purpose. */
+  --font-size-kpi-value:  23px;   /* KPI/headline numeral — DESIGN.md "KPI values reuse ~23px/600" */
   --font-size-heading:    20px;   /* section/card heading — DESIGN.md heading */
   --font-size-subheading: 18px;   /* sub-section header, empty-state title — DESIGN.md subheading */
   --font-size-body-lg:    15px;   /* emphasized body — record titles, primary row text, lead copy.
                                      MINTED OD-REDESIGN-91 #6/B4: the ~65-use 15px family is lawful. */
   --font-size-body:       14px;   /* base body, table cells, meta — DESIGN.md body (== the html base) */
   --font-size-control:    13.5px; /* buttons/inputs/select/date/tabs — DESIGN.md "controls run 13.5px" */
+  /* v4: the ONE step above the ramp's control size, and it exists for a mechanical reason, not
+     taste: iOS/mobile Safari zooms the viewport when a focused input's font-size is < 16px. On a
+     touch capture field the floor taps ~21 times in a pass that zoom is disqualifying. Use ONLY
+     on text/number inputs that are tapped on a coarse pointer. Never for display or body copy. */
+  --font-size-touch-input: 16px;
   --font-size-mono:       13px;   /* SF Mono IDs/codes, dense compact text — DESIGN.md mono */
   --font-size-label:      12px;   /* pill/tag labels, field labels, dense metadata — DESIGN.md label */
   --font-size-overline:   11px;   /* counts, column headers, captions — DESIGN.md overline */
@@ -298,7 +325,15 @@
   --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
   --row-pad-y:             10px;
   --row-pad-x:             12px;
-  --row-min-h:             50px;
+  /* P2 fix: was 50px, disagreeing with DESIGN.md's frontmatter + three prose sections (all
+     52px) and with `.record-collection-view`'s own local override (record-collection.css),
+     which had to re-declare 52px just to be correct. Kitchen's own DataTable-cell CSS
+     comments (kitchen-log-page.css/kitchen-stock-page.css/kitchen-plan-page.css) already
+     assume "the Data Table's 52px row spec" — so 52px was already the de facto contract
+     kitchen tuned its two-line name+category cells against; 50px here was the actual bug,
+     not a competing intent. Raising it to match is a no-new-token correctness fix, not a
+     new design decision. */
+  --row-min-h:             52px;
 }
 
 @layer base {
@@ -367,3 +402,21 @@
    `.sk` / `.skeleton-bar` rules reference it (reduced-motion opt-outs stay local).
    ════════════════════════════════════════════════════════════════════════════ */
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* a11y audit fix (WCAG AA-3, worst offender in the audit): Inbox's selected filter tab
+   ("Semua"/"All", src/components/inbox/inbox.css .inbox-triage__filter[aria-pressed='true'])
+   pairs near-black --foreground text against an --accent background — and the mos-design-kit
+   aliases --accent to --ds-color-blue (styles/tokens/aliases.css), so the selected pill is
+   effectively solid primary blue. Measured 2.98:1: rgb(37,36,34) on rgb(62,99,221), well
+   under the 4.5:1 AA floor. The rule per DESIGN.md's own guidance: a blue-filled surface
+   needs the inverted/on-primary foreground, not near-black — swap in --primary-foreground,
+   the same near-white token every other solid-blue fill (primary button, active nav pill)
+   already uses. The owning stylesheet is a component file out of scope for this token-level
+   pass, so the fix lives here; the `:root` prefix is a deliberate specificity bump (not
+   !important) because inbox.css loads after index.css in the bundle and would otherwise win
+   the tie at equal specificity. Re-measured: --primary-foreground on this blue clears AA with
+   very large margin (same pairing DESIGN.md documents as ≥4.5:1 across the button's full
+   gradient range). */
+:root .inbox-triage__filter[aria-pressed='true'] {
+  color: var(--primary-foreground);
+}

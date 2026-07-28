@@ -165,18 +165,21 @@
 }
 
 /* ── Reason chip — the ranking-legibility cue. Flat, borderless, tinted by tone
-   (mirrors the Pill tint recipe but slightly smaller so the status pill stays the
-   primary state cue). ── */
+   (mirrors the Pill tint recipe but one ramp step smaller so the status pill stays
+   the primary state cue). Radius is the 8px CONTROL radius and the size is the 11px
+   overline rung: the former 6px/11.5px pair sat outside both documented scales
+   (DESIGN.md § Shapes, § Typography hierarchy). ── */
 .stream-reason {
   display: inline-flex;
   align-items: center;
   height: 20px;
   padding: 0 8px;
-  border-radius: 6px;
-  font-size: 11.5px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-overline);
   font-weight: 600;
   white-space: nowrap;
 }
+
 .stream-reason--urgent    { background: color-mix(in srgb, var(--destructive) 16%, transparent); color: var(--status-lost-text); }
 .stream-reason--attention { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
 .stream-reason--overdue { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
@@ -184,6 +187,20 @@
 .stream-reason--blocked { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
 .stream-reason--check   { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
 .stream-reason--mention { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
+
+/* Row status as text (DESIGN.md § Row status as text, v4): where the reason is true of
+   EVERY row in the band at rest, the tone semantics stay and the FILL is dropped — a
+   column of filled pills marks everything and therefore marks nothing, and it out-shouts
+   the row titles it exists to rank. Label size / 500, per the documented pattern. Placed
+   after the tone rules so it strips their fill while keeping their colour. */
+.stream-reason--flat {
+  height: auto;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
 
 /* All-caught-up affirmation for the attention group (compact, left-aligned — same
    StateKit primitive; overrides only its centering/sizing). */

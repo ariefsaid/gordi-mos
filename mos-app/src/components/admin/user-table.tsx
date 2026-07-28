@@ -507,7 +507,12 @@ function DesktopTable({
           <tr
             key={person.id}
             className="group/row hover:bg-accent/60"
-            style={{ height: 54, borderBottom: '1px solid var(--border)' }}
+            // v4: 52px is DESIGN.md's Data Table row spec ("E7 table rows are 52px" /
+            // table-body-cell height:52) — was 54px, a 2px off-spec drift. The
+            // name+email two-line stack still fits: flex items-center centers it
+            // regardless, and craft-floor's own guidance is to tighten a multi-line
+            // stack's line-height rather than inflate the row to fit it.
+            style={{ height: 52, borderBottom: '1px solid var(--border)' }}
           >
             <td className="px-4">
               <div className="flex items-center gap-2">

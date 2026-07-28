@@ -20,6 +20,7 @@ import {
   type CertifiedMetric,
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
+import { KPITile } from '@/components/dashboard/kpi-tile'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
@@ -32,8 +33,8 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
 
 export function PricingPage() {
-  useDocumentTitle('Pricing pre-flight — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.planPricing') }))
 
   const [budgets, setBudgets] = useState<BudgetRow[]>([])
   const [metric, setMetric] = useState<CertifiedMetric | null>(null)
@@ -93,7 +94,7 @@ export function PricingPage() {
     return (
       <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
-          message="Couldn't load budgets. Try again."
+          message={t('common.loadFailed', { what: t('common.what.budgets') })}
           onRetry={() => setRetryKey((k) => k + 1)}
         />
       </PageFamilyFrame>
@@ -163,38 +164,47 @@ export function PricingPage() {
         </div>
 
         {budget && (
+          // Metric summary rule (DESIGN.md, v4): one dense line, label:value pairs
+          // (label at label size in muted-foreground, value at body-lg/600 tabular),
+          // closed by a hairline — not the mono-text key:value strip this replaces.
           <div className="pp-meta">
             <span className="pp-meta-item">
-              Budgeted COGS: <span className="tabular">{formatIDR(budget.total_budgeted_cogs)}</span>
+              <span className="pp-meta-label">Budgeted COGS</span>
+              <span className="pp-meta-value tabular">{formatIDR(budget.total_budgeted_cogs)}</span>
             </span>
             <span className="pp-meta-item">
-              Basis as of: <span className="tabular">{shortDate(budget.cost_basis_as_of)}</span>
+              <span className="pp-meta-label">Basis as of</span>
+              <span className="pp-meta-value tabular">{shortDate(budget.cost_basis_as_of)}</span>
             </span>
             {status && <FailLoudBadge status={status} />}
           </div>
         )}
 
         {status && !status.fresh && (
+          // The specific reasons already surface in the FailLoudBadge above — this line
+          // states the instruction only, so the reasons aren't printed twice on screen.
           <p className="pp-warn" role="alert" data-testid="pricing-freshness-warning">
-            Do not price against this basis — {status.reasons.join(' ')}
+            Do not price against this basis.
           </p>
         )}
 
         {margin && (
+          // KPITile — the DESIGN.md "KPI Tile (signature)" primitive: this is a Money
+          // surface's read-the-result moment (the pre-flight's computed answer), the
+          // stated exception to the summary-rule/no-tiles-on-capture-surfaces default.
           <div className="pp-result" data-testid="pricing-result">
-            <div className="pp-result-tile">
-              <span className="pp-result-label">Gross margin</span>
-              <span className="pp-result-value tabular">{formatIDR(margin.margin)}</span>
-            </div>
-            <div className="pp-result-tile">
-              <span className="pp-result-label">Margin %</span>
-              <span className="pp-result-value tabular">{formatPct(margin.margin_pct)}</span>
-            </div>
-            {margin.below_floor && margin.margin_pct !== null && (
-              <p className="pp-floor-warn" role="status">
-                Below the {formatPct(MARGIN_FLOOR_PCT)} margin floor — warn-only; you set the price.
-              </p>
-            )}
+            <KPITile className="pp-result-tile" label="Gross margin" value={formatIDR(margin.margin)} />
+            <KPITile
+              className="pp-result-tile"
+              label="Margin %"
+              value={formatPct(margin.margin_pct)}
+              delta={
+                margin.below_floor
+                  ? { text: `Below ${formatPct(MARGIN_FLOOR_PCT)} floor`, tone: 'destructive' }
+                  : undefined
+              }
+              sub={margin.below_floor ? 'Warn-only — you set the price.' : undefined}
+            />
           </div>
         )}
       </section>

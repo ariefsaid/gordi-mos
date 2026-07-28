@@ -72,7 +72,7 @@
   border-radius: var(--radius-sm);
   background: var(--muted);
   color: var(--muted-foreground);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-mono); /* typeset: was 0.8125rem (13px) literal — same value, now the token */
 }
 
 .record-collection-selection {
@@ -114,14 +114,21 @@
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
+/* P1 fix (craft-floor Type: "run the real copy at every breakpoint and fix what
+   overflows"): this was `inline-flex` with three independent child spans (view / sep /
+   collection), each its own flex item — `text-overflow: ellipsis` never applies to a flex
+   container's children (only to a single run of text in a block/inline box), so at narrow
+   widths the label hard-clipped mid-word with no ellipsis ever rendering (measured: id
+   "Semua · Arsip Sinyal" scrollWidth 130 vs clientWidth 86 at 320px). Dropping the flex
+   display lets the three spans flow as ordinary inline text — the separator span already
+   carries its own literal " · " padding in the markup, so spacing is unchanged — and
+   ordinary inline text wraps at word boundaries instead of clipping. `flex: 1 1 auto` +
+   `min-width: 0` (as a flex ITEM of `.record-collection-result`) is what lets the label
+   shrink to the space the count badge yields, and what content remains simply wraps to a
+   second line rather than being cut. */
 .record-collection-result__label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .record-collection-result__view {
   color: var(--foreground);

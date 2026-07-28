@@ -10,6 +10,7 @@
 // blur is a no-op (no needless upsert). Previously it hand-rolled useState/useEffect and
 // fired onSave on every blur, with no Escape path — the one plan control off the contract.
 
+import { useT } from '@/i18n/use-t'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import './plan-qty-stepper.css'
 
@@ -28,6 +29,7 @@ interface PlanQtyStepperProps {
 }
 
 export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disabled, onSave }: PlanQtyStepperProps) {
+  const t = useT()
   const { draft, setDraft, commit, onKeyDown, onBlur } = useInlineCommit<number>({
     value: qty,
     onCommit: onSave,
@@ -38,7 +40,7 @@ export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disab
     <div className="kps">
       <button
         type="button"
-        aria-label={`Decrease ${itemName} planned quantity`}
+        aria-label={t('kitchen.qty.decreaseAria', { dish: itemName })}
         className="kps-step"
         data-touch-target="true"
         disabled={disabled || draft <= 0}
@@ -49,7 +51,7 @@ export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disab
       <input
         type="number"
         role="spinbutton"
-        aria-label={`Planned quantity for ${itemName}`}
+        aria-label={t('kitchen.qty.plannedAria', { dish: itemName })}
         className="kps-qty tabular"
         value={draft}
         min={0}
@@ -64,7 +66,7 @@ export function PlanQtyStepper({ itemName, qty, saving, justSaved = false, disab
       />
       <button
         type="button"
-        aria-label={`Increase ${itemName} planned quantity`}
+        aria-label={t('kitchen.qty.increaseAria', { dish: itemName })}
         className="kps-step"
         data-touch-target="true"
         disabled={disabled}
