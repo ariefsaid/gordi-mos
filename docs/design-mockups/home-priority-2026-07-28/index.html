@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home priority hierarchy — three directions (2026-07-28)</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tokens — lifted verbatim from the running app's computed custom properties on
+   2026-07-28 (v4-redesign @ 1e459b0). DESIGN.md is the authority; these are the
+   subset this surface actually uses. Fonts are declared as the app declares them;
+   a local viewer without DM Sans / Plus Jakarta installed falls back to system-ui,
+   so judge weight and scale here, not letterforms.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --ds-background-primary: color(display-p3 1 0.988 0.972);
+  --ds-background-secondary: color(display-p3 0.984 0.976 0.957);
+  --ds-background-tertiary: color(display-p3 0.969 0.957 0.933);
+  --ds-font-color-primary: color(display-p3 0.145 0.141 0.133);
+  --ds-font-color-secondary: color(display-p3 0.388 0.380 0.365);
+  --ds-font-color-tertiary: color(display-p3 0.44 0.432 0.418);
+  --ds-border-color-strong: color(display-p3 0.867 0.855 0.831);
+  --ds-border-color-medium: color(display-p3 0.922 0.914 0.898);
+  --ds-color-red: color(display-p3 0.83 0.329 0.324);
+  --ds-color-blue: color(display-p3 0.276 0.384 0.837);
+  --ds-tag-background-red: color(display-p3 0.985 0.925 0.925);
+  --ds-tag-text-red: color(display-p3 0.744 0.234 0.222);
+  --ds-tag-background-amber: color(display-p3 0.994 0.969 0.782);
+  --ds-tag-text-amber: color(display-p3 0.28 0.22 0.08);
+  --ds-tag-background-gray: color(display-p3 0.976 0.976 0.976);
+  --ds-tag-background-blue: color(display-p3 0.933 0.948 0.992);
+  --ds-tag-text-blue: color(display-p3 0.256 0.354 0.755);
+
+  /* DESIGN.md § Typography (OD-P3-9) is the authority for the family names — the running
+     app resolves 'DM Sans Variable' first as a build detail, which is not a design token. */
+  --ds-font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ds-font-display: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* index.css:255 — "avatar initials — the one sub-11 mark". The only sanctioned sub-11px size. */
+  --font-size-micro: 10px;
+  --brand-navy: color(display-p3 0.0313 0.0311 0.0893);
+  --ds-font-size-xxs: 0.625rem;
+  --ds-font-size-xs: 0.975rem;
+  --ds-font-size-sm: 1.045rem;
+  --ds-font-size-md: 1.125rem;
+  --ds-font-size-lg: 1.355rem;
+  --ds-font-size-xl: 1.665rem;
+
+  --sp-1: 4px;  --sp-1_5: 6px; --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px;  --sp-8: 32px; --sp-12: 48px;
+  --r-sm: 4px; --r-md: 8px; --r-pill: 999px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--ds-font-family);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ds-font-color-primary);
+  background: color(display-p3 0.945 0.937 0.925);
+}
+
+/* ── Chrome of the comparison harness (not part of the design under review) ── */
+.harness { max-width: 1320px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-12); }
+.harness-head { margin-bottom: var(--sp-5); }
+.harness-head h1 {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-font-size-xl);
+  font-weight: 600;
+  margin: 0 0 var(--sp-2);
+  letter-spacing: -0.015em;
+}
+.harness-head p { margin: 0; max-width: 68ch; color: var(--ds-font-color-secondary); }
+.harness-head code {
+  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--ds-background-tertiary);
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+}
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  align-items: center; margin: var(--sp-5) 0 var(--sp-3);
+}
+.controls-group { display: flex; gap: var(--sp-1); background: var(--ds-background-tertiary); padding: 3px; border-radius: var(--r-md); }
+.controls-sep { flex: 1 1 auto; }
+button.tab {
+  font: inherit; font-weight: 500;
+  border: 0; cursor: pointer;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ds-font-color-secondary);
+  min-height: 36px;
+}
+button.tab:hover { background: color(display-p3 1 1 1 / 0.6); color: var(--ds-font-color-primary); }
+button.tab[aria-pressed="true"] {
+  background: var(--ds-background-primary);
+  color: var(--ds-font-color-primary);
+  box-shadow: 0 1px 2px color(display-p3 0 0 0 / 0.07);
+}
+button.tab:focus-visible { outline: 2px solid var(--ds-color-blue); outline-offset: 2px; }
+
+.rationale { display: none; }
+.rationale[data-active="true"] { display: block; }
+.rationale {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-color-medium);
+  border-radius: var(--r-md);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-4);
+}
+.rationale h2 {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-font-size-sm); font-weight: 600;
+  margin: 0 0 var(--sp-2);
+}
+.rationale p { margin: 0 0 var(--sp-2); max-width: 74ch; color: var(--ds-font-color-secondary); }
+.rationale p:last-child { margin-bottom: 0; }
+.rationale strong { color: var(--ds-font-color-primary); }
+
+/* The device frame — the surface under review lives inside this. */
+.frame {
+  background: var(--ds-background-primary);
+  border: 1px solid var(--ds-border-color-strong);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin: 0 auto;
+  /* No transition on max-width: animating a layout property thrashes, and an instant
+     width switch is the right behaviour for a comparison toggle anyway. */
+}
+.frame[data-w="desktop"] { max-width: 1180px; }
+.frame[data-w="phone"] { max-width: 390px; }
+.pane { padding: var(--sp-6) var(--sp-8) var(--sp-12); }
+.frame[data-w="phone"] .pane { padding: var(--sp-4) var(--sp-4) var(--sp-8); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE SURFACE — shared grammar. Every direction inherits this and overrides only
+   what its own axis touches, so the trio reads as one product at three angles.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ch-title {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-font-size-lg);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+  display: inline;
+}
+.ch-meta { color: var(--ds-font-color-secondary); margin-left: var(--sp-2); font-size: var(--ds-font-size-xs); }
+.page-head-job { margin: var(--sp-1_5) 0 var(--sp-6); color: var(--ds-font-color-secondary); }
+
+.band { margin-bottom: var(--sp-5); }
+.band-label {
+  font-size: var(--ds-font-size-xxs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-font-color-tertiary);
+  margin: 0 0 var(--sp-1_5);
+}
+.band-list { list-style: none; margin: 0; padding: 0; }
+.row { border-top: 1px solid var(--ds-border-color-medium); }
+.band-list > .row:first-child { border-top: 0; }
+.row-link {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-1);
+  text-decoration: none; color: inherit;
+  min-height: 44px;
+}
+.row-link:hover { background: var(--ds-background-secondary); }
+.row-link:focus-visible { outline: 2px solid var(--ds-color-blue); outline-offset: -2px; border-radius: var(--r-sm); }
+.row-body { flex: 1 1 auto; min-width: 0; }
+.row-title { display: block; font-weight: 500; }
+.row-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1_5);
+  margin-top: var(--sp-1);
+  font-size: var(--ds-font-size-xxs);
+  color: var(--ds-font-color-secondary);
+}
+/* Matches .stream-row-avatar in home-stream.css exactly: 20px, micro size, weight 700,
+   navy→blue gradient. Not re-invented for the mockup. */
+.avatar {
+  display: inline-grid; place-items: center; flex: none;
+  width: 20px; height: 20px; border-radius: var(--r-pill);
+  background: linear-gradient(135deg, var(--brand-navy), var(--ds-color-blue));
+  color: #fff;
+  font-size: var(--font-size-micro); font-weight: 700;
+}
+.who { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.sep { color: var(--ds-border-color-strong); }
+.row-tail { display: flex; align-items: center; gap: var(--sp-2); flex: 0 0 auto; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  font-size: var(--ds-font-size-xxs); font-weight: 500;
+  padding: 3px var(--sp-2); border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.chip--urgent { background: var(--ds-tag-background-red); color: var(--ds-tag-text-red); }
+.chip--attention { background: var(--ds-tag-background-amber); color: var(--ds-tag-text-amber); }
+.chip--flat { background: transparent; padding-inline: 0; color: var(--ds-font-color-secondary); }
+.pill {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  font-size: var(--ds-font-size-xxs); padding: 3px var(--sp-2);
+  border-radius: var(--r-pill); white-space: nowrap;
+}
+.pill--blocked { background: var(--ds-tag-background-red); color: var(--ds-tag-text-red); }
+.pill--progress { background: var(--ds-tag-background-blue); color: var(--ds-tag-text-blue); }
+.pill--open { background: var(--ds-tag-background-gray); color: var(--ds-font-color-tertiary); }
+.dot { width: 5px; height: 5px; border-radius: var(--r-pill); background: currentColor; }
+
+.group--mywork { margin-top: var(--sp-6); }
+.band-head-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-4); }
+.band-link { font-size: var(--ds-font-size-xxs); font-weight: 500; color: var(--ds-color-blue); text-decoration: none; }
+.band-link:hover { text-decoration: underline; }
+
+/* Phone: the tail wraps under the body rather than squeezing the title. */
+.frame[data-w="phone"] .row-link { flex-wrap: wrap; gap: var(--sp-2); }
+.frame[data-w="phone"] .row-tail { width: 100%; }
+
+/* ── Only one direction is mounted at a time ── */
+.direction { display: none; }
+.direction[data-active="true"] { display: block; }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   A · HIERARCHY — one lead item commands the eye; the rest steps back.
+   ═════════════════════════════════════════════════════════════════════════════ */
+[data-dir="a"] .band-label { color: var(--ds-font-color-tertiary); }
+[data-dir="a"] .row-meta { opacity: 0.72; }
+[data-dir="a"] .group--mywork { opacity: 0.76; }
+[data-dir="a"] .row--lead > .row-link {
+  align-items: flex-start;
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-1);
+  border-radius: var(--r-md);
+  background: var(--ds-background-tertiary);
+}
+[data-dir="a"] .row--lead .row-title {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-font-size-md);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+[data-dir="a"] .row--lead .row-meta { opacity: 1; margin-top: var(--sp-2); }
+[data-dir="a"] .row--lead .chip--urgent { font-weight: 600; }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   B · TOPOLOGY — severity stops being a right-edge afterthought. The reason
+   leads the line, and rows group by urgency instead of by record source.
+   ═════════════════════════════════════════════════════════════════════════════ */
+[data-dir="b"] .row-link { align-items: flex-start; gap: var(--sp-3); }
+[data-dir="b"] .lead-mark {
+  flex: 0 0 auto;
+  width: 84px;
+  padding-top: 1px;
+  font-size: var(--ds-font-size-xxs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+[data-dir="b"] .lead-mark[data-tone="urgent"] { color: var(--ds-tag-text-red); }
+[data-dir="b"] .lead-mark[data-tone="attention"] { color: var(--ds-tag-text-amber); }
+[data-dir="b"] .lead-mark[data-tone="overdue"] { color: var(--ds-font-color-secondary); }
+[data-dir="b"] .row--urgent .row-title { font-weight: 600; }
+[data-dir="b"] .band-label { letter-spacing: 0.06em; }
+[data-dir="b"] .source-note { color: var(--ds-font-color-tertiary); }
+/* Phone: the mark sits above the title rather than stealing 84px of measure. */
+.frame[data-w="phone"] [data-dir="b"] .lead-mark { width: 100%; padding-top: 0; margin-bottom: 2px; }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   C · DENSITY + DECOMPOSITION — each band becomes a two-column consequence
+   table: what kind on the left, the items on the right. Routine work recedes.
+   ═════════════════════════════════════════════════════════════════════════════ */
+[data-dir="c"] .band {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: var(--sp-5);
+  align-items: start;
+  border-top: 1px solid var(--ds-border-color-medium);
+  padding-top: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+[data-dir="c"] .band-label {
+  font-family: var(--ds-font-display);
+  font-size: var(--ds-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ds-font-color-primary);
+  padding-top: var(--sp-2);
+}
+[data-dir="c"] .band-count { display: block; font-family: var(--ds-font-family); font-size: var(--ds-font-size-xxs); font-weight: 400; color: var(--ds-font-color-tertiary); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
+[data-dir="c"] .row-link { padding-block: var(--sp-2); }
+[data-dir="c"] .row-meta { margin-top: 2px; opacity: 0.78; }
+[data-dir="c"] .group--mywork { opacity: 0.6; }
+[data-dir="c"] .group--mywork .band { border-top-color: var(--ds-border-color-medium); }
+/* Phone: the grid collapses to the stacked label-over-rows it degrades from. */
+.frame[data-w="phone"] [data-dir="c"] .band { grid-template-columns: 1fr; gap: var(--sp-2); }
+.frame[data-w="phone"] [data-dir="c"] .band-label { padding-top: 0; }
+</style>
+</head>
+<body>
+<div class="harness">
+
+  <div class="harness-head">
+    <h1>Home priority hierarchy — three directions</h1>
+    <p>
+      Owner brief, 2026-07-28: <em>“this section is still confusing. it doesnt stand out what my
+      priorities are.”</em> Target is Home’s consequence stream (<code>section.home-stream</code>) for
+      the owner-director persona. Content is the real seeded data at <code>v4-redesign @ 1e459b0</code>;
+      tokens are the app’s own computed values. All three preserve the identity: cream surface,
+      DM Sans body over a Plus Jakarta display face, flat full-width rows, no cards, no shadows.
+    </p>
+  </div>
+
+  <div class="controls">
+    <div class="controls-group" role="group" aria-label="Direction">
+      <button class="tab" type="button" data-show="current" aria-pressed="true">Current</button>
+      <button class="tab" type="button" data-show="a" aria-pressed="false">A · Hierarchy</button>
+      <button class="tab" type="button" data-show="b" aria-pressed="false">B · Topology</button>
+      <button class="tab" type="button" data-show="c" aria-pressed="false">C · Density</button>
+    </div>
+    <span class="controls-sep"></span>
+    <div class="controls-group" role="group" aria-label="Width">
+      <button class="tab" type="button" data-width="desktop" aria-pressed="true">Desktop 1180</button>
+      <button class="tab" type="button" data-width="phone" aria-pressed="false">Phone 390</button>
+    </div>
+  </div>
+
+  <!-- ── Rationale, one per direction ──────────────────────────────────────── -->
+  <div class="rationale" data-rationale="current" data-active="true">
+    <h2>Current — the diagnosis</h2>
+    <p>
+      Three failures compound. <strong>Severity is the last thing you reach:</strong> “Urgent”,
+      “Needs attention” and “Overdue · 12d” sit at the right edge of a ~1090px row, so every
+      judgement needs a full-width eye sweep. <strong>The bands group by record source</strong>
+      (Signals / Overdue / Failed checks), which is a storage taxonomy rather than a priority one.
+      An Urgent Signal and a 12-day-overdue Blocked task get filed apart and weighted the same.
+      <strong>And every row carries the same weight,</strong> so nothing answers “what first”.
+    </p>
+    <p>
+      Six attention items and three routine ones also render at near-identical weight, so the
+      boundary between must-act and can-wait is invisible.
+    </p>
+  </div>
+
+  <div class="rationale" data-rationale="a">
+    <h2>A · Hierarchy — one thing commands the eye</h2>
+    <p>
+      The single most consequential item is promoted: display face, size step, a tinted panel. Band
+      labels shrink, meta lines dim, and routine work drops to 76% opacity. The page now has one
+      obvious entry point instead of nine equal ones.
+    </p>
+    <p>
+      <strong>Cost:</strong> it asserts a ranking the app must actually be able to compute. If “most
+      consequential” is really just “first in the array”, this direction lies confidently, which is
+      worse than the current flatness. Ship only with a real ranking behind it.
+    </p>
+  </div>
+
+  <div class="rationale" data-rationale="b">
+    <h2>B · Topology — severity leads the line</h2>
+    <p>
+      The reason moves from the right tail to the <strong>front of the row</strong>, in a fixed 84px
+      column, and rows regroup by <strong>urgency rather than by source</strong>. Severity becomes a
+      single left-aligned column you read straight down; the record’s origin drops to the meta line
+      where it belongs. No eye sweep, no colour-coded bars.
+    </p>
+    <p>
+      <strong>Cost:</strong> it needs one severity scale spanning Signals, tasks and failed checks.
+      That is a product decision, not a CSS one. It also spends 84px of measure at desktop, and on
+      phone the mark has to sit above the title.
+    </p>
+  </div>
+
+  <div class="rationale" data-rationale="c">
+    <h2>C · Density — a two-column consequence table</h2>
+    <p>
+      Each band becomes label-left / items-right, so the kinds of problem are a scannable column and
+      the rows tighten under them. Band labels move to the display face in sentence case, retiring
+      the uppercase eyebrow. Routine work sits at 60%.
+    </p>
+    <p>
+      <strong>Cost:</strong> the most conservative of the three. It improves scanning without
+      claiming a priority order, so it does the least about “what first”. It also degrades to the
+      current stacked layout on phone, meaning the floor persona sees no benefit.
+    </p>
+  </div>
+
+  <!-- ── The surface ───────────────────────────────────────────────────────── -->
+  <div class="frame" data-w="desktop">
+
+    <!-- ══ CURRENT ══════════════════════════════════════════════════════════ -->
+    <div class="pane direction" data-dir="current" data-active="true">
+      <h1 class="ch-title">Good evening, Dewi</h1><span class="ch-meta">Managing Director</span>
+      <p class="page-head-job">What needs my attention right now?</p>
+
+      <div class="band">
+        <p class="band-label">Signals · 2</p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Grinder 2 at HQ bar is throwing inconsistent doses — pulled it for a burr check. @Cahya heads up for the morning rush.</span>
+              <span class="row-meta"><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--urgent">Urgent</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">HQ bar espresso volumes are down about 15% this week versus last week — corrected count.</span>
+              <span class="row-meta"><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--attention">Needs attention</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Overdue · 2</p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Replace grinder burrs (Cafe 2)</span>
+              <span class="row-meta"><span class="who"><span class="avatar">CC</span>Cahya Cafe</span><span class="sep">·</span>Retail Ops<span class="sep">·</span>Thu 16 Jul</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--flat">Overdue · 12d</span><span class="pill pill--blocked"><span class="dot"></span>Blocked</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Dial in new Brazil single-origin</span>
+              <span class="row-meta"><span class="who"><span class="avatar">RR</span>Rama Roastery</span><span class="sep">·</span>B2B Ops<span class="sep">·</span>Sun 19 Jul</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--flat">Overdue · 9d</span><span class="pill pill--progress"><span class="dot"></span>In Progress</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Failed checks · 2</p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Production · 2026-07-23</span>
+              <span class="row-meta">Qty tidak sesuai plan — mohon cek ulang</span>
+            </span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Production · 2026-07-23</span>
+              <span class="row-meta">Duplikat — sudah dicatat di batch lain</span>
+            </span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band group--mywork">
+        <div class="band-head-row">
+          <p class="band-label">My work today</p>
+          <a class="band-link" href="#">My open tasks · 5 →</a>
+        </div>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Plan barista latte-art workshop</span>
+            <span class="row-meta">Retail Ops<span class="sep">·</span>Sun 9 Aug</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Draft Q3 OKRs for cafe team</span>
+            <span class="row-meta">Retail Ops<span class="sep">·</span>Mon 17 Aug</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Verify supervisor default</span>
+            <span class="row-meta">Retail Ops</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ══ A · HIERARCHY ════════════════════════════════════════════════════ -->
+    <div class="pane direction" data-dir="a">
+      <h1 class="ch-title">Good evening, Dewi</h1><span class="ch-meta">Managing Director</span>
+      <p class="page-head-job">What needs my attention right now?</p>
+
+      <div class="band">
+        <p class="band-label">Signals · 2</p>
+        <ul class="band-list">
+          <li class="row row--lead"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Grinder 2 at HQ bar is throwing inconsistent doses — pulled it for a burr check. @Cahya heads up for the morning rush.</span>
+              <span class="row-meta"><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--urgent">Urgent</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">HQ bar espresso volumes are down about 15% this week versus last week — corrected count.</span>
+              <span class="row-meta"><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--attention">Needs attention</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Overdue · 2</p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Replace grinder burrs (Cafe 2)</span>
+              <span class="row-meta"><span class="who"><span class="avatar">CC</span>Cahya Cafe</span><span class="sep">·</span>Retail Ops<span class="sep">·</span>Thu 16 Jul</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--flat">Overdue · 12d</span><span class="pill pill--blocked"><span class="dot"></span>Blocked</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Dial in new Brazil single-origin</span>
+              <span class="row-meta"><span class="who"><span class="avatar">RR</span>Rama Roastery</span><span class="sep">·</span>B2B Ops<span class="sep">·</span>Sun 19 Jul</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--flat">Overdue · 9d</span><span class="pill pill--progress"><span class="dot"></span>In Progress</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Failed checks · 2</p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Production · 2026-07-23</span>
+            <span class="row-meta">Qty tidak sesuai plan — mohon cek ulang</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Production · 2026-07-23</span>
+            <span class="row-meta">Duplikat — sudah dicatat di batch lain</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band group--mywork">
+        <div class="band-head-row">
+          <p class="band-label">My work today</p>
+          <a class="band-link" href="#">My open tasks · 5 →</a>
+        </div>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Plan barista latte-art workshop</span>
+            <span class="row-meta">Retail Ops<span class="sep">·</span>Sun 9 Aug</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Draft Q3 OKRs for cafe team</span>
+            <span class="row-meta">Retail Ops<span class="sep">·</span>Mon 17 Aug</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Verify supervisor default</span>
+            <span class="row-meta">Retail Ops</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ══ B · TOPOLOGY ═════════════════════════════════════════════════════ -->
+    <div class="pane direction" data-dir="b">
+      <h1 class="ch-title">Good evening, Dewi</h1><span class="ch-meta">Managing Director</span>
+      <p class="page-head-job">What needs my attention right now?</p>
+
+      <div class="band">
+        <p class="band-label">Needs you now · 3</p>
+        <ul class="band-list">
+          <li class="row row--urgent"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="urgent">Urgent</span>
+            <span class="row-body">
+              <span class="row-title">Grinder 2 at HQ bar is throwing inconsistent doses — pulled it for a burr check. @Cahya heads up for the morning rush.</span>
+              <span class="row-meta"><span class="source-note">Signal</span><span class="sep">·</span><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+          </a></li>
+          <li class="row row--urgent"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="overdue">Overdue 12d</span>
+            <span class="row-body">
+              <span class="row-title">Replace grinder burrs (Cafe 2)</span>
+              <span class="row-meta"><span class="source-note">Task</span><span class="sep">·</span><span class="who"><span class="avatar">CC</span>Cahya Cafe</span><span class="sep">·</span>Retail Ops<span class="sep">·</span>Thu 16 Jul</span>
+            </span>
+            <span class="row-tail"><span class="pill pill--blocked"><span class="dot"></span>Blocked</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="overdue">Overdue 9d</span>
+            <span class="row-body">
+              <span class="row-title">Dial in new Brazil single-origin</span>
+              <span class="row-meta"><span class="source-note">Task</span><span class="sep">·</span><span class="who"><span class="avatar">RR</span>Rama Roastery</span><span class="sep">·</span>B2B Ops<span class="sep">·</span>Sun 19 Jul</span>
+            </span>
+            <span class="row-tail"><span class="pill pill--progress"><span class="dot"></span>In Progress</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Worth a look · 3</p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="attention">Check this</span>
+            <span class="row-body">
+              <span class="row-title">HQ bar espresso volumes are down about 15% this week versus last week — corrected count.</span>
+              <span class="row-meta"><span class="source-note">Signal</span><span class="sep">·</span><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="attention">Log rejected</span>
+            <span class="row-body">
+              <span class="row-title">Production · 2026-07-23</span>
+              <span class="row-meta"><span class="source-note">Café log</span><span class="sep">·</span>Qty tidak sesuai plan — mohon cek ulang</span>
+            </span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="attention">Log rejected</span>
+            <span class="row-body">
+              <span class="row-title">Production · 2026-07-23</span>
+              <span class="row-meta"><span class="source-note">Café log</span><span class="sep">·</span>Duplikat — sudah dicatat di batch lain</span>
+            </span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band group--mywork">
+        <div class="band-head-row">
+          <p class="band-label">My work today</p>
+          <a class="band-link" href="#">My open tasks · 5 →</a>
+        </div>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="overdue">Sun 9 Aug</span>
+            <span class="row-body"><span class="row-title">Plan barista latte-art workshop</span>
+            <span class="row-meta">Retail Ops</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="overdue">Mon 17 Aug</span>
+            <span class="row-body"><span class="row-title">Draft Q3 OKRs for cafe team</span>
+            <span class="row-meta">Retail Ops</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="lead-mark" data-tone="overdue">No date</span>
+            <span class="row-body"><span class="row-title">Verify supervisor default</span>
+            <span class="row-meta">Retail Ops</span></span>
+            <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+          </a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ══ C · DENSITY ══════════════════════════════════════════════════════ -->
+    <div class="pane direction" data-dir="c">
+      <h1 class="ch-title">Good evening, Dewi</h1><span class="ch-meta">Managing Director</span>
+      <p class="page-head-job">What needs my attention right now?</p>
+
+      <div class="band">
+        <p class="band-label">Signals<span class="band-count">2 items</span></p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Grinder 2 at HQ bar is throwing inconsistent doses — pulled it for a burr check. @Cahya heads up for the morning rush.</span>
+              <span class="row-meta"><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--urgent">Urgent</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">HQ bar espresso volumes are down about 15% this week versus last week — corrected count.</span>
+              <span class="row-meta"><span class="who"><span class="avatar">DD</span>Dewi Director</span><span class="sep">·</span>HQ Operations</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--attention">Needs attention</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Overdue<span class="band-count">2 items</span></p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Replace grinder burrs (Cafe 2)</span>
+              <span class="row-meta"><span class="who"><span class="avatar">CC</span>Cahya Cafe</span><span class="sep">·</span>Retail Ops<span class="sep">·</span>Thu 16 Jul</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--flat">12d</span><span class="pill pill--blocked"><span class="dot"></span>Blocked</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body">
+              <span class="row-title">Dial in new Brazil single-origin</span>
+              <span class="row-meta"><span class="who"><span class="avatar">RR</span>Rama Roastery</span><span class="sep">·</span>B2B Ops<span class="sep">·</span>Sun 19 Jul</span>
+            </span>
+            <span class="row-tail"><span class="chip chip--flat">9d</span><span class="pill pill--progress"><span class="dot"></span>In Progress</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="band">
+        <p class="band-label">Failed checks<span class="band-count">2 items</span></p>
+        <ul class="band-list">
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Production · 2026-07-23</span>
+            <span class="row-meta">Qty tidak sesuai plan — mohon cek ulang</span></span>
+          </a></li>
+          <li class="row"><a class="row-link" href="#">
+            <span class="row-body"><span class="row-title">Production · 2026-07-23</span>
+            <span class="row-meta">Duplikat — sudah dicatat di batch lain</span></span>
+          </a></li>
+        </ul>
+      </div>
+
+      <div class="group--mywork">
+        <div class="band">
+          <p class="band-label">My work today<span class="band-count">5 open</span></p>
+          <ul class="band-list">
+            <li class="row"><a class="row-link" href="#">
+              <span class="row-body"><span class="row-title">Plan barista latte-art workshop</span>
+              <span class="row-meta">Retail Ops<span class="sep">·</span>Sun 9 Aug</span></span>
+              <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+            </a></li>
+            <li class="row"><a class="row-link" href="#">
+              <span class="row-body"><span class="row-title">Draft Q3 OKRs for cafe team</span>
+              <span class="row-meta">Retail Ops<span class="sep">·</span>Mon 17 Aug</span></span>
+              <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+            </a></li>
+            <li class="row"><a class="row-link" href="#">
+              <span class="row-body"><span class="row-title">Verify supervisor default</span>
+              <span class="row-meta">Retail Ops</span></span>
+              <span class="row-tail"><span class="pill pill--open"><span class="dot"></span>Open</span></span>
+            </a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  const frame = document.querySelector('.frame');
+  const dirButtons = document.querySelectorAll('[data-show]');
+  const widthButtons = document.querySelectorAll('[data-width]');
+
+  function showDirection(name) {
+    document.querySelectorAll('.direction').forEach(function (el) {
+      if (el.getAttribute('data-dir') === name) el.setAttribute('data-active', 'true');
+      else el.removeAttribute('data-active');
+    });
+    document.querySelectorAll('[data-rationale]').forEach(function (el) {
+      if (el.getAttribute('data-rationale') === name) el.setAttribute('data-active', 'true');
+      else el.removeAttribute('data-active');
+    });
+    dirButtons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-show') === name));
+    });
+  }
+
+  dirButtons.forEach(function (b) {
+    b.addEventListener('click', function () { showDirection(b.getAttribute('data-show')); });
+  });
+
+  widthButtons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      frame.setAttribute('data-w', b.getAttribute('data-width'));
+      widthButtons.forEach(function (o) {
+        o.setAttribute('aria-pressed', String(o === b));
+      });
+    });
+  });
+
+  // ←/→ steps through the directions, so comparison is a keypress not a mouse trip.
+  const order = ['current', 'a', 'b', 'c'];
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+    const active = document.querySelector('.direction[data-active]').getAttribute('data-dir');
+    const i = order.indexOf(active);
+    const next = e.key === 'ArrowRight' ? (i + 1) % order.length : (i - 1 + order.length) % order.length;
+    showDirection(order[next]);
+  });
+})();
+</script>
+</body>
+</html>
