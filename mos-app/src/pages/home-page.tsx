@@ -31,7 +31,7 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, type StreamBand,
+  mentionStreamItems, myWorkStreamItems, openTaskCount, type StreamBand,
 } from '@/lib/home-stream'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { buildHomeRegions } from '@/components/home/home-regions'
@@ -302,14 +302,26 @@ export function HomePage() {
     if (personId) setLayout(resolveHomeLayout(personId))
   }, [personId])
 
+  // The viewer's FULL open-task count (all owned, non-Done tasks — not just the capped my-work
+  // items rendered in the region) — feeds the restored "My open tasks · N →" drill link.
+  const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
+
   // The ONE region model shared by all three arrangements (FR-930) — a layout chooses how to
-  // present these regions, never which of them exist (NFR-924 parity).
+  // present these regions, never which of them exist (NFR-924 parity). needs-you and my-work share
+  // the ONE tasks-projection state + retry (DIV-G5); failed-checks/mentions carry their own.
   const regions = useMemo(
     () => buildHomeRegions({
       overdue, dueToday, blocked, myWork,
       failedChecks: failedChecksBand.items, mentions: mentionsBand.items,
+      taskState, onRetryTasks: loadTasks,
+      failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
+      mentionsState: mentionsBand.state, onRetryMentions: loadNotifications,
+      myWorkFullCount: ready ? openCount : undefined,
     }),
-    [overdue, dueToday, blocked, myWork, failedChecksBand, mentionsBand],
+    [
+      overdue, dueToday, blocked, myWork, failedChecksBand, mentionsBand,
+      taskState, loadTasks, loadFailedChecks, loadNotifications, ready, openCount,
+    ],
   )
 
   return (

@@ -6,10 +6,10 @@
 //
 // These are the SAME goal-oracles the earlier single-stream Home had (no finance leak, honest
 // gating, decision context, true counts, attention-first ordering), re-expressed against the
-// Focused tab anatomy — never bent to the app's current state. Where a capability from the retired
-// single-stream HomeStream (region-level loading/error surfacing, the old "My open tasks · N"
-// drill-through link) has no equivalent in the region-based layouts as built, the test for it is
-// removed rather than faked green — see the removal notes below.
+// Focused tab anatomy — never bent to the app's current state. Two capabilities the region-based
+// wiring dropped (found as a follow-up defect, not a deliberate retirement) are restored below:
+// region-level loading/error surfacing (DIV-G5 — a failed/still-loading read must never render as
+// an indistinguishable empty region) and the "My open tasks · N ->" drill-through link.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within, fireEvent } from '@testing-library/react'
@@ -283,11 +283,6 @@ describe('Decision context — an overdue task row carries its reason chip + PIC
 })
 
 describe('My work today region — the viewer\'s own open work, capped, on its own tab (FR-925/929)', () => {
-  // The retired single-stream HomeStream carried a standalone "My open tasks · N →" drill-through
-  // link to the full saved view; the region-based layouts (Task 9-11) have no such link — a
-  // region's count IS its own rendered item count (FR-929), consistent with every other region.
-  // The true goal-oracle (the viewer's own open work is visible and its count is honest) still
-  // holds; only the retired drill-link affordance is gone.
   it('the My work today tab shows a true item count and the open task rows', async () => {
     const viewerId = financeViewer.viewer.person.id
     mockListTasks.mockResolvedValue([
@@ -301,6 +296,23 @@ describe('My work today region — the viewer\'s own open work, capped, on its o
     fireEvent.click(tab)
     expect(await screen.findByText('Prep beans')).toBeInTheDocument()
     expect(screen.getByText('Clean grinder')).toBeInTheDocument()
+  })
+
+  // RESTORED (see the DIV-G5 note further down): the retired single-stream HomeStream carried a
+  // standalone "My open tasks · N →" drill-through link to the full My-work saved view, carrying
+  // the viewer's FULL open-task count (not just the capped items rendered on this tab). The
+  // region-based wiring dropped it; `HomeRegion.drillTo` + `RegionDrillLink` restore it.
+  it('also shows "My open tasks · N →" carrying the FULL open-task count, linking to the My-work saved view', async () => {
+    const viewerId = financeViewer.viewer.person.id
+    mockListTasks.mockResolvedValue([
+      { ...overdueTaskRow(viewerId), id: 't-open', title: 'Prep beans', due_date: '2099-01-01', status: 'In Progress' },
+      { ...overdueTaskRow(viewerId), id: 't-open2', title: 'Clean grinder', due_date: '2099-02-01', status: 'Open' },
+    ])
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+    fireEvent.click(screen.getByRole('tab', { name: /my work today/i }))
+    const link = await screen.findByRole('link', { name: /my open tasks · 2/i })
+    expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
   })
 })
 
@@ -331,14 +343,45 @@ describe('OD-V4-9: Home renders the person\'s chosen layout', () => {
   })
 })
 
-// REMOVED (not a deliberate retirement — a gap surfaced by this migration, see the implementer's
-// PR notes): "Home retry/projection convergence" used to assert that a failed shared-tasks fetch
-// showed exactly ONE retriable error inside the attention group. The region-based layouts built in
-// Tasks 9-11 (`buildHomeRegions`, `HomeFocused`/`HomeOverview`/`HomeList`) carry only each region's
-// resolved `items` — a fetch that is `loading` or `error` renders as an indistinguishable EMPTY
-// region, with no ErrorState/Retry surfaced anywhere on the page. That silently contradicts this
-// spec's own error-handling table (`docs/specs/home-layout-preference.spec.md` §7, DIV-G5: "a
-// layout must not convert a failed read into an empty-looking all-clear") and the failed-checks/
-// mentions bands' independent error states are similarly discarded. Extending `HomeRegion` (or an
-// equivalent) to carry per-region async state, and rendering it in all three layouts, is real
-// follow-up work — out of scope for the wiring task that found it.
+describe('DIV-G5 (home-layout-preference.spec.md §7): a failed shared-tasks read is never an empty all-clear', () => {
+  // RESTORED, re-expressed against the region/tab anatomy: the retired single-stream HomeStream's
+  // "Home retry/projection convergence" test asserted a failed tasks fetch showed a retriable error
+  // inside the attention group. The region-based layouts (Tasks 9-12) carried only each region's
+  // resolved `items` — a still-loading/failed fetch rendered as an indistinguishable EMPTY region,
+  // with no ErrorState/Retry anywhere on the page. `HomeRegion.state` + `RegionRows` restore it: the
+  // default Focused tab (needs-you, which shares the tasks projection with my-work) now shows the
+  // failure and a working Retry.
+  it('the default tab shows an alert (never an empty tab), and Retry re-fetches the tasks projection', async () => {
+    mockListTasks.mockRejectedValue(new Error('network failure'))
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load this list. Refresh to try again."))
+
+    const viewerId = financeViewer.viewer.person.id
+    mockListTasks.mockResolvedValue([overdueTaskRow(viewerId)])
+    const callsBefore = mockListTasks.mock.calls.length
+    await act(async () => {
+      screen.getByRole('button', { name: /retry/i }).click()
+      await Promise.resolve(); await Promise.resolve()
+    })
+    expect(mockListTasks.mock.calls.length).toBe(callsBefore + 1)
+    await waitFor(() => expect(screen.getByText('Restock oat milk')).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('the default tab shows a busy status (never an empty tab) while the tasks projection is in flight', async () => {
+    let resolveTasks!: (rows: ReturnType<typeof overdueTaskRow>[]) => void
+    mockListTasks.mockReturnValue(new Promise((resolve) => { resolveTasks = resolve }))
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.queryByText(/couldn't load this list/i)).toBeNull()
+
+    await act(async () => {
+      resolveTasks([])
+      await Promise.resolve(); await Promise.resolve()
+    })
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+  })
+})
