@@ -525,7 +525,7 @@ landed-yes/no column, not just a disposition.*
 `docs/reviews/v4-nielsen-gate.md`.
 
 **Read this before treating it as shippable.** The score grades an **uncommitted local diff** on
-`v4/redesign` that has never run `scripts/pre-merge-check.sh` or a review battery — *green gates ≠
+`v4-redesign` that has never run `scripts/pre-merge-check.sh` or a review battery — *green gates ≠
 reviewed*. It is also a **thin pass**: Café · Log (29) and Objectives (29) remain individually under
 30. And the verdict agent's own delta table was wrong — it compared five surfaces to the app-wide
 mean instead of their real R3 scores, reporting **Inbox as +2.2 when it had dropped 3** (34 → 31);

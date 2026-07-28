@@ -1,43 +1,94 @@
 # Agent context — read me first (owner prefs · hard rules · gotchas · pointers)
 
-> ## CANONICAL CURRENT STATE — 2026-07-28 · v4 (supersedes every dated banner below)
+> ## CANONICAL CURRENT STATE — 2026-07-28 (evening) · v4 (supersedes every dated banner below)
 >
-> **Branch `v4/redesign`** (worktree `.claude/worktrees/v3-redesign`, dev :5176, base `/mos`),
-> cut from `v3-redesign` @ `a152705`. Committed at **`b81bb42`** — 167 files, +8614/−2360.
-> **NOT pushed, NOT reviewed**: no `scripts/pre-merge-check.sh` run, no `docs/reviews/<branch>.md`
-> battery. *Green gates ≠ reviewed.*
+> **Branch `v4-redesign`**, worktree `.claude/worktrees/v4-redesign`, dev server `:5176` base `/mos`.
+> **Pushed** to `origin/v4-redesign`. Renamed from `v4/redesign`; the worktree directory was renamed
+> to match (it used to be `v3-redesign`, which lied about its contents).
 >
-> **What v4 is.** The whole-app redesign run through the **impeccable** toolchain (v4.0.2), on the
-> owner's instruction to *follow the workflows and not paraphrase the skills*. v4 **inherits v3's
-> visual world** rather than replacing it — the owner's call after rejecting four invented worlds:
-> *"none of them are professional looking. try to capture from v3."*
+> **NOT reviewed.** No `scripts/pre-merge-check.sh` run and **`docs/reviews/v4-redesign.md` does not
+> exist**, so the gate fails on sight. That was harmless while this branch was docs + mockups; it is
+> no longer, because app code has now landed. *Green gates ≠ reviewed.*
 >
-> **THE GATE PASSED.** `OD-V4-4` set Nielsen **>30 app-wide** (explicitly *not* per page). Four
-> scored rounds, always by isolated agents, never self-scored: **24.9 → 24.8 → 28.8 → 31.6/40**.
-> Per surface: Money 34 · Café Plan 33 · shell 33 · Home 32 · Tasks 32 · Inbox 31 · Café Log 29 ·
-> Objectives 29. **Thin pass** — the last two are individually under 30.
+> ### Where the work is
 >
-> **READ THESE, in this order:**
-> 1. `docs/v4-inheritance.md` — the ledger. What v4 inherited from v3, **DD-1…DD-18** (every design
->    decision with its evidence), **OD-V4-1…5**, and the **X-1…X-11 contradiction register**.
-> 2. `docs/reviews/v4-nielsen-gate.md` — all four scoring rounds, per-heuristic movement, caveats.
-> 3. `docs/reviews/v4-crosscutting-audit-2026-07-27.md` — 25 a11y / bilingual / consistency findings.
-> 4. `docs/backlog.md` top block — **F1–F10**, the feature work the gate identified as out of
->    redesign scope, with the scorers' own point estimates.
+> **The redesign gate passed earlier today** at **31.6/40** app-wide (`OD-V4-4`, >30, explicitly not
+> per-page), across four rounds scored by isolated agents, never self-scored: 24.9 → 24.8 → 28.8 →
+> 31.6. Thin pass — Café Log (29) and Objectives (29) are individually under 30.
 >
-> **THE DURABLE FINDING, consistent across all four rounds:** *layout and aesthetic work moved
-> nothing; every gain traced to closing a broken interaction* (5–14 points each early on). Café Log
-> scored 24 → 24 across a round of heavy layout change, then +12 from one submit-flow bug fix. Plan
-> effort accordingly.
+> **Then the owner reopened Home**, and that is the live thread. Brief: *"it's just a wall of text…
+> multiple signals from different people, tasks from different projects / process as well as trying
+> to followup the team members. how best to structure this in way that even there's lots to do, its
+> still seems manageable."*
 >
-> **AWAITING OWNER DECISIONS:** **X-4** (FR-022 demands a written note whenever qty ≠ plan on a fast
-> capture field) and **X-11** (the Director conflated "Events" with "Signals"; `OD-V4-2` was ratified
-> on that false premise — recommend reverting the root label).
+> ### Decisions taken today (all in `docs/v4-inheritance.md`)
 >
-> **TEST STATE:** **129 presentational tests are red BY OWNER DECISION** (`OD-V4-4` deferred test work
-> while the design moved) — do not "fix" them without checking that decision still stands. The three
-> **correctness** bugs found this session each carry a red→green regression guard (DD-7, DD-10,
+> | | |
+> |---|---|
+> | `OD-V4-7` | **Home may use tiles.** `DESIGN.md`'s single-column density rule was era-E1, calibrated for a 15-person first slice. Amended inline for Home only, with four constraints carried over so it cannot drift into card-soup. |
+> | `OD-V4-8` | **Display type above 24px: DEFERRED.** Revisit only if a layout with a page-level verdict headline is picked. None of the three shipped options has one. |
+> | `OD-V4-9` | **Home layout is a per-person preference** — Focused (default) / Overview / List, picked in Personal profile, Signals feed in all three, **one shared primitive set**. |
+> | `OD-V4-10` | **The OD-18 region-order toggle is retired outright.** Owner: *"Remove the old and keep the layout only."* Not folded in, not carried over. |
+>
+> ### Artifacts, in reading order
+>
+> 1. `docs/specs/home-layout-preference.spec.md` — **DRAFT, needs owner sign-off.** 13 FR / 6 NFR /
+>    15 AC. Two `RATIFY-BEFORE-MERGE` items block Phase 2: **RATIFY-1** (no carry-over of stored
+>    `my-work-first` values) and **RATIFY-2** (`localStorage` over a person-record column).
+> 2. `docs/plans/2026-07-28-home-layout-preference.md` — 14 tasks, TDD, no placeholders.
+>    **Phase 1 (Tasks 1–4)** retires the toggle and ships alone; **Phase 2 (Tasks 5–14)** is gated on
+>    the two RATIFY items. Recommended: run Phase 1 now, hold Phase 2.
+> 3. `docs/design-mockups/home-priority-2026-07-28/index.html` — the reference. Current + C · C+ · F ·
+>    I · J plus the profile picker. **Standing reference with a presumption of correctness** — port
+>    what it answered, do not re-open it mid-build.
+> 4. `docs/v4-inheritance.md` — the ledger: DD-1…DD-18, OD-V4-1…10, the X-register (now empty).
+> 5. `docs/reviews/v4-nielsen-gate.md` · `docs/reviews/v4-crosscutting-audit-2026-07-27.md` ·
+>    `docs/backlog.md` (F1–F10 gate findings, **W1–W13** designed-but-unbuilt features).
+>
+> ### Shipped app code on this branch (not just docs)
+>
+> - **Home Signals feed: search + a create button** (`1caa47b`, `f668e74`). The old control was one
+>   full-width rounded row that *looked* like search and *behaved* like a composer. Split in two.
+>   Search reuses the collection engine's own `signalMatchesText` predicate — **not** a second
+>   matcher — but is deliberately scoped to the ambient tail, because Home splits ONE signal read
+>   into the attention band and the FYI tail and searching the quiet feed must not empty the
+>   attention band.
+>
+> ### The architectural answer to carry forward
+>
+> The owner asked whether the bento and feed are `RecordCollection` objects. **The feed already is**
+> — `SignalCollectionPresentation` is `'feed' | 'table'`, registered in the descriptor with its own
+> `render()`, already declaring `search: true` with `q` as a query key. **The bento is not, and must
+> not become one:** a presentation renders ONE record type; the bento arranges several. The seam runs
+> the other way — **a tile or tab HOSTS a collection** (`FR-931`). Recorded so it is not re-litigated.
+>
+> ### Test state
+>
+> **129 presentational tests are red BY OWNER DECISION** (`OD-V4-4` deferred test work while the
+> design moved) — do not "fix" them without checking that decision still stands. The three
+> **correctness** bugs found during the gate each carry a red→green regression guard (DD-7, DD-10,
 > DD-18), per the narrow exception the owner granted to `OD-REDESIGN-88`'s red-first clause.
+>
+> **Phase 1 of the Home plan deletes 5 of those red tests** (the order-toggle suite: AC-514, RI-1,
+> RI-2 ×3). They are deleted **with the feature, not fixed** — their subject ceases to exist. State
+> that in the PR body so it is not read as tests being bent to pass.
+>
+> ### Method scars worth keeping (all cost real time today)
+>
+> - **`npx tsc --noEmit -p tsconfig.json` checks NOTHING** in `mos-app` — solution file, `"files": []`.
+>   Only `npm run typecheck` + `npm run build` are evidence.
+> - **A collapsed browser-harness viewport reports "no overflow" for everything.** Two false passes
+>   came from this. Assert `clientWidth > 400` before trusting any geometry result.
+> - **Testing only the two breakpoint extremes misses real defects.** A tile grid overflowed at every
+>   width *between* 390 and 1280. Sweep intermediate widths.
+> - **Live mode fights a React surface that re-renders.** Two attempts on Home double-rendered; it
+>   hides variants by setting inline `style.display`, which React restores on every re-render. Static
+>   mockups were the working path.
+> - **Detector findings that are the design system, not the artifact:** `flat-type-hierarchy` merges
+>   two role scales (the 15/14 pair is ratified `OD-REDESIGN-91 B4`), `monotonous-spacing` residue is
+>   the 4px scale itself, and `em-dash-overuse` counts real seeded staff messages. All three are
+>   recorded, none silenced — an ignore needs explicit owner say-so.
+>
 >
 > **HARD GOTCHA:** `npx tsc --noEmit -p tsconfig.json` in `mos-app` is a **FALSE PASS** — it is a
 > solution file (`"files": []`) and checks nothing. It hid a real source bug and a broken build for
