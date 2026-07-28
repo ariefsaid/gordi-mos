@@ -2,8 +2,8 @@
    CutToggle — the `seg` segmented control grammar (DESIGN.md §Tabs / Segmented,
    design-plan §2.5). Shared visual grammar now lives in
    styles/segmented-track.css (extract, 2026-07-28) — this file's own job is CutToggle's
-   own concerns only: the phone min-width floor (a toolbar view-switcher can sit in a
-   narrow slot; HomeOrderToggle's sibling rule grows its whole track instead).
+   own concerns only: the phone min-width floor per option (a toolbar view-switcher
+   can sit in a narrow slot).
    ════════════════════════════════════════════════════════════════════════════ */
 @import '../../styles/segmented-track.css';
 

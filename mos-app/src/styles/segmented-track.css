@@ -3,17 +3,13 @@
    Controls): a 32px track on `secondary`, "on" = a white `background` pill +
    `foreground` + 600 + a 0 1px 2px lift.
 
-   extract (2026-07-28): promoted here after finding it re-authored twice with
-   identical pixel values — `dashboard/cut-toggle.css` (view switcher, e.g. Money's
-   Branch/Activity tabs) and `home/home-order-toggle.css` (the Home region-order
-   preference, OD-REDESIGN-18). Per extract.md's own rule ("two things that look
-   similar but serve different purposes should stay separate"), the TWO COMPONENTS
-   stay separate — CutToggle is `role="tablist"`/`"tab"` with roving-tabindex
-   arrow-key navigation (a view switcher); HomeOrderToggle is `role="radiogroup"`/
-   `"radio"` (a persistent, mutually-exclusive setting) — genuinely different ARIA
-   interaction contracts. What should NOT have stayed separate is the CSS: both
-   consumers `@import` this file and layer only their state-selector difference
-   (`[aria-selected='true']` vs `.is-active`) on top, so the pixel values can never
+   extract (2026-07-28): consolidated `seg` track pixel grammar here after finding
+   it re-authored in multiple places with identical pixel values — `dashboard/cut-toggle.css`
+   (view switcher, e.g. Money's Branch/Activity tabs) is the current consumer. Components
+   with different interaction models and ARIA contracts (e.g. tablist with roving-tabindex
+   arrow-key navigation vs. radiogroup patterns) can share the same track pixel values by
+   importing this file and layering only their state-selector difference on top
+   (`[aria-selected='true']` vs `.is-active`, etc.), so the pixel values can never
    drift apart again.
 
    Lives in src/styles/ (the drawer.css precedent), NOT src/components/ui/: the
@@ -21,8 +17,8 @@
    radius vocabulary (no calc() composition permitted there), while this file's
    inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius) - 2px)`
    nested-radius idiom ("Nested radii compose so inner corners sit inside outer
-   ones") that cut-toggle.css/home-order-toggle.css already carried unchanged
-   before this consolidation — a shared PATTERN, not a kit PRIMITIVE.
+   ones") that consuming components already carry unchanged in this consolidation
+   — a shared PATTERN, not a kit PRIMITIVE.
 
    Selectors list BOTH existing class families rather than inventing a third
    canonical name — neither component's markup/tests needed to change. Token-only.
@@ -58,8 +54,8 @@
   transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
-/* Selected/active state — CutToggle marks it via `aria-selected` (tablist contract),
-   HomeOrderToggle via `.is-active` (its own radiogroup markup, RI-1). Same paint. */
+/* Selected/active state — consumers mark it via different selectors (e.g. `aria-selected`
+   for tablist, `.is-active` for radiogroup patterns), but they all share the same paint. */
 .cut-toggle-tab[aria-selected='true'],
 .home-order-seg-opt.is-active {
   background: var(--background);
@@ -83,10 +79,10 @@
   }
 }
 
-/* Coarse-pointer floor (PRODUCT.md §Accessibility) — both consumers clear 44px on phone via
-   this shared rule. CutToggle ALSO adds its own `min-width: 44px` per option in its own
-   cut-toggle.css (a toolbar view-switcher can sit in a narrow slot) — a real, consumer-specific
-   difference, so that half stays local rather than forced in here. */
+/* Coarse-pointer floor (PRODUCT.md §Accessibility) — this shared rule enforces 44px
+   on phone for segmented controls. CutToggle ALSO adds its own `min-width: 44px` per option
+   in its own cut-toggle.css (a toolbar view-switcher can sit in a narrow slot) — a real,
+   consumer-specific difference, so that half stays local rather than forced in here. */
 @media (max-width: 767.98px) {
   .cut-toggle,
   .cut-toggle-tab,
