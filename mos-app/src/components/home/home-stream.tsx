@@ -2,9 +2,10 @@ import { useId } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { StatusPill } from '@/components/tasks/status-pill'
-import type { StreamBand, StreamBandKind, StreamItem, StreamReason } from '@/lib/home-stream'
+import type { StreamBand, StreamBandKind, StreamItem } from '@/lib/home-stream'
 import type { MessageKey } from '@/i18n/messages'
+import { StreamRow } from './stream-row'
+import type { ReasonStyle } from './stream-reason'
 import './home-stream.css'
 
 // HomeStream — the Home "consequence-ranked stream" (owner redirect 2026-07-22: "Home = ONE
@@ -36,16 +37,6 @@ const OTHER_BAND_LABEL: Record<'signals' | 'failed-checks' | 'mentions', Message
   mentions: 'home.stream.band.mentions',
 }
 
-const REASON_KEY: Record<StreamReason['tone'], MessageKey> = {
-  urgent: 'home.stream.reason.urgent',
-  attention: 'home.stream.reason.needsAttention',
-  overdue: 'home.stream.reason.overdue',
-  due: 'home.stream.reason.dueToday',
-  blocked: 'home.stream.reason.blocked',
-  check: 'home.stream.reason.failedCheck',
-  mention: 'home.stream.reason.mention',
-}
-
 export type TaskProjectionState = 'loading' | 'ready' | 'error'
 
 export interface HomeStreamProps {
@@ -72,23 +63,6 @@ export interface HomeStreamProps {
   attentionAnchorId?: string
 }
 
-/**
- * How a band renders its rows' reason.
- *
- * `chip`  — the tinted pill. Correct where the reason VARIES row to row inside the band, so the
- *           mark is exceptional/sparse (the Signals band mixes Urgent/Needs attention; the my-work
- *           band flags the odd Blocked row). DESIGN.md § Row status as text: "Pills remain correct
- *           where status is exceptional or sparse."
- * `text`  — toned text, same tone semantics, no fill. For a reason that is true of EVERY row in the
- *           band at rest but still carries information the band label does not (the overdue age,
- *           "Overdue · 11d"). DESIGN.md § Row status as text (v4).
- * `none`  — the reason restates the band label verbatim ("Due today" under DUE TODAY · 2,
- *           "Check failed" under FAILED CHECKS · 2, "Mentions you" under MENTIONS · 1, "Blocked"
- *           under BLOCKED · 1 beside a Blocked status pill). DESIGN.md Don't: "Don't repeat a value
- *           under a control that the row or card already renders as its own column/field."
- */
-type ReasonStyle = 'chip' | 'text' | 'none'
-
 const BAND_REASON_STYLE: Record<StreamBandKind | 'my-work', ReasonStyle> = {
   signals: 'chip',
   overdue: 'text',
@@ -97,66 +71,6 @@ const BAND_REASON_STYLE: Record<StreamBandKind | 'my-work', ReasonStyle> = {
   'failed-checks': 'none',
   mentions: 'none',
   'my-work': 'chip',
-}
-
-function Reason({ reason, style }: { reason: StreamReason; style: ReasonStyle }) {
-  const t = useT()
-  if (style === 'none') return null
-  const label = reason.tone === 'overdue'
-    ? t('home.stream.reason.overdue', { days: reason.days ?? 0 })
-    : t(REASON_KEY[reason.tone])
-  const shell = style === 'text' ? 'stream-reason stream-reason--flat' : 'stream-reason'
-  return <span className={`${shell} stream-reason--${reason.tone}`}>{label}</span>
-}
-
-function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
-  item: StreamItem; hidePic?: boolean; reasonStyle?: ReasonStyle
-}) {
-  // Compact decision-context subline = PIC (avatar + name) · owning Team/BU · due date, so "what
-  // should I do next" is answerable without opening the record (Luna J01/J02). Each segment is its
-  // own span (dot separators decorative, aria-hidden) so caption + due stay addressable.
-  // F16 (OD-REDESIGN-91 #28): in the "my work today" band the PIC is always the viewer — a
-  // self-avatar carries zero information, so those rows suppress it. Avatars stay everywhere the
-  // person varies (attention bands, mentions).
-  const showPic = item.pic != null && !hidePic
-  const segments = [
-    item.caption && <span key="caption" className="stream-row-tail-seg">{item.caption}</span>,
-    item.meta && <span key="due" className="stream-row-tail-seg">{item.meta}</span>,
-  ].filter(Boolean)
-  const hasMeta = showPic || segments.length > 0
-
-  return (
-    <li className="stream-row">
-      <Link to={item.route} className="stream-row-link">
-        <span className="stream-row-body">
-          <span className="stream-row-title">{item.title}</span>
-          {hasMeta && (
-            <span className="stream-row-meta">
-              {showPic && item.pic && (
-                <span className="stream-row-pic">
-                  <span className="stream-row-avatar" aria-hidden="true">{item.pic.initials}</span>
-                  <span className="stream-row-pic-name">{item.pic.name}</span>
-                </span>
-              )}
-              {segments.map((seg, i) => (
-                <span key={i} className="stream-row-seg">
-                  {(showPic || i > 0) && <span className="stream-row-sep" aria-hidden="true">·</span>}
-                  {seg}
-                </span>
-              ))}
-            </span>
-          )}
-        </span>
-        <span className="stream-row-tail">
-          {item.reason && <Reason reason={item.reason} style={reasonStyle} />}
-          {/* F3 (design-review): Open shares no attention hierarchy with Urgent/Needs-
-              attention when it's amber too — neutral treatment restores the ranking
-              (rule:product-color-state-vocab, rule:product-ban-heavy-inactive-color). */}
-          {item.status && <StatusPill status={item.status} openTreatment="neutral" />}
-        </span>
-      </Link>
-    </li>
-  )
 }
 
 /** A quiet rank divider + its rows. Rendered only when there are items to show. */
