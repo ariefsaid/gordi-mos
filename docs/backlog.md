@@ -403,6 +403,12 @@ bar itself moved (era timeline E1→E8/V3): `docs/requirements-evolution.md`.
 > without Standards has nothing to check, and the two share one schema conversation). **W1, W12 and
 > W13 are module work** — self-contained, parallelizable, and each needs its own schema + RLS slice.
 >
+> **Two keep-or-cut calls, DEFERRED by owner 2026-07-28 — do not re-ask.** Ledger **S5** offers
+> "REDESIGN or RATIFY-DEFER" for the composable Home (**W3**) and **S7** offers "RATIFY-CUT or
+> REDESIGN" for the cascade ladder (**W11**). Neither blocks anything: W3 waits on W2 in any case,
+> and W11 is standalone and lowest-value on the list. Both stay listed as wanted until the owner says
+> otherwise; decide when one is actually next up, not before.
+>
 > **Not on this list, deliberately.** The parity ledger's "mockup-only fiction" set was demo scaffolding
 > that never described a real feature — persona/impersonation switcher, 4-button role-switch preview,
 > drag-widgets-to-reorder chips, the Deputy-composed AR-aging/plan-adherence demo widgets (fixtures),
