@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StatusPill } from '@/components/tasks/status-pill'
-import type { HomeRegionOrder } from '@/lib/home-region-order'
 import type { StreamBand, StreamBandKind, StreamItem, StreamReason } from '@/lib/home-stream'
 import type { MessageKey } from '@/i18n/messages'
 import './home-stream.css'
@@ -16,8 +15,10 @@ import './home-stream.css'
 // mark the rank bands (they are dividers in one stream, never boxed sections). Each row carries a
 // reason chip ("Overdue · 9d", "Due today", …) that makes the ranking legible at a glance.
 //
-// The stream has two ordered GROUPS — the attention bands (overdue → due-today → blocked →
-// failed-checks → mentions) and the "my work today" band — reordered by the OD-18 order preference.
+// The stream has two GROUPS — the attention bands (overdue → due-today → blocked → failed-checks →
+// mentions) and the "my work today" band. Attention always leads (OD-V4-10 retired the OD-18 order
+// toggle: with a Home layout preference, a second Home setting that means nothing in two of three
+// layouts is a dead affordance).
 // Signals are NOT here (A12 attention-vs-ambient boundary): HomePage renders them as an ambient tail.
 //
 // The overdue/due-today/blocked/my-work bands ALL derive from the ONE tasks projection, so their
@@ -67,8 +68,6 @@ export interface HomeStreamProps {
   failedChecks: StreamBand
   /** Mentions band (unread @-mentions / asks) — its own independent fetch state. */
   mentions: StreamBand
-  /** OD-18 order preference: reorders the two GROUPS within the one stream (never removes a band). */
-  order: HomeRegionOrder
   /** Anchor id on the attention group so the personal-first header summary can jump to it. */
   attentionAnchorId?: string
 }
@@ -200,7 +199,7 @@ function IndependentBand({ band, label }: { band: StreamBand; label: string }) {
 
 export function HomeStream({
   taskState, onRetryTasks, overdue, dueToday, blocked, myWork, openCount,
-  signals, failedChecks, mentions, order, attentionAnchorId,
+  signals, failedChecks, mentions, attentionAnchorId,
 }: HomeStreamProps) {
   const t = useT()
   const titleId = useId()
@@ -275,9 +274,10 @@ export function HomeStream({
   )
 
   return (
-    <section role="region" aria-labelledby={titleId} className="home-stream" data-region-order={order}>
+    <section role="region" aria-labelledby={titleId} className="home-stream">
       <h2 id={titleId} className="stream-heading">{t('home.stream.title')}</h2>
-      {order === 'attention-first' ? [attentionGroup, myWorkGroup] : [myWorkGroup, attentionGroup]}
+      {attentionGroup}
+      {myWorkGroup}
     </section>
   )
 }

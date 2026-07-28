@@ -23,7 +23,6 @@ function renderStream(overrides: Partial<HomeStreamProps> = {}) {
     signals: emptyBand('signals'),
     failedChecks: emptyBand('failed-checks'),
     mentions: emptyBand('mentions'),
-    order: 'attention-first',
     attentionAnchorId: 'attention-brief',
     ...overrides,
   }
@@ -77,18 +76,11 @@ describe('HomeStream — the consequence-ranked stream', () => {
     expect(screen.getByRole('heading', { name: 'Signals · 1' })).toBeInTheDocument()
   })
 
-  it('default order = attention-first: the attention group precedes the my-work group', () => {
-    renderStream({ order: 'attention-first', overdue: [item({ title: 'Late' })] })
+  it('OD-V4-10: the attention group always precedes the my-work group (the order toggle is retired)', () => {
+    renderStream({ overdue: [item({ title: 'Late' })] })
     const attn = screen.getByTestId('attention-group')
     const mine = screen.getByTestId('my-work-group')
     expect(Boolean(attn.compareDocumentPosition(mine) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-  })
-
-  it('my-work-first (personal-first) puts the my-work group before the attention group', () => {
-    renderStream({ order: 'personal-first', overdue: [item({ title: 'Late' })] })
-    const attn = screen.getByTestId('attention-group')
-    const mine = screen.getByTestId('my-work-group')
-    expect(Boolean(mine.compareDocumentPosition(attn) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
   it('shows the "all caught up" affirmation when every attention band is ready and empty', () => {
