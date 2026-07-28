@@ -168,6 +168,61 @@ regress another.
 | OD-V4-1 | Objectives visibility / cascade-as-relations | **RESOLVED** 2026-07-27 (see INC-1) |
 | OD-V4-2 | Signals is the single noun | **RESOLVED** 2026-07-27 (see INC-2) |
 | OD-V4-3 | IA carryover | **RESOLVED** — inherit v3's IA wholesale minus the above; owner reserves the right to revisit specific items later, without re-opening the whole IA |
+| OD-V4-7 | Home may use a tile layout — the one-column density rule is era-bound | **RESOLVED** 2026-07-28 (below) |
+| OD-V4-8 | Display type above 24px | **DEFERRED** 2026-07-28 (below) |
+
+## `OD-V4-7` — Home's one-column rule is amended for tiles (owner, 2026-07-28)
+
+**What was in the way.** `DESIGN.md` § *MOS density mode* (owner-ratified 2026-06-10, `OD-P0-7`)
+binds Home to a **single content column ~1080px, no side asides, no second card column**, with
+**one dominant module** and **≤2 auxiliary strips**. The bento direction the owner requested by name
+(round-2 mockup, direction F) breaks all four clauses. This was found by reading DESIGN.md while
+answering an unrelated type question, *not* by the design gate — the gate would have caught it only
+at merge.
+
+**Why the rule no longer fits.** It was calibrated in **era E1** over two Phase-0 redline rounds
+(IA-1..5 "too dense" → IA-6/7 "too sparse" → IA-8 adopted, `OD-P0-6`), when Home was a digest for a
+~15-person first slice. The app is now **E6**: the operating system for ~30 people across six
+Business Units, with modules in the rail, and the owner's own 2026-07-28 brief is that a single
+column *becomes* the problem at volume — *"currently its just a wall of text… especially when we
+have multiple signals from different people, tasks from different projects / process as well as
+trying to followup the team members."*
+
+**Decision.** Home may use a **tile/bento composition**. Every other surface keeps the single-column
+rule. The density mode's *intent* — calm, one dominant thing, no card-soup — is preserved by
+carrying these constraints into the amendment:
+
+- Tiles are **sized by consequence**, never a uniform grid. One lead tile dominates.
+- Every tile carries **real rows**, never an icon + heading + stat. (`craft-floor` names same-size
+  icon/heading/text cards as the lazy page scaffold; that ban stands.)
+- **No nested cards.** A tile is one level deep.
+- Phone degrades to stacked sections — the tile grid is a desktop/tablet affordance.
+
+**Still true and not reopened:** the One Blue Rule, Tinted-Status, Single-Border, Soft-Elevation,
+the 44px phone tap-target floor, and the 1180px content measure.
+
+**Owed:** `DESIGN.md` § MOS density mode carries the amendment inline (done with this decision).
+A tile layout must not ship to Home until direction F is actually picked — this decision unblocks it,
+it does not order it.
+
+## `OD-V4-8` — display type above 24px is DEFERRED (owner, 2026-07-28)
+
+`DESIGN.md`'s display scale stops at **24px** (`page-title`) and owns no step above it, so a
+page-level verdict line cannot outweigh the page title. Surfaced by direction D (`bolder`), whose
+own reference forbids inventing a primitive to get around it.
+
+**Decision: do not mint a step now.** Only direction D and G's progress line would use it; F and E
+never render a verdict. Revisit **only if D is picked**, in which case one step at **30px** is the
+candidate (24 → 30 is a 1.25 ratio, the conventional minimum contrast between adjacent steps).
+
+**Consequence to hold in mind when judging:** D reads deliberately under-powered in the round-2
+mockup, because it is amplified through weight, the red status token, position and space rather than
+size. That is the constraint showing, not the direction failing.
+
+**Not a defect, checked:** the detector's `flat-type-hierarchy` finding merges two *role* scales —
+display (24/20/18, Plus Jakarta 600) and body (15/14/12/11, DM Sans) — into one ramp. `body-lg: 15px`
+sitting 1.07 from `body: 14px` is **`OD-REDESIGN-91 B4`**, minted deliberately 2026-07-24. Not
+reopened.
 
 ## v4 design rules — Director decisions (not owner-ratified)
 

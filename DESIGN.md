@@ -651,9 +651,25 @@ composition rule only — every hue, type token, radius, and rule above is uncha
 two Phase-0 redline rounds (IA-1..5 "too dense" → IA-6/7 "too sparse" → IA-8 adopted, OD-P0-6).
 Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
 
+> **AMENDED for Home only — `OD-V4-7` (owner, 2026-07-28).** The single-column clauses below were
+> calibrated in era **E1**, when Home was a digest for a ~15-person first slice. In **E6** Home is the
+> landing surface for ~30 people across six Business Units, and one column *is* the failure at volume
+> (owner: *"currently its just a wall of text… multiple signals from different people, tasks from
+> different projects / process as well as trying to followup the team members"*). **Home may use a
+> tile composition.** Every other surface keeps the single-column rule unchanged. The intent of
+> density mode — calm, one dominant thing, no card-soup — is preserved by four binding constraints:
+>
+> 1. Tiles are **sized by consequence**, never a uniform grid; one lead tile dominates.
+> 2. Every tile carries **real rows** — never icon + heading + stat.
+> 3. **No nested cards.** A tile is one level deep.
+> 4. Phone degrades to **stacked sections**; the tile grid is a desktop/tablet affordance.
+>
+> Rationale and the era argument: `docs/v4-inheritance.md` § `OD-V4-7`.
+
 ### Home / digest surfaces (current landing brief and any future at-a-glance view)
 - **Single content column ~1080px** (1040–1120) with generous header air; no side asides, no second
   card column. *(OD-P3-12: this surface may carry the faint `gradient-surface-wash` navy top-wash.)*
+  **Superseded on Home by `OD-V4-7` above; still binding on every other surface.**
 - **One dominant module** per surface: a grouped table — 4 columns max, **44–48px rows**, 8–10 rows
   visible, group headers as muted overline text + count (never colored bars).
 - **≤2 auxiliary strips** (56–64px, one CTA/link each) for secondary concerns; everything else is a
