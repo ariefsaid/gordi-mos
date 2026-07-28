@@ -1278,6 +1278,9 @@ export const messages = {
     // One prioritised flow ranked across record types; each row carries a reason chip that
     // makes the ranking legible, and quiet band dividers mark the rank bands within the stream.
     'home.stream.title': 'What needs you',
+    // Shared region model (Task 9, FR-929/FR-930) — the ONE label used by all three Home
+    // layout arrangements for the merged overdue/due-today/blocked region.
+    'home.region.needsYou': 'Needs you now',
     'home.stream.band.signals': 'Signals',
     'home.stream.band.overdue': 'Overdue',
     'home.stream.band.dueToday': 'Due today',
@@ -2499,6 +2502,7 @@ export const messages = {
     'home.attention.summary': 'Perlu perhatian · ${n} →',
     // ── Home consequence-ranked stream (owner redirect 2026-07-22) ──────────────
     'home.stream.title': 'Yang perlu Anda kerjakan',
+    'home.region.needsYou': 'Perlu Anda sekarang',
     'home.stream.band.signals': 'Sinyal',
     'home.stream.band.overdue': 'Terlambat',
     'home.stream.band.dueToday': 'Jatuh tempo hari ini',
