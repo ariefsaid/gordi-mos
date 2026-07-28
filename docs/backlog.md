@@ -341,6 +341,38 @@ bar itself moved (era timeline E1→E8/V3): `docs/requirements-evolution.md`.
 > `P-##` = `docs/reference/provenance/owner-directives-index.md`. Where one exists, it holds the
 > longer history — this list is the single place that says **what still needs building**.
 >
+> ### The mockup→build loss lineage (six documents, read in this order)
+>
+> The owner asked (2026-07-28) whether a document already tracks what the mockups had and the build
+> lost. **Six do**, written over eleven days, and the last two **disagree** — see the reconciliation
+> below before trusting either.
+>
+> | Doc | Date | What it answers |
+> |---|---|---|
+> | `design-mockups/redesign-mockups-2026-07/CONVERGENCE-AUDIT.md` | 07-13 | Which of E7's 13 proposed changes were accepted vs overridden |
+> | `design-mockups/redesign-mockups-2026-07/SALVAGE-INVENTORY.md` | 07-14 | Which mockup **owns** which surface + the 11 explicit "do NOT port" overrides |
+> | `reviews/final-mockup-fidelity-audit-2026-07-18.md` | 07-18 | **The cross-version sweep** — every surface rendered in all five generations (G0 full-redesign → G1 e7 per-surface → G2 e7-prototype → G3 convergence-flows → G4 built app), each earlier good answer the build lacks classified LOST-GOOD / SUPERSEDED / EVOLVED-BETTER, build-only inventions flagged TWIST-IN-FLIGHT. **Verdict: MINOR-LOSSES, 3 lost-good** |
+> | `reviews/final-intent-fidelity-audit-2026-07-18.md` | 07-18 | Build vs **owner intent** (not vs spec), adversarial |
+> | `reference/provenance/owner-directives-index.md` | 07-19 | The composite oracle — P-01…P-39, per-directive status. Supersedes "match e7" as the scoring target |
+> | `plans/2026-07-23-feature-parity-ledger.md` | 07-23 | **The silent-loss table** — S1–S7, features present in a prior generation, absent from the build, *with no OD and no backlog entry*. **Verdict: 7 losses, 5 of them never captured anywhere** |
+>
+> **Reconciliation — the 07-18 audit under-reported, and W5 is the proof.** It graded Tasks
+> **"FAITHFUL — Table/Board/Calendar …"**. Verified in code on `v4-redesign` @ `1e459b0`: only
+> `TaskTablePresentation` and `TaskCardPresentation` exist, and `task-collection-adapter.tsx:230`
+> states outright *"There is no disabled Board/Calendar presentation."* No Board, Kanban, Calendar or
+> Timeline component exists anywhere in `mos-app/src`. The 07-23 ledger (S1) is correct and the
+> 07-18 audit is wrong on this row.
+>
+> **Why it missed it:** the 07-18 audit compared **surfaces as rendered**, so a view that was never
+> built produced no screenshot to differ from — absence read as fidelity. The 07-23 ledger enumerated
+> **capabilities** instead, and found seven. *Rendering-based audits cannot see a missing capability;
+> only an enumeration can.* Treat the ledger + this W-list as authoritative on "what is missing", and
+> the 07-18 audit as authoritative on "what drifted" (its LG-1/2/3 and TIF-1/2/3 remain valid).
+>
+> **Fossil found while verifying:** `tasks.tab.board` = `'Board'` / `'Papan'` exists in **both**
+> locale catalogs (`messages.ts:133`, `:1463`) with **zero consumers** — left over from when Board
+> was planned. Delete it, or keep it as W5's ready-made label.
+>
 > ### Owner-named 2026-07-28
 >
 > | # | Feature | What it gives the user | Where it was designed | Current state |
