@@ -171,6 +171,7 @@ regress another.
 | OD-V4-7 | Home may use a tile layout — the one-column density rule is era-bound | **RESOLVED** 2026-07-28 (below) |
 | OD-V4-8 | Display type above 24px | **DEFERRED** 2026-07-28 (below) |
 | OD-V4-9 | Home layout is a per-person preference, not one imposed shape | **RESOLVED** 2026-07-28 (below) |
+| OD-V4-10 | The OD-18 Home region-order toggle is retired outright | **RESOLVED** 2026-07-28 — owner: *"Remove the old and keep the layout only."* With a layout preference the order toggle becomes a second Home setting that is meaningless in two of three options (tabs and tiles have no region order), and a control that does nothing in the layout you are in is the dead-affordance class the audits flagged (anchor A4). Removed outright — **not** folded in, **not** carried over. List renders attention-first, already the default. Retirement surface and consequences: `docs/specs/home-layout-preference.spec.md` §3. Note: five currently-red tests in `home-page.test.tsx` exercise this toggle and are **deleted with the feature, not fixed** — their subject ceases to exist, which is a legitimate reduction of the `OD-V4-4` red-test debt and must be stated in the PR body. |
 
 ## `OD-V4-9` — Home layout is a per-person preference (owner, 2026-07-28)
 
