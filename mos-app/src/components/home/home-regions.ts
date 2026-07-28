@@ -1,4 +1,4 @@
-import type { StreamItem } from '@/lib/home-stream'
+import type { StreamBandState, StreamItem } from '@/lib/home-stream'
 import type { MessageKey } from '@/i18n/messages'
 
 // The ONE region model. All three Home arrangements render these same regions — a layout chooses
@@ -7,11 +7,28 @@ import type { MessageKey } from '@/i18n/messages'
 
 export type HomeRegionId = 'needs-you' | 'failed-checks' | 'mentions' | 'my-work'
 
+export interface HomeRegionDrillTo {
+  route: string
+  count: number
+}
+
 export interface HomeRegion {
   id: HomeRegionId
   labelKey: MessageKey
   items: StreamItem[]
   count: number
+  /** State of the read(s) behind this region (DIV-G5, `docs/specs/home-layout-preference.spec.md`
+   *  §7): a still-loading or failed read must render distinguishably from a genuinely empty
+   *  region, never as an indistinguishable empty all-clear. Defaults to 'ready' when the caller
+   *  reports no async state (e.g. a test building regions directly from static data). */
+  state: StreamBandState
+  /** Retries the read(s) behind this region. Set whenever `state` can become 'error'. */
+  onRetry?: () => void
+  /** A region-level drill link to its full-scope destination, present only where the rendered
+   *  `items` are a subset of a larger collection (my-work is capped; the historical "My open
+   *  tasks · N →" link carried the viewer's FULL open-task count, not just the capped items
+   *  rendered in the region itself). */
+  drillTo?: HomeRegionDrillTo
 }
 
 export interface HomeRegionInput {
@@ -21,15 +38,46 @@ export interface HomeRegionInput {
   myWork: StreamItem[]
   failedChecks: StreamItem[]
   mentions: StreamItem[]
+  /** State of the ONE shared tasks projection behind needs-you (overdue/due-today/blocked) AND
+   *  my-work — the same fetch, so they share one state and one retry (never a duplicate error). */
+  taskState?: StreamBandState
+  onRetryTasks?: () => void
+  /** failed-checks and mentions each read their own independent DAL. */
+  failedChecksState?: StreamBandState
+  onRetryFailedChecks?: () => void
+  mentionsState?: StreamBandState
+  onRetryMentions?: () => void
+  /** The viewer's FULL open-task count (all owned, non-Done tasks) — feeds my-work's drill link.
+   *  Absent (no link) when the caller has no honest count to report yet. */
+  myWorkFullCount?: number
 }
 
 export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
   const needsYou = [...input.overdue, ...input.dueToday, ...input.blocked]
-  const regions: Array<[HomeRegionId, MessageKey, StreamItem[]]> = [
-    ['needs-you', 'home.region.needsYou', needsYou],
-    ['failed-checks', 'home.stream.band.failedChecks', input.failedChecks],
-    ['mentions', 'home.stream.band.mentions', input.mentions],
-    ['my-work', 'home.stream.band.myWork', input.myWork],
+  const taskState = input.taskState ?? 'ready'
+  const myWorkDrillTo: HomeRegionDrillTo | undefined = input.myWorkFullCount != null
+    ? { route: '/work/tasks?view=my-work', count: input.myWorkFullCount }
+    : undefined
+
+  return [
+    {
+      id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYou, count: needsYou.length,
+      state: taskState, onRetry: input.onRetryTasks,
+    },
+    {
+      id: 'failed-checks', labelKey: 'home.stream.band.failedChecks', items: input.failedChecks,
+      count: input.failedChecks.length, state: input.failedChecksState ?? 'ready',
+      onRetry: input.onRetryFailedChecks,
+    },
+    {
+      id: 'mentions', labelKey: 'home.stream.band.mentions', items: input.mentions,
+      count: input.mentions.length, state: input.mentionsState ?? 'ready',
+      onRetry: input.onRetryMentions,
+    },
+    {
+      id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
+      count: input.myWork.length, state: taskState, onRetry: input.onRetryTasks,
+      drillTo: myWorkDrillTo,
+    },
   ]
-  return regions.map(([id, labelKey, items]) => ({ id, labelKey, items, count: items.length }))
 }
