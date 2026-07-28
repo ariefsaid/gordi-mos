@@ -103,7 +103,7 @@ ul { list-style: none; }
 .hdr-counts { font-size: var(--fs-xxs); color: var(--fg-2); white-space: nowrap; }
 .hdr-counts b { color: var(--fg-1); font-weight: 600; }
 
-.band { margin-bottom: var(--sp-5); }
+.band { margin-bottom: var(--sp-6); }
 .band-label { font-size: var(--fs-xxs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); margin-bottom: var(--sp-1_5); }
 .band-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-4); }
 .row { border-top: 1px solid var(--line); }
@@ -182,7 +182,9 @@ ul { list-style: none; }
 .layout > * { min-width: 0; }
 
 /* The tile grid. Six columns so a tile can be sized by consequence. */
-.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-3); align-items: stretch; }
+/* gap (20px) deliberately EXCEEDS .tile padding (16px): separation between groups
+   must beat spacing within them, or the grid reads as one mush. */
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-5); align-items: stretch; }
 .tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4);
   background: var(--bg-1); min-width: 0; display: flex; flex-direction: column; }
 .tile[data-weight="lead"]  { grid-column: span 4; background: var(--bg-3); }
