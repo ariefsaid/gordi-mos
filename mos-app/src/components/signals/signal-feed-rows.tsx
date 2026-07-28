@@ -86,7 +86,10 @@ export function SignalFeedRows({
             placeholder={t('signals.feed.searchPlaceholder')}
             aria-label={t('signals.feed.searchLabel')}
           />
-          <button type="button" className="home-signal-add" onClick={onShareClick}>
+          {/* Secondary weight on purpose: this is a door in an AMBIENT tail, so it must not
+              outrank the overdue work above it. The one action blue stays reserved for the page's
+              own primary action (DESIGN.md §5 Buttons — the ONE button hierarchy). */}
+          <button type="button" className="btn btn-outline home-signal-add" onClick={onShareClick}>
             {t('signals.feed.addSignal')}
           </button>
         </div>
@@ -145,15 +148,24 @@ export function SignalFeedRows({
                       <span className="home-signal-body-text">{signal.body}</span>
                     </span>
                   )}
-                  {/* Meta subline: author (avatar + name) · team · time. */}
+                  {/* Meta subline: author (avatar + name) · team · time. Each separator is bound
+                      into one group with the fact it introduces, so a narrow feed column wraps
+                      BETWEEN facts and can never strand a bare "·" on a line of its own. */}
                   <div className="home-signal-meta">
                     <span className="home-signal-who">
                       <span className="home-signal-avatar" aria-hidden="true">{initials(authorName)}</span>
                       <span className="home-signal-who-name">{authorName}</span>
                     </span>
-                    {teamName && <><span className="home-signal-sep" aria-hidden="true">·</span><span>{teamName}</span></>}
-                    <span className="home-signal-sep" aria-hidden="true">·</span>
-                    <span className="home-signal-when">{formatWibDateTime(signal.occurred_at)}</span>
+                    {teamName && (
+                      <span className="home-signal-meta-item">
+                        <span className="home-signal-sep" aria-hidden="true">·</span>
+                        <span>{teamName}</span>
+                      </span>
+                    )}
+                    <span className="home-signal-meta-item">
+                      <span className="home-signal-sep" aria-hidden="true">·</span>
+                      <span className="home-signal-when">{formatWibDateTime(signal.occurred_at)}</span>
+                    </span>
                   </div>
                 </div>
                 <div className="home-signal-tail">

@@ -13,10 +13,14 @@
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
   box-shadow: var(--shadow-rest); /* Soft-Elevation Rule, DESIGN.md OD-P3-11 */
 }
-.home-tile[data-weight="lead"]  { grid-column: span 4; }
-.home-tile[data-weight="major"] { grid-column: span 2; }
-.home-tile[data-weight="half"]  { grid-column: span 3; }
-.home-tile[data-weight="full"]  { grid-column: span 6; }
+/* Two weights, and the pair sums to the column count at BOTH desktop bands — so every bento row
+   lands exactly on the grid and no tile is left with a hole beside it (the owner rejected exactly
+   that raggedness: "the boxes dont align … feels untidy nor professional"). 6 cols: 4+2 and 2+4.
+   4 cols: 4 | 2+2 | 4. `wide` is the consequence tier — the regions that carry the viewer's own
+   work and need room for a task row; `narrow` is the notice tier. needs-you leads by being first,
+   top-left, and in the wide tier (OD-V4-7); nothing outranks it. */
+.home-tile[data-weight="wide"]   { grid-column: span 4; }
+.home-tile[data-weight="narrow"] { grid-column: span 2; }
 .home-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .home-tile-name { font-family: var(--font-display); font-size: var(--font-size-label); font-weight: 600; }
 .home-tile-count { font-size: var(--font-size-label); color: var(--muted-foreground); white-space: nowrap; }
@@ -34,11 +38,9 @@
 
 @media (max-width: 940px) {
   .home-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  /* The base spans need no override here: at 4 columns `wide` (span 4) is a full row and `narrow`
+     (span 2) is a half, which packs to 4 | 2+2 | 4 — every row still full. */
   .home-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .home-tile[data-weight="lead"]  { grid-column: span 4; }
-  .home-tile[data-weight="major"] { grid-column: span 2; }
-  .home-tile[data-weight="half"]  { grid-column: span 2; }
-  .home-tile[data-weight="full"]  { grid-column: span 4; }
 }
 @media (max-width: 620px) {
   .home-bento { grid-template-columns: minmax(0, 1fr); }
