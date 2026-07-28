@@ -81,6 +81,28 @@ ul { list-style: none; }
 .head-role { color: var(--fg-2); margin-left: var(--sp-2); font-size: var(--fs-xs); }
 .head-job { margin: var(--sp-1_5) 0 var(--sp-5); color: var(--fg-2); }
 
+/* ═══ Compact header — target ~80px total ════════════════════════════════
+   Greeting, state line and progress share one block instead of stacking a
+   title, a job sentence and a separate strip. Two rows, ~80px, so the work
+   starts near the top of the viewport.
+   ═════════════════════════════════════════════════════════════════════════ */
+.hdr {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: var(--sp-2) var(--sp-4);
+  padding-bottom: var(--sp-3); margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+.hdr-id { min-width: 0; }
+.hdr-title { font-family: var(--display); font-size: var(--fs-md); font-weight: 600; letter-spacing: -0.01em; display: inline; }
+.hdr-role { color: var(--fg-2); margin-left: var(--sp-2); font-size: var(--fs-xxs); }
+.hdr-state { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.hdr-msg { font-size: var(--fs-xs); font-weight: 500; }
+.hdr-msg b { color: var(--tag-green-fg); }
+.hdr-track { flex: 1 1 90px; max-width: 200px; height: 4px; background: var(--bg-3); border-radius: var(--r-pill); overflow: hidden; }
+.hdr-fill { display: block; height: 100%; background: var(--tag-green-fg); border-radius: var(--r-pill); }
+.hdr-counts { font-size: var(--fs-xxs); color: var(--fg-2); white-space: nowrap; }
+.hdr-counts b { color: var(--fg-1); font-weight: 600; }
+
 .band { margin-bottom: var(--sp-5); }
 .band-label { font-size: var(--fs-xxs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); margin-bottom: var(--sp-1_5); }
 .band-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-4); }
@@ -151,10 +173,10 @@ ul { list-style: none; }
    ═════════════════════════════════════════════════════════════════════════ */
 #cplus .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-3); align-items: stretch; }
 #cplus .tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-4) var(--sp-4) var(--sp-2);
-  background: var(--bg-1); min-width: 0; display: grid; grid-template-columns: 96px 1fr;
+  background: var(--bg-1); min-width: 0; display: grid; grid-template-columns: 88px minmax(0, 1fr);
   gap: var(--sp-4); align-items: start; }
 #cplus .tile[data-weight="lead"] { grid-column: span 4; background: var(--bg-3); }
-#cplus .tile[data-weight="major"] { grid-column: span 2; grid-template-columns: 1fr; gap: var(--sp-1); }
+#cplus .tile[data-weight="major"] { grid-column: span 2; grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); }
 #cplus .tile[data-weight="half"] { grid-column: span 3; }
 #cplus .tile[data-weight="full"] { grid-column: span 6; }
 #cplus .tile-name { font-family: var(--display); font-size: var(--fs-xs); font-weight: 600; padding-top: var(--sp-1); }
@@ -163,7 +185,7 @@ ul { list-style: none; }
 #cplus .row-link { padding-block: var(--sp-1_5); min-height: 36px; }
 #cplus .row-title { font-weight: 400; font-size: 13px; }
 .frame[data-w="phone"] #cplus .bento { grid-template-columns: 1fr; }
-.frame[data-w="phone"] #cplus .tile { grid-column: span 1 !important; grid-template-columns: 1fr; gap: var(--sp-2); }
+.frame[data-w="phone"] #cplus .tile { grid-column: span 1 !important; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
 
 /* ═══ F · BENTO ══════════════════════════════════════════════════════════ */
 #f .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--sp-3); align-items: stretch; }
@@ -224,7 +246,40 @@ ul { list-style: none; }
 #j .rtab:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 #j .rtab .n { color: var(--fg-3); font-weight: 400; margin-left: var(--sp-1); }
 #j .rtab[aria-selected="true"] .n { color: var(--fg-2); }
-.frame[data-w="phone"] #j .layout { grid-template-columns: 1fr; gap: var(--sp-6); }
+
+/* ═══ Responsive — driven by the frame's ACTUAL width ════════════════════
+   The earlier rules keyed off the Desktop/Phone toggle, so any width between
+   the two overflowed. Container queries respond to the real measure instead,
+   which is also how this behaves in the app, where the rail and the browser
+   window both change the space available.
+   `minmax(0, …)` everywhere: a grid child defaults to min-content width, and
+   that single omission is what lets long titles push a grid wider than its
+   container.
+   ═════════════════════════════════════════════════════════════════════════ */
+.frame { container-type: inline-size; }
+#cplus .bento, #f .bento, #i .bento { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+#i .layout, #j .layout { grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); }
+#i .layout > *, #j .layout > * { min-width: 0; }
+
+@container (max-width: 940px) {
+  /* The feed drops below the work rather than squeezing it. */
+  #i .layout, #j .layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
+  #cplus .bento, #f .bento, #i .bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #cplus .tile[data-weight="lead"], #f .tile[data-weight="lead"], #i .tile[data-weight="lead"] { grid-column: span 4; }
+  #cplus .tile[data-weight="half"], #f .tile[data-weight="half"], #i .tile[data-weight="half"] { grid-column: span 2; }
+  #cplus .tile[data-weight="major"], #f .tile[data-weight="major"], #i .tile[data-weight="major"] { grid-column: span 2; }
+  #cplus .tile[data-weight="full"], #f .tile[data-weight="full"], #i .tile[data-weight="full"] { grid-column: span 4; }
+}
+@container (max-width: 620px) {
+  #cplus .bento, #f .bento, #i .bento { grid-template-columns: minmax(0, 1fr); }
+  #cplus .tile, #f .tile, #i .tile { grid-column: span 1 !important; }
+  #cplus .tile { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
+  #c .band { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
+  #c .band-label { padding-top: 0; }
+  .row-link { flex-wrap: wrap; gap: var(--sp-2); }
+  .row-tail { width: 100%; }
+  .pane { padding: var(--sp-4) var(--sp-4) var(--sp-8); }
+}
 </style>
 </head>
 <body>
@@ -238,7 +293,13 @@ ul { list-style: none; }
   </p>
   <p class="h-intro" style="margin-top:var(--sp-2)">
     A, B, D, E, G and H are retired at owner request. All four survivors render from
-    <strong>one shared dataset</strong> — <strong>Busy day</strong> is the real test: 30 items,
+    <strong>one shared dataset</strong>. Four owner-directed changes since the last round:
+    the header is now <strong>one ~70px block</strong> (identity, state line and progress together,
+    no separate strip); the state line is <strong>rule-driven, not written</strong> — use
+    <em>↻ Message</em> to rotate the wording and <em>Day</em> to walk from a fresh morning to a
+    cleared queue; and the feed is capped at 6 with a real remainder. Layouts now respond to the frame’s <strong>actual width</strong> via container
+    queries rather than the Desktop/Phone toggle, which is what was overflowing.
+    <strong>Busy day</strong> is the real test: 30 items,
     8 authors, 5 projects. Three owner-directed changes apply throughout: the progress strip is
     promoted to the <strong>top</strong> of every direction, <strong>avatars are gone</strong>, and
     the tile layouts are <strong>distilled</strong> rather than complete.
@@ -261,6 +322,10 @@ ul { list-style: none; }
     <div class="seg" role="group" aria-label="Width">
       <button class="tab" data-width="desktop" aria-pressed="true">Desktop</button>
       <button class="tab" data-width="phone" aria-pressed="false">Phone</button>
+    </div>
+    <div class="seg" role="group" aria-label="State line">
+      <button class="tab" id="nudge-btn" type="button">↻ Message</button>
+      <button class="tab" id="day-btn" type="button">Day: mid</button>
     </div>
   </div>
 
@@ -455,20 +520,61 @@ function distil(items, n, o = {}) {
 const HEAD = `<h1 class="head-title">Good evening, Dewi</h1><span class="head-role">Managing Director</span>
   <p class="head-job">What needs my attention right now?</p>`;
 
-/* The progress strip — truthful counts, named wins, one line. Top of every direction. */
-function progress() {
-  const left = data().length, done = load === 'busy' ? 9 : 3;
-  const pct = Math.round(done / (done + left) * 100);
-  const wins = load === 'busy'
-    ? `<b>Cahya’s grinder</b> is fixed, <b>Budi’s two invoices</b> are promised for Friday, and the <b>Cafe 2 roster</b> is signed off.`
-    : `<b>Yesterday’s café logs</b> are all approved.`;
-  return `<div class="day-progress">
-    <span class="progress-count"><b>${done} handled</b> today</span>
-    <span class="progress-track"><span class="progress-fill" style="width:${pct}%"></span></span>
-    <span class="progress-count" style="font-weight:400;color:var(--fg-2)">${left} left</span>
-    <span class="progress-won">${wins}</span>
+/* ═══ The state line — rule-driven, no model, no invented specifics ══════
+   Earlier drafts hard-coded "Cahya's grinder is fixed", which only a language
+   model could generate and only for one day's data. This picks a band from
+   the counts, then rotates within that band, so every message is TRUE by
+   construction and none of them names anything the app cannot count.
+   `nudge` rotates the wording; the band is chosen, never random.
+   ═════════════════════════════════════════════════════════════════════════ */
+const MESSAGES = {
+  fresh:   ['Ready for a new day?', 'Fresh start.', 'Clean slate.', 'Nothing handled yet.'],
+  early:   ['Good start.', 'Rolling.', 'Under way.', 'Moving.'],
+  half:    ['Halfway.', 'Good pace.', 'Past the middle.', 'Steady.'],
+  most:    ['More done than left.', 'Downhill from here.', 'Past the worst of it.'],
+  stretch: ['Almost there.', 'Home stretch.', 'Nearly done.'],
+  clear:   ['All clear.', 'That’s everything.', 'Day closed.', 'Nothing left.'],
+};
+let nudge = 0;
+function stateLine(done, left) {
+  const pick = band => MESSAGES[band][nudge % MESSAGES[band].length];
+  if (left === 0) return pick('clear');
+  if (done === 0) return pick('fresh');
+  /* Countdowns beat adjectives once the end is in sight, and the number is real. */
+  if (left <= 3) return `${left} more to go.`;
+  const pct = done / (done + left);
+  if (pct >= 0.75) return pick('stretch');
+  if (done > left) return pick('most');
+  if (pct >= 0.4) return pick('half');
+  return pick('early');
+}
+/* Harness-only: walks the day so every band of the rule can be seen.
+   `start` = nothing handled, `mid` = normal, `nearly` = 2 left, `clear` = done. */
+const DAYS = ['start', 'mid', 'nearly', 'clear'];
+let dayIdx = 1;
+function dayCounts() {
+  const total = data().length;
+  switch (DAYS[dayIdx]) {
+    case 'start':  return { done: 0, left: total };
+    case 'nearly': return { done: total - 2, left: 2 };
+    case 'clear':  return { done: total, left: 0 };
+    default:       return { done: load === 'busy' ? 9 : 3, left: total };
+  }
+}
+/* Compact header: identity, state line and progress in ~80px. */
+function header() {
+  const { done, left } = dayCounts();
+  const pct = done + left === 0 ? 100 : Math.round(done / (done + left) * 100);
+  return `<div class="hdr">
+    <div class="hdr-id"><h1 class="hdr-title">Good evening, Dewi</h1><span class="hdr-role">Managing Director</span></div>
+    <span class="hdr-counts"><b>${done}</b> handled · <b>${left}</b> left</span>
+    <div class="hdr-state">
+      <span class="hdr-msg">${esc(stateLine(done, left))}</span>
+      <span class="hdr-track"><span class="hdr-fill" style="width:${pct}%"></span></span>
+    </div>
   </div>`;
 }
+const progress = () => '';
 const CLEARED = `<div class="cleared"><p class="cleared-line">That’s everything for tonight.</p>
   <p class="cleared-detail">Nothing else needs you before tomorrow morning.</p></div>`;
 
@@ -481,7 +587,7 @@ const renderCur = () => HEAD
   + band('My work today', by('mine'), { noWho: true });
 
 /* ── C · Table (complete, not distilled) ─────────────────────────────── */
-const renderC = () => HEAD + progress()
+const renderC = () => header()
   + band('Signals', by('signal'))
   + band('Tasks', bySeverity(by('task')))
   + band('Café logs', by('check'))
@@ -490,13 +596,13 @@ const renderC = () => HEAD + progress()
 
 /* ── C+ · Table in tiles (distilled) ─────────────────────────────────── */
 function tileC(name, count, body, weight) {
-  return `<div class="tile" data-weight="${weight}">
+  return `<div class="tile dense" data-weight="${weight}">
     <h3 class="tile-name">${esc(name)}<span class="tile-count">${esc(count)}</span></h3>
     <div>${body}</div></div>`;
 }
 function renderCplus() {
   const tasks = bySeverity(by('task'));
-  return HEAD + progress() + `<div class="bento">`
+  return header() + `<div class="bento">`
     + tileC('Needs you now', `${needsMe().length} items`,
         distil(bySeverity(needsMe()), 3, { noUnit: true, noStatus: true, clip: true }), 'lead')
     + tileC('Waiting on', `${by('wait').length} people`,
@@ -526,7 +632,7 @@ function renderF() {
   const taskBody = groupBy(tasks, 'proj').slice(0, 2).map(([n, items]) =>
     `<p class="tile-group">${esc(n)} · ${items.length} late</p>
      <ul>${items.slice(0, 2).map(i => row(i, { noProj: true, noStatus: true })).join('')}</ul>`).join('');
-  return HEAD + progress() + `<div class="bento">`
+  return header() + `<div class="bento">`
     + tileF('Needs you now', `${needsMe().length} items`, distil(bySeverity(needsMe()), 4, { noUnit: true }), 'lead')
     + tileF('Waiting on people', `${by('wait').length} owe you`, distil(by('wait'), 4, { noUnit: true }), 'major')
     + tileF('Tasks', `${tasks.length} late`, taskBody, 'half')
@@ -537,15 +643,24 @@ function renderF() {
 }
 
 /* ── The signal feed (I and J) — full text; a feed is for reading ────── */
-const feed = () => `<div class="feed">
-  <div class="feed-head"><h3 class="feed-name">Signals</h3>
-    <span class="tile-count">${by('signal').length} today</span></div>
-  <button class="feed-compose" type="button">Share a Signal</button>
-  ${bySeverity(by('signal')).map(s => `<article class="feed-post">
-    <p class="feed-who"><b>${esc(s.who)}</b> · ${esc(s.unit)}</p>
-    <p class="feed-text">${esc(s.t)}</p>
-    ${s.sev ? `<p class="feed-tail"><span class="chip ${s.sev}">${SEV_LABEL[s.sev]}</span></p>` : ''}
-  </article>`).join('')}</div>`;
+/* Capped at 6 with an honest remainder: a feed column that grows without limit
+   is the wall of text again, just rotated 90 degrees. */
+const FEED_CAP = 6;
+const feed = () => {
+  const all = bySeverity(by('signal'));
+  const shown = all.slice(0, FEED_CAP), rest = all.length - shown.length;
+  return `<div class="feed">
+    <div class="feed-head"><h3 class="feed-name">Signals</h3>
+      <span class="tile-count">${all.length} today</span></div>
+    <button class="feed-compose" type="button">Share a Signal</button>
+    ${shown.map(s => `<article class="feed-post">
+      <p class="feed-who"><b>${esc(s.who)}</b> · ${esc(s.unit)}</p>
+      <p class="feed-text">${esc(s.t)}</p>
+      ${s.sev ? `<p class="feed-tail"><span class="chip ${s.sev}">${SEV_LABEL[s.sev]}</span></p>` : ''}
+    </article>`).join('')}
+    ${rest > 0 ? `<button class="more" type="button">See ${rest} more →</button>` : ''}
+  </div>`;
+};
 
 /* ── I · Bento + feed (work distilled; signals live in the feed) ─────── */
 function renderI() {
@@ -553,6 +668,9 @@ function renderI() {
   const taskBody = groupBy(tasks, 'proj').slice(0, 2).map(([n, items]) =>
     `<p class="tile-group">${esc(n)} · ${items.length} late</p>
      <ul>${items.slice(0, 2).map(i => row(i, { noProj: true, noStatus: true })).join('')}</ul>`).join('');
+  /* Reverted to F's tile interior (owner, 2026-07-28): C's label-left column inside a
+     tile that is itself only 2–4 grid columns wide left too little room for the row,
+     so the label ate measure the content needed. C's rhythm needs full width to work. */
   const work = `<div class="bento">`
     + tileF('Needs you now', `${overdue().length} late`, distil(bySeverity(overdue()), 3, { noUnit: true }), 'lead')
     + tileF('Waiting on people', `${by('wait').length} owe you`, distil(by('wait'), 3, { noUnit: true }), 'major')
@@ -560,7 +678,7 @@ function renderI() {
     + tileF('Café logs', `${by('check').length} rejected`, distil(by('check'), 3), 'half')
     + tileF('My work', `${by('mine').length} open`, distil(by('mine'), 3, { noWho: true, noStatus: true }), 'full')
     + `</div>`;
-  return HEAD + progress() + `<div class="layout">${work}${feed()}</div>`;
+  return header() + `<div class="layout">${work}${feed()}</div>`;
 }
 
 /* ── J · Tabs + feed ─────────────────────────────────────────────────── */
@@ -581,7 +699,7 @@ function renderJ() {
     <ul>${active.items.map(i => row(i, active.o)).join('')}</ul>
     ${active.items.length === 0 ? CLEARED : ''}
   </div>`;
-  return HEAD + progress() + `<div class="layout">${work}${feed()}</div>`;
+  return header() + `<div class="layout">${work}${feed()}</div>`;
 }
 
 const RENDER = { cur: renderCur, c: renderC, cplus: renderCplus, f: renderF, i: renderI, j: renderJ };
@@ -606,6 +724,12 @@ document.querySelectorAll('[data-width]').forEach(b => b.addEventListener('click
 document.getElementById('j').addEventListener('click', e => {
   const t = e.target.closest('[data-rtab]');
   if (t) { jTab = t.dataset.rtab; paint(); }
+});
+document.getElementById('nudge-btn').addEventListener('click', () => { nudge++; paint(); });
+document.getElementById('day-btn').addEventListener('click', e => {
+  dayIdx = (dayIdx + 1) % DAYS.length;
+  e.currentTarget.textContent = `Day: ${DAYS[dayIdx]}`;
+  paint();
 });
 show('cur');
 </script>
