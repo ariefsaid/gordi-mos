@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { EmptyState } from '@/components/ui/state-kit'
 import { formatWibDateTime } from '@/lib/wib-time'
@@ -41,25 +42,63 @@ export function SignalFeedRows({
   variant = 'ambient',
 }: SignalFeedRowsProps) {
   const t = useT()
-  const ordered = orderSignalsForFeed([...signals])
+  const [query, setQuery] = useState('')
+  const searchable = variant === 'ambient' && !!onShareClick
+  // Search matches the body and the author's display name — the two things a reader actually
+  // remembers about a Signal ("what Cahya said about the grinder"). Author names are resolved
+  // upstream, so no second lookup here.
+  const ordered = useMemo(() => {
+    const all = orderSignalsForFeed([...signals])
+    const q = query.trim().toLowerCase()
+    if (!searchable || q === '') return all
+    return all.filter((s) => {
+      const author = authorNamesById[s.author_id] ?? ''
+      return s.body.toLowerCase().includes(q) || author.toLowerCase().includes(q)
+    })
+  }, [signals, query, searchable, authorNamesById])
+  const filteredEmpty = ordered.length === 0 && query.trim() !== ''
 
   return (
     <div
       className={`home-signal-feed${variant === 'archive' ? ' home-signal-feed--archive' : ''}`}
       data-testid="signal-feed"
     >
-      {/* Quiet action row — the composer entry. Ambient-only (D-D2): on Home (the ambient tail) this
-          IS the compose door, since Home has no CollectionToolbar. In the /work/signals archive the
-          toolbar hosts the ONE layout-independent Share door, so this in-feed row would be a SECOND,
-          layout-dependent door — omitted there so the archive has exactly one compose door. */}
+      {/* Feed toolbar — the composer entry plus search. Ambient-only (D-D2): on Home (the ambient
+          tail) this IS the compose door, since Home has no CollectionToolbar. In the /work/signals
+          archive the toolbar hosts the ONE layout-independent Share door, so this would be a SECOND,
+          layout-dependent door — omitted there so the archive has exactly one compose door.
+
+          Owner, 2026-07-28: the previous single full-width rounded row READ as a search field and
+          behaved as a composer. Shape sets expectation, so the field is now search and creating a
+          Signal is a button — the two jobs stop competing for one control. */}
       {variant === 'ambient' && onShareClick ? (
-        <button type="button" className="home-signal-share-row" onClick={onShareClick}>
-          {t('signals.feed.shareRow')}
-        </button>
+        <div className="home-signal-tools">
+          <input
+            type="search"
+            className="home-signal-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('signals.feed.searchPlaceholder')}
+            aria-label={t('signals.feed.searchLabel')}
+          />
+          <button type="button" className="home-signal-add" onClick={onShareClick}>
+            {t('signals.feed.addSignal')}
+          </button>
+        </div>
       ) : null}
 
       {ordered.length === 0 ? (
-        <EmptyState title={t('signals.feed.empty')} nested />
+        // A filtered-empty is a different state from "no Signals yet": it names the active query and
+        // offers a way out, rather than implying the feed is empty (state-kit / clarify.md).
+        filteredEmpty ? (
+          <EmptyState title={t('signals.feed.noMatches', { query: query.trim() })} nested>
+            <button type="button" className="btn btn-ghost" onClick={() => setQuery('')}>
+              {t('signals.feed.clearSearch')}
+            </button>
+          </EmptyState>
+        ) : (
+          <EmptyState title={t('signals.feed.empty')} nested />
+        )
       ) : (
         <ul className="home-signal-list">
           {ordered.map((signal) => {

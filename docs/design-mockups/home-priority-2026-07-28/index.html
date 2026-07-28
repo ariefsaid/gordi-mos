@@ -218,10 +218,19 @@ ul { list-style: none; }
 .feed-who b { color: var(--fg-1); font-weight: 600; }
 .feed-text { font-size: 13px; line-height: 1.4; }
 .feed-tail { margin-top: var(--sp-1_5); }
-.feed-compose { width: 100%; text-align: left; font: inherit; color: var(--fg-2); background: var(--bg-2);
-  border: 1px solid var(--line); border-radius: var(--r-pill); padding: var(--sp-2) var(--sp-4);
-  margin-bottom: var(--sp-3); cursor: pointer; min-height: 44px; }
-.feed-compose:hover { background: var(--bg-3); color: var(--fg-1); }
+/* A rounded full-width field reads as SEARCH, not as a composer — the shape set
+   the wrong expectation. Search is the field; creating a Signal is a button. */
+.feed-tools { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.feed-search { flex: 1 1 auto; min-width: 0; font: inherit; font-size: var(--fs-xxs);
+  color: var(--fg-1); background: var(--bg-1); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); min-height: 36px; }
+.feed-search::placeholder { color: var(--fg-3); }
+.feed-search:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; border-color: var(--blue); }
+.feed-add { flex: 0 0 auto; font: inherit; font-size: var(--fs-xxs); font-weight: 500;
+  color: #fff; background: var(--blue); border: 1px solid var(--blue);
+  border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); min-height: 36px; cursor: pointer; }
+.feed-add:hover { filter: brightness(1.08); }
+.feed-add:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* Region tabs. Focused uses them today; any collection surface could. */
 .tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--line); margin-bottom: var(--sp-3); flex-wrap: wrap; }
@@ -687,7 +696,10 @@ const feed = () => {
   return `<div class="feed">
     <div class="feed-head"><h3 class="feed-name">Signals</h3>
       <span class="tile-count">${all.length} today</span></div>
-    <button class="feed-compose" type="button">Share a Signal</button>
+    <div class="feed-tools">
+      <input class="feed-search" type="search" placeholder="Search signals" aria-label="Search signals">
+      <button class="feed-add" type="button">+ Signal</button>
+    </div>
     ${shown.map(s => `<article class="feed-post">
       <p class="feed-who"><b>${esc(s.who)}</b> · ${esc(s.unit)}</p>
       <p class="feed-text">${esc(s.t)}</p>

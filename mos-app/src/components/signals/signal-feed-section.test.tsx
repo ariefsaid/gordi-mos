@@ -90,10 +90,58 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
   })
 
-  it('the "Share a Signal" row opens the shared composer host (C1/C2)', async () => {
+  // GOAL UNCHANGED (C1/C2): from the Home feed a viewer can start a Signal in one action.
+  // Only the STEP changed — owner 2026-07-28 split the one full-width row into a search field
+  // plus a create button, because the row's shape read as search and behaved as a composer.
+  it('the create-Signal button opens the shared composer host (C1/C2)', async () => {
     renderSection()
-    await userEvent.click(screen.getByRole('button', { name: /share a signal/i }))
+    await userEvent.click(screen.getByRole('button', { name: /\+ Signal/i }))
     expect(openSignalComposer).toHaveBeenCalledTimes(1)
+  })
+
+  // The GOAL of feed search: a viewer who half-remembers a Signal can get back to it — by what it
+  // said, or by who said it. Both are what people actually recall.
+  it('search narrows the feed by body text', async () => {
+    renderSection({ signals: [
+      row({ id: 's1', body: 'The freezer alarm went off' }),
+      row({ id: 's2', body: 'Grinder 2 is throwing inconsistent doses' }),
+    ] })
+    expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'grinder')
+    expect(screen.queryByText(/freezer alarm/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/inconsistent doses/i)).toBeInTheDocument()
+  })
+
+  it('search narrows the feed by author name', async () => {
+    renderSection({
+      signals: [
+        row({ id: 's1', author_id: 'person-cahya', body: 'The freezer alarm went off' }),
+        row({ id: 's2', author_id: 'person-rama', body: 'Cooling tray running slow' }),
+      ],
+      authorNamesById: new Map([['person-cahya', 'Cahya Cafe'], ['person-rama', 'Rama Roastery']]),
+    })
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'rama')
+    expect(screen.getByText(/cooling tray/i)).toBeInTheDocument()
+    expect(screen.queryByText(/freezer alarm/i)).not.toBeInTheDocument()
+  })
+
+  // A filtered-empty must NOT read as "no Signals yet" — that is a false all-clear, and it must
+  // offer the way back out.
+  it('a search with no matches names the query and offers a way back', async () => {
+    renderSection({ signals: [row({ body: 'The freezer alarm went off' })] })
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'zzzz')
+    expect(screen.queryByText(/No Signals yet/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/zzzz/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
+  })
+
+  it('the search field is a search input, not the compose door (owner 2026-07-28)', async () => {
+    renderSection()
+    const search = screen.getByRole('searchbox', { name: /search signals/i })
+    await userEvent.type(search, 'grinder')
+    // Typing into search must NEVER open the composer — that conflation was the defect.
+    expect(openSignalComposer).not.toHaveBeenCalled()
   })
 
   it('Add category calls correctSignal and asks the owner (HomePage) to reload the shared read', async () => {
@@ -130,7 +178,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   it('shows the empty-state (composer still present) when there are no FYI Signals', async () => {
     renderSection({ signals: [] })
     await waitFor(() => expect(screen.getByText(/No Signals yet/i)).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /share a signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /\+ Signal/i })).toBeInTheDocument()
   })
 
   it('renders nothing during the shared read\'s initial load (Home skeletons cover it, NFR-405)', () => {

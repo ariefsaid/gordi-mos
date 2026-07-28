@@ -12,6 +12,50 @@
   min-width: 0;
 }
 
+/* Feed toolbar — search field + create button (owner, 2026-07-28).
+   The former single full-width rounded row read as search and behaved as a composer;
+   shape sets expectation, so the two jobs now have their own controls. */
+.home-signal-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.home-signal-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px; /* coarse-pointer tap floor, same as the row it replaces */
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+}
+.home-signal-search::placeholder { color: var(--muted-foreground); }
+.home-signal-search:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+  border-color: var(--ring);
+}
+.home-signal-add {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.home-signal-add:hover { background: var(--primary-hover, var(--primary)); filter: brightness(1.06); }
+.home-signal-add:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
 /* Quiet composer action row. */
 .home-signal-share-row {
   display: flex;
