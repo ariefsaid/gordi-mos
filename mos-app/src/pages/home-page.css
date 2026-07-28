@@ -1,45 +1,13 @@
 /* ════════════════════════════════════════════════════════════════════════════
    HomePage — the consequence-ranked stream layout (owner redirect 2026-07-22).
    The stream + its ambient Signals tail own their own row texture (home-stream.css
-   / signal-feed-section.css); this file owns only the personal-first jump
-   affordance in the head's meta line. The order-preference control itself moved
-   to Personal Profile (OD-REDESIGN-18 completion, 2026-07-27) — its segmented-
-   radiogroup CSS now lives in components/home/home-order-toggle.css. Token-only.
+   / signal-feed-section.css); this file owns only the head's meta line. The OD-18
+   order preference (and its Personal Profile control) was retired (OD-V4-10).
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* Personal-first header summary ("Needs attention · N →", AC-513) — must READ as a
-   link, not just behave like one. Same underline+color grammar as the app's inline links. */
-.home-attention-jump {
-  color: var(--primary);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.home-attention-jump:hover { color: var(--brand-navy-text); }
-.home-attention-jump:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-/* ── The head's meta line: role identity (+ the personal-first attention summary).
-   Shares the workspace head's `.ch-meta-line` grammar; only the nowrap is relaxed so a
-   long role name plus the summary wraps instead of overflowing at phone width. ── */
+/* ── The head's meta line: role identity. Shares the workspace head's `.ch-meta-line`
+   grammar; only the nowrap is relaxed so a long role name wraps instead of overflowing
+   at phone width. ── */
 .content-header .ch-meta .home-head-meta {
   white-space: normal;
-}
-
-/* g-home audit P3: visually-hidden host for the aria-live="polite" announcement of the
-   "Needs attention · N" figure (see home-page.tsx) — standard clip-based hidden-but-
-   announced pattern, scoped to this page (own class name; no shared/global .sr-only
-   exists to reuse here). */
-.home-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
 }

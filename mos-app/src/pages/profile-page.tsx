@@ -4,13 +4,10 @@
  *
  * Grammar follows the e7 profile mockup (`e7-views.js` renderProfile): stacked cards —
  * Identity (read-only Person/Role, "managed by Admin") then settings. Ships Identity +
- * Language (the ADR-0021 locale seam, moved here from the rail footer) + Home order
- * (OD-REDESIGN-18 completion, 2026-07-27: the order-preference control moved out of
- * Home's head action slot into its OWN settings home here — Home only ever owed the
- * required "Needs attention · N" summary, not the control that sets the preference).
- * Notification prefs land with their own slice (OD-26 profile store).
+ * Language (the ADR-0021 locale seam, moved here from the rail footer). The Home order
+ * preference (OD-18) was retired (OD-V4-10) in favour of a Home layout preference
+ * (OD-V4-9). Notification prefs land with their own slice (OD-26 profile store).
  */
-import { useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
@@ -18,8 +15,6 @@ import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { Select } from '@/components/ui/select'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { HomeOrderToggle } from '@/components/home/home-order-toggle'
-import { resolveRegionOrder, setRegionOrder, type HomeRegionOrder } from '@/lib/home-region-order'
 
 function ProfileCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -69,20 +64,6 @@ export function ProfilePage() {
   useDocumentTitle(t('common.docTitle', { page: t('dest.profile') }))
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const personId = viewer?.person.id ?? null
-
-  // ── Home order (OD-REDESIGN-18) — per-user, default attention-first. Read on mount/personId
-  // change so a full reload (and a fresh session for a different person) always resolves the
-  // real stored value rather than the attention-first default flashing first. ──
-  const [homeOrder, setHomeOrder] = useState<HomeRegionOrder>('attention-first')
-  useEffect(() => {
-    if (personId) setHomeOrder(resolveRegionOrder(personId))
-  }, [personId])
-
-  function handleHomeOrderChange(next: HomeRegionOrder) {
-    setHomeOrder(next)
-    if (personId) setRegionOrder(personId, next)
-  }
 
   return (
     // V3 Management family (Issue 11): the shared frame owns the h1 + job sentence
@@ -124,16 +105,6 @@ export function ProfilePage() {
             <option value="id">{t('locale.id')}</option>
           </Select>
         </ProfileCard>
-
-        {viewer && (
-          <ProfileCard title={t('home.order.toggle')}>
-            {/* Same radiogroup (RI-1) and classnames Home used to render inline in its head
-                action slot (OD-REDESIGN-18) — only the host moved. The card heading already
-                reads as the control's label, so the radiogroup's own aria-label carries the
-                accessible name without a duplicate visible field label. */}
-            <HomeOrderToggle order={homeOrder} onChange={handleHomeOrderChange} label={t('home.order.toggle')} />
-          </ProfileCard>
-        )}
       </div>
     </PageFamilyFrame>
   )
