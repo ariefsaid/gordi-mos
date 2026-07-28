@@ -1,6 +1,51 @@
 # Agent context — read me first (owner prefs · hard rules · gotchas · pointers)
 
-> ## CANONICAL CURRENT STATE — 2026-07-24 (supersedes every dated banner below)
+> ## CANONICAL CURRENT STATE — 2026-07-28 · v4 (supersedes every dated banner below)
+>
+> **Branch `v4/redesign`** (worktree `.claude/worktrees/v3-redesign`, dev :5176, base `/mos`),
+> cut from `v3-redesign` @ `a152705`. Committed at **`b81bb42`** — 167 files, +8614/−2360.
+> **NOT pushed, NOT reviewed**: no `scripts/pre-merge-check.sh` run, no `docs/reviews/<branch>.md`
+> battery. *Green gates ≠ reviewed.*
+>
+> **What v4 is.** The whole-app redesign run through the **impeccable** toolchain (v4.0.2), on the
+> owner's instruction to *follow the workflows and not paraphrase the skills*. v4 **inherits v3's
+> visual world** rather than replacing it — the owner's call after rejecting four invented worlds:
+> *"none of them are professional looking. try to capture from v3."*
+>
+> **THE GATE PASSED.** `OD-V4-4` set Nielsen **>30 app-wide** (explicitly *not* per page). Four
+> scored rounds, always by isolated agents, never self-scored: **24.9 → 24.8 → 28.8 → 31.6/40**.
+> Per surface: Money 34 · Café Plan 33 · shell 33 · Home 32 · Tasks 32 · Inbox 31 · Café Log 29 ·
+> Objectives 29. **Thin pass** — the last two are individually under 30.
+>
+> **READ THESE, in this order:**
+> 1. `docs/v4-inheritance.md` — the ledger. What v4 inherited from v3, **DD-1…DD-18** (every design
+>    decision with its evidence), **OD-V4-1…5**, and the **X-1…X-11 contradiction register**.
+> 2. `docs/reviews/v4-nielsen-gate.md` — all four scoring rounds, per-heuristic movement, caveats.
+> 3. `docs/reviews/v4-crosscutting-audit-2026-07-27.md` — 25 a11y / bilingual / consistency findings.
+> 4. `docs/backlog.md` top block — **F1–F10**, the feature work the gate identified as out of
+>    redesign scope, with the scorers' own point estimates.
+>
+> **THE DURABLE FINDING, consistent across all four rounds:** *layout and aesthetic work moved
+> nothing; every gain traced to closing a broken interaction* (5–14 points each early on). Café Log
+> scored 24 → 24 across a round of heavy layout change, then +12 from one submit-flow bug fix. Plan
+> effort accordingly.
+>
+> **AWAITING OWNER DECISIONS:** **X-4** (FR-022 demands a written note whenever qty ≠ plan on a fast
+> capture field) and **X-11** (the Director conflated "Events" with "Signals"; `OD-V4-2` was ratified
+> on that false premise — recommend reverting the root label).
+>
+> **TEST STATE:** **129 presentational tests are red BY OWNER DECISION** (`OD-V4-4` deferred test work
+> while the design moved) — do not "fix" them without checking that decision still stands. The three
+> **correctness** bugs found this session each carry a red→green regression guard (DD-7, DD-10,
+> DD-18), per the narrow exception the owner granted to `OD-REDESIGN-88`'s red-first clause.
+>
+> **HARD GOTCHA:** `npx tsc --noEmit -p tsconfig.json` in `mos-app` is a **FALSE PASS** — it is a
+> solution file (`"files": []`) and checks nothing. It hid a real source bug and a broken build for
+> hours. Only **`npm run typecheck`** and **`npm run build`** are evidence.
+>
+> ---
+>
+> ## Superseded — CANONICAL STATE as of 2026-07-24 (v3)
 >
 > **Branch `v3-redesign`** (worktree `.claude/worktrees/v3-redesign`, dev :5199, base `/mos`).
 > **The owner decision sitting is COMPLETE and fully LANDED**: 46 rulings (OD-REDESIGN-91 batches
