@@ -131,7 +131,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
   // accessRoles carries STORED access-role grants only (the JWT claim). The derived reporting-line
   // manager is exposed via the separate `isManager` boolean and MUST NOT be merged in here: since
   // ADR-0050 the string 'manager' is also a stored financial-visibility grant, and conflating the two
-  // would let every reporting-line manager pass the finance-view gates (canViewFinance / RequireAccessRole)
+  // would let every reporting-line manager pass the finance-view gates (canViewRevenue / RequireAccessRole)
   // onto an empty dashboard (RLS returns zero — their JWT lacks the grant). Keep the two senses distinct.
   const accessRoles = assigned
 
