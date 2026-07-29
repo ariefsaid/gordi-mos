@@ -14,7 +14,7 @@ export interface AdminPersonRow {
   login: LoginStatus
   access_roles: string[] // non-revoked
   jabatan: { role_id: string; role_name: string }[]
-  revenue_scope: { channel: string; branch_code: string | null }[]
+  revenue_scope: RevenueScopeGrant[]
 }
 
 export interface CreatePersonInput {

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 select mos._test_seed_role_tree();      -- org a1 people d1..d7; org b1 person b4
 select mos._test_seed_access_roles();   -- grants admin -> GrandMgr (...d3)
@@ -72,6 +72,12 @@ select lives_ok($$
 $$, 'AC-307: non-admin delete raises no error');
 select is((select count(*)::int from reporting.supervisor_revenue_scope), 1,
   'AC-307: non-admin delete affected zero rows — the scope row remains');
+
+-- AC-304: a non-admin (supervisor ...d5) INSERT is rejected by the admin-only WITH CHECK (42501).
+select throws_ok($$
+  insert into reporting.supervisor_revenue_scope (person_id, channel, branch_code)
+  values ('00000000-0000-0000-0000-0000000000d5','B2B',null)
+$$, '42501', null, 'AC-304: non-admin scope insert denied by RLS WITH CHECK');
 
 reset role;
 select * from finish();

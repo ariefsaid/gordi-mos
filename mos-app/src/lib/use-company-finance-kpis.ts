@@ -3,8 +3,9 @@
 // section (company scope) render the SAME existing tiles — reuse, not a tile rewrite
 // (docs/specs/home-v1.spec.md §2.2, home-stacked-union.spec.md §2.10).
 //
-// Role-guarded: when canSeeFinance is false the reporting fetch is skipped entirely (a member never
-// issues the query) → tiles absent, never a misleading zero. RLS is the hard boundary.
+// Role-guarded, split (ADR-0051): the revenue fetch is skipped when canSeeRevenue is false and the
+// margin fetch when canSeeMargin is false (a supervisor sees revenue only; a member neither) → the
+// unpermitted tiles are absent, never a misleading zero. RLS is the hard boundary.
 import { useState, useEffect, useMemo } from 'react'
 import { listSalesDailyRevenue, latestSnapshotAsOf, latestReportingDate } from '@/lib/db/reporting'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'

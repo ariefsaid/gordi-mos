@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
 select mos._test_seed_role_tree();  -- orgs a1 + b1; people d1,d5,d6,d7 (a1) + b4 (b1)
 
@@ -84,6 +84,11 @@ $$, '42501', null, 'AC-314: supervisor insert denied (revenue)');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
   'AC-315: finance still reads all org-A revenue rows (arm not weakened)');
+
+-- AC-315 (manager arm): the ALTER POLICY replaced the whole USING — prove the manager arm survived.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select is((select count(*)::int from reporting.sales_daily_revenue), 4,
+  'AC-315: manager still reads all org-A revenue rows (arm not dropped by ALTER POLICY)');
 
 reset role;
 select * from finish();
