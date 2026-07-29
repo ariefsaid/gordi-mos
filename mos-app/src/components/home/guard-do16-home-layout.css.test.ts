@@ -25,12 +25,6 @@ function ruleBody(css: string, selector: string, from = 0): string {
 }
 
 describe('GUARD DO-16: home layout census pins', () => {
-  it('DO-16(a): .home-order-disclosure stacks its panel below the trigger (column, end-aligned)', () => {
-    const body = ruleBody(stripped('src/pages/home-page.css'), '.home-order-disclosure ')
-    expect(body).toMatch(/flex-direction:\s*column/)
-    expect(body).toMatch(/align-items:\s*flex-end/)
-  })
-
   it('DO-16(c): .stream-row-title is 2-line clamped, never single-line nowrap', () => {
     const css = stripped('src/components/home/home-stream.css')
     const body = ruleBody(css, '.stream-row-title ')

@@ -35,6 +35,12 @@ const TOKENS_DIR = resolve(SRC, 'styles/tokens') // token definitions (--ds-* so
 
 const FONT_SIZE_TOKENS = new Set([
   'page-title', 'heading', 'subheading', 'body-lg', 'body', 'control', 'mono', 'label', 'overline', 'micro',
+  // 2026-07-29: `kpi-value` (23px) and `touch-input` (16px) are declared in index.css alongside the
+  // rest of the ramp, but were missing from this set — so every consumer that spoke the vocabulary
+  // CORRECTLY was reported as raw-value debt. The guard was failing the code for obeying it. Both
+  // are real semantic tokens with a documented role (DESIGN.md "KPI values reuse ~23px/600"; the
+  // 16px iOS zoom floor for touch inputs), so they belong here, not in EXCEPTIONS.
+  'kpi-value', 'touch-input',
 ])
 
 /**
@@ -43,11 +49,7 @@ const FONT_SIZE_TOKENS = new Set([
  * fate (remap vs mint) is a design-architect call, not a mechanical one.
  */
 const EXCEPTIONS: Record<string, Record<string, number>> = {
-  'src/components/cafe/cafe-opening-panel.css': {
-    'font-size: 16px': 1,
-  },
   'src/components/collection-grammar.css': {
-    'font-size: 10.5px': 1,
     'border-radius: 2px': 1,
   },
   'src/components/command/command-menu.css': {
@@ -56,97 +58,24 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'font-size: var(--text-size-xxs)': 1,
     'font-size: var(--text-size-xs)': 4,
   },
-  'src/components/dashboard/global-toolbar.css': {
-    'font-size: 11.5px': 1,
-  },
-  'src/components/dashboard/kpi-tile.css': {
-    'font-size: 23px': 2,
-    'font-size: clamp(17px, 6.2vw, 23px)': 1,
-  },
-  'src/components/dashboard/whats-coming-strip.css': {
-    'font-size: 12.5px': 2,
-  },
-  'src/components/dashboard/window-selector.css': {
-    'font-size: 11.5px': 1,
-  },
-  'src/components/home/home-stream.css': {
-    'font-size: 11.5px': 1,
-    'border-radius: 6px': 1,
-  },
-  'src/components/kitchen/kitchen-kpi-strip.css': {
-    'font-size: 12.5px': 1,
-    'font-size: 23px': 1,
-  },
-  'src/components/kitchen/plan-qty-cell.css': {
-    'font-size: 16px': 1,
-  },
-  'src/components/kitchen/plan-qty-stepper.css': {
-    'font-size: 16px': 1,
-  },
   'src/components/kitchen/qty-cell.css': {
     'font-size: 16px': 1,
-  },
-  'src/components/kitchen/wip-item-stepper.css': {
-    'font-size: 16px': 1,
-  },
-  'src/components/record-collection/record-collection.css': {
-    'font-size: 0.8125rem': 1,
   },
   'src/components/records/record-viewer.css': {
     // Two-mode kv sizing indirection with raw px fallbacks — needs its vars grounded in tokens.
     'font-size: var(--rec-kv-label-size, 12px)': 2,
     'font-size: var(--rec-kv-value-size, 13.5px)': 3,
   },
-  'src/components/signals/signal-card.css': {
-    'font-size: 11.5px': 2,
-  },
-  'src/components/signals/signal-composer.css': {
-    'font-size: 11.5px': 1,
-  },
-  'src/components/signals/signal-mention-picker.css': {
-    'font-size: 10.5px': 1,
-    'font-size: 12.5px': 1,
-  },
   // signal-record.css raw font-sizes (12.5px ×2, 14.5px ×1) were paid off by the OD-REDESIGN-90
   // anatomy rewrite — every region now speaks var(--font-size-*). Ledger entry pruned (ratchet).
   // The former 15px family (46 uses across this surface) was paid off wholesale by the
   // OD-REDESIGN-91 #6/B4 mint of --font-size-body-lg — the ratchet's biggest single payoff.
   'src/components/tasks/TaskSurface.css': {
-    'font-size: 26px': 3,
-    // 16px on form inputs is deliberate (mobile-zoom floor); 7th added by the tc TextInput port.
-    'font-size: 16px': 7,
-    'font-size: 22px': 1,
     'border-radius: 6px': 3,
   },
   'src/components/tasks/TasksWorkspace.css': {
-    'font-size: 15.5px': 1,
-    'font-size: 10.5px': 1,
     'border-radius: 6px': 2,
     'border-radius: 2px': 1,
-  },
-  // ---- pages scope (census DO-9/DO-10 C3 widening). Byte-adjacent values were tokenized
-  // mechanically; the entries below have NO byte-identical ladder token — pinned, not endorsed.
-  'src/pages/budget-page.css': {
-    'font-size: 16px': 1, // .bp-h2 — between body(14) and subheading(18); needs a design remap call
-    'font-size: 22px': 1, // .bp-total big-number, same class as the kpi-tile 23px display size
-  },
-  'src/pages/dashboard-page.css': {
-    'font-size: 11.5px': 1, // .dash-footnote — matches the ledgered 11.5px cluster in dashboard components
-  },
-  'src/pages/home-page.css': {
-    'border-radius: 6px': 1, // segmented-option inner radius (outer 8px − 2px inset), as in home-stream.css
-  },
-  'src/pages/kitchen-pushes-page.css': {
-    'font-size: 16px': 1, // .kpu-forbidden-title — between body(14) and subheading(18)
-  },
-  'src/pages/kitchen-review-page.css': {
-    'font-size: 16px': 1, // .kr-forbidden-title — between body(14) and subheading(18)
-  },
-  'src/pages/pricing-page.css': {
-    'font-size: 22px': 1, // .pp-result-value big-number, same class as the kpi-tile 23px display size
-  },
-  'src/shell/rail-nav.css': {
-    'font-size: 9px': 1,
   },
 }
 
@@ -179,10 +108,18 @@ function scannedFiles(): { rel: string; css: string }[] {
   }))
 }
 
-const isTokenFontSize = (v: string) => {
+const isTokenFontSize = (v: string): boolean => {
   if (v === 'inherit') return true
   const tok = v.match(/^var\(--font-size-([a-z-]+)\)$/)
-  return Boolean(tok && FONT_SIZE_TOKENS.has(tok[1]))
+  if (tok) return FONT_SIZE_TOKENS.has(tok[1])
+  // clamp(min, preferred, max) — a fit-to-width formula (min/preferred stay literal by design)
+  // is still token-governed if its size argument (the max) is a recognised font-size token.
+  const clamp = v.match(/^clamp\(([\s\S]+)\)$/)
+  if (clamp) {
+    const args = clamp[1].split(',').map((a) => a.trim())
+    return isTokenFontSize(args[args.length - 1])
+  }
+  return false
 }
 const isTokenRadius = (v: string) =>
   v.includes('var(--radius') ||
