@@ -10,9 +10,9 @@
 // Errors surface inline via role="alert" (mirror PositionPicker's error block).
 
 import { useState } from 'react'
-import { CheckboxRow, PickerError } from './checkbox-row'
 import { assignRevenueScope, removeRevenueScope } from '@/lib/db/admin-users'
 import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
+import { CheckboxRow, PickerError } from './checkbox-row'
 
 export interface RevenueScopePickerProps {
   person: AdminPersonRow

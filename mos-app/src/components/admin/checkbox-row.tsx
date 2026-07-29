@@ -62,8 +62,12 @@ export function CheckboxRow({
   )
 }
 
+export interface PickerErrorProps {
+  message: string
+}
+
 /** Inline error block shared by the pickers (destructive-tinted, role="alert"). Renders nothing when empty. */
-export function PickerError({ message }: { message: string }) {
+export function PickerError({ message }: PickerErrorProps) {
   if (!message) return null
   return (
     <div

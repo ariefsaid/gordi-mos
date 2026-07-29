@@ -1,5 +1,6 @@
 // CheckboxRow — the shared toggleable row for the admin dialog pickers. These tests pin the
-// "Defect 3" whole-row-click invariant in ONE place (previously duplicated in both pickers):
+// "Defect 3" whole-row-click invariant at the unit layer (the row markup was previously copied in
+// both pickers; the picker suites still assert it end-to-end as wiring):
 // a click on the label text OR the glyph toggles exactly once; a disabled row never toggles.
 
 import { describe, it, expect, vi } from 'vitest'

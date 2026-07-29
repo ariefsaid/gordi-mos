@@ -7,9 +7,9 @@
 // Errors surface inline via role="alert" (mirror RoleEditor's error block).
 
 import { useState } from 'react'
-import { CheckboxRow, PickerError } from './checkbox-row'
 import { assignJabatan, removeJabatan } from '@/lib/db/admin-users'
 import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
+import { CheckboxRow, PickerError } from './checkbox-row'
 
 export interface PositionPickerProps {
   person: AdminPersonRow
