@@ -31,18 +31,23 @@ export interface CompanyFinanceKpis {
 }
 
 /**
- * Fetch + derive the company revenue/margin KPIs. Skips both fetches when `canSeeFinance` is false.
+ * Fetch + derive the company revenue/margin KPIs. Skips the revenue fetch when `canSeeRevenue` is
+ * false, and skips the margin fetch when `canSeeMargin` is false (ADR-0051 D4 — a supervisor sees
+ * revenue but not margin; the margin fetch is never issued for them, never an empty/`—` panel).
  * Pure-derived display values are returned (formatted by the existing `sales-dashboard` /
  * `home-kpis` selectors); the caller renders the `KPITile`s.
  */
-export function useCompanyFinanceKpis(canSeeFinance: boolean): CompanyFinanceKpis {
+export function useCompanyFinanceKpis(
+  canSeeRevenue: boolean,
+  canSeeMargin: boolean = canSeeRevenue,
+): CompanyFinanceKpis {
   const [revenueRows, setRevenueRows] = useState<SalesDailyRevenueRow[]>([])
   const [revenueState, setRevenueState] = useState<FinanceFetchState>('loading')
   const [marginRows, setMarginRows] = useState<SalesMarginDailyRow[]>([])
   const [marginState, setMarginState] = useState<FinanceFetchState>('loading')
 
   useEffect(() => {
-    if (!canSeeFinance) return
+    if (!canSeeRevenue) return
     let cancelled = false
     setRevenueState('loading')
     listSalesDailyRevenue({ sinceDays: 60 })
@@ -57,10 +62,10 @@ export function useCompanyFinanceKpis(canSeeFinance: boolean): CompanyFinanceKpi
     return () => {
       cancelled = true
     }
-  }, [canSeeFinance])
+  }, [canSeeRevenue])
 
   useEffect(() => {
-    if (!canSeeFinance) return
+    if (!canSeeMargin) return
     let cancelled = false
     setMarginState('loading')
     listSalesMarginDaily({ sinceDays: 60 })
@@ -75,7 +80,7 @@ export function useCompanyFinanceKpis(canSeeFinance: boolean): CompanyFinanceKpi
     return () => {
       cancelled = true
     }
-  }, [canSeeFinance])
+  }, [canSeeMargin])
 
   const revenueLatestDate = useMemo(() => latestReportingDate(revenueRows), [revenueRows])
   const revenueWindow = useMemo(

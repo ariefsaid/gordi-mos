@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { can, canViewFinance } from './capabilities'
+import { can, canViewRevenue, canViewMargin } from './capabilities'
 
 describe('can', () => {
   it('grants admin both manage capabilities', () => {
@@ -28,17 +28,19 @@ describe('can', () => {
   })
 })
 
-// ADR-0050 D8 — dedupes the finance-view predicate previously duplicated inline
-// in home-page.tsx and stacked-union-home.tsx.
-describe('canViewFinance (ADR-0050 D8)', () => {
-  it('AC-128: grants finance, admin, and manager', () => {
-    expect(canViewFinance(['finance'])).toBe(true)
-    expect(canViewFinance(['admin'])).toBe(true)
-    expect(canViewFinance(['manager'])).toBe(true)
+describe('canViewRevenue / canViewMargin (ADR-0051 D4)', () => {
+  it('AC-320: canViewRevenue admits finance/admin/manager/supervisor', () => {
+    for (const r of ['finance', 'admin', 'manager', 'supervisor']) {
+      expect(canViewRevenue([r])).toBe(true)
+    }
   })
-
-  it('denies member and empty role sets', () => {
-    expect(canViewFinance(['member'])).toBe(false)
-    expect(canViewFinance([])).toBe(false)
+  it('AC-320: canViewMargin admits finance/admin/manager but NOT supervisor', () => {
+    for (const r of ['finance', 'admin', 'manager']) expect(canViewMargin([r])).toBe(true)
+    expect(canViewMargin(['supervisor'])).toBe(false)
+  })
+  it('AC-320: neither admits member/empty', () => {
+    expect(canViewRevenue(['member'])).toBe(false)
+    expect(canViewRevenue([])).toBe(false)
+    expect(canViewMargin(['member'])).toBe(false)
   })
 })

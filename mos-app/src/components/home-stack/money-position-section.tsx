@@ -23,11 +23,15 @@ export type MoneyScope = { kind: 'company' } | { kind: 'bu'; buName: string }
 
 interface MoneyPositionSectionProps {
   scope: MoneyScope
-  /** company-scope tiles render only when the viewer holds finance/admin (RLS is the hard boundary) */
-  canSeeFinance: boolean
+  /** company-scope revenue tile renders only when the viewer holds revenue-view access
+   *  (finance/admin/manager/supervisor, ADR-0051 D4 — RLS is the hard boundary) */
+  canSeeRevenue: boolean
+  /** company-scope margin tile renders only when the viewer holds margin-view access
+   *  (finance/admin/manager — supervisor excluded, ADR-0051 D4) */
+  canSeeMargin: boolean
 }
 
-export function MoneyPositionSection({ scope, canSeeFinance }: MoneyPositionSectionProps) {
+export function MoneyPositionSection({ scope, canSeeRevenue, canSeeMargin }: MoneyPositionSectionProps) {
   const t = useT()
   const title =
     scope.kind === 'company' ? t('home.stack.money.title') : t('home.stack.money.buTitle', { bu: scope.buName })
@@ -37,7 +41,7 @@ export function MoneyPositionSection({ scope, canSeeFinance }: MoneyPositionSect
       <h3 className="home-stack-subsection-title">{title}</h3>
 
       {scope.kind === 'company' ? (
-        <CompanyMoneyTiles canSeeFinance={canSeeFinance} />
+        <CompanyMoneyTiles canSeeRevenue={canSeeRevenue} canSeeMargin={canSeeMargin} />
       ) : (
         <BuMoneySlot buName={scope.buName} />
       )}
@@ -57,7 +61,13 @@ export function MoneyPositionSection({ scope, canSeeFinance }: MoneyPositionSect
 }
 
 // ── Company scope: the existing revenue/margin tiles (reused) ────────────────
-function CompanyMoneyTiles({ canSeeFinance }: { canSeeFinance: boolean }) {
+function CompanyMoneyTiles({
+  canSeeRevenue,
+  canSeeMargin,
+}: {
+  canSeeRevenue: boolean
+  canSeeMargin: boolean
+}) {
   const t = useT()
   const {
     revenueState,
@@ -66,10 +76,10 @@ function CompanyMoneyTiles({ canSeeFinance }: { canSeeFinance: boolean }) {
     marginState,
     marginDisplay,
     snapshotAsOf,
-  } = useCompanyFinanceKpis(canSeeFinance)
+  } = useCompanyFinanceKpis(canSeeRevenue, canSeeMargin)
 
-  // A company-scope viewer without finance/admin sees no whole-company tiles (no misleading zero).
-  if (!canSeeFinance) return null
+  // A company-scope viewer without revenue-view access sees no whole-company tiles (no misleading zero).
+  if (!canSeeRevenue) return null
 
   return (
     <>
@@ -90,21 +100,23 @@ function CompanyMoneyTiles({ canSeeFinance }: { canSeeFinance: boolean }) {
             state={revenueState === 'loading' ? 'loading' : 'ready'}
           />
         </Link>
-        <Link to="/dashboard" className="home-kpi-link">
-          <KPITile
-            label={t('home.kpi.margin')}
-            value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}
-            delta={
-              marginState === 'ready' && marginDisplay
-                ? { text: marginDisplay.delta.text, tone: marginDisplay.delta.tone }
-                : undefined
-            }
-            sub={marginState === 'ready' && marginDisplay ? marginDisplay.pctSub : undefined}
-            state={marginState === 'loading' ? 'loading' : 'ready'}
-          />
-        </Link>
+        {canSeeMargin && (
+          <Link to="/dashboard" className="home-kpi-link">
+            <KPITile
+              label={t('home.kpi.margin')}
+              value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}
+              delta={
+                marginState === 'ready' && marginDisplay
+                  ? { text: marginDisplay.delta.text, tone: marginDisplay.delta.tone }
+                  : undefined
+              }
+              sub={marginState === 'ready' && marginDisplay ? marginDisplay.pctSub : undefined}
+              state={marginState === 'loading' ? 'loading' : 'ready'}
+            />
+          </Link>
+        )}
       </div>
-      {(snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
+      {(snapshotAsOf || (revenueState !== 'loading' && (!canSeeMargin || marginState !== 'loading'))) && (
         <DataProvenanceNote
           kind="snapshot"
           hasData={Boolean(revenueWindow || marginDisplay)}

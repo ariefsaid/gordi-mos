@@ -18,7 +18,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { SHOW_DAILY_LOG } from '@/config/features'
 import { formatIDRCompact } from '@/lib/sales-dashboard'
-import { canViewFinance } from '@/lib/capabilities'
+import { canViewRevenue, canViewMargin } from '@/lib/capabilities'
 import { useCompanyFinanceKpis } from '@/lib/use-company-finance-kpis'
 import { listTasks } from '@/lib/db/tasks'
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
@@ -38,10 +38,11 @@ export function HomePage() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
-  const canSeeFinance = canViewFinance(accessRoles)
+  const canSeeRevenue = canViewRevenue(accessRoles)
+  const canSeeMargin = canViewMargin(accessRoles)
 
   // ── Finance reporting fetch (role-guarded — a member never issues this query) ──
-  const fin = useCompanyFinanceKpis(canSeeFinance)
+  const fin = useCompanyFinanceKpis(canSeeRevenue, canSeeMargin)
   const { revenueWindow, revenueDelta, revenueState, marginDisplay, marginState, snapshotAsOf } = fin
 
   // ── Tasks count (everyone) ──────────────────────────────────────────────────
@@ -96,7 +97,7 @@ export function HomePage() {
 
       {/* Finance row — role-guarded; a member never issues the reporting fetch, so
           this row is simply absent (never a misleading zero). */}
-      {canSeeFinance && (
+      {canSeeRevenue && (
         <div className="home-kpi-grid" role="group" aria-label="Sales KPIs">
           <Link to="/dashboard" className="home-kpi-link">
             <KPITile
@@ -110,19 +111,21 @@ export function HomePage() {
               state={revenueState === 'loading' ? 'loading' : 'ready'}
             />
           </Link>
-          <Link to="/dashboard" className="home-kpi-link">
-            <KPITile
-              label={t('home.kpi.margin')}
-              value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}
-              delta={
-                marginState === 'ready' && marginDisplay
-                  ? { text: marginDisplay.delta.text, tone: marginDisplay.delta.tone }
-                  : undefined
-              }
-              sub={marginState === 'ready' && marginDisplay ? marginDisplay.pctSub : undefined}
-              state={marginState === 'loading' ? 'loading' : 'ready'}
-            />
-          </Link>
+          {canSeeMargin && (
+            <Link to="/dashboard" className="home-kpi-link">
+              <KPITile
+                label={t('home.kpi.margin')}
+                value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}
+                delta={
+                  marginState === 'ready' && marginDisplay
+                    ? { text: marginDisplay.delta.text, tone: marginDisplay.delta.tone }
+                    : undefined
+                }
+                sub={marginState === 'ready' && marginDisplay ? marginDisplay.pctSub : undefined}
+                state={marginState === 'loading' ? 'loading' : 'ready'}
+              />
+            </Link>
+          )}
         </div>
       )}
 
@@ -146,7 +149,9 @@ export function HomePage() {
         )}
       </div>
 
-      {canSeeFinance && (snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
+      {canSeeRevenue &&
+        (snapshotAsOf ||
+          (revenueState !== 'loading' && (!canSeeMargin || marginState !== 'loading'))) && (
         <DataProvenanceNote
           kind="snapshot"
           hasData={Boolean(revenueWindow || marginDisplay)}
