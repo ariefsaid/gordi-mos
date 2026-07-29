@@ -105,10 +105,13 @@ describe('C4 — retirement: Home renders no residual Weekly Update / Daily Log 
     )
 
     // Ready sentinel — a JOURNEY STEP, not the oracle. It was the job question ("What needs my
-    // attention right now?"); the compact day header replaces that sentence with the live state
-    // line, so the sentinel moves to the region tab strip, which is what makes Home "rendered"
-    // either way. The oracle below (no Weekly Update / Daily Log residue) is untouched.
-    await waitFor(() => expect(screen.getByRole('tablist')).toBeInTheDocument())
+    // attention right now?"), which the compact day header replaced with the live state line, and
+    // then briefly the region tab strip — which exists only in the FOCUSED layout, coupling this
+    // retirement check to Focused staying the default (OD-V4-9 makes the layout a per-person
+    // preference). The Signals feed is what FR-928 guarantees in all three arrangements, so that
+    // is the sentinel. The oracle below (no Weekly Update / Daily Log residue) is untouched.
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: /signals/i })).toBeInTheDocument())
     for (const link of screen.queryAllByRole('link')) {
       expect(link.textContent ?? '').not.toMatch(FORBIDDEN)
     }

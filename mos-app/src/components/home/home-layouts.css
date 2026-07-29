@@ -89,5 +89,10 @@
 }
 @container home (max-width: 620px) {
   .home-bento { grid-template-columns: minmax(0, 1fr); }
-  .home-tile { grid-column: span 1 !important; }
+  /* One column: every tile spans the whole row regardless of its weight. Matched on
+     `[data-weight]` so it outranks the base `.home-tile[data-weight="wide|narrow"]` spans on
+     SPECIFICITY (0,2,0 vs 0,2,0 with source order deciding — this block is authored last), which
+     is what `!important` was standing in for. `!important` here would also have been unbeatable
+     by any future per-region override at this width. */
+  .home-tile[data-weight] { grid-column: span 1; }
 }

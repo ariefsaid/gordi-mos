@@ -11,7 +11,11 @@ export interface PageFamilyFrameProps {
   family: PageFamily
   title: string
   subtitle?: string
-  jobSentence: string
+  /** Optional because a head carrying a `statusRow` DISCARDS it (PageHead: the two are mutually
+   *  exclusive full-width rows and the header's budget is one of them). Home is such a head — it
+   *  used to pass a sentence that could never render, which reads to the next maintainer as if the
+   *  sentence were live. A head without a status row still wants one. */
+  jobSentence?: string
   count?: number | null
   meta?: ReactNode
   action?: ReactNode

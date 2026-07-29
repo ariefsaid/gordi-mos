@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { useT } from '@/i18n/use-t'
 import { HOME_LAYOUTS, type HomeLayout } from '@/lib/home-layout'
+import type { MessageKey } from '@/i18n/messages'
 import './home-layout-picker.css'
 
 // The wireframe-thumbnail chooser is the standing convention for a page-structure choice: the
@@ -47,6 +48,23 @@ const THUMBS: Record<HomeLayout, JSX.Element> = {
   ),
 }
 
+/** Each layout's name + "who it suits" sentence. Explicit maps, not an interpolated key behind an
+ *  `as Parameters<typeof t>[0]` cast: an interpolated string is not a MessageKey, and the cast
+ *  hides a missing or renamed string until it renders as a raw key. These are exhaustive over
+ *  `HomeLayout`,
+ *  so adding a fourth arrangement fails the build here — the same shape `REASON_STYLE`,
+ *  `EMPTY_KEY` and `HOME_TILE_WEIGHT` already use. */
+const LAYOUT_NAME: Record<HomeLayout, MessageKey> = {
+  focused: 'profile.homeLayout.focused',
+  overview: 'profile.homeLayout.overview',
+  list: 'profile.homeLayout.list',
+}
+const LAYOUT_DESC: Record<HomeLayout, MessageKey> = {
+  focused: 'profile.homeLayout.focused.desc',
+  overview: 'profile.homeLayout.overview.desc',
+  list: 'profile.homeLayout.list.desc',
+}
+
 export function HomeLayoutPicker({ value, onChange }: HomeLayoutPickerProps) {
   const t = useT()
   return (
@@ -65,10 +83,10 @@ export function HomeLayoutPicker({ value, onChange }: HomeLayoutPickerProps) {
             <span className="hlp-card">
               <span className="hlp-thumb">{THUMBS[id]}{FEED_STRIP}</span>
               <span className="hlp-name">
-                {t(`profile.homeLayout.${id}` as Parameters<typeof t>[0])}
+                {t(LAYOUT_NAME[id])}
                 {id === 'focused' && <span className="hlp-badge">{t('profile.homeLayout.default')}</span>}
               </span>
-              <span className="hlp-desc">{t(`profile.homeLayout.${id}.desc` as Parameters<typeof t>[0])}</span>
+              <span className="hlp-desc">{t(LAYOUT_DESC[id])}</span>
             </span>
           </label>
         ))}

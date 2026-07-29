@@ -353,7 +353,10 @@ export function HomePage() {
       family="workspace"
       surfaceWash
       title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
-      jobSentence={t('job.home')}
+      // No `jobSentence`: this head carries a `statusRow`, and PageHead renders one or the other,
+      // never both. The live state line answers "what is this page for right now" better than the
+      // static registry sentence, which on Home only re-asked the question. Passing a sentence
+      // that is guaranteed to be discarded is a comment pretending to be code.
       meta={headMeta}
       // `N handled - N left`, right-aligned on the title row; the state line + progress track on
       // the row below it. Both live INSIDE the one shared header block, so every arrangement

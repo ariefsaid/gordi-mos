@@ -20,3 +20,18 @@ export const HOME_TILE_WEIGHT: Record<HomeRegionId, 'wide' | 'narrow'> = {
   mentions: 'narrow',
   'my-work': 'wide',
 }
+
+/**
+ * How many rows an Overview tile renders before it states the remainder as "N more →".
+ *
+ * Four, because Overview's job is the whole board at one glance: the four tiles have to fit
+ * together above the fold, and the narrow tier is half the width of the wide one — a fifth row in
+ * every tile buys nothing the drill link does not already give, and costs the comparison the
+ * arrangement exists for. Nothing is hidden by it: the tile's count is the FULL count and the
+ * remainder is a link (RegionRows), so the cap is a summary, never a truncation.
+ *
+ * Named here beside the weights for the same reason the caps in home-page.tsx are named
+ * (`MY_WORK_CAP`, `AMBIENT_CAP`): a bare `slice(0, 4)` at the call site is a number with no
+ * argument attached to it.
+ */
+export const OVERVIEW_TILE_ROWS = 4
