@@ -35,18 +35,22 @@ function fontSizePx(css: string, selector: string, nth = 0): number {
 }
 
 describe('Home head outranks the region headers beneath it', () => {
-  it('the compact head title is at least as large as a List band label (desktop)', () => {
+  // `toBeGreaterThan` (strict), not `toBeGreaterThanOrEqual`: a TIE is the defect this guard
+  // exists to catch (the h1 and the band label both landing on `subheading`/18px read as
+  // peers — the "Good morning, Dewi" vs "Needs you now · 2" incident, 2026-07-29). `>=` would
+  // have stayed green through that regression, so it is not a sufficient assertion.
+  it('the compact head title outranks a List band label (desktop)', () => {
     const title = fontSizePx(HEAD_CSS, '.content-header--compact .ch-title', 0)
     const band = fontSizePx(STREAM_CSS, '.stream-band-label')
-    expect(title, `h1 ${title}px must not rank below its band labels (${band}px)`)
-      .toBeGreaterThanOrEqual(band)
+    expect(title, `h1 ${title}px must rank ABOVE its band labels (${band}px), not tie them`)
+      .toBeGreaterThan(band)
   })
 
   it('the phone override keeps the same rank (it re-declares the title size)', () => {
     const title = fontSizePx(HEAD_CSS, '.content-header--compact .ch-title', 1)
     const band = fontSizePx(STREAM_CSS, '.stream-band-label')
-    expect(title, `h1 ${title}px must not rank below its band labels (${band}px) on phone`)
-      .toBeGreaterThanOrEqual(band)
+    expect(title, `h1 ${title}px must rank ABOVE its band labels (${band}px) on phone, not tie them`)
+      .toBeGreaterThan(band)
   })
 
   it('and stays on the declared ladder — it steps DOWN from the page-title rung, never up', () => {

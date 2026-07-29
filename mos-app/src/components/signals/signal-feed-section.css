@@ -27,16 +27,17 @@
 }
 
 /* Group-header label — matches the stream's List band header (home-stream.css
-   .stream-band-label, owner "wall of text" fix, 2026-07-28): the same display-face treatment
-   at the `subheading` rung, sentence case, full `--foreground`. Signals and the List bands sit
-   at the same structural level in the one scroll — both are group headers — so they read as
-   the same kind of thing, not two different heading grammars side by side. */
+   .stream-band-label, owner "wall of text" fix, 2026-07-28, corrected 2026-07-29 to stay
+   below Home's own `h1` — see that file's comment): the same display-face treatment at the
+   `body-lg` rung, sentence case, full `--foreground`. Signals and the List bands sit at the
+   same structural level in the one scroll — both are group headers — so they read as the
+   same kind of thing, not two different heading grammars side by side. */
 .signal-feed-label {
   flex: 1;
   min-width: 0;
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--font-size-subheading);
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   color: var(--foreground);
 }

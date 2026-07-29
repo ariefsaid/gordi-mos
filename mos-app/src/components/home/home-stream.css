@@ -57,18 +57,21 @@
 /* The region's name — a GROUP HEADER, not an overline divider. It was a muted 12px
    uppercase overline, which carried no more weight than the 15px/600 row titles beneath
    it, so nothing marked where one region ended and the next began. It now takes the
-   display face at the `subheading` rung in full `foreground`, sentence case — one rung
-   ABOVE the rows it heads, exactly as the signed mockup's `#c .band-label` does.
-   NO decorative hue: amber / red / blue already mean overdue / blocked / in-progress on
-   these very rows, and a header colour that collides with the status vocabulary is worse
-   than the wall of text it was meant to fix. Contrast + weight + the edge above is the
-   whole fix. */
+   display face in full `foreground`, sentence case — the edge above + weight + contrast
+   are what mark the group, not a bigger font (which the h1-parity guard forbids: Home's
+   own `h1` sits at `subheading`/18px, and a peer-sized band label makes them read as
+   equals — docs/design-mockups/home-priority-2026-07-28 puts `.hdr-title` at 18px and
+   `#c .band-label` at `--fs-xs` (0.975rem ≈ 15.6px), a full rung below. `body-lg` (15px)
+   is our nearest token to that 15.6px). NO decorative hue: amber / red / blue already
+   mean overdue / blocked / in-progress on these very rows, and a header colour that
+   collides with the status vocabulary is worse than the wall of text it was meant to
+   fix. Contrast + weight + the edge above is the whole fix. */
 .stream-band-label {
   flex: 1;
   min-width: 0;
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--font-size-subheading);
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   color: var(--foreground);
 }
