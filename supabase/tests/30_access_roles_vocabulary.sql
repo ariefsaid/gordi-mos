@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(6);
 
 -- Fixture: Author (...0d01) holds member + finance (live) + ops_lead (revoked).
 select mos._test_seed_role_tree();
@@ -21,7 +21,13 @@ $$, 'AC-101: access_role = manager is accepted (ADR-0050)');
 select throws_ok($$
   insert into shared.person_access_roles (org_id, person_id, access_role)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','superuser')
-$$, '23514', null, 'AC-102: out-of-set value rejected');
+$$, '23514', null, 'AC-302: out-of-set value rejected');
+
+-- AC-301 (FR-301): 'supervisor' is a VALID access-role value (ADR-0051).
+select lives_ok($$
+  insert into shared.person_access_roles (org_id, person_id, access_role)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d5','supervisor')
+$$, 'AC-301: access_role = supervisor is accepted (ADR-0051)');
 
 -- AC-103b: the reporting-line manager (is_manager_of) still derives from the role chain, never a
 -- stored row — distinct from the manager access role (which IS now a stored row, above).
