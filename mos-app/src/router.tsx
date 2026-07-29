@@ -133,11 +133,12 @@ export const routeConfig: RouteObject[] = [
           // FR-001/AC-001: /sales redirects to /dashboard for back-compat. FR-002/
           // AC-002/003: finance/admin only; RequireAccessRole bounces others to /.
           // AC-127 (ADR-0050 D8): manager also admits — financial VIEW visibility, not planning.
+          // AC-326 (ADR-0051): supervisor also admits — revenue-only VIEW visibility, not planning.
           // RLS on the reporting read-models is the real security boundary.
           // AC-017: /dashboard/detail is the parameterized detail sub-view (same page,
           // detail tab default). The page reads ?tab= for persistence (AC-015).
           {
-            element: <RequireAccessRole anyOf={['finance', 'admin', 'manager']} />,
+            element: <RequireAccessRole anyOf={['finance', 'admin', 'manager', 'supervisor']} />,
             children: [
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'dashboard/detail', element: <DashboardPage defaultTab="detail" /> },
@@ -161,6 +162,8 @@ export const routeConfig: RouteObject[] = [
           // prove correctness regardless. RLS on the reporting/mos tables is the real security boundary.
           // AC-127 (ADR-0050 D8): manager is DELIBERATELY excluded here — manager is a financial
           // VIEW-only tier (dashboard), never a planning/budget-editing tier (FR-112).
+          // AC-326 (ADR-0051): supervisor is likewise DELIBERATELY excluded — supervisor is a
+          // revenue-only VIEW tier (dashboard), never a planning/budget-editing tier (FR-315).
           {
             element: <RequireAccessRole anyOf={['finance', 'admin']} />,
             children: [
