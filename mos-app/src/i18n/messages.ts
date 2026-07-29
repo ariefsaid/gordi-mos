@@ -1279,23 +1279,15 @@ export const messages = {
     'home.attention.lane.failedChecks': 'Failed checks',
     'home.attention.laneError': "Couldn't load this list. Refresh to try again.",
     'home.attention.retry': 'Retry',
-    // Minor (d) — per-lane item count in the lane title ("Overdue · 2"). Punctuation-only
-    // template, en/id share the same shape by design.
-    'home.attention.laneTitleCount': '${title} · ${count}',
     // Jump-affordance fix — trailing "→" per the app's link-cue convention ("All tasks →",
     // "Open the Daily Log →" — tasks.all / my-week-panel).
     'home.attention.summary': 'Needs attention · ${n} →',
-    // ── Home consequence-ranked stream (owner redirect 2026-07-22) ──────────────
-    // One prioritised flow ranked across record types; each row carries a reason chip that
-    // makes the ranking legible, and quiet band dividers mark the rank bands within the stream.
-    'home.stream.title': 'What needs you',
-    // Shared region model (Task 9, FR-929/FR-930) — the ONE label used by all three Home
-    // layout arrangements for the merged overdue/due-today/blocked region.
+    // ── Home region labels ──────────────────────────────────────────────────────
+    // Shared region model (Task 9, FR-929/FR-930) — the ONE label set used by all three Home
+    // layout arrangements. `needsYou` covers the merged overdue/due-today/blocked region; the
+    // per-band labels those three used to carry separately went with the retired single-stream
+    // HomeStream (OD-V4-9), as did its own "What needs you" section heading.
     'home.region.needsYou': 'Needs you now',
-    'home.stream.band.signals': 'Signals',
-    'home.stream.band.overdue': 'Overdue',
-    'home.stream.band.dueToday': 'Due today',
-    'home.stream.band.blocked': 'Blocked',
     'home.stream.band.failedChecks': 'Failed checks',
     'home.stream.band.mentions': 'Mentions',
     'home.stream.band.myWork': 'My work today',
@@ -1358,15 +1350,7 @@ export const messages = {
     'home.day.clear.2': 'That’s everything.',
     'home.day.clear.3': 'Day closed.',
     'home.day.clear.4': 'Nothing left.',
-    'home.order.toggle': 'Home order',
-    'home.order.attentionFirst': 'Attention first',
-    // Minor (c), RATIFY-BEFORE-MERGE — "My canvas first" renamed to plain language ("canvas"
-    // is implementation jargon, not how Gordi people talk about their work). "My items first"
-    // is this fix wave's recommendation; owner sign-off on the final wording is still pending.
-    'home.order.personalFirst': 'My items first',
-    // RI-2 (Q2/Rule 8, ratified Option B) — the ≤390px compact disclosure that folds the
-    // order radiogroup so it's never the lead, full-width element on a phone.
-    'home.order.viewOptions': 'View options',
+    // (The `home.order.*` strings went with the retired OD-18 order preference — OD-V4-10.)
     // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9). "Process Run"
     // never appears (FR-611) — these strings speak in "run"/"assign" verbs+objects (Rule 7), never
     // a bare "Create".
@@ -2557,15 +2541,9 @@ export const messages = {
     'home.attention.lane.failedChecks': 'Pemeriksaan gagal',
     'home.attention.laneError': 'Gagal memuat. Muat ulang untuk mencoba lagi.',
     'home.attention.retry': 'Coba lagi',
-    'home.attention.laneTitleCount': '${title} · ${count}',
     'home.attention.summary': 'Perlu perhatian · ${n} →',
-    // ── Home consequence-ranked stream (owner redirect 2026-07-22) ──────────────
-    'home.stream.title': 'Yang perlu Anda kerjakan',
+    // ── Home region labels ──────────────────────────────────────────────────────
     'home.region.needsYou': 'Perlu Anda sekarang',
-    'home.stream.band.signals': 'Sinyal',
-    'home.stream.band.overdue': 'Terlambat',
-    'home.stream.band.dueToday': 'Jatuh tempo hari ini',
-    'home.stream.band.blocked': 'Terhambat',
     'home.stream.band.failedChecks': 'Pemeriksaan gagal',
     'home.stream.band.mentions': 'Sebutan',
     'home.stream.band.myWork': 'Pekerjaan saya hari ini',
@@ -2609,10 +2587,6 @@ export const messages = {
     'home.day.clear.2': 'Itu saja.',
     'home.day.clear.3': 'Hari ini selesai.',
     'home.day.clear.4': 'Tidak ada sisa.',
-    'home.order.toggle': 'Urutan Beranda',
-    'home.order.attentionFirst': 'Perhatian dulu',
-    'home.order.personalFirst': 'Item saya dulu',
-    'home.order.viewOptions': 'Opsi tampilan',
     // Step 6 — Occurrence-as-Tasks thin UI (spec occurrence-as-tasks.spec.md §5, B9).
     'processes.action.startComposed': 'Mulai · ${name}',
     'processes.pending.title': 'Tetapkan — dua orang bisa memegang ini',

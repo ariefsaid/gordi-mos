@@ -139,11 +139,11 @@ describe('Home decision-context — overdue/due-today items carry the PIC + owni
   const bus = new Map<string, string>([['bu-1', 'Café']])
   const dir = { people, businessUnits: bus }
 
-  it('overdueTasks attaches the Responsible person (avatar initials + name) and the BU caption from the directory', () => {
+  it('overdueTasks attaches the Responsible person NAME (no initials — the disc is retired) and the BU caption from the directory', () => {
     const rows = [task({ id: 'o1', due_date: '2026-07-10' })]
     const [item] = overdueTasks(rows, VIEWER, TODAY, 'en', dir)
 
-    expect(item.pic).toEqual({ name: 'Rara Owner', initials: 'RO' })
+    expect(item.pic).toEqual({ name: 'Rara Owner' })
     expect(item.caption).toBe('Café')
     // The one compact meta line still keeps the humanized due date.
     expect(item.meta).toBe(formatDate('2026-07-10', 'en'))
@@ -153,7 +153,7 @@ describe('Home decision-context — overdue/due-today items carry the PIC + owni
     const rows = [task({ id: 'd1', due_date: TODAY })]
     const [item] = dueTodayTasks(rows, VIEWER, TODAY, 'en', dir)
 
-    expect(item.pic).toEqual({ name: 'Rara Owner', initials: 'RO' })
+    expect(item.pic).toEqual({ name: 'Rara Owner' })
     expect(item.caption).toBe('Café')
   })
 

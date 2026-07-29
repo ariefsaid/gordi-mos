@@ -4,13 +4,17 @@
    `foreground` + 600 + a 0 1px 2px lift.
 
    extract (2026-07-28): consolidated `seg` track pixel grammar here after finding
-   it re-authored in multiple places with identical pixel values — `dashboard/cut-toggle.css`
-   (view switcher, e.g. Money's Branch/Activity tabs) is the current consumer. Components
-   with different interaction models and ARIA contracts (e.g. tablist with roving-tabindex
-   arrow-key navigation vs. radiogroup patterns) can share the same track pixel values by
-   importing this file and layering only their state-selector difference on top
-   (`[aria-selected='true']` vs `.is-active`, etc.), so the pixel values can never
-   drift apart again.
+   it re-authored in multiple places with identical pixel values.
+
+   SOLE CONSUMER: `dashboard/cut-toggle.css` (`CutToggle` — the view switcher, e.g.
+   Money's Branch/Activity tabs; a `role="tablist"` with roving tabindex). The second
+   consumer this file was extracted for, Home's `.home-order-seg` order toggle, was
+   retired with the order preference (OD-V4-10) and its selectors were deleted
+   2026-07-29 — a co-tenant that no longer exists made the shared rules look
+   load-bearing to the next reader. The file stays shared because a second `seg`
+   consumer arriving must inherit these pixels rather than re-author them; a new one
+   layers only its own state selector on top (`[aria-selected='true']` here,
+   `.is-active` for a radiogroup-shaped control), so the values cannot drift apart.
 
    Lives in src/styles/ (the drawer.css precedent), NOT src/components/ui/: the
    `ui/` kit directory is policed by kit-vocab.test.ts's stricter EXACT-token-only
@@ -20,12 +24,11 @@
    ones") that consuming components already carry unchanged in this consolidation
    — a shared PATTERN, not a kit PRIMITIVE.
 
-   Selectors list BOTH existing class families rather than inventing a third
-   canonical name — neither component's markup/tests needed to change. Token-only.
+   Selectors keep the consumer's OWN class family rather than inventing a
+   canonical name — no component's markup/tests had to change. Token-only.
    ════════════════════════════════════════════════════════════════════════════ */
 
-.cut-toggle,
-.home-order-seg {
+.cut-toggle {
   display: inline-flex;
   gap: 4px;
   height: 32px;
@@ -35,8 +38,7 @@
   box-sizing: border-box;
 }
 
-.cut-toggle-tab,
-.home-order-seg-opt {
+.cut-toggle-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -56,15 +58,13 @@
 
 /* Selected/active state — consumers mark it via different selectors (e.g. `aria-selected`
    for tablist, `.is-active` for radiogroup patterns), but they all share the same paint. */
-.cut-toggle-tab[aria-selected='true'],
-.home-order-seg-opt.is-active {
+.cut-toggle-tab[aria-selected='true'] {
   background: var(--background);
   color: var(--foreground);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
   cursor: default;
 }
-.cut-toggle-tab:hover:not([aria-selected='true']),
-.home-order-seg-opt:hover:not(.is-active) {
+.cut-toggle-tab:hover:not([aria-selected='true']) {
   color: var(--foreground);
 }
 
@@ -73,8 +73,7 @@
    identical rule was dead weight, not a real customisation). */
 
 @media (prefers-reduced-motion: reduce) {
-  .cut-toggle-tab,
-  .home-order-seg-opt {
+  .cut-toggle-tab {
     transition: none;
   }
 }
@@ -85,9 +84,7 @@
    consumer-specific difference, so that half stays local rather than forced in here. */
 @media (max-width: 767.98px) {
   .cut-toggle,
-  .cut-toggle-tab,
-  .home-order-seg,
-  .home-order-seg-opt {
+  .cut-toggle-tab {
     height: auto;
     min-height: 44px;
   }

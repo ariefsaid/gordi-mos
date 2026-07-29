@@ -13,8 +13,10 @@ import type { Locale } from '@/i18n/messages'
 export type AttentionLaneKind = 'overdue' | 'due-today' | 'mentions' | 'failed-checks'
 export type LaneState = 'loading' | 'ready' | 'error'
 
-/** The person-in-charge decoration on an attention row — avatar initials + full name (Luna J01/J02). */
-export interface AttentionPic { name: string; initials: string }
+/** The person-in-charge decoration on an attention row — the person's NAME (Luna J01/J02).
+ *  Name only: the initials disc it used to pair with was retired (owner, 2026-07-28) and nothing
+ *  renders initials any more, so carrying them here was a field computed for no reader. */
+export interface AttentionPic { name: string }
 
 export interface AttentionItem {
   id: string
@@ -40,10 +42,6 @@ export interface AttentionDirectory {
   businessUnits?: ReadonlyMap<string, string>
 }
 
-/** Two-letter initials for the PIC avatar chip (mirrors the shared card/avatar grammar). */
-function initialsOf(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
-}
 export interface AttentionLane {
   kind: AttentionLaneKind
   state: LaneState
@@ -74,7 +72,7 @@ const toTaskItem = (t: TaskListRow, locale: Locale, dir?: AttentionDirectory): A
     title: t.title,
     meta: t.due_date ? formatDate(t.due_date, locale) : undefined,
     route: `/work/tasks/${t.id}`,
-    pic: picName ? { name: picName, initials: initialsOf(picName) } : undefined,
+    pic: picName ? { name: picName } : undefined,
     caption: caption ?? undefined,
   }
 }

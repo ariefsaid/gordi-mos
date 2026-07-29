@@ -9,9 +9,9 @@
   flex-direction: column;
   gap: var(--ds-spacing-3, 12px);
   min-width: 0;
-  /* DO-16(d) (census home F6): the ambient tail keeps the SAME 24px seam the stream puts
-     between its own groups (.home-stream gap) — the my-work→ambient seam was the one
-     rhythm break in the scroll. */
+  /* DO-16(d) (census home F6): the ambient tail keeps the SAME 24px seam Home puts between
+     its own region groups (home-stream.css `.stream-group` gap) — the my-work→ambient seam
+     was the one rhythm break in the scroll. */
   margin-top: var(--ds-spacing-6, 24px);
 }
 

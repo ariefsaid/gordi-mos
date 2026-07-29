@@ -48,8 +48,8 @@
    between the bound-Team eyebrow and the Start button on a phone, the exact "composition serves
    the wrong persona first" failure DD-1 named on Café · Log, just from a different device (an
    over-sized system default here, not a KPI row). Scoped override, same convention as
-   src/components/home/home-stream.css's `.home-stream .empty-state.stream-all-clear` — overrides
-   only sizing, the icon/title/copy/action grammar is untouched. */
+   src/components/home/home-stream.css's `.empty-state.stream-all-clear` — overrides only
+   sizing, the icon/title/copy/action grammar is untouched. */
 .cafe-opening-panel .empty-state {
   min-height: 0;
   padding: 20px 4px 4px;

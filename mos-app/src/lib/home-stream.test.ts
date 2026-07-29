@@ -159,7 +159,7 @@ describe('signalStreamItems (OD-84.1 / Luna P0-1 — attention-worthy Signals le
     )
     expect(item.title).toBe('Freezer alarm')
     expect(item.route).toBe('/work/signals?record=x')
-    expect(item.pic).toEqual({ name: 'Cahya Cafe', initials: 'CC' })
+    expect(item.pic).toEqual({ name: 'Cahya Cafe' })
     expect(item.caption).toBe('HQ Operations')
   })
 })

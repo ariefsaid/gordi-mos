@@ -77,10 +77,6 @@ export function daysOverdue(dueISO: string, todayISO: string): number {
   return Math.max(0, Math.round((today - due) / 86_400_000))
 }
 
-function initialsOf(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
-}
-
 /** TaskListRow → StreamItem, decorating with the shared directory (PIC + owning-BU) when present. */
 function toStreamTaskItem(
   t: TaskListRow, reason: StreamReason | undefined, locale: Locale, dir?: AttentionDirectory,
@@ -92,7 +88,7 @@ function toStreamTaskItem(
     title: t.title,
     route: `/work/tasks/${t.id}`,
     meta: t.due_date ? formatDate(t.due_date, locale) : undefined,
-    pic: picName ? { name: picName, initials: initialsOf(picName) } : undefined,
+    pic: picName ? { name: picName } : undefined,
     caption: caption ?? undefined,
     reason,
     status: t.status,
@@ -204,7 +200,7 @@ export function signalStreamItems(
         title: firstLine(s.body),
         route: `/work/signals?record=${s.id}`,
         caption: teamName ?? undefined,
-        pic: authorName ? { name: authorName, initials: initialsOf(authorName) } : undefined,
+        pic: authorName ? { name: authorName } : undefined,
         reason: { tone: SIGNAL_ATTENTION_TONE[s.attention as Exclude<Attention, 'FYI'>] },
       }
     })
