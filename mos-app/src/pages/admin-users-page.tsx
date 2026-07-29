@@ -25,13 +25,14 @@ import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import {
   listAdminPeople,
+  listRoles,
   setLoginEnabled,
   resetPassword,
   archivePerson,
   restorePerson,
   createLogin,
 } from '@/lib/db/admin-users'
-import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
 
 type LoadState = 'loading' | 'loaded' | 'error'
 
@@ -54,6 +55,7 @@ export function AdminUsersPage() {
 
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [people, setPeople] = useState<AdminPersonRow[]>([])
+  const [roles, setRoles] = useState<RoleOption[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [reveal, setReveal] = useState<RevealContext | null>(null)
   const [roleEditorPerson, setRoleEditorPerson] = useState<AdminPersonRow | null>(null)
@@ -71,6 +73,7 @@ export function AdminUsersPage() {
     try {
       const rows = await listAdminPeople()
       setPeople(rows)
+      setRoles(await listRoles())
       setLoadState('loaded')
     } catch {
       setLoadState('error')
@@ -252,6 +255,7 @@ export function AdminUsersPage() {
         <RoleEditor
           person={roleEditorPerson}
           people={people}
+          roles={roles}
           open
           onClose={() => setRoleEditorPerson(null)}
           onDone={() => {

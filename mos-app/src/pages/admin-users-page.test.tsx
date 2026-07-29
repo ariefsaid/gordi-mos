@@ -15,6 +15,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 
 vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
+  listRoles: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -23,15 +24,18 @@ vi.mock('@/lib/db/admin-users', () => ({
   revokeRole: vi.fn(),
   archivePerson: vi.fn(),
   restorePerson: vi.fn(),
+  assignJabatan: vi.fn(),
+  removeJabatan: vi.fn(),
   synthesizeEmail: vi.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}@ops.gordi.local`),
 }))
-import { listAdminPeople } from '@/lib/db/admin-users'
+import { listAdminPeople, listRoles } from '@/lib/db/admin-users'
 
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListAdminPeople = vi.mocked(listAdminPeople)
+const mockListRoles = vi.mocked(listRoles)
 
 // Admin viewer fixture
 const ADMIN_VIEWER: AuthState = {
@@ -62,6 +66,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: null,
     login: 'active',
     access_roles: ['admin'],
+    jabatan: [],
   },
   {
     id: 'p-no-login',
@@ -70,6 +75,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: null,
     login: 'none',
     access_roles: ['member'],
+    jabatan: [],
   },
   {
     id: 'p-disabled',
@@ -78,6 +84,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: null,
     login: 'disabled',
     access_roles: ['ops_lead'],
+    jabatan: [],
   },
   {
     id: 'p-archived',
@@ -86,6 +93,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: '2026-01-01T00:00:00Z',
     login: 'none',
     access_roles: [],
+    jabatan: [],
   },
 ]
 
@@ -93,6 +101,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
   vi.mocked(useIsDesktop).mockReturnValue(true)
+  mockListRoles.mockResolvedValue([])
 })
 
 function renderPage() {
@@ -172,6 +181,7 @@ describe('AdminUsersPage (AC-060)', () => {
         archived_at: null,
         login: 'active',
         access_roles: ['admin'],
+        jabatan: [],
       },
     ])
     renderPage()

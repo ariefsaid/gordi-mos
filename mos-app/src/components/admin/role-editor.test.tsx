@@ -50,6 +50,7 @@ const OTHER_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
+  jabatan: [],
 }
 
 const SELF_PERSON: AdminPersonRow = {
@@ -59,6 +60,7 @@ const SELF_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['admin', 'member'],
+  jabatan: [],
 }
 
 beforeEach(() => {
@@ -105,10 +107,21 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
   })
 
-  it('AC-050: "manager" role is never rendered', () => {
+  it('AC-121: renders a Manager checkbox (manager is now assignable)', () => {
     renderEditor()
-    expect(screen.queryByRole('checkbox', { name: /manager/i })).not.toBeInTheDocument()
-    expect(screen.queryByText('manager')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /manager/i })).toBeInTheDocument()
+  })
+
+  it('AC-122: on the self row, the manager checkbox is disabled (self-guard)', () => {
+    renderEditor({ ...SELF_PERSON, access_roles: ['admin', 'member'] })
+    expect(screen.getByRole('checkbox', { name: /manager/i })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('AC-123: toggling Manager on calls grantRole(id, "manager")', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+    await user.click(screen.getByRole('checkbox', { name: /manager/i }))
+    await waitFor(() => expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'manager'))
   })
 
   it('AC-050: currently granted roles appear checked', () => {
