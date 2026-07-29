@@ -127,4 +127,32 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
     await screen.findByRole('alert')
     expect(screen.getByText('Position')).toBeInTheDocument()
   })
+
+  // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire
+  it('DEFECT-3: clicking the row text (not the checkbox glyph) toggles exactly once', async () => {
+    const user = userEvent.setup()
+    renderPicker(PERSON_NO_POSITION, ROLES)
+
+    await user.click(screen.getByText('Barista'))
+
+    await waitFor(() => {
+      expect(mockAssignJabatan).toHaveBeenCalledTimes(1)
+    })
+    expect(mockAssignJabatan).toHaveBeenCalledWith('other-person-id', 'r-barista')
+    expect(mockRemoveJabatan).not.toHaveBeenCalled()
+  })
+
+  it('DEFECT-3: clicking the text of a disabled (busy) row does not toggle again', async () => {
+    const user = userEvent.setup()
+    // Never resolves — keeps the fieldset in the busy/disabled state after the first click
+    mockAssignJabatan.mockReturnValue(new Promise(() => {}))
+    renderPicker(PERSON_NO_POSITION, ROLES)
+
+    await user.click(screen.getByText('Barista'))
+    await waitFor(() => expect(mockAssignJabatan).toHaveBeenCalledTimes(1))
+
+    // Row is now disabled (busy) — clicking its text again must not fire a second toggle
+    await user.click(screen.getByText('Barista'))
+    expect(mockAssignJabatan).toHaveBeenCalledTimes(1)
+  })
 })

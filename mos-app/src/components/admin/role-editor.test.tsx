@@ -72,14 +72,21 @@ beforeEach(() => {
 
 function renderEditor(
   person: AdminPersonRow = OTHER_PERSON,
-  opts: { onClose?: () => void; onDone?: () => void } = {},
+  opts: {
+    onClose?: () => void
+    onDone?: () => void
+    onShowToast?: (message: string) => void
+    people?: AdminPersonRow[]
+  } = {},
 ) {
   return render(
     <RoleEditor
       person={person}
+      people={opts.people}
       open
       onClose={opts.onClose ?? vi.fn()}
       onDone={opts.onDone ?? vi.fn()}
+      onShowToast={opts.onShowToast}
     />,
   )
 }
@@ -227,5 +234,73 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     const dialog = screen.getByRole('dialog')
     expect(dialog.style.border).toBeTruthy()
     expect(dialog.style.border).not.toBe('')
+  })
+
+  // Defect 1 (design review, Important) — toast must never leak the raw role SLUG
+  it('DEFECT-1: granting ops_lead fires a toast with the human label, not the raw slug', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    renderEditor(OTHER_PERSON, { onShowToast })
+
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Ops Lead granted'))
+    })
+    const [message] = onShowToast.mock.calls[0] as [string]
+    expect(message).not.toContain('ops_lead')
+  })
+
+  it('DEFECT-1: granting manager fires a toast with the human label, not the raw slug', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    renderEditor(OTHER_PERSON, { onShowToast })
+
+    await user.click(screen.getByRole('checkbox', { name: /manager/i }))
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Manager granted'))
+    })
+    // The raw slug "manager" must not leak in lowercase form anywhere in the message
+    const [message] = onShowToast.mock.calls[0] as [string]
+    expect(message).not.toMatch(/\bmanager\b/) // only the capitalized "Manager" label is allowed
+  })
+
+  // Defect 2 (design review, Important, WCAG 1.4.10) — dialog must not clip on short viewports
+  it('DEFECT-2: the scrollable body region carries max-height + overflow-y-auto styling', () => {
+    // jsdom has no real layout engine, so this is a structural guard: it asserts the
+    // scroll-container classes are present on the correct element, not actual clipping/scroll
+    // behavior (which would need a real browser + viewport to observe).
+    renderEditor()
+    const body = screen.getByTestId('role-editor-scroll-body')
+    expect(body.className).toContain('overflow-y-auto')
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.className).toContain('max-h-[90vh]')
+  })
+
+  // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire
+  it('DEFECT-3: clicking the row text (not the checkbox glyph) toggles exactly once', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+
+    // ops_lead is unchecked — click its text label, not the checkbox itself
+    await user.click(screen.getByText('Ops Lead'))
+
+    await waitFor(() => {
+      expect(mockGrantRole).toHaveBeenCalledTimes(1)
+    })
+    expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'ops_lead')
+    expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('DEFECT-3: clicking the text of a self-guarded (disabled) row does not toggle', async () => {
+    const user = userEvent.setup()
+    renderEditor(SELF_PERSON)
+
+    // admin is self-guarded/disabled for SELF_PERSON — click its text label
+    await user.click(screen.getByText('Admin'))
+
+    expect(mockGrantRole).not.toHaveBeenCalled()
+    expect(mockRevokeRole).not.toHaveBeenCalled()
   })
 })

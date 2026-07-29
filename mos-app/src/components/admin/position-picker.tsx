@@ -74,8 +74,13 @@ export function PositionPicker({ person, roles, onDone, onShowToast }: PositionP
                     busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
                   }`}
                   style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
+                  // Defect 3: the whole row toggles, not just the 16px checkbox glyph — the
+                  // checkbox glyph stops propagation (below) so this fires exactly once per click.
+                  onClick={() => {
+                    if (!busy) handleToggle(role)
+                  }}
                 >
-                  <span className="mt-0.5">
+                  <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={isAssigned}
                       disabled={busy}
