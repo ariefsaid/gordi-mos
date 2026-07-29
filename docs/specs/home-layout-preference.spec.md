@@ -126,8 +126,10 @@ must be called out in the PR body so it is not mistaken for tests being bent to 
   width from 390px upward. This is called out explicitly because it was the defect found in the
   mockups at every intermediate width, and it was missed twice by testing only the two breakpoint
   extremes — **verification must sweep intermediate widths, not just 390 and 1280.**
-- **NFR-924 (parity).** All three layouts shall show the same records for the same viewer. A layout
-  shall never be the reason a record is visible or hidden.
+- **NFR-924 (parity).** **AMENDED — see `RATIFY-3`.** All three layouts shall make the same records
+  reachable for the same viewer. A layout shall never be the reason a record is UNREACHABLE. A
+  layout may summarise (Overview caps each tile at `OVERVIEW_TILE_ROWS`), but a region that
+  truncates shall always state the remainder and offer the route to it.
 - **NFR-925 (no regression in reads).** Home shall continue to issue exactly one Signal read
   (`FR-V3-013` — no second Signal loader), regardless of layout.
 
@@ -153,9 +155,11 @@ Each `AC` is owned by **one** test at the lowest sufficient layer (CLAUDE.md tes
   Signals feed is present and no Signal renders inside a work region.
 - **AC-928** *(unit)* **Given** a viewer whose regions are all empty, **when** Home renders in any
   layout, **then** each region is still named with a zero count.
-- **AC-929** *(unit, parity)* **Given** one fixed dataset and one viewer, **when** Home renders in
-  each of the three layouts in turn, **then** the set of record ids rendered is identical across all
-  three.
+- **AC-929** *(unit, parity)* **AMENDED — see `RATIFY-3`.** **Given** one fixed dataset and one
+  viewer whose regions hold more items than an Overview tile shows, **when** Home renders in each of
+  the three layouts in turn, **then** no layout is the reason a record is unreachable: List and
+  Focused render every record, and every region Overview truncates states the honest remainder as a
+  link to where those records live.
 - **AC-930** *(unit, a11y)* **Given** the layout picker, **when** the viewer navigates by keyboard
   only, **then** every option is reachable and selectable, and the selected option is exposed to
   assistive tech without relying on colour.
@@ -229,3 +233,18 @@ Each `AC` is owned by **one** test at the lowest sufficient layer (CLAUDE.md tes
 - `RATIFY-2` — `NFR-922` chooses `localStorage` over the person record, which contradicts
   `OD-V4-9`'s "owed before build: a home on the person record". It follows the established
   precedent and unblocks the slice; confirm the deferral is acceptable.
+
+- `RATIFY-3` — **`AC-929` / `NFR-924` are AMENDED from "the same records" to "the same records
+  REACHABLE"** (Director ruling, 2026-07-29, recorded during acceptance).
+  As originally written the criterion could not hold and should not: `home-overview.tsx` caps each
+  tile at `OVERVIEW_TILE_ROWS` (4) and states the remainder as an "N more →" link, so at ≥5 items
+  per region Overview renders strictly fewer records than List by design. The cap plus its link is
+  the **intended** behaviour — the link is what keeps the summary honest — so the oracle was
+  re-scoped to the invariant the parity requirement actually protects: *no layout is the reason a
+  record is unreachable; a truncated region always offers the way through.* The end-state assertion
+  was not weakened — it was moved off "identical id sets" and onto reachability, and the owning test
+  now runs a fixture that exercises the cap (the previous one held 1 item per region, below the cap,
+  so it could never have detected a violation of either reading).
+  Owner to confirm at sign-off, since this changes a signed artifact.
+  Owning test: `mos-app/src/components/home/home-layout-parity.test.tsx` (`AC-929: no layout hides
+  a record …`).

@@ -1,19 +1,76 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
 
 const css = readFileSync(join(__dirname, 'home-layouts.css'), 'utf8')
 
-// AC-932: the primitives must have EXACTLY ONE definition each. Before the mockup refactor the
-// equivalents were declared 3-4x, once per view — which is how three "options" quietly become
-// three surfaces that diverge on the next change.
+// ── AC-932 / FR-930 ────────────────────────────────────────────────────────────────────────────
+// "the work/feed layout, the tile grid, the tile, the ROW GRAMMAR, the FEED and the region tabs
+// each have exactly ONE definition, and NO LAYOUT OPTION REDEFINES THEM."
+//
+// The prior guard checked four selectors in ONE file. That cannot see the defect the AC is about:
+// a second definition of a primitive lands in ANOTHER stylesheet (the layout that wanted its own
+// tile), and reading only home-layouts.css declares it absent. It also left out two whole entries
+// of the spec's primitive list — the row grammar (`.stream-row*` / `.stream-band*`) and the feed
+// (`.signal-feed*`), both of which live in different files precisely because they are shared.
+//
+// So the corpus is every stylesheet under src/, and a primitive is "defined once" ACROSS all of it.
+const SRC = join(__dirname, '..', '..')
+function cssFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const p = join(dir, entry.name)
+    if (entry.isDirectory()) return cssFiles(p)
+    return p.endsWith('.css') ? [p] : []
+  })
+}
+// Comments stripped first: a retirement note or a design rationale quoting a selector is prose,
+// not a second definition (`styles/segmented-track.css` documents the co-tenant OD-V4-10 retired).
+const CORPUS = cssFiles(SRC).map((file) => ({
+  file: relative(SRC, file),
+  css: readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''),
+}))
+
+/** Where a selector's BASE rule (`.x {`, unindented — not `.x:hover`, not a nested override inside
+ *  an `@container`/`@media` block, which are indented) is declared, across the whole corpus. */
+function baseDefinitions(selector: string): string[] {
+  const re = new RegExp(`^\\${selector}\\s*\\{`, 'gm')
+  return CORPUS.flatMap(({ file, css: text }) => (text.match(re) ?? []).map(() => file))
+}
+
+// The spec's primitive set, entry by entry (home-layout-preference.spec.md FR-930).
+const PRIMITIVES: Record<string, string[]> = {
+  'the work/feed layout': ['.home-frame', '.home-layout'],
+  'the tile grid': ['.home-bento'],
+  'the tile': ['.home-tile', '.home-tile-head', '.home-tile-name', '.home-tile-count'],
+  'the row grammar': [
+    '.stream-group', '.stream-band', '.stream-band-head', '.stream-band-label',
+    '.stream-band-list', '.stream-band-link', '.stream-band-more',
+    '.stream-row-link', '.stream-row-body', '.stream-row-title', '.stream-row-meta',
+    '.stream-row-pic-name', '.stream-row-tail',
+  ],
+  'the feed': ['.signal-feed-section', '.signal-feed-head', '.signal-feed-label', '.signal-feed'],
+  'the region tabs': ['.home-tabs', '.home-tab', '.home-tab-count'],
+}
+
 describe('AC-932: Home layout primitives are defined once', () => {
-  for (const selector of ['.home-layout', '.home-bento', '.home-tile', '.home-tabs']) {
-    it(`${selector} has exactly one base definition`, () => {
-      const re = new RegExp(`^\\${selector} \\{`, 'gm')
-      expect(css.match(re)?.length ?? 0).toBe(1)
-    })
+  for (const [primitive, selectors] of Object.entries(PRIMITIVES)) {
+    for (const selector of selectors) {
+      it(`AC-932: ${primitive} — ${selector} has exactly one base definition in the whole stylesheet corpus`, () => {
+        const where = baseDefinitions(selector)
+        expect(where, `${selector} is declared in: ${where.join(', ') || '(nowhere)'}`).toHaveLength(1)
+      })
+    }
   }
+
+  // The other half of the AC — "no layout OPTION redefines them". The three arrangements are
+  // compositions of the shared set (FR-930); a stylesheet named after one of them is the shape a
+  // second implementation takes, and it is what the AC forbids by construction.
+  it('AC-932: no arrangement owns a stylesheet of its own', () => {
+    const perLayout = ['home-focused.css', 'home-overview.css', 'home-list.css']
+      .filter((name) => existsSync(join(__dirname, name)))
+    expect(perLayout, 'Focused/Overview/List compose the shared primitives; none may re-author them')
+      .toEqual([])
+  })
 
   // NFR-923: a grid child defaults to min-content width. Omitting minmax(0, …) is what lets long
   // titles push a grid past its container — the exact defect found in the mockups.
