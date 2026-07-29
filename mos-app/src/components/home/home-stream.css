@@ -223,9 +223,11 @@
   font-weight: 500;
 }
 
-/* All-caught-up affirmation for the attention group (compact, left-aligned — same
-   StateKit primitive; overrides only its centering/sizing). */
-.home-stream .empty-state.stream-all-clear {
+/* All-caught-up affirmation (compact, left-aligned — same StateKit primitive; overrides only its
+   centering/sizing). Deliberately NOT scoped to `.home-stream`: RegionRows renders the same
+   all-clear inside every arrangement's region body, and a scoped copy there would be a second,
+   drifting definition of one treatment. */
+.empty-state.stream-all-clear {
   justify-content: flex-start;
   align-items: center;
   min-height: 0;

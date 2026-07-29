@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StreamRow } from './stream-row'
 import type { ReasonStyle } from './stream-reason'
 import type { HomeRegion, HomeRegionId } from './home-regions'
@@ -16,11 +16,18 @@ import './home-stream.css'
  *  `failed-checks` and `mentions` carry ONE tone for every row at rest, and its label restates the
  *  region's own name verbatim ("Check failed" under "Failed checks", "Mentions you" under
  *  "Mentions") — DESIGN.md Don't: "Don't repeat a value under a control that the row or card
- *  already renders as its own column/field." A column of identical filled pills also out-shouts
- *  the row titles it exists to rank. `needs-you` and `my-work` keep the chip: there the reason
- *  VARIES row to row (Overdue · 8d / Due today / Blocked) and carries what the name cannot. */
+ *  already renders as its own column/field."
+ *
+ *  `needs-you` keeps the reason — the overdue AGE ("Overdue · 8d") is information the region name
+ *  cannot carry — but as toned TEXT, not a filled pill (DESIGN.md § Row status as text, v4; the
+ *  same call the retired single-stream already made for its overdue band). Measured on the
+ *  rendered band: a filled amber chip on every row marks everything and therefore marks nothing,
+ *  and it out-shouts the 15px/600 row titles it exists to rank.
+ *
+ *  `my-work` keeps the chip: there the mark is genuinely sparse — the odd Blocked row among
+ *  otherwise unremarkable open work — which is exactly where DESIGN.md says a pill stays correct. */
 const REASON_STYLE: Record<HomeRegionId, ReasonStyle> = {
-  'needs-you': 'chip',
+  'needs-you': 'text',
   'failed-checks': 'none',
   mentions: 'none',
   'my-work': 'chip',
@@ -66,7 +73,18 @@ export function RegionRows({ region, items, hidePic }: {
   // (Focused), a hollow card (Overview) and a dangling band heading (List) — none of which
   // distinguishes "clear" from "broken", which is the whole point of keeping the region (FR-929).
   if (rows.length === 0) {
-    return <p className="stream-band-empty">{t(EMPTY_KEY[region.id])}</p>
+    // The state-kit EmptyState in its compact `stream-all-clear` treatment — the SAME primitive the
+    // attention group already uses for an all-clear, rather than a plain muted <p> that reads as
+    // leftover text. `nested`: the band around it is already the labelled landmark, so this must
+    // not add a second region inside it.
+    return (
+      <EmptyState
+        title={t(EMPTY_KEY[region.id])}
+        variant="quiet"
+        nested
+        className="stream-all-clear"
+      />
+    )
   }
   // Overview renders a region's top rows only. Stating the remainder keeps the tile honest at the
   // volume OD-V4-7 exists for (product principle: numbers traceable or visibly absent). It is a
@@ -81,6 +99,24 @@ export function RegionRows({ region, items, hidePic }: {
       </ul>
       {hidden > 0 && <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>}
     </>
+  )
+}
+
+/** A region's count — the ONE place any arrangement turns `HomeRegion.count` into pixels.
+ *
+ *  `null` means the read behind the region has not succeeded, and the number is therefore not
+ *  knowable (DIV-G5). It renders as an em-dash rather than a `0`: a `0` beside a spinner or an
+ *  error states a falsehood with full confidence, and the viewer has no way to trace it. The glyph
+ *  is decorative, so the fact is also said in words for a screen reader — an em-dash alone is
+ *  announced as punctuation or not at all. */
+export function RegionCount({ region, className }: { region: HomeRegion; className?: string }) {
+  const t = useT()
+  if (region.count !== null) return <span className={className}>{region.count}</span>
+  return (
+    <span className={className}>
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{t('home.region.countPending')}</span>
+    </span>
   )
 }
 

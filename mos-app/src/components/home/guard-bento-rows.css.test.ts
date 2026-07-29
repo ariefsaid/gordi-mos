@@ -25,12 +25,19 @@ const REGION_IDS = buildHomeRegions({
   overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
 }).map((r) => r.id)
 
-/** `[start, end)` source ranges for the base cascade and each `@media` block. */
+/** `[start, end)` source ranges for the base cascade and each responsive block.
+ *
+ *  The responsive at-rule is `@container` (the branches are measured against the Home frame's own
+ *  width, not the window — FR-932 / DESIGN.md § Layout → The Container-Query Rule). `@media` is
+ *  still matched so this guard keeps reading a file that reintroduces one: what it models is the
+ *  last-wins CASCADE over the authored bands, which is identical either way. */
+const RESPONSIVE_AT_RULE = /@(?:media|container)[^{]*\{/g
+
 function bands(): { label: string; text: string }[] {
   const out: { label: string; text: string }[] = []
-  const firstMedia = css.search(/@media/)
-  out.push({ label: 'base (wide)', text: firstMedia < 0 ? css : css.slice(0, firstMedia) })
-  for (const m of css.matchAll(/@media([^{]+)\{/g)) {
+  const firstBranch = css.search(/@(?:media|container)/)
+  out.push({ label: 'base (wide)', text: firstBranch < 0 ? css : css.slice(0, firstBranch) })
+  for (const m of css.matchAll(RESPONSIVE_AT_RULE)) {
     const open = css.indexOf('{', m.index)
     let depth = 0
     for (let i = open; i < css.length; i += 1) {
@@ -38,7 +45,7 @@ function bands(): { label: string; text: string }[] {
       if (css[i] === '}') {
         depth -= 1
         if (depth === 0) {
-          out.push({ label: `@media${m[1].trim()}`, text: css.slice(open + 1, i) })
+          out.push({ label: m[0].replace(/\s*\{$/, '').trim(), text: css.slice(open + 1, i) })
           break
         }
       }

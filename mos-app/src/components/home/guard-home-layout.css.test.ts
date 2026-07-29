@@ -23,3 +23,33 @@ describe('AC-932: Home layout primitives are defined once', () => {
     expect(bad).toEqual([])
   })
 })
+
+// ── The Overview lead tile carries a tonal lift ────────────────────────────────────────────────
+// `needs-you` leads by being first, top-left and wide — but `my-work` is ALSO wide, so weight alone
+// does not mark the lead. A one-step tonal lift on the region does. Keyed to the REGION, never to
+// the weight (both wide tiles would take it). Previously declined on the claim that it collides
+// with `.stream-row-link:hover`; that was wrong — hover uses `--secondary` (→ `--surface-secondary`)
+// and this is `--surface-tertiary`, a different step of the same ramp (measured in the browser:
+// secondary = color(display-p3 0.984 0.976 0.957), tertiary = color(display-p3 0.969 0.957 0.933)).
+describe('OD-V4-7 constraint 1: the lead region is marked, and not by weight alone', () => {
+  it('the tonal lift is keyed to the needs-you REGION, not to the wide weight', () => {
+    expect(css).toMatch(/\.home-tile\[data-region="needs-you"\]\s*\{[^}]*background:\s*var\(--surface-tertiary\)/)
+    expect(css, 'a weight-keyed lift would also raise my-work')
+      .not.toMatch(/\.home-tile\[data-weight="wide"\]\s*\{[^}]*background:/)
+  })
+
+  it('it does not reuse the row-hover fill, which would make the tile read as hovered', () => {
+    const rule = /\.home-tile\[data-region="needs-you"\]\s*\{([^}]*)\}/.exec(css)![1]
+    expect(rule).not.toMatch(/var\(--secondary\)/)
+  })
+})
+
+// ── The tile's own name is not the quietest thing in the tile ──────────────────────────────────
+// `.home-tile-name` sat at the 12px label rung inside 15px row titles, so the region's identity
+// read below the rows it heads.
+describe('the tile name outranks the rows beneath it', () => {
+  it('.home-tile-name takes the body-lg rung, not the label rung', () => {
+    const rule = /\.home-tile-name\s*\{([^}]*)\}/.exec(css)![1]
+    expect(rule).toMatch(/font-size:\s*var\(--font-size-body-lg\)/)
+  })
+})

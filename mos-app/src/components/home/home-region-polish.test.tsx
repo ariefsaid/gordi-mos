@@ -135,3 +135,113 @@ describe('a11y: Home region headings sit directly under the page h1 (no level sk
     expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0)
   })
 })
+
+// ── DIV-G5 (spec §7 · NFR-924): a region in error or still loading states NO count ────────────
+// Measured on the rendered Home with the tasks read returning 500: Focused's tabs read
+// ["Needs you now 0", "Failed checks 2", "Mentions 0", "My work today 0"] while the selected
+// region showed the error beneath them. All three arrangements read the same `region.count`, so
+// all three told the same falsehood. The count must be ABSENT — an em-dash, never a `0`.
+describe('DIV-G5: a region whose read has not succeeded shows no count, in every arrangement', () => {
+  const broken = buildHomeRegions({
+    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    taskState: 'error', failedChecksState: 'loading', mentionsState: 'error',
+  })
+
+  it('Focused states no number on a tab whose region is errored or loading', () => {
+    renderLayout(<HomeFocused regions={broken} feed={FEED} />)
+    for (const name of [/needs you now/i, /failed checks/i, /mentions/i, /my work today/i]) {
+      const tab = screen.getByRole('tab', { name })
+      expect(tab.textContent).not.toMatch(/\d/)
+      expect(within(tab).getByText('—')).toBeInTheDocument()
+    }
+  })
+
+  it('Overview states no number on a tile whose region is errored or loading', () => {
+    const { container } = renderLayout(<HomeOverview regions={broken} feed={FEED} />)
+    const counts = [...container.querySelectorAll('.home-tile-count')]
+    expect(counts).toHaveLength(4)
+    for (const c of counts) {
+      expect(c.textContent).not.toMatch(/\d/)
+      expect(c.textContent).toContain('—')
+    }
+  })
+
+  it('List states no number in a band header whose region is errored or loading', () => {
+    renderLayout(<HomeList regions={broken} feed={FEED} />)
+    for (const name of [/needs you now/i, /failed checks/i, /mentions/i, /my work today/i]) {
+      const heading = screen.getByRole('heading', { level: 2, name })
+      expect(heading.textContent).not.toMatch(/\d/)
+      expect(heading.textContent).toContain('—')
+    }
+  })
+
+  it('the absent count is announced, never a bare em-dash glyph', () => {
+    renderLayout(<HomeList regions={broken} feed={FEED} />)
+    expect(screen.getAllByText(/not available yet/i).length).toBe(4)
+  })
+
+  it('a region whose read SUCCEEDED still states its number', () => {
+    const ok = buildHomeRegions({
+      overdue: [item('a'), item('b')], dueToday: [], blocked: [],
+      myWork: [], failedChecks: [], mentions: [],
+    })
+    renderLayout(<HomeList regions={ok} feed={FEED} />)
+    expect(screen.getByRole('heading', { level: 2, name: /needs you now/i }).textContent)
+      .toContain('2')
+  })
+})
+
+// ── DIV: the needs-you reason is TEXT, not a filled chip ──────────────────────────────────────
+// A filled amber `Overdue · 8d` pill on every row of the band marks everything and therefore marks
+// nothing, and it out-shouts the row titles it exists to rank. `stream-reason.tsx` documents
+// `style='text'` for exactly this case ("the overdue age"); DESIGN.md § Row status as text (v4).
+describe('DESIGN.md § Row status as text: needs-you renders its reason as toned text', () => {
+  const regions = buildHomeRegions({
+    overdue: [item('a', { reason: { tone: 'overdue', days: 8 } })],
+    dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+  })
+
+  it('the overdue age is still stated (the information the band label cannot carry)', () => {
+    renderLayout(<HomeList regions={regions} feed={FEED} />)
+    expect(screen.getByText(/overdue · 8d/i)).toBeInTheDocument()
+  })
+
+  it('it carries the flat (fill-dropped) treatment, not the filled chip', () => {
+    renderLayout(<HomeList regions={regions} feed={FEED} />)
+    expect(screen.getByText(/overdue · 8d/i)).toHaveClass('stream-reason--flat')
+  })
+})
+
+// ── DIV: the empty region uses the shared all-clear EmptyState, not a bare muted <p> ───────────
+describe('a ready-and-empty region uses the shared all-clear EmptyState primitive', () => {
+  const regions = buildHomeRegions({
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+  })
+
+  it('List renders the state-kit empty state with the compact all-clear treatment', () => {
+    renderLayout(<HomeList regions={regions} feed={FEED} />)
+    const band = screen.getByRole('region', { name: /^mentions$/i })
+    const empty = within(band).getByTestId('empty-state')
+    expect(empty).toHaveClass('stream-all-clear')
+    expect(within(empty).getByText(/all caught up/i)).toBeInTheDocument()
+  })
+
+  it('Overview renders it too — one empty grammar, not one per arrangement', () => {
+    renderLayout(<HomeOverview regions={regions} feed={FEED} />)
+    const tile = screen.getByRole('heading', { name: /^mentions$/i }).closest('section')!
+    expect(within(tile).getByTestId('empty-state')).toHaveClass('stream-all-clear')
+  })
+})
+
+// ── DIV: Overview's lead tile is keyed to the REGION, so the tonal lift can name needs-you ─────
+describe('Overview tiles carry their region id', () => {
+  const regions = buildHomeRegions({
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+  })
+
+  it('every tile names its region (both wide tiles are distinguishable)', () => {
+    const { container } = renderLayout(<HomeOverview regions={regions} feed={FEED} />)
+    expect([...container.querySelectorAll('.home-tile')].map((t) => t.getAttribute('data-region')))
+      .toEqual(['needs-you', 'failed-checks', 'mentions', 'my-work'])
+  })
+})

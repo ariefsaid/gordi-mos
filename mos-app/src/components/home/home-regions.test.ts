@@ -68,6 +68,42 @@ describe('buildHomeRegions carries per-region async state (DIV-G5) — a failed 
   })
 })
 
+// DIV-G5 / NFR-924 (docs/specs/home-layout-preference.spec.md §7): `count` used to be
+// `items.length` with NO reference to `state`. With the tasks read failing, Focused rendered
+// `Needs you now 0` on its tabs while the selected region showed the error; a never-resolving
+// skeleton read `0` too. A count the viewer cannot trace is worse than no count — the page states a
+// falsehood with full confidence. A count exists only when the read behind it SUCCEEDED.
+describe('DIV-G5: a region has no count until its read succeeded (never a confident 0)', () => {
+  it('needs-you and my-work have NO count while the shared tasks read is loading', () => {
+    const regions = buildHomeRegions({
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      taskState: 'loading',
+    })
+    expect(regions.find((r) => r.id === 'needs-you')!.count).toBeNull()
+    expect(regions.find((r) => r.id === 'my-work')!.count).toBeNull()
+  })
+
+  it('needs-you and my-work have NO count when the shared tasks read failed', () => {
+    const regions = buildHomeRegions({
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      taskState: 'error',
+    })
+    expect(regions.find((r) => r.id === 'needs-you')!.count).toBeNull()
+    expect(regions.find((r) => r.id === 'my-work')!.count).toBeNull()
+  })
+
+  it('failed-checks and mentions lose their own count independently of the tasks read', () => {
+    const regions = buildHomeRegions({
+      overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      failedChecksState: 'error', mentionsState: 'loading',
+    })
+    expect(regions.find((r) => r.id === 'failed-checks')!.count).toBeNull()
+    expect(regions.find((r) => r.id === 'mentions')!.count).toBeNull()
+    // The region whose read DID succeed still states its number.
+    expect(regions.find((r) => r.id === 'needs-you')!.count).toBe(1)
+  })
+})
+
 describe('buildHomeRegions carries the my-work drill link (restored "My open tasks · N" affordance)', () => {
   it('my-work gets a drillTo carrying the FULL open-task count when the caller reports one', () => {
     const regions = buildHomeRegions({

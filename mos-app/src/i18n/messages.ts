@@ -1308,6 +1308,9 @@ export const messages = {
     'home.stream.myWorkEmpty': 'Nothing else open — anything needing you is ranked above.',
     // Overview renders a region's top rows only; this states the rest rather than dropping it.
     'home.region.more': '${count} more',
+    // Spoken alternative for the em-dash a region shows in place of a count it cannot yet know
+    // (DIV-G5). The glyph is decorative; this is what is actually announced.
+    'home.region.countPending': 'count not available yet',
     'home.order.toggle': 'Home order',
     'home.order.attentionFirst': 'Attention first',
     // Minor (c), RATIFY-BEFORE-MERGE — "My canvas first" renamed to plain language ("canvas"
@@ -2527,6 +2530,7 @@ export const messages = {
     'home.stream.allTasks': 'Tugas terbuka saya · ${count} →',
     'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
     'home.region.more': '${count} lagi',
+    'home.region.countPending': 'jumlah belum tersedia',
     'home.order.toggle': 'Urutan Beranda',
     'home.order.attentionFirst': 'Perhatian dulu',
     'home.order.personalFirst': 'Item saya dulu',

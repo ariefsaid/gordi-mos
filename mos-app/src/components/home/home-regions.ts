@@ -16,7 +16,13 @@ export interface HomeRegion {
   id: HomeRegionId
   labelKey: MessageKey
   items: StreamItem[]
-  count: number
+  /** How many items this region holds — `null` whenever the read behind it has NOT succeeded
+   *  (DIV-G5, spec §7 + NFR-924). It used to be `items.length` with no reference to `state`, so a
+   *  failed tasks read rendered `Needs you now 0` on every arrangement while the region itself
+   *  showed the error, and a never-resolving skeleton read `0` too. A count the viewer cannot
+   *  trace is worse than no count: the page stated a falsehood with full confidence. Absent, not
+   *  zero — the arrangements render it as an em-dash. */
+  count: number | null
   /** State of the read(s) behind this region (DIV-G5, `docs/specs/home-layout-preference.spec.md`
    *  §7): a still-loading or failed read must render distinguishably from a genuinely empty
    *  region, never as an indistinguishable empty all-clear. Defaults to 'ready' when the caller
@@ -59,24 +65,32 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
     ? { route: '/work/tasks?view=my-work', count: input.myWorkFullCount }
     : undefined
 
+  const failedChecksState = input.failedChecksState ?? 'ready'
+  const mentionsState = input.mentionsState ?? 'ready'
+  // A count exists only where the read behind it SUCCEEDED (DIV-G5). One helper, applied to every
+  // region, so no arrangement can grow its own idea of when a number is trustworthy.
+  const countOf = (items: StreamItem[], state: StreamBandState) =>
+    state === 'ready' ? items.length : null
+
   return [
     {
-      id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYou, count: needsYou.length,
+      id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYou,
+      count: countOf(needsYou, taskState),
       state: taskState, onRetry: input.onRetryTasks,
     },
     {
       id: 'failed-checks', labelKey: 'home.stream.band.failedChecks', items: input.failedChecks,
-      count: input.failedChecks.length, state: input.failedChecksState ?? 'ready',
+      count: countOf(input.failedChecks, failedChecksState), state: failedChecksState,
       onRetry: input.onRetryFailedChecks,
     },
     {
       id: 'mentions', labelKey: 'home.stream.band.mentions', items: input.mentions,
-      count: input.mentions.length, state: input.mentionsState ?? 'ready',
+      count: countOf(input.mentions, mentionsState), state: mentionsState,
       onRetry: input.onRetryMentions,
     },
     {
       id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
-      count: input.myWork.length, state: taskState, onRetry: input.onRetryTasks,
+      count: countOf(input.myWork, taskState), state: taskState, onRetry: input.onRetryTasks,
       drillTo: myWorkDrillTo,
     },
   ]

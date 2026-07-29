@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
-import { RegionDrillLink, RegionRows } from './region-rows'
+import { RegionCount, RegionDrillLink, RegionRows } from './region-rows'
 import type { HomeLayoutProps } from './home-list'
 import './home-layouts.css'
 
@@ -25,7 +25,7 @@ export function HomeFocused({ regions, feed }: HomeLayoutProps) {
               aria-selected={region.id === active?.id}
               onClick={() => setActiveId(region.id)}
             >
-              {t(region.labelKey)}<span className="home-tab-count">{region.count}</span>
+              {t(region.labelKey)}<RegionCount region={region} className="home-tab-count" />
             </button>
           ))}
         </div>

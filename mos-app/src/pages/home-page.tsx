@@ -332,9 +332,19 @@ export function HomePage() {
       jobSentence={t('job.home')}
       meta={headMeta}
     >
-      {/* The person's chosen Home layout (OD-V4-9) — Focused (default), Overview or List. All three
+      {/* `.home-frame` exists for ONE reason: it is the inline-size container every arrangement's
+          responsive branch is measured against (FR-932 / NFR-923 / DESIGN.md § Layout → The
+          Container-Query Rule). `.home-layout` cannot be its own container — a container query
+          styles a container's DESCENDANTS, never the container itself — and the frame is where the
+          mockup put it too (`.frame { container-type: inline-size }`). The page's actual measure,
+          not the window, is what the arrangements have to fit: the 232px rail collapses at 920px
+          independently of the viewport, which made the work column non-monotonic in window width
+          (812px @1440 → 488px @1100 → 572px @1024). Styled in home-layouts.css beside the branches
+          that read it.
+
+          The person's chosen Home layout (OD-V4-9) — Focused (default), Overview or List. All three
           render the SAME regions + the SAME Signals feed; only the arrangement differs (NFR-924). */}
-      {(() => {
+      <div className="home-frame">{(() => {
         const feed = (
           <SignalFeedSection
             signals={allSignals}
@@ -348,7 +358,7 @@ export function HomePage() {
         if (layout === 'overview') return <HomeOverview regions={regions} feed={feed} />
         if (layout === 'list') return <HomeList regions={regions} feed={feed} />
         return <HomeFocused regions={regions} feed={feed} />
-      })()}
+      })()}</div>
     </PageFamilyFrame>
   )
 }
