@@ -1,0 +1,114 @@
+# Review ledger — v4-redesign
+
+Diff scope: `git diff $(git merge-base origin/main HEAD)..HEAD` — **1037 files**. This branch
+carries the whole v4 redesign, not one slice. Two distinct bodies of work sit inside it:
+
+- **The v4 redesign at large** — 25 `supabase/migrations/` (Signals, process definitions/runs,
+  team re-home, kitchen BU membership, objective-lead write), the auth shell + `require-capability`,
+  and the redesigned surfaces that landed before 2026-07-28.
+- **The Home layout preference slice** (`09ee7d8..HEAD`, ~45 commits, 2026-07-28/29) — `OD-V4-9`
+  (Focused / Overview / List, per-person, chosen in Personal profile) and `OD-V4-10` (the region-order
+  toggle retired). Spec `docs/specs/home-layout-preference.spec.md`, plan
+  `docs/plans/2026-07-28-home-layout-preference.md`.
+
+The battery below states which body each verdict covers. A verdict scoped to the slice alone is
+**not** a verdict on the branch.
+
+## Verdicts
+
+- spec: FIX-THEN-SHIP — spec-reviewer (opus), 2026-07-29. Scope: Home slice. Per-AC evidence table
+  produced by reading code, not by trusting implementer reports. §7 error-handling table verified to
+  hold in code (a failed or in-flight read renders `ErrorState`+Retry, never an all-clear; a count is
+  `null`, never `0`, unless its read succeeded). Findings: 4 ACs had no owning test (AC-926/931/933/934)
+  and 3 asserted less than they claimed (AC-921/928/929); `FR-931` (work regions through
+  `RecordCollection`) NOT MET — the plan waived it on a false premise, mitigated because there is
+  exactly one row renderer, not one per layout. Remediation in flight (see Open items).
+- code-quality: FIX-THEN-SHIP — code-quality-reviewer (opus), 2026-07-29. Scope: Home slice.
+  Two Criticals, both remediated: `HomeFocused` shipped `role="tablist"` with no roving tabindex,
+  no arrow keys and no `tabpanel` — on the default layout, re-implementing a contract this repo had
+  already learned and fixed in `cut-toggle.tsx`; and `hidePic` was documented, prop-tested and never
+  wired, so every my-work row named the viewer to themselves. Also fixed: ~340 lines of dead
+  `HomeStream` keeping its own test alive, orphaned `initials` helpers, dead `.home-order-seg*` rules,
+  an `Intl.DateTimeFormat` built per Done task, and four files stating four inconsistent things about
+  two font sizes. Remediation commits `b031a1e`, `b34796b`, `0550a2f`, `080dfb5`, `46aa0a1`, `d060e4b`.
+- design: NOT-RUN — **the layered design battery (`OD-REDESIGN-89`) has not run on this branch.**
+  What did run is recorded below as evidence, not as a verdict: the standalone four-lens essay review
+  is **retired**, and the OFFICIAL verdict is Luna's, on fresh renders, cross-family. A Director- or
+  Claude-authored design verdict is not one (`never-self-score-design-gates`). Still owed: mechanical
+  guards green (2 real failures remain, see Gates), census protocol Steps 1–6, Storybook states + axe,
+  interaction-contract conformance, then Luna. **This line blocks merge until replaced.**
+
+  *Evidence gathered so far (not a verdict)* — design-reviewer (opus), 2026-07-29, four-lens plus a
+  rendered mockup-vs-shipped divergence audit at 11 widths. Scope: Home slice.
+  Found 14 divergences from the signed mockup `docs/design-mockups/home-priority-2026-07-28/index.html`;
+  root cause recorded: **the plan ported the mockup's three arrangements and dropped its decisions**,
+  which lived in CSS comments no test reads. Two were blocking and are fixed — regions rendered a
+  confident `0` under a failed read, and breakpoints keyed off the viewport instead of the container
+  (measured: row titles squeezed to 99px at 1100px, and a work column of 488px@1100 vs 572px@1024).
+  The rest shipped in `1b27536`, `95633c6`, `d725152`, `beb9e40`, `2e407f1`, `b59e86e`, `5d074ef`,
+  `d9eb26a`, `b59ea15`. Three divergences were judged justified adaptations, not regressions
+  (`+ Signal` at secondary weight, the tile's resting shadow, and the repaired List structure — the
+  mockup's own C direction is broken at desktop).
+- security: NOT-RUN — required (25 migrations + `mos-app/src/auth/**` in scope). Audit dispatched
+  2026-07-29; verdict to be recorded on completion. **This line blocks merge until replaced.**
+
+## Gates
+
+| Gate | Status |
+|---|---|
+| `npm run typecheck` | PASS — `tsc -b --noEmit`, exit 0 |
+| `npm run lint` | PASS — eslint `--max-warnings=0` + stylelint, exit 0 |
+| `npm test` (Vitest) | SEE NOTE — 105 failing, all pre-existing |
+| mechanical guard battery | **FAIL** — 2 remaining, see below |
+| `supabase test db` (pgTAP) | NOT RUN |
+| audit-register | **FAIL** — 7 unlocked surfaces touched |
+
+**Mechanical guards.** Three of the five failures were the *guards* being stale, not the app being
+wrong, and are fixed in `66ef90e`: `FONT_SIZE_TOKENS` omitted `kpi-value` and `touch-input` — two
+tokens `index.css` genuinely declares — so every consumer that spoke the vocabulary **correctly** was
+reported as raw-value debt; 32 ledger entries pinned debt that had already been paid by earlier token
+migrations (exactly what the ratchet exists to catch); and `DO-16(a)` pinned `.home-order-disclosure`,
+a selector retired with the toggle under `OD-V4-10`. Two **real** failures remain and are NOT this
+slice's: `GUARD-R2/cafe-plan` and `GUARD-R2/cafe-review` — naked count chips in the Café Plan and
+Review heads. They block the gate and need their own fix.
+
+**Audit register.** Seven surfaces this branch touches are neither LOCKED nor BUMPED: `events`,
+`profile`, `login-recovery`, `chrome-top-bar`, `chrome-command-menu`, `chrome-deputy-panel`,
+`chrome-signal-composer`. Each needs its once-per-generation battery plus pins, or an explicitly
+recorded bump. This is branch-wide scope, not Home-slice scope.
+
+**Note on `npm test`.** 105 tests fail on this branch from the deferred decision `OD-V4-4`. That
+baseline predates the Home slice. Every agent working in this slice captured the sorted failing-test
+**names** before starting and diffed them at the end; the set is byte-identical from `09ee7d8` to
+HEAD. Counting is not evidence here — two runs can both say "105" while holding different failures,
+so the name diff is what was checked.
+
+## Open items
+
+1. **Owner ratification owed — the job sentence.** Home no longer renders `job.home` ("What needs my
+   attention right now?"); the day-status row took its row in the header block. Experience-Contract
+   Rule 1 requires the job sentence exactly once per page; on `/` it is now zero. Aggravating: the
+   guard at `src/shell/context-row.test.tsx:75` still passes only because its fixture composes a
+   `PageHead` **without** a `statusRow`, so the AC-013 oracle has stopped guarding the real `/`.
+   Director recommendation: keep the status row and amend the contract so a page carrying one
+   satisfies the orientation requirement with it — then repair the guard to compose the head the way
+   `/` actually composes it. **Not yet decided by the owner.**
+2. **AC coverage in flight** — AC-926, AC-931 (a measured width sweep at 390/620/768/940/1100/1280,
+   with a viewport>400px abort), AC-933, AC-934 (e2e), plus re-scoped AC-921/928/929/932.
+3. **AC-929 / NFR-924 amendment.** Overview caps each tile at `OVERVIEW_TILE_ROWS` (4) with an
+   "N more →" link, so it renders strictly fewer records than List above 4 items. Director ruling: the
+   cap plus its link is the intended behaviour and the ACs are amended to the honest invariant — *no
+   layout is the reason a record is unreachable; a truncated region always offers the way through.*
+   Needs a `RATIFY-BEFORE-MERGE:` line in the spec (owner-signed artifact).
+4. **Deviation logged, accepted** — the Signals feed shows all Signals rather than the plan's literal
+   FYI-only `ambientSignals`. No region carries Signals under the new model, so the literal reading
+   would have made Urgent Signals vanish from Home entirely. Feed ordering (Urgent → Needs-attention →
+   FYI) means the cap-6 tail cannot push an Urgent Signal off the page.
+5. **Deviation logged, accepted** — the layout picker's List description was re-cast to carry a
+   "Best when…" clause. The signed mockup's own List string lacks one; `FR-920` requires a description
+   "of who it suits". The requirement binds over the artifact.
+
+## Decision
+
+HOLD — the security review has not run, and item 1 needs an owner ruling. Everything else is either
+merged or in flight. Re-run `bash scripts/pre-merge-check.sh` once the security verdict is recorded.
