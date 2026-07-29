@@ -56,9 +56,16 @@ export interface AttentionLane {
   onRetry?: () => void
 }
 
+/** Constructed ONCE. `Intl.DateTimeFormat` is the expensive part (locale + timezone data
+ *  resolution); `format` is cheap. `wibToday` is called per Done task by `handledTodayCount`,
+ *  which re-runs on every tasks/notifications/directory/locale change over an uncapped task list,
+ *  so a per-call constructor was paying that cost O(tasks) times per render. `en-CA` is a fixed
+ *  formatting contract (ISO-shaped YYYY-MM-DD), not the viewer's locale, so it is safe to hoist. */
+const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
+
 /** WIB (Asia/Jakarta) calendar date YYYY-MM-DD from an injected clock — never scattered Date.now() (FR-512). */
 export function wibToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(now)
+  return WIB_DATE.format(now)
 }
 
 // RI-3 (design fix wave) — reuses the app's ONE shared humanized date formatter (the My-tasks

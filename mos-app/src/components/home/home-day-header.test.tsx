@@ -67,8 +67,14 @@ describe('HomeHeadState — the rule-driven state line + progress track', () => 
     expect(container.querySelectorAll('.home-head-msg')).toHaveLength(1)
   })
 
+  // `{done: 40, left: 0}` is a perfectly ordinary finished day — it never tested a clamp. The
+  // case that does: `left` is a SUM of independently-read region counts, so an inconsistent set
+  // of reads can make done + left SMALLER than done, which used to emit `aria-valuenow="200"`
+  // past the element's own `aria-valuemax="100"` and paint a fill twice the width of its track.
   it('a negative or absurd count never escapes the track', () => {
-    draw(<HomeHeadState tally={{ done: 40, left: 0 }} rotation={0} />)
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
+    draw(<HomeHeadState tally={{ done: 10, left: -5 }} rotation={0} />)
+    const bar = screen.getByRole('progressbar')
+    expect(bar).toHaveAttribute('aria-valuenow', '100')
+    expect(bar.firstElementChild).toHaveStyle({ width: '100%' })
   })
 })

@@ -62,11 +62,16 @@ export function dayStateLine(done: number, left: number, rotation: number): DayS
   return { band, key: options[i] }
 }
 
-/** The handled share of the day, 0–100. An empty day is complete, not a division by zero. */
+/** The handled share of the day, 0–100. An empty day is complete, not a division by zero.
+ *
+ *  CLAMPED, and not defensively: `left` is a SUM of independently-read region counts, so an
+ *  inconsistent set of reads can put more behind the day than in front of it. The consumer emits
+ *  this straight into `aria-valuenow` beside a fixed `aria-valuemax="100"` and into the fill's
+ *  width — an unclamped 200 is an invalid progressbar and a fill twice the width of its track. */
 export function dayProgressPct(done: number, left: number): number {
   const total = done + left
   if (total <= 0) return 100
-  return Math.round((done / total) * 100)
+  return Math.min(100, Math.max(0, Math.round((done / total) * 100)))
 }
 
 /**

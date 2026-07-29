@@ -105,6 +105,19 @@ describe('dayProgressPct', () => {
     expect(dayProgressPct(0, 7)).toBe(0)
     expect(dayProgressPct(7, 0)).toBe(100)
   })
+
+  // `left` is a SUM of independently-read region counts, so an inconsistent set of reads can put
+  // more "done" behind the day than the total in front of it. Unclamped this returned 200, which
+  // the header then emitted as `aria-valuenow="200"` past its own `aria-valuemax="100"` — an
+  // invalid progressbar an AT reads as nonsense, and a fill 2× the width of its track.
+  it('a count that outruns the total is clamped, never emitted past the max', () => {
+    expect(dayProgressPct(10, -5)).toBe(100)
+    expect(dayProgressPct(1, -3)).toBe(100)
+  })
+
+  it('a negative handled count floors at 0 rather than going backwards', () => {
+    expect(dayProgressPct(-4, 8)).toBe(0)
+  })
 })
 
 describe('dayRotation — stable within a WIB day, different across days', () => {

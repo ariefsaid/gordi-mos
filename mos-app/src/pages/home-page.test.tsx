@@ -12,7 +12,12 @@
 // an indistinguishable empty region) and the "My open tasks · N ->" drill-through link.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act, within, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
+// userEvent, not fireEvent: it drives the full pointer/keyboard sequence a real person
+// produces, which is the stronger instrument against a tab strip (the roving-tabindex
+// contract in components/home/home-focused.tsx) — and it is what the sibling Home tests
+// already use.
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -185,7 +190,7 @@ describe('SEC-1 route hygiene (FLAG-B/G2) — the failed-checks /cafe/log band i
     await renderHome(cafeViewer)
     await screen.findByRole('tablist')
     expect(mockLoadFailedChecks).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
     expect(await screen.findByText('Production · 2026-07-20')).toBeInTheDocument()
   })
 
@@ -196,7 +201,7 @@ describe('SEC-1 route hygiene (FLAG-B/G2) — the failed-checks /cafe/log band i
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
     expect(mockLoadFailedChecks).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
     expect(screen.queryByText('Production · 2026-07-20')).toBeNull()
   })
 })
@@ -293,7 +298,7 @@ describe('My work today region — the viewer\'s own open work, capped, on its o
     await screen.findByRole('tablist')
     const tab = screen.getByRole('tab', { name: /my work today/i })
     expect(tab.textContent).toMatch(/2/)
-    fireEvent.click(tab)
+    await userEvent.click(tab)
     expect(await screen.findByText('Prep beans')).toBeInTheDocument()
     expect(screen.getByText('Clean grinder')).toBeInTheDocument()
   })
@@ -310,7 +315,7 @@ describe('My work today region — the viewer\'s own open work, capped, on its o
     ])
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
-    fireEvent.click(screen.getByRole('tab', { name: /my work today/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /my work today/i }))
     const link = await screen.findByRole('link', { name: /my open tasks · 2/i })
     expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
   })
@@ -336,10 +341,30 @@ describe('OD-V4-9: Home renders the person\'s chosen layout', () => {
     expect(await screen.findByRole('tablist')).toBeInTheDocument()
   })
 
-  it('AC-921: renders the stored layout', async () => {
+  // "Not Focused" is not the same claim as "List". The absence of a tablist passes identically
+  // when Home renders OVERVIEW — which is exactly what a layout-dispatch bug produces — so each
+  // case below names something only ITS layout emits, and the mirror case pins the other.
+  //
+  // List is the only arrangement that gives every region a labelled landmark: it wraps each in
+  // `<section aria-label={region}>`. Overview's tiles are unlabelled sections (generic), inside
+  // the bento grid that only it renders.
+  it('AC-921: a stored "list" renders List — every region a labelled landmark, no tabs, no bento', async () => {
     window.localStorage.setItem(`gordi.home.layout.${financeViewer.viewer.person.id}`, 'list')
-    await renderHome(financeViewer)
-    await waitFor(() => expect(screen.queryByRole('tablist')).not.toBeInTheDocument())
+    const { container } = await renderHome(financeViewer)
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: /needs you now/i })).toBeInTheDocument())
+    expect(screen.getByRole('region', { name: /my work today/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(container.querySelector('.home-bento')).toBeNull()
+  })
+
+  it('AC-921 (mirror): a stored "overview" renders Overview — the bento grid, no tabs, no landmarks', async () => {
+    window.localStorage.setItem(`gordi.home.layout.${financeViewer.viewer.person.id}`, 'overview')
+    const { container } = await renderHome(financeViewer)
+    await waitFor(() =>
+      expect(container.querySelector('.home-bento [data-region="needs-you"]')).not.toBeNull())
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /needs you now/i })).not.toBeInTheDocument()
   })
 })
 
