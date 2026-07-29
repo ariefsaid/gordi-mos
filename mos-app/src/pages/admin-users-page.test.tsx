@@ -16,6 +16,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   listRoles: vi.fn(),
+  listRevenueScopeOptions: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   removeJabatan: vi.fn(),
   synthesizeEmail: vi.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}@ops.gordi.local`),
 }))
-import { listAdminPeople, listRoles } from '@/lib/db/admin-users'
+import { listAdminPeople, listRoles, listRevenueScopeOptions } from '@/lib/db/admin-users'
 
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
@@ -36,6 +37,7 @@ import { AdminUsersPage } from './admin-users-page'
 const mockUseAuth = vi.mocked(useAuth)
 const mockListAdminPeople = vi.mocked(listAdminPeople)
 const mockListRoles = vi.mocked(listRoles)
+const mockListRevenueScopeOptions = vi.mocked(listRevenueScopeOptions)
 
 // Admin viewer fixture
 const ADMIN_VIEWER: AuthState = {
@@ -67,6 +69,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'active',
     access_roles: ['admin'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-no-login',
@@ -76,6 +79,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'none',
     access_roles: ['member'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-disabled',
@@ -85,6 +89,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'disabled',
     access_roles: ['ops_lead'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-archived',
@@ -94,6 +99,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'none',
     access_roles: [],
     jabatan: [],
+    revenue_scope: [],
   },
 ]
 
@@ -102,6 +108,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
   vi.mocked(useIsDesktop).mockReturnValue(true)
   mockListRoles.mockResolvedValue([])
+  mockListRevenueScopeOptions.mockResolvedValue([])
 })
 
 function renderPage() {
@@ -182,6 +189,7 @@ describe('AdminUsersPage (AC-060)', () => {
         login: 'active',
         access_roles: ['admin'],
         jabatan: [],
+        revenue_scope: [],
       },
     ])
     renderPage()
@@ -259,6 +267,7 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
       login: 'active',
       access_roles: [],
       jabatan: [],
+      revenue_scope: [],
     }
     mockListRoles.mockResolvedValue([{ id: 'r-kitchen', name: 'Kitchen Lead' }])
     mockListAdminPeople

@@ -3,8 +3,9 @@
 // company-wide financial view, admin-assignable, never labeled "Role").
 // Checked = currently granted (from person.access_roles).
 // Toggling ON → grantRole, OFF → revokeRole; calls onDone to trigger list reload.
-// Self-assign guard: admin/finance/manager disabled when person.id === viewer's person.id
-// (FR-023, ADR-0050 D4).
+// Self-assign guard: admin/finance/manager/supervisor disabled when person.id === viewer's person.id
+// (FR-023, ADR-0050 D4 + ADR-0051).
+// Revenue scope section (ADR-0051) mounts below Position, only when the person holds supervisor.
 // Last-admin guard: admin checkbox disabled when person is the sole active admin (FR-041, item 5).
 // ESC or Close button dismisses (no destructive consequence — normal dismiss is fine).
 //
@@ -21,11 +22,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, ROLE_META, roleLabel } from '@/lib/db/admin-users.types'
-import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RoleOption, RevenueScopeOption } from '@/lib/db/admin-users.types'
 import { PositionPicker } from './position-picker'
+import { RevenueScopePicker } from './revenue-scope-picker'
 
-// Roles protected by self-assign guard (FR-023, ADR-0050 D4)
-const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager'])
+// Roles protected by self-assign guard (FR-023, ADR-0050 D4 + ADR-0051)
+const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager', 'supervisor'])
 
 export interface RoleEditorProps {
   person: AdminPersonRow
@@ -33,6 +35,8 @@ export interface RoleEditorProps {
   people?: AdminPersonRow[]
   /** Org roles (Positions) for the Position section, from listRoles() (ADR-0050). */
   roles?: RoleOption[]
+  /** Live revenue-branch options for the Revenue scope section, from listRevenueScopeOptions() (ADR-0051). */
+  scopeOptions?: RevenueScopeOption[]
   open: boolean
   onClose: () => void
   /** Called after a successful grant/revoke so the page can reload the list. */
@@ -58,6 +62,7 @@ export function RoleEditor({
   person,
   people = [],
   roles = [],
+  scopeOptions,
   open,
   onClose,
   onDone,
@@ -223,7 +228,7 @@ export function RoleEditor({
 
                 // Reason for disabled state (tooltip/title)
                 const disabledReason = isSelfGuarded
-                  ? "You can't change your own admin/finance/manager access" // item 14: plain language
+                  ? "You can't change your own admin, finance, manager, or supervisor access" // item 14: plain language
                   : isLastAdminGuarded
                     ? "Can't remove the last admin"
                     : undefined
@@ -264,7 +269,7 @@ export function RoleEditor({
                         {(isSelfGuarded || isLastAdminGuarded)
                           ? isLastAdminGuarded
                             ? 'Only admin — assign another first'
-                            : "Can't change your own admin/finance/manager access"
+                            : "Can't change your own admin, finance, manager, or supervisor access"
                           : meta.description}
                       </span>
                     </span>
@@ -292,6 +297,16 @@ export function RoleEditor({
 
         {/* Position section (Jabatan, ADR-0050) — bordered, same dialog, below Access level */}
         <PositionPicker person={person} roles={roles} onDone={onDone} onShowToast={onShowToast} />
+
+        {/* Revenue scope section (ADR-0051) — only when the person holds supervisor */}
+        {person.access_roles.includes('supervisor') && (
+          <RevenueScopePicker
+            person={person}
+            options={scopeOptions ?? []}
+            onDone={onDone}
+            onShowToast={onShowToast}
+          />
+        )}
         </div>
         {/* end scrollable body */}
 

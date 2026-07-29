@@ -11,6 +11,15 @@
   margin-bottom: 12px;
 }
 
+/* A single tile (e.g. supervisor's lone revenue KPI, or the "everyone" row when the
+   ops-log flag is off) would otherwise fill the whole 1fr track and stretch edge-to-
+   edge. Cap it to a normal tile width and left-align — the finance/manager 2-tile
+   row is untouched since this only matches when there is exactly one child. */
+.home-kpi-grid > .home-kpi-link:only-child {
+  max-width: 320px;
+  justify-self: start;
+}
+
 .home-kpi-grid + .freshness-label {
   display: inline-block;
   margin-bottom: 16px;

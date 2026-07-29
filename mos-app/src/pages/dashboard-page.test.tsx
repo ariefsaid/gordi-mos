@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { AuthState } from '@/auth/context'
 
 vi.mock('@/lib/db/reporting', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')
@@ -18,13 +19,32 @@ vi.mock('@/lib/db/reporting-margin', async () => {
     await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')
   return { ...actual, listSalesMarginDaily: vi.fn() }
 })
+vi.mock('@/auth/use-auth')
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
+import { useAuth } from '@/auth/use-auth'
 
 import { DashboardPage } from './dashboard-page'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
 const mockMarg = vi.mocked(listSalesMarginDaily)
+const mockUseAuth = vi.mocked(useAuth)
+
+function authViewer(accessRoles: string[]): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p-1', org_id: 'org-1', user_id: 'u-1', full_name: 'Test Person',
+        email: 't@gordi.id', archived_at: null, created_at: '2026-01-01', updated_at: '2026-01-01',
+      },
+      roles: [],
+      isManager: false,
+      accessRoles,
+    },
+    signOut: vi.fn(),
+  }
+}
 
 // ── Fixtures (mirror dashboard.test.ts — 60 days, POS + B2B, latest 2026-06-30) ─────
 const LATEST = '2026-06-30'
@@ -108,9 +128,18 @@ function renderPage(initialPath = '/dashboard') {
   )
 }
 
+/** Render with a given viewer accessRoles set (AC-329 — margin visibility gate). */
+function renderDashboard(accessRoles: string[], initialPath = '/dashboard') {
+  mockUseAuth.mockReturnValue(authViewer(accessRoles))
+  return renderPage(initialPath)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   setDesktop()
+  // Default viewer holds admin (both revenue + margin) so pre-existing tests, which don't
+  // specify a role, keep the gross-margin row (finance-view behavior unchanged, ADR-0051 D4).
+  mockUseAuth.mockReturnValue(authViewer(['admin']))
 })
 
 describe('DashboardPage — data layer usage', () => {
@@ -239,6 +268,36 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     expect(screen.getAllByRole('table').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('AC-329: supervisor gets a revenue-only dashboard (ADR-0051 D4)', () => {
+  beforeEach(() => {
+    setDesktop()
+    mockRev.mockResolvedValue(sixtyDaysRevenue())
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+  })
+
+  it('a supervisor sees no gross-margin/COGS row and no margin fetch', async () => {
+    renderDashboard(['supervisor'])
+    await screen.findByText(/trailing 7-day revenue/i)
+    expect(screen.queryByText(/gross margin %/i)).not.toBeInTheDocument()
+    expect(mockMarg).not.toHaveBeenCalled()
+  })
+
+  it('a finance viewer still sees the gross-margin row', async () => {
+    renderDashboard(['finance'])
+    expect(await screen.findByText(/gross margin %/i)).toBeInTheDocument()
+  })
+
+  it('a supervisor sees no margin/COGS columns in the Detail table', async () => {
+    renderDashboard(['supervisor'])
+    await screen.findByText(/trailing 7-day revenue/i)
+    fireEvent.click(screen.getByRole('tab', { name: /detail/i }))
+    const table = await screen.findByRole('table', { name: /revenue breakdown/i })
+    expect(within(table).queryByRole('columnheader', { name: /cogs/i })).not.toBeInTheDocument()
+    expect(within(table).queryByRole('columnheader', { name: /^gross margin$/i })).not.toBeInTheDocument()
+    expect(within(table).queryByRole('columnheader', { name: /margin %/i })).not.toBeInTheDocument()
   })
 })
 

@@ -31,11 +31,13 @@ const PERSON_NO_POSITION: AdminPersonRow = {
   login: 'active',
   access_roles: ['member'],
   jabatan: [],
+  revenue_scope: [],
 }
 
 const PERSON_WITH_POSITION: AdminPersonRow = {
   ...PERSON_NO_POSITION,
   jabatan: [{ role_id: 'r-barista', role_name: 'Barista' }],
+  revenue_scope: [],
 }
 
 beforeEach(() => {
