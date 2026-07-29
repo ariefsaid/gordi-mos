@@ -33,6 +33,23 @@ const REASON_STYLE: Record<HomeRegionId, ReasonStyle> = {
   'my-work': 'chip',
 }
 
+/** Whether a region's rows name their PIC.
+ *
+ *  F16 (OD-REDESIGN-91 #28): in "My work today" the PIC is always the viewer, so naming them to
+ *  themselves on every row carries zero information — those rows suppress it. Everywhere the
+ *  person VARIES (attention, mentions, failed checks) the name stays; it is the meta line's anchor.
+ *
+ *  Derived HERE, beside `REASON_STYLE` and `EMPTY_KEY`, rather than taken as a prop: this is a
+ *  property of the REGION, and no arrangement has any business deciding it differently. It was a
+ *  `hidePic` prop that every surviving caller forgot to pass, so the rule was documented, unit-
+ *  tested against the row in isolation, and silently absent from the rendered page. */
+const HIDE_PIC: Record<HomeRegionId, boolean> = {
+  'needs-you': false,
+  'failed-checks': false,
+  mentions: false,
+  'my-work': true,
+}
+
 /** What a region says when its read succeeded and there is genuinely nothing in it. `my-work` has
  *  its own line because "all caught up" would be wrong there — attention work may still be ranked
  *  above it. */
@@ -48,12 +65,11 @@ const EMPTY_KEY: Record<HomeRegionId, MessageKey> = {
 // each must render distinguishably from the others, never as an indistinguishable blank
 // (docs/specs/home-layout-preference.spec.md §7). Mirrors the loading/error grammar the retired
 // single-stream HomeStream's IndependentBand carried per band.
-export function RegionRows({ region, items, hidePic }: {
+export function RegionRows({ region, items }: {
   region: HomeRegion
   /** Defaults to `region.items`; Overview passes a sliced subset while still reading `region.state`
    *  (a loading/error region shows its status regardless of how many items would otherwise show). */
   items?: StreamItem[]
-  hidePic?: boolean
 }) {
   const t = useT()
   if (region.state === 'loading') {
@@ -97,7 +113,7 @@ export function RegionRows({ region, items, hidePic }: {
     <>
       <ul className="stream-band-list">
         {rows.map((i) => (
-          <StreamRow key={i.id} item={i} hidePic={hidePic} reasonStyle={REASON_STYLE[region.id]} />
+          <StreamRow key={i.id} item={i} hidePic={HIDE_PIC[region.id]} reasonStyle={REASON_STYLE[region.id]} />
         ))}
       </ul>
       {hidden > 0 && (region.drillTo
