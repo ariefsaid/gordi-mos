@@ -383,13 +383,107 @@ Two consequences follow, and both are ratified, not accidental:
    that flags this pair as a "flat type hierarchy" is measuring a two-role scale as if it were one
    ramp. It is a **known non-defect**; do not "fix" it by inflating a step.
 
+**The 18px rung, as v4 Home actually uses it (2026-07-29).** `OD-V4-8` ratified the *body* rungs
+(`15 / 14 / 13.5 / 12 / 11`, plus the 10px `micro` mark) and the display scale's 24px ceiling — it
+never named the **18px `subheading`** rung, which is what two shipped Home decisions both turn on.
+Recording them here is what stops the next surface re-deriving them at a call site:
+
+1. **A compact page `h1` steps to `subheading` (18px) — one rung below `page-title`, not three.**
+   Where a head carries a second full-width row (Home's day header: greeting + role, the day's tally,
+   a rule-driven state line and the progress track) the block's ~70px height budget is paid for by
+   stepping the title down the **same declared ladder**: `page-title` (24px) → `subheading` (18px).
+   No new size, no second header grammar. `shell/page-head.css` `.content-header--compact .ch-title`.
+   It landed first at `body-lg` (15px), which put the page's own `h1` **below** the group headers
+   inside it — the inversion is the reason the rung is one step, not a free choice.
+2. **A group header sits at `body-lg` (15px) — the SAME rung as the record-row titles it heads — and
+   separates on four other channels instead.** `.stream-band-label` (Home's List bands,
+   `components/home/home-stream.css`) and `.signal-feed-label` (the Signals column,
+   `components/signals/signal-feed-section.css`) are byte-for-byte the same treatment: the **display
+   face** (`--font-display`) against the rows' body face; **sentence case** (an uppercase overline is
+   a *divider*, not a header); full-strength **`--foreground`** (muted is exactly what made it recede
+   into the rows); a **1px `border` hairline edge** above; and **asymmetric space**. Size is
+   deliberately *not* one of the channels: at 18px the label ties Home's own `h1` and the two read as
+   peers ("Good morning, Dewi" vs "Needs you now · 2").
+
+Two rules follow:
+
+- **`subheading` stays reserved for a title that must OUTRANK the content beneath it** — sub-section
+  headers inside detail panels, empty-state titles, and the compact page `h1` above. A header that
+  merely *groups peers* does not qualify, and taking `subheading` for one is how a page ends up with
+  two things claiming to be its title.
+- **Neither carries a decorative hue.** Amber / red / blue already mean overdue / blocked /
+  in-progress on these very rows; a header colour that collides with the status vocabulary is worse
+  than the undifferentiated column it was meant to fix. Contrast + weight + an edge is the whole fix.
+
+*Pinned in CSS, not in a render:* `components/home/guard-list-band-separation.css.test.ts` and
+`guard-home-head-rank.css.test.ts` assert these declarations, because jsdom has no layout engine and
+the unit tests that render Home assert text, not paint.
+
 ## Layout
 
-The application frame is fixed furniture — a **232px rail** (`--rail-w`) and a **56px header**
+The application frame is fixed furniture — a **232px rail** (`--rail-w`, narrowing to a **72px
+icon-only rail** (`--rail-w-compact`) in the 920–1099.98px regime) and a **56px header**
 (`--header-h`) around a content measure that stops at **1180px** — and the page inside it is composed
 from the **4 / 8 / 12 / 16 / 20 / 24 / 32 / 48px** spacing steps. *MOS density mode* (below) governs
 *what* a surface may compose; this section records *where* the layout changes shape, and the rule for
 choosing the instrument that triggers the change.
+
+### The Two-Measure Rule (v4, 2026-07-29)
+
+There are **two** content measures, and which one a page gets is decided by **what kind of surface it
+is** — not by who authored it, and not per-page taste.
+
+| Measure | Value | Applies to |
+|---|---|---|
+| **Readable single column** | **1180px** — `shell/page-families.css` `.page-frame__content` | The default. One column of prose-width content: records, forms, management surfaces, settings, anything read top-to-bottom. |
+| **Wide operating surface** | **1760px** | A surface whose composition is genuinely *two-dimensional* — a master/detail split, or a work column beside a standing aside — where the readable cap leaves a **dead gutter** rather than a margin. |
+
+`1760px` is a **rule with two instances**, not a one-off:
+
+1. **Tasks master/detail** — `components/tasks/TasksWorkspace.css` `.split`. The data workspace runs
+   full-bleed so the table's right edge aligns with the account chip; only the `1fr` Task column
+   absorbs the extra width, the other columns are fixed-px, so nothing balloons. (*"owner-eyes item 7
+   — kill the dead right void"*.)
+2. **Home** — `components/home/home-layouts.css`, scoped
+   `.page-frame--v3 .page-frame__content:has(.home-frame)`. Home is a work region beside a standing
+   Signals aside, so the readable cap stopped the header rule, the arrangement and the Signals column
+   ~250px short of the content area and stranded a gutter to their right (*"why is the container for
+   home got cut mid screen horizontally?"* — owner, ~1730px window).
+
+Both take the **same** 1760px on purpose, so the two wide surfaces' right edges land in the same
+place; a different number would be a *second* wide measure, not a reuse of this one. Two further
+constraints follow:
+
+- **A wide surface opts in; it never widens the shared rule.** Home's `:has(.home-frame)` scoping is
+  the shape — it outranks the shared cap on **specificity**, not on stylesheet order, and every
+  single-column page keeps 1180px untouched.
+- **A third instance must bring the same evidence:** name the second dimension the surface composes,
+  and the void the readable cap leaves at a real window width. "It looks narrow" is not the
+  measurement. A single-column page is never widened — 1180px is what keeps a line readable.
+
+### Spacing: a real gap in the system (2026-07-29)
+
+Stated plainly because an implementer will look for these and not find them: **there is no adopted
+semantic spacing token set in this codebase.**
+
+- **`--space-*` / `--sp-*` do not exist.** Zero declarations, zero uses.
+- The frontmatter `spacing:` block above (`xs/sm/md/base/lg/xl`) has **no runtime counterpart under
+  those names**. It documents the intended steps; nothing in the app resolves them.
+- The platform token layer *does* ship a ramp — `--ds-spacing-0 … --ds-spacing-32` (plus `-0_5`,
+  `-1_5`) on a 4px multiplicator, in `styles/tokens/theme-light.css` / `theme-dark.css` — but it is
+  **effectively unadopted**: a handful of declarations in two files (`home-stream.css`,
+  `signal-feed-section.css`), all written with a raw-px fallback (`var(--ds-spacing-6, 24px)`).
+- Everywhere else, components write **on-scale raw px** against the 4 / 8 / 12 / 16 / 20 / 24 / 32 /
+  48 steps.
+
+So three half-systems coexist and none is authoritative. **This is a gap, not a convention.** Until
+it is closed by an owner-ratified decision, the binding rule is unchanged and is the one the code
+already follows: **any spacing value must land on the 4/8/12/16/20/24/32/48 scale**, whether it is
+written as a raw px or a `--ds-spacing-*` reference. Do **not** mint a third vocabulary at a call
+site, and do **not** treat the scattered `--ds-spacing-*` uses as an adopted standard to spread.
+*(Closing it properly — adopt `--ds-spacing-*`, or mint semantic aliases, or ratify raw-px-on-scale
+as the convention and delete the unused ramp — is an owner decision; it is a token-architecture
+change touching every stylesheet, not a doc edit.)*
 
 ### Breakpoint inventory
 
@@ -401,9 +495,10 @@ one side of it, and a new branch needs the same kind of evidence.
 |---|---|---|
 | `home-bento-stack` | 620px | The Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (v4, `OD-V4-7` constraint 4). **Measured on the Home frame (`@container home`), not the viewport.** |
 | `phone-toolbar` | 639px | The Café toolbar keeps search + category on one line instead of wrapping. |
-| `table-reflow` | 768px | `DataTable` single-renders: `<table>` at or above, stacked cards below (OD-W4-4). The Home layout picker's 3-up thumbnail grid also drops to one column here. |
+| `table-reflow` | 768px | `DataTable` single-renders: `<table>` at or above, stacked cards below (OD-W4-4). The Home layout picker's 3-up thumbnail grid also drops to one column here — and **stays 3-up all the way up: there is deliberately no intermediate 2-up step.** Measured: above this branch the picker's available content width never falls below **720px**, and the narrowest point is the branch *itself* (768px viewport, rail already collapsed, 24px frame gutters). It is **not monotonic** — the 920px icon-rail regime gives 800px and the 1100px full-rail regime 820px, both *wider* than at 768. At the 720px floor the picker card's inner width is `720 − 2 × (16px padding + 1px border)` = 686px, so each thumbnail measures `(686 − 2 × 12px gap) / 3` ≈ **221px** — comfortably above the ~200px at which the CSS wireframes stop reading as diagrams (at the 560px form measure they collapsed to 167px, which is what forced the wider host in the first place). A 2-up branch would therefore be a breakpoint with no measurement behind it. |
 | `coarse-pointer floors` | 767.98px | Segmented tracks and their options relax to `height: auto` + `min-height: 44px`. Additionally, and independently of width, `(pointer: coarse)` raises rail rows to 44px with 8px between adjacent targets. |
-| `rail-collapse` | 920px | The desktop rail collapses and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide. **Distinct from `table-reflow` — do not conflate the two.** |
+| `rail-collapse` | 920px | *Below* it the desktop rail is gone entirely and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide. **Distinct from `table-reflow` — do not conflate the two.** *At or above* it the rail returns, but at 72px — see `rail-compact`. |
+| `rail-compact` | 1100px | Between `rail-collapse` and this, the rail is **icon-only at 72px** (`--rail-w-compact`; OD-REDESIGN-84.2 / P1-1, the 920–1099.98px regime): the item keeps its icon, the label moves to `.sr-only` (still its accessible name) and a CSS-only tooltip surfaces it back on hover/`:focus-visible` via `attr(data-label)`; the top-bar brand column narrows to match and drops the wordmark so the divider stays on the rail boundary. At or above 1100px the full 232px rail returns. **This regime is why available content width is non-monotonic in the viewport across 768→1280** — the diagnostic in The Container-Query Rule below, and the picker measurement on the `table-reflow` row, are both consequences of it. |
 | `home-single-column` | 940px | The Home work/feed split collapses: the Signals column stops being an aside and stacks under the work region (gap 32px → 24px), and the bento drops 6 columns → 4 (v4, `OD-V4-7`). **Measured on the Home frame (`@container home`), not the viewport.** |
 | `desktop` | 1280px | The full desktop contract of § Responsive grammar — rail + header + frame + a 40–45% record panel, without clipping. |
 
@@ -470,7 +565,7 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 - **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
-- **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home: 15px/500 instead of the documented 13.5px/600, on a page that never renders a Task. Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
+- **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home ("+ Tambah kategori"): **15px** instead of the canonical **13.5px** (`--font-size-control`), on a page that never renders a Task. *(Corrected 2026-07-29 during ratification: the `.btn` base is 13.5px/**600**, but `.btn-ghost` deliberately steps its weight down to **500** — a ghost is the quietest rank in the hierarchy. So the canonical ghost is 13.5px/500 and the shadowing defect was the **size** alone. The "13.5px/600" first written here — and the same phrase still in `tasks/TaskSurface.css`'s removal comment — mis-states the ghost variant; `ui/Button.css` is the truth.)* Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
 - **A secondary variant is a decision about rank, not a fallback.** When a control is a *door in an ambient region* rather than the surface's own action, it takes `.btn-outline` and the One Blue stays with the page's primary action — see § Signal row (v4) for the `+ Signal` case, where the primary paint made an ambient affordance outrank the overdue work above it.
 
 ### Badges / Status Pills
@@ -543,7 +638,7 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary` (3px inset padding), options fill the track height (measures 26px, not the previously-stated 28px — corrected by live measurement, extract 2026-07-28), "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. Label size is the `mono` token's 13px *number* reused for sizing only — the face stays DM Sans (`font-family: inherit`), never the SF Mono typeface; this is an established v3 pattern (a token's numeric value borrowed for a non-typographic use), not a new exception.
-  **Canonical implementation:** `src/styles/segmented-track.css`, shared via CSS `@import` by every consumer rather than re-authored per surface (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and the then-live `home/home-order-toggle.css`). The **one live consumer** is the `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — e.g. Money's Branch/Activity tabs, stage filters) with roving-tabindex arrow-key navigation. The second ARIA shape this grammar also served — a `role="radiogroup"`/`"radio"` persistent-setting form using `.is-active` instead of `aria-selected` for its state class — was the Home region-order toggle (`HomeOrderToggle`, the OD-REDESIGN-18 / RI-1 preference); **that control and its Personal-profile setting are RETIRED (OD-V4-10)** and the component is gone. The `.home-order-seg` / `.home-order-seg-opt` selectors still present in `segmented-track.css` are therefore **dead — removal debt, not a live pattern.** The radiogroup shape stays documented because it remains the correct contract if a persistent segmented *setting* returns: two genuinely different ARIA contracts may share one visual grammar file, but never one component. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
+  **Canonical implementation:** `src/styles/segmented-track.css`, pulled in by CSS `@import` rather than re-authored per surface (as of 2026-07-29 there is exactly ONE importer, `dashboard/cut-toggle.css` — the rule is "every consumer imports it", and the count happens to be one) (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and the then-live `home/home-order-toggle.css`). The **one live consumer** is the `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — e.g. Money's Branch/Activity tabs, stage filters) with roving-tabindex arrow-key navigation. The second ARIA shape this grammar also served — a `role="radiogroup"`/`"radio"` persistent-setting form using `.is-active` instead of `aria-selected` for its state class — was the Home region-order toggle (`HomeOrderToggle`, the OD-REDESIGN-18 / RI-1 preference); **that control and its Personal-profile setting are RETIRED (OD-V4-10)** and the component is gone. The `.home-order-seg` / `.home-order-seg-opt` selectors still present in `segmented-track.css` are therefore **dead — removal debt, not a live pattern.** The radiogroup shape stays documented because it remains the correct contract if a persistent segmented *setting* returns: two genuinely different ARIA contracts may share one visual grammar file, but never one component. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
 - **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
 
 ### Overlays
@@ -561,6 +656,38 @@ worth acting on (`destructive` / `success`); neutral deltas and restating captio
 KPI **tiles** remain correct where the job is *reading* figures (dashboards, Money) and keep their
 Soft-Elevation treatment there. Choose by the surface's job, not by habit.
 *(Director decision, `docs/v4-inheritance.md` § v4 design rules — not yet owner-ratified.)*
+
+### Thin progress track (v4, 2026-07-29)
+
+The one-line completion track — shipped on Home's day header ("N of M done"), and the shape any
+future *ambient* progress mark takes. It is **not a new visual vocabulary**: the pairing is the
+system's already-documented progress-bar recipe — track = **`secondary`**, fill = **`success`** — the
+same pair as the Data Table's win-% bar (§ Data Table → in-cell patterns), with the pill radius
+(`--radius-pill`, the `{rounded.full}` role) on **both** so the fill's leading edge is never a square
+corner inside a rounded track.
+
+- **Height 4px** (`{spacing.xs}`, on the geometry scale). This is the only *fixed rendered* dimension
+  and it is the one that must stay on-scale.
+- **`flex: 1 1 90px; max-width: 200px`** — the two numbers that are **off** the
+  4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 scale, carried verbatim from the signed mockup. **They are
+  sanctioned, and the boundary is this:** the geometry scale governs *fixed* dimensions — padding,
+  gaps, heights, radii, anything that lands as a rendered edge. A `flex-basis` and a `max-width` on a
+  **flexible** track are neither; they are the bracket inside which the flex algorithm picks the
+  actual width, and the rendered width is essentially never either number. Rounding them to 88 / 192
+  would change nothing a reader could see and would cost the mockup-verbatim fidelity that makes the
+  header diffable against its source.
+- **No token is minted, deliberately.** A primitive two instances away from existing, carrying two
+  magic numbers, is worse than a documented recipe. **The bounds are the rule, not the digits:** a
+  track this thin needs a floor wide enough to read as a *proportion* at all (~90px) and a ceiling
+  that stops it becoming the widest mark in a header whose job is the greeting and the state line
+  (~200px). A second consumer copies the recipe; a **third** is the trigger to promote it to a real
+  primitive with named bounds.
+- **Never the sole carrier.** The track always sits beside the state line that says the same thing in
+  words — a bar alone is length-and-colour only (WCAG 1.4.1).
+- **Flat at rest** (Soft-Elevation Rule — a track is a utility surface, not a card).
+
+*As built:* `pages/home-page.css` `.home-head-track` / `.home-head-fill`, inside the shared
+`.content-header` in its `--compact` mode.
 
 ### Compact capture row (v4, 2026-07-27)
 The phone row for a long list the user must run down and act on each item (Café · Log). Identity
@@ -630,6 +757,21 @@ arrangement may override only what genuinely differs, and must say why at the ov
   `muted-foreground`; `min-height: 44px` per tab for the coarse-pointer floor. **Counts stay on
   every tab, including unselected ones** — that is the entire safety argument for presenting one
   region at a time.
+- **`.stream-band` / `.stream-band-head` / `.stream-band-label`** — the **List band**: a *headed
+  group of rows*, and the arrangement's answer to the bento tile. It is deliberately **not a card**;
+  it is three cues and nothing else, in `components/home/home-stream.css`:
+  **(a)** a **1px `border` hairline edge** on top (`border-top`) — the group's boundary. Without it
+  the label floated in the column with the same 24px of air above it as any other gap, and four
+  regions read as one undifferentiated list (*"i dont like the header on the current wall of text"* —
+  owner, 2026-07-28). **(b)** a **display-face header** at `body-lg`/600 in full `--foreground`,
+  sentence case — see The 18px rung in § Typography for why it does *not* go up a size.
+  **(c)** **asymmetric space**: **24px** above the rule (the `.stream-group` gap), **12px** between
+  rule and label (`padding-top`), **6px** from label to its own rows (`.stream-band-head`
+  `margin-bottom`). The grouping cue *is* the asymmetry — space that decreases as you descend binds
+  the label to what it heads. A symmetric band would just be another gap.
+  A trailing `.stream-band-link` (the region's drill door) and a quieter `.stream-band-more` ("+N
+  more", a fact) hang off the same head. **No box, no fill, no shadow** — a band that grows a card
+  shell is a nested card, which `OD-V4-7` constraint 3 forbids one level up.
 
 **The Full-Row Packing Rule (v4).** Tile weights exist so consecutive tiles pack to **exactly** the
 bento's column count at every desktop band — never so a tile is left with a hole beside it ("the
@@ -678,6 +820,28 @@ come for free.
   the textbook 65–75: DM Sans's `ch` is its *digit* width, far wider than its average lowercase
   letter, so `68ch` computed to 558px and capped nothing while the line still ran to 91 characters.
   When a `ch` cap does not bite, measure the rendered line and set the number that does.
+
+**Setting-host measures (v4, 2026-07-29).** A setting card is sized by **what it hosts**, and there
+are exactly two hosts on `/profile`. Both are declared as named constants in `pages/profile-page.tsx`
+rather than inline numbers, because the whole point is that they are two *kinds*, not two guesses:
+
+| Constant | Value | Hosts |
+|---|---|---|
+| `FORM_MEASURE` | **560px** | A card of short labelled fields (Identity, Language) — a form column, deliberately narrow. Also the cap the Café opening surface reuses, rather than minting a second one. |
+| `PICKER_MEASURE` | **720px + chrome** | A three-up wireframe chooser (the Home layout picker). |
+
+The distinction that matters: **560 is an outer measure; 720 is a *content* measure.** 720px is the
+width the signed mockup drew the chooser at (`#profile .setting { max-width: 720px }`) on a bare
+`<div>` with no padding and no border — so the card host has to **add its own chrome back on top**:
+`720 + 2 × (16px padding + 1px border)` = the **754px** outer width the shipped picker passes. Taking
+a mockup's content measure as an outer measure silently narrows the content by 34px, which is exactly
+enough to matter here.
+
+Two consequences: the picker does **not** fit at `FORM_MEASURE` (its cards measured 167px and the
+wireframes stopped being readable, which is the entire point of a diagram-based chooser), and
+**widening one host must not drag the other out with it** — these are per-card measures, never a
+page-level cap. *(Pinned by `pages/profile-page.test.tsx` FR-920: the layout card asserts `754px`,
+the form cards `560px`.)*
 
 ### Signal row (v4)
 The **ONE Signal anatomy**, shared by Home's ambient tail and the `/work/signals` archive Feed — rows
@@ -973,7 +1137,7 @@ The visual result is one calm MOS application, not a new visual identity per mod
 | Status | Green, amber, red, and categorical violet are data semantics with tinted surfaces and AA-safe text; they are not alternate action colors. |
 | Type | Plus Jakarta Sans is display/headings; DM Sans is body, UI, and proportional table text; Inter-tabular is permitted only for verified numeric alignment; SF Mono is for IDs, codes, and keyboard hints. |
 | Geometry | Spacing uses 4/8/12/16/20/24/32/48px steps. Cards and overlays use 12px radius; controls use 8px radius; status pills are 8px rounded-rects (OD-REDESIGN-91 #30/E1); 999px is reserved for circular marks (dots, count badges, basis chip). |
-| Density | Standard controls are 32px; phone targets are at least 44px; E7 table rows are 52px; the content measure is 1180px; the desktop rail is 232px and the header is 56px. |
+| Density | Standard controls are 32px; phone targets are at least 44px; E7 table rows are 52px; the **readable** content measure is 1180px (a **wide operating surface** — a master/detail split or a work-column-plus-aside — takes 1760px instead; see § Layout → The Two-Measure Rule); the desktop rail is 232px, 72px in the icon-only 920–1099.98px regime, and the header is 56px. |
 | Depth | Borders and surface tone carry structure. One subtle navy-tinted resting shadow is allowed on cards/KPI/kanban only; overlays use the defined overlay shadow. No shadow soup. |
 | Focus | Every focusable control exposes a visible `:focus-visible` ring using the One Blue ring token with a 2px offset. |
 | Gradient | Only the ratified same-blue button sheen and faint navy home/digest wash are allowed. No purple, glass, neon, or decorative gradient family. |
@@ -1053,7 +1217,7 @@ Supported inline edits use the same direct-edit lifecycle:
 
 ### Responsive grammar
 
-- **Desktop (≥1280px):** rail, header, page frame, collection, and 40–45% record panel fit without clipping. The content measure remains 1180px or less, and the panel preserves enough collection context to understand the opened record.
+- **Desktop (≥1280px):** rail, header, page frame, collection, and 40–45% record panel fit without clipping. The **readable** content measure remains 1180px or less; a **wide operating surface** (Tasks master/detail, Home) takes the 1760px measure instead — see § Layout → The Two-Measure Rule. The panel preserves enough collection context to understand the opened record.
 - **Intermediate (768–1279px):** the frame contracts, tool rails wrap or become a coherent selector stack, and the record panel remains usable without forcing horizontal page overflow.
 - **Phone (390px and ≤767px):** work appears before configuration; selectors stack; collection rows/cards retain meaning; the record viewer is full-screen; bottom navigation remains task-oriented; every required tap target is at least 44×44px; no horizontal page overflow is allowed.
 - **Very narrow devices:** at 390px and below, controls may wrap or stack but must not shrink below the tap-target contract. Avoid permanent horizontal scroll as a substitute for responsive layout.
