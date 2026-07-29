@@ -31,11 +31,20 @@
   min-width: 0;
 }
 
-/* ── Rank band = quiet divider + rows (never a boxed section) ────────────────── */
+/* ── Region band = a headed group of rows (never a boxed section) ─────────────
+   The 1px `border` hairline is the group's EDGE. Without it the label floated in the
+   column with the same 24px of air above it as any other gap, and four regions read as
+   one undifferentiated list ("i dont like the header on the current wall of text" —
+   owner, 2026-07-28). The space is deliberately asymmetric: 24px (`.stream-group` gap)
+   above the rule, 12px between rule and label, 6px from label to its own rows — the
+   grouping cue is the asymmetry, not a bigger font. Matches the signed mockup's
+   `#c .band` (docs/design-mockups/home-priority-2026-07-28). ── */
 .stream-band {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--ds-spacing-3, 12px);
 }
 
 .stream-band-head {
@@ -45,18 +54,23 @@
   margin-bottom: 6px;
 }
 
-/* Quiet band divider label — the rank marker. Small, muted, uppercase (mirrors the
-   app's overline grammar) so it reads as a divider inside the stream, not a heading
-   that boxes a section. */
+/* The region's name — a GROUP HEADER, not an overline divider. It was a muted 12px
+   uppercase overline, which carried no more weight than the 15px/600 row titles beneath
+   it, so nothing marked where one region ended and the next began. It now takes the
+   display face at the `subheading` rung in full `foreground`, sentence case — one rung
+   ABOVE the rows it heads, exactly as the signed mockup's `#c .band-label` does.
+   NO decorative hue: amber / red / blue already mean overdue / blocked / in-progress on
+   these very rows, and a header colour that collides with the status vocabulary is worse
+   than the wall of text it was meant to fix. Contrast + weight + the edge above is the
+   whole fix. */
 .stream-band-label {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: var(--font-size-label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-subheading);
+  font-weight: 600;
+  color: var(--foreground);
 }
 
 .stream-band-link {
