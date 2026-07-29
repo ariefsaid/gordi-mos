@@ -75,12 +75,16 @@
   min-width: 0;
 }
 
-/* ONE rung down from page-title, not three. This was `body-lg` (15px), which put the page's own
-   `h1` BELOW the group headers inside it — List's `.stream-band-label` sits at `subheading`
-   (18px), so the greeting rendered smaller than the band names beneath it. The signed mockup has
-   no such inversion (`.hdr-title` is 1.125rem = 18px against the 16px root, i.e. this rung), and
-   the ~70px budget still holds because the head's height is set by its meta/action row, not by
-   this 3px. */
+/* THE rung, explained once — every other mention of it in the codebase points here.
+   `subheading` (18px): ONE rung down from page-title (24px), not three. It was `body-lg` (15px)
+   while Home's List band labels (`.stream-band-label`) were still at `subheading` (18px), so the
+   page's own `h1` rendered SMALLER than the group headers inside it. Both halves were corrected:
+   the title came UP to 18px here, and the band labels went DOWN to `body-lg` (15px, commit
+   d9eb26a) — which is where they sit today, a full rung below this. The signed mockup ranks them
+   the same way (`.hdr-title` 1.125rem = 18px against the 16px root; `#c .band-label` ≈ 15.6px).
+   guard-home-head-rank.css.test.ts asserts the RELATION, so the pair can be re-tuned but never
+   inverted or tied. The ~70px budget still holds: the head's height is set by its meta/action
+   row, not by this 3px. */
 .content-header--compact .ch-title {
   font-size: var(--font-size-subheading);
 }

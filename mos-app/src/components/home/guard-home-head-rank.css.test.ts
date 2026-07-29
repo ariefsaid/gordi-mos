@@ -4,10 +4,12 @@ import { join } from 'node:path'
 
 // ── The page's own h1 may not rank below the group headers inside it ───────────────────────────
 // The compact head steps its title DOWN one rung to pay for the status row it carries. It stepped
-// down too far: the greeting landed on `body-lg` (15px) while List's region headers moved up to
+// down too far: the greeting landed on `body-lg` (15px) while List's region headers sat at
 // `subheading` (18px), so Home's `h1` rendered SMALLER than the band labels beneath it — a
 // hierarchy inversion the signed mockup does not have (its `.hdr-title` is 1.125rem = 18px against
-// the 16px root, i.e. our subheading rung).
+// the 16px root, i.e. our subheading rung). Both sides were corrected: the title came up to
+// `subheading`, and the band labels went down to `body-lg` (15px, commit d9eb26a) — where they
+// are today. The rung itself is explained once, at its declaration in page-head.css.
 //
 // This asserts the RELATION, not a literal size: whatever rungs the head and the band labels take,
 // the head may never sit below the headers it contains. That keeps holding if the ladder is

@@ -47,9 +47,31 @@ describe('OD-V4-7 constraint 1: the lead region is marked, and not by weight alo
 // ── The tile's own name is not the quietest thing in the tile ──────────────────────────────────
 // `.home-tile-name` sat at the 12px label rung inside 15px row titles, so the region's identity
 // read below the rows it heads.
-describe('the tile name outranks the rows beneath it', () => {
-  it('.home-tile-name takes the body-lg rung, not the label rung', () => {
+//
+// It is now the SAME rung and weight as `.stream-row-title` — an exact tie, and deliberately so.
+// Its sibling guard (guard-home-head-rank.css.test.ts) argues that a tie IS the defect, but that
+// is a different pair: there, size is the only channel between an `h1` and a group header, and
+// Home's `h1` is only one rung up (`subheading`/18px), so raising the tile name to break the tie
+// with its rows would tie or invert it against the page title instead. The tile name separates
+// the way the List band label does — the DISPLAY face against the rows' body face, plus its own
+// head row — so this guard asserts THAT, and pins the tie as intentional rather than titling
+// itself a ranking it does not check. (Was titled "the tile name outranks the rows beneath it".)
+describe('the tile name reads as the tile header, not as one more row', () => {
+  it('.home-tile-name takes the body-lg rung, not the label rung it used to sit at', () => {
     const rule = /\.home-tile-name\s*\{([^}]*)\}/.exec(css)![1]
     expect(rule).toMatch(/font-size:\s*var\(--font-size-body-lg\)/)
+  })
+
+  it('it separates from the rows by FACE and weight, since it deliberately ties them on size', () => {
+    const rule = /\.home-tile-name\s*\{([^}]*)\}/.exec(css)![1]
+    const rowCss = readFileSync(join(__dirname, 'home-stream.css'), 'utf8')
+    const rowRule = /\.stream-row-title\s*\{([^}]*)\}/.exec(rowCss)![1]
+    // The tie is real — pinned, so a future size change to either side lands here first.
+    expect(rowRule).toMatch(/font-size:\s*var\(--font-size-body-lg\)/)
+    // …and the channel that actually does the separating is present on one side and not the other.
+    expect(rule, 'the tile name is the display face').toMatch(/font-family:\s*var\(--font-display\)/)
+    expect(rowRule, 'the row title is the body face — that contrast is the separation')
+      .not.toMatch(/font-family:/)
+    expect(rule).toMatch(/font-weight:\s*600/)
   })
 })

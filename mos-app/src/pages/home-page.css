@@ -13,9 +13,10 @@
 
 /* ── Row 1, left: the head's meta line — role identity. Shares the workspace head's
    `.ch-meta-line` grammar; the nowrap is relaxed so a long role name wraps instead of
-   overflowing at phone width, and the size steps down to the caption rung because the
-   compact head's title is now body-lg, not page-title — 14px beside a 15px title made
-   the role compete with the greeting it qualifies. ── */
+   overflowing at phone width, and the size steps down to the overline rung so the role
+   stays clearly subordinate to the greeting it qualifies — the compact head's title is a
+   rung below page-title (see page-head.css `.content-header--compact .ch-title`), so the
+   14px body rung sat too close under it. ── */
 .content-header .ch-meta .home-head-meta {
   white-space: normal;
   font-size: var(--font-size-overline);

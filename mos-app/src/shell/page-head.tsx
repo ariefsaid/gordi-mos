@@ -42,9 +42,10 @@ export interface PageHeadProps {
    * line + a progress track, mockup `home-priority-2026-07-28` `.hdr-state`).
    *
    * A head carrying a status row is rendered `--compact`: the header's height budget is fixed
-   * (~70px), so the extra row is paid for by stepping the title down one rung (page-title →
-   * body-lg). That coupling is deliberate — it is what stops the second row from turning the
-   * shared head into a taller block on the one surface that most needs a short one.
+   * (~70px), so the extra row is paid for by stepping the title down one rung. That coupling is
+   * deliberate — it is what stops the second row from turning the shared head into a taller block
+   * on the one surface that most needs a short one. WHICH rung, and why that one, is explained
+   * once beside the declaration itself: page-head.css `.content-header--compact .ch-title`.
    */
   statusRow?: ReactNode
   family?: PageFamily
