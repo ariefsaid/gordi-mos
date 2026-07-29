@@ -364,11 +364,15 @@ export const messages = {
     // and nothing else on the page said what it is.
     'profile.homeLayout.help': 'How your Home page is arranged. Everyone sees the same information — this only changes the shape. The Signals column is always on the right.',
     'profile.homeLayout.focused': 'Focused',
-    'profile.homeLayout.focused.desc': 'One section at a time, chosen from tabs. Counts stay visible so nothing hides.',
+    // FR-920: each option carries a name AND a one-sentence description of WHO IT SUITS. The
+    // shape half is the thumbnail's job; the "Best when…" half is the requirement, and it is
+    // the only part of the sentence the wireframe cannot say. Wording is the signed mockup's
+    // (docs/design-mockups/home-priority-2026-07-28 · LAYOUT_OPTIONS).
+    'profile.homeLayout.focused.desc': 'One section at a time, chosen from tabs. Counts stay visible so nothing hides. Best when there is a lot on and you want to work through it.',
     'profile.homeLayout.overview': 'Overview',
-    'profile.homeLayout.overview.desc': 'Every area at once as tiles, sized by how much they matter.',
+    'profile.homeLayout.overview.desc': 'Every area at once as tiles, sized by how much they matter. Best when you scan the whole company and want no clicks.',
     'profile.homeLayout.list': 'List',
-    'profile.homeLayout.list.desc': 'One continuous list, grouped by kind. Nothing is behind a click.',
+    'profile.homeLayout.list.desc': 'One continuous list, grouped by kind — nothing is behind a click. Best when you want the most familiar and most complete view.',
     'profile.homeLayout.default': 'Default',
     // DO-17 tail (census F6) — the account menu (user-chip + appearance switcher).
     'account.appearance': 'Appearance',
@@ -1735,11 +1739,12 @@ export const messages = {
     'profile.homeLayout': 'Tata letak Beranda',
     'profile.homeLayout.help': 'Bagaimana halaman Beranda Anda disusun. Semua orang melihat informasi yang sama — ini hanya mengubah bentuknya. Kolom Sinyal selalu ada di sebelah kanan.',
     'profile.homeLayout.focused': 'Fokus',
-    'profile.homeLayout.focused.desc': 'Satu bagian dalam satu waktu, dipilih dari tab. Jumlah tetap terlihat sehingga tidak ada yang tersembunyi.',
+    // FR-920 — the "Paling cocok…" clause is the who-it-suits half; see the en catalog.
+    'profile.homeLayout.focused.desc': 'Satu bagian dalam satu waktu, dipilih dari tab. Jumlah tetap terlihat sehingga tidak ada yang tersembunyi. Paling cocok saat banyak yang harus dikerjakan dan Anda ingin menuntaskannya satu per satu.',
     'profile.homeLayout.overview': 'Ikhtisar',
-    'profile.homeLayout.overview.desc': 'Semua area sekaligus sebagai kartu, diukur menurut tingkat kepentingannya.',
+    'profile.homeLayout.overview.desc': 'Semua area sekaligus sebagai kartu, diukur menurut tingkat kepentingannya. Paling cocok saat Anda memindai seluruh perusahaan dan tidak ingin mengklik apa pun.',
     'profile.homeLayout.list': 'Daftar',
-    'profile.homeLayout.list.desc': 'Satu daftar berkelanjutan, dikelompokkan per jenis. Tidak ada yang tersembunyi di balik klik.',
+    'profile.homeLayout.list.desc': 'Satu daftar berkelanjutan, dikelompokkan per jenis — tidak ada yang tersembunyi di balik klik. Paling cocok saat Anda ingin tampilan yang paling familier dan paling lengkap.',
     'profile.homeLayout.default': 'Bawaan',
     // DO-17 tail (census F6) — the account menu (user-chip + appearance switcher).
     'account.appearance': 'Tampilan',

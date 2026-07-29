@@ -13,18 +13,23 @@ export interface HomeLayoutPickerProps {
   onChange: (next: HomeLayout) => void
 }
 
+// Three posts separated by a rule, per the mockup: the separators are what make the strip read
+// as a FEED rather than as more of the work area, at every thumbnail size.
 const FEED_STRIP = (
   <span className="hlp-side">
     <span className="hlp-post"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /><i className="hlp-l hlp-l--short" /></span>
     <span className="hlp-post"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
+    <span className="hlp-post hlp-post--last"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l hlp-l--short" /></span>
   </span>
 )
 
+// Row counts are the mockup's (4 lines / 3 tiles / 4 pairs) and they are load-bearing: a
+// half-filled wireframe reads as "some layout" instead of as its own arrangement.
 const THUMBS: Record<HomeLayout, JSX.Element> = {
   focused: (
     <span className="hlp-main">
       <span className="hlp-tabs"><i /><i /><i /><i /></span>
-      <i className="hlp-l" /><i className="hlp-l" /><i className="hlp-l hlp-l--short" />
+      <i className="hlp-l" /><i className="hlp-l" /><i className="hlp-l hlp-l--short" /><i className="hlp-l" />
     </span>
   ),
   overview: (
@@ -37,6 +42,7 @@ const THUMBS: Record<HomeLayout, JSX.Element> = {
       <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
       <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
       <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l hlp-l--short" /></span>
+      <span className="hlp-pair"><i className="hlp-l hlp-l--tiny" /><i className="hlp-l" /></span>
     </span>
   ),
 }

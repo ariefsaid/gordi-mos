@@ -19,13 +19,33 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HomeLayoutPicker } from '@/components/home/home-layout-picker'
 import { resolveHomeLayout, setHomeLayout, type HomeLayout } from '@/lib/home-layout'
 
-function ProfileCard({ title, children }: { title: string; children: React.ReactNode }) {
+// A profile card is sized by what it hosts, and there are two kinds here.
+// FORM_MEASURE — short labelled fields (Identity, Language): a form column, deliberately narrow.
+// PICKER_MEASURE — the mockup's `#profile .setting { max-width: 720px }`, the width the
+// three-up wireframe chooser was drawn at. At FORM_MEASURE its cards measured 167px and the
+// thumbnails stopped being readable, which is the entire point of a diagram-based chooser.
+// Both are the card's OUTER width, so the picker's adds back the padding + border the mockup's
+// bare container did not carry.
+const CARD_PADDING = 16
+const CARD_BORDER = 1
+const FORM_MEASURE = 560
+const PICKER_MEASURE = 720 + 2 * (CARD_PADDING + CARD_BORDER)
+
+function ProfileCard({
+  title,
+  children,
+  maxWidth = FORM_MEASURE,
+}: {
+  title: string
+  children: React.ReactNode
+  maxWidth?: number
+}) {
   return (
     // Soft-Elevation Rule (DESIGN.md OD-P3-11): cards carry the border AND the resting
     // shadow — matches AuthCard / KPITile, the app's other bordered-card instances.
     <section
       className="bg-card border border-border"
-      style={{ borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-rest)', padding: 16, maxWidth: 560 }}
+      style={{ borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-rest)', padding: CARD_PADDING, maxWidth }}
     >
       {/* Section/card title = --font-size-heading (20px) per DESIGN.md Typography
           Hierarchy ("Heading … Section/card titles") — was body-lg (15px), the token
@@ -120,7 +140,7 @@ export function ProfilePage() {
           </Select>
         </ProfileCard>
 
-        <ProfileCard title={t('profile.homeLayout')}>
+        <ProfileCard title={t('profile.homeLayout')} maxWidth={PICKER_MEASURE}>
           <HomeLayoutPicker value={homeLayout} onChange={handleHomeLayoutChange} />
         </ProfileCard>
       </div>

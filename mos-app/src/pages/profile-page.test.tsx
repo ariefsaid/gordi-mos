@@ -62,6 +62,22 @@ describe('ProfilePage (OD-70)', () => {
     expect(languageCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
   })
 
+  it('FR-920: the Home layout setting gets the picker measure, and the form cards keep the form measure', () => {
+    renderPage()
+    // The picker is a THREE-UP DIAGRAM, not a form field: at the 560px form measure its cards
+    // measured 167px and the wireframes stopped being readable, which is the whole point of a
+    // diagram-based chooser. It gets the mockup's 720px setting measure (+ this card's own
+    // 16px padding and 1px border on each side, which the mockup's bare <div> did not carry).
+    const layoutCard = screen.getByRole('heading', { name: 'Home layout' }).closest('section')
+    expect(layoutCard).toHaveStyle({ maxWidth: '754px' })
+    // …and widening it must not drag the short-form cards out with it.
+    for (const title of ['Identity', 'Language']) {
+      expect(screen.getByRole('heading', { name: title }).closest('section')).toHaveStyle({
+        maxWidth: '560px',
+      })
+    }
+  })
+
   it('renders read-only Identity — Person and Roles as plain text rows (not input-look), managed by Admin', () => {
     renderPage()
     // Read-only identity reads as plain labelled text, NOT an editable/input-styled field

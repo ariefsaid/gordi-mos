@@ -37,7 +37,8 @@
 .hlp-box { display: block; height: 26px; border: 1px solid var(--muted-foreground); border-radius: var(--radius-sm); opacity: 0.45; }
 .hlp-box--wide { grid-column: span 2; height: 22px; }
 .hlp-pair { display: grid; grid-template-columns: 26% 1fr; gap: 4px; align-items: center; }
-.hlp-post { display: grid; gap: 3px; }
+.hlp-post { display: grid; gap: 3px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.hlp-post--last { padding-bottom: 0; border-bottom: 0; }
 .hlp-name { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-top: 12px; }
 .hlp-badge {
   font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground);
