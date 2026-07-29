@@ -33,26 +33,37 @@ interface ScopeRow {
 
 const CHANNEL_ORDER = ['POS', 'B2B']
 
-/** Groups options by channel (POS then B2B); each group gets a leading "Whole {channel}" row. */
-function buildRows(options: RevenueScopeOption[]): ScopeRow[] {
+interface ChannelGroup {
+  channel: string
+  rows: ScopeRow[]
+}
+
+/** Groups options by channel (POS then B2B); each group's first row is "Whole {channel}",
+ *  followed by that channel's branch rows — never a flat cross-channel list (design-review). */
+function buildChannelGroups(options: RevenueScopeOption[]): ChannelGroup[] {
   const channels = CHANNEL_ORDER.filter((c) => options.some((o) => o.channel === c)).concat(
     Array.from(new Set(options.map((o) => o.channel))).filter((c) => !CHANNEL_ORDER.includes(c)),
   )
-  const rows: ScopeRow[] = []
-  for (const channel of channels) {
-    rows.push({ channel, branch_code: null, label: `Whole ${channel}` })
-    for (const opt of options.filter((o) => o.channel === channel)) {
-      rows.push({ channel, branch_code: opt.branch_code, label: opt.branch_name ?? opt.branch_code ?? '' })
-    }
-  }
-  return rows
+  return channels.map((channel) => ({
+    channel,
+    rows: [
+      { channel, branch_code: null, label: `Whole ${channel}` },
+      ...options
+        .filter((o) => o.channel === channel)
+        .map((opt) => ({
+          channel,
+          branch_code: opt.branch_code,
+          label: opt.branch_name ?? opt.branch_code ?? '',
+        })),
+    ],
+  }))
 }
 
 export function RevenueScopePicker({ person, options, onDone, onShowToast }: RevenueScopePickerProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const rows = buildRows(options)
+  const groups = buildChannelGroups(options)
 
   async function handleToggle(row: ScopeRow) {
     const isAssigned = person.revenue_scope.some(
@@ -86,55 +97,69 @@ export function RevenueScopePicker({ person, options, onDone, onShowToast }: Rev
       <p className="mb-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
         Which branches&apos; revenue this person can see
       </p>
-      <fieldset disabled={busy}>
-        <legend className="sr-only">Revenue scope for {person.full_name}</legend>
-
-        {rows.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            No revenue branches available yet
-          </p>
-        ) : (
-          <div
-            className="overflow-hidden rounded-md"
-            style={{ border: '1px solid var(--input)' }}
-          >
-            {rows.map((row, i) => {
-              const isAssigned = person.revenue_scope.some(
-                (s) => s.channel === row.channel && s.branch_code === row.branch_code,
-              )
-              return (
-                <label
-                  key={`${row.channel}-${row.branch_code ?? 'whole'}`}
-                  className={`flex items-start gap-3 px-3 py-2.5 select-none ${
-                    busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
-                  }`}
-                  style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
-                  // Defect 3 (mirrored from PositionPicker): the whole row toggles, not just the
-                  // checkbox glyph — the glyph stops propagation so this fires exactly once per click.
-                  onClick={() => {
-                    if (!busy) handleToggle(row)
-                  }}
-                >
-                  <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      checked={isAssigned}
-                      disabled={busy}
-                      onChange={() => !busy && handleToggle(row)}
-                      aria-label={row.label}
-                    />
-                  </span>
-                  <span
-                    className="text-sm font-medium leading-tight"
-                    style={{ color: 'var(--foreground)' }}
+      {groups.length === 0 ? (
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          No revenue branches available yet
+        </p>
+      ) : (
+        groups.map((group) => (
+          // One fieldset per channel — a screen reader announces the channel (via its own
+          // legend) when entering that channel's rows, instead of one flat legend spanning
+          // every channel (design-review: channel grouping wasn't expressed before).
+          <fieldset key={group.channel} disabled={busy} className="mb-4 last:mb-0">
+            <legend className="sr-only">
+              Revenue scope — {group.channel} for {person.full_name}
+            </legend>
+            <div
+              aria-hidden="true"
+              className="mb-1.5 px-0.5 text-xs font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
+              {group.channel}
+            </div>
+            <div
+              className="overflow-hidden rounded-md"
+              style={{ border: '1px solid var(--input)' }}
+            >
+              {group.rows.map((row, i) => {
+                const isAssigned = person.revenue_scope.some(
+                  (s) => s.channel === row.channel && s.branch_code === row.branch_code,
+                )
+                const isWholeChannel = row.branch_code === null
+                return (
+                  <label
+                    key={`${row.channel}-${row.branch_code ?? 'whole'}`}
+                    className={`flex items-start gap-3 py-2.5 select-none ${
+                      isWholeChannel ? 'px-3' : 'pl-6 pr-3'
+                    } ${busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'}`}
+                    style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
+                    // Defect 3 (mirrored from PositionPicker): the whole row toggles, not just the
+                    // checkbox glyph — the glyph stops propagation so this fires exactly once per click.
+                    onClick={() => {
+                      if (!busy) handleToggle(row)
+                    }}
                   >
-                    {row.label}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-        )}
-      </fieldset>
+                    <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isAssigned}
+                        disabled={busy}
+                        onChange={() => !busy && handleToggle(row)}
+                        aria-label={row.label}
+                      />
+                    </span>
+                    <span
+                      className={`text-sm leading-tight ${isWholeChannel ? 'font-semibold' : 'font-medium'}`}
+                      style={{ color: 'var(--foreground)' }}
+                    >
+                      {row.label}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+        ))
+      )}
 
       {/* Inline error — mirrors PositionPicker's error block */}
       {error && (

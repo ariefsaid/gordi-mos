@@ -4,7 +4,7 @@
 // shows the muted empty line.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 vi.mock('@/lib/db/admin-users', () => ({
@@ -111,6 +111,32 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
     })
     expect(mockAssignRevenueScope).not.toHaveBeenCalled()
     await waitFor(() => expect(onDone).toHaveBeenCalled())
+  })
+
+  it('AC-323: each channel renders as its own grouped fieldset (POS, B2B), branches nest under their channel', () => {
+    renderPicker()
+
+    // Each channel is its own accessible group (fieldset + legend), not one flat legend
+    // wrapping every row — a screen reader announces the channel when entering its rows.
+    const posGroup = screen.getByRole('group', { name: /pos/i })
+    const b2bGroup = screen.getByRole('group', { name: /b2b/i })
+    expect(posGroup).toBeInTheDocument()
+    expect(b2bGroup).toBeInTheDocument()
+    expect(posGroup).not.toBe(b2bGroup)
+
+    // Visible per-channel sub-heading naming the channel.
+    expect(screen.getByText('POS')).toBeInTheDocument()
+    expect(screen.getByText('B2B')).toBeInTheDocument()
+
+    // A branch sits under its own channel's group, not the other channel's.
+    expect(within(posGroup).getByRole('checkbox', { name: /bungur/i })).toBeInTheDocument()
+    expect(within(posGroup).queryByRole('checkbox', { name: /gordi roastery/i })).not.toBeInTheDocument()
+    expect(within(b2bGroup).getByRole('checkbox', { name: /gordi roastery/i })).toBeInTheDocument()
+    expect(within(b2bGroup).queryByRole('checkbox', { name: /bungur/i })).not.toBeInTheDocument()
+
+    // Whole-channel row still lives inside its own channel's group.
+    expect(within(posGroup).getByRole('checkbox', { name: /whole pos/i })).toBeInTheDocument()
+    expect(within(b2bGroup).getByRole('checkbox', { name: /whole b2b/i })).toBeInTheDocument()
   })
 
   it('AC-323: empty options shows "No revenue branches available yet"', () => {
