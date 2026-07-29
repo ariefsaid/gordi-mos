@@ -385,3 +385,70 @@ describe('DIV-G5 (home-layout-preference.spec.md §7): a failed shared-tasks rea
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
   })
 })
+
+// ── The compact day header (mockup home-priority-2026-07-28 `.hdr`) ───────────────────────────
+// ONE ~70px block: greeting + role, the day's tally, a rule-driven state line, a progress track.
+// It sits ABOVE the arrangements, so it must be identical in all three — and it must never state
+// a total it cannot stand behind (DIV-G5, the same rule as the region counts).
+describe('the Home header carries the day’s state (motivational half of the brief)', () => {
+  const doneTodayTaskRow = (viewerId: string) => ({
+    ...overdueTaskRow(viewerId),
+    id: 't-done', title: 'Count the till', status: 'Done' as const, due_date: null,
+    // "Today" by construction — no clock mocking, so this stays true on every run.
+    last_activity_at: new Date().toISOString(),
+  })
+
+  it('states the tally, the rule’s state line and the handled share, from counts Home already holds', async () => {
+    // 1 overdue task left (needs-you) + 1 finished today → "1 handled · 1 left", 50%,
+    // and left <= 3 puts the rule in its countdown band, where the number IS the message.
+    mockListTasks.mockResolvedValue([
+      overdueTaskRow(financeViewer.viewer.person.id),
+      doneTodayTaskRow(financeViewer.viewer.person.id),
+    ])
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+
+    expect(await screen.findByText('1 handled · 1 left')).toBeInTheDocument()
+    expect(screen.getByText('1 more to go.')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Handled today' }))
+      .toHaveAttribute('aria-valuenow', '50')
+  })
+
+  it('is identical in all three arrangements — it sits above them', async () => {
+    mockListTasks.mockResolvedValue([
+      overdueTaskRow(financeViewer.viewer.person.id),
+      doneTodayTaskRow(financeViewer.viewer.person.id),
+    ])
+    for (const layout of ['focused', 'overview', 'list'] as const) {
+      window.localStorage.setItem(`gordi.home.layout.${financeViewer.viewer.person.id}`, layout)
+      const { unmount } = await renderHome(financeViewer)
+      const head = await screen.findByTestId('page-head')
+      expect(within(head).getByText('1 handled · 1 left'), layout).toBeInTheDocument()
+      expect(within(head).getByText('1 more to go.'), layout).toBeInTheDocument()
+      expect(within(head).getByRole('progressbar'), layout).toHaveAttribute('aria-valuenow', '50')
+      unmount()
+    }
+  })
+
+  it('DIV-G5: a region whose read failed leaves the header with NO tally, not a wrong one', async () => {
+    mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
+    mockListNotifications.mockRejectedValue(new Error('offline'))
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+
+    const head = screen.getByTestId('page-head')
+    expect(within(head).queryByText(/handled ·/)).toBeNull()
+    expect(within(head).queryByRole('progressbar')).toBeNull()
+    expect(within(head).getByText('Today’s tally isn’t in yet.')).toBeInTheDocument()
+  })
+
+  it('the header replaces the rhetorical job sentence rather than stacking on top of it', async () => {
+    mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+    // The state line answers "how is my day going" — a live question the static registry sentence
+    // ("What needs my attention right now?") only asked. Both would not fit the ~70px block.
+    expect(screen.queryByText(/What needs my attention/i)).toBeNull()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+})

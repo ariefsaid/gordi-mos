@@ -31,10 +31,14 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, openTaskCount, type StreamBand,
+  mentionStreamItems, myWorkStreamItems, openTaskCount, handledTodayCount, type StreamBand,
 } from '@/lib/home-stream'
+import { dayRotation } from '@/lib/home-day-state'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { buildHomeRegions } from '@/components/home/home-regions'
+import {
+  HomeHeadCounts, HomeHeadState, type HomeDayTally,
+} from '@/components/home/home-day-header'
 import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
@@ -324,6 +328,26 @@ export function HomePage() {
     ],
   )
 
+  // ── The day's tally behind the header (mockup home-priority-2026-07-28 `.hdr`) ───────────────
+  // NO new data read: `left` is the sum of the SAME region counts rendered a few pixels below it
+  // (so the number reconciles with what the viewer can see), and `done` comes off the tasks
+  // projection Home already fetched. `docs/specs/home-layout-preference.spec.md` §2 puts new Home
+  // reads out of scope, and this header does not need one.
+  //
+  // Null — never a partial total — the moment ANY region count is null, i.e. any read behind it
+  // has not succeeded (DIV-G5). A header that adds up the reads that happened to land would state
+  // a figure the viewer cannot trace, which is exactly the defect the region counts were fixed
+  // for: absent, not zero.
+  const tally = useMemo<HomeDayTally | null>(() => {
+    if (!personId) return null
+    let left = 0
+    for (const region of regions) {
+      if (region.count === null) return null
+      left += region.count
+    }
+    return { done: handledTodayCount(tasks, personId, today), left }
+  }, [personId, regions, tasks, today])
+
   return (
     <PageFamilyFrame
       family="workspace"
@@ -331,6 +355,11 @@ export function HomePage() {
       title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
       jobSentence={t('job.home')}
       meta={headMeta}
+      // `N handled - N left`, right-aligned on the title row; the state line + progress track on
+      // the row below it. Both live INSIDE the one shared header block, so every arrangement
+      // inherits the identical header (it sits above them).
+      action={<HomeHeadCounts tally={tally} />}
+      statusRow={<HomeHeadState tally={tally} rotation={dayRotation(today)} />}
     >
       {/* `.home-frame` exists for ONE reason: it is the inline-size container every arrangement's
           responsive branch is measured against (FR-932 / NFR-923 / DESIGN.md § Layout → The

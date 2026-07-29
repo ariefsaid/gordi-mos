@@ -100,3 +100,66 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
     expect(container.querySelector('[data-testid="m"]')).toBeTruthy()
   })
 })
+
+// ── The status row: a full-width second row inside the SAME header block ─────────────────────
+// Home's compact day header (mockup home-priority-2026-07-28 `.hdr`) needs a state line + a
+// progress track BELOW the title row without forking a second header grammar. One slot on the
+// shared head, and the title steps down a rung to pay for the extra row inside the same ~70px.
+describe('PageHead — content-header status row (the compact day-header composition)', () => {
+  it('renders the status row as a full-width row inside the one header block', () => {
+    const { container } = render(
+      <PageHead variant="content" title="Good evening, Arief" statusRow={<span>Halfway.</span>} />,
+    )
+    const head = container.querySelector('.content-header')!
+    const row = head.querySelector('.ch-status-row')
+    expect(row).toHaveTextContent('Halfway.')
+    expect(container.querySelectorAll('.content-header')).toHaveLength(1)
+  })
+
+  it('a head carrying a status row is compact — one header block, one title, still one h1', () => {
+    const { container } = render(
+      <PageHead variant="content" title="Good evening, Arief" statusRow={<span>Halfway.</span>} />,
+    )
+    expect(container.querySelector('.content-header')).toHaveClass('content-header--compact')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('a head with no status row is unchanged — no compact class, no empty row', () => {
+    const { container } = render(<PageHead variant="content" title="Tasks" />)
+    expect(container.querySelector('.content-header')).not.toHaveClass('content-header--compact')
+    expect(container.querySelector('.ch-status-row')).toBeNull()
+  })
+
+  it('the compact title takes the body-lg rung so the extra row fits the same block', () => {
+    const css = pageHeadCss()
+    expect(css).toMatch(/\.content-header--compact \.ch-title\s*\{[^}]*font-size:\s*var\(--font-size-body-lg\)/)
+  })
+
+  it('the status row spans the full width of the header', () => {
+    const css = pageHeadCss()
+    expect(css).toMatch(/\.content-header \.ch-status-row\s*\{[^}]*flex:\s*0 0 100%/)
+  })
+})
+
+describe('PageHead — the status row replaces the job sentence, never stacks on it', () => {
+  it('a head with a status row renders the status row and NOT the job sentence', () => {
+    const { container } = render(
+      <PageHead
+        variant="content"
+        title="Good evening, Arief"
+        jobSentence="What needs my attention right now?"
+        statusRow={<span>Halfway.</span>}
+      />,
+    )
+    expect(screen.getByText('Halfway.')).toBeInTheDocument()
+    expect(screen.queryByText('What needs my attention right now?')).toBeNull()
+    expect(container.querySelector('.page-head-job')).toBeNull()
+  })
+
+  it('a head with no status row still renders its job sentence, unchanged', () => {
+    render(
+      <PageHead variant="content" title="Tasks" jobSentence="Find and do the work I own." />,
+    )
+    expect(screen.getByText('Find and do the work I own.')).toBeInTheDocument()
+  })
+})

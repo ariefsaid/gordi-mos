@@ -66,6 +66,19 @@
   white-space: nowrap;
 }
 
+/* ── The status row: a full-width second row INSIDE the one header block ──────────────────
+   The header's height budget is fixed (~70px, the v4 chrome-reduction floor), so a head that
+   carries a status row pays for it by stepping the title down one rung on the SAME declared
+   ladder — page-title (24px) → body-lg (15px). No new sizes, no second header grammar. */
+.content-header .ch-status-row {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.content-header--compact .ch-title {
+  font-size: var(--font-size-body-lg);
+}
+
 .page-head--v3.content-header {
   flex-wrap: wrap;
 }
@@ -118,6 +131,30 @@
   }
 
   .content-header .ch-action {
+    order: 3;
+  }
+
+  /* ── Compact head on phone ────────────────────────────────────────────────────────────
+     The generic phone stack (meta last, full width) would push the role BELOW the status
+     row, so the greeting's own qualifier would arrive after the day state it qualifies.
+     The compact head keeps its title row intact — greeting + role, tally pushed right by
+     `.ch-action`'s auto margin — and the status row stays the last, full-width line. It
+     also keeps the body-lg title the rule above re-asserts at page-title for every other
+     content head. */
+  .content-header--compact .ch-title {
+    font-size: var(--font-size-body-lg);
+  }
+
+  .content-header--compact .ch-meta {
+    order: 1;
+    flex: 0 1 auto;
+  }
+
+  .content-header--compact .ch-action {
+    order: 2;
+  }
+
+  .content-header--compact .ch-status-row {
     order: 3;
   }
 }

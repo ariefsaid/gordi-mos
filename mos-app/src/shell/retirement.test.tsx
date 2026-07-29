@@ -104,8 +104,11 @@ describe('C4 — retirement: Home renders no residual Weekly Update / Daily Log 
       </I18nProvider>,
     )
 
-    // Ranked-stream Home: the job question is the stable ready sentinel ('My tasks' band retired)
-    await waitFor(() => expect(screen.getByText(/What needs my attention/i)).toBeInTheDocument())
+    // Ready sentinel — a JOURNEY STEP, not the oracle. It was the job question ("What needs my
+    // attention right now?"); the compact day header replaces that sentence with the live state
+    // line, so the sentinel moves to the region tab strip, which is what makes Home "rendered"
+    // either way. The oracle below (no Weekly Update / Daily Log residue) is untouched.
+    await waitFor(() => expect(screen.getByRole('tablist')).toBeInTheDocument())
     for (const link of screen.queryAllByRole('link')) {
       expect(link.textContent ?? '').not.toMatch(FORBIDDEN)
     }

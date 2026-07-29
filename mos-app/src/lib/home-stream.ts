@@ -27,7 +27,7 @@ import type { Attention, SignalRow } from '@/lib/db/signals.types'
 import { raciOwner } from '@/lib/raci-member'
 import { formatDate } from '@/components/tasks/task-formatters'
 import type { Locale } from '@/i18n/messages'
-import type { AttentionDirectory, AttentionItem, AttentionPic } from '@/lib/home-attention'
+import { wibToday, type AttentionDirectory, type AttentionItem, type AttentionPic } from '@/lib/home-attention'
 
 export type { AttentionDirectory } from '@/lib/home-attention'
 
@@ -213,6 +213,25 @@ export function signalStreamItems(
 /** Count of the viewer's open (R/A, non-Done) tasks — the "All tasks · N" figure. */
 export function openTaskCount(tasks: TaskListRow[], viewerId: string): number {
   return tasks.filter(t => isOwnedOpen(t, viewerId)).length
+}
+
+/**
+ * Count of the viewer's own tasks that reached Done TODAY (WIB) — the "N handled" half of the
+ * Home header's day state.
+ *
+ * Read from the SAME tasks projection Home already holds: the Home layout spec §2 puts new Home
+ * reads out of scope, and this figure must not buy a second fetch. Ceiling, stated plainly: the
+ * app has no `completed_at`, so "when it was handled" is approximated by `last_activity_at` on a
+ * Done task. A Done task edited again today therefore counts as handled today. That is the most
+ * honest reading available from the existing row shape; a precise figure needs a schema change,
+ * not a client-side guess.
+ */
+export function handledTodayCount(tasks: TaskListRow[], viewerId: string, todayISO: string): number {
+  return tasks.filter(t => {
+    if (t.status !== 'Done' || !raciOwner(t, viewerId)) return false
+    const at = new Date(t.last_activity_at)
+    return !Number.isNaN(at.getTime()) && wibToday(at) === todayISO
+  }).length
 }
 
 /** Summed item count across bands — the "Needs attention · N" summary source (FR-509 parity). */

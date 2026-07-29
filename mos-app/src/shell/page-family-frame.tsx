@@ -15,6 +15,9 @@ export interface PageFamilyFrameProps {
   count?: number | null
   meta?: ReactNode
   action?: ReactNode
+  /** Full-width row below the title row, inside the same header block (see PageHead.statusRow).
+   *  A head that carries one is rendered compact so the block keeps its ~70px budget. */
+  statusRow?: ReactNode
   state?: PageFamilyState
   surfaceWash?: boolean
   /**
@@ -40,6 +43,7 @@ export function PageFamilyFrame({
   count,
   meta,
   action,
+  statusRow,
   state = 'default',
   surfaceWash,
   hideHead = false,
@@ -64,6 +68,7 @@ export function PageFamilyFrame({
           count={count}
           meta={meta}
           action={action}
+          statusRow={statusRow}
         />
       )}
       {children}

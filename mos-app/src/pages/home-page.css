@@ -1,13 +1,69 @@
 /* ════════════════════════════════════════════════════════════════════════════
    HomePage — the consequence-ranked stream layout (owner redirect 2026-07-22).
    The stream + its ambient Signals tail own their own row texture (home-stream.css
-   / signal-feed-section.css); this file owns only the head's meta line. The OD-18
-   order preference (and its Personal Profile control) was retired (OD-V4-10).
+   / signal-feed-section.css); this file owns only the head. The OD-18 order
+   preference (and its Personal Profile control) was retired (OD-V4-10).
+
+   The head is the mockup's compact day header (home-priority-2026-07-28 `.hdr`):
+   ONE ~70px block carrying greeting + role, the day's tally, a rule-driven state
+   line and a thin progress track. The block is the SHARED `.content-header`
+   (page-head.css) in its `--compact` mode — Home fills its slots, it does not
+   grow a second header grammar.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── The head's meta line: role identity. Shares the workspace head's `.ch-meta-line`
-   grammar; only the nowrap is relaxed so a long role name wraps instead of overflowing
-   at phone width. ── */
+/* ── Row 1, left: the head's meta line — role identity. Shares the workspace head's
+   `.ch-meta-line` grammar; the nowrap is relaxed so a long role name wraps instead of
+   overflowing at phone width, and the size steps down to the caption rung because the
+   compact head's title is now body-lg, not page-title — 14px beside a 15px title made
+   the role compete with the greeting it qualifies. ── */
 .content-header .ch-meta .home-head-meta {
   white-space: normal;
+  font-size: var(--font-size-overline);
+}
+
+/* ── Row 1, right: `N handled · N left` (mockup `.hdr-counts`). The caption rung, muted,
+   tabular so the pair doesn't jitter as the day moves. ── */
+.home-head-counts {
+  font-size: var(--font-size-overline);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* ── Row 2: the state line + progress track (mockup `.hdr-state`). ── */
+.home-head-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.home-head-msg {
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+/* Pending is a statement about the READ, not about the day — it takes the muted register
+   so it never reads as this morning's verdict. */
+.home-head-msg--pending {
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+/* The 4px track. `track: secondary / fill: success` is DESIGN.md's documented progress-bar
+   pairing (§Data table → in-cell patterns, the win-% bar) — not a new visual vocabulary. */
+.home-head-track {
+  flex: 1 1 90px;
+  max-width: 200px;
+  height: 4px;
+  background: var(--secondary);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.home-head-fill {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  border-radius: var(--radius-pill);
 }

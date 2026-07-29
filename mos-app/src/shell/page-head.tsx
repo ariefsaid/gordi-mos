@@ -35,6 +35,18 @@ export interface PageHeadProps {
    * empty/error states can own their own create CTA.
    */
   action?: ReactNode
+  /**
+   * Content-variant only — a full-width row rendered BELOW the title row, inside the same
+   * `.content-header` block (`.ch-status-row`). For a head whose page state is part of the
+   * header itself rather than of the content beneath it (Home's day state: a rule-driven state
+   * line + a progress track, mockup `home-priority-2026-07-28` `.hdr-state`).
+   *
+   * A head carrying a status row is rendered `--compact`: the header's height budget is fixed
+   * (~70px), so the extra row is paid for by stepping the title down one rung (page-title →
+   * body-lg). That coupling is deliberate — it is what stops the second row from turning the
+   * shared head into a taller block on the one surface that most needs a short one.
+   */
+  statusRow?: ReactNode
   family?: PageFamily
 }
 
@@ -46,14 +58,15 @@ export interface PageHeadProps {
  */
 export function PageHead({
   title, subtitle, jobSentence, meta, maxWidth,
-  variant = 'prose', count, action, family,
+  variant = 'prose', count, action, statusRow, family,
 }: PageHeadProps) {
   const v3ClassName = family ? ' page-head--v3' : ''
   if (variant === 'content') {
+    const compactClassName = statusRow ? ' content-header--compact' : ''
     return (
       <div
         data-testid="page-head"
-        className={`content-header${v3ClassName}`}
+        className={`content-header${v3ClassName}${compactClassName}`}
         style={maxWidth ? { maxWidth } : undefined}
       >
         {/* Cohesion-debt 2026-07-19, item #5 (owner call: "proceed with all items"):
@@ -67,7 +80,15 @@ export function PageHead({
         {meta && <span className="ch-meta">{meta}</span>}
         {action && <span className="ch-action">{action}</span>}
         {subtitle && <p className="ch-subtitle">{subtitle}</p>}
-        {jobSentence && <p className="page-head-job">{jobSentence}</p>}
+        {/* A status row REPLACES the job sentence, it never stacks on top of it. Both are
+            full-width rows and the header's budget is one of them (~70px); and where a head has
+            a live status row, that row answers "what is this page for right now" better than the
+            static registry sentence, which on Home only ASKED the question ("What needs my
+            attention right now?"). ContextRow's suppression is keyed off the ROUTE registry, so
+            this does not resurrect a duplicate sentence in region 2 either — the sentence is
+            genuinely retired on such a head. Deliberate: see the Home day-header build note. */}
+        {jobSentence && !statusRow && <p className="page-head-job">{jobSentence}</p>}
+        {statusRow && <div className="ch-status-row">{statusRow}</div>}
       </div>
     )
   }
