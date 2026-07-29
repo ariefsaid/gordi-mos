@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-28T00:00:00Z",
+  "generatedAt": "2026-07-29T00:00:00Z",
   "title": "Design System: Gordi MOS",
   "extensions": {
     "colorMeta": {
@@ -116,17 +116,17 @@
       }
     },
     "typographyMeta": {
-      "page-title": { "displayName": "Page Title", "purpose": "One per page, in .page-head. Plus Jakarta Sans 600/24px." },
+      "page-title": { "displayName": "Page Title", "purpose": "One per page, in .page-head. Plus Jakarta Sans 600/24px. The display scale STOPS here — OD-V4-8 deferred minting any step above it." },
       "heading": { "displayName": "Heading", "purpose": "Section and card headings." },
-      "body-lg": { "displayName": "Emphasised Body", "purpose": "Record titles, primary row text, the v4 capture-row dish name and summary-rule values." },
+      "body-lg": { "displayName": "Emphasised Body", "purpose": "Record titles, primary row text, the v4 capture-row dish name, the Signal row title and the summary-rule values. The 15/14 pair with body is a ratified rung (OD-REDESIGN-91 B4), not drift." },
       "body": { "displayName": "Body", "purpose": "Base body, table cells, meta. Equals the html base size." },
       "control": { "displayName": "Control", "purpose": "Buttons, inputs, selects, tabs — controls run 13.5px." },
-      "label": { "displayName": "Label", "purpose": "Pill and field labels, dense metadata, the v4 summary-rule labels and row status." },
+      "label": { "displayName": "Label", "purpose": "Pill and field labels, dense metadata, the v4 summary-rule labels, Home tile names/counts and row status." },
       "overline": { "displayName": "Overline", "purpose": "Counts, column headers, captions." },
       "mono": { "displayName": "Mono", "purpose": "SF Mono. Machine IDs and codes only — never a costume for 'technical'." }
     },
     "shadows": [
-      { "name": "rest", "value": "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)", "purpose": "The one resting lift. Cards, KPI tiles, kanban cards ONLY — co-signs the 1px border, never replaces it (OD-P3-11). Flat utility surfaces (toolbars, rows, strips, the v4 summary rule) get none." },
+      { "name": "rest", "value": "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)", "purpose": "The one resting lift. Cards, KPI tiles, kanban cards and Home bento tiles ONLY — co-signs the 1px border, never replaces it (OD-P3-11). Flat utility surfaces (toolbars, rows, strips, the v4 summary rule) get none." },
       { "name": "state-lift", "value": "0 2px 10px hsl(240 6% 10% / 0.06)", "purpose": "Card or KPI tile on hover — deepens from rest." },
       { "name": "kanban-hover", "value": "0 4px 14px hsl(240 6% 10% / 0.10)", "purpose": "Draggable kanban card on hover; lifts more because it is grabbable." },
       { "name": "brand-button", "value": "0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)", "purpose": "Faint brand-tinted lift under the primary button." }
@@ -135,9 +135,15 @@
       { "name": "state-transition", "value": "background 0.2s, border-color 0.2s, box-shadow 0.2s", "purpose": "Default control state easing. Motion here is a response to state, never decoration." }
     ],
     "breakpoints": [
+      { "name": "home-bento-stack", "value": "620px", "purpose": "v4: the Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (OD-V4-7 constraint 4)." },
       { "name": "phone-toolbar", "value": "639px", "purpose": "v4: below this the Café toolbar keeps search + category on one line instead of wrapping." },
-      { "name": "table-reflow", "value": "768px", "purpose": "DataTable switches between the desktop <table> and phone cards (OD-W4-4). Exactly one branch renders." },
-      { "name": "rail-collapse", "value": "920px", "purpose": "The desktop rail collapses. Distinct from table-reflow — do not conflate the two." }
+      { "name": "table-reflow", "value": "768px", "purpose": "DataTable switches between the desktop <table> and phone cards (OD-W4-4). Exactly one branch renders. The Home layout picker's 3-up thumbnail grid also drops to one column here." },
+      { "name": "rail-collapse", "value": "920px", "purpose": "The desktop rail collapses. Distinct from table-reflow — do not conflate the two." },
+      { "name": "home-single-column", "value": "940px", "purpose": "v4: the Home work/feed split collapses — the Signals column stops being an aside and stacks under the work region (gap 32px to 24px), and the bento drops 6 columns to 4 (OD-V4-7)." },
+      { "name": "desktop", "value": "1280px", "purpose": "The full desktop contract: rail + header + frame + a 40-45% record panel, without clipping." }
+    ],
+    "containers": [
+      { "name": "signal-feed", "value": "480px", "purpose": "v4: the Signal row branches on its OWN width, not the viewport — the same anatomy renders in Home's ~300px ambient tail and the archive Feed's ~1140px column at the same 1440px viewport. Declared as `container: signal-feed / inline-size`; below 480px the row stacks so the title takes the full column and the tail drops beneath it." }
     ]
   },
   "components": [
@@ -153,7 +159,7 @@
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Bordered neutral action. Discard, Cancel, and every non-primary verb.",
+      "description": "Bordered neutral action. Discard, Cancel, and every non-primary verb — and every door in an AMBIENT region (v4: Home's '+ Signal'), where the action blue would outrank the work the region exists to surface.",
       "html": "<button class=\"ds-btn-secondary\">Discard</button>",
       "css": ".ds-btn-secondary { height: 32px; padding: 0 14px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; transition: background .2s; } .ds-btn-secondary:hover { background: var(--secondary); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
     },
@@ -169,9 +175,9 @@
       "name": "Status Pill",
       "kind": "chip",
       "refersTo": "pill-status",
-      "description": "6px dot plus tinted background and darkened text. For SPARSE or exceptional status only — see Row Status Text when the status is on every row.",
+      "description": "Dot plus tinted background and darkened text. The SHELL is an 8px rounded-rect (ratified OD-REDESIGN-91 #30/E1 — the 999px capsule is retired for the pill shell); only the dot stays circular. For SPARSE or exceptional status only — see Row Status Text when the status is on every row.",
       "html": "<span class=\"ds-pill ds-pill--destructive\"><span class=\"ds-pill-dot\"></span>Blocked</span>",
-      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text, var(--destructive)); } .ds-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none; }"
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 8px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text, var(--destructive)); } .ds-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none; }"
     },
     {
       "name": "Card",
@@ -185,9 +191,9 @@
       "name": "Rail Nav Item",
       "kind": "nav",
       "refersTo": "nav-rail-item",
-      "description": "Destination row in the two-zone rail. Active state is a quiet wash, not a blue fill.",
+      "description": "Destination row in the two-zone rail. 36px on a fine pointer (the ratified nav-item spec); raised to a 44px floor under (pointer: coarse). Active state is a quiet wash, not a blue fill.",
       "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\">Home</a>",
-      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--foreground); text-decoration: none; font-size: 13.5px; } .ds-nav-item:hover { background: var(--secondary); } .ds-nav-item--active { background: var(--secondary); font-weight: 600; } .ds-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: var(--foreground); text-decoration: none; font-size: 13.5px; } .ds-nav-item:hover { background: var(--secondary); } .ds-nav-item--active { background: var(--secondary); font-weight: 600; } .ds-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } @media (pointer: coarse) { .ds-nav-item { min-height: 44px; } }"
     },
     {
       "name": "Metric Summary Rule",
@@ -206,10 +212,18 @@
       "css": ".ds-capture-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; } .ds-capture-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; } .ds-capture-name { font-size: 15px; font-weight: 600; color: var(--foreground); overflow-wrap: anywhere; } .ds-capture-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12px; color: var(--muted-foreground); } .ds-capture-status { color: var(--status-lost-text); font-weight: 500; } .ds-qty-wrap { display: inline-flex; align-items: center; gap: 6px; flex: none; } .ds-qty { width: 68px; height: 44px; box-sizing: border-box; text-align: right; padding-right: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; font-family: inherit; } .ds-qty::placeholder { color: var(--muted-foreground); } .ds-qty:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-qty-unit { font-size: 12px; color: var(--muted-foreground); }"
     },
     {
+      "name": "Home Bento Tile",
+      "kind": "custom",
+      "refersTo": "home-tile",
+      "description": "v4 signature (OD-V4-7). The Overview arrangement's tile: the CARD recipe unchanged (same surface, border, 12px radius, 16px padding, one resting lift) placed in a 6-column grid whose gap (20px) deliberately EXCEEDS the tile's own padding (16px) — separation between groups must beat spacing within them or the grid reads as one mush. Exactly TWO weights exist and they sum to the track: wide spans 4, narrow spans 2, so 6 columns pack 4+2 then 2+4 and 4 columns pack 4 | 2+2 | 4. A third weight would leave a hole beside a tile at one band or the other. Every tile carries real rows, never icon + heading + stat, and is one level deep — no nested cards.",
+      "html": "<div class=\"ds-bento\"><section class=\"ds-tile\" data-weight=\"wide\"><div class=\"ds-tile-head\"><h2 class=\"ds-tile-name\">Needs you</h2><span class=\"ds-tile-count\">7</span></div><ul class=\"ds-tile-rows\"><li>Kirim revisi RAB Gedung B<span>Overdue · 8d</span></li><li>Approve PO kopi Arabika<span>Due today</span></li></ul></section><section class=\"ds-tile\" data-weight=\"narrow\"><div class=\"ds-tile-head\"><h2 class=\"ds-tile-name\">Mentions</h2><span class=\"ds-tile-count\">2</span></div><ul class=\"ds-tile-rows\"><li>Riri di Café · stok susu<span></span></li></ul></section></div>",
+      "css": ".ds-bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; align-items: stretch; } .ds-tile { display: flex; flex-direction: column; min-width: 0; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); } .ds-tile[data-weight='wide'] { grid-column: span 4; } .ds-tile[data-weight='narrow'] { grid-column: span 2; } .ds-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; } .ds-tile-name { margin: 0; font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--foreground); } .ds-tile-count { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; } .ds-tile-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; } .ds-tile-rows li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 15px; font-weight: 600; color: var(--foreground); } .ds-tile-rows li + li { border-top: 1px solid var(--border); } .ds-tile-rows li span { font-size: 12px; font-weight: 500; color: var(--muted-foreground); white-space: nowrap; } @media (max-width: 940px) { .ds-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); } } @media (max-width: 620px) { .ds-bento { grid-template-columns: minmax(0, 1fr); } .ds-tile { grid-column: span 1; } }"
+    },
+    {
       "name": "Segmented Track",
       "kind": "custom",
       "refersTo": "segmented-track",
-      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and Home's order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css, @import'ed by both consumers.",
+      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and Home's order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css. NOTE (v4): the radiogroup consumer was the Home region-order toggle, RETIRED by OD-V4-10; CutToggle is now the only live consumer and the .home-order-seg selectors in the shared file are removal debt. The shape stays documented because it is the correct contract if a persistent segmented setting returns.",
       "html": "<div class=\"ds-seg\" role=\"tablist\"><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"true\">Branch</button><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"false\">Activity</button></div>",
       "css": ".ds-seg { display: inline-flex; gap: 4px; height: 32px; padding: 3px; background: var(--secondary); border-radius: 8px; box-sizing: border-box; } .ds-seg-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 12px; border: none; border-radius: 6px; background: transparent; color: var(--muted-foreground); font-size: 13px; font-weight: 600; cursor: pointer; } .ds-seg-opt[aria-selected='true'] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); }"
     }
@@ -229,8 +243,11 @@
       { "name": "The One Blue Rule", "body": "Every interactive affordance uses the one primary blue, kept under ~10% of any screen. The primary-button sheen is the same blue, not a second action colour.", "section": "colors" },
       { "name": "The Single-Border Rule", "body": "border equals input. One border value defines all structure.", "section": "colors" },
       { "name": "The Tabular-Numbers Rule", "body": "Every figure that can change or be compared is tabular-nums. DM Sans tnum is a verified no-op in its fontsource build, so the .tabular utility is scoped to Inter Variable; proportional body text stays DM Sans.", "section": "typography" },
+      { "name": "The Two-Role Scale Rule", "body": "The scale has exactly two roles and they do not meet: display runs 24/20/18px in Plus Jakarta Sans, body runs 15/14/13.5/12/11px in DM Sans. The display scale STOPS at 24px — no step above page-title exists and OD-V4-8 deferred minting one, so emphasis above the page title comes from position, weight and air, never a new primitive. Inside the body role the 15/14 pair (body-lg / body) is a deliberate rung (OD-REDESIGN-91 B4): a linter flagging it as a flat type hierarchy is reading a two-role scale as one ramp. Known non-defect.", "section": "typography" },
       { "name": "The Soft-Elevation Rule", "body": "Cards, KPI tiles and kanban cards carry exactly one subtle resting shadow in addition to their 1px border. Every other surface stays flat at rest. Never stack resting shadows; never exceed ~0.06 total alpha (OD-P3-11).", "section": "elevation" },
       { "name": "The Restrained-Gradient Rule", "body": "Only the two ratified navy-tinted whispers: the primary-button sheen and the home/digest surface wash. Never purple (OD-P3-12).", "section": "colors" },
+      { "name": "The Container-Query Rule", "body": "A component that renders at different widths inside the same viewport adapts to the space it has, not the window. The Signal row renders in Home's ~300px ambient tail AND the /work/signals archive Feed's ~1140px column at the same 1440px viewport, so a viewport media query measures the wrong thing — it left the 300px tail horizontal with a ~96px title that both wrapped and ellipsised. Declare a container and branch with @container. Reach for @media only when the thing that actually varies is the viewport (v4).", "section": "layout" },
+      { "name": "The Full-Row Packing Rule", "body": "Tile weights exist so consecutive tiles pack to exactly the grid's column count at every desktop band — never so a tile is left with a hole beside it. There are exactly two weights and they sum to the track: wide spans 4, narrow spans 2, giving 4+2 then 2+4 at six columns and 4 | 2+2 | 4 at four. Adding a third weight is not a styling choice; it breaks the packing invariant at one band or the other (v4, OD-V4-7).", "section": "components" },
       { "name": "The Surface-Job Rule", "body": "Pick the metric treatment from the surface's job: the summary rule where the user came to act, KPI tiles where they came to read. A capture surface never opens with a row of tiles (v4).", "section": "components" },
       { "name": "The No-Restated-Value Rule", "body": "Never repeat a value under a control that the row or card already renders as its own column or field (v4).", "section": "components" },
       { "name": "The One-Definition Rule", "body": "A CSS class name is global regardless of which component file declares it, so exactly one file may define any given selector. A second, differently-valued definition of the same class elsewhere in the app is not a harmless local override — it silently wins or loses the cascade by import order, not intent (extract, 2026-07-28: found live on four separate classes — .sr-only in four page/component files, and a dead .btn-ghost that was shadowing the canonical Button ghost variant app-wide). Shared visual grammar used by more than one component belongs in one file the consumers @import, not re-authored per surface.", "section": "components" }
@@ -245,7 +262,9 @@
       "Do expose the global focus-visible ring on every focusable element.",
       "Do reserve categorical violet and the status hues for non-interactive meaning.",
       "Do pick the metric treatment from the surface's job: the summary rule where the user came to act, KPI tiles where they came to read.",
-      "Do drop a status pill's fill to toned text when the status is present on every row at rest."
+      "Do drop a status pill's fill to toned text when the status is present on every row at rest.",
+      "Do pack a tile grid to exactly its column count — two weights that sum to the track, never a third that leaves a hole beside a tile.",
+      "Do branch on a container query when what actually varies is the width of the component's own container rather than the viewport."
     ],
     "donts": [
       "Don't ship the AI-SaaS marketing aesthetic: no neon accents, no glassmorphism, no oversized hero type, no floating-card soup, no purple gradients.",
@@ -255,6 +274,8 @@
       "Don't use mono or proportional figures for money in tables.",
       "Don't colour body text with a fully saturated status hue or fill a status pill solid.",
       "Don't invent radii outside the 4/8/10/12/999 scale.",
+      "Don't mint a display step above 24px to make something outweigh the page title, and don't 'correct' the ratified 15/14px body pair.",
+      "Don't paint an ambient affordance in the one action blue. A door in a side rail or feed tail takes the outline variant; the blue belongs to the surface's own primary action.",
       "Don't open a capture surface with a row of KPI tiles.",
       "Don't repeat a value under a control that the row or card already renders as its own column or field.",
       "Don't ship the generic record card on a surface whose phone job is running a long capture list."

@@ -202,6 +202,16 @@ components:
     rounded: "{rounded.lg}"
     padding: "11px"
     # shadow semantics live in ## Elevation & Depth
+  home-tile:
+    # v4 Home bento tile (OD-V4-7). Deliberately NOT a new surface family: it reuses the
+    # card recipe verbatim — same surface, same 1px border, same 12px radius, same 16px
+    # padding, same shadows.rest. Only its grid span is its own (see ## Layout and
+    # ## Components → Home arrangements).
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.lg}"
+    padding: "16px"
+    # shadow semantics live in ## Elevation & Depth
 ---
 
 # Design System: Gordi MOS
@@ -359,6 +369,55 @@ it is not a new headline size, and using it as one is drift.
 
 **The Mono-For-Identifiers Rule.** SF Mono appears only on machine identifiers (deal/project codes) and keyboard chips. Money is DM-Sans-tabular (or the Inter-tabular fallback above), not mono.
 
+**The Two-Role Scale Rule (OD-V4-8, 2026-07-28).** The scale has exactly **two roles**, and they do
+not meet: **display** runs 24 / 20 / 18px in Plus Jakarta Sans; **body** runs 15 / 14 / 13.5 / 12 /
+11px in DM Sans (plus the 10px `micro` avatar mark and the mechanical 16px touch-input step above).
+Two consequences follow, and both are ratified, not accidental:
+
+1. **The display scale stops at 24px.** No step above `page-title` exists, and the owner **deferred**
+   minting one, so a page-level verdict or progress line cannot be made to outweigh the page title by
+   size. Get that emphasis from position, weight, and surrounding air instead — not from a new
+   primitive invented at the call site.
+2. **The 15/14px pair is a deliberate rung**, not drift: `body-lg` (15px) is *emphasized* body —
+   record titles, primary row text, lead copy — against 14px base (OD-REDESIGN-91 #6/B4). A linter
+   that flags this pair as a "flat type hierarchy" is measuring a two-role scale as if it were one
+   ramp. It is a **known non-defect**; do not "fix" it by inflating a step.
+
+## Layout
+
+The application frame is fixed furniture — a **232px rail** (`--rail-w`) and a **56px header**
+(`--header-h`) around a content measure that stops at **1180px** — and the page inside it is composed
+from the **4 / 8 / 12 / 16 / 20 / 24 / 32 / 48px** spacing steps. *MOS density mode* (below) governs
+*what* a surface may compose; this section records *where* the layout changes shape, and the rule for
+choosing the instrument that triggers the change.
+
+### Breakpoint inventory
+
+Every responsive branch in the system, in one place. There is deliberately no general-purpose
+breakpoint set to pick from: each of these exists because a specific component **measured wrong** on
+one side of it, and a new branch needs the same kind of evidence.
+
+| Name | Value | What changes at it |
+|---|---|---|
+| `home-bento-stack` | 620px | The Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (v4, `OD-V4-7` constraint 4). |
+| `phone-toolbar` | 639px | The Café toolbar keeps search + category on one line instead of wrapping. |
+| `table-reflow` | 768px | `DataTable` single-renders: `<table>` at or above, stacked cards below (OD-W4-4). The Home layout picker's 3-up thumbnail grid also drops to one column here. |
+| `coarse-pointer floors` | 767.98px | Segmented tracks and their options relax to `height: auto` + `min-height: 44px`. Additionally, and independently of width, `(pointer: coarse)` raises rail rows to 44px with 8px between adjacent targets. |
+| `rail-collapse` | 920px | The desktop rail collapses and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide. **Distinct from `table-reflow` — do not conflate the two.** |
+| `home-single-column` | 940px | The Home work/feed split collapses: the Signals column stops being an aside and stacks under the work region (gap 32px → 24px), and the bento drops 6 columns → 4 (v4, `OD-V4-7`). |
+| `desktop` | 1280px | The full desktop contract of § Responsive grammar — rail + header + frame + a 40–45% record panel, without clipping. |
+
+**The Container-Query Rule (v4, 2026-07-28).** A component that renders at *different widths inside
+the same viewport* adapts to **the space it has**, not to the window. The Signal row is the reference
+case: the same anatomy renders in Home's ~300px ambient tail **and** in the `/work/signals` archive
+Feed's ~1140px column **at the same 1440px viewport**, so a viewport `@media` query is measuring the
+wrong thing entirely — it left the 300px tail horizontal, with a ~96px title that both wrapped *and*
+ellipsised and meta separators stranded on their own lines. `signal-feed-rows.css` therefore declares
+`container: signal-feed / inline-size` on the feed and branches on
+`@container signal-feed (max-width: 480px)`; the archive stays above the threshold and is untouched
+by the same rule. Reach for a viewport `@media` only when the thing that actually varies **is** the
+viewport (the rail, the header, the page frame).
+
 ## Elevation & Depth
 
 This is a **borders-first system with a permitted soft resting lift** (amended 2026-06-18, OD-P3-11). Depth is conveyed primarily by 1px borders and surface-tone contrast (white `card` floating on the `secondary`/35% main area) — and now *also* by one subtle, low-opacity **resting shadow** on cards/KPI/kanban that gives the surface a gentle, elegant lift without floating. Heavier shadows remain small, low-opacity, and almost always a *response to state* — a card deepens to ~`0 2px 10px` on hover, a primary button carries a faint `0 1px 2px` brand-tinted shadow, segmented "on" states get a `0 1px 2px` lift to read as pressed. Only true overlays (popover menus, toasts, tooltips) carry a real drop shadow, because they genuinely float above the page. All shadow colors are a desaturated near-black, faintly navy-tinted (`hsl(222 18% 12% / low-alpha)` at rest; `hsl(240 6–10% ~8% / low-alpha)` for state/overlay), never pure black.
@@ -401,6 +460,7 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 - **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home: 15px/500 instead of the documented 13.5px/600, on a page that never renders a Task. Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
+- **A secondary variant is a decision about rank, not a fallback.** When a control is a *door in an ambient region* rather than the surface's own action, it takes `.btn-outline` and the One Blue stays with the page's primary action — see § Signal row (v4) for the `+ Signal` case, where the primary paint made an ambient affordance outrank the overdue work above it.
 
 ### Badges / Status Pills
 - **Status pill:** 22px tall, **8px `rounded.sm` radius (rounded-rect — ratified OD-REDESIGN-91 #30/E1)**, 12px/600 label, with a leading 6px colored `dot` (the dot itself stays circular, `rounded.full`). Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
@@ -472,7 +532,7 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary` (3px inset padding), options fill the track height (measures 26px, not the previously-stated 28px — corrected by live measurement, extract 2026-07-28), "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. Label size is the `mono` token's 13px *number* reused for sizing only — the face stays DM Sans (`font-family: inherit`), never the SF Mono typeface; this is an established v3 pattern (a token's numeric value borrowed for a non-typographic use), not a new exception.
-  **Canonical implementation:** `src/styles/segmented-track.css`, shared via CSS `@import` by every consumer rather than re-authored per surface (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and `home/home-order-toggle.css`). Two ARIA shapes render this ONE grammar: a `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — e.g. Money's Branch/Activity tabs, stage filters) with roving-tabindex arrow-key navigation, and a `role="radiogroup"`/`"radio"` persistent-setting form (`HomeOrderToggle` — the Home region-order preference, OD-REDESIGN-18, RI-1) using `.is-active` instead of `aria-selected` for its state class. The two ARIA contracts are genuinely different and stay two components; the visual grammar is one file. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
+  **Canonical implementation:** `src/styles/segmented-track.css`, shared via CSS `@import` by every consumer rather than re-authored per surface (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and the then-live `home/home-order-toggle.css`). The **one live consumer** is the `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — e.g. Money's Branch/Activity tabs, stage filters) with roving-tabindex arrow-key navigation. The second ARIA shape this grammar also served — a `role="radiogroup"`/`"radio"` persistent-setting form using `.is-active` instead of `aria-selected` for its state class — was the Home region-order toggle (`HomeOrderToggle`, the OD-REDESIGN-18 / RI-1 preference); **that control and its Personal-profile setting are RETIRED (OD-V4-10)** and the component is gone. The `.home-order-seg` / `.home-order-seg-opt` selectors still present in `segmented-track.css` are therefore **dead — removal debt, not a live pattern.** The radiogroup shape stays documented because it remains the correct contract if a persistent segmented *setting* returns: two genuinely different ARIA contracts may share one visual grammar file, but never one component. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
 - **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
 
 ### Overlays
@@ -528,6 +588,97 @@ dropped. A column of filled pills on every row is colour that marks everything a
 nothing, and it out-shouts the actual controls. Pills remain correct where status is *exceptional*
 or sparse.
 
+### Home arrangements (v4, `OD-V4-7` / `OD-V4-9`)
+Home is the one surface carrying a **per-person layout preference** (set in `/profile` → Personal).
+Three arrangements — **Focused**, **Overview**, **List** — render the *same* four regions
+(`needs-you`, `failed-checks`, `mentions`, `my-work`) from one shared region model. An arrangement
+chooses how regions are **presented**, never which of them **exist**; a region with zero items is
+still rendered, so "clear" stays distinguishable from "hidden" and from "broken".
+
+Shared primitives live in `components/home/home-layouts.css` — **ONE definition each.** An
+arrangement may override only what genuinely differs, and must say why at the override.
+
+- **`.home-layout`** — the work/feed split: a `minmax(0, 1fr)` work column beside a
+  `minmax(240px, 300px)` Signals column, 32px gap, `align-items: start`. All three arrangements sit
+  inside it, which is what makes the Signals feed a standing column in every one. Below the 940px
+  branch it becomes a single column at 24px.
+- **`.home-bento`** — Overview's tile grid: `repeat(6, minmax(0, 1fr))`, **20px gap**. The gap
+  deliberately **exceeds** the tile's own 16px padding: separation *between* groups must beat
+  spacing *within* them, or the grid reads as one mush.
+- **`.home-tile`** — the card recipe unchanged (`card` surface, 1px `border`, `{rounded.lg}`, 16px
+  padding, the one `shadows.rest` lift). **One level deep — never a card inside a card**
+  (`OD-V4-7` constraint 3). Head = `.home-tile-name` (display face at label size, 600) beside a
+  `.home-tile-count` in `muted-foreground`.
+- **`.home-tabs` / `.home-tab`** — Focused's region switcher: a bottom-`border` strip; the selected
+  tab takes a 2px `primary` bottom border and `foreground` text, unselected sits in
+  `muted-foreground`; `min-height: 44px` per tab for the coarse-pointer floor. **Counts stay on
+  every tab, including unselected ones** — that is the entire safety argument for presenting one
+  region at a time.
+
+**The Full-Row Packing Rule (v4).** Tile weights exist so consecutive tiles pack to **exactly** the
+bento's column count at every desktop band — never so a tile is left with a hole beside it ("the
+boxes dont align … feels untidy nor professional" — owner). There are exactly **two** weights and
+they sum to the track: `data-weight="wide"` spans 4, `data-weight="narrow"` spans 2. At 6 columns
+that packs 4+2 then 2+4; at 4 columns, 4 | 2+2 | 4. **Adding a third weight is not a styling choice —
+it breaks the packing invariant at one band or the other.** The map lives in `home-tile-weight.ts`
+and a guard test packs it against the authored CSS spans.
+
+`wide` is the **consequence tier** — the regions carrying the viewer's own work, which hold task rows
+and need the room; `narrow` is the notice tier. `needs-you` leads by being first, top-left, and wide,
+and nothing outranks it (`OD-V4-7` constraint 1: sized by consequence, never a uniform grid).
+
+Every tile carries **real rows** through the shared `RegionRows` body (`OD-V4-7` constraint 2 — never
+icon + heading + stat). Overview renders a region's top rows only and states the remainder as plain
+text ("+N more"): that is a **fact, not an affordance** — the region's own drill link, where one
+exists, is the way through. `RegionRows` renders four distinguishable states — loading
+(`LoadingShell`), error (`ErrorState` + Retry), ready-with-rows, and ready-and-empty (a sentence,
+never a blank body), so a still-loading or failed read can never masquerade as an all-clear.
+
+Phone (the 620px branch) drops the bento to one column with every tile spanning it — the tile grid is
+a desktop/tablet affordance (`OD-V4-7` constraint 4).
+
+### Home layout picker (v4, `OD-V4-9`)
+The **wireframe-thumbnail chooser** is the standing convention for a *page-structure* choice: the
+diagram carries the shape so the label does not have to describe it. Three `.hlp-card` options in a
+`role="radiogroup"`, 3-up on desktop and one column below the 768px branch; the native radio is
+visually hidden and the whole card is the target, so keyboard, focus, and screen-reader semantics
+come for free.
+
+- **Thumbnails are CSS-drawn** — no image assets, so nothing has to be re-exported when a layout
+  changes. Every thumbnail includes the right-hand Signals strip, because the feed is present in all
+  three arrangements and the picture must not imply otherwise.
+- **Selected** = `primary` border + a 1px inset `primary` ring + `secondary` fill — and the thumb
+  then **flips its own fill to `card`**. The selected card's fill is `secondary`, which is also the
+  thumb's resting fill, so on the one option the reader is actually looking at, the wireframe would
+  otherwise lose its figure/ground and flatten into the card.
+- **Measure is tuned to the measured line, not the nominal unit.** The help text caps at `52ch`, not
+  the textbook 65–75: DM Sans's `ch` is its *digit* width, far wider than its average lowercase
+  letter, so `68ch` computed to 558px and capped nothing while the line still ran to 91 characters.
+  When a `ch` cap does not bite, measure the rendered line and set the number that does.
+
+### Signal row (v4)
+The **ONE Signal anatomy**, shared by Home's ambient tail and the `/work/signals` archive Feed — rows
+in the same record-row grammar as the ranked stream, never fat cards. Title at `body-lg`/600 clamped
+to two lines (a `nowrap` title set a ~680px min-content width and blew a 375px phone row out to ~700px
+of horizontal scroll); meta line in `muted-foreground` at the `mono` size, where **each separator
+travels inside a non-breaking group with the fact it introduces**, so the row can only ever wrap
+*between* facts and never orphans a bare "·" on a line of its own. It adapts by **container query**,
+not viewport — see The Container-Query Rule in § Layout.
+
+The feed's toolbar is a search field plus a **`+ Signal` button in the shared `.btn-outline`
+secondary variant**. It is deliberately *not* the action blue: this is a door in an **ambient** tail,
+and painted primary it became the loudest thing on Home — the eye landed on it before the overdue
+work above it. The One Blue stays reserved for the page's own primary action. The button carries no
+local fill, border, hover, or focus of its own; the toolbar rule supplies only the 44px
+coarse-pointer floor it shares with the search field beside it. *(Shape sets expectation: the former
+single full-width rounded row read as search and behaved as a composer, so the two jobs now have
+their own controls — owner, 2026-07-28.)*
+
+The archive's Urgent row treatment (`warning/7%` fill + a 2px `warning` left rule) is **Urgent
+only** — Needs-attention keeps its amber pill on a calm, unfilled row so the fill escalates Urgent
+above it. Every archive row reserves a 2px *transparent* left rule so all rows stay left-aligned
+regardless of state. See § Operations event tokens for the side-stripe exception this is scoped to.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -535,6 +686,10 @@ or sparse.
   to *act*, KPI **tiles** where they came to *read*. (v4)
 - **Do** drop a status pill's fill to toned text when the status is present on every row at rest,
   keeping the tone semantics unchanged. (v4)
+- **Do** pack a tile grid to **exactly** its column count — two weights that sum to the track, never
+  a third that leaves a hole beside a tile (The Full-Row Packing Rule). (v4)
+- **Do** branch on a **container query** when what actually varies is the width of the component's
+  own container rather than the viewport (The Container-Query Rule). (v4)
 - **Do** drive every interactive affordance with the one `primary` blue, and keep it under ~10% of any screen (The One Blue Rule). The optional primary-button sheen is the *same* blue — not a second action color.
 - **Do** define structure with the single 1px `border` (`hsl(240 5.9% 90%)`) and surface-tone contrast (white `card` on `secondary/35%` main); cards/KPI/kanban *also* carry the one subtle `shadows.rest` resting lift (Soft-Elevation Rule) — border and rest-shadow are co-equal, never shadow-alone.
 - **Do** apply `tabular-nums` to every figure — currency, %, counts, deltas, ages — in tables, KPIs, kanban, and funnels; **verify `tnum` actually aligns columns in DM Sans** and fall back to Inter-tabular for numeric cells only if it doesn't (The Tabular-Numbers Rule).
@@ -553,6 +708,10 @@ or sparse.
 - **Don't** use mono or proportional figures for money in tables — money is DM-Sans-`tabular` (or the scoped Inter-tabular fallback), IDs are mono.
 - **Don't** color body text with a fully saturated status hue, fill a status pill solid, or put a gradient on any status element.
 - **Don't** make interactive controls taller/shorter than 32px or invent radii outside the 4/8/10/12/999 scale, and don't let 32px controls take the 12px card radius (the OD-P3-10 taste guard keeps them at 8px).
+- **Don't** mint a display step above 24px to make something outweigh the page title, and don't
+  "correct" the ratified 15/14px body pair (The Two-Role Scale Rule, `OD-V4-8`). (v4)
+- **Don't** paint an *ambient* affordance in the one action blue. A door in a side rail or feed tail
+  takes `.btn-outline`; the blue belongs to the surface's own primary action. (v4)
 - **Don't** open a capture surface with a row of KPI tiles. Cards-as-page-structure and the
   big-number/small-label hero metric are the two most recognisable generic-dashboard tells, and on a
   phone they cost the entire first viewport. Use the summary rule. (v4)
@@ -627,11 +786,12 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
    --color-brand-orange:    hsl(var(--brand-orange));
    ```
 4. **Alpha tints** (`primary/10%`, `success/12%`, `border/70%`, `brand-navy/6`, etc.) come straight from the slash-alpha syntax — keep them; they are load-bearing for the tinted-status and hover-wash patterns.
-5. **Resting shadow (OD-P3-11).** Apply `box-shadow: var(--shadow-rest)` (or the `shadow-rest` utility) to the card, KPI-tile, kanban-card, and mobile-reflow-card classes **in addition to** their existing 1px border. Do NOT add it to toolbars, plain table rows, group-header rows, strips, or inputs (those stay flat). Hover still deepens to the existing `state lift` / `kanban-hover` shadow.
+5. **Resting shadow (OD-P3-11).** Apply `box-shadow: var(--shadow-rest)` (or the `shadow-rest` utility) to the card, KPI-tile, kanban-card, Home-tile, and mobile-reflow-card classes **in addition to** their existing 1px border. Do NOT add it to toolbars, plain table rows, group-header rows, strips, or inputs (those stay flat). Hover still deepens to the existing `state lift` / `kanban-hover` shadow.
 6. **Gradients (OD-P3-12).** Primary-button sheen: optionally set `background-image: var(--gradient-primary-sheen)` on `.btn-primary` (keep the solid `primary` `background-color` underneath as fallback + as the hover flatten target). Surface wash: apply `var(--gradient-surface-wash)` as a `background-image` on the **Home/digest page container only**, e.g. on the `PageFrame variant="prose"` Home surface — never on list/detail surfaces, never on cards, never on status elements.
 7. **Numbers + tnum verification (OD-P3-9 — REQUIRED step).** Add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric. **Then verify on the live Tasks table:** render a column of varying-width currency/percent/count values and confirm the digits column-align (no jitter) in **DM Sans**. If they do, done. **If DM Sans `tnum` is weak/absent,** scope a numeric fallback — `.tnum, .num, td.num { font-family: "Inter", var(--font-sans); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }` — applying Inter-tabular to numeric table cells / KPI values ONLY (load Inter `wght@400;500;600` in that case). Proportional body/UI text stays DM Sans regardless. Record the outcome (DM Sans tnum OK, or Inter-fallback engaged) in the build PR.
 8. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px }` rather than per-component focus styles.
 9. **Charts (recharts):** theme series/axes/grid from these tokens — axis/grid in `border`/`muted-foreground`, primary series in `primary`, status series in success/warning/destructive, categorical in violet. (No chart tokens existed in the mockups; derive from the palette, do not invent new chart colors.)
+10. **Responsive branch (v4).** Before adding a `@media`, check § Layout's breakpoint inventory: reuse a listed value or bring the measurement that justifies a new one. If the width that actually varies is the component's own container rather than the window, declare a `container` and use `@container` instead (The Container-Query Rule).
 
 ---
 
@@ -641,6 +801,7 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
 - **Focus:** single source of truth — global `:focus-visible` = `2px solid {colors.ring}` (the primary blue) at 2px offset. Every focusable element inherits it.
 - **Semantics in source:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters and the layout switcher, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and section landmarks (`aria-label="Pipeline summary"`). Keep these; they are part of the system.
 - **Keyboard and focus:** tab order follows the route's DOM order (rail → header → main); custom checkboxes are `tabindex="0"`. Real overlays move focus into their active surface, close the current layer on Escape, and return focus to the opener. Escape restores a saved inline field value rather than silently discarding the direct-edit contract. Browser Back closes the current panel/overlay before leaving the canonical route.
+- **Heading levels (v4).** The page frame owns the page's only `<h1>`. A section heading inside a Home region, tile, or band is an `<h2>` — Home has no intermediate level, so reaching for `<h3>` skips one. Ranks describe structure, not size; take the size from the type scale.
 
 ---
 
@@ -665,6 +826,11 @@ Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
 > 4. Phone degrades to **stacked sections**; the tile grid is a desktop/tablet affordance.
 >
 > Rationale and the era argument: `docs/v4-inheritance.md` § `OD-V4-7`.
+
+*As built:* the tile composition and how each of those four constraints is discharged is specified in
+§ Components → **Home arrangements (v4)**; its grid spans and breakpoints are in § Layout. The
+per-person choice among the three arrangements is `OD-V4-9`, and its control is § Components →
+**Home layout picker (v4)**.
 
 ### Home / digest surfaces (current landing brief and any future at-a-glance view)
 - **Single content column ~1080px** (1040–1120) with generous header air; no side asides, no second
@@ -868,7 +1034,7 @@ Responsive behavior preserves meaning, not just pixels: a collection adapter may
 | Focused record | RecordViewer identity, metadata, content, relations, activity, actions | Viewer anatomy remains visible while content loads | EmptyState is domain-specific and does not become a blank record shell | ErrorState explains failure and offers Retry | Read-only is a first-class viewer state | Saving/Saved/validation/retry appear beside the field/action | Archived/retracted status remains explicit with the canonical URL |
 | Management | Shared frame/head around people, definitions, catalogs, profile, or admin list | Loading preserves frame and list structure | EmptyState has one truthful next action; filtered-empty preserves filters | ErrorState supports Retry without losing the management query | Unauthorized actions are omitted or explained as read-only | Direct-edit feedback is local and visible | Archive/retract is reversible where the domain permits it |
 
-The state-kit components (`EmptyState`, `ErrorState`, `SkeletonRows`, and `LoadingShell`) are the default state primitives. A domain may add meaning, but it must preserve the shared geometry, type roles, focus behavior, and one clear next action.
+The state-kit components (`EmptyState`, `ErrorState`, `SkeletonRows`, and `LoadingShell`) are the default state primitives. A domain may add meaning, but it must preserve the shared geometry, type roles, focus behavior, and one clear next action. **A region or tile that renders a subset of a collection follows the same contract** — see § Components → Home arrangements (v4) for the four-state region body those primitives compose into.
 
 ### Anti-slop limits
 
