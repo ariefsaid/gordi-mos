@@ -8,8 +8,33 @@ import type { MessageKey } from '@/i18n/messages'
 export type HomeRegionId = 'needs-you' | 'failed-checks' | 'mentions' | 'my-work'
 
 export interface HomeRegionDrillTo {
+  /** Where this region's FULL scope lives in the app. */
   route: string
-  count: number
+  /** The count at that destination — present only where the region has an honest full-scope
+   *  figure to advertise (my-work's open-task count). Absent is not zero: a region with a
+   *  destination but no traceable total must not invent one (DIV-G5). */
+  count?: number
+}
+
+/**
+ * Each region's canonical destination — the app surface that already owns its full scope.
+ *
+ * Before this map only `my-work` had one, so a `needs-you` region holding 9 items rendered
+ * "5 more" on Overview and offered no way to reach them from Home at all (Nielsen #3: the app
+ * named something and then refused to show it).
+ *
+ * `needs-you` shares my-work's destination on purpose: no saved view expresses
+ * overdue ∪ due-today ∪ blocked, and `?view=my-work` is the ONE view that holds every item the
+ * region ranks — due-date ascending by default, so they arrive at the top. Inventing a new
+ * server-side view for the union is out of scope here and would be a data change, not a link.
+ */
+const REGION_ROUTE: Record<HomeRegionId, string> = {
+  'needs-you': '/work/tasks?view=my-work',
+  // A rejected café log is re-entered on the log itself (the same route its rows link to).
+  'failed-checks': '/cafe/log',
+  // Inbox is the app's mentions/asks surface ("Triage what was directed to you").
+  mentions: '/inbox',
+  'my-work': '/work/tasks?view=my-work',
 }
 
 export interface HomeRegion {
@@ -30,10 +55,9 @@ export interface HomeRegion {
   state: StreamBandState
   /** Retries the read(s) behind this region. Set whenever `state` can become 'error'. */
   onRetry?: () => void
-  /** A region-level drill link to its full-scope destination, present only where the rendered
-   *  `items` are a subset of a larger collection (my-work is capped; the historical "My open
-   *  tasks · N →" link carried the viewer's FULL open-task count, not just the capped items
-   *  rendered in the region itself). */
+  /** This region's full-scope destination (`REGION_ROUTE`) — every region has one, because a
+   *  region that names a remainder must be able to show it. `count` rides along only where the
+   *  region has an honest full-scope figure (my-work's "My open tasks · N →"). */
   drillTo?: HomeRegionDrillTo
 }
 
@@ -61,9 +85,8 @@ export interface HomeRegionInput {
 export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
   const needsYou = [...input.overdue, ...input.dueToday, ...input.blocked]
   const taskState = input.taskState ?? 'ready'
-  const myWorkDrillTo: HomeRegionDrillTo | undefined = input.myWorkFullCount != null
-    ? { route: '/work/tasks?view=my-work', count: input.myWorkFullCount }
-    : undefined
+  const drillTo = (id: HomeRegionId, count?: number): HomeRegionDrillTo =>
+    count != null ? { route: REGION_ROUTE[id], count } : { route: REGION_ROUTE[id] }
 
   const failedChecksState = input.failedChecksState ?? 'ready'
   const mentionsState = input.mentionsState ?? 'ready'
@@ -77,21 +100,24 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
       id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYou,
       count: countOf(needsYou, taskState),
       state: taskState, onRetry: input.onRetryTasks,
+      drillTo: drillTo('needs-you'),
     },
     {
       id: 'failed-checks', labelKey: 'home.stream.band.failedChecks', items: input.failedChecks,
       count: countOf(input.failedChecks, failedChecksState), state: failedChecksState,
       onRetry: input.onRetryFailedChecks,
+      drillTo: drillTo('failed-checks'),
     },
     {
       id: 'mentions', labelKey: 'home.stream.band.mentions', items: input.mentions,
       count: countOf(input.mentions, mentionsState), state: mentionsState,
       onRetry: input.onRetryMentions,
+      drillTo: drillTo('mentions'),
     },
     {
       id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
       count: countOf(input.myWork, taskState), state: taskState, onRetry: input.onRetryTasks,
-      drillTo: myWorkDrillTo,
+      drillTo: drillTo('my-work', input.myWorkFullCount),
     },
   ]
 }

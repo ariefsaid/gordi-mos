@@ -87,8 +87,11 @@ export function RegionRows({ region, items, hidePic }: {
     )
   }
   // Overview renders a region's top rows only. Stating the remainder keeps the tile honest at the
-  // volume OD-V4-7 exists for (product principle: numbers traceable or visibly absent). It is a
-  // fact, not an affordance — the region's own drill link, where one exists, is the way through.
+  // volume OD-V4-7 exists for (product principle: numbers traceable or visibly absent) — and the
+  // fact IS the affordance: naming N items and then offering no route to them is a dead end
+  // (Nielsen #3). Every region now carries its own destination (home-regions REGION_ROUTE), so
+  // this is a link. The plain <p> survives only as honest degradation for a region that somehow
+  // has none — better a bare fact than a link to nowhere.
   const hidden = region.items.length - rows.length
   return (
     <>
@@ -97,7 +100,20 @@ export function RegionRows({ region, items, hidePic }: {
           <StreamRow key={i.id} item={i} hidePic={hidePic} reasonStyle={REASON_STYLE[region.id]} />
         ))}
       </ul>
-      {hidden > 0 && <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>}
+      {hidden > 0 && (region.drillTo
+        // The visible text is the same short fact ("5 more →"); the accessible name names the
+        // region too, so the link's purpose survives being read out of its surrounding tile.
+        ? (
+          <Link
+            to={region.drillTo.route}
+            className="stream-band-more stream-band-more--link"
+            aria-label={t('home.region.moreAria', { count: hidden, label: t(region.labelKey) })}
+          >
+            {t('home.region.moreLink', { count: hidden })}
+          </Link>
+        )
+        : <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>
+      )}
     </>
   )
 }
@@ -121,11 +137,12 @@ export function RegionCount({ region, className }: { region: HomeRegion; classNa
 }
 
 /** The restored "My open tasks · N →" drill link (the FULL open-task count, not just the capped
- *  items the region renders) — my-work's own full-scope destination. Absent when the region has
- *  no `drillTo` to report (e.g. the tasks projection has not resolved yet). */
+ *  items the region renders). Rendered only where the region has an honest full-scope COUNT to
+ *  state — every region has a `drillTo.route`, but this label is a number, and a region without a
+ *  traceable total must not invent one (DIV-G5). In practice: my-work, once tasks have resolved. */
 export function RegionDrillLink({ region }: { region: HomeRegion }) {
   const t = useT()
-  if (!region.drillTo) return null
+  if (region.drillTo?.count == null) return null
   return (
     <Link to={region.drillTo.route} className="stream-band-link">
       {t('home.stream.allTasks', { count: region.drillTo.count })}

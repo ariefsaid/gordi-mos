@@ -104,23 +104,45 @@ describe('DIV-G5: a region has no count until its read succeeded (never a confid
   })
 })
 
-describe('buildHomeRegions carries the my-work drill link (restored "My open tasks · N" affordance)', () => {
-  it('my-work gets a drillTo carrying the FULL open-task count when the caller reports one', () => {
+describe('every region carries a way through (Nielsen #3 — a named remainder must be reachable)', () => {
+  // The defect this replaces: only my-work had a `drillTo`, so a needs-you region holding 9 items
+  // rendered "5 more" on Overview and offered NO way to reach them from Home at all. The app named
+  // something and then refused to show it.
+  it('every region has a route to its own full scope', () => {
+    const regions = buildHomeRegions({
+      overdue: [item('a')], dueToday: [], blocked: [], myWork: [item('b')],
+      failedChecks: [item('c')], mentions: [item('d')],
+    })
+    expect(Object.fromEntries(regions.map((r) => [r.id, r.drillTo?.route]))).toEqual({
+      // The one view holding every overdue / due-today / blocked task the region ranks, in due
+      // order — no saved view expresses that union on its own.
+      'needs-you': '/work/tasks?view=my-work',
+      // The café log is where a rejected log is re-entered.
+      'failed-checks': '/cafe/log',
+      // Inbox is the app's mentions/asks surface.
+      mentions: '/inbox',
+      'my-work': '/work/tasks?view=my-work',
+    })
+  })
+
+  it('a region states a full count ONLY where it has an honest one — my-work, from the caller', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [item('a')], failedChecks: [], mentions: [],
       myWorkFullCount: 12,
     })
-    const myWork = regions.find((r) => r.id === 'my-work')!
-    expect(myWork.drillTo).toEqual({ route: '/work/tasks?view=my-work', count: 12 })
-    // No other region gets a drill link — it is my-work's own full-scope destination.
-    for (const r of regions) if (r.id !== 'my-work') expect(r.drillTo).toBeUndefined()
+    expect(regions.find((r) => r.id === 'my-work')!.drillTo).toEqual({
+      route: '/work/tasks?view=my-work', count: 12,
+    })
+    // The other regions have a destination but no full-scope count to advertise, so they must not
+    // invent one (DIV-G5 — the same rule as the region counts).
+    for (const r of regions) if (r.id !== 'my-work') expect(r.drillTo!.count).toBeUndefined()
   })
 
-  it('my-work has no drillTo when the caller reports no full count (e.g. still loading)', () => {
+  it('my-work keeps its route but states no count when the caller reports none (still loading)', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
     })
     const myWork = regions.find((r) => r.id === 'my-work')!
-    expect(myWork.drillTo).toBeUndefined()
+    expect(myWork.drillTo).toEqual({ route: '/work/tasks?view=my-work' })
   })
 })

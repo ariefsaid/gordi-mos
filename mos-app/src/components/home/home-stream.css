@@ -103,10 +103,27 @@
    `.stream-band-link`: it is a fact about the region, not a second destination competing with
    the band's own drill link. Same 4px row gutter so it hangs off the list, not the tile edge. */
 .stream-band-more {
+  display: block;
   margin: 0;
   padding: 6px 4px 0;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
+}
+
+/* The remainder is now the region's way through (Nielsen #3). It stays QUIET — the same muted
+   caption rung as the fact it replaced, not a second `.stream-band-link` competing with the
+   region's own full-scope drill link — and earns its interaction states instead. */
+.stream-band-more--link {
+  text-decoration: none;
+}
+.stream-band-more--link:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+.stream-band-more--link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
 }
 
 /* ── Uniform record row ─────────────────────────────────────────────────────── */
