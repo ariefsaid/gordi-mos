@@ -18,6 +18,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { SHOW_DAILY_LOG } from '@/config/features'
 import { formatIDRCompact } from '@/lib/sales-dashboard'
+import { canViewFinance } from '@/lib/capabilities'
 import { useCompanyFinanceKpis } from '@/lib/use-company-finance-kpis'
 import { listTasks } from '@/lib/db/tasks'
 import { getTodayOpsSummary } from '@/lib/db/ops-log'
@@ -37,7 +38,7 @@ export function HomePage() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
-  const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
+  const canSeeFinance = canViewFinance(accessRoles)
 
   // ── Finance reporting fetch (role-guarded — a member never issues this query) ──
   const fin = useCompanyFinanceKpis(canSeeFinance)

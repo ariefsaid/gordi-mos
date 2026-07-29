@@ -49,9 +49,9 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
     expect(isLive(operate, [])).toBe(true)
   })
 
-  it('AC-402: Plan = [Dashboard] gated finance/admin; hidden (not live) for a member (no dead-end)', () => {
+  it('AC-402: Plan = [Dashboard] gated finance/admin/manager; hidden (not live) for a member (no dead-end)', () => {
     const plan = DESTINATIONS.find((d) => d.id === 'plan')!
-    expect(plan.anyOf).toEqual(['finance', 'admin'])
+    expect(plan.anyOf).toEqual(['finance', 'admin', 'manager'])
     // Dashboard is always present; the ADR-0022 budget/pricing links are flag-gated (SHOW_PLAN_BUDGET).
     expect(plan.links.map((l) => l.path)).toEqual(
       SHOW_PLAN_BUDGET
@@ -61,6 +61,11 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
     expect(isLive(plan, ['member'])).toBe(false)
     expect(isLive(plan, ['finance'])).toBe(true)
     expect(isLive(plan, ['admin'])).toBe(true)
+  })
+
+  it('AC-128: manager admits to the Plan destination (financial VIEW visibility, ADR-0050 D8)', () => {
+    const plan = DESTINATIONS.find((d) => d.id === 'plan')!
+    expect(isLive(plan, ['manager'])).toBe(true)
   })
 
   it('ADR-0022: budget/pricing Plan links carry i18n labelKeys (nav.planBudget / nav.planPricing) when the flag is on', () => {

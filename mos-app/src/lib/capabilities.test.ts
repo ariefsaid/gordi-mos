@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { can } from './capabilities'
+import { can, canViewFinance } from './capabilities'
 
 describe('can', () => {
   it('grants admin both manage capabilities', () => {
@@ -25,5 +25,20 @@ describe('can', () => {
   it('uses union semantics across multiple roles', () => {
     expect(can(['ops_lead', 'admin'], 'objective.manage')).toBe(true)
     expect(can(['ops_lead', 'admin'], 'workline.manage')).toBe(true)
+  })
+})
+
+// ADR-0050 D8 — dedupes the finance-view predicate previously duplicated inline
+// in home-page.tsx and stacked-union-home.tsx.
+describe('canViewFinance (ADR-0050 D8)', () => {
+  it('AC-128: grants finance, admin, and manager', () => {
+    expect(canViewFinance(['finance'])).toBe(true)
+    expect(canViewFinance(['admin'])).toBe(true)
+    expect(canViewFinance(['manager'])).toBe(true)
+  })
+
+  it('denies member and empty role sets', () => {
+    expect(canViewFinance(['member'])).toBe(false)
+    expect(canViewFinance([])).toBe(false)
   })
 })

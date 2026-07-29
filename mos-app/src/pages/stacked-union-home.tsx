@@ -17,6 +17,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { getBusinessUnits, getRoles } from '@/lib/db/directory'
 import type { BusinessUnitOption, RoleScopeRow } from '@/lib/db/directory'
+import { canViewFinance } from '@/lib/capabilities'
 import { deriveHomeStack, type HomeSection } from '@/lib/home-stack'
 import { MoneyPositionSection } from '@/components/home-stack/money-position-section'
 import { OpsKpiSection } from '@/components/home-stack/ops-kpi-section'
@@ -33,7 +34,7 @@ export function StackedUnionHome() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
-  const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
+  const canSeeFinance = canViewFinance(accessRoles)
   const now = useMemo(() => new Date(), [])
 
   // ── Fetch the role tree + BUs (shared schema, org-readable) for role-scope detection ──
