@@ -4,7 +4,7 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
-import type { AdminPersonRow, CreatePersonInput, LoginStatus } from './admin-users.types'
+import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
 
@@ -88,6 +88,18 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
   const { data: loginStatus, error: loginErr } = await shared().rpc('admin_list_login_status')
   if (loginErr) throw surface('load people', loginErr)
 
+  // 4. Fetch Jabatan (person_roles joined to role names) — no cross-schema embed (PGRST200); two reads.
+  const { data: prRows, error: prErr } = await shared().from('person_roles').select('person_id,role_id')
+  if (prErr) throw surface('load people', prErr)
+  const { data: roleRows, error: rErr } = await shared().from('roles').select('id,name')
+  if (rErr) throw surface('load people', rErr)
+  const roleNameById = new Map((roleRows ?? []).map((r: { id: string; name: string }) => [r.id, r.name]))
+  const jabatanByPerson: Record<string, { role_id: string; role_name: string }[]> = {}
+  for (const row of (prRows ?? []) as { person_id: string; role_id: string }[]) {
+    if (!jabatanByPerson[row.person_id]) jabatanByPerson[row.person_id] = []
+    jabatanByPerson[row.person_id].push({ role_id: row.role_id, role_name: roleNameById.get(row.role_id) ?? row.role_id })
+  }
+
   // Build lookup maps
   const rolesByPerson: Record<string, string[]> = {}
   for (const row of (roles ?? []) as { person_id: string; access_role: string }[]) {
@@ -113,6 +125,7 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
       archived_at: p.archived_at,
       login,
       access_roles: rolesByPerson[p.id] ?? [],
+      jabatan: jabatanByPerson[p.id] ?? [],
     }
   })
 }
@@ -220,4 +233,25 @@ export async function restorePerson(personId: string): Promise<void> {
     .update({ archived_at: null })
     .eq('id', personId)
   if (error) throw surface('restore person', error)
+}
+
+// ── Jabatan (Position) — shared.person_roles admin writes (FR-201/202) ──────────
+
+/** All org roles (Positions) for the picker, sorted by name. */
+export async function listRoles(): Promise<RoleOption[]> {
+  const { data, error } = await shared().from('roles').select('id,name').order('name', { ascending: true })
+  if (error) throw surface('load positions', error)
+  return (data ?? []) as RoleOption[]
+}
+
+/** Assign a Jabatan (Position) to a person. Never sends org_id (DB stamps it). */
+export async function assignJabatan(personId: string, roleId: string): Promise<void> {
+  const { error } = await shared().from('person_roles').insert({ person_id: personId, role_id: roleId })
+  if (error) throw surface('assign position', error)
+}
+
+/** Remove a Jabatan (Position) from a person (hard delete). */
+export async function removeJabatan(personId: string, roleId: string): Promise<void> {
+  const { error } = await shared().from('person_roles').delete().eq('person_id', personId).eq('role_id', roleId)
+  if (error) throw surface('remove position', error)
 }
