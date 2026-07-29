@@ -49,8 +49,28 @@ The battery below states which body each verdict covers. A verdict scoped to the
   `d9eb26a`, `b59ea15`. Three divergences were judged justified adaptations, not regressions
   (`+ Signal` at secondary weight, the tile's resting shadow, and the repaired List structure — the
   mockup's own C direction is broken at desktop).
-- security: NOT-RUN — required (25 migrations + `mos-app/src/auth/**` in scope). Audit dispatched
-  2026-07-29; verdict to be recorded on completion. **This line blocks merge until replaced.**
+- security: FIX-THEN-SHIP — security-auditor (opus), 2026-07-29. No Critical, no High. All 13 new
+  tables have RLS enabled **and forced** with org-scoped policies; every `SECURITY DEFINER` pins
+  `search_path = ''`, revokes PUBLIC, and derives org from the JWT rather than trusting a
+  client-supplied `org_id`/`team_id` — no cross-org read or write path was constructible. No secrets
+  committed, no injection or XSS sink, and the client capability map agrees exactly with the
+  `shared.role_capabilities` seed. Test-seed guard verified sound (no seed data ships; the deny path
+  is proven by pgTAP 83/91, not merely asserted). `.sql.HOLD` correctly held — the un-enforced
+  invariant is data-integrity only, since no RLS policy references `mos.tasks.team_id`.
+  Three Mediums, all fixed in `c910e21`: **M-1** `mos.signal_mentions` UPDATE was granted with the
+  comment "set `revoked_at` only (guard)" and no guard was ever written, letting a member re-target
+  their own mention to `kind='bu'` and bypass `signal.mention_bu`; **M-2** a forward migration seeded
+  dev-fixture person uuids into `shared.team_memberships`, which on a real deploy either aborts on the
+  FK or grants demo principals kitchen-write; **M-3** `config.toml` shipped open self-signup with
+  confirmations off. 10 Lows logged in the audit, not yet actioned.
+
+  **⚠ M-1 and M-3 are fixed in source but NOT DEPLOYED, and this repo is PUBLIC.** Commit `c910e21`'s
+  message and `supabase/tests/104_signal_mention_update_guard.sql` describe the M-1 escalation
+  step-by-step and state that staging had open signup. Until the migration is applied and signup is
+  closed on the live projects, a working exploit is public against a live system. Owner actions:
+  apply `20260729000001_mos_signal_mention_update_guard.sql`, set `enable_signup = false` on staging
+  **and** self-hosted prod (`config.toml` is not authoritative for what is deployed), and audit
+  `auth.users` for self-registered accounts and for any `*.dev@example.test` persona.
 
 ## Gates
 
