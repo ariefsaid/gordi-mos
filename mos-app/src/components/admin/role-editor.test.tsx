@@ -17,7 +17,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 
 import { RoleEditor } from './role-editor'
-import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGrantRole = vi.mocked(grantRole)
@@ -131,6 +131,40 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     renderEditor(OTHER_PERSON)
     await user.click(screen.getByRole('checkbox', { name: /manager/i }))
     await waitFor(() => expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'manager'))
+  })
+
+  it('AC-322: renders a Supervisor checkbox', () => {
+    renderEditor()
+    expect(screen.getByRole('checkbox', { name: /supervisor/i })).toBeInTheDocument()
+  })
+
+  it('AC-322: on the self row, the supervisor checkbox is disabled (self-guard)', () => {
+    renderEditor({ ...SELF_PERSON, access_roles: ['admin'] })
+    expect(screen.getByRole('checkbox', { name: /supervisor/i })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('AC-324: the Revenue scope picker renders only when the person holds supervisor', () => {
+    const baseProps = {
+      people: undefined,
+      roles: undefined,
+      open: true,
+      onClose: vi.fn(),
+      onDone: vi.fn(),
+    }
+    const { rerender } = render(
+      <RoleEditor {...baseProps} person={{ ...OTHER_PERSON, access_roles: ['member'] }} scopeOptions={[]} />,
+    )
+    expect(screen.queryByText('Revenue scope')).not.toBeInTheDocument()
+
+    const options: RevenueScopeOption[] = []
+    rerender(
+      <RoleEditor
+        {...baseProps}
+        person={{ ...OTHER_PERSON, access_roles: ['supervisor'] }}
+        scopeOptions={options}
+      />,
+    )
+    expect(screen.getByText('Revenue scope')).toBeInTheDocument()
   })
 
   it('AC-050: currently granted roles appear checked', () => {
