@@ -399,12 +399,12 @@ one side of it, and a new branch needs the same kind of evidence.
 
 | Name | Value | What changes at it |
 |---|---|---|
-| `home-bento-stack` | 620px | The Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (v4, `OD-V4-7` constraint 4). |
+| `home-bento-stack` | 620px | The Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (v4, `OD-V4-7` constraint 4). **Measured on the Home frame (`@container home`), not the viewport.** |
 | `phone-toolbar` | 639px | The Café toolbar keeps search + category on one line instead of wrapping. |
 | `table-reflow` | 768px | `DataTable` single-renders: `<table>` at or above, stacked cards below (OD-W4-4). The Home layout picker's 3-up thumbnail grid also drops to one column here. |
 | `coarse-pointer floors` | 767.98px | Segmented tracks and their options relax to `height: auto` + `min-height: 44px`. Additionally, and independently of width, `(pointer: coarse)` raises rail rows to 44px with 8px between adjacent targets. |
 | `rail-collapse` | 920px | The desktop rail collapses and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide. **Distinct from `table-reflow` — do not conflate the two.** |
-| `home-single-column` | 940px | The Home work/feed split collapses: the Signals column stops being an aside and stacks under the work region (gap 32px → 24px), and the bento drops 6 columns → 4 (v4, `OD-V4-7`). |
+| `home-single-column` | 940px | The Home work/feed split collapses: the Signals column stops being an aside and stacks under the work region (gap 32px → 24px), and the bento drops 6 columns → 4 (v4, `OD-V4-7`). **Measured on the Home frame (`@container home`), not the viewport.** |
 | `desktop` | 1280px | The full desktop contract of § Responsive grammar — rail + header + frame + a 40–45% record panel, without clipping. |
 
 **The Container-Query Rule (v4, 2026-07-28).** A component that renders at *different widths inside
@@ -417,6 +417,17 @@ ellipsised and meta separators stranded on their own lines. `signal-feed-rows.cs
 `@container signal-feed (max-width: 480px)`; the archive stays above the threshold and is untouched
 by the same rule. Reach for a viewport `@media` only when the thing that actually varies **is** the
 viewport (the rail, the header, the page frame).
+
+**Home is the second case, and it shows the failure mode.** Its two branches keyed off the window
+while the 232px rail collapses at 920px *independently* of it, so the space the arrangements
+actually had was **non-monotonic in the viewport** — the Overview work column measured 812px at
+1440, 488px at 1100, and 572px at 1024, i.e. *wider* at the narrower window. At 1100 the bento was
+consequently still holding 6 columns of 64.66px: row titles squeezed to 99px and meta wrapped to
+three lines. `home-layouts.css` now declares `container: home / inline-size` on `.home-frame` (the
+Home page-content wrapper — a container query styles a container's *descendants*, so `.home-layout`
+cannot be its own) and both branches read it. The thresholds are unchanged; only what they measure
+is. **Diagnostic:** if the quantity a breakpoint controls is not monotonic in the trigger, the
+trigger is the wrong quantity.
 
 ## Elevation & Depth
 
@@ -607,8 +618,13 @@ arrangement may override only what genuinely differs, and must say why at the ov
   spacing *within* them, or the grid reads as one mush.
 - **`.home-tile`** — the card recipe unchanged (`card` surface, 1px `border`, `{rounded.lg}`, 16px
   padding, the one `shadows.rest` lift). **One level deep — never a card inside a card**
-  (`OD-V4-7` constraint 3). Head = `.home-tile-name` (display face at label size, 600) beside a
-  `.home-tile-count` in `muted-foreground`.
+  (`OD-V4-7` constraint 3). Head = `.home-tile-name` (display face at **`body-lg`**, 600) beside a
+  `.home-tile-count` in `muted-foreground`. The name sits at the *same* rung as the row titles it
+  heads, not below them: at the label rung the tile's own name was the quietest thing in the tile.
+  The **lead** tile takes a one-step tonal lift (`surface-tertiary`) keyed to its **region**, never
+  to its weight — `needs-you` and `my-work` are both `wide`, so a weight-keyed fill would raise
+  both and mark neither. It is a different step of the ramp from the row-hover fill (`secondary`),
+  so a lifted tile never reads as hovered.
 - **`.home-tabs` / `.home-tab`** — Focused's region switcher: a bottom-`border` strip; the selected
   tab takes a 2px `primary` bottom border and `foreground` text, unselected sits in
   `muted-foreground`; `min-height: 44px` per tab for the coarse-pointer floor. **Counts stay on
@@ -631,11 +647,18 @@ Every tile carries **real rows** through the shared `RegionRows` body (`OD-V4-7`
 icon + heading + stat). Overview renders a region's top rows only and states the remainder as plain
 text ("+N more"): that is a **fact, not an affordance** — the region's own drill link, where one
 exists, is the way through. `RegionRows` renders four distinguishable states — loading
-(`LoadingShell`), error (`ErrorState` + Retry), ready-with-rows, and ready-and-empty (a sentence,
-never a blank body), so a still-loading or failed read can never masquerade as an all-clear.
+(`LoadingShell`), error (`ErrorState` + Retry), ready-with-rows, and ready-and-empty (the shared
+`EmptyState` in its compact `stream-all-clear` treatment, never a blank body), so a still-loading or
+failed read can never masquerade as an all-clear.
+
+**A region states a count only where its read SUCCEEDED.** Anywhere else — loading, errored — the
+count is *absent*: an em-dash carrying a spoken alternative, never a `0`. A `0` beside a spinner or
+an error is a falsehood stated with full confidence and the viewer has no way to trace it. Because
+all three arrangements read the ONE region model, this is one rule, not three.
 
 Phone (the 620px branch) drops the bento to one column with every tile spanning it — the tile grid is
-a desktop/tablet affordance (`OD-V4-7` constraint 4).
+a desktop/tablet affordance (`OD-V4-7` constraint 4). **Both Home branches are `@container` queries
+on the Home frame, not viewport `@media`** — see The Container-Query Rule in § Layout.
 
 ### Home layout picker (v4, `OD-V4-9`)
 The **wireframe-thumbnail chooser** is the standing convention for a *page-structure* choice: the
@@ -658,12 +681,23 @@ come for free.
 
 ### Signal row (v4)
 The **ONE Signal anatomy**, shared by Home's ambient tail and the `/work/signals` archive Feed — rows
-in the same record-row grammar as the ranked stream, never fat cards. Title at `body-lg`/600 clamped
-to two lines (a `nowrap` title set a ~680px min-content width and blew a 375px phone row out to ~700px
-of horizontal scroll); meta line in `muted-foreground` at the `mono` size, where **each separator
+in the same record-row grammar as the ranked stream, never fat cards. Title at `body-lg`/600 wrapping
+in **full** — *a feed is for reading*, and the clamp it used to carry truncated Signal prose
+mid-sentence in the column whose whole job is that prose. What must never come back is `nowrap`: it
+set a ~680px min-content width and blew a 375px phone row out to ~700px of horizontal scroll, and
+`white-space: normal` (not the clamp) is what fixed that. The 2-line clamp remains correct on the
+**task** row, where the title is an identifier to recognise rather than prose to read.
+Meta line in `muted-foreground` at the `mono` size, where **each separator
 travels inside a non-breaking group with the fact it introduces**, so the row can only ever wrap
 *between* facts and never orphans a bare "·" on a line of its own. It adapts by **container query**,
 not viewport — see The Container-Query Rule in § Layout.
+
+On **Home** the column is headed `Signals` (the word the layout picker, the destination and the
+record type already use — it read `RECENT` beside a `Signals →` link, three names for one column in
+one viewport) with an honest `N today` count where that link sat, and the list is **capped at 6**
+with a `See N more →` door at its foot carrying any active filter through. An unbounded ambient feed
+is the wall of text again, rotated 90°. The `/work/signals` archive Feed **is** the collection and is
+never capped.
 
 The feed's toolbar is a search field plus a **`+ Signal` button in the shared `.btn-outline`
 secondary variant**. It is deliberately *not* the action blue: this is a door in an **ambient** tail,
