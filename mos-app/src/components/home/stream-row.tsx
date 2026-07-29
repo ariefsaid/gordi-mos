@@ -8,12 +8,15 @@ import { Reason, type ReasonStyle } from './stream-reason'
 export function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
   item: StreamItem; hidePic?: boolean; reasonStyle?: ReasonStyle
 }) {
-  // Compact decision-context subline = PIC (avatar + name) · owning Team/BU · due date, so "what
-  // should I do next" is answerable without opening the record (Luna J01/J02). Each segment is its
-  // own span (dot separators decorative, aria-hidden) so caption + due stay addressable.
-  // F16 (OD-REDESIGN-91 #28): in the "my work today" band the PIC is always the viewer — a
-  // self-avatar carries zero information, so those rows suppress it. Avatars stay everywhere the
-  // person varies (attention bands, mentions).
+  // Compact decision-context subline = PIC name · owning Team/BU · due date, so "what should I do
+  // next" is answerable without opening the record (Luna J01/J02). Each segment is its own span
+  // (dot separators decorative, aria-hidden) so caption + due stay addressable.
+  // The person is their NAME — no initials disc (owner, 2026-07-28: "remove the profile icon for
+  // the person's initial. just use the name"; the signed mockup carries it too). The name is the
+  // meta line's anchor and takes the emphasis the disc used to supply.
+  // F16 (OD-REDESIGN-91 #28): in the "my work today" band the PIC is always the viewer — naming
+  // yourself on every one of your own rows carries zero information, so those rows suppress it.
+  // The name stays everywhere the person varies (attention bands, mentions).
   const showPic = item.pic != null && !hidePic
   const segments = [
     item.caption && <span key="caption" className="stream-row-tail-seg">{item.caption}</span>,
@@ -29,10 +32,7 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
           {hasMeta && (
             <span className="stream-row-meta">
               {showPic && item.pic && (
-                <span className="stream-row-pic">
-                  <span className="stream-row-avatar" aria-hidden="true">{item.pic.initials}</span>
-                  <span className="stream-row-pic-name">{item.pic.name}</span>
-                </span>
+                <span className="stream-row-pic-name">{item.pic.name}</span>
               )}
               {segments.map((seg, i) => (
                 <span key={i} className="stream-row-seg">

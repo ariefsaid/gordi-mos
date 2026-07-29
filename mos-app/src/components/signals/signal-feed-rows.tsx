@@ -34,10 +34,6 @@ export interface SignalFeedRowsProps {
   variant?: 'ambient' | 'archive'
 }
 
-function initials(name: string): string {
-  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
-}
-
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
   variant = 'ambient',
@@ -148,14 +144,13 @@ export function SignalFeedRows({
                       <span className="home-signal-body-text">{signal.body}</span>
                     </span>
                   )}
-                  {/* Meta subline: author (avatar + name) · team · time. Each separator is bound
-                      into one group with the fact it introduces, so a narrow feed column wraps
-                      BETWEEN facts and can never strand a bare "·" on a line of its own. */}
+                  {/* Meta subline: author name · team · time. The author is NAMED, never drawn as
+                      an initials disc (owner, 2026-07-28) — in a 300px feed column that disc cost
+                      28px of the measure the name itself needs. Each separator is bound into one
+                      group with the fact it introduces, so a narrow feed column wraps BETWEEN
+                      facts and can never strand a bare "·" on a line of its own. */}
                   <div className="home-signal-meta">
-                    <span className="home-signal-who">
-                      <span className="home-signal-avatar" aria-hidden="true">{initials(authorName)}</span>
-                      <span className="home-signal-who-name">{authorName}</span>
-                    </span>
+                    <span className="home-signal-who-name">{authorName}</span>
                     {teamName && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>

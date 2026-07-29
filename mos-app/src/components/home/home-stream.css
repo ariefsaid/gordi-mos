@@ -155,7 +155,7 @@
   line-clamp: 2;
 }
 
-/* Decision-context subline: PIC (avatar + name) · owning Team/BU · due date. */
+/* Decision-context subline: PIC name · owning Team/BU · due date. */
 .stream-row-meta {
   display: flex;
   align-items: center;
@@ -165,17 +165,14 @@
   color: var(--muted-foreground);
   min-width: 0;
 }
-.stream-row-pic { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-/* Canonical avatar gradient (navy→primary) — same chip grammar as SignalCard / TaskSurface. */
-.stream-row-avatar {
-  width: 20px; height: 20px; flex: none;
-  border-radius: var(--radius-pill);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: var(--font-size-micro); font-weight: 700;
-  color: var(--primary-foreground);
-  background: linear-gradient(135deg, var(--brand-navy), var(--primary));
+/* The person is their NAME (owner, 2026-07-28) — the 20px initials disc that used to lead this
+   line is gone. The name carries the weight the disc used to: 600 in `foreground` against the
+   muted rest of the meta line, so the subline still has a left anchor and does not read as one
+   flat run of grey. Same treatment as the mockup's `.row-meta .name`. */
+.stream-row-pic-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; color: var(--foreground);
 }
-.stream-row-pic-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground); }
 .stream-row-seg { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .stream-row-sep { color: var(--muted-foreground); }
 .stream-row-tail-seg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

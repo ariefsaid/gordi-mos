@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -101,18 +101,21 @@ describe('HomeStream — the consequence-ranked stream', () => {
     expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
   })
 
-  it('F16 (OD-91 #28): my-work rows drop the self-avatar (zero information) while attention rows keep the PIC where the person varies', () => {
+  // Re-expressed against the NAME (owner, 2026-07-28: the initials disc is retired — a row names
+  // its person, it does not draw them). The rule F16 encodes is unchanged: my-work suppresses the
+  // person because there it is always the viewer; attention rows keep them because there it varies.
+  it('F16 (OD-91 #28): my-work rows drop the self PIC (zero information) while attention rows name the person, where the person varies', () => {
     const pic = { initials: 'AR', name: 'Arief' }
     renderStream({
       myWork: [item({ id: 'w1', title: 'My own task', pic })],
       overdue: [item({ id: 'o1', title: 'Overdue by someone', pic, reason: { tone: 'overdue', days: 2 } })],
     })
-    // The my-work row shows the task but NOT the self PIC name/avatar…
+    // The my-work row shows the task but does NOT name the viewer back at themselves…
     const myRow = screen.getByText('My own task').closest('li')!
-    expect(myRow.querySelector('.stream-row-pic')).toBeNull()
-    // …while the attention (overdue) row keeps the PIC, where the person can vary.
+    expect(within(myRow).queryByText('Arief')).not.toBeInTheDocument()
+    // …while the attention (overdue) row names the person, where the person can vary.
     const attnRow = screen.getByText('Overdue by someone').closest('li')!
-    expect(attnRow.querySelector('.stream-row-pic')).not.toBeNull()
+    expect(within(attnRow).getByText('Arief')).toBeInTheDocument()
   })
 
   it('a ready-but-empty my-work band teaches, never a silent void', () => {

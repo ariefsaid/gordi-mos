@@ -166,7 +166,6 @@
   color: var(--muted-foreground);
   min-width: 0;
 }
-.home-signal-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 /* A "·" is punctuation, never a wrap unit. As a direct child of the wrapping meta row each
    separator could break onto a line of its own — measured at 300px: two bare dots, each alone on
    its line. Every separator now travels inside one non-breaking group with the label it
@@ -179,15 +178,15 @@
   white-space: nowrap;
   overflow: hidden; /* an unusually long Team name clips, never overflows the feed column */
 }
-.home-signal-avatar {
-  width: 20px; height: 20px; flex: none;
-  border-radius: var(--radius-pill);
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: var(--font-size-micro); font-weight: 700;
-  color: var(--primary-foreground);
-  background: linear-gradient(135deg, var(--brand-navy), var(--primary));
+/* The author is their NAME (owner, 2026-07-28) — the 20px initials disc that used to lead this
+   line is gone, giving the 300px Home tail back 28px of measure. The name takes the weight the
+   disc used to carry (600 in `foreground` against the muted rest of the line) so the subline keeps
+   a left anchor instead of reading as one flat run of grey. Matches `.stream-row-pic-name`, the
+   same fact on the ranked-stream row. */
+.home-signal-who-name {
+  font-weight: 600; color: var(--foreground);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.home-signal-who-name { color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-signal-sep { color: var(--muted-foreground); }
 .home-signal-when { white-space: nowrap; }
 
