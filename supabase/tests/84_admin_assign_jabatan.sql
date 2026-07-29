@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(12);
 
 select mos._test_seed_role_tree();      -- org a1 people d1..d7, roles f1..f6/c1; org b1 person b4, role c1
 select mos._test_seed_access_roles();   -- grants admin -> GrandMgr (...d3)
@@ -42,6 +42,13 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-0000000000f2')
 $$, '42501', null, 'AC-115: foreign org_id rejected by WITH CHECK');
 
+-- AC-116: cross-org PERSON rejected by guard (assign org-B person ...b4 an org-A role ...f2). The guard
+-- checks the PERSON's org (not just the role's), so a same-org role to a foreign person is still refused.
+select throws_ok($$
+  insert into shared.person_roles (person_id, role_id)
+  values ('00000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-0000000000f2')
+$$, '42501', null, 'AC-116: cross-org person rejected by guard');
+
 -- AC-110: admin grants manager to another person (...d4) -> lives; to self (...d3) -> 42501 (self-guard).
 select lives_ok($$
   insert into shared.person_access_roles (person_id, access_role)
@@ -58,6 +65,18 @@ select throws_ok($$
   insert into shared.person_roles (person_id, role_id)
   values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000f2')
 $$, '42501', null, 'AC-113: non-admin Position assign denied by RLS');
+
+-- AC-117: non-admin DELETE is denied. The delete policy USING is admin-only, so a non-admin's delete
+-- matches zero rows and silently no-ops (no error) — prove the target row (...d4 -> ...f2 from AC-111)
+-- is untouched, so a future policy regression that let it through would fail here loudly.
+select lives_ok($$
+  delete from shared.person_roles
+   where person_id='00000000-0000-0000-0000-0000000000d4' and role_id='00000000-0000-0000-0000-0000000000f2'
+$$, 'AC-117: non-admin delete runs without error (RLS filters the row out)');
+select is(
+  (select count(*)::int from shared.person_roles
+     where person_id='00000000-0000-0000-0000-0000000000d4' and role_id='00000000-0000-0000-0000-0000000000f2'),
+  1, 'AC-117: non-admin delete removed nothing (row still present)');
 
 reset role;
 select * from finish();

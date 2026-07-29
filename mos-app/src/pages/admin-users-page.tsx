@@ -58,7 +58,9 @@ export function AdminUsersPage() {
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [reveal, setReveal] = useState<RevealContext | null>(null)
-  const [roleEditorPerson, setRoleEditorPerson] = useState<AdminPersonRow | null>(null)
+  // Hold only the id; derive the live row from `people` so a post-write load() refreshes the open
+  // dialog (else PositionPicker/RoleEditor checkboxes render a stale snapshot — CQ Issue 1).
+  const [roleEditorPersonId, setRoleEditorPersonId] = useState<string | null>(null)
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null)
   const [actionError, setActionError] = useState('')
 
@@ -86,6 +88,11 @@ export function AdminUsersPage() {
 
   // Collect taken emails for create-dialog uniqueness
   const takenEmails = new Set(people.map((p) => p.email).filter(Boolean) as string[])
+
+  // Live editor row (re-derived each render from fresh `people`); closes if the person is gone.
+  const roleEditorPerson = roleEditorPersonId
+    ? people.find((p) => p.id === roleEditorPersonId) ?? null
+    : null
 
   // Actions that need NO confirm: enable-login, restore, create-login, manage-roles
   // Actions that DO need confirm: reset-password, disable-login, archive
@@ -131,7 +138,7 @@ export function AdminUsersPage() {
 
         case 'manage-roles':
           // Opens the RoleEditor dialog; no async call here — the dialog owns grant/revoke.
-          setRoleEditorPerson(person)
+          setRoleEditorPersonId(person.id)
           break
       }
     } catch (err) {
@@ -257,7 +264,7 @@ export function AdminUsersPage() {
           people={people}
           roles={roles}
           open
-          onClose={() => setRoleEditorPerson(null)}
+          onClose={() => setRoleEditorPersonId(null)}
           onDone={() => {
             void load()
           }}

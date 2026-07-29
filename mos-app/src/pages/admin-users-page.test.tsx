@@ -2,7 +2,7 @@
 // AC-060: list rendering (all 4 login states) + empty state predicate.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -243,5 +243,42 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     const { container } = renderPage()
     expect(container.querySelector('.ch-count')).toBeNull()
     expect(screen.getByTestId('page-head')).toBeInTheDocument()
+  })
+})
+
+// CQ Issue 1 (feat/manager-tier-role-assignment review): the open Access/Position dialog must re-derive
+// from reloaded people after a write, not hold a stale snapshot (else the just-toggled Position reverts).
+describe('AdminUsersPage — dialog reflects fresh data after a Position toggle', () => {
+  it('re-renders the open dialog against reloaded people (no stale snapshot)', async () => {
+    const user = userEvent.setup()
+    const base: AdminPersonRow = {
+      id: 'p-riri',
+      full_name: 'Riri',
+      email: 'riri@gordi.id',
+      archived_at: null,
+      login: 'active',
+      access_roles: [],
+      jabatan: [],
+    }
+    mockListRoles.mockResolvedValue([{ id: 'r-kitchen', name: 'Kitchen Lead' }])
+    mockListAdminPeople
+      .mockResolvedValueOnce([base]) // first load: no Position
+      .mockResolvedValue([{ ...base, jabatan: [{ role_id: 'r-kitchen', role_name: 'Kitchen Lead' }] }]) // after assign
+
+    renderPage()
+    await screen.findByText('Riri')
+
+    await user.click(screen.getByRole('button', { name: /more actions for riri/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+
+    const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
+    expect(box).toHaveAttribute('aria-checked', 'false')
+
+    await user.click(box) // assignJabatan → onDone → load() returns the assigned Position
+
+    // With the stale-snapshot bug the dialog would stay unchecked; the fix re-derives it from fresh data.
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toHaveAttribute('aria-checked', 'true'),
+    )
   })
 })

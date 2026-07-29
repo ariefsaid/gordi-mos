@@ -198,8 +198,11 @@ describe('resolveViewer', () => {
     expect(result.accessRoles).not.toContain('manager')
   })
 
-  // --- T-101: AC-061 — assigned ∪ derived manager when isManager is true ---
-  it('AC-061: resolveViewer includes manager in accessRoles when isManager is true', async () => {
+  // --- T-101: AC-061 — the DERIVED reporting-line manager is carried by isManager only, and MUST NOT
+  // leak into accessRoles (ADR-0050: 'manager' there is the STORED financial grant; conflating the two
+  // would open the finance-view gates to every reporting-line manager). Inverted 2026-07-29 per the
+  // security review of feat/manager-tier-role-assignment. ---
+  it('AC-061: a derived (reporting-line) manager is NOT added to accessRoles; isManager carries that sense', async () => {
     // Manager derivation: viewer holds ROLE_A_ID; roleA reports_to_role_id = '30000000-0000-0000-0000-000000000000'
     // We need a role whose reports_to_role_id = ROLE_A_ID and which is currently held.
     const subordinateRoleId = '30000000-0000-0000-0000-000000000099'
@@ -258,9 +261,11 @@ describe('resolveViewer', () => {
     const result = await resolveViewer(USER_ID, token)
 
     expect(result.isManager).toBe(true)
-    // AC-061: assigned ∪ derived manager
-    expect(result.accessRoles).toEqual(expect.arrayContaining(['member', 'manager']))
-    expect(result.accessRoles).toHaveLength(2)
+    // AC-061 (inverted): accessRoles is the STORED claim only — the derived manager sense lives in
+    // isManager, never in accessRoles. A person granted the financial 'manager' tier would get it via
+    // the JWT claim (assigned), not from this derivation.
+    expect(result.accessRoles).toEqual(['member'])
+    expect(result.accessRoles).not.toContain('manager')
   })
 
   // --- T-102: AC-062 — orphan / absent token → empty accessRoles, no throw ---
