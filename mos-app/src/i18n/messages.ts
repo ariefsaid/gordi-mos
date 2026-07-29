@@ -1321,6 +1321,9 @@ export const messages = {
     // Spoken alternative for the em-dash a region shows in place of a count it cannot yet know
     // (DIV-G5). The glyph is decorative; this is what is actually announced.
     'home.region.countPending': 'count not available yet',
+    // The Focused strip's accessible name — a tablist read out of context announces only "tab
+    // list", which does not say what the tabs switch between.
+    'home.region.tablist': 'Home regions',
     // ── The Home header's day state (mockup home-priority-2026-07-28 `stateLine`) ─────────────
     // RULE-DRIVEN, never model-authored: two counts pick a BAND, a rotating index picks one of
     // the band's interchangeable phrasings. Every sentence is therefore true by construction and
@@ -2579,6 +2582,7 @@ export const messages = {
     'home.region.moreLink': '${count} lagi →',
     'home.region.moreAria': '${count} lagi di ${label}',
     'home.region.countPending': 'jumlah belum tersedia',
+    'home.region.tablist': 'Bagian Beranda',
     'home.day.counts': '${done} selesai · ${left} tersisa',
     'home.day.progressLabel': 'Selesai hari ini',
     'home.day.tallyPending': 'Hitungan hari ini belum tersedia.',

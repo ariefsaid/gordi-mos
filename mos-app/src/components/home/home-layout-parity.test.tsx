@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter } from 'react-router-dom'
 import { HomeFocused } from './home-focused'
@@ -52,6 +53,70 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     const tabs = screen.getAllByRole('tab')
     expect(tabs).toHaveLength(4)
     for (const tab of tabs) expect(tab.textContent).toMatch(/\d/)
+  })
+
+  // ── The tab strip is a real ARIA tab contract, not four buttons wearing tab roles ─────────────
+  // `role="tab"` is a PROMISE about the keyboard: one stop for the whole strip, arrows to move
+  // within it, and a panel the strip controls (WAI-ARIA APG § Tabs). Focused shipped the roles
+  // without any of it — every tab in the Tab order, arrows dead — so keyboard/AT users could not
+  // operate the DEFAULT Home layout. The prior guard here only counted tabs and checked each
+  // contained a digit, so it could never have gone red on this.
+  //
+  // Same contract, same regression note as `components/dashboard/cut-toggle.tsx` (r5 F-4): moving
+  // selection WITHOUT moving focus strands the user on a node whose tabIndex just dropped to -1.
+  // Both halves are asserted below, because only asserting selection would pass that defect.
+  it('ArrowRight moves BOTH the selection and the focus to the next tab', async () => {
+    const user = userEvent.setup()
+    renderLayout(<HomeFocused regions={regions} feed={FEED} />)
+    const tabs = screen.getAllByRole('tab')
+    tabs[0].focus()
+    await user.keyboard('{ArrowRight}')
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
+    expect(tabs[1]).toHaveFocus()
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('ArrowLeft wraps to the last tab, Home/End jump to the ends — focus following each time', async () => {
+    const user = userEvent.setup()
+    renderLayout(<HomeFocused regions={regions} feed={FEED} />)
+    const tabs = screen.getAllByRole('tab')
+    const last = tabs.length - 1
+    tabs[0].focus()
+    await user.keyboard('{ArrowLeft}')
+    expect(tabs[last]).toHaveAttribute('aria-selected', 'true')
+    expect(tabs[last]).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    expect(tabs[0]).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(tabs[last]).toHaveAttribute('aria-selected', 'true')
+    expect(tabs[last]).toHaveFocus()
+  })
+
+  it('roving tabindex: the strip is ONE stop in the page Tab order, not four', () => {
+    renderLayout(<HomeFocused regions={regions} feed={FEED} />)
+    const tabs = screen.getAllByRole('tab')
+    const tabbable = tabs.filter((tab) => tab.tabIndex === 0)
+    expect(tabbable).toHaveLength(1)
+    expect(tabbable[0]).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('the region body is a tabpanel the selected tab controls and names', async () => {
+    const user = userEvent.setup()
+    renderLayout(<HomeFocused regions={regions} feed={FEED} />)
+    const panel = screen.getByRole('tabpanel')
+    const selected = screen.getByRole('tab', { selected: true })
+    expect(selected).toHaveAttribute('aria-controls', panel.id)
+    // Named BY the selected tab (so the name follows the switch), and that name is the region's.
+    expect(panel).toHaveAttribute('aria-labelledby', selected.id)
+    expect(panel).toHaveAccessibleName(/needs you now/i)
+    // …and both the body AND the name follow the switch.
+    expect(within(panel).getByText('Item a')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /my work today/i }))
+    const switched = screen.getByRole('tabpanel')
+    expect(within(switched).getByText('Item b')).toBeInTheDocument()
+    expect(switched).toHaveAttribute('aria-labelledby', screen.getByRole('tab', { selected: true }).id)
+    expect(switched).toHaveAccessibleName(/my work today/i)
   })
 
   it('AC-929: Overview and List render the same record ids', () => {
