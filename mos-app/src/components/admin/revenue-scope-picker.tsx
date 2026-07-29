@@ -10,7 +10,7 @@
 // Errors surface inline via role="alert" (mirror PositionPicker's error block).
 
 import { useState } from 'react'
-import { Checkbox } from '@/components/ui/checkbox'
+import { CheckboxRow, PickerError } from './checkbox-row'
 import { assignRevenueScope, removeRevenueScope } from '@/lib/db/admin-users'
 import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
 
@@ -122,38 +122,20 @@ export function RevenueScopePicker({ person, options, onDone, onShowToast }: Rev
               style={{ border: '1px solid var(--input)' }}
             >
               {group.rows.map((row, i) => {
-                const isAssigned = person.revenue_scope.some(
-                  (s) => s.channel === row.channel && s.branch_code === row.branch_code,
-                )
                 const isWholeChannel = row.branch_code === null
                 return (
-                  <label
+                  <CheckboxRow
                     key={`${row.channel}-${row.branch_code ?? 'whole'}`}
-                    className={`flex items-start gap-3 py-2.5 select-none ${
-                      isWholeChannel ? 'px-3' : 'pl-6 pr-3'
-                    } ${busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'}`}
-                    style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
-                    // Defect 3 (mirrored from PositionPicker): the whole row toggles, not just the
-                    // checkbox glyph — the glyph stops propagation so this fires exactly once per click.
-                    onClick={() => {
-                      if (!busy) handleToggle(row)
-                    }}
-                  >
-                    <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={isAssigned}
-                        disabled={busy}
-                        onChange={() => !busy && handleToggle(row)}
-                        aria-label={row.label}
-                      />
-                    </span>
-                    <span
-                      className={`text-sm leading-tight ${isWholeChannel ? 'font-semibold' : 'font-medium'}`}
-                      style={{ color: 'var(--foreground)' }}
-                    >
-                      {row.label}
-                    </span>
-                  </label>
+                    label={row.label}
+                    checked={person.revenue_scope.some(
+                      (s) => s.channel === row.channel && s.branch_code === row.branch_code,
+                    )}
+                    disabled={busy}
+                    divider={i > 0}
+                    indent={!isWholeChannel}
+                    emphasis={isWholeChannel}
+                    onToggle={() => handleToggle(row)}
+                  />
                 )
               })}
             </div>
@@ -161,20 +143,7 @@ export function RevenueScopePicker({ person, options, onDone, onShowToast }: Rev
         ))
       )}
 
-      {/* Inline error — mirrors PositionPicker's error block */}
-      {error && (
-        <div
-          role="alert"
-          className="mt-4 rounded-md px-3 py-2 text-sm"
-          style={{
-            background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
-            color: 'var(--destructive)',
-            border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
-          }}
-        >
-          {error}
-        </div>
-      )}
+      <PickerError message={error} />
     </div>
   )
 }

@@ -7,7 +7,7 @@
 // Errors surface inline via role="alert" (mirror RoleEditor's error block).
 
 import { useState } from 'react'
-import { Checkbox } from '@/components/ui/checkbox'
+import { CheckboxRow, PickerError } from './checkbox-row'
 import { assignJabatan, removeJabatan } from '@/lib/db/admin-users'
 import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
 
@@ -65,56 +65,21 @@ export function PositionPicker({ person, roles, onDone, onShowToast }: PositionP
             className="overflow-hidden rounded-md"
             style={{ border: '1px solid var(--input)' }}
           >
-            {roles.map((role, i) => {
-              const isAssigned = person.jabatan.some((j) => j.role_id === role.id)
-              return (
-                <label
-                  key={role.id}
-                  className={`flex items-start gap-3 px-3 py-2.5 select-none ${
-                    busy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
-                  }`}
-                  style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
-                  // Defect 3: the whole row toggles, not just the 16px checkbox glyph — the
-                  // checkbox glyph stops propagation (below) so this fires exactly once per click.
-                  onClick={() => {
-                    if (!busy) handleToggle(role)
-                  }}
-                >
-                  <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      checked={isAssigned}
-                      disabled={busy}
-                      onChange={() => !busy && handleToggle(role)}
-                      aria-label={role.name}
-                    />
-                  </span>
-                  <span
-                    className="text-sm font-medium leading-tight"
-                    style={{ color: 'var(--foreground)' }}
-                  >
-                    {role.name}
-                  </span>
-                </label>
-              )
-            })}
+            {roles.map((role, i) => (
+              <CheckboxRow
+                key={role.id}
+                label={role.name}
+                checked={person.jabatan.some((j) => j.role_id === role.id)}
+                disabled={busy}
+                divider={i > 0}
+                onToggle={() => handleToggle(role)}
+              />
+            ))}
           </div>
         )}
       </fieldset>
 
-      {/* Inline error — mirrors RoleEditor's error block */}
-      {error && (
-        <div
-          role="alert"
-          className="mt-4 rounded-md px-3 py-2 text-sm"
-          style={{
-            background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
-            color: 'var(--destructive)',
-            border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
-          }}
-        >
-          {error}
-        </div>
-      )}
+      <PickerError message={error} />
     </div>
   )
 }
