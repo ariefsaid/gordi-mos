@@ -80,30 +80,24 @@ create policy kitchen_logs_update_reviewer on ops.kitchen_logs
 ----------------------------------------------------------------------
 -- 4. Seed caveat (the auditor's availability warning). The new predicate FAILS CLOSED, so kitchen
 --    staff need a team membership under the Retail Ops BU or their submit right vanishes. The teams
---    substrate seeds the teams but NO memberships, so this wires the demo/kitchen personas. Dual-seed
---    pattern (mirrors 20260716000001 / certified_metrics): this migration seeds any pre-existing DB;
---    seed.sql re-seeds for a fresh `supabase db reset`. Org-existence guarded (empty on bare reset).
---    Krishna Kitchen (submitter, member) is the one that MUST be wired; Cahya Cafe (reviewer) too.
+--    substrate seeds the teams but NO memberships, so the demo/kitchen personas need wiring.
+--
+--    SEC-M2 (security audit 2026-07-28): that wiring is NOT this migration's job and no longer lives
+--    here. The DO block this section used to carry inserted shared.team_memberships rows for the
+--    dev-fixture persons 40000000-…-0002 (Krishna Kitchen) and …-0001 (Cahya Cafe), whose uuids exist
+--    ONLY in supabase/seed.sql (dev-only by its own header). On a real deploy that is a coin flip
+--    between two bad outcomes: the persons don't exist and the FK to shared.people aborts the
+--    migration mid-`db push` (`on conflict do nothing` does not absorb an FK violation), or the dev
+--    seed leaked and two demo principals silently gain a BU membership — which section 2 above has
+--    just turned into a WRITE GATE, handing them kitchen-log submit. It was also pure redundancy:
+--    supabase/seed.sql already seeds exactly these two rows for a fresh `supabase db reset`, which is
+--    the only environment those persons belong in. Removed in place rather than by a follow-up
+--    migration because this file is unapplied everywhere it matters — it is not an ancestor of
+--    origin/main, and docs/backlog.md records it as still BLOCKING for the next staging `db push`.
+--
+--    Real deploys: wiring live kitchen staff into a retail_ops-BU team membership is a DEPLOY step,
+--    not a migration step — see the STAGING DEPLOY CHECKLIST entry in docs/backlog.md.
 ----------------------------------------------------------------------
-do $$
-declare
-  v_team_hq uuid;
-begin
-  if exists (select 1 from shared.orgs where id = '10000000-0000-0000-0000-000000000001') then
-    select id into v_team_hq
-      from shared.teams
-     where org_id = '10000000-0000-0000-0000-000000000001' and code = 'hq_operations';
-    if v_team_hq is not null then
-      -- is_primary=false: a SECONDARY retail_ops membership (grants kitchen write access without
-      -- claiming the persona's primary owning-team slot) — avoids team_memberships_one_primary.
-      insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
-      values
-        ('10000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000002', v_team_hq, false),  -- Krishna Kitchen (submitter)
-        ('10000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001', v_team_hq, false)   -- Cahya Cafe (reviewer)
-      on conflict do nothing;
-    end if;
-  end if;
-end $$;
 
 ----------------------------------------------------------------------
 -- 5. pgTAP fixture parity. Redefine the TEST-ONLY mos._test_seed_kitchen() (…000011) to also seed a
