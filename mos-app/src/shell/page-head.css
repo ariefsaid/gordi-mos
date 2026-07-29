@@ -69,14 +69,20 @@
 /* ── The status row: a full-width second row INSIDE the one header block ──────────────────
    The header's height budget is fixed (~70px, the v4 chrome-reduction floor), so a head that
    carries a status row pays for it by stepping the title down one rung on the SAME declared
-   ladder — page-title (24px) → body-lg (15px). No new sizes, no second header grammar. */
+   ladder — page-title (24px) → subheading (18px). No new sizes, no second header grammar. */
 .content-header .ch-status-row {
   flex: 0 0 100%;
   min-width: 0;
 }
 
+/* ONE rung down from page-title, not three. This was `body-lg` (15px), which put the page's own
+   `h1` BELOW the group headers inside it — List's `.stream-band-label` sits at `subheading`
+   (18px), so the greeting rendered smaller than the band names beneath it. The signed mockup has
+   no such inversion (`.hdr-title` is 1.125rem = 18px against the 16px root, i.e. this rung), and
+   the ~70px budget still holds because the head's height is set by its meta/action row, not by
+   this 3px. */
 .content-header--compact .ch-title {
-  font-size: var(--font-size-body-lg);
+  font-size: var(--font-size-subheading);
 }
 
 .page-head--v3.content-header {
@@ -139,10 +145,10 @@
      row, so the greeting's own qualifier would arrive after the day state it qualifies.
      The compact head keeps its title row intact — greeting + role, tally pushed right by
      `.ch-action`'s auto margin — and the status row stays the last, full-width line. It
-     also keeps the body-lg title the rule above re-asserts at page-title for every other
-     content head. */
+     also keeps the subheading title the rule above re-asserts at page-title for every other
+     content head — the h1-below-its-own-band-labels inversion is a phone defect too. */
   .content-header--compact .ch-title {
-    font-size: var(--font-size-body-lg);
+    font-size: var(--font-size-subheading);
   }
 
   .content-header--compact .ch-meta {

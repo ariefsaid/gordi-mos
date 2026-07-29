@@ -8,6 +8,26 @@
    can never bind to an unrelated ancestor that happens to be a container. */
 .home-frame { container: home / inline-size; }
 
+/* Home is not a readable single column, so it does not take the readable-measure cap.
+   PageFrame caps its content region at 1180px and LEFT-aligns it (page-families.css) — the right
+   call for one column of prose-width content, the wrong one here: Home is a two-column operating
+   surface (work region + the standing Signals aside), so the cap stopped the header rule, the
+   arrangement and the Signals column ~250px short of the content area and stranded a dead gutter
+   to their right on a wide monitor ("why is the container for home got cut mid screen
+   horizontally?" — owner, ~1730px window).
+
+   Same shape as the ONE precedent already in the codebase (TasksWorkspace.css, "owner-eyes item 7
+   — kill the dead right void") and the SAME 1760px full-bleed cap, so Home's right edge lands
+   where the data workspace's does rather than introducing a second wide-surface width. Scoped by
+   `:has(.home-frame)` so only the route that hosts Home is affected — every single-column readable
+   page keeps its 1180px measure. The `.page-frame--v3` prefix is carried so this outranks the
+   shared rule on specificity rather than on stylesheet order.
+
+   The reclaimed width goes to the WORK region: the Signals track is minmax(240px, 300px), so it
+   holds at 300px and the arrangement absorbs the rest — which is what the container-query
+   thresholds below were built to be measured against. */
+.page-frame--v3 .page-frame__content:has(.home-frame) { max-width: 1760px; }
+
 .home-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 32px; align-items: start; }
 .home-layout > * { min-width: 0; }
 

@@ -130,9 +130,22 @@ describe('PageHead — content-header status row (the compact day-header composi
     expect(container.querySelector('.ch-status-row')).toBeNull()
   })
 
-  it('the compact title takes the body-lg rung so the extra row fits the same block', () => {
+  // The GOAL is "the extra row fits the same ~70px block, paid for by stepping the title DOWN a
+  // rung on the one declared ladder". This used to pin the exact rung (`body-lg`), which turned out
+  // to pin a defect: at 15px the greeting rendered SMALLER than the region headers inside it. The
+  // goal-oracle is unchanged — the assertion now states it directly (tokenised, and below
+  // page-title) instead of naming one rung. How far down it may step is the h1-vs-band-label rank
+  // invariant, owned by components/home/guard-home-head-rank.css.test.ts.
+  it('the compact title steps DOWN from page-title so the extra row fits the same block', () => {
     const css = pageHeadCss()
-    expect(css).toMatch(/\.content-header--compact \.ch-title\s*\{[^}]*font-size:\s*var\(--font-size-body-lg\)/)
+    const rung = /\.content-header--compact \.ch-title\s*\{[^}]*font-size:\s*var\((--font-size-[a-z-]+)\)/
+      .exec(css)?.[1]
+    expect(rung, 'the compact title must resolve to a declared font-size token').toBeDefined()
+    expect(rung, 'a compact head that keeps the full page-title rung has not paid for its row')
+      .not.toBe('--font-size-page-title')
+    const ladder = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+    const px = (t: string) => Number(new RegExp(`${t}:\\s*([\\d.]+)px`).exec(ladder)![1])
+    expect(px(rung!)).toBeLessThan(px('--font-size-page-title'))
   })
 
   it('the status row spans the full width of the header', () => {
