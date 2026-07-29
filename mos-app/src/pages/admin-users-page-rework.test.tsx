@@ -79,6 +79,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
     login: 'active',
     access_roles: ['admin'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-member',
@@ -88,6 +89,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
     login: 'active',
     access_roles: ['member'],
     jabatan: [],
+    revenue_scope: [],
   },
 ]
 
@@ -99,6 +101,7 @@ const ARCHIVED_PERSON: AdminPersonRow = {
   login: 'disabled',
   access_roles: [],
   jabatan: [],
+  revenue_scope: [],
 }
 
 beforeEach(() => {

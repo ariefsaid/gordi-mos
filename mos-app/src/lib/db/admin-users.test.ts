@@ -25,6 +25,9 @@ import {
   listRoles,
   assignJabatan,
   removeJabatan,
+  listRevenueScopeOptions,
+  assignRevenueScope,
+  removeRevenueScope,
 } from './admin-users'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -380,5 +383,97 @@ describe('Jabatan (Position) wrappers', () => {
     const schemaObj = makeSharedSchema({ person_roles: { data: null, error: { message: 'rls denied' } } })
     schemaMock.mockReturnValue(schemaObj as never)
     await expect(removeJabatan('p1', 'r1')).rejects.toThrow(/Couldn't remove position/)
+  })
+})
+
+// ── Revenue scope (supervisor) wrappers ──────────────────────────────────────
+describe('Revenue scope (supervisor) wrappers', () => {
+  it('AC-325: listRevenueScopeOptions returns the RPC rows', async () => {
+    const reportingObj = makeSharedSchema(
+      {},
+      { data: [{ channel: 'POS', branch_code: 'BGR', branch_name: 'Bungur' }], error: null },
+    )
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+
+    const result = await listRevenueScopeOptions()
+    expect(result).toEqual([{ channel: 'POS', branch_code: 'BGR', branch_name: 'Bungur' }])
+  })
+
+  it('throws on listRevenueScopeOptions error', async () => {
+    const reportingObj = makeSharedSchema({}, { data: null, error: { message: 'rls denied' } })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+    await expect(listRevenueScopeOptions()).rejects.toThrow(/Couldn't load revenue branches/)
+  })
+
+  it('AC-325: assignRevenueScope inserts a scope row with no org_id', async () => {
+    const reportingObj = makeSharedSchema({ supervisor_revenue_scope: { data: null, error: null } })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+
+    await assignRevenueScope('p1', 'POS', 'BGR')
+    const builder = reportingObj.from.mock.results[0].value as { insert: ReturnType<typeof vi.fn> }
+    expect(builder.insert).toHaveBeenCalledWith({ person_id: 'p1', channel: 'POS', branch_code: 'BGR' })
+    const insertedArg = builder.insert.mock.calls[0][0] as Record<string, unknown>
+    expect(insertedArg).not.toHaveProperty('org_id')
+  })
+
+  it('throws on assignRevenueScope error', async () => {
+    const reportingObj = makeSharedSchema({ supervisor_revenue_scope: { data: null, error: { message: 'rls denied' } } })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+    await expect(assignRevenueScope('p1', 'POS', 'BGR')).rejects.toThrow(/Couldn't assign revenue scope/)
+  })
+
+  it('AC-325: removeRevenueScope deletes by person+channel+branch_code null (whole-channel)', async () => {
+    const reportingObj = makeSharedSchema({ supervisor_revenue_scope: { data: null, error: null } })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+
+    await removeRevenueScope('p1', 'POS', null)
+    const builder = reportingObj.from.mock.results[0].value as {
+      delete: ReturnType<typeof vi.fn>
+      eq: ReturnType<typeof vi.fn>
+      is: ReturnType<typeof vi.fn>
+    }
+    expect(builder.delete).toHaveBeenCalled()
+    expect(builder.eq).toHaveBeenCalledWith('person_id', 'p1')
+    expect(builder.eq).toHaveBeenCalledWith('channel', 'POS')
+    expect(builder.is).toHaveBeenCalledWith('branch_code', null)
+  })
+
+  it('AC-325: removeRevenueScope deletes by person+channel+branch_code set (specific branch)', async () => {
+    const reportingObj = makeSharedSchema({ supervisor_revenue_scope: { data: null, error: null } })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+
+    await removeRevenueScope('p1', 'POS', 'BGR')
+    const builder = reportingObj.from.mock.results[0].value as { eq: ReturnType<typeof vi.fn> }
+    expect(builder.eq).toHaveBeenCalledWith('branch_code', 'BGR')
+  })
+
+  it('throws on removeRevenueScope error', async () => {
+    const reportingObj = makeSharedSchema({ supervisor_revenue_scope: { data: null, error: { message: 'rls denied' } } })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : makeSharedSchema({}))) as never)
+    await expect(removeRevenueScope('p1', 'POS', null)).rejects.toThrow(/Couldn't remove revenue scope/)
+  })
+
+  it('AC-325: listAdminPeople merges revenue_scope', async () => {
+    const people = [{ id: 'p1', full_name: 'Budi Santoso', email: 'budi@gordi.id', archived_at: null }]
+    const loginStatus = [{ person_id: 'p1', has_login: false, disabled: false }]
+    const sharedObj = makeSharedSchema(
+      {
+        people: { data: people, error: null },
+        person_access_roles: { data: [], error: null },
+        person_roles: { data: [], error: null },
+        roles: { data: [], error: null },
+      },
+      { data: loginStatus, error: null },
+    )
+    const reportingObj = makeSharedSchema({
+      supervisor_revenue_scope: {
+        data: [{ person_id: 'p1', channel: 'POS', branch_code: 'BGR' }],
+        error: null,
+      },
+    })
+    schemaMock.mockImplementation(((name: string) => (name === 'reporting' ? reportingObj : sharedObj)) as never)
+
+    const result = await listAdminPeople()
+    expect(result[0].revenue_scope).toEqual([{ channel: 'POS', branch_code: 'BGR' }])
   })
 })

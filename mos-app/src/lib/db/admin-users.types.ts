@@ -14,6 +14,7 @@ export interface AdminPersonRow {
   login: LoginStatus
   access_roles: string[] // non-revoked
   jabatan: { role_id: string; role_name: string }[]
+  revenue_scope: { channel: string; branch_code: string | null }[]
 }
 
 export interface CreatePersonInput {
@@ -22,7 +23,7 @@ export interface CreatePersonInput {
   access_roles: string[] // never 'manager'
 }
 
-export const ASSIGNABLE_ROLES = ['member', 'ops_lead', 'admin', 'finance', 'manager'] as const
+export const ASSIGNABLE_ROLES = ['member', 'ops_lead', 'admin', 'finance', 'manager', 'supervisor'] as const
 
 // ROLE_META — single source of truth for human-readable role labels + descriptions.
 // The DB stores/sends the SLUG (member | ops_lead | admin | finance | manager); only the
@@ -34,6 +35,7 @@ export const ROLE_META: Record<string, { label: string; description: string }> =
   admin: { label: 'Admin', description: 'Manages users and settings' },
   finance: { label: 'Finance', description: 'Sees financial reports' },
   manager: { label: 'Manager', description: 'Company-wide revenue & margin' },
+  supervisor: { label: 'Supervisor', description: 'Revenue view for assigned branches' },
 }
 
 /** Human label for a role slug; falls back to the slug itself for unknown roles. */
@@ -54,4 +56,21 @@ export function roleDescription(slug: string): string {
 export interface RoleOption {
   id: string
   name: string
+}
+
+// ── Revenue scope (supervisor) ────────────────────────────────────────────────
+// A `supervisor` sees revenue only for their granted (channel, branch) set —
+// reporting.supervisor_revenue_scope. branch_code null = the whole channel.
+
+/** A distinct live (channel, branch) from reporting.list_revenue_branches() — for the scope picker. */
+export interface RevenueScopeOption {
+  channel: string
+  branch_code: string | null
+  branch_name: string | null
+}
+
+/** A supervisor's granted scope; branch_code null = the whole channel. */
+export interface RevenueScopeGrant {
+  channel: string
+  branch_code: string | null
 }

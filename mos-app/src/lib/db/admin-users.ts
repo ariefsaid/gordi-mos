@@ -4,9 +4,10 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
-import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption } from './admin-users.types'
+import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
+const reporting = () => supabase.schema('reporting')
 
 // Curated, org-agnostic messages our admin RPCs / RLS policies raise deliberately — safe to show the
 // admin verbatim. ANY other DB error (raw RLS/constraint text, e.g. a cross-org unique-violation whose
@@ -100,6 +101,16 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     jabatanByPerson[row.person_id].push({ role_id: row.role_id, role_name: roleNameById.get(row.role_id) ?? row.role_id })
   }
 
+  // 5. Fetch supervisor revenue scope (admin reads all org rows via RLS).
+  const { data: scopeRows, error: scopeErr } = await reporting()
+    .from('supervisor_revenue_scope')
+    .select('person_id,channel,branch_code')
+  if (scopeErr) throw surface('load people', scopeErr)
+  const scopeByPerson: Record<string, { channel: string; branch_code: string | null }[]> = {}
+  for (const row of (scopeRows ?? []) as { person_id: string; channel: string; branch_code: string | null }[]) {
+    ;(scopeByPerson[row.person_id] ??= []).push({ channel: row.channel, branch_code: row.branch_code })
+  }
+
   // Build lookup maps
   const rolesByPerson: Record<string, string[]> = {}
   for (const row of (roles ?? []) as { person_id: string; access_role: string }[]) {
@@ -126,6 +137,7 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
       login,
       access_roles: rolesByPerson[p.id] ?? [],
       jabatan: jabatanByPerson[p.id] ?? [],
+      revenue_scope: scopeByPerson[p.id] ?? [],
     }
   })
 }
@@ -254,4 +266,29 @@ export async function assignJabatan(personId: string, roleId: string): Promise<v
 export async function removeJabatan(personId: string, roleId: string): Promise<void> {
   const { error } = await shared().from('person_roles').delete().eq('person_id', personId).eq('role_id', roleId)
   if (error) throw surface('remove position', error)
+}
+
+// ── Revenue scope (supervisor) — reporting.supervisor_revenue_scope admin writes (FR-323) ──────────
+
+/** Distinct live (channel, branch) options for the Revenue-scope picker (NFR-303). */
+export async function listRevenueScopeOptions(): Promise<RevenueScopeOption[]> {
+  const { data, error } = await reporting().rpc('list_revenue_branches')
+  if (error) throw surface('load revenue branches', error)
+  return (data ?? []) as RevenueScopeOption[]
+}
+
+/** Grant a supervisor revenue scope. branchCode null = the whole channel. Never sends org_id (DB stamps). */
+export async function assignRevenueScope(personId: string, channel: string, branchCode: string | null): Promise<void> {
+  const { error } = await reporting()
+    .from('supervisor_revenue_scope')
+    .insert({ person_id: personId, channel, branch_code: branchCode })
+  if (error) throw surface('assign revenue scope', error)
+}
+
+/** Remove a supervisor revenue-scope grant (hard delete; null-safe on branch_code). */
+export async function removeRevenueScope(personId: string, channel: string, branchCode: string | null): Promise<void> {
+  let q = reporting().from('supervisor_revenue_scope').delete().eq('person_id', personId).eq('channel', channel)
+  q = branchCode === null ? q.is('branch_code', null) : q.eq('branch_code', branchCode)
+  const { error } = await q
+  if (error) throw surface('remove revenue scope', error)
 }

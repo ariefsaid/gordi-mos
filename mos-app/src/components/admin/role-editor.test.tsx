@@ -51,6 +51,7 @@ const OTHER_PERSON: AdminPersonRow = {
   login: 'active',
   access_roles: ['member'],
   jabatan: [],
+  revenue_scope: [],
 }
 
 const SELF_PERSON: AdminPersonRow = {
@@ -61,6 +62,7 @@ const SELF_PERSON: AdminPersonRow = {
   login: 'active',
   access_roles: ['admin', 'member'],
   jabatan: [],
+  revenue_scope: [],
 }
 
 beforeEach(() => {

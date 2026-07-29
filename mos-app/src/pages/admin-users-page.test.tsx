@@ -67,6 +67,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'active',
     access_roles: ['admin'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-no-login',
@@ -76,6 +77,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'none',
     access_roles: ['member'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-disabled',
@@ -85,6 +87,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'disabled',
     access_roles: ['ops_lead'],
     jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-archived',
@@ -94,6 +97,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     login: 'none',
     access_roles: [],
     jabatan: [],
+    revenue_scope: [],
   },
 ]
 
@@ -182,6 +186,7 @@ describe('AdminUsersPage (AC-060)', () => {
         login: 'active',
         access_roles: ['admin'],
         jabatan: [],
+        revenue_scope: [],
       },
     ])
     renderPage()
@@ -259,6 +264,7 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
       login: 'active',
       access_roles: [],
       jabatan: [],
+      revenue_scope: [],
     }
     mockListRoles.mockResolvedValue([{ id: 'r-kitchen', name: 'Kitchen Lead' }])
     mockListAdminPeople

@@ -26,6 +26,7 @@ const ACTIVE_ADMIN: AdminPersonRow = {
   login: 'active',
   access_roles: ['admin'],
   jabatan: [],
+  revenue_scope: [],
 }
 
 const ACTIVE_MEMBER: AdminPersonRow = {
@@ -36,6 +37,7 @@ const ACTIVE_MEMBER: AdminPersonRow = {
   login: 'active',
   access_roles: ['member'],
   jabatan: [{ role_id: 'r-barista', role_name: 'Barista' }],
+  revenue_scope: [],
 }
 
 const NO_LOGIN_PERSON: AdminPersonRow = {
@@ -46,6 +48,7 @@ const NO_LOGIN_PERSON: AdminPersonRow = {
   login: 'none',
   access_roles: ['member'],
   jabatan: [],
+  revenue_scope: [],
 }
 
 const ARCHIVED_PERSON: AdminPersonRow = {
@@ -56,6 +59,7 @@ const ARCHIVED_PERSON: AdminPersonRow = {
   login: 'disabled',
   access_roles: [],
   jabatan: [],
+  revenue_scope: [],
 }
 
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
@@ -66,6 +70,7 @@ const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   login: 'disabled',
   access_roles: ['member'],
   jabatan: [],
+  revenue_scope: [],
 }
 
 // Two admins (so last-admin guard does NOT apply)
