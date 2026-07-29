@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState } from '@/components/ui/state-kit'
 import { formatWibDateTime } from '@/lib/wib-time'
@@ -34,6 +35,11 @@ export interface SignalFeedRowsProps {
   variant?: 'ambient' | 'archive'
 }
 
+/** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
+ *  without limit is the wall of text again, just rotated 90 degrees." The archive Feed IS the full
+ *  collection, so it is never capped — hiding records there would defeat the surface's whole job. */
+const AMBIENT_CAP = 6
+
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
   variant = 'ambient',
@@ -58,6 +64,13 @@ export function SignalFeedRows({
     return all.filter((s) => signalMatchesText(s, q, names))
   }, [signals, query, searchable, authorNamesById, teamNamesById])
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
+  const capped = variant === 'ambient' ? ordered.slice(0, AMBIENT_CAP) : ordered
+  const hidden = ordered.length - capped.length
+  // The remainder is a real DOOR, not a bare fact: it carries any active filter through as the
+  // collection's own `q` key, so the rows it names are actually where it says they are.
+  const moreHref = query.trim() === ''
+    ? '/work/signals'
+    : `/work/signals?${new URLSearchParams({ q: query.trim() }).toString()}`
 
   return (
     <div
@@ -105,7 +118,7 @@ export function SignalFeedRows({
         )
       ) : (
         <ul className="home-signal-list">
-          {ordered.map((signal) => {
+          {capped.map((signal) => {
             if (signal.retracted_at) {
               return (
                 <li key={signal.id} className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
@@ -176,6 +189,12 @@ export function SignalFeedRows({
             )
           })}
         </ul>
+      )}
+
+      {hidden > 0 && (
+        <Link to={moreHref} className="signal-feed-link signal-feed-link--more">
+          {t('signals.feed.seeMore', { count: hidden })}
+        </Link>
       )}
     </div>
   )

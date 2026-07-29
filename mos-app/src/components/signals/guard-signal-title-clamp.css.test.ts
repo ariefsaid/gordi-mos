@@ -49,13 +49,27 @@ const grammarCss = stripComments(
 )
 
 describe('GUARD H6/H8(a): Signal title identity clamps to 2 lines, never a nowrap single line', () => {
-  it('GUARD: the Home ambient-tail title (.home-signal-body-text) is a 2-line clamp, not nowrap', () => {
+  // A FEED is for reading (signed mockup: `.feed-text` renders in full). The clamp was never the
+  // fix for H8(a) — `white-space: normal` was; the clamp rode along and truncated Signal prose
+  // mid-sentence in a column whose entire job is that prose. It is dropped here and KEPT on the
+  // task row (.stream-row-title), where the title is an identifier, not prose. What must never
+  // come back is the `nowrap` that set a ~680px min-content width and blew a 375px row out to
+  // ~700px of horizontal scroll.
+  it('GUARD: the feed title (.home-signal-body-text) wraps in FULL — no nowrap, and no clamp', () => {
     const body = ruleBody(feedCss, /\.home-signal-body-text\s*\{/)
     expect(body, 'signal-feed-rows.css must define .home-signal-body-text').not.toBeNull()
-    expect(body!).toMatch(/-webkit-line-clamp:\s*2/)
-    expect(body!).toMatch(/line-clamp:\s*2/)
-    // The nowrap that forced ~680px min-content width (the H8(a) overflow) must be gone.
+    expect(body!).toMatch(/white-space:\s*normal/)
     expect(body!).not.toMatch(/white-space:\s*nowrap/)
+    expect(body!, 'a feed is for reading — the body is not clamped').not.toMatch(/line-clamp/)
+  })
+
+  it('GUARD: the TASK row title keeps its 2-line clamp — an identifier, not prose', () => {
+    const streamCss = stripComments(
+      readFileSync(resolve(process.cwd(), 'src/components/home/home-stream.css'), 'utf8'),
+    )
+    const body = ruleBody(streamCss, /\.stream-row-title\s*\{/)
+    expect(body, 'home-stream.css must define .stream-row-title').not.toBeNull()
+    expect(body!).toMatch(/-webkit-line-clamp:\s*2/)
   })
 
   it('GUARD: the archive TABLE title (.signal-table-message) is a 2-line clamp, not nowrap', () => {

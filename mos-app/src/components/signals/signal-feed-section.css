@@ -37,6 +37,16 @@
   color: var(--muted-foreground);
 }
 
+/* The head's honest figure, where the (redundant) "Signals →" link used to sit — the signed
+   mockup's `.feed-head > .tile-count`. Same recipe as the Overview tile's own count, so one
+   quantity has one look wherever Home states it. */
+.signal-feed-count {
+  flex: none;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
 .signal-feed-link {
   flex: none;
   font-size: var(--font-size-mono);
@@ -44,6 +54,18 @@
   color: var(--primary);
   text-decoration: none;
   white-space: nowrap;
+}
+/* The capped column's way through, hanging off the foot of the list next to the remainder it
+   explains (mockup `.more`). A modifier on the ONE feed-link recipe — same type, colour, hover and
+   focus — carrying only the geometry that differs: a full-width, left-aligned block rather than a
+   `flex: none` item in the head row. It is rendered by SignalFeedRows but lives here, beside the
+   recipe it modifies rather than as a second copy of it: the cap is AMBIENT-only, and the ambient
+   consumer is SignalFeedSection, which is what loads this file. */
+.signal-feed-link--more {
+  display: block;
+  margin-top: 8px;
+  padding: 4px;
+  white-space: normal;
 }
 .signal-feed-link:hover { text-decoration: underline; }
 .signal-feed-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }

@@ -172,7 +172,7 @@ describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () 
   it('renders the Focused tabs + the Signals feed for a member', async () => {
     await renderHome(memberViewer)
     expect(await screen.findByRole('tablist')).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: 'Recent' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Signals' })).toBeInTheDocument()
     expect(mockListRevenue).not.toHaveBeenCalled()
   })
 })
@@ -216,7 +216,7 @@ describe('OD-REDESIGN-82: Home is chromeless — no card-shell chrome on the lay
   it('the Signals feed is a SECTION landmark, and neither it nor the tab strip carries card-shell chrome', async () => {
     await renderHome(financeViewer)
     const shellClasses = ['bg-card', 'border', 'border-border', 'rounded-lg', 'shadow-rest']
-    const feed = await screen.findByRole('region', { name: 'Recent' })
+    const feed = await screen.findByRole('region', { name: 'Signals' })
     expect(feed.tagName).toBe('SECTION')
     for (const c of shellClasses) expect(feed).not.toHaveClass(c)
 
@@ -254,7 +254,7 @@ describe('FR-928 (home-layout-preference) — Signals render in the feed only, n
     ])
     await renderHome(memberViewer)
 
-    const feed = await screen.findByRole('region', { name: 'Recent' })
+    const feed = await screen.findByRole('region', { name: 'Signals' })
     expect(await within(feed).findByText('Freezer alarm went off')).toBeInTheDocument()
     expect(within(feed).getByText('New oat-milk brand in stock')).toBeInTheDocument()
     // Exactly one instance of each in the whole document — the feed, never a work-region tab.

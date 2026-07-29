@@ -127,19 +127,19 @@
   cursor: pointer;
   min-width: 0;
 }
-/* H6 + H8(a) (Luna floor): the title WRAPS to a clamped 2 lines instead of a single nowrap line.
-   The prior `white-space: nowrap` let a long single-line Signal set the span's min-content width to
-   ~680px, which on the stacked phone row (flex-direction: column) blew past the 375px main → ~700px
-   horizontal scroll (measured), AND starved the FYI Signal's identity to one truncated line. The
-   2-line clamp is the SAME vocabulary as the condensed Task title (TasksWorkspace.css .task-name)
-   and the ranked-stream title (home-stream.css .stream-row-title): the row grows one line, the
-   identity survives, and nothing overflows the phone width. */
+/* A FEED is for reading: the Signal body renders in FULL, wrapping as many lines as it takes
+   (signed mockup `.feed-text`). It carried a 2-line clamp, which truncated the prose this column
+   exists to carry mid-sentence.
+   `white-space: normal` is what actually fixed H8(a), and it stays: the prior `nowrap` let a long
+   single-line Signal set the span's min-content width to ~680px, which on the stacked phone row
+   (flex-direction: column) blew past the 375px main → ~700px of horizontal scroll (measured). The
+   clamp merely rode along with that fix and was never what prevented the overflow.
+   The clamp remains correct — and remains — on the TASK row (home-stream.css .stream-row-title),
+   where the title is an identifier to recognise, not prose to read. */
 .home-signal-body-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 /* P1-4 (c): the visible title line is only ~22px tall, well under the 44px tap floor. Expand the
    real hit area to cover the whole record row (title + meta subline ≈ 50px) with a transparent
