@@ -157,12 +157,12 @@ describe('router — dashboard route gate + redirect (OD-DASH-2, FR-001/002)', (
     return shell.children!
   }
 
-  it('AC-002/003: /dashboard sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
+  it('AC-127: /dashboard sits under a RequireAccessRole anyOf={finance,admin,manager} branch', () => {
     const dashGate = shellChildren().find(
       r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
     )!
     expect(dashGate).toBeDefined()
-    expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'manager']} />)
   })
 
   it('AC-001: /sales redirects to /dashboard (back-compat)', () => {
@@ -210,5 +210,19 @@ describe('router — Plan budget + pricing routes (ADR-0022, SHOW_PLAN_BUDGET de
     )!
     expect(planGate).toBeDefined()
     expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+  })
+
+  it('AC-127: manager is NOT admitted to plan/budget (view-only, no planning — FR-112)', () => {
+    const protectedRoute = routeConfig.find(
+      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+    )!
+    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+    const planGate = shell.children!.find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    )!
+    expect(planGate).toBeDefined()
+    // Pinned exclusion: unlike /dashboard, manager is deliberately absent here.
+    expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(planGate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'manager']} />)
   })
 })

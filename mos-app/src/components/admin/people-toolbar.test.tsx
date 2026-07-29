@@ -25,6 +25,7 @@ const ADMIN: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['admin'],
+  jabatan: [],
 }
 
 const ACTIVE_MEMBER: AdminPersonRow = {
@@ -34,6 +35,7 @@ const ACTIVE_MEMBER: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
+  jabatan: [],
 }
 
 const NO_LOGIN_PERSON: AdminPersonRow = {
@@ -43,6 +45,7 @@ const NO_LOGIN_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'none',
   access_roles: ['member'],
+  jabatan: [],
 }
 
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
@@ -52,6 +55,7 @@ const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'disabled',
   access_roles: ['member'],
+  jabatan: [],
 }
 
 const ARCHIVED_PERSON: AdminPersonRow = {
@@ -61,6 +65,7 @@ const ARCHIVED_PERSON: AdminPersonRow = {
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],
+  jabatan: [],
 }
 
 // Full roster: admin + active + no-login + disabled + archived

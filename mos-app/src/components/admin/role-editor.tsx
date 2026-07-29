@@ -1,8 +1,10 @@
-// RoleEditor — manage access roles for a person (FR-050, AC-050).
-// Opens as a dialog; one checkbox per ASSIGNABLE_ROLES role (never 'manager').
+// RoleEditor — "Access level" dialog for a person (FR-050, FR-205, AC-050, AC-121..123).
+// Opens as a dialog; one checkbox per ASSIGNABLE_ROLES role, including 'manager' (ADR-0050 —
+// company-wide financial view, admin-assignable, never labeled "Role").
 // Checked = currently granted (from person.access_roles).
 // Toggling ON → grantRole, OFF → revokeRole; calls onDone to trigger list reload.
-// Self-assign guard: admin/finance disabled when person.id === viewer's person.id (FR-023).
+// Self-assign guard: admin/finance/manager disabled when person.id === viewer's person.id
+// (FR-023, ADR-0050 D4).
 // Last-admin guard: admin checkbox disabled when person is the sole active admin (FR-041, item 5).
 // ESC or Close button dismisses (no destructive consequence — normal dismiss is fine).
 //
@@ -18,16 +20,19 @@ import { useAuth } from '@/auth/use-auth'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
-import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
-import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import { ASSIGNABLE_ROLES, ROLE_META, roleLabel } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
+import { PositionPicker } from './position-picker'
 
-// Roles protected by self-assign guard (FR-023)
-const SELF_GUARDED_ROLES = new Set(['admin', 'finance'])
+// Roles protected by self-assign guard (FR-023, ADR-0050 D4)
+const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager'])
 
 export interface RoleEditorProps {
   person: AdminPersonRow
   /** The full people list — needed to compute last-admin guard (item 5, FR-041). */
   people?: AdminPersonRow[]
+  /** Org roles (Positions) for the Position section, from listRoles() (ADR-0050). */
+  roles?: RoleOption[]
   open: boolean
   onClose: () => void
   /** Called after a successful grant/revoke so the page can reload the list. */
@@ -52,6 +57,7 @@ function isLastAdmin(person: AdminPersonRow, people: AdminPersonRow[]): boolean 
 export function RoleEditor({
   person,
   people = [],
+  roles = [],
   open,
   onClose,
   onDone,
@@ -131,10 +137,10 @@ export function RoleEditor({
     try {
       if (isGranted) {
         await revokeRole(person.id, role)
-        onShowToast?.(`${role} removed from ${person.full_name}.`)
+        onShowToast?.(`${roleLabel(role)} removed from ${person.full_name}.`)
       } else {
         await grantRole(person.id, role)
-        onShowToast?.(`${role} granted to ${person.full_name}.`)
+        onShowToast?.(`${roleLabel(role)} granted to ${person.full_name}.`)
       }
       onDone()
     } catch (err) {
@@ -157,7 +163,7 @@ export function RoleEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative w-full max-w-sm overflow-hidden rounded-lg"
+        className="relative flex max-h-[90vh] w-full max-w-sm flex-col overflow-hidden rounded-lg"
         style={{
           background: 'var(--card)',
           boxShadow: 'var(--shadow-overlay)',
@@ -166,15 +172,15 @@ export function RoleEditor({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+        {/* Header — stays outside the scroll area so it's always reachable */}
+        <div className="flex shrink-0 items-start justify-between gap-3 px-6 pt-6 pb-4">
           <div>
             <h2
               id={titleId}
               className="subheading text-lg font-semibold"
               style={{ color: 'var(--foreground)' }}
             >
-              Manage roles
+              Access level
             </h2>
             <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
               {person.full_name}
@@ -191,12 +197,18 @@ export function RoleEditor({
             ✕
           </button>
         </div>
-        <div style={{ borderTop: '1px solid var(--border)' }} />
+        <div className="shrink-0" style={{ borderTop: '1px solid var(--border)' }} />
 
+        {/* Scrollable body — Access-level rows + Position section. Constrained so the header
+            ✕ and footer Close stay reachable on short viewports (WCAG 1.4.10). */}
+        <div
+          data-testid="role-editor-scroll-body"
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
         {/* Role rows — grouped bordered container, label + description per row */}
         <div className="px-6 py-5">
           <fieldset disabled={busy}>
-            <legend className="sr-only">Access roles for {person.full_name}</legend>
+            <legend className="sr-only">Access level for {person.full_name}</legend>
             <div
               className="overflow-hidden rounded-md"
               style={{ border: '1px solid var(--input)' }}
@@ -211,7 +223,7 @@ export function RoleEditor({
 
                 // Reason for disabled state (tooltip/title)
                 const disabledReason = isSelfGuarded
-                  ? "You can't change your own admin/finance role" // item 14: plain language
+                  ? "You can't change your own admin/finance/manager access" // item 14: plain language
                   : isLastAdminGuarded
                     ? "Can't remove the last admin"
                     : undefined
@@ -224,8 +236,13 @@ export function RoleEditor({
                     }`}
                     style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
                     title={isDisabled ? disabledReason : undefined}
+                    // Defect 3: the whole row toggles, not just the 16px checkbox glyph — the
+                    // checkbox glyph stops propagation (below) so this fires exactly once per click.
+                    onClick={() => {
+                      if (!isDisabled) handleToggle(role)
+                    }}
                   >
-                    <span className="mt-0.5">
+                    <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={isGranted}
                         disabled={isDisabled}
@@ -247,7 +264,7 @@ export function RoleEditor({
                         {(isSelfGuarded || isLastAdminGuarded)
                           ? isLastAdminGuarded
                             ? 'Only admin — assign another first'
-                            : "Can't change your own admin/finance role"
+                            : "Can't change your own admin/finance/manager access"
                           : meta.description}
                       </span>
                     </span>
@@ -273,9 +290,14 @@ export function RoleEditor({
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{ borderTop: '1px solid var(--border)' }} />
-        <div className="flex justify-end px-6 py-4">
+        {/* Position section (Jabatan, ADR-0050) — bordered, same dialog, below Access level */}
+        <PositionPicker person={person} roles={roles} onDone={onDone} onShowToast={onShowToast} />
+        </div>
+        {/* end scrollable body */}
+
+        {/* Footer — stays outside the scroll area so it's always reachable */}
+        <div className="shrink-0" style={{ borderTop: '1px solid var(--border)' }} />
+        <div className="flex shrink-0 justify-end px-6 py-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
             Close
           </Button>

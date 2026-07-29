@@ -236,6 +236,27 @@ describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops, c
   })
 })
 
+describe('AC-129: a manager viewer sees the company money tiles (ADR-0050 D8)', () => {
+  it('renders the owner-cockpit revenue + margin tiles and issues the finance fetch for a manager', async () => {
+    mockListRevenue.mockResolvedValue([
+      { revenue_date: '2026-07-06', channel: 'POS', esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', transactions: 80, clean_revenue: 12_000_000, snapshot_as_of: '2026-07-07T00:00:00Z', source_contract_version: 'v1' },
+    ])
+    mockListMargin.mockResolvedValue([
+      { margin_date: '2026-07-06', esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', revenue: 12_000_000, cogs_interim_sm: 6_000_000, cogs_budget_bom: 6_000_000, margin_interim: 6_000_000, margin_interim_pct: 0.5, bom_coverage_pct: 0.9, snapshot_as_of: '2026-07-07T00:00:00Z', source_contract_version: 'v1' },
+    ])
+    await renderStacked(
+      viewer({ roles: [MD_ROLE], accessRoles: ['manager'] }), // owner-director + manager
+    )
+    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
+    expect(mockListMargin).toHaveBeenCalled()
+
+    const revenueTile = screen.getByRole('group', { name: /revenue/i })
+    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    const marginTile = screen.getByRole('group', { name: /gross margin/i })
+    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+  })
+})
+
 describe('AC-HS14: AR slot drop point present (parallel-slice slot, no invented figure)', () => {
   it('renders a data-money-ar-slot element in the function cockpit', async () => {
     const { container } = await renderStacked(

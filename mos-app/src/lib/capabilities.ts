@@ -13,3 +13,8 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
 export function can(accessRoles: readonly string[], capability: string): boolean {
   return accessRoles.some((role) => (ROLE_CAPABILITIES[role] ?? []).includes(capability))
 }
+
+/** Financial-VIEW visibility: finance, admin, or manager (ADR-0050 D8). RLS is the hard boundary. */
+export function canViewFinance(accessRoles: readonly string[]): boolean {
+  return accessRoles.includes('finance') || accessRoles.includes('admin') || accessRoles.includes('manager')
+}
