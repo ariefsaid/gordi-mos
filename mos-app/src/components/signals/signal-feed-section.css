@@ -26,25 +26,19 @@
   margin-bottom: 6px;
 }
 
+/* Group-header label — matches the stream's List band header (home-stream.css
+   .stream-band-label, owner "wall of text" fix, 2026-07-28): the same display-face treatment
+   at the `subheading` rung, sentence case, full `--foreground`. Signals and the List bands sit
+   at the same structural level in the one scroll — both are group headers — so they read as
+   the same kind of thing, not two different heading grammars side by side. */
 .signal-feed-label {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: var(--font-size-label);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-
-/* The head's honest figure, where the (redundant) "Signals →" link used to sit — the signed
-   mockup's `.feed-head > .tile-count`. Same recipe as the Overview tile's own count, so one
-   quantity has one look wherever Home states it. */
-.signal-feed-count {
-  flex: none;
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: var(--font-size-subheading);
+  font-weight: 600;
+  color: var(--foreground);
 }
 
 .signal-feed-link {

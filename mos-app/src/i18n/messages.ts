@@ -1184,9 +1184,6 @@ export const messages = {
     'signals.feed.error': "Couldn't load Signals.",
     'signals.feed.retry': 'Retry',
     'signals.feed.title': 'Signals',
-    // The head's honest figure: how many of the Signals shown OCCURRED today (WIB), not the depth
-    // of the feed. Absent entirely when the read failed.
-    'signals.feed.todayCount': '${count} today',
     // The capped ambient column's remainder — and its way through to the full archive.
     'signals.feed.seeMore': 'See ${count} more →',
     'signals.card.unknownAuthor': 'Someone',
@@ -2424,7 +2421,6 @@ export const messages = {
     'signals.feed.error': 'Tidak dapat memuat Sinyal.',
     'signals.feed.retry': 'Coba lagi',
     'signals.feed.title': 'Sinyal',
-    'signals.feed.todayCount': '${count} hari ini',
     'signals.feed.seeMore': 'Lihat ${count} lagi →',
     'signals.card.unknownAuthor': 'Seseorang',
     'signals.card.openSignal': 'Buka sinyal: ${body}',

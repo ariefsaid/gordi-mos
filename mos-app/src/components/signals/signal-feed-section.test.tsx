@@ -198,16 +198,17 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   })
 })
 
-// ── DIV: the column has ONE name, and its count is honest ─────────────────────────────────────
+// ── DIV: the column has ONE name, and states no count it cannot back up ────────────────────────
 // The head said "RECENT" while the link beside it said "Signals →" and the layout picker's help
 // calls it "the Signals column": three names for one column in one viewport. "Recent" was a fossil
 // of F15/OD-91 #27, whose stated reason was avoiding an attention-level collision with the ranked
 // stream — under FR-928 the feed is the only home for Signals (Urgent included), so the collision
-// it avoided no longer exists. The mockup's head is `Signals` + an `N today` count.
-describe('FR-928: the Signals column is named Signals, and states how many are from today', () => {
-  const TODAY = new Date()
-  const YESTERDAY = new Date(Date.now() - 36 * 60 * 60 * 1000)
-
+// it avoided no longer exists. The mockup also drew an `N today` count beside the head, but that
+// mockup's dataset was a single day — "today" was tautological there. This feed is not day-scoped,
+// so a "today" count next to a feed reaching back further would be untraceable by the viewer; it
+// is dropped entirely rather than replaced with the feed's depth relabelled as "today" (the exact
+// falsehood already fixed elsewhere). "See N more →" on the capped list carries the volume signal.
+describe('FR-928: the Signals column is named Signals, and states no untraceable count', () => {
   it('the heading is "Signals" — the word the picker and the destination already use', async () => {
     renderSection()
     const head = await screen.findByRole('heading', { name: /^signals$/i })
@@ -215,18 +216,18 @@ describe('FR-928: the Signals column is named Signals, and states how many are f
     expect(screen.queryByText(/^recent$/i)).not.toBeInTheDocument()
   })
 
-  it('states how many of the Signals shown are from today (not the whole feed depth)', async () => {
+  it('never renders an "N today" count beside the heading — the feed is not day-scoped', async () => {
     renderSection({
       signals: [
-        row({ id: 's1', occurred_at: TODAY.toISOString() }),
-        row({ id: 's2', occurred_at: TODAY.toISOString() }),
-        row({ id: 's3', occurred_at: YESTERDAY.toISOString() }),
+        row({ id: 's1', body: 'The freezer alarm went off' }),
+        row({ id: 's2', body: 'Grinder 2 is throwing inconsistent doses' }),
       ],
     })
-    expect(await screen.findByText(/2 today/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument())
+    expect(screen.queryByText(/today/i)).not.toBeInTheDocument()
   })
 
-  it('states NO count when the read failed — a "0 today" beside an error is a falsehood', async () => {
+  it('still renders no count when the read failed', async () => {
     renderSection({ signals: [], error: true })
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
     expect(screen.queryByText(/today/i)).not.toBeInTheDocument()

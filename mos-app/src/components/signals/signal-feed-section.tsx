@@ -1,7 +1,6 @@
-import { useId, useMemo } from 'react'
+import { useId } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { correctSignal } from '@/lib/db/signals'
-import { wibToday } from '@/lib/home-attention'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
@@ -46,12 +45,6 @@ export function SignalFeedSection({
   const { open: openSignalComposer } = useSignalComposer()
   const t = useT()
   const titleId = useId()
-  // "N today" counts the Signals that actually OCCURRED today in WIB — not the feed's depth, which
-  // reaches further back. Reuses the app's one WIB day helper on each item's own instant.
-  const todayCount = useMemo(() => {
-    const today = wibToday()
-    return signals.filter((s) => wibToday(new Date(s.occurred_at)) === today).length
-  }, [signals])
 
   function openRecord(signalId: string) {
     if (host) {
@@ -80,27 +73,24 @@ export function SignalFeedSection({
 
   return (
     <section className="signal-feed-section" aria-labelledby={titleId}>
-      {/* Peer section-label grammar (F1/F5, Nielsen H4 consistency): same small-caps muted label
-          + right-aligned link as the stream's OVERDUE / MY WORK TODAY bands — Signals is a peer
-          section in the one scroll, not a bolted-on card with its own heading weight. */}
+      {/* Peer group-header grammar (F1/F5, Nielsen H4 consistency): same display-face label as the
+          stream's List band headers (OVERDUE / MY WORK TODAY) — Signals is a peer section in the
+          one scroll, not a bolted-on card with its own heading weight. */}
       <div className="signal-feed-head">
         {/* The column is named "Signals" — the word the layout picker's help, the destination link
             and the record type all already use. It was titled "Recent" (F15 / OD-REDESIGN-91 #27),
             whose stated reason was avoiding an attention-level collision with the ranked stream;
             under FR-928 this feed is the ONLY home for Signals (Urgent included), so that collision
-            no longer exists — and the head said RECENT while the link beside it said "Signals →":
-            three names for one column in one viewport. Head layout follows the signed mockup's
-            `.feed-head`: the name, and an honest `N today` count where the link used to sit. The
-            way through now hangs off the capped list below, next to the remainder it explains. */}
+            no longer exists. A "N today" count sat here (the signed mockup's `.feed-head`), but that
+            mockup's dataset was a single day, so "today" was tautological there; the app's feed is
+            not day-scoped, so a "today" count next to a feed reaching back further was traceable to
+            nothing a viewer could verify — dropped rather than replaced with a relabelled feed-depth
+            figure (the same falsehood already fixed elsewhere). The "See N more →" link at the foot
+            of the capped list carries the volume signal instead. */}
         {/* h2, matching its peer sections: this renders only on Home, where PageFamilyFrame owns
             the sole h1 and there is no intermediate level — an h3 skipped one (detector:
             skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
         <h2 id={titleId} className="signal-feed-label">{t('signals.feed.title')}</h2>
-        {/* Absent, never "0 today", when the read failed — the same rule the work regions follow
-            (DIV-G5): a count the viewer cannot trace is worse than no count. */}
-        {!error && (
-          <span className="signal-feed-count">{t('signals.feed.todayCount', { count: todayCount })}</span>
-        )}
       </div>
       {error ? (
         // The error/retry branch every engine collection has (DIV-G5): a failed load must never
