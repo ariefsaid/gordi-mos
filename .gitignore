@@ -72,3 +72,8 @@ e11/
 .playwright-cli/
 output/
 mos-app/capture-*.mjs
+
+# Operational runbooks: live host names, credential file paths, financial figures.
+# Kept on disk, never tracked — a public repo must not carry a target list (2026-07-30).
+docs/reference/warehouse-online.md
+__pycache__/
