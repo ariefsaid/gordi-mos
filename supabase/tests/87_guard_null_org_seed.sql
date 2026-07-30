@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(4);
+select plan(5);
 
 select mos._test_seed_role_tree();  -- org a1 people d1..d7, roles f1..f6; d4=Peer, f2=Lead R
 
@@ -23,6 +23,13 @@ select lives_ok($$
   insert into reporting.supervisor_revenue_scope (org_id, person_id, channel, branch_code)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','B2B',null)
 $$, 'null-org service context: supervisor scope insert is allowed by the guard');
+
+-- AC-215: the service/seed insert above must leave granted_by NULL. FR-208 promises this in prose;
+-- without an assertion, a future column DEFAULT could silently attribute seed rows to a real person.
+select is(
+  (select granted_by from shared.person_roles
+     where person_id='00000000-0000-0000-0000-0000000000d4' and role_id='00000000-0000-0000-0000-0000000000f2'),
+  null, 'AC-215: service/seed context leaves granted_by NULL (no actor to attribute)');
 
 -- ── M-2 (security audit 2026-07-30): the OTHER half of the exemption ──────────────────────────
 -- The two assertions above prove the guard LETS THE SEED THROUGH. Nothing proved it still KEEPS

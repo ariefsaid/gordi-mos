@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 select mos._test_seed_role_tree();      -- org a1 people d1..d7, roles f1..f6/c1; org b1 person b4, role c1
 select mos._test_seed_access_roles();   -- grants admin -> GrandMgr (...d3)
@@ -20,7 +20,7 @@ select is(
      where person_id='00000000-0000-0000-0000-0000000000d4' and role_id='00000000-0000-0000-0000-0000000000f2'),
   '00000000-0000-0000-0000-0000000000a1'::uuid, 'AC-111: org_id server-stamped on assign');
 
--- AC-118 (M-1, audit 2026-07-30): a Jabatan assignment is ATTRIBUTABLE. Assigning a top-of-chain
+-- AC-209 (M-1, audit 2026-07-30): a Jabatan assignment is ATTRIBUTABLE. Assigning a top-of-chain
 -- Position silently widens what the holder can read/write (shared.is_manager_of unions over
 -- person_roles, which gates mos.tasks read+update, weekly updates and ops logs). Before this the row
 -- carried no actor at all, so a permission-affecting write left no trace of who made it (STRIDE
@@ -29,20 +29,20 @@ select is(
   (select granted_by from shared.person_roles
      where person_id='00000000-0000-0000-0000-0000000000d4' and role_id='00000000-0000-0000-0000-0000000000f2'),
   '00000000-0000-0000-0000-0000000000d3'::uuid,
-  'AC-118: granted_by is server-stamped to the acting admin on assign');
+  'AC-209: granted_by is server-stamped to the acting admin on assign');
 
--- AC-119: and a client-supplied granted_by is OVERWRITTEN, not trusted — otherwise the attribution
+-- AC-211: and a client-supplied granted_by is OVERWRITTEN, not trusted — otherwise the attribution
 -- is worthless, since the actor could name someone else. (d5,f2) is a free pair in the role tree.
 select lives_ok($$
   insert into shared.person_roles (person_id, role_id, granted_by)
   values ('00000000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-0000000000f2',
           '00000000-0000-0000-0000-0000000000d1')
-$$, 'AC-119: insert with a spoofed granted_by is accepted');
+$$, 'AC-211: insert with a spoofed granted_by is accepted');
 select is(
   (select granted_by from shared.person_roles
      where person_id='00000000-0000-0000-0000-0000000000d5' and role_id='00000000-0000-0000-0000-0000000000f2'),
   '00000000-0000-0000-0000-0000000000d3'::uuid,
-  'AC-119: the spoofed granted_by was replaced by the real actor (...d3), not stored as sent');
+  'AC-211: the spoofed granted_by was replaced by the real actor (...d3), not stored as sent');
 
 -- AC-112: admin removes a Position (Peer's Staff R ...f3 row seeded by role tree).
 select lives_ok($$
@@ -103,5 +103,15 @@ select is(
   1, 'AC-117: non-admin delete removed nothing (row still present)');
 
 reset role;
+
+-- AC-214 (I-1, review 2026-07-30): the guard must be ATTACHED, not merely defined. Everything above
+-- proves what the guard DOES; nothing proved it is wired. During this very review the trigger was
+-- observed missing from a live database while its function body and migration record were both
+-- present — and an unattached person_roles_guard means NOTHING checks that the target person and the
+-- role belong to the caller's org (the RLS WITH CHECK only covers org_id + admin). Same failure class
+-- as M-2, one layer down.
+select has_trigger('shared','person_roles','person_roles_guard',
+  'AC-214: person_roles_guard is attached (it is the ONLY wall for the cross-org person/role seam)');
+
 select * from finish();
 rollback;

@@ -123,12 +123,19 @@
   another org (same-org role), Then the guard raises `42501` (the guard checks the person's org too).
 - **AC-117** *(FR-203)* Given a non-admin session, When deleting an existing `person_roles` row, Then the
   admin-only delete policy filters it out (no error, zero rows affected) and the row remains.
-- **AC-118** *(FR-208)* Given an authenticated admin session, When it inserts a `person_roles` row, Then
+- **AC-209** *(FR-208)* Given an authenticated admin session, When it inserts a `person_roles` row, Then
   the row's `granted_by` holds the **acting** person's id, stamped server-side by
   `shared._guard_person_roles()`.
-- **AC-119** *(FR-208)* Given the same session, When it inserts a `person_roles` row **supplying** a
+- **AC-211** *(FR-208)* Given the same session, When it inserts a `person_roles` row **supplying** a
   `granted_by` naming someone else, Then the insert succeeds but the supplied value is **discarded** and
   replaced with the acting person's id — attribution is never client-controlled.
+- **AC-214** *(FR-204/208)* Given the deployed schema, Then the `person_roles_guard` trigger is
+  **attached** to `shared.person_roles`. It is the *only* wall for the cross-org person/role seam — the
+  RLS `WITH CHECK` does not verify either FK's org — so an unattached trigger converts this into a
+  cross-org write hole while every behavioural test still passes for the wrong reason.
+- **AC-215** *(FR-208)* Given the service/seed connection (no `current_person_id()`), When a
+  `person_roles` row is inserted, Then `granted_by` is NULL — there is no acting person to attribute,
+  and the column must not invent one.
 
 ### Vitest / RTL — types, DAL, UI
 
@@ -158,6 +165,6 @@
 
 ## Test layer ownership
 
-- RLS / role read+write contracts → **pgTAP** (`supabase test db`): AC-101..119.
+- RLS / role read+write contracts → **pgTAP** (`supabase test db`): AC-101..117, AC-209, AC-211, AC-214.
 - Types / component render / DAL wrappers → **Vitest/RTL**: AC-120..129.
 - **No new e2e** — no new cross-stack journey; existing curated journeys unaffected.
