@@ -9,7 +9,10 @@ on:
     # `steps.scope.outputs.app` guard instead, which still reports the check as green.
     paths-ignore:
       - 'docs/**'
+      - 'review/**'
+      - '.claude/**'
       - '**/*.md'
+      - '.gitignore'
   pull_request:
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
@@ -41,9 +44,23 @@ jobs:
       # touches none of it the run is pure latency AND a false-negative source: on 2026-07-30 a
       # scripts + pgTAP + docs commit went red on a flake in a React suite it could not have
       # affected. Skipping the steps (rather than the job) keeps the required check reporting.
+      #
+      # FAIL-CLOSED BY CONSTRUCTION. The obvious form of this guard — "skip unless mos-app/
+      # changed" — is fail-OPEN: it assumes today's repo layout is permanent, so the day the app
+      # comes to depend on anything outside mos-app/ (a root package.json, a shared package, a
+      # generated types dir) the filter is silently stale and the gate stops running with nobody
+      # told. Inverted here: skip only when EVERY changed path matches the inert allowlist below.
+      # Anything unrecognised — including any new top-level directory — runs the full gate. The
+      # failure mode of an out-of-date allowlist is then a wasted 170s, not an unrun gate.
       - name: Scope — does this change touch the app?
         id: scope
         working-directory: .
+        # BASE_REF via env, never interpolated into the script body. Git refnames permit `"`, `;`,
+        # `$` and backticks, so `${{ }}` inside a quoted shell string is breakable in principle.
+        # base_ref is the TARGET branch (dev/main) and so is not fork-controlled — this is
+        # defence-in-depth per GitHub's hardening guidance, not a live vector. Adopted from PMO.
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # Explicit refspec, not `git fetch origin <branch>`: the short form only updates the
@@ -51,22 +68,45 @@ jobs:
             # while origin/<base> stays frozen — the same fail-open that bit scripts/pre-merge-check.sh.
             # Getting the base wrong here would silently skip the gate on a real app change.
             git fetch --quiet --no-tags origin \
-              "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
-            BASE="origin/${{ github.base_ref }}"
-            RANGE="$(git merge-base "$BASE" HEAD)..HEAD"
+              "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            RANGE="$(git merge-base "origin/${BASE_REF}" HEAD)..HEAD"
           else
             RANGE="${{ github.event.before }}..HEAD"
             git cat-file -e "${{ github.event.before }}" 2>/dev/null || RANGE="HEAD~1..HEAD"
           fi
-          if git diff --name-only "$RANGE" -- mos-app/ | grep -q .; then
+          # Paths that provably cannot affect `npm run typecheck | lint:ci | test:coverage | build`.
+          # supabase/ qualifies because the unit suite mocks the client entirely — schema changes are
+          # gated by integration.yml, which has its own supabase/** filter. ADDING TO THIS LIST IS A
+          # DELIBERATE ACT: each entry is a promise that the app gate cannot see that path.
+          INERT='^(docs/|scripts/|supabase/|\.github/|\.claude/|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
+
+          CHANGED="$(git diff --name-only "$RANGE")"
+          NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+
+          if [ -n "$NOT_INERT" ]; then
             echo "app=true" >> "$GITHUB_OUTPUT"
-            echo "mos-app/ changed → running the full gate."
+            echo "Running the full gate — these paths are not on the inert allowlist:"
+            printf '%s\n' "$NOT_INERT" | sed 's/^/  /'
           else
             echo "app=false" >> "$GITHUB_OUTPUT"
-            echo "No mos-app/ changes in $RANGE → skipping typecheck/lint/tests/build."
-            echo "Nothing here can affect the app; the check still reports green."
+            echo "Every changed path is inert → skipping typecheck/lint/tests/build."
+            # Say plainly what a green check does and does not mean here. A 15s pass asserts
+            # "nothing the app gate can see changed" — NOT "the app is green".
+            {
+              echo "### verify: app steps skipped"
+              echo ""
+              echo "Every path in this change is on the inert allowlist, so typecheck, lint, the"
+              echo "unit suite and the build were **not run**."
+              echo ""
+              echo "A green check here means **nothing the app gate can observe changed** — it is"
+              echo "not a statement that the app is green. The last full run against \`main\` is."
+              echo ""
+              echo "Changed paths:"
+              printf '%s\n' "$CHANGED" | sed 's/^/- `/;s/$/`/'
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
-          git diff --name-only "$RANGE" | sed 's/^/  /'
+          echo "--- all changed paths in $RANGE ---"
+          printf '%s\n' "$CHANGED" | sed 's/^/  /'
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.scope.outputs.app == 'true'
