@@ -82,5 +82,3 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   })
 }
-
-// ci-guard probe: temporary, reverted in the next commit
