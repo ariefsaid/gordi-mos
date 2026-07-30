@@ -23,7 +23,23 @@ if [[ "$BRANCH" == "main" ]]; then
   exit 1
 fi
 
-MERGE_BASE="$(git merge-base main HEAD)"
+# Baseline must be the REMOTE main, not the local ref. Caught 2026-07-30 immediately after the
+# staleness check below shipped: local `main` sat a whole promotion behind origin/main, so
+# `git merge-base main HEAD` returned the PREVIOUS baseline — and the brand-new staleness check
+# happily passed, because the ledger cited exactly that stale SHA. Same bug one level down: the
+# gate was verifying against a moved goalpost it could not see. It also silently corrupted step 4
+# (the changed-file scan that decides which reviews are required) by diffing the wrong range.
+# Best-effort fetch so a forgotten `git fetch` cannot quietly rot the baseline; offline is fine,
+# we just fall back to whatever ref exists.
+git fetch --quiet origin main 2>/dev/null || true
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+  BASE_REF="origin/main"
+else
+  BASE_REF="main"
+  echo "WARN: no origin/main ref — falling back to local 'main', which may be stale." >&2
+fi
+
+MERGE_BASE="$(git merge-base "$BASE_REF" HEAD)"
 
 # ── 2. Compute ledger path (slashes → dashes) ────────────────────────────────
 LEDGER_SLUG="${BRANCH//\//-}"
@@ -162,6 +178,7 @@ check_review "security"      "security"     "$REQUIRE_SECURITY"
 echo ""
 echo "pre-merge-check: branch '${BRANCH}'"
 echo "  ledger : ${LEDGER}"
+echo "  base   : ${BASE_REF} @ $(git rev-parse --short "$MERGE_BASE")  ($(git log -1 --format=%s "$MERGE_BASE"))"
 echo "  diff   : $(echo "$CHANGED_FILES" | wc -l | xargs) file(s) changed since merge-base"
 echo "  reviews required: spec code-quality$(${REQUIRE_DESIGN} && echo " design" || true)$(${REQUIRE_SECURITY} && echo " security" || true)"
 echo ""
