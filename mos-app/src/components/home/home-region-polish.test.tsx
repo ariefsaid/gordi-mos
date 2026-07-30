@@ -107,7 +107,7 @@ describe('Overview states the remainder it does not render', () => {
   it('a truncated tile says how many more there are', () => {
     renderLayout(<HomeOverview regions={regions} feed={FEED} />)
     const tile = screen.getByRole('heading', { name: /needs you now/i }).closest('section')!
-    expect(within(tile).getByText(/5 more/i)).toBeInTheDocument()
+    expect(within(tile).getByText(/4 more/i)).toBeInTheDocument()
   })
 
   it('List renders every row, so it states no remainder', () => {

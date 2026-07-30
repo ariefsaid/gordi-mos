@@ -604,11 +604,20 @@ logic); **e2e** = Playwright (routing / aria-current document-wide / Back+refres
 - **AC-013** (RTL) — _Owns FR-005, FR-024; Rule 1 / Rule 6._
   Given any signed-in viewer, When the rail renders, Then the profile footer row shows the viewer's
   avatar and **full name** + role and opens the identity menu (UserChip) with a working **Sign out**;
-  `/profile` remains reachable as a Utility rail link; the context row renders the active route's job
-  sentence from the registry.
+  `/profile` remains reachable as a Utility rail link; the page shows its orientation signal exactly
+  once — the active route's job sentence from the registry (context row, or region 3 where a
+  PageFamilyFrame route owns it instead) — **or**, where the route's owner ruled a live status row
+  answers the orientation question better (Rule 1, amended 2026-07-30), that status row in the
+  sentence's place. Never both, never neither.
   _(Amended 2026-07-16, security audit HIGH-1: the original "{Site} {role}, links to /profile" footer
   removed the only sign-out affordance and the viewer's name from the shell — the amended wording is
   the security-correct behavior; original prose preserved in git history.)_
+  _(Amended 2026-07-30, owner ruling: the literal-sentence requirement is retired for routes whose
+  head carries a status row instead — Home is the first instance. Fixes a defect where Home rendered
+  neither the sentence nor an oracle that could catch its absence: `docs/reviews/v4-redesign.md`
+  Open item 1. The prior oracle here (`context-row.test.tsx`) exercised a fixture shape `/` never
+  renders (a `jobSentence` prop with no `statusRow`) and so passed without ever guarding the real
+  route; it has been rebuilt to compose the head the way `/` actually does.)_
   - _Owns: `mos-app/src/shell/context-row.test.tsx` AC-013 (and rail-nav AC-013 for the footer)._
 
 ### Top bar + ⌘K palette (Rule 6, Rule 7, OD-57)

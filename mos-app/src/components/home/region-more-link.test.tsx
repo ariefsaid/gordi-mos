@@ -28,17 +28,17 @@ describe('the remainder a region does not render is reachable from Home', () => 
   it('every over-cap region offers a link to its own destination, not a muted sentence', () => {
     draw(buildHomeRegions({
       overdue: many(9, 'o'), dueToday: [], blocked: [],
-      myWork: many(6, 'w'), failedChecks: many(7, 'f'), mentions: many(5, 'm'),
+      myWork: many(6, 'w'), failedChecks: many(7, 'f'), mentions: many(6, 'm'),
     }))
     const hrefByName = Object.fromEntries(
       screen.getAllByRole('link', { name: /more in/i })
         .map((a) => [a.getAttribute('aria-label'), a.getAttribute('href')]),
     )
     expect(hrefByName).toEqual({
-      '5 more in Needs you now': '/work/tasks?view=my-work',
-      '3 more in Failed checks': '/cafe/log',
+      '4 more in Needs you now': '/work/tasks?view=my-work',
+      '2 more in Failed checks': '/cafe/log',
       '1 more in Mentions': '/inbox',
-      '2 more in My work today': '/work/tasks?view=my-work',
+      '1 more in My work today': '/work/tasks?view=my-work',
     })
   })
 
@@ -47,7 +47,7 @@ describe('the remainder a region does not render is reachable from Home', () => 
       overdue: many(9, 'o'), dueToday: [], blocked: [],
       myWork: [], failedChecks: [], mentions: [],
     }))
-    expect(screen.getByRole('link', { name: '5 more in Needs you now' })).toHaveTextContent('5 more')
+    expect(screen.getByRole('link', { name: '4 more in Needs you now' })).toHaveTextContent('4 more')
   })
 
   it('a region that fits under the cap states no remainder at all', () => {
@@ -65,6 +65,6 @@ describe('the remainder a region does not render is reachable from Home', () => 
     })
     draw([{ ...needsYou, drillTo: undefined }, ...rest])
     expect(screen.queryByRole('link', { name: /more in/i })).toBeNull()
-    expect(screen.getByText('5 more')).toBeInTheDocument()
+    expect(screen.getByText('4 more')).toBeInTheDocument()
   })
 })

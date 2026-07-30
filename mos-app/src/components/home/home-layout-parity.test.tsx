@@ -32,14 +32,14 @@ const switchRegions = buildHomeRegions({
   myWork: [item('mw1'), item('mw2')], failedChecks: [item('fc1')], mentions: [item('mn1')],
 })
 
-// Every region PAST Overview's OVERVIEW_TILE_ROWS cap (4) — the only fixture under which AC-929's
-// reachability invariant means anything. A ≤4-item region never truncates, so a test built on one
+// Every region PAST Overview's OVERVIEW_TILE_ROWS cap (5) — the only fixture under which AC-929's
+// reachability invariant means anything. A ≤5-item region never truncates, so a test built on one
 // asserts the cap-free path and calls it parity.
 const many = (prefix: string, n: number) =>
   Array.from({ length: n }, (_, i) => item(`${prefix}${i + 1}`))
 const cappedRegions = buildHomeRegions({
   overdue: many('od', 3), dueToday: many('dt', 3), blocked: [], // needs-you = 6
-  myWork: many('mw', 6), failedChecks: many('fc', 5), mentions: many('mn', 5),
+  myWork: many('mw', 6), failedChecks: many('fc', 6), mentions: many('mn', 6),
 })
 const ALL_RECORD_IDS = cappedRegions.flatMap((r) => r.items.map((i) => i.id))
 const RECORD_HREF = /^\/work\/tasks\/[^?]+$/
@@ -243,7 +243,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
 
   // ── AC-929 / NFR-924 (AMENDED — see the spec's RATIFY-BEFORE-MERGE §10) ──────────────────────
   // As literally written ("the set of record ids rendered is identical across all three") the AC
-  // CANNOT hold and must not: Overview caps each tile at OVERVIEW_TILE_ROWS (4) and states the
+  // CANNOT hold and must not: Overview caps each tile at OVERVIEW_TILE_ROWS (5) and states the
   // remainder as "N more →". The Director ruled that cap plus its link the intended behaviour —
   // the link is what makes the summary honest. So the invariant the parity requirement actually
   // protects is asserted instead:

@@ -60,6 +60,43 @@ function renderMigratedPage(path: string, title: string, jobSentence: string) {
   )
 }
 
+/**
+ * The same anatomy, but composed the way `/` actually composes it (home-page.tsx): a `statusRow`
+ * and NO `jobSentence` prop. The oracle above never exercised this shape at all — its fixture
+ * passed a `jobSentence` and no `statusRow`, so it could pass while the real route rendered zero
+ * orientation signals.
+ */
+function renderMigratedPageWithStatusRow(path: string, title: string, statusRow: React.ReactNode) {
+  return render(
+    <I18nProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <ContextRow />
+                <PageHead family="workspace" variant="content" title={title} statusRow={statusRow} />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+/**
+ * Orientation-rule (amended Experience-Contract Rule 1, owner ruling 2026-07-30): a page shows its
+ * orientation signal exactly once, satisfied by EITHER region 2/3's job sentence (`.ctx-job` /
+ * `.page-head-job`) OR a region-3 status row (`.ch-status-row`) — never both, never neither. Counts
+ * every element carrying either signal, across the whole render (region 2 + region 3 together), so
+ * a defect that duplicates OR drops the signal shows up as a count other than 1.
+ */
+function orientationCount(container: HTMLElement): number {
+  return container.querySelectorAll('.ctx-job, .page-head-job, .ch-status-row').length
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   setAuth([])
@@ -72,11 +109,16 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(region).toHaveAttribute('data-anatomy', 'context-row')
   })
 
-  it('AC-013 / R-OWNER-1: the Home job sentence is shown exactly once, owned by region 3 at the migrated / route', () => {
-    // `/` migrated onto a PageFamilyFrame (Issue 11) whose region-3 PageHead owns the sentence, so
-    // ContextRow (region 2) must suppress its copy — the page still shows the sentence exactly once.
-    renderMigratedPage('/', 'Home', 'What needs my attention right now?')
-    expect(screen.getAllByText('What needs my attention right now?')).toHaveLength(1)
+  it('AC-013 (amended, owner ruling 2026-07-30): Home renders its orientation exactly once, satisfied by the status row — never the retired job sentence, never both, never neither', () => {
+    // Composed the way `/` ACTUALLY composes it (home-page.tsx): a statusRow and no jobSentence.
+    // The previous fixture here passed a jobSentence and no statusRow — a shape `/` never renders —
+    // so it could pass 1-for-1 while the real route showed zero orientation signals (the defect
+    // Experience-Contract Rule 1 flagged, docs/reviews/v4-redesign.md Open item 1). The owner has
+    // since retired the literal-sentence requirement for Home: a status row satisfies orientation.
+    const { container } = renderMigratedPageWithStatusRow('/', 'Home', <span>3 handled · 2 left</span>)
+    expect(orientationCount(container), 'exactly one orientation signal (the status row)').toBe(1)
+    expect(screen.getByText('3 handled · 2 left')).toBeInTheDocument()
+    expect(screen.queryByText('What needs my attention right now?')).not.toBeInTheDocument()
   })
 
   it('R-OWNER-1: suppresses the Home job sentence in ContextRow at the migrated / route', () => {

@@ -43,10 +43,25 @@ serves that job first.
 *Operationalises OD-REDESIGN-1 / D1 (rail), OD-REDESIGN-17 / D8 (Home), OD-REDESIGN-8 / D9 (Work),
 OD-REDESIGN-20 / D1 (Inbox).*
 
-**Pass if:** every rail entry maps to exactly one row above and the first viewport of its screen answers
-that job before any configuration. **Fail if:** any rail entry has no single job sentence, or two entries
-share a job (duplicate Home/Dashboard/Operate/Plan), or a screen buries its job behind selectors/empty
-state.
+**Orientation may be carried by a status row instead of the literal sentence (amended, owner ruling
+2026-07-30).** The table's job sentence is the DEFAULT orientation signal a rail entry's screen
+shows. It is not mandatory verbatim text on every render of that screen: where a page's header
+instead renders a live status row that answers the same question the job sentence exists to answer
+("what is this page for right now"), the status row satisfies Rule 1 in the sentence's place — the
+two are never both required. Home is the first instance: the day-status row (handled/left tally +
+state line) replaces "What needs my attention right now?" one-for-one, because the live tally
+answers the orientation question better than the sentence, which only re-asked it. What Rule 1 still
+requires, unconditionally, is that **exactly one** orientation signal — the job sentence OR a
+qualifying status row, never both, never neither — appears per page. (Prior to this amendment, Home
+carried neither: an undetected violation caught in `docs/reviews/v4-redesign.md` Open item 1, fixed
+by this ruling plus the repaired oracle at `mos-app/src/shell/context-row.test.tsx`.)
+
+**Pass if:** every rail entry maps to exactly one row above, and the first viewport of its screen
+shows exactly one orientation signal (that job sentence, or a status row substituting for it) before
+any configuration. **Fail if:** any rail entry has no single orientation signal (neither a job
+sentence nor a qualifying status row), two entries share a job (duplicate Home/Dashboard/Operate/
+Plan), a screen buries its job behind selectors/empty state, or a screen shows both the sentence and
+a status row at once (redundant, not "extra safe").
 
 ## Rule 2 — Three-layer boundary: domain contract → UI family → destination (surfaces merge, schemas don't)
 
@@ -139,7 +154,9 @@ Every route renders the same four-region anatomy: **(1) header → (2) context r
 (4) record drawer** (the shared right-panel host, D3b). The header carries brand + current-location
 breadcrumb (left) and the ⌘K search field + Inbox + Deputy (right) — universal actions (Ask Deputy ·
 Share Signal · Create Task) live in the ⌘K palette, not as header buttons (owner frame directive
-2026-07-14); the context row carries scope (Person/Team/BU) + the route's job sentence;
+2026-07-14); the context row carries scope (Person/Team/BU) + the route's orientation signal (the job
+sentence, or wherever a route's region-3 head already owns it — including the status-row substitution
+Rule 1 permits — the context row suppresses its own copy so orientation still appears exactly once);
 the content region holds the collection/list/feed; the drawer holds the stack-navigated record, Inbox
 quick triage, or deputy — never competing drawers.
 
@@ -148,7 +165,8 @@ sticky bar and the drawer becomes a page stack, but the four roles persist.*
 
 **Pass if:** each of the 4 regions is identifiable on every route, and no route invents a fifth region or
 a second drawer host. **Fail if:** a route re-invents its own chrome, nests a physical drawer inside the
-record drawer, or omits the context row's job/scope.
+record drawer, omits its scope signal, or omits orientation entirely (see Rule 1's amended pass/fail —
+a status row standing in for the job sentence is not an omission).
 
 ## Rule 7 — Verb+object action grammar (no bare `Create`)
 

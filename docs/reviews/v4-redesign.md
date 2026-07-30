@@ -110,21 +110,35 @@ so the name diff is what was checked.
 
 ## Open items
 
-1. **Owner ratification owed — the job sentence.** Home no longer renders `job.home` ("What needs my
+1. **RESOLVED (2026-07-30, owner ruling).** Owner, verbatim: "agree. remove any requirements for what
+   needs my attention." The Director recommendation below was accepted as stated: Home keeps the
+   status row, Experience-Contract Rule 1 is amended (`docs/experience-contract.md`) so a page whose
+   head carries a qualifying status row satisfies orientation with that row instead of the literal
+   job sentence — never both, never neither — and the dead guard at
+   `src/shell/context-row.test.tsx:75` (old numbering) is rebuilt to compose the head the way `/`
+   actually does (a `statusRow`, no `jobSentence`), with the amended invariant proved to fail both
+   when the render carries both signals and when it carries neither. `RATIFY-5`,
+   `docs/specs/home-layout-preference.spec.md` §10, records the artifact-trail entry. `DESIGN.md`
+   (ratified `509c6ae`) was left untouched — its existing "one clear job sentence/context" wording
+   already reads compatibly; no edit was needed.
+   <details><summary>Original finding (superseded)</summary>
+   Owner ratification owed — the job sentence. Home no longer renders `job.home` ("What needs my
    attention right now?"); the day-status row took its row in the header block. Experience-Contract
    Rule 1 requires the job sentence exactly once per page; on `/` it is now zero. Aggravating: the
    guard at `src/shell/context-row.test.tsx:75` still passes only because its fixture composes a
    `PageHead` **without** a `statusRow`, so the AC-013 oracle has stopped guarding the real `/`.
    Director recommendation: keep the status row and amend the contract so a page carrying one
    satisfies the orientation requirement with it — then repair the guard to compose the head the way
-   `/` actually composes it. **Not yet decided by the owner.**
+   `/` actually composes it.
+   </details>
 2. **AC coverage in flight** — AC-926, AC-931 (a measured width sweep at 390/620/768/940/1100/1280,
    with a viewport>400px abort), AC-933, AC-934 (e2e), plus re-scoped AC-921/928/929/932.
-3. **AC-929 / NFR-924 amendment.** Overview caps each tile at `OVERVIEW_TILE_ROWS` (4) with an
-   "N more →" link, so it renders strictly fewer records than List above 4 items. Director ruling: the
-   cap plus its link is the intended behaviour and the ACs are amended to the honest invariant — *no
-   layout is the reason a record is unreachable; a truncated region always offers the way through.*
-   Needs a `RATIFY-BEFORE-MERGE:` line in the spec (owner-signed artifact).
+3. **AC-929 / NFR-924 amendment.** Overview caps each tile at `OVERVIEW_TILE_ROWS` (5, raised from 4
+   by owner ruling 2026-07-30 — `RATIFY-4`) with an "N more →" link, so it renders strictly fewer
+   records than List above 5 items. Director ruling: the cap plus its link is the intended behaviour
+   and the ACs are amended to the honest invariant — *no layout is the reason a record is
+   unreachable; a truncated region always offers the way through.* Recorded as `RATIFY-3` in the spec
+   (owner-signed artifact).
 4. **Deviation logged, accepted** — the Signals feed shows all Signals rather than the plan's literal
    FYI-only `ambientSignals`. No region carries Signals under the new model, so the literal reading
    would have made Urgent Signals vanish from Home entirely. Feed ordering (Urgent → Needs-attention →
@@ -135,5 +149,6 @@ so the name diff is what was checked.
 
 ## Decision
 
-HOLD — the security review has not run, and item 1 needs an owner ruling. Everything else is either
-merged or in flight. Re-run `bash scripts/pre-merge-check.sh` once the security verdict is recorded.
+HOLD — the security review has not run. Item 1 is resolved (owner ruling, 2026-07-30, see above).
+Everything else is either merged or in flight. Re-run `bash scripts/pre-merge-check.sh` once the
+security verdict is recorded.

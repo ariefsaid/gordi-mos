@@ -237,7 +237,7 @@ Each `AC` is owned by **one** test at the lowest sufficient layer (CLAUDE.md tes
 - `RATIFY-3` — **`AC-929` / `NFR-924` are AMENDED from "the same records" to "the same records
   REACHABLE"** (Director ruling, 2026-07-29, recorded during acceptance).
   As originally written the criterion could not hold and should not: `home-overview.tsx` caps each
-  tile at `OVERVIEW_TILE_ROWS` (4) and states the remainder as an "N more →" link, so at ≥5 items
+  tile at `OVERVIEW_TILE_ROWS` (5) and states the remainder as an "N more →" link, so at ≥6 items
   per region Overview renders strictly fewer records than List by design. The cap plus its link is
   the **intended** behaviour — the link is what keeps the summary honest — so the oracle was
   re-scoped to the invariant the parity requirement actually protects: *no layout is the reason a
@@ -248,3 +248,22 @@ Each `AC` is owned by **one** test at the lowest sufficient layer (CLAUDE.md tes
   Owner to confirm at sign-off, since this changes a signed artifact.
   Owning test: `mos-app/src/components/home/home-layout-parity.test.tsx` (`AC-929: no layout hides
   a record …`).
+
+- `RATIFY-4` — **`OVERVIEW_TILE_ROWS` raised from 4 to 5** (owner ruling, 2026-07-30, already
+  actioned — recorded here for the artifact trail). The Overview bento tile shows 5 rows before
+  stating the remainder as "N more →"; `RATIFY-3` above is updated to match (cap 5, exercised at ≥6
+  items). Bento packing (`guard-bento-rows.css.test.ts`) is unaffected — it guards tile-weight/span
+  arithmetic, not row count.
+
+- `RATIFY-5` — **Home's job-sentence requirement is retired** (owner ruling, 2026-07-30, verbatim:
+  "agree. remove any requirements for what needs my attention"). Home's header renders the
+  day-status row in place of the registry job sentence "What needs my attention right now?" —
+  previously flagged (`docs/reviews/v4-redesign.md` Open item 1) as an Experience-Contract Rule 1
+  violation because Rule 1 mandated the literal sentence and no oracle guarded the real route (the
+  fixture at `context-row.test.tsx` composed a shape `/` never renders). Rule 1 is now amended
+  (`docs/experience-contract.md`) so a page whose head carries a qualifying status row satisfies
+  orientation with that row — never both, never neither — and the oracle is rebuilt to compose the
+  head the way `/` actually does. `DESIGN.md` (ratified `509c6ae`) is unchanged; its existing "one
+  clear job sentence/context" wording already reads compatibly with a status-row substitute, so no
+  edit was made there — see the review ledger for the specific wording recommendation if the token
+  document is ever revisited.
