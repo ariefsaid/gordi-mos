@@ -63,6 +63,24 @@ export default defineConfig({
         url: 'http://localhost/mos/',
       },
     },
+    // Flake fix (2026-07-30). Two distinct defects, both from leaving testTimeout at its 5000ms
+    // default while async budgets grew underneath it:
+    //
+    //  1. A per-test `waitFor(..., { timeout: 5000 })` (kitchen-plan-page.test.tsx:159) can NEVER
+    //     spend its budget — the 5000ms test timeout fires first, so the test dies as a timeout
+    //     rather than reporting the assertion. Not "slow under load": structurally unable to pass
+    //     if the wait ever approaches its own limit. It flaked locally on exactly that path.
+    //  2. The global asyncUtilTimeout of 3000 (src/test/setup.ts) left only 2000ms of slack before
+    //     the test timeout. On a shared CI runner the `saved` confirmation assertion in the same
+    //     file lapsed at 3078ms — right at that budget — turning CI red on a commit that changed
+    //     no app code at all (scripts + pgTAP + docs only).
+    //
+    // testTimeout is a HANG ceiling, not a performance target: no assertion here should need
+    // seconds, so a generous ceiling costs nothing on the happy path (the suite runs in ~30s) and
+    // buys the headroom that starvation flakes need. Raising it — rather than shaving the waits —
+    // also keeps every per-test timeout meaningful instead of silently capped.
+    testTimeout: 15000,
+    hookTimeout: 15000,
     // Keep Playwright's e2e specs out of the Vitest run.
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {

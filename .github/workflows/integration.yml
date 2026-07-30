@@ -9,7 +9,9 @@ on:
   # migrations/RLS, the e2e journeys, or this workflow's deps. Pushes to main always run it
   # (no paths filter on push), so every merge is fully validated post-merge.
   pull_request:
-    branches: [main]
+    # `dev` added 2026-07-30 for the pgTAP FAST LANE (job `pgtap`) — see the tiering note below.
+    # The heavy `db` job stays PR→main only; it is gated on base_ref, not on this list.
+    branches: [main, dev]
     paths:
       - 'supabase/**'
       - 'mos-app/e2e/**'
@@ -18,13 +20,79 @@ on:
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
+# ─── CI TIERING (adopted from PMO's ci.yml after comparing the two repos) ──────────────────
+# PR → dev    `verify` + `pgtap`  — Supabase + pgTAP, NO browser. Fast lane.
+# PR → main   `verify` + `db`     — Supabase + pgTAP + Playwright e2e. Authoritative gate.
+# push main   `verify` + `db`     — post-merge smoke.
+#
+# WHY THE FAST LANE EXISTS. Until now gordi had no DB test on dev PRs at all: `integration` was
+# PR→main only, so PRs #113–#117 ran `verify` alone and the 637 pgTAP tests — including every
+# assertion written for the M-1/M-2 security remediation — had never executed in CI. Their first
+# automated run was the promotion PR, days after the migrations landed on `dev`. A migration that
+# broke RLS would have sat undetected on `dev` for that whole window.
+# pgTAP without Playwright is ~2 min against ~4, so the fast lane buys the RLS/tenancy signal at
+# roughly half the cost of the full gate, and buys it days earlier. This does NOT duplicate `db`:
+# `db` keeps the browser tier and remains the merge gate for main.
+
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
 # read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
 permissions:
   contents: read
 
+# Supersede in-flight runs on the same ref — this is the expensive workflow (median ~4 min,
+# dominated by an 84s Supabase boot), so letting an obsolete run finish is the costliest waste
+# here. Never cancel on main: the post-merge run is the record that main is fully validated.
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
+  # ── FAST LANE: PR → dev. Supabase + pgTAP only, no browser. ───────────────────────────────
+  pgtap:
+    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.104.0
+
+      - name: Start local Supabase stack (applies migrations + seed)
+        # Same exclusion list as `db` below — proven to boot. Further trimming is possible for a
+        # pgTAP-only run (no auth/mail needed), but an unproven `-x` name fails the whole job, and
+        # the boot is already the floor cost here. Not worth the risk for a few seconds.
+        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
+        run: |
+          failed=0
+          for f in supabase/migrations/*.sql; do
+            body=$(sed 's/--.*//' "$f")
+            if echo "$body" | grep -qi 'security definer'; then
+              if ! echo "$body" | grep -qi 'revoke execute on function'; then
+                echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
+                failed=1
+              fi
+            fi
+          done
+          [ "$failed" -eq 0 ] || { echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;'" >&2; exit 1; }
+          echo "Lint OK: all SECURITY DEFINER migrations have revoke."
+
+      - name: pgTAP suite
+        run: supabase test db
+
+      - name: Stop stack
+        if: always()
+        run: supabase stop
+
+  # ── AUTHORITATIVE GATE: PR → main, and the post-merge smoke on main. ──────────────────────
   db:
+    # Gated on base_ref rather than the trigger's branch list, so adding `dev` above for the fast
+    # lane cannot accidentally start the expensive browser tier on every dev PR.
+    if: github.event_name == 'push' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

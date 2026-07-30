@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 select mos._test_seed_role_tree();      -- org a1 people d1..d7; org b1 person b4
 select mos._test_seed_access_roles();   -- grants admin -> GrandMgr (...d3)
@@ -80,5 +80,18 @@ select throws_ok($$
 $$, '42501', null, 'AC-304: non-admin scope insert denied by RLS WITH CHECK');
 
 reset role;
+
+-- AC-309 (I-1, review 2026-07-30): sibling of AC-214 — the guard must be attached, not just defined.
+select has_trigger('reporting','supervisor_revenue_scope','supervisor_revenue_scope_guard',
+  'AC-309: supervisor_revenue_scope_guard is attached (org seam + granted_by stamp depend on it)');
+
+-- AC-309b (security review F-3): sibling of AC-214b — a DISABLED trigger passes has_trigger while
+-- being entirely inert.
+select ok(
+  (select tgenabled from pg_trigger
+    where tgname = 'supervisor_revenue_scope_guard'
+      and tgrelid = 'reporting.supervisor_revenue_scope'::regclass) in ('O','A'),
+  'AC-309b: supervisor_revenue_scope_guard is ENABLED, not merely present');
+
 select * from finish();
 rollback;

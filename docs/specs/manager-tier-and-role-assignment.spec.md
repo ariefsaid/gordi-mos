@@ -68,6 +68,28 @@
 - **FR-206** The admin People UI SHALL label the org-chart assignment **"Position"** and the access
   assignment **"Access level"**, and SHALL NOT label either "Role".
 - **FR-207** A person MAY simultaneously hold `ops_lead` and `manager`; the axes are independent.
+- **FR-208** A Jabatan assignment SHALL record **who made it**: `shared.person_roles.granted_by` SHALL be
+  stamped server-side from `shared.current_person_id()` by the guard, and a client-supplied value SHALL be
+  discarded rather than trusted. Added by the 2026-07-30 security audit (M-1): assigning a top-of-chain
+  Position widens the holder's reach through `shared.is_manager_of()` — specifically `can_edit_task`
+  (UPDATE), `can_edit_log_entry` (UPDATE) and `can_read_weekly_update` (read); task and ops-log SELECT
+  are org-wide and NOT manager-gated, so this is a data-integrity and attribution concern, not
+  cross-org escalation (impact corrected per the 2026-07-30 review) — and that
+  permission-affecting write previously recorded no actor (STRIDE Repudiation). Under the service/seed
+  connection `granted_by` is NULL — there is no acting person to attribute.
+  **Not required — but recorded as an ACCEPTED RISK, not a non-issue.** Self-assignment of a Position
+  is deliberately allowed: `person_roles` records an org **position**, not an app privilege; an admin
+  setting their own job title is legitimate, and a hard block is a lockout footgun in a single-admin org.
+  *Corrected per the 2026-07-30 review:* the original justification ("no privilege delta — an admin can
+  already impersonate via `admin_reset_password`") was a category error. It is true on **capability**
+  but false on **detectability**, which is the axis M-1 is about. Impersonation is loud and
+  irreversible — it overwrites the victim's password hash, locks them out immediately, cannot be undone
+  through the app, and leaves `auth.sessions` / GoTrue audit rows. A silent Position self-grant leaves
+  none of that, and because removal is a hard DELETE with no attribution, the sequence
+  *self-grant → read subordinates' weekly updates → delete* leaves **zero residue even after M-1**.
+  So the residual risk is real; it is accepted because a hard block costs more than the residual is
+  worth, **not** because the residual is nil. Closing it properly means attributable revocation
+  (`revoked_at` soft-delete or an append-only audit table), tracked as a follow-up — not a self-assign block.
 - **NFR-201** All assignment writes SHALL be enforced server-side (RLS/guard), not merely UI-gated.
 
 ---
@@ -114,6 +136,21 @@
   another org (same-org role), Then the guard raises `42501` (the guard checks the person's org too).
 - **AC-117** *(FR-203)* Given a non-admin session, When deleting an existing `person_roles` row, Then the
   admin-only delete policy filters it out (no error, zero rows affected) and the row remains.
+- **AC-209** *(FR-208)* Given an authenticated admin session, When it inserts a `person_roles` row, Then
+  the row's `granted_by` holds the **acting** person's id, stamped server-side by
+  `shared._guard_person_roles()`.
+- **AC-211** *(FR-208)* Given the same session, When it inserts a `person_roles` row **supplying** a
+  `granted_by` naming someone else, Then the insert succeeds but the supplied value is **discarded** and
+  replaced with the acting person's id — attribution is never client-controlled.
+- **AC-214** *(FR-204/208)* Given the deployed schema, Then the `person_roles_guard` trigger is
+  **attached** to `shared.person_roles`. It is the *only* wall for the cross-org person/role seam — the
+  RLS `WITH CHECK` does not verify either FK's org — so an unattached trigger lets an admin write
+  cross-org `person_roles` rows while every behavioural test still passes for the wrong reason. This is
+  a data-integrity hole in that table, **not** privilege escalation: every policy consuming
+  `is_manager_of` is independently org-bound, so no cross-org business data becomes readable.
+- **AC-215** *(FR-208)* Given the service/seed connection (no `current_person_id()`), When a
+  `person_roles` row is inserted, Then `granted_by` is NULL — there is no acting person to attribute,
+  and the column must not invent one.
 
 ### Vitest / RTL — types, DAL, UI
 
@@ -143,6 +180,6 @@
 
 ## Test layer ownership
 
-- RLS / role read+write contracts → **pgTAP** (`supabase test db`): AC-101..115.
+- RLS / role read+write contracts → **pgTAP** (`supabase test db`): AC-101..117, AC-209, AC-211, AC-214.
 - Types / component render / DAL wrappers → **Vitest/RTL**: AC-120..129.
 - **No new e2e** — no new cross-stack journey; existing curated journeys unaffected.
