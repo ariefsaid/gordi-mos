@@ -10,6 +10,14 @@
 # Verdict format (one per review):  - <review>: <VERDICT> — <reviewer/notes>
 # Accepted verdicts: PASS  SHIP  FIX-THEN-SHIP
 # Blocking verdicts: REWORK  FAIL  STILL-FAILING  (or blank/missing)
+#
+# NETWORK: this script fetches origin/main, because a stale baseline is the failure mode it exists
+# to catch. Env overrides (both are logged in the report; neither is silent):
+#   ALLOW_STALE_BASE=1    proceed with a possibly-stale baseline (offline / sandbox).
+#   PRE_MERGE_NO_FETCH=1  skip the fetch. Requires ALLOW_STALE_BASE=1 as well — on its own it fails.
+#
+# Tests: scripts/tests/pre-merge-check.test.sh. Add a case for every change here; this gate has
+# failed OPEN four times, each time in a path nobody had exercised.
 
 set -euo pipefail
 
@@ -23,23 +31,91 @@ if [[ "$BRANCH" == "main" ]]; then
   exit 1
 fi
 
-# Baseline must be the REMOTE main, not the local ref. Caught 2026-07-30 immediately after the
-# staleness check below shipped: local `main` sat a whole promotion behind origin/main, so
-# `git merge-base main HEAD` returned the PREVIOUS baseline — and the brand-new staleness check
-# happily passed, because the ledger cited exactly that stale SHA. Same bug one level down: the
-# gate was verifying against a moved goalpost it could not see. It also silently corrupted step 4
-# (the changed-file scan that decides which reviews are required) by diffing the wrong range.
-# Best-effort fetch so a forgotten `git fetch` cannot quietly rot the baseline; offline is fine,
-# we just fall back to whatever ref exists.
-git fetch --quiet origin main 2>/dev/null || true
-if git rev-parse --verify --quiet origin/main >/dev/null; then
-  BASE_REF="origin/main"
+# Baseline must be the REMOTE main. This block has now failed open TWICE, both times by trusting a
+# ref that had silently moved, so it is deliberately paranoid:
+#   1. 2026-07-30 — used local `main`, which sat a whole promotion behind origin/main. The staleness
+#      check below passed because the ledger cited exactly that stale SHA.
+#   2. 2026-07-30 (review of the fix for #1) — fetched with `|| true`, so an unreachable remote left
+#      a stale origin/main in place and the report printed `base : origin/main @ <old>` with an
+#      authoritative label, no warning, exit 0, over unreviewed commits. Reproduced, not theorised.
+# A gate whose most common failure (laptop offline) makes it pass is worse than no gate, because it
+# launders "I could not check" into "I checked and it is fine". So: no soft paths. Every way of NOT
+# knowing the true baseline is exit 1, and the only bypass is loud, explicit and named.
+# ALLOW_STALE_BASE=1 exists for a genuine sandbox/offline run — it does not skip the check, it only
+# permits a possibly-stale ref, and the report says so on its face.
+ALLOW_STALE="${ALLOW_STALE_BASE:-0}"
+FETCH_OK=true
+if [[ "${PRE_MERGE_NO_FETCH:-0}" == "1" ]]; then
+  # Bypass #3 (F-2). This used to set a value that was neither "true" nor "false", so the guard
+  # below never fired and this became a SILENT bypass — quieter than ALLOW_STALE_BASE, the one
+  # that is supposed to be the loud escape hatch. It now falls into the same guard.
+  FETCH_OK=skipped
 else
-  BASE_REF="main"
-  echo "WARN: no origin/main ref — falling back to local 'main', which may be stale." >&2
+  # `git fetch origin main` updates refs/remotes/origin/main only OPPORTUNISTICALLY — when the
+  # configured remote.origin.fetch refspec happens to cover it. On a fork, a `git remote add -t`
+  # remote, or a CI checkout with a narrowed refspec, the fetch EXITS 0 while the tracking ref
+  # stays frozen: success reported, baseline unmoved, gate passes over unreviewed work (F-1,
+  # reproduced). Fourth fail-open in this block. Name the destination explicitly so "fetch
+  # succeeded" and "origin/main is current" cannot come apart.
+  if git fetch --quiet --no-tags origin '+refs/heads/main:refs/remotes/origin/main' 2>/dev/null; then
+    # Belt and braces: even an explicit refspec should be checked, not trusted.
+    if ! git rev-parse --verify --quiet FETCH_HEAD >/dev/null \
+       || [[ "$(git rev-parse origin/main 2>/dev/null)" != "$(git rev-parse FETCH_HEAD 2>/dev/null)" ]]; then
+      FETCH_OK=false
+    fi
+  else
+    FETCH_OK=false
+  fi
 fi
 
-MERGE_BASE="$(git merge-base "$BASE_REF" HEAD)"
+if [[ "$FETCH_OK" != "true" && "$ALLOW_STALE" != "1" ]]; then
+  echo ""
+  if [[ "$FETCH_OK" == "skipped" ]]; then
+    echo "FAIL: PRE_MERGE_NO_FETCH=1 skipped the baseline refresh."
+    echo "  Skipping the fetch means the baseline may predate the current main — the exact"
+    echo "  staleness this gate exists to catch. It is not a free pass on its own."
+    echo ""
+    echo "  If that is genuinely what you want, say so explicitly:"
+    echo "    PRE_MERGE_NO_FETCH=1 ALLOW_STALE_BASE=1 bash $0"
+  else
+    echo "FAIL: could not refresh origin/main — the baseline cannot be trusted."
+    echo "  Either the fetch failed, or it succeeded without moving origin/main (a narrowed"
+    echo "  remote refspec). Any ref present locally may predate the current main."
+    echo ""
+    echo "  Fix: restore network access, or widen the refspec:"
+    echo "    git config --add remote.origin.fetch '+refs/heads/main:refs/remotes/origin/main'"
+    echo "  Override (only if you fetched by hand just now): ALLOW_STALE_BASE=1 bash $0"
+  fi
+  echo ""
+  exit 1
+fi
+
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+  BASE_REF="origin/main"
+elif [[ "$ALLOW_STALE" == "1" ]]; then
+  BASE_REF="main"
+else
+  echo ""
+  echo "FAIL: no origin/main ref to measure against."
+  echo "  A fork with a differently-named remote, or a --single-branch clone."
+  echo "  Falling back to local 'main' would silently restore the bug this check fixes."
+  echo ""
+  echo "  Fix: git remote add origin <url> && git fetch origin main"
+  echo "  Override: ALLOW_STALE_BASE=1 bash $0"
+  echo ""
+  exit 1
+fi
+
+# Unguarded, this dies as a bare `fatal: Not a valid object name` with exit 128 — which any wrapper
+# testing for 1 mishandles, and which tells the operator nothing.
+if ! MERGE_BASE="$(git merge-base "$BASE_REF" HEAD 2>/dev/null)"; then
+  echo ""
+  echo "FAIL: no merge base between '$BASE_REF' and HEAD."
+  echo "  Shallow clone?  git fetch --unshallow"
+  echo "  Different default branch?  git remote show origin"
+  echo ""
+  exit 1
+fi
 
 # ── 2. Compute ledger path (slashes → dashes) ────────────────────────────────
 LEDGER_SLUG="${BRANCH//\//-}"
@@ -69,14 +145,28 @@ fi
 LONG_LIVED_BRANCHES=("dev" "staging")
 for b in "${LONG_LIVED_BRANCHES[@]}"; do
   if [[ "$BRANCH" == "$b" ]]; then
-    BASE_SHORT="$(git rev-parse --short "$MERGE_BASE")"
-    if ! grep -qF "$BASE_SHORT" "$LEDGER"; then
+    # --short=7 pinned: `--short` alone is length-auto and honours core.abbrev, so a repo
+    # configured to 12 emits a longer SHA than the ledger cites and blocks every promotion.
+    BASE_SHORT="$(git rev-parse --short=7 "$MERGE_BASE")"
+
+    # Match the SCOPE LINE only, not the whole file. A whole-file grep is a false-PASS surface
+    # here: this ledger deliberately retains a provenance section listing superseded SHAs, and
+    # any pasted `git log` block would satisfy the check while the verdicts stayed stale.
+    # The error text already promised Scope-line semantics; now the code agrees with it.
+    SCOPE_LINE="$(grep -m1 -iE '^[[:space:]]*[-*]?[[:space:]]*(\*\*)?Scope' "$LEDGER" || true)"
+    if ! printf '%s' "$SCOPE_LINE" | grep -qF "$BASE_SHORT"; then
+      WINDOW_COMMITS="$(git rev-list --count "${MERGE_BASE}..HEAD")"
+      WINDOW_FILES="$(git diff --name-only "${MERGE_BASE}..HEAD" | wc -l | tr -d ' ')"
       echo ""
-      echo "FAIL: Review ledger is stale — it does not cite the current merge-base."
+      echo "FAIL: Review ledger is stale — its Scope line does not cite the current merge-base."
       echo "  Ledger      : $LEDGER"
       echo "  Merge-base  : $BASE_SHORT  ($(git log -1 --format=%s "$MERGE_BASE"))"
-      echo "  Window      : $(git rev-list --count "${MERGE_BASE}..HEAD") commit(s), \
-$(git diff --name-only "${MERGE_BASE}..HEAD" | wc -l | tr -d ' ') file(s)"
+      echo "  Window      : ${WINDOW_COMMITS} commit(s), ${WINDOW_FILES} file(s)"
+      if [[ -z "$SCOPE_LINE" ]]; then
+        echo "  Scope line  : (none found — the ledger needs a line starting with 'Scope')"
+      else
+        echo "  Scope line  : ${SCOPE_LINE:0:100}"
+      fi
       echo ""
       echo "  '$BRANCH' reuses one ledger across promotions, so verdicts from a"
       echo "  previous window would otherwise pass this gate unnoticed."
@@ -178,7 +268,12 @@ check_review "security"      "security"     "$REQUIRE_SECURITY"
 echo ""
 echo "pre-merge-check: branch '${BRANCH}'"
 echo "  ledger : ${LEDGER}"
-echo "  base   : ${BASE_REF} @ $(git rev-parse --short "$MERGE_BASE")  ($(git log -1 --format=%s "$MERGE_BASE"))"
+# Label the merge-base as a merge-base, not as the branch: printing "origin/main @ <sha>" invites
+# reading <sha> as origin/main's tip, which it usually is not. Both are shown.
+echo "  base   : merge-base(${BASE_REF} @ $(git rev-parse --short=7 "$BASE_REF"), HEAD) = $(git rev-parse --short=7 "$MERGE_BASE")  ($(git log -1 --format=%s "$MERGE_BASE"))"
+if [[ "$FETCH_OK" != "true" ]]; then
+  echo "  NOTE   : baseline NOT re-fetched (${FETCH_OK}) — running with ALLOW_STALE_BASE/PRE_MERGE_NO_FETCH; it may be stale."
+fi
 echo "  diff   : $(echo "$CHANGED_FILES" | wc -l | xargs) file(s) changed since merge-base"
 echo "  reviews required: spec code-quality$(${REQUIRE_DESIGN} && echo " design" || true)$(${REQUIRE_SECURITY} && echo " security" || true)"
 echo ""

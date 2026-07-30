@@ -116,6 +116,12 @@
   the admin-only delete policy filters it (no error, zero rows affected) and the row remains.
 - **AC-308** *(FR-308)* Given an admin session, When the admin grants `supervisor` to another person,
   Then it lives; When the admin grants `supervisor` to self, Then `42501`.
+- **AC-309** *(FR-303/304)* Given the deployed schema, Then the `supervisor_revenue_scope_guard`
+  trigger is **attached** to `reporting.supervisor_revenue_scope`. The org seam and the `granted_by`
+  stamp both live in that trigger, so if it is detached every behavioural test still passes while
+  neither protection runs. (Sibling of AC-214 in
+  `docs/specs/manager-tier-and-role-assignment.spec.md`; added after a live database was found with
+  both guard triggers missing though their functions and migration records were present.)
 
 ### pgTAP — revenue scoped RLS (`supabase/tests/86_supervisor_revenue_rls.sql`, new)
 

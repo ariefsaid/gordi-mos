@@ -528,31 +528,33 @@ describe('UpdatesPage review pane — roster rows (AC-040)', () => {
 
   it('renders one row per team person with name, role, and state pill (AC-040)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByText('Raka Wijaya')).toBeTruthy()
+    // Wait for the GOAL (a roster row), not the container: the /team updates/ region mounts
+    // before the rows resolve, so gating on it returns early and the row assertions race the
+    // second render. That under-specified wait is why this file flaked intermittently under
+    // full-suite load (CI 2026-07-30) while passing in isolation.
+    expect(await screen.findByText('Raka Wijaya')).toBeTruthy()
     expect(screen.getByText('Siti Aminah')).toBeTruthy()
     expect(screen.getByText('Budi Santoso')).toBeTruthy()
   })
 
   it('roster shows summary excerpt for filed rows, "No update yet" for not-started (AC-040)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByText('Produksi stabil')).toBeTruthy()
+    expect(await screen.findByText('Produksi stabil')).toBeTruthy()
     expect(screen.getAllByText(/no update yet/i).length).toBeGreaterThan(0)
   })
 
   it('filed → Filed pill, draft → Draft pill, none → Not started pill (AC-041)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByText('Filed')).toBeTruthy()
+    expect(await screen.findByText('Filed')).toBeTruthy()
     expect(screen.getByText('Draft')).toBeTruthy()
     expect(screen.getByText('Not started')).toBeTruthy()
   })
 
   it('summary counts match the roster states (AC-041)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    // Expect counts region: "1 filed · 1 draft · 1 not started"
+    // Expect counts region: "1 filed · 1 draft · 1 not started". Gate on the counts being
+    // POPULATED, not merely on the region existing — the roster resolves a render later.
+    await waitFor(() => expect(screen.getByTestId('review-counts').textContent).toMatch(/filed/i))
     const countsEl = screen.getByTestId('review-counts')
     expect(countsEl.textContent).toMatch(/1/)
     expect(countsEl.textContent).toMatch(/filed/i)
@@ -581,8 +583,7 @@ describe('UpdatesPage review pane — on-time / late signal (AC-042)', () => {
         summary_excerpt: 'Test', submitted_at: '2026-06-12T08:00:00Z' },
     ])
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByText(/on time/i)).toBeTruthy()
+    expect(await screen.findByText(/on time/i)).toBeTruthy()
   })
 
   it('filed row with late submit shows "late" signal (AC-042)', async () => {
@@ -592,8 +593,7 @@ describe('UpdatesPage review pane — on-time / late signal (AC-042)', () => {
         summary_excerpt: 'Test', submitted_at: '2026-06-13T05:00:00Z' },
     ])
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByText(/late/i)).toBeTruthy()
+    expect(await screen.findByText(/late/i)).toBeTruthy()
   })
 })
 
@@ -606,8 +606,9 @@ describe('UpdatesPage review pane — read-only (AC-043)', () => {
 
   it('no edit, acknowledge, or comment affordances in the review pane (AC-043)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    // No inputs, no textareas, no acknowledge/comment buttons in the review section
+    // Wait for a resolved roster row before asserting ABSENCE — a negative assertion against a
+    // container that has not populated yet passes vacuously.
+    await screen.findByText('Raka Wijaya')
     const reviewSection = screen.getByLabelText(/team updates/i)
     expect(reviewSection.querySelector('input')).toBeNull()
     expect(reviewSection.querySelector('textarea')).toBeNull()
@@ -625,14 +626,12 @@ describe('UpdatesPage review pane — prior-week navigation (AC-044)', () => {
 
   it('prev-week button is present with accessible label (AC-044)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByRole('button', { name: /previous week/i })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: /previous week/i })).toBeTruthy()
   })
 
   it('next-week button is disabled at current week (AC-044)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    const nextBtn = screen.getByRole('button', { name: /next week/i })
+    const nextBtn = await screen.findByRole('button', { name: /next week/i })
     const isDisabled = nextBtn.hasAttribute('disabled') || nextBtn.getAttribute('aria-disabled') === 'true'
     expect(isDisabled).toBe(true)
   })
@@ -640,9 +639,9 @@ describe('UpdatesPage review pane — prior-week navigation (AC-044)', () => {
   it('clicking previous week changes the displayed week (AC-044)', async () => {
     renderPage(managerState)
     // Wait for initial render to complete
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    // Capture the initial week pill text
+    // Capture the initial week pill text once the pill actually exists.
     const reviewSection = screen.getByLabelText(/team updates/i)
+    await waitFor(() => expect(reviewSection.querySelector('.tabular-nums')?.textContent).toBeTruthy())
     const initialWeekPillText = reviewSection.querySelector('.tabular-nums')?.textContent ?? ''
     // Click previous week
     await act(async () => {
@@ -669,7 +668,8 @@ describe('UpdatesPage review pane — empty team / all not-started (AC-045)', ()
 
   it('all rows show Not started; counts "0 filed · 0 draft · 2 not started" (AC-045)', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
+    // Gate on the counts being POPULATED, not on the region existing.
+    await waitFor(() => expect(screen.getByTestId('review-counts').textContent).toMatch(/not started/i))
     const countsEl = screen.getByTestId('review-counts')
     // 0 filed, 0 draft, 2 not started
     expect(countsEl.textContent).toMatch(/0/)
@@ -707,8 +707,7 @@ describe('UpdatesPage review pane — loading skeleton (AC-040)', () => {
 
   it('shows loading skeleton while listTeamUpdates is pending', async () => {
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    expect(screen.getByTestId('review-pane-skeleton')).toBeTruthy()
+    expect(await screen.findByTestId('review-pane-skeleton')).toBeTruthy()
   })
 })
 
@@ -758,8 +757,7 @@ describe('UpdatesPage — Write-Review archetype: bounded measure (W3-1)', () =>
   it('review stack is also bounded to a ≤720 measure for managers (W3-1)', async () => {
     mockListTeamUpdates.mockResolvedValue([])
     renderPage(managerState)
-    await waitFor(() => screen.getByLabelText(/team updates/i))
-    const measure = screen.getByTestId('review-measure')
+    const measure = await screen.findByTestId('review-measure')
     const maxWidth = parseInt(measure.style.maxWidth, 10)
     expect(Number.isFinite(maxWidth)).toBe(true)
     expect(maxWidth).toBeGreaterThan(0)
