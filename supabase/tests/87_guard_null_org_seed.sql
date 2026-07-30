@@ -79,3 +79,5 @@ select ok(not has_table_privilege('anon','reporting.supervisor_revenue_scope','I
 
 select * from finish();
 rollback;
+
+-- ci probe: confirm the pgTAP fast lane fires on a dev PR touching supabase/ (reverted next commit)
