@@ -1,0 +1,48 @@
+version: 2
+
+# Added 2026-07-30 after enabling Dependabot alerts surfaced 10 at once and opened a PR per
+# advisory. Each of those PRs edits mos-app/package-lock.json, which is in integration.yml's
+# paths filter — so a single dev-dependency bump boots the whole Supabase + pgTAP + Playwright
+# stack (~4 min). Grouping is the lever that actually reduces that: one PR instead of N.
+#
+# NOTE: `target-branch` is deliberately absent. Dependabot SECURITY updates always target the
+# default branch (main) regardless of it, so setting it would only move version updates and
+# would misleadingly imply the security ones had been rerouted too. They still arrive on main,
+# cutting across the dev→main flow; that is a GitHub constraint, not an oversight.
+
+updates:
+  - package-ecosystem: npm
+    directory: /mos-app
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      # Build/test tooling never reaches production. One PR a week, not one per package.
+      dev-dependencies:
+        applies-to: version-updates
+        dependency-type: development
+      # Runtime deps stay grouped too — reviewing one diff beats five, and they land together
+      # anyway once the lockfile resolves.
+      production-dependencies:
+        applies-to: version-updates
+        dependency-type: production
+      # Security updates are grouped as well; without this each advisory is its own PR, which
+      # is what produced three simultaneous main-targeted PRs on the day alerts were enabled.
+      security:
+        applies-to: security-updates
+        patterns:
+          - '*'
+
+  # Keep the pinned action SHAs current. Without this, SHA pinning (required for this repo since
+  # 2026-07-30) silently freezes actions at whatever commit they were pinned to — the pins stop
+  # rot in the supply chain but also stop legitimate updates, including security fixes.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns:
+          - '*'

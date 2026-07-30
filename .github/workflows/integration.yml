@@ -23,6 +23,13 @@ on:
 permissions:
   contents: read
 
+# Supersede in-flight runs on the same ref — this is the expensive workflow (median ~4 min,
+# dominated by an 84s Supabase boot), so letting an obsolete run finish is the costliest waste
+# here. Never cancel on main: the post-merge run is the record that main is fully validated.
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   db:
     runs-on: ubuntu-latest
