@@ -57,20 +57,25 @@ The battery below states which body each verdict covers. A verdict scoped to the
   `shared.role_capabilities` seed. Test-seed guard verified sound (no seed data ships; the deny path
   is proven by pgTAP 83/91, not merely asserted). `.sql.HOLD` correctly held — the un-enforced
   invariant is data-integrity only, since no RLS policy references `mos.tasks.team_id`.
-  Three Mediums, all fixed in `c910e21`: **M-1** `mos.signal_mentions` UPDATE was granted with the
-  comment "set `revoked_at` only (guard)" and no guard was ever written, letting a member re-target
-  their own mention to `kind='bu'` and bypass `signal.mention_bu`; **M-2** a forward migration seeded
-  dev-fixture person uuids into `shared.team_memberships`, which on a real deploy either aborts on the
-  FK or grants demo principals kitchen-write; **M-3** `config.toml` shipped open self-signup with
-  confirmations off. 10 Lows logged in the audit, not yet actioned.
+  Three Mediums, all fixed in `c910e21`: **M-1** the documented "`revoked_at` only" rule on the
+  `mos.signal_mentions` UPDATE grant had no column guard enforcing it (forward migration
+  `20260729000001` adds one; regression proof `supabase/tests/104_signal_mention_update_guard.sql`);
+  **M-2** a forward migration seeded dev-fixture person uuids into `shared.team_memberships`, which on
+  a real deploy either aborts on the FK or grants demo principals kitchen-write; **M-3** `config.toml`
+  shipped self-signup enabled. 10 Lows logged in the audit, not yet actioned.
 
-  **⚠ M-1 and M-3 are fixed in source but NOT DEPLOYED, and this repo is PUBLIC.** Commit `c910e21`'s
-  message and `supabase/tests/104_signal_mention_update_guard.sql` describe the M-1 escalation
-  step-by-step and state that staging had open signup. Until the migration is applied and signup is
-  closed on the live projects, a working exploit is public against a live system. Owner actions:
-  apply `20260729000001_mos_signal_mention_update_guard.sql`, set `enable_signup = false` on staging
-  **and** self-hosted prod (`config.toml` is not authoritative for what is deployed), and audit
-  `auth.users` for self-registered accounts and for any `*.dev@example.test` persona.
+  **⚠ M-1 and M-3 are fixed in source but NOT DEPLOYED.** `config.toml` is not authoritative for what
+  is running, so the live projects need to be checked and changed by hand. Owner actions, in order:
+  apply `20260729000001_mos_signal_mention_update_guard.sql` to staging and to self-hosted prod;
+  confirm self-signup is disabled on both, verified by a live probe rather than by reading the file;
+  then audit `auth.users` for accounts that were not provisioned through
+  `shared.admin_create_login`, including any `*.dev@example.test` persona.
+
+  **Disclosure note (2026-07-30).** This repo is public. The tree has been scrubbed of step-by-step
+  weakness descriptions, but commit `c910e21`'s *message* was already pushed and remains readable in
+  the public history, forks, and the GitHub events API. Scrubbing the tree stops the detail being
+  re-read by anyone browsing the code today; it does not un-publish it. Treat the fixes above as
+  time-sensitive for that reason, not as optional cleanup.
 
 ## Gates
 

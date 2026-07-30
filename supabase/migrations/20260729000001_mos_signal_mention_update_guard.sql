@@ -1,14 +1,15 @@
--- SEC-M1 (security audit 2026-07-28): make good on the promise 20260716000003 already wrote down.
+-- SEC-M1 (security audit 2026-07-28): enforce the invariant 20260716000003 already documented.
 --
--- That migration grants `update` on mos.signal_mentions with the comment "update = set revoked_at only
--- (guard)", but no such guard was ever created — signal_mentions_update_author only checks authorship
--- (USING) and org (WITH CHECK). So a plain `member` (holds signal.create, NOT signal.mention_bu) could
--- post a Signal, insert a harmless @person mention, then PATCH that row into
--- {mention_kind:'bu', target_bu_id:<any BU>} — satisfying the policy and signal_mentions_one_target —
--- and mos.can_read_signal rule R4 would then hand the Signal to every role-holder in that BU. That is
--- exactly the broadcast reach signal.mention_bu exists to gate (the same PATCH also accepted a
--- cross-org target_team_id/target_bu_id). Revoking the UPDATE grant is not an option: revoking a
--- mention is a real, author-owned action (ADR-0050 D4/R4), so the column-level guard is the fix.
+-- 20260716000003 grants `update` on mos.signal_mentions with the comment "update = set revoked_at only
+-- (guard)". The row-level policy signal_mentions_update_author scopes that grant to the mention's author
+-- and to their org, but a row policy cannot constrain WHICH columns an UPDATE moves — so the documented
+-- "revoked_at only" rule needs a column guard to actually hold. Without it, a mention's kind and target
+-- would be editable after insert, which would let a row bypass the capability checks that gate a mention
+-- at INSERT time (a @BU mention requires `signal.mention_bu`; mos.can_read_signal rule R4 then grants
+-- read to every role-holder in the mentioned BU) and would also sidestep the org scoping on the target.
+-- Revoking the UPDATE grant is not an option: revoking a mention is a real, author-owned action
+-- (ADR-0050 D4/R4). Hence a column-level guard — everything except revoked_at is immutable, and
+-- re-pointing a mention means revoking it and inserting a new one, which re-runs the INSERT-time checks.
 --
 -- SECURITY INVOKER (unlike mos._signal_guard_update, which is DEFINER *solely* to append
 -- signal_revisions with no INSERT grant to authenticated): this guard reads only OLD/NEW and writes
@@ -32,7 +33,7 @@ begin
   return new;
 end $$;
 comment on function mos._signal_mention_guard_update() is
-  'SEC-M1 guard: mos.signal_mentions rows are immutable except revoked_at. Blocks author-scoped UPDATE from escalating a @person/@team mention into an unauthorised @BU broadcast (mos.can_read_signal R4).';
+  'SEC-M1 guard: mos.signal_mentions rows are immutable except revoked_at, so the author-scoped UPDATE grant cannot change a mention''s kind or target and thereby bypass the capability + org checks applied at INSERT (see mos.can_read_signal R4). Re-target by revoking and inserting a new mention.';
 revoke execute on function mos._signal_mention_guard_update() from public, anon, authenticated;
 
 create trigger signal_mentions_guard_update before update on mos.signal_mentions
