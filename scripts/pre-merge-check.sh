@@ -41,6 +41,37 @@ if [[ ! -f "$LEDGER" ]]; then
   exit 1
 fi
 
+# ── 3b. Fail if the ledger describes a window that already closed ────────────
+# A feature branch is short-lived: its ledger is written once, for one window.
+# A long-lived branch (dev) keeps the SAME ledger file across many promotions, so
+# yesterday's verdicts silently satisfy today's gate. That happened on 2026-07-30:
+# docs/reviews/dev.md still described the 2026-07-08 promotion (main @ 669ee0a,
+# already merged), and this script exited 0 over 30 unreviewed commits — because
+# steps 3-6 only ask "do verdict lines exist?", never "for WHICH diff?".
+# The ledger must therefore cite the current merge-base, which changes every
+# promotion. Scoped to long-lived branches; feature ledgers are unaffected.
+LONG_LIVED_BRANCHES=("dev" "staging")
+for b in "${LONG_LIVED_BRANCHES[@]}"; do
+  if [[ "$BRANCH" == "$b" ]]; then
+    BASE_SHORT="$(git rev-parse --short "$MERGE_BASE")"
+    if ! grep -qF "$BASE_SHORT" "$LEDGER"; then
+      echo ""
+      echo "FAIL: Review ledger is stale — it does not cite the current merge-base."
+      echo "  Ledger      : $LEDGER"
+      echo "  Merge-base  : $BASE_SHORT  ($(git log -1 --format=%s "$MERGE_BASE"))"
+      echo "  Window      : $(git rev-list --count "${MERGE_BASE}..HEAD") commit(s), \
+$(git diff --name-only "${MERGE_BASE}..HEAD" | wc -l | tr -d ' ') file(s)"
+      echo ""
+      echo "  '$BRANCH' reuses one ledger across promotions, so verdicts from a"
+      echo "  previous window would otherwise pass this gate unnoticed."
+      echo "  Re-run the battery over the CURRENT diff and rewrite $LEDGER,"
+      echo "  citing '$BASE_SHORT' in its Scope line."
+      echo ""
+      exit 1
+    fi
+  fi
+done
+
 # ── 4. Inspect changed files to determine required reviews ───────────────────
 CHANGED_FILES="$(git diff --name-only "${MERGE_BASE}..HEAD" 2>/dev/null || true)"
 
