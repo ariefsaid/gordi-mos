@@ -8,9 +8,14 @@ import { cleanup, configure } from '@testing-library/react'
 // (the original tasks-workspace flake was `await waitFor(() => screen.getByText('A task'))`
 // after a resolved mock — pure starvation, never a logic race). A single global raise is the
 // deterministic replacement for the per-test `waitFor(..., { timeout })` whack-a-mole that
-// only moved the flake from file to file. 3000ms is comfortably under the default 5000ms
-// test timeout and gives ~3x headroom once css:false has cut the per-env CPU.
-configure({ asyncUtilTimeout: 3000 })
+// only moved the flake from file to file.
+//
+// Raised 3000 → 5000 (2026-07-30). 3000 was chosen to sit "comfortably under the default
+// 5000ms test timeout" — but that left only 2000ms of slack, and on a shared CI runner the
+// kitchen-plan `saved` assertion lapsed at 3078ms, i.e. exactly at this budget, reddening CI
+// on a commit that touched no app code. The test timeout is now an explicit 15000ms
+// (vite.config.ts), so 5000 here keeps a 3x margin beneath it instead of a 1.6x one.
+configure({ asyncUtilTimeout: 5000 })
 
 afterEach(() => {
   cleanup()
