@@ -113,6 +113,16 @@ const memberViewer: AuthState = {
   viewer: { ...financeViewer.viewer, accessRoles: [] },
 }
 
+const managerViewer: AuthState = {
+  ...financeViewer,
+  viewer: { ...financeViewer.viewer, accessRoles: ['manager'] },
+}
+
+const supervisorViewer: AuthState = {
+  ...financeViewer,
+  viewer: { ...financeViewer.viewer, accessRoles: ['supervisor'] },
+}
+
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
@@ -229,6 +239,29 @@ describe('AC-H05: reporting fetch errors — finance tiles degrade, tasks/My-Wee
 
     await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
     expect(screen.getByText('No snapshot yet · next sync 03:30 WIB')).toBeInTheDocument()
+  })
+})
+
+describe('AC-129: a manager viewer sees the company money tiles (ADR-0050 D8)', () => {
+  it('renders revenue + margin KPI tiles and issues the finance fetch for a manager viewer', async () => {
+    await renderHome(managerViewer)
+    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
+    expect(mockListMargin).toHaveBeenCalled()
+
+    const revenueTile = screen.getByRole('group', { name: /revenue/i })
+    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    const marginTile = screen.getByRole('group', { name: /gross margin/i })
+    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+  })
+})
+
+describe('AC-328: a supervisor sees the revenue tile but NOT the margin tile', () => {
+  it('renders the revenue KPI tile, issues the revenue fetch, and skips margin entirely', async () => {
+    await renderHome(supervisorViewer)
+    await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
+    expect(await screen.findByText(/revenue/i)).toBeInTheDocument()
+    expect(screen.queryByText(/margin/i)).not.toBeInTheDocument()
+    expect(mockListMargin).not.toHaveBeenCalled()
   })
 })
 

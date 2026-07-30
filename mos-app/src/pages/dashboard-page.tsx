@@ -13,6 +13,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/auth/use-auth'
+import { canViewMargin } from '@/lib/capabilities'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -70,6 +72,9 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   useDocumentTitle('Dashboard — Gordi MOS')
   const isDesktop = useIsDesktop()
   const [searchParams, setSearchParams] = useSearchParams()
+  const auth = useAuth()
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const canSeeMargin = canViewMargin(accessRoles)
 
   // ?tab= wins; the /dashboard/detail route passes defaultTab="detail" (AC-017) so a
   // bare visit there opens the Detail tab even without a query string (AC-015).
@@ -102,9 +107,11 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
     setLoad('loading')
     try {
       // Trailing 60 days covers the 30d window + its equal-length prior window (AC-005).
+      // Margin fetch is skipped entirely when the viewer lacks margin-view access (AC-329,
+      // ADR-0051 D4 — a supervisor never issues the margin query, never an empty/`—` panel).
       const [rev, marg] = await Promise.all([
         listSalesDailyRevenue({ sinceDays: 60 }),
-        listSalesMarginDaily({ sinceDays: 60 }),
+        canSeeMargin ? listSalesMarginDaily({ sinceDays: 60 }) : Promise.resolve([] as SalesMarginDailyRow[]),
       ])
       setRevenueRows(rev)
       setMarginRows(marg)
@@ -112,7 +119,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
     } catch {
       setLoad('error')
     }
-  }, [])
+  }, [canSeeMargin])
 
   useEffect(() => {
     fetchRows()
@@ -309,40 +316,45 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
             />
           </div>
 
-          {/* Gross margin / COGS row — basis-labelled (AC-008) */}
-          <div className="dash-kpi-grid dash-kpi-grid--gm">
-            <KPITile
-              label="Gross margin %"
-              value={formatMarginPct(gmKpis?.marginPct ?? null)}
-              basis={{ label: basis }}
-              dq={gmKpis?.dq}
-              help="Gross margin ÷ revenue over the active window. Basis = interim stock-movement."
-            />
-            <KPITile
-              label="Gross margin amt"
-              value={formatGrossMarginValue(gmKpis?.marginAmount ?? null)}
-              delta={gmDelta ? { text: gmDelta.text, tone: gmDelta.tone } : undefined}
-              basis={{ label: basis }}
-              help="Revenue − interim COGS over the window."
-            />
-            <KPITile
-              label="Interim COGS"
-              value={formatGrossMarginValue(gmKpis?.cogsAmount ?? null)}
-              basis={{ label: basis }}
-              help="Cost of goods sold, stock-movement-derived, not GL-certified."
-            />
-            <KPITile
-              label="BOM coverage"
-              value={gmKpis?.bomCoveragePct != null ? formatMarginPct(gmKpis.bomCoveragePct) : '—'}
-              dq={gmKpis?.dq}
-              help="Share of COGS backed by a bill-of-materials basis over the window."
-            />
-          </div>
+          {/* Gross margin / COGS row — basis-labelled (AC-008); margin-view only (AC-329,
+              ADR-0051 D4 — a supervisor sees revenue, not margin/COGS). */}
+          {canSeeMargin && (
+            <div className="dash-kpi-grid dash-kpi-grid--gm">
+              <KPITile
+                label="Gross margin %"
+                value={formatMarginPct(gmKpis?.marginPct ?? null)}
+                basis={{ label: basis }}
+                dq={gmKpis?.dq}
+                help="Gross margin ÷ revenue over the active window. Basis = interim stock-movement."
+              />
+              <KPITile
+                label="Gross margin amt"
+                value={formatGrossMarginValue(gmKpis?.marginAmount ?? null)}
+                delta={gmDelta ? { text: gmDelta.text, tone: gmDelta.tone } : undefined}
+                basis={{ label: basis }}
+                help="Revenue − interim COGS over the window."
+              />
+              <KPITile
+                label="Interim COGS"
+                value={formatGrossMarginValue(gmKpis?.cogsAmount ?? null)}
+                basis={{ label: basis }}
+                help="Cost of goods sold, stock-movement-derived, not GL-certified."
+              />
+              <KPITile
+                label="BOM coverage"
+                value={gmKpis?.bomCoveragePct != null ? formatMarginPct(gmKpis.bomCoveragePct) : '—'}
+                dq={gmKpis?.dq}
+                help="Share of COGS backed by a bill-of-materials basis over the window."
+              />
+            </div>
+          )}
 
-          <p className="dash-footnote">
-            <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
-            stock-movement-derived, <b>not GL-certified</b>.
-          </p>
+          {canSeeMargin && (
+            <p className="dash-footnote">
+              <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
+              stock-movement-derived, <b>not GL-certified</b>.
+            </p>
+          )}
 
           <WhatsComingStrip />
 
@@ -379,7 +391,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
 
           {/* FR-018: condensed detail table reflecting the current filter (top 5 rows). */}
           <DataTable
-            columns={detailColumns(cut)}
+            columns={detailColumns(cut, canSeeMargin)}
             rows={sortedRows.slice(0, 5)}
             sort={undefined}
             onSortChange={undefined}
@@ -391,7 +403,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       ) : (
         <div className="dash-pane" role="tabpanel" aria-label="Detail">
           <DataTable
-            columns={detailColumns(cut)}
+            columns={detailColumns(cut, canSeeMargin)}
             rows={sortedRows}
             sort={sort}
             onSortChange={setSort}
@@ -399,10 +411,12 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
             caption="Revenue breakdown"
             emptyLabel="No rows for this cut."
           />
-          <p className="dash-footnote">
-            <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
-            stock-movement-derived, <b>not GL-certified</b>.
-          </p>
+          {canSeeMargin && (
+            <p className="dash-footnote">
+              <b>Interim</b> = not-yet-reconciled, POS-only, mid-month. COGS is
+              stock-movement-derived, <b>not GL-certified</b>.
+            </p>
+          )}
         </div>
       )}
     </PageFrame>
@@ -448,8 +462,9 @@ function DashboardChrome(props: DashboardChromeProps) {
   )
 }
 
-// ── Detail-table column defs (AC-018 — the full mandated column set) ──────────────
-function detailColumns(cut: DashboardCut) {
+// ── Detail-table column defs (AC-018 — the full mandated column set). The margin/COGS
+//    columns are omitted entirely for a viewer without margin-view access (AC-329, ADR-0051 D4). ──
+function detailColumns(cut: DashboardCut, canSeeMargin: boolean) {
   return [
     { key: 'dimension', header: cut, cardLabel: '' },
     {
@@ -465,18 +480,22 @@ function detailColumns(cut: DashboardCut) {
       key: 'avgCheck', header: 'Avg check', numeric: true, sortable: true,
       render: (row: DashboardTableRow) => row.avgCheck,
     },
-    {
-      key: 'cogsInterim', header: 'Interim COGS', numeric: true, sortable: true,
-      render: (row: DashboardTableRow) => row.cogsInterim,
-    },
-    {
-      key: 'grossMargin', header: 'Gross margin', numeric: true, sortable: true,
-      render: (row: DashboardTableRow) => row.grossMargin,
-    },
-    {
-      key: 'marginPct', header: 'Margin %', numeric: true, sortable: true,
-      render: (row: DashboardTableRow) => row.marginPct,
-    },
+    ...(canSeeMargin
+      ? [
+          {
+            key: 'cogsInterim', header: 'Interim COGS', numeric: true, sortable: true,
+            render: (row: DashboardTableRow) => row.cogsInterim,
+          },
+          {
+            key: 'grossMargin', header: 'Gross margin', numeric: true, sortable: true,
+            render: (row: DashboardTableRow) => row.grossMargin,
+          },
+          {
+            key: 'marginPct', header: 'Margin %', numeric: true, sortable: true,
+            render: (row: DashboardTableRow) => row.marginPct,
+          },
+        ]
+      : []),
   ]
 }
 

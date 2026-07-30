@@ -45,6 +45,9 @@ test-results
 .env
 .env.*
 !.env.example
+# Catch env files that don't START with ".env" (e.g. foo.resend.env) — the patterns above miss those.
+*.env
+!supabase/op.resend.env
 *.pem
 *.key
 *.p12
@@ -63,3 +66,13 @@ supabase/seed.production.sql
 
 # AGPL firewall — upstream Twenty CRM reference, never commit
 /Twenty Design System/
+
+# Agent run artifacts — full model transcripts. They contain whatever the agent read that run,
+# so a future one could carry an env dump. 44 of these were committed to v3/v4-redesign before
+# this guard existed. Regenerated per run; never commit.
+.pi-subagents/
+.impeccable/
+.playwright-cli/
+scripts/__pycache__/
+# stray agent-browser output file (`--full-page` taken as a filename, not a flag)
+/--full-page

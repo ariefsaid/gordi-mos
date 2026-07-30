@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { can } from './capabilities'
+import { can, canViewRevenue, canViewMargin } from './capabilities'
 
 describe('can', () => {
   it('grants admin both manage capabilities', () => {
@@ -25,5 +25,22 @@ describe('can', () => {
   it('uses union semantics across multiple roles', () => {
     expect(can(['ops_lead', 'admin'], 'objective.manage')).toBe(true)
     expect(can(['ops_lead', 'admin'], 'workline.manage')).toBe(true)
+  })
+})
+
+describe('canViewRevenue / canViewMargin (ADR-0051 D4)', () => {
+  it('AC-320: canViewRevenue admits finance/admin/manager/supervisor', () => {
+    for (const r of ['finance', 'admin', 'manager', 'supervisor']) {
+      expect(canViewRevenue([r])).toBe(true)
+    }
+  })
+  it('AC-320: canViewMargin admits finance/admin/manager but NOT supervisor', () => {
+    for (const r of ['finance', 'admin', 'manager']) expect(canViewMargin([r])).toBe(true)
+    expect(canViewMargin(['supervisor'])).toBe(false)
+  })
+  it('AC-320: neither admits member/empty', () => {
+    expect(canViewRevenue(['member'])).toBe(false)
+    expect(canViewRevenue([])).toBe(false)
+    expect(canViewMargin(['member'])).toBe(false)
   })
 })

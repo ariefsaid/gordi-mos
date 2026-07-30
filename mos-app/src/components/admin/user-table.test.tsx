@@ -25,6 +25,8 @@ const ACTIVE_ADMIN: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['admin'],
+  jabatan: [],
+  revenue_scope: [],
 }
 
 const ACTIVE_MEMBER: AdminPersonRow = {
@@ -34,6 +36,8 @@ const ACTIVE_MEMBER: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
+  jabatan: [{ role_id: 'r-barista', role_name: 'Barista' }],
+  revenue_scope: [],
 }
 
 const NO_LOGIN_PERSON: AdminPersonRow = {
@@ -43,6 +47,8 @@ const NO_LOGIN_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'none',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
 }
 
 const ARCHIVED_PERSON: AdminPersonRow = {
@@ -52,6 +58,8 @@ const ARCHIVED_PERSON: AdminPersonRow = {
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],
+  jabatan: [],
+  revenue_scope: [],
 }
 
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
@@ -61,6 +69,8 @@ const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'disabled',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
 }
 
 // Two admins (so last-admin guard does NOT apply)
@@ -108,7 +118,7 @@ describe('UserTable — desktop ⋯ menu', () => {
 
     // Menu should be open
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: /manage roles/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /enable login/i })).not.toBeInTheDocument()
@@ -169,13 +179,13 @@ describe('UserTable — desktop ⋯ menu', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
 
-  it('dispatches manage-roles action when "Manage roles" clicked', async () => {
+  it('dispatches manage-roles action when "Manage access & position" clicked', async () => {
     const user = userEvent.setup()
     const onAction = vi.fn()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
 
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await user.click(screen.getByRole('menuitem', { name: /manage roles/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
 
     expect(onAction).toHaveBeenCalledWith('manage-roles', ACTIVE_MEMBER)
   })
@@ -269,6 +279,24 @@ describe('UserTable — role chips show human labels', () => {
   })
 })
 
+// ── AC-126: Position + Access columns, never "Role" (ADR-0050 / FR-206) ──────
+
+describe('UserTable — Position + Access columns (AC-126)', () => {
+  it('AC-126: table shows Position and Access column headers, not "Role"', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    expect(screen.getByText('Position')).toBeInTheDocument()
+    expect(screen.getByText('Access')).toBeInTheDocument()
+    expect(screen.queryByText(/^Access roles$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Roles$/)).not.toBeInTheDocument()
+  })
+
+  it('AC-126: Position column shows the person’s Jabatan chip, "—" when empty', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    // ACTIVE_ADMIN has no jabatan → em dash; ACTIVE_MEMBER holds Barista
+    expect(screen.getByText('Barista')).toBeInTheDocument()
+  })
+})
+
 // ── Mobile action sheet (item 1) ──────────────────────────────────────────────
 
 describe('UserTable — mobile action sheet', () => {
@@ -284,7 +312,7 @@ describe('UserTable — mobile action sheet', () => {
 
     // Action sheet should be open with actions
     expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /manage roles/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
@@ -298,7 +326,7 @@ describe('UserTable — mobile action sheet', () => {
     const manageBtns = screen.getAllByRole('button', { name: /manage/i })
     await user.click(manageBtns[1])
 
-    await user.click(screen.getByRole('menuitem', { name: /manage roles/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
 
     expect(onAction).toHaveBeenCalledWith('manage-roles', ACTIVE_MEMBER)
   })
@@ -311,7 +339,7 @@ describe('UserTable — mobile action sheet', () => {
     const manageBtns = screen.getAllByRole('button', { name: /manage/i })
     await user.click(manageBtns[1])
 
-    await user.click(screen.getByRole('menuitem', { name: /manage roles/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
@@ -363,7 +391,7 @@ describe('UserTable — ⋯ menu portaled to body', () => {
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: /manage roles/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()

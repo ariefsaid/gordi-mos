@@ -7,8 +7,8 @@
   (`shared.has_access_role(text)` / `shared.current_access_roles()`) that every future feature's
   per-table policy will call; the **DB-layer granting rules** (only `admin` grants/revokes;
   **`admin` and `finance` are never self-assignable**; the **first `admin` is seeded** at deploy); and
-  the **viewer exposure** in `mos-app/src/lib/db/viewer.ts` surfacing the user's **effective** access
-  roles (assigned ∪ derived manager) to the SPA.
+  the **viewer exposure** in `mos-app/src/lib/db/viewer.ts` surfacing the user's access roles to the SPA
+  (assigned grants and the derived `manager` kept **discrete**, not merged — amended by ADR-0050, FR-070).
 - Status: Draft for owner sign-off.
 - Authority: business rules are **pre-decided** in **ADR-0011 D5** (the fixed access-role set + three-layer
   enforcement + manager-derived + `admin`/`finance` never-self-assignable + first-admin-seeded) and
@@ -83,7 +83,8 @@ CONTEXT.md "Manager"). The substrate has three load-bearing parts:
    ADR-0001 D1) — and the SPA reads them off the session without a round-trip.
 3. **The read helpers** — `shared.has_access_role(text)` and `shared.current_access_roles()` that future
    per-feature policies call (`USING (shared.has_access_role('ops_lead'))`), and the **viewer exposure**
-   in `viewer.ts` that surfaces the **effective** set (assigned ∪ derived manager) to the SPA.
+   in `viewer.ts` that surfaces `accessRoles` (assigned grants) and `isManager` (derived) as **discrete**
+   fields — amended by ADR-0050, see FR-070.
 
 The set is **fixed**, **small**, **RLS-native**, and **auditable** — the deliberate explicit-over-engine
 trade of ADR-0011 D5. It grows by one migration (add an enum value + its policies), and the
@@ -332,12 +333,18 @@ cannot express alone, mirroring `ops._guard_log_entry` / `mos._guard_archive`):
   pattern owner→`admin`, others→`member`.)*
 
 ### Viewer exposure (`mos-app/src/lib/db/viewer.ts`)
-- **FR-070** The system shall surface the current user's **effective access roles** on the viewer object —
-  the **assigned** access roles (from the session JWT `access_roles` claim) **∪** the **derived
-  `manager`** capability (the existing `isManager` derivation, FR-003/OD-P1-7) — as a stable shape the
-  SPA reads (e.g. `ViewerResult.accessRoles: string[]` containing the assigned roles plus `'manager'`
-  when `isManager` is true, or a discrete `{ assigned: string[]; isManager: boolean }`) (ADR-0011 D5,
-  CONTEXT.md "Access role" effective = union).
+- **FR-070** The system shall surface the current user's access roles on the viewer object as the
+  **discrete** shape `{ accessRoles: string[]; isManager: boolean }`, where `accessRoles` carries the
+  **assigned** grants only (from the session JWT `access_roles` claim) and `isManager` carries the
+  **derived** reporting-line capability (FR-003/OD-P1-7). The two are **NOT merged** (ADR-0011 D5;
+  **amended by ADR-0050 §45-53**).
+  > **Amended 2026-07-29 (ADR-0050).** This requirement originally specified the union — `accessRoles`
+  > containing the assigned roles *plus* `'manager'` when `isManager` is true. ADR-0050 made `manager` a
+  > **stored financial-visibility grant**, so the union would have let every reporting-line manager pass
+  > the finance gates (`canViewRevenue` / `RequireAccessRole`) onto a dashboard that RLS returns empty —
+  > their JWT lacks the grant. The two senses of "manager" are now kept structurally distinct.
+  > Implementation: `mos-app/src/lib/db/viewer.ts:131-135`. See FR-113 in
+  > `docs/specs/manager-tier-and-role-assignment.spec.md`.
 - **FR-071** The system shall read the **assigned** access roles in the SPA from the **session JWT
   claim** (no extra round-trip / no DB read for the assigned set) — the SPA decodes the `access_roles`
   claim off the Supabase session — consistent with how `org_id` / `person_id` are already session-borne
@@ -407,7 +414,8 @@ cannot express alone, mirroring `ops._guard_log_entry` / `mos._guard_archive`):
 > **Test-pyramid rule (CLAUDE.md):** each `AC-###` is owned by **one** test at the **lowest sufficient
 > layer**. The **assignment CHECK + union + manager-not-stored + JWT-claim + `has_access_role` + admin-only
 > grant + self-escalation guard + immutability + no-DELETE + org-scope** → **pgTAP** (the security core).
-> The **viewer effective-role derivation (assigned ∪ derived manager), orphan/empty, claim-decode** →
+> The **viewer role derivation (assigned grants and derived `manager` kept discrete — FR-070 as amended
+> by ADR-0050), orphan/empty, claim-decode** →
 > **Unit (Vitest/RTL)**. The AC id is tagged in the owning test's title so `grep -r AC-###` finds the proof.
 
 ### Assignment model, union, manager-derived, CHECK → **pgTAP**
@@ -484,14 +492,24 @@ cannot express alone, mirroring `ops._guard_log_entry` / `mos._guard_archive`):
 - **AC-051 [pgTAP]** Given the default-assignment seed, When applied, Then the **owner** person holds
   `admin` and a non-owner seeded person holds `member` (the default) — FR-061.
 
-### Viewer effective-role derivation (assigned ∪ derived manager) → **Unit (Vitest/RTL)**
+### Viewer effective-role derivation (assigned grants only) → **Unit (Vitest/RTL)**
+
+> **Inverted 2026-07-29 (ADR-0050 §45-53).** This section originally specified `accessRoles` as the
+> **assigned ∪ derived-manager** union. Since ADR-0050 the string `manager` is *also* a **stored
+> financial-visibility grant**, so merging the derived reporting-line manager would let every
+> reporting-line manager pass the finance gates (`canViewRevenue` / `RequireAccessRole`). The two
+> senses are now kept distinct: `accessRoles` carries **stored grants only** (the JWT claim), and the
+> derived reporting-line sense is carried by the separate `isManager` boolean
+> (`mos-app/src/lib/db/viewer.ts:131-135`). See FR-113 in
+> `docs/specs/manager-tier-and-role-assignment.spec.md`.
 - **AC-060 [unit]** Given a session whose decoded `access_roles` claim is `["ops_lead","member"]` and a
   role chain where `deriveIsManager` is **false**, When the viewer resolves, Then its effective access
   roles are exactly `{ops_lead, member}` (no `manager`) — FR-070, FR-071.
 - **AC-061 [unit]** Given a session with assigned `["member"]` **and** a role chain where
-  `deriveIsManager` is **true**, When the viewer resolves, Then its effective access roles are
-  `{member, manager}` — the **assigned ∪ derived-manager** union; `manager` appears **only** from the
-  derivation, never from the claim — FR-070, FR-003.
+  `deriveIsManager` is **true**, When the viewer resolves, Then its effective access roles are exactly
+  `{member}` — the derived reporting-line manager is **NOT** merged into `accessRoles`; that sense is
+  carried by `isManager` alone. `manager` in `accessRoles` appears **only** from the stored JWT claim,
+  never from the derivation — FR-070, FR-003, FR-113.
 - **AC-062 [unit]** Given an **orphan** session (no `shared.people` row) or an absent `access_roles`
   claim, When the viewer resolves, Then effective access roles are **empty** and `isManager` is false
   (fail closed, no throw) — FR-072.

@@ -32,8 +32,18 @@ describe('ROLE_META', () => {
     expect(ROLE_META.finance).toEqual({ label: 'Finance', description: 'Sees financial reports' })
   })
 
-  it('includes derived manager for chip rendering', () => {
+  it('AC-120: manager is an assignable role with a non-derived description', () => {
+    expect(ASSIGNABLE_ROLES).toContain('manager')
     expect(ROLE_META.manager.label).toBe('Manager')
+    expect(ROLE_META.manager.description.length).toBeGreaterThan(0)
+    expect(ROLE_META.manager.description.toLowerCase()).not.toContain('derived')
+  })
+
+  it('AC-321: supervisor is an assignable role with a revenue-oriented description', () => {
+    expect(ASSIGNABLE_ROLES).toContain('supervisor')
+    expect(ROLE_META.supervisor.label).toBe('Supervisor')
+    expect(ROLE_META.supervisor.description.length).toBeGreaterThan(0)
+    expect(ROLE_META.supervisor.description.toLowerCase()).toContain('revenue')
   })
 })
 

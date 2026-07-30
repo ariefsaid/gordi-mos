@@ -9,6 +9,8 @@
 // Mobile action sheet (item 1): Manage button opens same actions as desktop ⋯ menu.
 // PeopleToolbar (§2.1): search-mini + segmented status filter. Filter is client-side.
 // No-match empty state (§4.1): distinct from org-empty "Just you so far".
+// Access + Position columns (ADR-0050, AC-126): "Access" = access roles (RoleChips), "Position" =
+// Jabatan (JabatanChips) — neither ever labeled "Role". Menu item: "Manage access & position".
 
 import { useState, useRef, useEffect, useCallback, useId, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -71,7 +73,7 @@ const ROLE_COLOR: Record<string, TagColor> = {
 function RoleChips({ roles }: { roles: string[] }) {
   if (roles.length === 0) {
     return (
-      <span style={{ color: 'var(--muted-foreground)' }} aria-label="No roles">
+      <span style={{ color: 'var(--muted-foreground)' }} aria-label="No access">
         —
       </span>
     )
@@ -81,6 +83,27 @@ function RoleChips({ roles }: { roles: string[] }) {
       {roles.map((role) => (
         <Tag key={role} color={ROLE_COLOR[role] ?? 'gray'}>
           {roleLabel(role)}
+        </Tag>
+      ))}
+    </span>
+  )
+}
+
+// ── JabatanChips — mirrors RoleChips, but for shared.roles (Position) names ──
+
+function JabatanChips({ jabatan }: { jabatan: { role_id: string; role_name: string }[] }) {
+  if (jabatan.length === 0) {
+    return (
+      <span style={{ color: 'var(--muted-foreground)' }} aria-label="No position">
+        —
+      </span>
+    )
+  }
+  return (
+    <span className="flex flex-wrap gap-1">
+      {jabatan.map((j) => (
+        <Tag key={j.role_id} color="gray">
+          {j.role_name}
         </Tag>
       ))}
     </span>
@@ -168,7 +191,7 @@ function PersonActionMenu({
         className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
         onClick={() => dispatch('manage-roles')}
       >
-        Manage roles
+        Manage access & position
       </button>
 
       <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -479,23 +502,30 @@ function DesktopTable({
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '35%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '30%' }}
           >
             Person
           </th>
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '15%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '12%' }}
           >
             Login
           </th>
           <th
             scope="col"
             className="text-left px-4 text-xs font-semibold uppercase"
-            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '35%' }}
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '26%' }}
           >
-            Access roles
+            Access
+          </th>
+          <th
+            scope="col"
+            className="text-left px-4 text-xs font-semibold uppercase"
+            style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em', width: '22%' }}
+          >
+            Position
           </th>
           <th
             scope="col"
@@ -549,6 +579,9 @@ function DesktopTable({
             </td>
             <td className="px-4">
               <RoleChips roles={person.access_roles} />
+            </td>
+            <td className="px-4">
+              <JabatanChips jabatan={person.jabatan} />
             </td>
             <td className="px-4">
               {person.archived_at && (
@@ -623,10 +656,16 @@ function MobileCardList({
               </>
             )}
             <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              Roles
+              Access
             </dt>
             <dd>
               <RoleChips roles={person.access_roles} />
+            </dd>
+            <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
+              Position
+            </dt>
+            <dd>
+              <JabatanChips jabatan={person.jabatan} />
             </dd>
             {person.archived_at && (
               <>

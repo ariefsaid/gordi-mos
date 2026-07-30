@@ -17,7 +17,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 
 import { RoleEditor } from './role-editor'
-import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGrantRole = vi.mocked(grantRole)
@@ -50,6 +50,8 @@ const OTHER_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
 }
 
 const SELF_PERSON: AdminPersonRow = {
@@ -59,6 +61,8 @@ const SELF_PERSON: AdminPersonRow = {
   archived_at: null,
   login: 'active',
   access_roles: ['admin', 'member'],
+  jabatan: [],
+  revenue_scope: [],
 }
 
 beforeEach(() => {
@@ -70,14 +74,21 @@ beforeEach(() => {
 
 function renderEditor(
   person: AdminPersonRow = OTHER_PERSON,
-  opts: { onClose?: () => void; onDone?: () => void } = {},
+  opts: {
+    onClose?: () => void
+    onDone?: () => void
+    onShowToast?: (message: string) => void
+    people?: AdminPersonRow[]
+  } = {},
 ) {
   return render(
     <RoleEditor
       person={person}
+      people={opts.people}
       open
       onClose={opts.onClose ?? vi.fn()}
       onDone={opts.onDone ?? vi.fn()}
+      onShowToast={opts.onShowToast}
     />,
   )
 }
@@ -105,10 +116,55 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
   })
 
-  it('AC-050: "manager" role is never rendered', () => {
+  it('AC-121: renders a Manager checkbox (manager is now assignable)', () => {
     renderEditor()
-    expect(screen.queryByRole('checkbox', { name: /manager/i })).not.toBeInTheDocument()
-    expect(screen.queryByText('manager')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /manager/i })).toBeInTheDocument()
+  })
+
+  it('AC-122: on the self row, the manager checkbox is disabled (self-guard)', () => {
+    renderEditor({ ...SELF_PERSON, access_roles: ['admin', 'member'] })
+    expect(screen.getByRole('checkbox', { name: /manager/i })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('AC-123: toggling Manager on calls grantRole(id, "manager")', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+    await user.click(screen.getByRole('checkbox', { name: /manager/i }))
+    await waitFor(() => expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'manager'))
+  })
+
+  it('AC-322: renders a Supervisor checkbox', () => {
+    renderEditor()
+    expect(screen.getByRole('checkbox', { name: /supervisor/i })).toBeInTheDocument()
+  })
+
+  it('AC-322: on the self row, the supervisor checkbox is disabled (self-guard)', () => {
+    renderEditor({ ...SELF_PERSON, access_roles: ['admin'] })
+    expect(screen.getByRole('checkbox', { name: /supervisor/i })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('AC-324: the Revenue scope picker renders only when the person holds supervisor', () => {
+    const baseProps = {
+      people: undefined,
+      roles: undefined,
+      open: true,
+      onClose: vi.fn(),
+      onDone: vi.fn(),
+    }
+    const { rerender } = render(
+      <RoleEditor {...baseProps} person={{ ...OTHER_PERSON, access_roles: ['member'] }} scopeOptions={[]} />,
+    )
+    expect(screen.queryByText('Revenue scope')).not.toBeInTheDocument()
+
+    const options: RevenueScopeOption[] = []
+    rerender(
+      <RoleEditor
+        {...baseProps}
+        person={{ ...OTHER_PERSON, access_roles: ['supervisor'] }}
+        scopeOptions={options}
+      />,
+    )
+    expect(screen.getByText('Revenue scope')).toBeInTheDocument()
   })
 
   it('AC-050: currently granted roles appear checked', () => {
@@ -214,5 +270,73 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     const dialog = screen.getByRole('dialog')
     expect(dialog.style.border).toBeTruthy()
     expect(dialog.style.border).not.toBe('')
+  })
+
+  // Defect 1 (design review, Important) — toast must never leak the raw role SLUG
+  it('DEFECT-1: granting ops_lead fires a toast with the human label, not the raw slug', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    renderEditor(OTHER_PERSON, { onShowToast })
+
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Ops Lead granted'))
+    })
+    const [message] = onShowToast.mock.calls[0] as [string]
+    expect(message).not.toContain('ops_lead')
+  })
+
+  it('DEFECT-1: granting manager fires a toast with the human label, not the raw slug', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    renderEditor(OTHER_PERSON, { onShowToast })
+
+    await user.click(screen.getByRole('checkbox', { name: /manager/i }))
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Manager granted'))
+    })
+    // The raw slug "manager" must not leak in lowercase form anywhere in the message
+    const [message] = onShowToast.mock.calls[0] as [string]
+    expect(message).not.toMatch(/\bmanager\b/) // only the capitalized "Manager" label is allowed
+  })
+
+  // Defect 2 (design review, Important, WCAG 1.4.10) — dialog must not clip on short viewports
+  it('DEFECT-2: the scrollable body region carries max-height + overflow-y-auto styling', () => {
+    // jsdom has no real layout engine, so this is a structural guard: it asserts the
+    // scroll-container classes are present on the correct element, not actual clipping/scroll
+    // behavior (which would need a real browser + viewport to observe).
+    renderEditor()
+    const body = screen.getByTestId('role-editor-scroll-body')
+    expect(body.className).toContain('overflow-y-auto')
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.className).toContain('max-h-[90vh]')
+  })
+
+  // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire
+  it('DEFECT-3: clicking the row text (not the checkbox glyph) toggles exactly once', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+
+    // ops_lead is unchecked — click its text label, not the checkbox itself
+    await user.click(screen.getByText('Ops Lead'))
+
+    await waitFor(() => {
+      expect(mockGrantRole).toHaveBeenCalledTimes(1)
+    })
+    expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'ops_lead')
+    expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('DEFECT-3: clicking the text of a self-guarded (disabled) row does not toggle', async () => {
+    const user = userEvent.setup()
+    renderEditor(SELF_PERSON)
+
+    // admin is self-guarded/disabled for SELF_PERSON — click its text label
+    await user.click(screen.getByText('Admin'))
+
+    expect(mockGrantRole).not.toHaveBeenCalled()
+    expect(mockRevokeRole).not.toHaveBeenCalled()
   })
 })

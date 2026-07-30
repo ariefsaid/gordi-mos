@@ -2,7 +2,7 @@
 // AC-060: list rendering (all 4 login states) + empty state predicate.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -15,6 +15,8 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 
 vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
+  listRoles: vi.fn(),
+  listRevenueScopeOptions: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -23,15 +25,19 @@ vi.mock('@/lib/db/admin-users', () => ({
   revokeRole: vi.fn(),
   archivePerson: vi.fn(),
   restorePerson: vi.fn(),
+  assignJabatan: vi.fn(),
+  removeJabatan: vi.fn(),
   synthesizeEmail: vi.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}@ops.gordi.local`),
 }))
-import { listAdminPeople } from '@/lib/db/admin-users'
+import { listAdminPeople, listRoles, listRevenueScopeOptions } from '@/lib/db/admin-users'
 
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListAdminPeople = vi.mocked(listAdminPeople)
+const mockListRoles = vi.mocked(listRoles)
+const mockListRevenueScopeOptions = vi.mocked(listRevenueScopeOptions)
 
 // Admin viewer fixture
 const ADMIN_VIEWER: AuthState = {
@@ -62,6 +68,8 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: null,
     login: 'active',
     access_roles: ['admin'],
+    jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-no-login',
@@ -70,6 +78,8 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: null,
     login: 'none',
     access_roles: ['member'],
+    jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-disabled',
@@ -78,6 +88,8 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: null,
     login: 'disabled',
     access_roles: ['ops_lead'],
+    jabatan: [],
+    revenue_scope: [],
   },
   {
     id: 'p-archived',
@@ -86,6 +98,8 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     archived_at: '2026-01-01T00:00:00Z',
     login: 'none',
     access_roles: [],
+    jabatan: [],
+    revenue_scope: [],
   },
 ]
 
@@ -93,6 +107,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
   vi.mocked(useIsDesktop).mockReturnValue(true)
+  mockListRoles.mockResolvedValue([])
+  mockListRevenueScopeOptions.mockResolvedValue([])
 })
 
 function renderPage() {
@@ -172,6 +188,8 @@ describe('AdminUsersPage (AC-060)', () => {
         archived_at: null,
         login: 'active',
         access_roles: ['admin'],
+        jabatan: [],
+        revenue_scope: [],
       },
     ])
     renderPage()
@@ -233,5 +251,43 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     const { container } = renderPage()
     expect(container.querySelector('.ch-count')).toBeNull()
     expect(screen.getByTestId('page-head')).toBeInTheDocument()
+  })
+})
+
+// CQ Issue 1 (feat/manager-tier-role-assignment review): the open Access/Position dialog must re-derive
+// from reloaded people after a write, not hold a stale snapshot (else the just-toggled Position reverts).
+describe('AdminUsersPage — dialog reflects fresh data after a Position toggle', () => {
+  it('re-renders the open dialog against reloaded people (no stale snapshot)', async () => {
+    const user = userEvent.setup()
+    const base: AdminPersonRow = {
+      id: 'p-riri',
+      full_name: 'Riri',
+      email: 'riri@gordi.id',
+      archived_at: null,
+      login: 'active',
+      access_roles: [],
+      jabatan: [],
+      revenue_scope: [],
+    }
+    mockListRoles.mockResolvedValue([{ id: 'r-kitchen', name: 'Kitchen Lead' }])
+    mockListAdminPeople
+      .mockResolvedValueOnce([base]) // first load: no Position
+      .mockResolvedValue([{ ...base, jabatan: [{ role_id: 'r-kitchen', role_name: 'Kitchen Lead' }] }]) // after assign
+
+    renderPage()
+    await screen.findByText('Riri')
+
+    await user.click(screen.getByRole('button', { name: /more actions for riri/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+
+    const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
+    expect(box).toHaveAttribute('aria-checked', 'false')
+
+    await user.click(box) // assignJabatan → onDone → load() returns the assigned Position
+
+    // With the stale-snapshot bug the dialog would stay unchecked; the fix re-derives it from fresh data.
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toHaveAttribute('aria-checked', 'true'),
+    )
   })
 })

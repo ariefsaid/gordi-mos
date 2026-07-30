@@ -17,6 +17,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { getBusinessUnits, getRoles } from '@/lib/db/directory'
 import type { BusinessUnitOption, RoleScopeRow } from '@/lib/db/directory'
+import { canViewRevenue, canViewMargin } from '@/lib/capabilities'
 import { deriveHomeStack, type HomeSection } from '@/lib/home-stack'
 import { MoneyPositionSection } from '@/components/home-stack/money-position-section'
 import { OpsKpiSection } from '@/components/home-stack/ops-kpi-section'
@@ -33,7 +34,8 @@ export function StackedUnionHome() {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const personId = viewer?.person?.id ?? null
   const accessRoles = viewer?.accessRoles ?? []
-  const canSeeFinance = accessRoles.includes('finance') || accessRoles.includes('admin')
+  const canSeeRevenue = canViewRevenue(accessRoles)
+  const canSeeMargin = canViewMargin(accessRoles)
   const now = useMemo(() => new Date(), [])
 
   // ── Fetch the role tree + BUs (shared schema, org-readable) for role-scope detection ──
@@ -91,7 +93,8 @@ export function StackedUnionHome() {
         <SectionView
           key={sectionKey(section, i)}
           section={section}
-          canSeeFinance={canSeeFinance}
+          canSeeRevenue={canSeeRevenue}
+          canSeeMargin={canSeeMargin}
           personId={personId}
           now={now}
         />
@@ -116,12 +119,13 @@ function sectionKey(section: HomeSection, i: number): string {
 
 interface SectionViewProps {
   section: HomeSection
-  canSeeFinance: boolean
+  canSeeRevenue: boolean
+  canSeeMargin: boolean
   personId: string | null
   now: Date
 }
 
-function SectionView({ section, canSeeFinance, personId, now }: SectionViewProps) {
+function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: SectionViewProps) {
   const t = useT()
 
   if (section.kind === 'owner-cockpit') {
@@ -133,7 +137,11 @@ function SectionView({ section, canSeeFinance, personId, now }: SectionViewProps
           </h2>
           <p className="home-stack-section-subtitle">{t('home.stack.owner.subtitle')}</p>
         </div>
-        <MoneyPositionSection scope={{ kind: 'company' }} canSeeFinance={canSeeFinance} />
+        <MoneyPositionSection
+          scope={{ kind: 'company' }}
+          canSeeRevenue={canSeeRevenue}
+          canSeeMargin={canSeeMargin}
+        />
         <OpsKpiSection />
         <CascadeDrill />
       </section>
@@ -149,7 +157,11 @@ function SectionView({ section, canSeeFinance, personId, now }: SectionViewProps
           </h2>
           <p className="home-stack-section-subtitle">{t('home.stack.function.subtitle')}</p>
         </div>
-        <MoneyPositionSection scope={{ kind: 'bu', buName: section.buName }} canSeeFinance={canSeeFinance} />
+        <MoneyPositionSection
+          scope={{ kind: 'bu', buName: section.buName }}
+          canSeeRevenue={canSeeRevenue}
+          canSeeMargin={canSeeMargin}
+        />
         <OpsKpiSection />
         <CascadeDrill />
       </section>

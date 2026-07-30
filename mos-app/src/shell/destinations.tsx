@@ -66,10 +66,13 @@ export const DESTINATIONS: Destination[] = [
     labelKey: 'dest.plan',
     Icon: PlanIcon,
     // Plan = the reference/money-lens destination (ADR-0019 D2). Dashboard (the analytical
-    // KPI hub, OD-DASH-2 — replaces /sales) is its first content (finance/admin-gated);
-    // budget/COGS workbenches are a documented future link (not rendered). anyOf hides the
-    // whole destination for a role with no Plan children (no dead-end — FR-410).
-    anyOf: ['finance', 'admin'],
+    // KPI hub, OD-DASH-2 — replaces /sales) is its first content (finance/admin/manager/
+    // supervisor-gated — ADR-0050 D8 AC-128: manager is a financial VIEW-only tier; ADR-0051
+    // AC-327: supervisor sees Dashboard revenue-only); budget/COGS workbenches are a documented
+    // future link (not rendered, and stay finance/admin only — no planning for manager, FR-112,
+    // or supervisor, FR-315). anyOf hides the whole destination for a role with no Plan children
+    // (no dead-end — FR-410).
+    anyOf: ['finance', 'admin', 'manager', 'supervisor'],
     links: [
       { path: '/dashboard', label: 'Dashboard', labelKey: 'nav.dashboard', Icon: SalesIcon },
       ...(SHOW_PLAN_BUDGET ? [
