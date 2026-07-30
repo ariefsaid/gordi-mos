@@ -1,7 +1,7 @@
 # Review battery — `dev` branch → `main` promotion (audit M-1/M-2 remediation + review-gate hardening + flake fix)
 
-**Scope:** merge-base **`ebd70e6`** (`git diff ebd70e6..dev`) — **8 commits / 12 files**. `origin/main` is
-`b733b68` (that merge-base plus the PR #108 promotion merge). Three workstreams:
+**Scope:** merge-base **`ebd70e6`** (`git diff ebd70e6..dev`) — **14 commits / 16 files**. `origin/main`
+is `b733b68` (that merge-base plus the PR #108 promotion merge). Four workstreams:
 
 1. **Remediation of the two Medium findings** from the 2026-07-30 audit of the previous window — M-1
    (`shared.person_roles` had no actor recorded) and M-2 (the null-org guard exemption was
@@ -10,6 +10,21 @@
    over 30 unreviewed commits, plus its first test harness (`scripts/tests/pre-merge-check.test.sh`).
 3. **Removing the test-suite flake** that turned CI red on a commit changing no app code
    (`mos-app/vite.config.ts`, `src/test/setup.ts`, `src/pages/updates-page.test.tsx`).
+4. **CI efficiency** (PR #117) — concurrency cancellation on both workflows, a scope guard so
+   `verify` skips its ~170s of app-only steps when no `mos-app/` file changed, and a
+   `.github/dependabot.yml` grouping updates. Added to the window AFTER the reviews below ran.
+
+> **PR #117 IS NOT COVERED BY THE VERDICTS BELOW.** It landed after the battery and has had no
+> independent review. It is Director-verified only — but verified on real Actions in the direction
+> that matters: a throwaway commit touching one `mos-app` file ran the full gate (**198s**) while the
+> `.github`-only commit before it skipped (**16s**), both reporting success. Scratch-repo evidence
+> alone was judged insufficient for a change that could silently disable the app gate.
+> **This is the gate's known residual made concrete:** merging #117 changed the window from 8
+> commits / 12 files to 14 / 16, and `pre-merge-check.sh` still passes, because the merge-base did
+> not move and the Scope-line SHA is therefore still correct. Citing the merge-base proves the ledger
+> is not describing a *closed* window; it cannot prove the ledger describes the *whole current* one.
+> The counts above were corrected by hand. Call for a spec/code-quality pass on #117 before promotion
+> if that residual is not acceptable for this window.
 
 **Run:** 2026-07-30 (Director-orchestrated, fresh battery over this window).
 
