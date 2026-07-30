@@ -484,14 +484,24 @@ cannot express alone, mirroring `ops._guard_log_entry` / `mos._guard_archive`):
 - **AC-051 [pgTAP]** Given the default-assignment seed, When applied, Then the **owner** person holds
   `admin` and a non-owner seeded person holds `member` (the default) — FR-061.
 
-### Viewer effective-role derivation (assigned ∪ derived manager) → **Unit (Vitest/RTL)**
+### Viewer effective-role derivation (assigned grants only) → **Unit (Vitest/RTL)**
+
+> **Inverted 2026-07-29 (ADR-0050 §45-53).** This section originally specified `accessRoles` as the
+> **assigned ∪ derived-manager** union. Since ADR-0050 the string `manager` is *also* a **stored
+> financial-visibility grant**, so merging the derived reporting-line manager would let every
+> reporting-line manager pass the finance gates (`canViewRevenue` / `RequireAccessRole`). The two
+> senses are now kept distinct: `accessRoles` carries **stored grants only** (the JWT claim), and the
+> derived reporting-line sense is carried by the separate `isManager` boolean
+> (`mos-app/src/lib/db/viewer.ts:131-135`). See FR-113 in
+> `docs/specs/manager-tier-and-role-assignment.spec.md`.
 - **AC-060 [unit]** Given a session whose decoded `access_roles` claim is `["ops_lead","member"]` and a
   role chain where `deriveIsManager` is **false**, When the viewer resolves, Then its effective access
   roles are exactly `{ops_lead, member}` (no `manager`) — FR-070, FR-071.
 - **AC-061 [unit]** Given a session with assigned `["member"]` **and** a role chain where
-  `deriveIsManager` is **true**, When the viewer resolves, Then its effective access roles are
-  `{member, manager}` — the **assigned ∪ derived-manager** union; `manager` appears **only** from the
-  derivation, never from the claim — FR-070, FR-003.
+  `deriveIsManager` is **true**, When the viewer resolves, Then its effective access roles are exactly
+  `{member}` — the derived reporting-line manager is **NOT** merged into `accessRoles`; that sense is
+  carried by `isManager` alone. `manager` in `accessRoles` appears **only** from the stored JWT claim,
+  never from the derivation — FR-070, FR-003, FR-113.
 - **AC-062 [unit]** Given an **orphan** session (no `shared.people` row) or an absent `access_roles`
   claim, When the viewer resolves, Then effective access roles are **empty** and `isManager` is false
   (fail closed, no throw) — FR-072.
