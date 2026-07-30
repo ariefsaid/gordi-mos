@@ -68,6 +68,15 @@
 - **FR-206** The admin People UI SHALL label the org-chart assignment **"Position"** and the access
   assignment **"Access level"**, and SHALL NOT label either "Role".
 - **FR-207** A person MAY simultaneously hold `ops_lead` and `manager`; the axes are independent.
+- **FR-208** A Jabatan assignment SHALL record **who made it**: `shared.person_roles.granted_by` SHALL be
+  stamped server-side from `shared.current_person_id()` by the guard, and a client-supplied value SHALL be
+  discarded rather than trusted. Added by the 2026-07-30 security audit (M-1): assigning a top-of-chain
+  Position silently widens the holder's read/write reach through `shared.is_manager_of()`, and that
+  permission-affecting write previously recorded no actor (STRIDE Repudiation). Under the service/seed
+  connection `granted_by` is NULL — there is no acting person to attribute.
+  **Not required:** blocking self-assignment. `person_roles` records an org **position**, not an app
+  privilege; an admin setting their own job title is legitimate and is the only path in a single-admin
+  org. It closes no hole either — an admin can already impersonate anyone via `admin_reset_password`.
 - **NFR-201** All assignment writes SHALL be enforced server-side (RLS/guard), not merely UI-gated.
 
 ---
@@ -114,6 +123,12 @@
   another org (same-org role), Then the guard raises `42501` (the guard checks the person's org too).
 - **AC-117** *(FR-203)* Given a non-admin session, When deleting an existing `person_roles` row, Then the
   admin-only delete policy filters it out (no error, zero rows affected) and the row remains.
+- **AC-118** *(FR-208)* Given an authenticated admin session, When it inserts a `person_roles` row, Then
+  the row's `granted_by` holds the **acting** person's id, stamped server-side by
+  `shared._guard_person_roles()`.
+- **AC-119** *(FR-208)* Given the same session, When it inserts a `person_roles` row **supplying** a
+  `granted_by` naming someone else, Then the insert succeeds but the supplied value is **discarded** and
+  replaced with the acting person's id — attribution is never client-controlled.
 
 ### Vitest / RTL — types, DAL, UI
 
@@ -143,6 +158,6 @@
 
 ## Test layer ownership
 
-- RLS / role read+write contracts → **pgTAP** (`supabase test db`): AC-101..115.
+- RLS / role read+write contracts → **pgTAP** (`supabase test db`): AC-101..119.
 - Types / component render / DAL wrappers → **Vitest/RTL**: AC-120..129.
 - **No new e2e** — no new cross-stack journey; existing curated journeys unaffected.

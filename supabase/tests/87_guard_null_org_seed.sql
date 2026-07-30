@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(2);
+select plan(4);
 
 select mos._test_seed_role_tree();  -- org a1 people d1..d7, roles f1..f6; d4=Peer, f2=Lead R
 
@@ -24,5 +24,35 @@ select lives_ok($$
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','B2B',null)
 $$, 'null-org service context: supervisor scope insert is allowed by the guard');
 
+-- ── M-2 (security audit 2026-07-30): the OTHER half of the exemption ──────────────────────────
+-- The two assertions above prove the guard LETS THE SEED THROUGH. Nothing proved it still KEEPS
+-- ATTACKERS OUT. Mig ...000005 deliberately disabled the org-seam check whenever current_org_id()
+-- is NULL, taking these two tables from two walls down to one: the RLS WITH CHECK
+-- `org_id = shared.current_org_id() and shared.has_access_role('admin')`, which refuses a
+-- null-org session only because `org_id = NULL` evaluates to NULL rather than TRUE.
+--
+-- That is a subtle wall to be standing on alone, and the failure mode is specific: the next time a
+-- seed breaks, the reflex that produced ...000005 ("loosen the check") would relax that WITH CHECK
+-- and re-open an org-unbound write into both tables — with no failing test anywhere. These two
+-- assertions are that missing test. They pin the wall, not the exemption.
+--
+-- Session: authenticated, admin claim, person_id set — but NO org_id claim, which is the only
+-- authenticated shape that reaches the exempted branch of the guard.
+set local role authenticated;
+set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+
+select throws_ok($$
+  insert into shared.person_roles (org_id, person_id, role_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-0000000000f2')
+$$, '42501', null,
+  'M-2: an AUTHENTICATED null-org session is still refused on person_roles (the guard exemption is not a bypass)');
+
+select throws_ok($$
+  insert into reporting.supervisor_revenue_scope (org_id, person_id, channel, branch_code)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d5','B2B',null)
+$$, '42501', null,
+  'M-2: an AUTHENTICATED null-org session is still refused on supervisor_revenue_scope');
+
+reset role;
 select * from finish();
 rollback;
