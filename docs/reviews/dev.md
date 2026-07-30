@@ -1,6 +1,6 @@
 # Review battery — `dev` branch → `main` promotion (audit M-1/M-2 remediation + review-gate hardening + flake fix)
 
-**Scope:** merge-base **`ebd70e6`** (`git diff ebd70e6..dev`) — **14 commits / 16 files**. `origin/main`
+**Scope:** merge-base **`ebd70e6`** (`git diff ebd70e6..dev`) — **19 commits / 16 files**. `origin/main`
 is `b733b68` (that merge-base plus the PR #108 promotion merge). Four workstreams:
 
 1. **Remediation of the two Medium findings** from the 2026-07-30 audit of the previous window — M-1
@@ -10,21 +10,30 @@ is `b733b68` (that merge-base plus the PR #108 promotion merge). Four workstream
    over 30 unreviewed commits, plus its first test harness (`scripts/tests/pre-merge-check.test.sh`).
 3. **Removing the test-suite flake** that turned CI red on a commit changing no app code
    (`mos-app/vite.config.ts`, `src/test/setup.ts`, `src/pages/updates-page.test.tsx`).
-4. **CI efficiency** (PR #117) — concurrency cancellation on both workflows, a scope guard so
-   `verify` skips its ~170s of app-only steps when no `mos-app/` file changed, and a
-   `.github/dependabot.yml` grouping updates. Added to the window AFTER the reviews below ran.
+4. **CI efficiency + tiering** (PRs #117, #119) — concurrency cancellation on both workflows; a
+   fail-closed scope guard so `verify` skips its ~170s of app-only steps when every changed path is
+   inert; `.github/dependabot.yml`; and the **pgTAP fast lane** on dev PRs adopted from PMO's
+   `ci.yml`. Added to the window AFTER the reviews below ran.
 
-> **PR #117 IS NOT COVERED BY THE VERDICTS BELOW.** It landed after the battery and has had no
-> independent review. It is Director-verified only — but verified on real Actions in the direction
-> that matters: a throwaway commit touching one `mos-app` file ran the full gate (**198s**) while the
-> `.github`-only commit before it skipped (**16s**), both reporting success. Scratch-repo evidence
-> alone was judged insufficient for a change that could silently disable the app gate.
-> **This is the gate's known residual made concrete:** merging #117 changed the window from 8
-> commits / 12 files to 14 / 16, and `pre-merge-check.sh` still passes, because the merge-base did
-> not move and the Scope-line SHA is therefore still correct. Citing the merge-base proves the ledger
-> is not describing a *closed* window; it cannot prove the ledger describes the *whole current* one.
-> The counts above were corrected by hand. Call for a spec/code-quality pass on #117 before promotion
-> if that residual is not acceptable for this window.
+> **PRs #117 AND #119 ARE NOT COVERED BY THE VERDICTS BELOW.** Both landed after the battery and
+> have had no independent review. They are Director-verified only — but verified on real Actions, in
+> each case in the direction where a bug would be silent rather than loud:
+> - #117 scope guard — a probe touching one `mos-app` file ran the full gate (**198s**); the
+>   `.github`-only commit before it skipped (**16s**). Both green. A guard that wrongly *skipped*
+>   would silently disable the app gate, so scratch-repo evidence alone was judged insufficient.
+> - #119 fast lane — a probe touching `supabase/` on a dev PR produced `pgtap` **SUCCESS in 161s**,
+>   `db` **SKIPPED** (the browser tier correctly stayed out of a dev PR), `verify` **13s**. All three
+>   tiers exercised on one real run.
+> #119 also acts on an external review of #117: the scope guard is now **fail-closed** (skip only if
+> every changed path is on an inert allowlist, so an unrecognised path — a root `package.json`, a new
+> `packages/` dir — runs the full gate), because "skip unless `mos-app/` changed" silently rots the
+> day the app depends on anything outside that directory.
+> **This is the gate's known residual made concrete:** these merges grew the window from 8 commits /
+> 12 files to 19 / 16 and `pre-merge-check.sh` still passes, because the merge-base never moved and
+> the Scope-line SHA is therefore still correct. Citing the merge-base proves a ledger is not
+> describing a *closed* window; it cannot prove it describes the *whole current* one. The counts were
+> corrected by hand. Call for a spec/code-quality pass on #117+#119 before promotion if that residual
+> is not acceptable for this window.
 
 **Run:** 2026-07-30 (Director-orchestrated, fresh battery over this window).
 
@@ -68,7 +77,7 @@ reviewers, briefed adversarially because the Director authored every line under 
 | Flake | Reproduced on the second of two full runs; three green after |
 
 ## Machine-readable verdicts (parsed by `pre-merge-check.sh`)
-- spec: FIX-THEN-SHIP — M-1(a)(c) and M-2 correctly implemented and mutation-tested; the self-assign refusal judged a legitimate design call, not scope-shaving. Blockers raised and **closed in this window**: AC-118/AC-119 collided with `tasks-dbview.spec.md:395-396` (my "these ids are free" claim was false — renumbered to AC-209/AC-211), and `granted_by` immutability was argued in a comment but untested (now AC-214c). **Open residual:** the new pgTAP has never run in CI — `integration.yml` gates the `db` job to `main`, so PRs #113/#114/#115 ran `verify` only. The promotion PR is its first automated execution.
+- spec: FIX-THEN-SHIP — M-1(a)(c) and M-2 correctly implemented and mutation-tested; the self-assign refusal judged a legitimate design call, not scope-shaving. Blockers raised and **closed in this window**: AC-118/AC-119 collided with `tasks-dbview.spec.md:395-396` (my "these ids are free" claim was false — renumbered to AC-209/AC-211), and `granted_by` immutability was argued in a comment but untested (now AC-214c). **Residual CLOSED after the review, by PR #119:** the reviewer flagged that the new pgTAP had never run in CI, because `integration.yml` gated the DB job to `main` — PRs #113/#114/#115 ran `verify` only. A `pgtap` fast lane on dev PRs (Supabase + pgTAP, no browser, adopted from PMO) now closes that gap at the point the migrations land, not days later at the promote. Proven on a real dev PR: `pgtap` SUCCESS in 161s.
 - code-quality: FIX-THEN-SHIP — SQL provably correct, guard re-paste verified lossless against the live catalog. C-1 (a failed fetch producing a silent false PASS) fixed; I-2 (claimed parity with `supervisor_revenue_scope` was false — no column default) fixed by `20260730000002`. **C-2 was a false positive:** two reviewers reported the guard triggers missing from the local database; they were mutation-testing the same live stack concurrently and corrupted each other's environment. Verified present, `tgenabled='O'`, test 84 15/15 at the time of the claim. That concurrency was a Director process error, not a defect.
 - design: PASS (N/A for this diff) — Director, 2026-07-30. The only `.tsx` changed is a test file; no component, CSS, or rendered surface is in the window. The gate's `.tsx` heuristic cannot distinguish a test from a component, so this line records the exemption explicitly rather than leaving it to be inferred.
 - security: FIX-THEN-SHIP — no Critical, no High. M-1 and M-2 both genuinely close: `granted_by` proved unforgeable on every reachable path including `COPY` and PostgREST `merge-duplicates` upsert, and the null-org exemption proved unreachable from `authenticated`, `anon` **and** `service_role`. Three Mediums, all mine, all fixed in this window — F-1 (a `git fetch` that exits 0 without moving `origin/main`, the gate's fourth fail-open), F-2 (`PRE_MERGE_NO_FETCH=1` was a silent bypass), F-3 (`has_trigger` green on a *disabled* trigger while it accepted cross-org rows and forged attribution).
