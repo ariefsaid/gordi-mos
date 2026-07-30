@@ -27,12 +27,12 @@ updates:
       production-dependencies:
         applies-to: version-updates
         dependency-type: production
-      # Security updates are grouped as well; without this each advisory is its own PR, which
-      # is what produced three simultaneous main-targeted PRs on the day alerts were enabled.
-      security:
-        applies-to: security-updates
-        patterns:
-          - '*'
+      # NOT grouping security updates — deliberately reversed after review. Grouping them trades
+      # a real property (a fix lands the moment its advisory does) for a cosmetic one (fewer PRs),
+      # and batching means the whole group waits on its slowest member. The 10-at-once burst that
+      # motivated grouping was a one-off from enabling alerts on a repo that had never had them;
+      # steady state is a trickle. Noise reduction is worth having for routine version bumps and
+      # is not worth a wider exposure window on security ones.
 
   # Keep the pinned action SHAs current. Without this, SHA pinning (required for this repo since
   # 2026-07-30) silently freezes actions at whatever commit they were pinned to — the pins stop
