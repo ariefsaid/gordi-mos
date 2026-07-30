@@ -146,6 +146,32 @@ write_ledger "$R" "$B"
 check "core.abbrev=12 does not break a valid 7-char citation" 0 "$(run_gate "$R")"
 rm -rf "$R"
 
+# 11. THE F-1 REGRESSION. `git fetch origin main` updates refs/remotes/origin/main only when the
+#     configured refspec covers it. Narrow the refspec and the fetch EXITS 0 while the tracking ref
+#     stays frozen — success reported, baseline unmoved, gate passes over unreviewed work.
+#     NB the merge-base only MOVES if dev has merged main, so the scenario must include that;
+#     simply advancing main leaves merge-base at the fork point and the old ledger stays valid.
+R="$(make_repo)"; OLD_B="$(cd "$R/work" && git rev-parse --short=7 origin/main)"
+write_ledger "$R" "$OLD_B"
+(
+  cd "$R/work"
+  git checkout -q main && echo adv > h.txt && git add -A && git commit -qm "real main moved" && git push -q origin main
+  git checkout -q dev && git merge -q --no-edit main          # merge-base is now main's new tip
+  git update-ref refs/remotes/origin/main "$OLD_B"            # pretend we never fetched it
+  git config --unset-all remote.origin.fetch
+  git config remote.origin.fetch '+refs/heads/dev:refs/remotes/origin/dev'   # does NOT cover main
+)
+check "fetch that succeeds without moving origin/main is caught" 1 "$(run_gate "$R")"
+rm -rf "$R"
+
+# 12. THE F-2 REGRESSION. PRE_MERGE_NO_FETCH=1 set FETCH_OK to a value that was neither "true" nor
+#     "false", so the guard never fired — a silent bypass, quieter than the documented one.
+R="$(make_repo)"; B="$(cd "$R/work" && git rev-parse --short=7 origin/main)"
+write_ledger "$R" "$B"
+check "PRE_MERGE_NO_FETCH alone is not a bypass" 1 "$(run_gate "$R" PRE_MERGE_NO_FETCH=1)"
+check "  ...but with ALLOW_STALE_BASE it is an acknowledged one" 0 "$(run_gate "$R" PRE_MERGE_NO_FETCH=1 ALLOW_STALE_BASE=1)"
+rm -rf "$R"
+
 echo ""
 echo "passed $PASSED, failed $FAILED"
 [[ "$FAILED" -eq 0 ]]

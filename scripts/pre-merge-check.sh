@@ -10,6 +10,14 @@
 # Verdict format (one per review):  - <review>: <VERDICT> — <reviewer/notes>
 # Accepted verdicts: PASS  SHIP  FIX-THEN-SHIP
 # Blocking verdicts: REWORK  FAIL  STILL-FAILING  (or blank/missing)
+#
+# NETWORK: this script fetches origin/main, because a stale baseline is the failure mode it exists
+# to catch. Env overrides (both are logged in the report; neither is silent):
+#   ALLOW_STALE_BASE=1    proceed with a possibly-stale baseline (offline / sandbox).
+#   PRE_MERGE_NO_FETCH=1  skip the fetch. Requires ALLOW_STALE_BASE=1 as well — on its own it fails.
+#
+# Tests: scripts/tests/pre-merge-check.test.sh. Add a case for every change here; this gate has
+# failed OPEN four times, each time in a path nobody had exercised.
 
 set -euo pipefail
 
@@ -38,19 +46,46 @@ fi
 ALLOW_STALE="${ALLOW_STALE_BASE:-0}"
 FETCH_OK=true
 if [[ "${PRE_MERGE_NO_FETCH:-0}" == "1" ]]; then
+  # Bypass #3 (F-2). This used to set a value that was neither "true" nor "false", so the guard
+  # below never fired and this became a SILENT bypass — quieter than ALLOW_STALE_BASE, the one
+  # that is supposed to be the loud escape hatch. It now falls into the same guard.
   FETCH_OK=skipped
-elif ! git fetch --quiet --no-tags origin main 2>/dev/null; then
-  FETCH_OK=false
+else
+  # `git fetch origin main` updates refs/remotes/origin/main only OPPORTUNISTICALLY — when the
+  # configured remote.origin.fetch refspec happens to cover it. On a fork, a `git remote add -t`
+  # remote, or a CI checkout with a narrowed refspec, the fetch EXITS 0 while the tracking ref
+  # stays frozen: success reported, baseline unmoved, gate passes over unreviewed work (F-1,
+  # reproduced). Fourth fail-open in this block. Name the destination explicitly so "fetch
+  # succeeded" and "origin/main is current" cannot come apart.
+  if git fetch --quiet --no-tags origin '+refs/heads/main:refs/remotes/origin/main' 2>/dev/null; then
+    # Belt and braces: even an explicit refspec should be checked, not trusted.
+    if ! git rev-parse --verify --quiet FETCH_HEAD >/dev/null \
+       || [[ "$(git rev-parse origin/main 2>/dev/null)" != "$(git rev-parse FETCH_HEAD 2>/dev/null)" ]]; then
+      FETCH_OK=false
+    fi
+  else
+    FETCH_OK=false
+  fi
 fi
 
-if [[ "$FETCH_OK" == "false" && "$ALLOW_STALE" != "1" ]]; then
+if [[ "$FETCH_OK" != "true" && "$ALLOW_STALE" != "1" ]]; then
   echo ""
-  echo "FAIL: could not fetch origin/main — the baseline cannot be trusted."
-  echo "  Any ref present locally may predate the current main, which is exactly the"
-  echo "  staleness this gate exists to catch. Refusing to guess."
-  echo ""
-  echo "  Fix: restore network access and re-run."
-  echo "  Override (only if you fetched by hand just now): ALLOW_STALE_BASE=1 bash $0"
+  if [[ "$FETCH_OK" == "skipped" ]]; then
+    echo "FAIL: PRE_MERGE_NO_FETCH=1 skipped the baseline refresh."
+    echo "  Skipping the fetch means the baseline may predate the current main — the exact"
+    echo "  staleness this gate exists to catch. It is not a free pass on its own."
+    echo ""
+    echo "  If that is genuinely what you want, say so explicitly:"
+    echo "    PRE_MERGE_NO_FETCH=1 ALLOW_STALE_BASE=1 bash $0"
+  else
+    echo "FAIL: could not refresh origin/main — the baseline cannot be trusted."
+    echo "  Either the fetch failed, or it succeeded without moving origin/main (a narrowed"
+    echo "  remote refspec). Any ref present locally may predate the current main."
+    echo ""
+    echo "  Fix: restore network access, or widen the refspec:"
+    echo "    git config --add remote.origin.fetch '+refs/heads/main:refs/remotes/origin/main'"
+    echo "  Override (only if you fetched by hand just now): ALLOW_STALE_BASE=1 bash $0"
+  fi
   echo ""
   exit 1
 fi

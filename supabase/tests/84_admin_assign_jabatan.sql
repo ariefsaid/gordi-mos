@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 
 select mos._test_seed_role_tree();      -- org a1 people d1..d7, roles f1..f6/c1; org b1 person b4, role c1
 select mos._test_seed_access_roles();   -- grants admin -> GrandMgr (...d3)
@@ -21,8 +21,12 @@ select is(
   '00000000-0000-0000-0000-0000000000a1'::uuid, 'AC-111: org_id server-stamped on assign');
 
 -- AC-209 (M-1, audit 2026-07-30): a Jabatan assignment is ATTRIBUTABLE. Assigning a top-of-chain
--- Position silently widens what the holder can read/write (shared.is_manager_of unions over
--- person_roles, which gates mos.tasks read+update, weekly updates and ops logs). Before this the row
+-- Position widens what the holder can do (shared.is_manager_of unions over person_roles). CORRECTED
+-- after the 2026-07-30 security review: it gates mos.can_edit_task (UPDATE), ops.can_edit_log_entry
+-- (UPDATE) and mos.can_read_weekly_update (the one genuine READ widening). It does NOT gate task or
+-- ops-log SELECT — both are plain org-wide policies. The earlier "gates tasks read" claim overstated
+-- it. All consumers are org-bound, so a Position grant is a data-integrity and attribution problem,
+-- not privilege escalation across orgs. Before this the row
 -- carried no actor at all, so a permission-affecting write left no trace of who made it (STRIDE
 -- Repudiation). granted_by is stamped by the guard, never by the client.
 select is(
@@ -112,6 +116,22 @@ reset role;
 -- as M-2, one layer down.
 select has_trigger('shared','person_roles','person_roles_guard',
   'AC-214: person_roles_guard is attached (it is the ONLY wall for the cross-org person/role seam)');
+
+-- AC-214b (security review F-3): has_trigger tests EXISTENCE, not tgenabled. `ALTER TABLE .. DISABLE
+-- TRIGGER` and `session_replication_role = replica` — what a bulk load, a restore or a DBA actually
+-- does — leave AC-214 green while the guard is completely inert: cross-org rows accepted AND a
+-- client-forged granted_by stored. Proven in review. Existence was the wrong property to assert.
+select ok(
+  (select tgenabled from pg_trigger
+    where tgname = 'person_roles_guard' and tgrelid = 'shared.person_roles'::regclass) in ('O','A'),
+  'AC-214b: person_roles_guard is ENABLED, not merely present');
+
+-- L-1: granted_by immutability rests on "there is no UPDATE grant" — asserted in a migration comment
+-- and, until now, tested nowhere. Adding `grant update` would make attribution freely rewritable with
+-- nothing going red. Same untested-load-bearing-assumption class AC-214 exists to close.
+select ok(
+  not has_table_privilege('authenticated','shared.person_roles','UPDATE'),
+  'AC-214c: granted_by is immutable because authenticated holds no UPDATE grant on person_roles');
 
 select * from finish();
 rollback;

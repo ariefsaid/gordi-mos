@@ -7,7 +7,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(5);
+select plan(9);
 
 select mos._test_seed_role_tree();  -- org a1 people d1..d7, roles f1..f6; d4=Peer, f2=Lead R
 
@@ -61,5 +61,21 @@ $$, '42501', null,
   'M-2: an AUTHENTICATED null-org session is still refused on supervisor_revenue_scope');
 
 reset role;
+-- L-2 (security review): M-2 above pins ONE of the three legs holding this door shut — the RLS
+-- WITH CHECK. The other two are the absent table grants and org_id NOT NULL. The grants matter most:
+-- mig ...000005's comment justifies the exemption by calling service_role "trusted + bypasses RLS",
+-- but service_role is actually stopped by having NO INSERT GRANT — BYPASSRLS confers no table
+-- privileges. If anyone runs the Supabase-conventional `grant all on all tables in schema shared to
+-- service_role`, that comment's rationale becomes the real security model and a leaked service key
+-- becomes an unguarded cross-org write. These four assertions pin the leg the comment misdescribes.
+select ok(not has_table_privilege('service_role','shared.person_roles','INSERT'),
+  'L-2: service_role holds no INSERT on person_roles (this, not "trust", is what stops a leaked service key)');
+select ok(not has_table_privilege('anon','shared.person_roles','INSERT'),
+  'L-2: anon holds no INSERT on person_roles');
+select ok(not has_table_privilege('service_role','reporting.supervisor_revenue_scope','INSERT'),
+  'L-2: service_role holds no INSERT on supervisor_revenue_scope');
+select ok(not has_table_privilege('anon','reporting.supervisor_revenue_scope','INSERT'),
+  'L-2: anon holds no INSERT on supervisor_revenue_scope');
+
 select * from finish();
 rollback;
