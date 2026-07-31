@@ -1,26 +1,18 @@
-import { useState, useId } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
+import { SetPasswordForm } from '@/auth/set-password-form'
+import { clearMustChangePassword } from '@/lib/db/account'
 import { useAuth } from '@/auth/use-auth'
 
-const ERR_MISMATCH = "Passwords don't match."
 const ERR_EXPIRED = 'That link has expired — request a new one.'
 
 export function RecoveryPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const auth = useAuth()
-  const newPasswordId = useId()
-  const confirmPasswordId = useId()
-  const mismatchErrorId = useId()
-  const serverErrorId = useId()
 
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [mismatchError, setMismatchError] = useState('')
-  const [serverError, setServerError] = useState('')
-  const [loading, setLoading] = useState(false)
   const [expired, setExpired] = useState(false)
 
   const hasRecoveryParams =
@@ -29,44 +21,37 @@ export function RecoveryPage() {
   const waitingForRecoverySession =
     auth.status === 'loading' || (auth.status === 'unauthenticated' && hasRecoveryParams)
   const isRecoveryReady = auth.status === 'recovering'
-  const isDisabled = loading || !isRecoveryReady
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setMismatchError('')
-    setServerError('')
+  async function handleSubmit(newPassword: string): Promise<string | null> {
     setExpired(false)
-
-    if (newPassword !== confirmPassword) {
-      setMismatchError(ERR_MISMATCH)
-      return
-    }
 
     if (!isRecoveryReady) {
       setExpired(true)
-      return
+      return null
     }
 
-    setLoading(true)
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword })
-      if (error) {
-        if (error.code === 'weak_password') {
-          setServerError(error.message)
-        } else {
-          // Link/session errors from updateUser on a recovery link = expired/invalid link.
-          setExpired(true)
-        }
-      } else {
-        // Clear the recovering flag so AuthProvider can resolve the viewer (audit L1 fix).
-        await auth.clearRecovering()
-        navigate('/', { replace: true })
-      }
-    } catch {
-      setServerError("Couldn't reach the server — try again.")
-    } finally {
-      setLoading(false)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      if (error.code === 'weak_password') return error.message
+      // Link/session errors from updateUser on a recovery link = expired/invalid link.
+      setExpired(true)
+      return null
     }
+
+    // #131: a recovery-link reset is the holder choosing their own password, so it satisfies the
+    // must_change_password gate too. Without this they land on / and are immediately re-gated,
+    // asked to set a password they just set. Swallowed on failure: the flag simply stays up and
+    // the gate re-prompts, which is the same fail-safe the gate itself relies on.
+    try {
+      await clearMustChangePassword()
+    } catch {
+      // no-op — see above
+    }
+
+    // Clear the recovering flag so AuthProvider can resolve the viewer (audit L1 fix).
+    await auth.clearRecovering()
+    navigate('/', { replace: true })
+    return null
   }
 
   // Expired link fallback
@@ -140,124 +125,16 @@ export function RecoveryPage() {
     )
   }
 
+  // isRecoveryReady is guaranteed true past the guard above; handleSubmit re-checks it because the
+  // auth status can still change while the form is being filled in.
   return (
     <AuthShell>
       <AuthCard>
-        {/* Card title */}
-        <h1
-          className="text-foreground font-semibold"
-          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
-        >
-          Set a new password
-        </h1>
-        <p className="text-muted-foreground mb-5" style={{ fontSize: 16 }}>
-          Choose a strong password for your account.
-        </p>
-
-        {serverError && (
-          <div
-            id={serverErrorId}
-            role="alert"
-            className="mb-4 rounded-md px-3 py-2"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
-              color: 'var(--destructive)',
-              fontSize: 15,
-            }}
-          >
-            {serverError}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} noValidate>
-          {/* New password */}
-          <div className="mb-4">
-            <label
-              htmlFor={newPasswordId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
-            >
-              New password
-            </label>
-            <input
-              id={newPasswordId}
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              disabled={isDisabled}
-              className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
-              style={{
-                height: 32,
-                fontSize: 16,
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
-            />
-          </div>
-
-          {/* Confirm password */}
-          <div className="mb-5">
-            <label
-              htmlFor={confirmPasswordId}
-              className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
-            >
-              Confirm password
-            </label>
-            <input
-              id={confirmPasswordId}
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={isDisabled}
-              aria-invalid={mismatchError ? 'true' : undefined}
-              aria-describedby={mismatchError ? mismatchErrorId : undefined}
-              className="w-full bg-background text-foreground border rounded-sm px-2.5"
-              style={{
-                height: 32,
-                fontSize: 16,
-                borderColor: mismatchError ? 'var(--destructive)' : 'var(--input)',
-                opacity: isDisabled ? 0.5 : 1,
-                cursor: isDisabled ? 'not-allowed' : undefined,
-              }}
-            />
-            {mismatchError && (
-              <p
-                id={mismatchErrorId}
-                className="mt-1"
-                style={{ fontSize: 12, color: 'var(--destructive)' }}
-              >
-                {mismatchError}
-              </p>
-            )}
-          </div>
-
-          {/* Primary submit */}
-          <button
-            type="submit"
-            disabled={isDisabled}
-            aria-busy={loading}
-            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
-            style={{
-              height: 32,
-              fontSize: 16,
-              opacity: isDisabled ? 0.5 : 1,
-              cursor: isDisabled ? 'not-allowed' : undefined,
-            }}
-          >
-            {loading ? (
-              <>
-                <span role="status" className="sr-only">Loading…</span>
-                <Spinner className="text-primary-foreground" />
-                Saving…
-              </>
-            ) : (
-              'Save password'
-            )}
-          </button>
-        </form>
+        <SetPasswordForm
+          title="Set a new password"
+          subtitle="Choose a strong password for your account."
+          onSubmit={handleSubmit}
+        />
       </AuthCard>
     </AuthShell>
   )
