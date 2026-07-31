@@ -1,148 +1,109 @@
-# Review battery — `dev` branch → `main` promotion (audit M-1/M-2 remediation + review-gate hardening + flake fix)
+# Review battery — `dev` branch → `main` promotion (M1 closure + the four carried code-quality findings)
 
-**Scope:** merge-base **`ebd70e6`** (`git diff ebd70e6..dev`) — **19 commits / 16 files**. `origin/main`
-is `b733b68` (that merge-base plus the PR #108 promotion merge). Four workstreams:
+**Scope:** merge-base **`d88289c`** (`git diff d88289c..dev`) — **9 commits / 24 files**. `origin/main`
+is `0cec33c`. Three workstreams:
 
-1. **Remediation of the two Medium findings** from the 2026-07-30 audit of the previous window — M-1
-   (`shared.person_roles` had no actor recorded) and M-2 (the null-org guard exemption was
-   positive-tested only). Migrations `20260730000001`, `20260730000002`; pgTAP 84/85/87.
-2. **Hardening of the review gate itself** (`scripts/pre-merge-check.sh`) after it was found passing
-   over 30 unreviewed commits, plus its first test harness (`scripts/tests/pre-merge-check.test.sh`).
-3. **Removing the test-suite flake** that turned CI red on a commit changing no app code
-   (`mos-app/vite.config.ts`, `src/test/setup.ts`, `src/pages/updates-page.test.tsx`).
-4. **CI efficiency + tiering** (PRs #117, #119) — concurrency cancellation on both workflows; a
-   fail-closed scope guard so `verify` skips its ~170s of app-only steps when every changed path is
-   inert; `.github/dependabot.yml`; and the **pgTAP fast lane** on dev PRs adopted from PMO's
-   `ci.yml`. Added to the window AFTER the reviews below ran.
+1. **M1 — the last open security finding, closed.** `mos.budgets` / `mos.budget_lines` granted
+   `insert, update` to `authenticated`, so a `cogs.write` holder could bypass `mos.capture_budget` and
+   write an arbitrary `total_budgeted_cogs` or a cross-org `owning_bu_id`. Carried since the
+   2026-07-08 audit and publicly documented with an exploitation path on a public repo. Closed by
+   `20260731000001` (two revokes) + the `78_...` pgTAP rewrite. Also I-3, the covering index for
+   `reporting.list_revenue_branches()` (`20260731000002`).
+2. **The four carried code-quality findings** — I-1 (RoleEditor hand-rolled the centralised
+   `CheckboxRow`/`PickerError`), I-2 (revenue-role list literal in three files), I-4/I-5
+   (`useCompanyFinanceKpis` defaulted parameter + non-terminal skip path).
+3. **Battery remediation** (`03bf498`) — acting on this window's own review findings, including a
+   false claim I made in `3cd434c`'s commit message. See "Corrections" below.
+4. **The `DEFERRED` verdict** (`02b13a3`) — the gate accepted only PASS/SHIP/FIX-THEN-SHIP, so the
+   only way to record this window's un-run design lens was to write PASS for a review that never
+   happened. `DEFERRED` clears the gate, is never shown as `[ok]`, and cannot be self-granted: the
+   verdict line must name the owner, else it blocks. Harness 15 → 18 cases.
 
-> **PRs #117 AND #119 ARE NOT COVERED BY THE VERDICTS BELOW.** Both landed after the battery and
-> have had no independent review. They are Director-verified only — but verified on real Actions, in
-> each case in the direction where a bug would be silent rather than loud:
-> - #117 scope guard — a probe touching one `mos-app` file ran the full gate (**198s**); the
->   `.github`-only commit before it skipped (**16s**). Both green. A guard that wrongly *skipped*
->   would silently disable the app gate, so scratch-repo evidence alone was judged insufficient.
-> - #119 fast lane — a probe touching `supabase/` on a dev PR produced `pgtap` **SUCCESS in 161s**,
->   `db` **SKIPPED** (the browser tier correctly stayed out of a dev PR), `verify` **13s**. All three
->   tiers exercised on one real run.
-> #119 also acts on an external review of #117: the scope guard is now **fail-closed** (skip only if
-> every changed path is on an inert allowlist, so an unrecognised path — a root `package.json`, a new
-> `packages/` dir — runs the full gate), because "skip unless `mos-app/` changed" silently rots the
-> day the app depends on anything outside that directory.
-> **This is the gate's known residual made concrete:** these merges grew the window from 8 commits /
-> 12 files to 19 / 16 and `pre-merge-check.sh` still passes, because the merge-base never moved and
-> the Scope-line SHA is therefore still correct. Citing the merge-base proves a ledger is not
-> describing a *closed* window; it cannot prove it describes the *whole current* one. The counts were
-> corrected by hand. Call for a spec/code-quality pass on #117+#119 before promotion if that residual
-> is not acceptable for this window.
+> **Counts corrected by hand (again).** The window read 7 commits / 21 files when the battery ran;
+> items 3 and 4 are the ledger's own follow-up commits, so it now reads 9 / 24. The merge-base never
+> moved, so `pre-merge-check.sh` stayed green throughout — the documented residual, recurring. Citing
+> the merge-base proves a ledger is not describing a *closed* window; it cannot prove it describes
+> the *whole current* one.
 
-**Run:** 2026-07-30 (Director-orchestrated, fresh battery over this window).
+**Run:** 2026-07-31 (Director-orchestrated). Builders: pi/`glm-5.2` (SQL) and pi/`glm-4.7` (app).
+Reviewers: Claude (cross-family from the GLM builders), briefed adversarially because I wrote or
+commissioned every line under review.
 
 ## Coverage model
-Spec, code-quality and security were **freshly run over this window** (`a909672..9409c0a`) by independent
-reviewers, briefed adversarially because the Director authored every line under review.
-
-- **Design — not required, and correctly so.** The gate flags design because a `.tsx` file changed, but
-  the only `.tsx` in the window is `src/pages/updates-page.test.tsx`, a **test file**. No component, no
-  CSS, no rendered surface is touched; `git diff ebd70e6..dev -- '*.css' 'src/components/**' 'src/pages/*.tsx'`
-  yields only that test. There is nothing for a four-lens review to look at. (Owner also deferred fresh
-  design review while the redesign is still in its design phase — carried from the previous ledger.)
-
-> **HONEST GAP — the remediation is itself unreviewed.** The three reviewers examined `a909672..9409c0a`.
-> The two commits that *act on their findings* — `39be31f` (F-1/F-2/F-3 + two corrections) and `bd239c4`
-> (the flake fix) — landed **after** those reviews and have had no independent pass. For `39be31f` the
-> reviewer prescribed each fix, so the risk is bounded to whether I implemented them correctly. `bd239c4`
-> is weaker: it was my own initiative, it changes global test configuration (`testTimeout`,
-> `asyncUtilTimeout`) affecting all 2515 tests, and it rewrites 10 waits. Its evidence is three
-> consecutive green full suites where the failure reproduced on run 2 of 2 beforehand — good, but not a
-> review. Treat as a known residual, not as covered.
-
-## Independent verification (Director, not delegated)
-- **pgTAP: 87 files / 637 tests PASS** from a clean seeded `supabase db reset` (was 630 before this
-  window's additions; 622 two windows ago).
-- **Gate harness: 14/14** — and **12/14 against the previous gate**, so the new cases demonstrably bite
-  rather than decorating a green wall.
-- **Vitest: 3 consecutive full-suite runs, 246/246 files / 2515/2515 tests.** The flake reproduced on run
-  2 of 2 before `bd239c4`.
-- `npm run typecheck` 0 errors; `npm run lint:ci` clean.
-- Both guard triggers verified `tgenabled = 'O'` after every mutation probe run during review.
-
-**Falsifiability checks — each fix was made to fail before being trusted:**
-| Fix | Demonstrated failure |
-|---|---|
-| M-1 `granted_by` | Test 84 red with `column "granted_by" does not exist` pre-migration |
-| M-2 negatives | Weakening the RLS `WITH CHECK` turns assertion 3 `not ok`; the sibling stays green (precise, not broadly sensitive) |
-| AC-214 / AC-309 | Dropping each trigger turns them red |
-| AC-214b / AC-309b | **Disabling** a trigger leaves AC-214 green and AC-214b red — the exact gap they exist to close |
-| Gate C-1/I-5/F-1/F-2 | Reproduced in throwaway repos; each case fails against the pre-fix script |
-| Flake | Reproduced on the second of two full runs; three green after |
+- **Security · spec · code-quality** — freshly run over this window.
+- **Design — REQUIRED and NOT RUN.** Unlike the previous window, this one changes **real rendered
+  surfaces**, not just tests: `checkbox-row.tsx` (label markup restructured into a two-line flex
+  column), `role-editor.tsx` (its entire role-checkbox list re-parented onto the shared primitive),
+  `money-position-section.tsx` (provenance-note visibility condition). The last ledger's "only a test
+  file changed" exemption would be **false** if copied here. Deferred per the owner's standing call
+  (2026-07-30: fresh design review premature while the redesign is in its design phase) and because
+  rendering the app was judged too costly after this session OOM'd a 24 GB machine. **This is a real
+  gap, not an N/A** — the RoleEditor rows and the provenance note are unreviewed visually.
 
 ## Machine-readable verdicts (parsed by `pre-merge-check.sh`)
-- spec: FIX-THEN-SHIP — M-1(a)(c) and M-2 correctly implemented and mutation-tested; the self-assign refusal judged a legitimate design call, not scope-shaving. Blockers raised and **closed in this window**: AC-118/AC-119 collided with `tasks-dbview.spec.md:395-396` (my "these ids are free" claim was false — renumbered to AC-209/AC-211), and `granted_by` immutability was argued in a comment but untested (now AC-214c). **Residual CLOSED after the review, by PR #119:** the reviewer flagged that the new pgTAP had never run in CI, because `integration.yml` gated the DB job to `main` — PRs #113/#114/#115 ran `verify` only. A `pgtap` fast lane on dev PRs (Supabase + pgTAP, no browser, adopted from PMO) now closes that gap at the point the migrations land, not days later at the promote. Proven on a real dev PR: `pgtap` SUCCESS in 161s.
-- code-quality: FIX-THEN-SHIP — SQL provably correct, guard re-paste verified lossless against the live catalog. C-1 (a failed fetch producing a silent false PASS) fixed; I-2 (claimed parity with `supervisor_revenue_scope` was false — no column default) fixed by `20260730000002`. **C-2 was a false positive:** two reviewers reported the guard triggers missing from the local database; they were mutation-testing the same live stack concurrently and corrupted each other's environment. Verified present, `tgenabled='O'`, test 84 15/15 at the time of the claim. That concurrency was a Director process error, not a defect.
-- design: PASS (N/A for this diff) — Director, 2026-07-30. The only `.tsx` changed is a test file; no component, CSS, or rendered surface is in the window. The gate's `.tsx` heuristic cannot distinguish a test from a component, so this line records the exemption explicitly rather than leaving it to be inferred.
-- security: FIX-THEN-SHIP — no Critical, no High. M-1 and M-2 both genuinely close: `granted_by` proved unforgeable on every reachable path including `COPY` and PostgREST `merge-duplicates` upsert, and the null-org exemption proved unreachable from `authenticated`, `anon` **and** `service_role`. Three Mediums, all mine, all fixed in this window — F-1 (a `git fetch` that exits 0 without moving `origin/main`, the gate's fourth fail-open), F-2 (`PRE_MERGE_NO_FETCH=1` was a silent bypass), F-3 (`has_trigger` green on a *disabled* trigger while it accepted cross-org rows and forged attribution).
+- spec: FIX-THEN-SHIP — M1/I-1/I-3/I-4-I-5 genuinely close; the pgTAP rewrite preserves its goal with an exact plan. Findings raised and **fixed in `03bf498`**: `AC-PB-013` was defined in no spec; three `plan-budget.spec.md` lines had become FALSE (AC-PB-008 "via the `mos` client", AC-PB-009 "RLS denies it / a finance holder can write", FR-PB-005); the I-2 refactor had made AC-320/AC-402/router assertions tautological; and `pricing-page.test.tsx` carried the same expired fixture this window claimed to have cleared. **Still open:** I-2 closes only its duplication half — the `can()` capability-model bypass named in the finding is untouched.
+- code-quality: FIX-THEN-SHIP — I-1 is honest extraction (RoleEditor 326→288 lines, both pickers' tests unmodified and green), I-2 is a real single-source win, the index is well-chosen under RLS. Findings raised and **fixed in `03bf498`**: the I-4/I-5 workaround was removed from only one of two callers (`home-page.tsx:154`); the migration revokes INSERT *and* UPDATE but only INSERT was pinned; three AC-tagged tests became tautologies.
+- design: DEFERRED — **NOT REVIEWED.** Required this window (real rendered surfaces changed: `checkbox-row.tsx` label markup, `role-editor.tsx`'s checkbox list re-parented, `money-position-section.tsx` provenance visibility). Deferred by explicit **owner** decision, 2026-07-31, on the standing basis that a fresh design pass is premature while the redesign is in its design phase. This is an accepted gap, not an exemption — the unreviewed surfaces are named here so the next design pass knows where to look.
+- security: PASS — no Critical, no High. M1 verified **genuinely CLOSED, not narrowed**: catalog shows `authenticated=r` only on both tables; `anon`, `service_role` (even with BYPASSRLS) and `reporting_writer` hold nothing, so a leaked service key gets `permission denied for table budgets`. No other SECURITY DEFINER function writes them; no view, rule, or upsert path exists. `capture_budget` still works end-to-end. The new assertions mutation-tested: re-granting turns them red.
 
-## Corrections to previously-recorded claims
-Recorded here because a ledger that quietly drops its own errors is not an audit trail.
+## Falsifiability — every fix made to fail before being trusted
+| Fix | Demonstrated failure |
+|---|---|
+| M1 revoke | Restoring the grant lets a finance session write `total_budgeted_cogs = 999999`; AC-PB-013 goes red |
+| AC-PB-013 UPDATE half | Re-granting `update` turns assertion 8 red |
+| `pricing-page` fixture | Restoring the `2026-07-01` literal turns the new no-warning assertion red |
+| `budget-page` fixture | Reproduced the original expiry at 30.17 days |
+| I-3 index | EXPLAIN: Seq Scan + HashAggregate + Sort → Index Only Scan + Unique, `Heap Fetches: 0` |
 
-1. **`is_manager_of` does not gate task or ops-log SELECT.** Those are plain org-wide policies. It gates
-   `can_edit_task` (UPDATE), `can_edit_log_entry` (UPDATE) and `can_read_weekly_update` (the one real read
-   widening). I overstated the blast radius in three places. A detached guard is therefore a
-   **data-integrity and attribution** hole, **not** cross-org privilege escalation.
-2. **The self-assign refusal was right for the wrong reason.** "No privilege delta, since
-   `admin_reset_password` already permits impersonation" holds on *capability* but fails on
-   *detectability*, which is the axis M-1 concerns: impersonation overwrites the victim's password hash,
-   locks them out, is irreversible in-app and leaves `auth.sessions` rows. A silent Position self-grant
-   leaves none of that — and because removal is an unattributed hard DELETE, *grant → read → delete*
-   leaves **zero residue even after M-1**. Now recorded in FR-208 as an **accepted risk** with that
-   caveat, not as a non-issue.
-3. **I wrongly withdrew a reviewer's finding.** I reported the code-quality pass's failing
-   `updates-page.test.tsx` as "refuted — not reproducible" after three green runs. It reproduced on the
-   second full run later the same day. Three green runs are not evidence of absence for a load-dependent
-   race. The reviewer's *diagnosis* (a wall-clock dependency) was wrong — the failing describe restores
-   real timers correctly — but its *observation* was right, and the real cause was worse: ten waits that
-   gate on a container mounting and then assert synchronously on content arriving a render later, one of
-   them a negative assertion that could pass vacuously.
+## Independent verification (Director)
+- pgTAP **87 files / 639 tests** PASS · vitest **247 files / 2526 tests** · typecheck 0 · lint 0
+- Stack booted **once** (trimmed set) and stopped — this session OOM'd a 24 GB machine; container
+  count was cut 24 → 13 and the gordi stack left down.
 
-## Open follow-ups (none blocking this promotion)
-- **`mos.budgets` M1** — unchanged, verified byte-identical between `main` and `dev`; neither new tier
-  reaches the table (policies remain finance/admin only). Still publicly documented with an exploitation
-  path in `security-audit-dev-main-2026-07-08.md`. Issue #28.
-- **Revocation is unattributable** (security L-4) — hard DELETE, so no row survives to carry the actor.
-  Closing it needs `revoked_at` soft-delete or an append-only audit table, plus teaching
-  `is_manager_of()` to skip revoked rows.
-- **AC-214/AC-309 cannot catch a deployed drifted database** (L-5) — CI builds the schema from
-  migrations, so the trigger is present by construction. They catch a bad *future migration*; a
-  post-deploy catalog probe is needed for the staging/prod case that motivated them.
-- **Carried from the previous window** (code-quality): `role-editor.tsx` still hand-rolls the
-  `CheckboxRow`/`PickerError` the refactor centralised (I-1); the revenue-view role list is literal in
-  three files and bypasses the `can()` capability model (I-2); `list_revenue_branches()` lacks an index
-  for its `DISTINCT` over the growing revenue fact table (I-3); `useCompanyFinanceKpis` has a defaulted
-  parameter that re-arms the fetch it suppresses and a skip path that never reaches a terminal state
-  (I-4/I-5); the access-role guard body has now been re-pasted three times (I-7).
-- **AC-id collisions** — every id in AC-101..129 is dual-defined between
-  `manager-tier-and-role-assignment.spec.md` and `tasks-dbview.spec.md`, so `grep -r AC-XXX` returns the
-  wrong feature. Pre-existing; this window renumbered its own additions out of the block rather than
-  extending it.
-- **Gate residual** — citing the merge-base is a speed bump, not proof the battery re-ran. A ledger can
-  still be updated by hand without re-running anything.
-- **Secret-scanning non-provider patterns + validity checks** remain disabled; the API accepts the PATCH
-  and silently no-ops, so they need the repo Settings UI.
-- **Dependabot PRs #107/#111/#112 target `main`**, cutting across the dev→main pipeline. A
-  `dependabot.yml` with `target-branch: dev` would route them correctly.
+## Corrections to my own claims
+Recorded because a ledger that drops its own errors is not an audit trail.
+
+1. **`3cd434c`'s commit message was false.** It claimed I had "checked the class, not just the
+   instance" of the expired-date time bomb and cleared `pricing-page.test.tsx` because it "uses its
+   date as its own reference". `pricing-page.tsx:69-73` calls `assessCostStatus` **without**
+   `basisAsOf`, so the reference is wall-clock. Its `FRESH = '2026-07-01'` was 30.21 days old against
+   `STALENESS_DAYS = 30` — a fixture named FRESH that the code classified as STALE, green only
+   because nothing asserted the healthy branch. I grepped the test file instead of the component it
+   exercises. Fixed, plus the missing negative assertion.
+2. **The I-2 refactor made three AC-tagged tests unfalsifiable** and I merged them. Looping over the
+   constant a function is implemented from proves nothing. This is the exact standard I applied to
+   everything else this session.
+
+## Open follow-ups (none blocking)
+- **Design review of this window's rendered surfaces** — the gap named above.
+- **L6 (Medium, security):** `docs/backlog.md:182-193`, added this window, publishes an
+  **unremediated** credential weakness in exploit-ready detail on a public repo — no forced password
+  rotation, the four synthetic `@ops.gordi.local` accounts that cannot self-rotate, and the
+  manager/supervisor financial tiers behind them. Already public, so not a ship gate. **Owner action:
+  rotate those four temp passwords**; stub the public entry; prioritise the fix.
+- **I-2 half-open** — the `can()` capability-model bypass.
+- **RLS write-policy coverage lost** — both write assertions now stop at the ACL, so
+  `budgets_insert_cogs_write` / `budgets_update_cogs_write` have no negative test, while
+  `20260731000001:24-25` claims they remain defence-in-depth.
+- **Soft-archive unreachable** — `archived_at` can no longer be set by any path; a future archive
+  feature must ship `mos.archive_budget`, NOT restore the grant (recorded in FR-PB-013).
+- **`cost_basis_as_of` / `is_complete` still caller-asserted** inside `capture_budget`, so a
+  `cogs.write` holder can stamp a fresh basis on stale costs.
+- **Index hygiene** — `20260731000002` has no `if not exists` and no pgTAP asserting the index exists.
+  (`create index concurrently` was considered and **rejected**: the Supabase CLI runs each migration
+  in a transaction, where CONCURRENTLY cannot run — it would break `db reset`/`db push`.)
+- **I-7** — the access-role guard body is re-pasted across three migrations, still not extracted.
+- **AC-id collisions** — AC-101..129 dual-defined across two specs.
+- **Unattributable revocation (L-4)** — hard DELETE, so *grant → read → delete* leaves no trace.
+- **Two secret-scanning toggles** the API silently refuses; needs the Settings UI.
 
 ---
 
 ## Provenance — superseded ledgers
-Earlier windows, retained without literal short SHAs (the gate matches the Scope line only, but a SHA
-graveyard here was a false-PASS surface while it matched the whole file):
-
-- **Previous promotion (PR #108)** — 30 commits / 60 files: manager tier (ADR-0050), supervisor
-  per-branch revenue scope (ADR-0051), the shared `CheckboxRow` extraction, the org-seam guard null-org
-  exemption, and the public-repo hardening. Verdicts: spec FIX-THEN-SHIP, code-quality FIX-THEN-SHIP,
-  design FIX-THEN-SHIP (consolidated from per-branch 4-lens reviews), security PASS. Its own security
-  audit found no Critical and no High, with the two Mediums that this window remediates.
-- **2026-07-08 promotion (PR #97)** — 191 commits: the F rollout, agent-native port, `/dashboard`
-  rebuild, B2 archetype retrofit. Verdicts spec/code-quality/design SHIP, security PASS (pgTAP 82 files /
-  570 tests). Detail: `security-audit-dev-main-2026-07-08.md`,
-  `design-audit-post-retrofit-2026-07-08.md`.
+- **Previous promotion (PR #118)** — 19 commits: audit M-1/M-2 remediation, review-gate hardening
+  (four fail-open bugs, plus its first test harness), the suite flake fix, and CI efficiency + the
+  pgTAP fast lane. Verdicts: spec/code-quality/security FIX-THEN-SHIP, design N/A (test-only `.tsx`).
+- **PR #108** — 30 commits: manager tier (ADR-0050), supervisor per-branch revenue scope (ADR-0051),
+  the shared `CheckboxRow` extraction, the org-seam guard null-org exemption, public-repo hardening.
+- **2026-07-08 (PR #97)** — 191 commits: the F rollout, agent-native port, `/dashboard` rebuild, B2
+  archetype retrofit. Detail in `security-audit-dev-main-2026-07-08.md`.

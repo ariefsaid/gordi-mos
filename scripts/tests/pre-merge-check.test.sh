@@ -172,6 +172,33 @@ check "PRE_MERGE_NO_FETCH alone is not a bypass" 1 "$(run_gate "$R" PRE_MERGE_NO
 check "  ...but with ALLOW_STALE_BASE it is an acknowledged one" 0 "$(run_gate "$R" PRE_MERGE_NO_FETCH=1 ALLOW_STALE_BASE=1)"
 rm -rf "$R"
 
+# 13. DEFERRED — a lens that was NOT RUN and the owner accepted that. Added 2026-07-31: a required
+#     design review was skipped and the only way to clear the gate was to write PASS for a review
+#     that never happened. Laundering "not reviewed" into a green token is the failure this whole
+#     script exists to prevent, so DEFERRED clears the gate but must NEVER read as [ok]...
+R="$(make_repo)"; B="$(cd "$R/work" && git rev-parse --short=7 origin/main)"
+# design is only REQUIRED when a .tsx/.css is in the window — without one the verdict is never
+# parsed and the case would vacuously pass. (My first draft of this test missed exactly that.)
+(cd "$R/work" && echo 'export const X = () => null' > ui.tsx && git add -A && git commit -qm ui)
+write_ledger "$R" "$B"
+(cd "$R/work" && sed -i.bak 's/- design: PASS — t/- design: DEFERRED — not run; accepted by the owner 2026-07-31/' docs/reviews/dev.md && rm -f docs/reviews/dev.md.bak && git commit -qam defer)
+check "DEFERRED with owner attribution clears the gate" 0 "$(run_gate "$R")"
+OUT="$(cd "$R/work" && bash scripts/pre-merge-check.sh 2>&1)"
+case "$OUT" in *"DEFERRED — NOT REVIEWED"*) printf '  ok   DEFERRED is reported as NOT REVIEWED, never [ok]\n'; PASSED=$((PASSED+1));;
+  *) printf '  FAIL DEFERRED was not surfaced as unreviewed\n'; FAILED=$((FAILED+1));; esac
+case "$OUT" in *"PASS (with 1 DEFERRED)"*) printf '  ok   the final line states how many lenses went unreviewed\n'; PASSED=$((PASSED+1));;
+  *) printf '  FAIL final line does not disclose the deferral\n'; FAILED=$((FAILED+1));; esac
+rm -rf "$R"
+
+# 14. ...and it cannot be SELF-granted: an agent may not defer its own blocker. Without an owner
+#     named on the verdict line, DEFERRED must block.
+R="$(make_repo)"; B="$(cd "$R/work" && git rev-parse --short=7 origin/main)"
+(cd "$R/work" && echo 'export const X = () => null' > ui.tsx && git add -A && git commit -qm ui)
+write_ledger "$R" "$B"
+(cd "$R/work" && sed -i.bak 's/- design: PASS — t/- design: DEFERRED — skipped it, seemed premature/' docs/reviews/dev.md && rm -f docs/reviews/dev.md.bak && git commit -qam defer2)
+check "DEFERRED without owner attribution BLOCKS" 1 "$(run_gate "$R")"
+rm -rf "$R"
+
 echo ""
 echo "passed $PASSED, failed $FAILED"
 [[ "$FAILED" -eq 0 ]]

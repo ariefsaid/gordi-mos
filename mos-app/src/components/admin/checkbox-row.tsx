@@ -17,6 +17,10 @@ export interface CheckboxRowProps {
   indent?: boolean
   /** Stronger weight for a group-parent / select-all row. */
   emphasis?: boolean
+  /** Optional description sub-line under the label (for RoleEditor rows). */
+  description?: string
+  /** Optional tooltip for disabled rows (shows why the row is disabled). */
+  title?: string
 }
 
 /**
@@ -33,6 +37,8 @@ export function CheckboxRow({
   divider = false,
   indent = false,
   emphasis = false,
+  description,
+  title,
 }: CheckboxRowProps) {
   return (
     <label
@@ -43,6 +49,7 @@ export function CheckboxRow({
       onClick={() => {
         if (!disabled) onToggle()
       }}
+      title={title}
     >
       <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
         <Checkbox
@@ -52,11 +59,21 @@ export function CheckboxRow({
           aria-label={label}
         />
       </span>
-      <span
-        className={`text-sm leading-tight ${emphasis ? 'font-semibold' : 'font-medium'}`}
-        style={{ color: 'var(--foreground)' }}
-      >
-        {label}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span
+          className={`text-sm leading-tight ${emphasis ? 'font-semibold' : 'font-medium'}`}
+          style={{ color: 'var(--foreground)' }}
+        >
+          {label}
+        </span>
+        {description && (
+          <span
+            className="text-xs leading-snug"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            {description}
+          </span>
+        )}
       </span>
     </label>
   )

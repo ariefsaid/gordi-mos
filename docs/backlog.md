@@ -179,6 +179,19 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 - **L5 (extended by P1-3 audit):** P3-1 MUST: disable open signup both keys + live 422 probe ·
   password policy (≥8, mixed) · session `timebox` ~24h + `inactivity_timeout` · tight CSP · prod
   **Resend** SMTP (OD-P1-11). Password login works without SMTP.
+- **L6 — no forced password rotation on first login (found 2026-07-30, staging roster apply).**
+  `shared._gen_temp_password()` mints an admin-set temp password (ADR-0011 D2 / ADR-0016), and the
+  admin sees it once in `/admin/people` — but **nothing forces the user to change it**: there is no
+  `must_change_password` / `password_changed_at` flag, no first-login gate, in the app or the schema
+  (verified by grep across `mos-app/src` + `supabase/migrations`). So every provisioned password
+  stays valid indefinitely **and stays known to whoever provisioned it**. Now materially worse:
+  `manager` (company-wide revenue+COGS+margin, ADR-0050) and `supervisor` (per-branch revenue,
+  ADR-0051) put **financial data** behind these accounts. **Fix before real rollout:** add a
+  `must_change_password` flag set by the provisioning RPCs, gate the app shell on it (redirect to a
+  change-password screen until cleared), clear it on `updateUser({password})`. Owns AC at unit +
+  pgTAP layers. *Interim mitigation:* prefer magic link for the 5 `@gordi.id` staff (no password ever
+  exists); the 4 synthetic `@ops.gordi.local` staff have no mailbox, so they must get a temp password
+  — rotate those manually after handover.
 
 ## ✅ Phase 2 — first slice (DONE; P2-4 superseded by kitchen Module — see Phase 3)
 - [x] P2-1 tasks + ownership + lightweight RACI — COMPLETE (PRs #5/#6/#7).

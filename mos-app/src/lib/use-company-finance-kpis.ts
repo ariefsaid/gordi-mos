@@ -40,7 +40,7 @@ export interface CompanyFinanceKpis {
  */
 export function useCompanyFinanceKpis(
   canSeeRevenue: boolean,
-  canSeeMargin: boolean = canSeeRevenue,
+  canSeeMargin: boolean,
 ): CompanyFinanceKpis {
   const [revenueRows, setRevenueRows] = useState<SalesDailyRevenueRow[]>([])
   const [revenueState, setRevenueState] = useState<FinanceFetchState>('loading')
@@ -48,7 +48,12 @@ export function useCompanyFinanceKpis(
   const [marginState, setMarginState] = useState<FinanceFetchState>('loading')
 
   useEffect(() => {
-    if (!canSeeRevenue) return
+    if (!canSeeRevenue) {
+      // Set terminal state when skip is intentional.
+      // A future consumer reading revenueState === 'loading' must not render a permanent spinner.
+      setRevenueState('ready')
+      return
+    }
     let cancelled = false
     setRevenueState('loading')
     listSalesDailyRevenue({ sinceDays: 60 })
@@ -66,7 +71,12 @@ export function useCompanyFinanceKpis(
   }, [canSeeRevenue])
 
   useEffect(() => {
-    if (!canSeeMargin) return
+    if (!canSeeMargin) {
+      // Set terminal state when skip is intentional (ADR-0051 D4 — supervisor sees revenue only).
+      // A future consumer reading marginState === 'loading' must not render a permanent spinner.
+      setMarginState('ready')
+      return
+    }
     let cancelled = false
     setMarginState('loading')
     listSalesMarginDaily({ sinceDays: 60 })

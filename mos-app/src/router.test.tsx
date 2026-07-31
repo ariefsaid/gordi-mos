@@ -7,6 +7,7 @@ import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
+import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 
 // nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
 // but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
@@ -162,7 +163,20 @@ describe('router — dashboard route gate + redirect (OD-DASH-2, FR-001/002)', (
       r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
     )!
     expect(dashGate).toBeDefined()
+    // Pin the POLICY with a literal — comparing against the constant the router is built from
+    // cannot fail. The identity check that it CONSUMES the constant lives in the I-2 test below.
     expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'manager', 'supervisor']} />)
+  })
+
+  it('I-2: dashboard gate consumes the REVENUE_VIEW_ROLES constant (identity, not value)', () => {
+    const dashGate = shellChildren().find(
+      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
+    )!
+    // Identity, not deep-equality: a re-typed literal in router.tsx would pass toEqual and silently
+    // reintroduce the duplication I-2 removed. The POLICY itself is pinned by AC-127 above.
+    expect((dashGate.element as React.ReactElement<{ anyOf: readonly string[] }>).props.anyOf).toBe(
+      REVENUE_VIEW_ROLES,
+    )
   })
 
   it('AC-001: /sales redirects to /dashboard (back-compat)', () => {

@@ -9,6 +9,12 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   ops_lead: ['workline.manage'],
 }
 
+/** Roles that admit to Revenue VIEW (ADR-0051 D4). Exported for router/destinations consistency. */
+export const REVENUE_VIEW_ROLES = ['finance', 'admin', 'manager', 'supervisor'] as const
+
+/** Roles that admit to Margin/COGS VIEW (ADR-0051 D4 — supervisor excluded, revenue-only). Exported for consistency. */
+export const MARGIN_VIEW_ROLES = ['finance', 'admin', 'manager'] as const
+
 /** True iff any of the viewer's accessRoles is granted `capability` (v1 seed). */
 export function can(accessRoles: readonly string[], capability: string): boolean {
   return accessRoles.some((role) => (ROLE_CAPABILITIES[role] ?? []).includes(capability))
@@ -16,10 +22,10 @@ export function can(accessRoles: readonly string[], capability: string): boolean
 
 /** Revenue-VIEW visibility: finance | admin | manager | supervisor (ADR-0051 D4). RLS is the hard boundary. */
 export function canViewRevenue(accessRoles: readonly string[]): boolean {
-  return ['finance', 'admin', 'manager', 'supervisor'].some((r) => accessRoles.includes(r))
+  return REVENUE_VIEW_ROLES.some((r) => accessRoles.includes(r))
 }
 
 /** Margin/COGS-VIEW visibility: finance | admin | manager (ADR-0051 D4 — supervisor excluded, revenue-only). */
 export function canViewMargin(accessRoles: readonly string[]): boolean {
-  return ['finance', 'admin', 'manager'].some((r) => accessRoles.includes(r))
+  return MARGIN_VIEW_ROLES.some((r) => accessRoles.includes(r))
 }

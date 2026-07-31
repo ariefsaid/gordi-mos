@@ -15,8 +15,15 @@ vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn(() => ({ status: 'authenticat
 import { listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
 import { PricingPage } from './pricing-page'
 
-const FRESH = '2026-07-01T00:00:00Z'
-const STALE = '2026-01-01T00:00:00Z'
+// Same time bomb as budget-page.test.tsx, and I wrongly cleared this file when I fixed that one:
+// pricing-page.tsx:69-73 calls assessCostStatus WITHOUT `basisAsOf`, so the reference is wall-clock
+// now (plan-budget-logic.ts:174) and STALENESS_DAYS = 30. The literal '2026-07-01' silently aged
+// past the threshold on 2026-07-31 — a fixture named FRESH that the code under test classifies as
+// STALE. It stayed green only because nothing asserted the healthy branch (see the AC-PB-006
+// no-warning test added below, which now pins it and would have caught this).
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
+const FRESH = daysAgo(5)    // well inside STALENESS_DAYS (30)
+const STALE = daysAgo(200)  // unambiguously outside it
 
 function renderPage() {
   return render(
@@ -97,6 +104,16 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
 })
 
 describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
+  // The NEGATIVE direction, absent until 2026-07-31. Without it AC-PB-006 proved only that a stale
+  // basis warns — never that a fresh one does NOT. That gap is precisely why the expired `FRESH`
+  // fixture above went unnoticed: the code under test had been silently classifying it as stale for
+  // a day and no assertion could tell. A fail-loud warning that fires on everything is not fail-loud.
+  it('AC-PB-006: renders NO freshness warning when the basis is fresh and certified', async () => {
+    renderPage()
+    await screen.findByText(/Rp 9,000/)
+    expect(screen.queryByTestId('pricing-freshness-warning')).not.toBeInTheDocument()
+  })
+
   it('renders a freshness warning when the cost basis is stale', async () => {
     vi.mocked(listBudgets).mockResolvedValue([
       {

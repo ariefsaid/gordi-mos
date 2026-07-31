@@ -3,6 +3,7 @@ import type { Section } from './sections'
 import { KITCHEN_SECTIONS } from './sections'
 import { HomeIcon, TasksIcon, KitchenIcon, PlanIcon, InboxIcon, UpdatesIcon, OpsIcon, ObjectiveIcon, WorkLineIcon, SalesIcon, BudgetIcon, PricingIcon } from './icons'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_INBOX, SHOW_FOLLOWUPS, SHOW_PLAN_BUDGET } from '@/config/features'
+import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 
 /**
  * DESTINATIONS — the single source of truth for both chromes (plan §1.5).
@@ -18,7 +19,7 @@ export interface Destination {
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied) */
-  anyOf?: string[]
+  anyOf?: readonly string[]
   /** primary route a bottom-tab taps (defaults to links[0].path) */
   primaryPath?: string
 }
@@ -72,7 +73,7 @@ export const DESTINATIONS: Destination[] = [
     // future link (not rendered, and stay finance/admin only — no planning for manager, FR-112,
     // or supervisor, FR-315). anyOf hides the whole destination for a role with no Plan children
     // (no dead-end — FR-410).
-    anyOf: ['finance', 'admin', 'manager', 'supervisor'],
+    anyOf: REVENUE_VIEW_ROLES,
     links: [
       { path: '/dashboard', label: 'Dashboard', labelKey: 'nav.dashboard', Icon: SalesIcon },
       ...(SHOW_PLAN_BUDGET ? [

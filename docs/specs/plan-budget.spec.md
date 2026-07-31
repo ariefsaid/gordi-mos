@@ -73,7 +73,8 @@ faked in the component (mirrors the `reporting.sales_*` pattern).
   copied ingredient unit cost; the unit cost shown shall be resolved by joining the linked cost line.
 - **FR-PB-005: Budget capture.** When Finance captures a budget scenario, the system shall write a
   `mos.budgets` row (one owning BU, scenario label/type, captured total, cost-basis as-of, certified-metric
-  key) and its `mos.budget_lines` (ingredient + recipe qty, no unit cost), gated by `can('cogs.write')`.
+  key) and its `mos.budget_lines` (ingredient + recipe qty, no unit cost), gated by `can('cogs.write')`
+  **and written only through `mos.capture_budget`** (FR-PB-013).
 - **FR-PB-006: Scenario comparison.** When multiple budget scenarios exist for a menu item, the system
   shall list them side by side so the certified baseline and "what-if" captures compare without forking.
 - **FR-PB-007: Drill to the linked cost line.** When a consumer views a budget line, the system shall
@@ -86,6 +87,16 @@ faked in the component (mirrors the `reporting.sales_*` pattern).
 - **FR-PB-010: Pricing pre-flight margin.** When a user enters a candidate price against a linked certified
   budget, the system shall compute projected gross margin and margin-% from the linked budgeted COGS and
   render the result read-only; it shall never write a price.
+- **FR-PB-013: `mos.capture_budget` is the SOLE write path for budgets.** The system shall not grant any
+  role direct INSERT/UPDATE/DELETE on `mos.budgets` or `mos.budget_lines`; all writes shall go through the
+  `mos.capture_budget` SECURITY DEFINER RPC, which server-recomputes `total_budgeted_cogs` from the linked
+  cost lines and rejects a cross-org `owning_bu_id`.
+  *Added 2026-07-31 by audit finding M1 (`docs/reviews/security-audit-dev-main-2026-07-08.md`).* The
+  grants existed since `20260710000003:99`, so a `cogs.write` holder could POST/PATCH the table directly
+  and bypass BOTH protections — writing an arbitrary total and hanging a budget off another org's BU.
+  Closed by `20260731000001`. **Consequence to honour:** `archived_at` soft-archive is now unreachable by
+  any code path; a future archive feature must ship its own DEFINER RPC (`mos.archive_budget`) and must
+  NOT restore the table grant.
 - **FR-PB-011: No ESB write.** The system shall not write BOMs, recipes, cost lines, or prices to ESB.
 - **FR-PB-012: i18n.** Every user-facing string the Budget + Pricing surfaces render shall flow through the
   `messages` catalog in both `en` and `id` (ADR-0021).
@@ -132,17 +143,29 @@ faked in the component (mirrors the `reporting.sales_*` pattern).
   budget line renders, then the ingredient unit cost is shown by resolving the linked cost line and the row
   carries a drill affordance to that cost line (no hardcoded/copied cost).
 - **AC-PB-008 (render/unit): Capture writes the linked shape.** Given Finance captures a budget scenario,
-  when the capture submit fires, then the system inserts a `mos.budgets` row + `mos.budget_lines` (ingredient
-  + qty only) via the `mos` client.
-- **AC-PB-009 (pgTAP): RLS — non-owner cannot write cost lines / registry / budgets.** Given an
-  authenticated session without `cogs.write`, when it inserts/updates a budget, then RLS denies it; a
-  finance/admin holder can write; cross-org rows are invisible.
+  when the capture submit fires, then the system creates a `mos.budgets` row + `mos.budget_lines` (ingredient
+  + qty only) **via the `mos.capture_budget` RPC** — see FR-PB-013.
+  > *Amended 2026-07-31 (audit M1).* This previously said "via the `mos` client", i.e. a direct table
+  > insert. That path is now `42501`: migration `20260731000001` revoked the direct write grants.
+- **AC-PB-009 (pgTAP): non-owner cannot write cost lines / registry / budgets.** Given an
+  authenticated session without `cogs.write`, when it captures a budget **via `mos.capture_budget`**, then
+  the RPC's capability gate denies it with `42501`; a finance/admin holder can capture; cross-org rows are
+  invisible.
+  > *Amended 2026-07-31 (audit M1).* Previously "when it inserts/updates a budget, then RLS denies it; a
+  > finance/admin holder can write". Both halves are now false of the table: NO grantee can write it
+  > directly. The denial moved from RLS to the ACL + the RPC's capability gate. The table's write policies
+  > remain as defence-in-depth but are no longer the refusing layer.
 - **AC-PB-010 (pgTAP): Link integrity — no copied cost.** Given the `mos.budget_lines` table, when its
   columns are inspected, then there is no unit-cost column; and a budget_line's `ingredient_esb_code`
   resolves to a real `reporting.ingredient_cost_lines` row (the consumer reads the linked record).
 - **AC-PB-011 (pgTAP): Certified registry is migration-seeded, no runtime write.** Given an authenticated
   session, when it attempts to insert/update/delete a certified metric, then RLS denies it; the seed
   (`cogs.budgeted`) is present and certified.
+- **AC-PB-013 (pgTAP): budgets are not directly writable.** *(FR-PB-013)* Given an authenticated
+  finance session holding `can('cogs.write')`, when it attempts a direct INSERT or a direct UPDATE on
+  `mos.budgets` (or a direct INSERT on `mos.budget_lines`), then it is refused with `42501`; and the same
+  session can still capture a budget through `mos.capture_budget`. Owned by
+  `supabase/tests/78_mos_budgets_rls_link.sql`.
 - **AC-PB-012 (e2e): Capture → pre-flight shows margin + freshness warning.** Given a menu item with a
   stale cost line, when Finance captures a budget scenario and runs the pricing pre-flight at a candidate
   price, then the projected margin is shown AND a fail-loud freshness warning is rendered.

@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest'
 import { DESTINATIONS, isLive, destinationForPath } from './destinations'
 import { KITCHEN_SECTIONS } from './sections'
 import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG, SHOW_PLAN_BUDGET } from '@/config/features'
+import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 
 describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
   it('exports exactly the five destination ids in order: home, work, operate, plan, inbox', () => {
@@ -51,7 +52,10 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
 
   it('AC-402: Plan = [Dashboard] gated finance/admin/manager/supervisor; hidden (not live) for a member (no dead-end)', () => {
     const plan = DESTINATIONS.find((d) => d.id === 'plan')!
-    expect(plan.anyOf).toEqual(['finance', 'admin', 'manager', 'supervisor'])
+    // Two distinct claims, deliberately not one. toEqual against the constant alone is a tautology:
+    // it passes even if someone edits the constant, which is the drift the AC exists to catch.
+    expect(plan.anyOf).toEqual(['finance', 'admin', 'manager', 'supervisor']) // the POLICY
+    expect(plan.anyOf).toBe(REVENUE_VIEW_ROLES)                               // consumes the CONSTANT
     // Dashboard is always present; the ADR-0022 budget/pricing links are flag-gated (SHOW_PLAN_BUDGET).
     expect(plan.links.map((l) => l.path)).toEqual(
       SHOW_PLAN_BUDGET

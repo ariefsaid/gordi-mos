@@ -151,7 +151,7 @@ export function HomePage() {
 
       {canSeeRevenue &&
         (snapshotAsOf ||
-          (revenueState !== 'loading' && (!canSeeMargin || marginState !== 'loading'))) && (
+          (revenueState !== 'loading' && marginState !== 'loading')) && (
         <DataProvenanceNote
           kind="snapshot"
           hasData={Boolean(revenueWindow || marginDisplay)}
