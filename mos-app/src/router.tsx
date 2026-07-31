@@ -5,6 +5,7 @@ import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
+import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
 import { StackedUnionHome } from './pages/stacked-union-home'
@@ -138,7 +139,7 @@ export const routeConfig: RouteObject[] = [
           // AC-017: /dashboard/detail is the parameterized detail sub-view (same page,
           // detail tab default). The page reads ?tab= for persistence (AC-015).
           {
-            element: <RequireAccessRole anyOf={['finance', 'admin', 'manager', 'supervisor']} />,
+            element: <RequireAccessRole anyOf={REVENUE_VIEW_ROLES} />,
             children: [
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'dashboard/detail', element: <DashboardPage defaultTab="detail" /> },

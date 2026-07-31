@@ -18,13 +18,13 @@
 
 import { useState, useEffect, useId, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, ROLE_META, roleLabel } from '@/lib/db/admin-users.types'
 import type { AdminPersonRow, RoleOption, RevenueScopeOption } from '@/lib/db/admin-users.types'
 import { PositionPicker } from './position-picker'
 import { RevenueScopePicker } from './revenue-scope-picker'
+import { CheckboxRow, PickerError } from './checkbox-row'
 
 // Roles protected by self-assign guard (FR-023, ADR-0050 D4 + ADR-0051)
 const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager', 'supervisor'])
@@ -233,66 +233,31 @@ export function RoleEditor({
                     ? "Can't remove the last admin"
                     : undefined
 
+                // Description shows either the guard reason or the role's normal description
+                const description = (isSelfGuarded || isLastAdminGuarded)
+                  ? isLastAdminGuarded
+                    ? 'Only admin — assign another first'
+                    : "Can't change your own admin, finance, manager, or supervisor access"
+                  : meta.description
+
                 return (
-                  <label
+                  <CheckboxRow
                     key={role}
-                    className={`flex items-start gap-3 px-3 py-2.5 select-none ${
-                      isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
-                    }`}
-                    style={i > 0 ? { borderTop: '1px solid var(--input)' } : undefined}
+                    label={meta.label}
+                    checked={isGranted}
+                    disabled={isDisabled}
+                    divider={i > 0}
+                    description={description}
                     title={isDisabled ? disabledReason : undefined}
-                    // Defect 3: the whole row toggles, not just the 16px checkbox glyph — the
-                    // checkbox glyph stops propagation (below) so this fires exactly once per click.
-                    onClick={() => {
-                      if (!isDisabled) handleToggle(role)
-                    }}
-                  >
-                    <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={isGranted}
-                        disabled={isDisabled}
-                        onChange={() => !isDisabled && handleToggle(role)}
-                        aria-label={meta.label}
-                      />
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span
-                        className="text-sm font-medium leading-tight"
-                        style={{ color: 'var(--foreground)' }}
-                      >
-                        {meta.label}
-                      </span>
-                      <span
-                        className="text-xs leading-snug"
-                        style={{ color: 'var(--muted-foreground)' }}
-                      >
-                        {(isSelfGuarded || isLastAdminGuarded)
-                          ? isLastAdminGuarded
-                            ? 'Only admin — assign another first'
-                            : "Can't change your own admin, finance, manager, or supervisor access"
-                          : meta.description}
-                      </span>
-                    </span>
-                  </label>
+                    onToggle={() => handleToggle(role)}
+                  />
                 )
               })}
             </div>
           </fieldset>
 
           {/* Inline error */}
-          {error && (
-            <div
-              role="alert"
-              className="mt-4 rounded-md px-3 py-2 text-sm"
-              style={{
-                background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
-                color: 'var(--destructive)',
-                border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
-              }}
-            >
-              {error}
-            </div>
-          )}
+          <PickerError message={error} />
         </div>
 
         {/* Position section (Jabatan, ADR-0050) — bordered, same dialog, below Access level */}

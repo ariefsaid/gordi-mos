@@ -116,7 +116,7 @@ function CompanyMoneyTiles({
           </Link>
         )}
       </div>
-      {(snapshotAsOf || (revenueState !== 'loading' && (!canSeeMargin || marginState !== 'loading'))) && (
+      {(snapshotAsOf || (revenueState !== 'loading' && marginState !== 'loading')) && (
         <DataProvenanceNote
           kind="snapshot"
           hasData={Boolean(revenueWindow || marginDisplay)}

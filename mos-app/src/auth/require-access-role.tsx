@@ -6,7 +6,7 @@ import { useAuth } from './use-auth'
 // bounced home — a hidden route is convenience, not a security boundary (RLS is
 // the real gate, ADR-0011 D5). Sibling of AdminRoute (which is the admin-only
 // special case); kept separate to avoid churning that feature's file.
-export type RequireAccessRoleProps = { anyOf: string[] }
+export type RequireAccessRoleProps = { anyOf: readonly string[] }
 
 export function RequireAccessRole({ anyOf }: RequireAccessRoleProps) {
   const auth = useAuth()

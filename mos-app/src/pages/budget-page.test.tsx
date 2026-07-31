@@ -28,8 +28,17 @@ import { getBusinessUnits } from '@/lib/db/directory'
 import { BudgetPage } from './budget-page'
 
 const PERSON_ID = 'person-1'
-const FRESH = '2026-07-01T00:00:00Z'
-const STALE = '2026-01-01T00:00:00Z'
+
+// Freshness is measured against NOW (assessCostStatus: `reference = basisAsOf ?? new Date()`,
+// STALENESS_DAYS = 30 in lib/plan-budget-logic.ts), so an absolute fixture date is a TIME BOMB:
+// it silently ages past the threshold and turns the suite red on a day nobody changed anything.
+// That is not hypothetical — `2026-07-01` was fresh all morning on 2026-07-30 and went stale at
+// 2026-07-31T00:00Z, mid-session, breaking "AC-PB-006: a fresh + certified basis renders the
+// healthy badge" with no code change behind it.
+// Anchored to now instead, so the scenario means what its name says in perpetuity.
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
+const FRESH = daysAgo(5)    // well inside STALENESS_DAYS (30)
+const STALE = daysAgo(200)  // unambiguously outside it
 
 const viewerPerson: PeopleRow = {
   id: PERSON_ID,
