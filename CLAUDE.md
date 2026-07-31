@@ -33,6 +33,22 @@ real cross-stack journeys only.
 test, never the test to the app. On failure, fix the app. Never bend an assertion to the app's current
 state to go green.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `ariefsaid/gordi-mos`, driven by the `gh` CLI.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
 ## Read before you start
 `CONTEXT.md` (domain glossary) · `docs/gotchas.md` (scar tissue — read this one) ·
 `docs/decisions.md` (locked owner decisions) · `docs/environments.md` (staging/prod coordinates).
