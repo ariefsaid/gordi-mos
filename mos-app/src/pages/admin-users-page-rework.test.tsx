@@ -61,7 +61,7 @@ const ADMIN_VIEWER: AuthState = {
       org_id: 'org-1',
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
-      email: 'admin@gordi.id',
+      email: 'admin@example.test',
       archived_at: null,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
@@ -77,7 +77,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
   {
     id: 'admin-person-id',
     full_name: 'Admin Gordi',
-    email: 'admin@gordi.id',
+    email: 'admin@example.test',
     archived_at: null,
     login: 'active',
     access_roles: ['admin'],
@@ -87,7 +87,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
   {
     id: 'p-member',
     full_name: 'Budi Santoso',
-    email: 'budi@gordi.id',
+    email: 'budi@example.test',
     archived_at: null,
     login: 'active',
     access_roles: ['member'],
@@ -99,7 +99,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
 const ARCHIVED_PERSON: AdminPersonRow = {
   id: 'p-archived',
   full_name: 'Dewi Rahayu',
-  email: 'dewi@gordi.id',
+  email: 'dewi@example.test',
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],

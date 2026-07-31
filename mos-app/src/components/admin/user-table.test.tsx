@@ -21,7 +21,7 @@ const mockUseIsDesktop = vi.mocked(useIsDesktop)
 const ACTIVE_ADMIN: AdminPersonRow = {
   id: 'p-admin',
   full_name: 'Admin Gordi',
-  email: 'admin@gordi.id',
+  email: 'admin@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['admin'],
@@ -32,7 +32,7 @@ const ACTIVE_ADMIN: AdminPersonRow = {
 const ACTIVE_MEMBER: AdminPersonRow = {
   id: 'p-member',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
@@ -43,7 +43,7 @@ const ACTIVE_MEMBER: AdminPersonRow = {
 const NO_LOGIN_PERSON: AdminPersonRow = {
   id: 'p-no-login',
   full_name: 'Citra Wulandari',
-  email: 'citra@gordi.id',
+  email: 'citra@example.test',
   archived_at: null,
   login: 'none',
   access_roles: ['member'],
@@ -54,7 +54,7 @@ const NO_LOGIN_PERSON: AdminPersonRow = {
 const ARCHIVED_PERSON: AdminPersonRow = {
   id: 'p-archived',
   full_name: 'Dewi Rahayu',
-  email: 'dewi@gordi.id',
+  email: 'dewi@example.test',
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],
@@ -65,7 +65,7 @@ const ARCHIVED_PERSON: AdminPersonRow = {
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   id: 'p-disabled',
   full_name: 'Eko Prasetyo',
-  email: 'eko@gordi.id',
+  email: 'eko@example.test',
   archived_at: null,
   login: 'disabled',
   access_roles: ['member'],

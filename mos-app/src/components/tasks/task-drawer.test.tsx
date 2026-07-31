@@ -51,7 +51,7 @@ function stubWidths({ split, band, desktop }: { split: boolean; band?: boolean; 
 
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Cahya Cafe',
-  email: 'cahya@gordi.id', archived_at: null,
+  email: 'cahya@example.test', archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {

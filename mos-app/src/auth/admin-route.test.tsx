@@ -43,7 +43,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
           org_id: 'o1',
           user_id: 'u1',
           full_name: 'Admin User',
-          email: 'admin@gordi.id',
+          email: 'admin@example.test',
           archived_at: null,
           created_at: '',
           updated_at: '',

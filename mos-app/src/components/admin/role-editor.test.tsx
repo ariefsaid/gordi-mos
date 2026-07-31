@@ -31,7 +31,7 @@ const ADMIN_VIEWER: AuthState = {
       org_id: 'org-1',
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
-      email: 'admin@gordi.id',
+      email: 'admin@example.test',
       archived_at: null,
       created_at: '',
       updated_at: '',
@@ -46,7 +46,7 @@ const ADMIN_VIEWER: AuthState = {
 const OTHER_PERSON: AdminPersonRow = {
   id: 'other-person-id',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
@@ -57,7 +57,7 @@ const OTHER_PERSON: AdminPersonRow = {
 const SELF_PERSON: AdminPersonRow = {
   id: 'admin-person-id', // matches viewer person id
   full_name: 'Admin Gordi',
-  email: 'admin@gordi.id',
+  email: 'admin@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['admin', 'member'],

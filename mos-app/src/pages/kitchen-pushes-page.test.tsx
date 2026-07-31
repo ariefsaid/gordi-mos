@@ -40,7 +40,7 @@ function viewer(accessRoles: string[]): AuthState {
         org_id: 'org-1',
         user_id: 'auth-1',
         full_name: 'Dina Marlina',
-        email: 'dina@gordi.id',
+        email: 'dina@example.test',
         archived_at: null,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',

@@ -80,7 +80,7 @@ function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boole
 const VIEWER_ID = 'viewer-person-id'
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@gordi.id', archived_at: null,
+  email: 'arief@example.test', archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {

@@ -26,7 +26,7 @@ const ROLES: RoleOption[] = [
 const PERSON_NO_POSITION: AdminPersonRow = {
   id: 'other-person-id',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],

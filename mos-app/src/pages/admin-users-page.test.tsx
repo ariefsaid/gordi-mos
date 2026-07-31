@@ -48,7 +48,7 @@ const ADMIN_VIEWER: AuthState = {
       org_id: 'org-1',
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
-      email: 'admin@gordi.id',
+      email: 'admin@example.test',
       archived_at: null,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
@@ -64,7 +64,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
   {
     id: 'p-admin',
     full_name: 'Admin Gordi',
-    email: 'admin@gordi.id',
+    email: 'admin@example.test',
     archived_at: null,
     login: 'active',
     access_roles: ['admin'],
@@ -74,7 +74,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
   {
     id: 'p-no-login',
     full_name: 'Budi Santoso',
-    email: 'budi@gordi.id',
+    email: 'budi@example.test',
     archived_at: null,
     login: 'none',
     access_roles: ['member'],
@@ -84,7 +84,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
   {
     id: 'p-disabled',
     full_name: 'Sari Indah',
-    email: 'sari@gordi.id',
+    email: 'sari@example.test',
     archived_at: null,
     login: 'disabled',
     access_roles: ['ops_lead'],
@@ -94,7 +94,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
   {
     id: 'p-archived',
     full_name: 'Old Staff',
-    email: 'old@gordi.id',
+    email: 'old@example.test',
     archived_at: '2026-01-01T00:00:00Z',
     login: 'none',
     access_roles: [],
@@ -184,7 +184,7 @@ describe('AdminUsersPage (AC-060)', () => {
       {
         id: 'admin-person-id', // matches viewer.person.id
         full_name: 'Admin Gordi',
-        email: 'admin@gordi.id',
+        email: 'admin@example.test',
         archived_at: null,
         login: 'active',
         access_roles: ['admin'],
@@ -262,7 +262,7 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
     const base: AdminPersonRow = {
       id: 'p-riri',
       full_name: 'Riri',
-      email: 'riri@gordi.id',
+      email: 'riri@example.test',
       archived_at: null,
       login: 'active',
       access_roles: [],
