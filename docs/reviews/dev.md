@@ -1,6 +1,6 @@
 # Review battery — `dev` branch → `main` promotion (M1 closure + the four carried code-quality findings)
 
-**Scope:** merge-base **`d88289c`** (`git diff d88289c..dev`) — **7 commits / 21 files**. `origin/main`
+**Scope:** merge-base **`d88289c`** (`git diff d88289c..dev`) — **9 commits / 24 files**. `origin/main`
 is `0cec33c`. Three workstreams:
 
 1. **M1 — the last open security finding, closed.** `mos.budgets` / `mos.budget_lines` granted
@@ -14,6 +14,16 @@ is `0cec33c`. Three workstreams:
    (`useCompanyFinanceKpis` defaulted parameter + non-terminal skip path).
 3. **Battery remediation** (`03bf498`) — acting on this window's own review findings, including a
    false claim I made in `3cd434c`'s commit message. See "Corrections" below.
+4. **The `DEFERRED` verdict** (`02b13a3`) — the gate accepted only PASS/SHIP/FIX-THEN-SHIP, so the
+   only way to record this window's un-run design lens was to write PASS for a review that never
+   happened. `DEFERRED` clears the gate, is never shown as `[ok]`, and cannot be self-granted: the
+   verdict line must name the owner, else it blocks. Harness 15 → 18 cases.
+
+> **Counts corrected by hand (again).** The window read 7 commits / 21 files when the battery ran;
+> items 3 and 4 are the ledger's own follow-up commits, so it now reads 9 / 24. The merge-base never
+> moved, so `pre-merge-check.sh` stayed green throughout — the documented residual, recurring. Citing
+> the merge-base proves a ledger is not describing a *closed* window; it cannot prove it describes
+> the *whole current* one.
 
 **Run:** 2026-07-31 (Director-orchestrated). Builders: pi/`glm-5.2` (SQL) and pi/`glm-4.7` (app).
 Reviewers: Claude (cross-family from the GLM builders), briefed adversarially because I wrote or
