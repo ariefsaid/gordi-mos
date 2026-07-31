@@ -41,6 +41,7 @@ function viewer(accessRoles: string[]): AuthState {
         user_id: 'auth-1',
         full_name: 'Dina Marlina',
         email: 'dina@example.test',
+        must_change_password: false,
         archived_at: null,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',

@@ -50,7 +50,7 @@ const row: FollowUpRow = {
 const viewer: AuthState = {
   status: 'authenticated',
   viewer: {
-    person: { id: 'p1', org_id: 'org-1', user_id: 'u1', full_name: 'Sales', email: null, archived_at: null, created_at: '', updated_at: '' },
+    person: { id: 'p1', org_id: 'org-1', user_id: 'u1', full_name: 'Sales', email: null, must_change_password: false, archived_at: null, created_at: '', updated_at: '' },
     roles: [{ id: 'r1', org_id: 'org-1', business_unit_id: 'bu-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
     isManager: false,
     accessRoles: [],

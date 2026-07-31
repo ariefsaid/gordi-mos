@@ -40,7 +40,7 @@ function wrapper({ children }: { children: ReactNode }) {
 const authedState: AuthState = {
   status: 'authenticated',
   viewer: {
-    person: { id: 'person-1', org_id: 'org-1', user_id: 'u1', full_name: 'A', email: null, archived_at: null, created_at: '', updated_at: '' },
+    person: { id: 'person-1', org_id: 'org-1', user_id: 'u1', full_name: 'A', email: null, must_change_password: false, archived_at: null, created_at: '', updated_at: '' },
     roles: [],
     isManager: false,
     accessRoles: [],
