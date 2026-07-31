@@ -88,7 +88,7 @@ production-SaaS bar.
 
 | Layer | Owner | Done means |
 |---|---|---|
-| **Spec (SDD)** | spec-miner / feature-forge | EARS requirements + Given/When/Then `AC-###` in `docs/specs/*.spec.md`; gaps & edge cases listed; owner has signed off. |
+| **Spec (SDD)** | spec-miner / to-spec | EARS requirements + Given/When/Then `AC-###` in `docs/specs/*.spec.md`; gaps & edge cases listed; owner has signed off. |
 | **Design+Plan** | eng-planner | Design covers architecture, components, data flow, error handling, testing; plan is no-placeholder 2–5 min tasks, each naming the `AC-###` it satisfies; ADR written if the decision is architectural/irreversible. |
 | **Data/Schema** | eng-planner + implementer | Migration is reviewed and **reversible**; **RLS enabled on every business table**; `org_id` tenancy seam present and not bypassable; indexes for hot paths; seed/typed-client regenerated. |
 | **Build (TDD)** | implementer | RED→GREEN→REFACTOR; no prod code without a failing test first; behavior covered (incl. loading/empty/error/edge); follows existing patterns; YAGNI; **does not change existing behavior when the task is a quality upgrade**. |

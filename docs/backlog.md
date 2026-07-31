@@ -78,7 +78,7 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > - **Agent-native / user-composed UI — ADR-0017 ACCEPTED** (merged to new `dev` branch; +ADR-0010
 >   2026-06-30 amendment; CONTEXT.md glossary; OD-AN-1). Deputy/RLS dual-plane model; **value-first build**
 >   (Issue 1 = mobile-first ops dashboard that births the primitive kit → registry → DSL/compiler →
->   `user_views`+renderer → manual builder → agent sidecar behind a MOS spike). **NEXT = `feature-forge`
+>   `user_views`+renderer → manual builder → agent sidecar behind a MOS spike). **NEXT = `to-spec`
 >   spec for Issue 1.** Full track in `docs/platform-workstream-status.md` §Current focus; memory
 >   `agent-native-ui-program`.
 > - **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, loopback, self-sustaining op-native sync @3:05
@@ -179,6 +179,33 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 - **L5 (extended by P1-3 audit):** P3-1 MUST: disable open signup both keys + live 422 probe ·
   password policy (≥8, mixed) · session `timebox` ~24h + `inactivity_timeout` · tight CSP · prod
   **Resend** SMTP (OD-P1-11). Password login works without SMTP.
+- **L7 — staging SMTP → Resend. ✅ DONE 2026-07-31** (was: built-in sender, 2 mails/hour). L5 above
+  tracks **prod** Resend (OD-P1-11, GoTrue `GOTRUE_SMTP_*` env vars on the self-hosted box) — nothing
+  tracked **staging**, which is where staff onboarding actually happens. Verified live: the magic-link
+  probe delivered, but From = `…@mail.app.supabase.io` (Supabase **built-in** sender), and
+  `config.toml` caps `email_sent = 2` per hour. Five `@gordi.id` magic-link invites would take ~2.5h,
+  and built-in senders are commonly team-address-only — so email onboarding at staff scale is blocked.
+  **Fix:** point staging at Resend — either the dashboard (Auth → SMTP) or `[auth.email.smtp]` in
+  `config.toml` + `supabase config push`, with `pass` as an `env(...)` reference resolved from op at
+  push time (key: vault `AS`, coordinates `supabase/op.resend.env`; SMTP table in `supabase/README.md`
+  §Production email — host `smtp.resend.com`, port 465, user `resend`, from `Gordi Admin
+  <admin@gordi.id>`). Raise `email_sent` once Resend is live. **CAUTION:** `config push` also pushes
+  `site_url`/redirects — `config.toml` holds **localhost** values, and staging's real `site_url`
+  (`https://gordi-mos.pages.dev/mos/`) was verified correct on 2026-07-31. Temporarily set the staging
+  values before pushing, verify, then revert the file — see the `config push` gotcha row in
+  `docs/environments.md`. Until this lands, the four synthetic `@ops.gordi.local` staff need admin-set
+  passwords anyway (no mailbox), so onboarding can proceed via `/admin/people` for everyone.
+  **RESOLVED:** wired via `supabase config push` with `[auth.email.smtp]` (`smtp.resend.com:465`,
+  user `resend`, `pass = env(RESEND_API_KEY)` resolved from op at push time — Supabase stores it
+  hashed; the key never touched a file or the repo). Sender `Gordi Admin <admin@gordi.id>`; rate limit
+  raised 2 → 100/hour; open signup disabled. **Verified live:** delivery confirmed with
+  `mailed-by: send.gordi.id`, `signed-by: gordi.id` (DKIM on the verified domain); password login
+  probe → `invalid_credentials` (provider alive); signup probe → `422 signup_disabled`.
+  `config.toml` was reverted byte-identical afterwards so local dev keeps Mailpit + localhost URLs.
+  ⚠️ **TRAP (cost a few minutes of staging email-auth downtime):** `[auth.email] enable_signup`
+  is **NOT** a signup toggle — it maps to GoTrue's **email provider** switch, so setting it `false`
+  kills **all** email auth (magic link *and* password login) for every existing user. "No signups" is
+  the **top-level `[auth] enable_signup = false`** only; `[auth.email] enable_signup` must stay `true`.
 - **L6 — no forced password rotation on first login (found 2026-07-30, staging roster apply).**
   `shared._gen_temp_password()` mints an admin-set temp password (ADR-0011 D2 / ADR-0016), and the
   admin sees it once in `/admin/people` — but **nothing forces the user to change it**: there is no

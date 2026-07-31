@@ -53,6 +53,20 @@ The prod DB connection string is a secret. It is **never** stored in a file in t
 
 **Resend prod key** (email SMTP, OD-P1-11): stored in 1Password vault `AS`. Committed non-secret coordinates: `supabase/op.resend.env` (cross-ref for the full SMTP env table in `supabase/README.md` §Production email). **NEVER commit a key into the repo.**
 
+**⚠️ `[auth.email] enable_signup` is the EMAIL PROVIDER switch, not a signup toggle** (learned
+2026-07-31, caused a few minutes of staging email-auth downtime). Setting it `false` disables **all**
+email auth — magic link *and* password login — for every existing user (`email_provider_disabled` on
+`/auth/v1/otp` and `/auth/v1/token`). To disable public signup, set **only** the top-level
+`[auth] enable_signup = false`; leave `[auth.email] enable_signup = true`. Verify after any auth
+config push with three probes: wrong-password → `invalid_credentials` (provider alive), `/otp` → 200,
+`/signup` → `422 signup_disabled`.
+
+**Staging SMTP = Resend, live 2026-07-31.** Pushed via `[auth.email.smtp]` + `supabase config push`
+with `pass = "env(RESEND_API_KEY)"` (key from op vault `AS`, item `resend-api-gordi-mos`, field
+`credential`; Supabase stores it hashed). Sender `Gordi Admin <admin@gordi.id>`; `email_sent` raised
+2 → 100/hour. Delivery confirmed (`mailed-by: send.gordi.id`, DKIM `signed-by: gordi.id`).
+Remember to revert `config.toml` after any such push — local dev must keep Mailpit + localhost URLs.
+
 **Staging auth email — VERIFIED WORKING 2026-07-31.** A live magic-link probe
 (`POST /auth/v1/otp` with the publishable key, `create_user:false`, to the owner's own
 `arief@gordi.id`) returned **HTTP 200**, GoTrue stamped `auth.users.recovery_sent_at` at the same
