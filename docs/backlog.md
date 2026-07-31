@@ -179,7 +179,7 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 - **L5 (extended by P1-3 audit):** P3-1 MUST: disable open signup both keys + live 422 probe ·
   password policy (≥8, mixed) · session `timebox` ~24h + `inactivity_timeout` · tight CSP · prod
   **Resend** SMTP (OD-P1-11). Password login works without SMTP.
-- **L7 — staging has NO custom SMTP; built-in sender is 2 mails/hour (found 2026-07-31).** L5 above
+- **L7 — staging SMTP → Resend. ✅ DONE 2026-07-31** (was: built-in sender, 2 mails/hour). L5 above
   tracks **prod** Resend (OD-P1-11, GoTrue `GOTRUE_SMTP_*` env vars on the self-hosted box) — nothing
   tracked **staging**, which is where staff onboarding actually happens. Verified live: the magic-link
   probe delivered, but From = `…@mail.app.supabase.io` (Supabase **built-in** sender), and
@@ -195,6 +195,17 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
   values before pushing, verify, then revert the file — see the `config push` gotcha row in
   `docs/environments.md`. Until this lands, the four synthetic `@ops.gordi.local` staff need admin-set
   passwords anyway (no mailbox), so onboarding can proceed via `/admin/people` for everyone.
+  **RESOLVED:** wired via `supabase config push` with `[auth.email.smtp]` (`smtp.resend.com:465`,
+  user `resend`, `pass = env(RESEND_API_KEY)` resolved from op at push time — Supabase stores it
+  hashed; the key never touched a file or the repo). Sender `Gordi Admin <admin@gordi.id>`; rate limit
+  raised 2 → 100/hour; open signup disabled. **Verified live:** delivery confirmed with
+  `mailed-by: send.gordi.id`, `signed-by: gordi.id` (DKIM on the verified domain); password login
+  probe → `invalid_credentials` (provider alive); signup probe → `422 signup_disabled`.
+  `config.toml` was reverted byte-identical afterwards so local dev keeps Mailpit + localhost URLs.
+  ⚠️ **TRAP (cost a few minutes of staging email-auth downtime):** `[auth.email] enable_signup`
+  is **NOT** a signup toggle — it maps to GoTrue's **email provider** switch, so setting it `false`
+  kills **all** email auth (magic link *and* password login) for every existing user. "No signups" is
+  the **top-level `[auth] enable_signup = false`** only; `[auth.email] enable_signup` must stay `true`.
 - **L6 — no forced password rotation on first login (found 2026-07-30, staging roster apply).**
   `shared._gen_temp_password()` mints an admin-set temp password (ADR-0011 D2 / ADR-0016), and the
   admin sees it once in `/admin/people` — but **nothing forces the user to change it**: there is no
