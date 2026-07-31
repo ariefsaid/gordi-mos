@@ -179,6 +179,22 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 - **L5 (extended by P1-3 audit):** P3-1 MUST: disable open signup both keys + live 422 probe ·
   password policy (≥8, mixed) · session `timebox` ~24h + `inactivity_timeout` · tight CSP · prod
   **Resend** SMTP (OD-P1-11). Password login works without SMTP.
+- **L7 — staging has NO custom SMTP; built-in sender is 2 mails/hour (found 2026-07-31).** L5 above
+  tracks **prod** Resend (OD-P1-11, GoTrue `GOTRUE_SMTP_*` env vars on the self-hosted box) — nothing
+  tracked **staging**, which is where staff onboarding actually happens. Verified live: the magic-link
+  probe delivered, but From = `…@mail.app.supabase.io` (Supabase **built-in** sender), and
+  `config.toml` caps `email_sent = 2` per hour. Five `@gordi.id` magic-link invites would take ~2.5h,
+  and built-in senders are commonly team-address-only — so email onboarding at staff scale is blocked.
+  **Fix:** point staging at Resend — either the dashboard (Auth → SMTP) or `[auth.email.smtp]` in
+  `config.toml` + `supabase config push`, with `pass` as an `env(...)` reference resolved from op at
+  push time (key: vault `AS`, coordinates `supabase/op.resend.env`; SMTP table in `supabase/README.md`
+  §Production email — host `smtp.resend.com`, port 465, user `resend`, from `Gordi Admin
+  <admin@gordi.id>`). Raise `email_sent` once Resend is live. **CAUTION:** `config push` also pushes
+  `site_url`/redirects — `config.toml` holds **localhost** values, and staging's real `site_url`
+  (`https://gordi-mos.pages.dev/mos/`) was verified correct on 2026-07-31. Temporarily set the staging
+  values before pushing, verify, then revert the file — see the `config push` gotcha row in
+  `docs/environments.md`. Until this lands, the four synthetic `@ops.gordi.local` staff need admin-set
+  passwords anyway (no mailbox), so onboarding can proceed via `/admin/people` for everyone.
 - **L6 — no forced password rotation on first login (found 2026-07-30, staging roster apply).**
   `shared._gen_temp_password()` mints an admin-set temp password (ADR-0011 D2 / ADR-0016), and the
   admin sees it once in `/admin/people` — but **nothing forces the user to change it**: there is no
