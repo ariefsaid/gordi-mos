@@ -1,5 +1,38 @@
 # Gordi MOS
 
+> ## ⚠️ THIS REPO IS PUBLIC
+>
+> `github.com/ariefsaid/gordi-mos` is **world-readable**. Everything you commit, and every issue,
+> PR, or comment you file, is published — permanently, and indexed by search engines and code
+> scrapers. Deleting later does not un-publish: git history, forks, and caches survive it.
+>
+> **Never write into this repo or its tracker:**
+> - **Unpatched security weaknesses.** No "X has no auth check", no "Y is missing a constraint",
+>   no checklist of controls that are *not yet* in place. That is a free exploit guide, and the
+>   window between filing and fixing is exactly when it is useful to an attacker. Use a **GitHub
+>   private security advisory** (`gh api .../security-advisories`) or tell the owner directly.
+>   A weakness may be described publicly only **after** the fix has shipped.
+> - **PII.** Staff names, personal emails, phone numbers, roles tied to individuals. Account-shape
+>   detail counts too — "the 5 `@gordi.id` staff" is an enumeration hint.
+> - **Secrets or their coordinates.** Not just keys: vault names, item names, env-var names,
+>   internal hostnames, SMTP/API endpoints, tenant IDs.
+>
+> **Where things go instead:**
+> - Unpatched weaknesses → **private security advisory** (`Security → Advisories`). Track publicly
+>   only as a neutral stub that names no path and no missing control.
+> - Anything documentary at all → **`docs/`**, which is gitignored and tracked in its own local
+>   repo. The rule is blunt on purpose: code syncs to GitHub, docs stay local. No per-file
+>   judgment about what is safe to publish — that judgment is what failed.
+>
+> **Before filing any issue or commit that touches security, auth, infra, or people:** run
+> `gh repo view --json visibility` and act on what it says. Do not assume an internal-sounding
+> project is a private repo — this one is not.
+>
+> Incident that produced this rule: 2026-07-31. Fifteen issues were filed migrating the backlog,
+> four of them describing unpatched auth/RLS weaknesses in detail, without visibility ever being
+> checked. The content already existed in `docs/backlog.md` in public git history, but converting
+> it into titled, labelled, searchable issues made it far more discoverable.
+
 Internal **Management Operating System** for Gordi — the operating system for all ~30 people.
 Five destinations: Home / Work / Operate / Plan / Inbox. Tasks + RACI + updates + per-Activity ops +
 reference data + money follow-ups. Ships at `https://ops.gordi.id/mos`.
@@ -11,8 +44,10 @@ reference data + money follow-ups. Ships at `https://ops.gordi.id/mos`.
 - `supabase/migrations/` — Postgres schema + RLS. Schemas: `shared` / `mos` / `ops` / `integrations` /
   `reporting`. One shared self-hosted Supabase serves MOS and future Gordi ops apps — schema
   separation, not project separation.
-- `docs/adr/` — architecture decisions. `docs/reference/` — ESB/GOO integration, warehouse ops.
-- `docs/archive/` — superseded specs, plans, review ledgers, and status docs. History, not state.
+- `docs/` — **not in this repo.** Its own local git repo, gitignored here (same pattern as
+  `.claude/`). Holds ADRs, owner decisions, gotchas, environment runbooks, infra coordinates, the
+  JTBD oracle, the skills' `agents/` config, and the archived history. **Code syncs to GitHub;
+  docs stay local.** Start at `docs/README.md`.
 
 ## Commands (run inside `mos-app/`)
 `npm run dev` · `npm run build` · `npm run typecheck` · `npm run lint -- --max-warnings=0` ·
@@ -47,12 +82,14 @@ See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: `CONTEXT.md` (this repo) + `docs/adr/` (the local docs repo).
+See `docs/agents/domain.md`.
 
 ## Read before you start
-`CONTEXT.md` (domain glossary) · `docs/gotchas.md` (scar tissue — read this one) ·
-`docs/decisions.md` (locked owner decisions) · `docs/environments.md` (staging/prod coordinates).
+`CONTEXT.md` (domain glossary, in this repo) · then the local `docs/` repo: `docs/README.md`,
+`docs/gotchas.md` (scar tissue — read this one), `docs/decisions.md`, `docs/environments.md`.
 
 ## No external references
 No external brand, product, or AGPL references in MOS design artifacts. The design kit is MOS's own.
-(ESB API coordinates are fine — ESB is a real integration partner, not a design reference.)
+Integration-partner coordinates are a separate concern and are governed by the public-repo banner
+above — they live in the local `docs/` repo, never here.
