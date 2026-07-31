@@ -87,7 +87,7 @@ describe('synthesizeEmail (AC-011 helper, FR-021)', () => {
 describe('listAdminPeople', () => {
   it('merges people + access_roles + login_status into AdminPersonRow[]', async () => {
     const people = [
-      { id: 'p1', full_name: 'Budi Santoso', email: 'budi@gordi.id', archived_at: null },
+      { id: 'p1', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null },
       { id: 'p2', full_name: 'Sari Indah', email: null, archived_at: null },
     ]
     const roles = [
@@ -142,7 +142,7 @@ describe('listAdminPeople', () => {
   })
 
   it('AC-124: merges jabatan (person_roles joined to role names) into each row', async () => {
-    const people = [{ id: 'p1', full_name: 'Budi Santoso', email: 'budi@gordi.id', archived_at: null }]
+    const people = [{ id: 'p1', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null }]
     const loginStatus = [{ person_id: 'p1', has_login: false, disabled: false }]
     const personRoles = [{ person_id: 'p1', role_id: 'r1' }]
     const rolesTable = [{ id: 'r1', name: 'Barista' }]
@@ -191,7 +191,7 @@ describe('createPerson', () => {
     })
     schemaMock.mockReturnValue(schemaObj as never)
 
-    const id = await createPerson({ full_name: 'New Person', email: 'new@gordi.id', access_roles: [] })
+    const id = await createPerson({ full_name: 'New Person', email: 'new@example.test', access_roles: [] })
     expect(id).toBe('new-id')
     expect(schemaMock).toHaveBeenCalledWith('shared')
   })
@@ -454,7 +454,7 @@ describe('Revenue scope (supervisor) wrappers', () => {
   })
 
   it('AC-325: listAdminPeople merges revenue_scope', async () => {
-    const people = [{ id: 'p1', full_name: 'Budi Santoso', email: 'budi@gordi.id', archived_at: null }]
+    const people = [{ id: 'p1', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null }]
     const loginStatus = [{ person_id: 'p1', has_login: false, disabled: false }]
     const sharedObj = makeSharedSchema(
       {

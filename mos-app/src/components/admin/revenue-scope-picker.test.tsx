@@ -27,7 +27,7 @@ const OPTIONS: RevenueScopeOption[] = [
 const PERSON_NO_SCOPE: AdminPersonRow = {
   id: 'other-person-id',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['supervisor'],

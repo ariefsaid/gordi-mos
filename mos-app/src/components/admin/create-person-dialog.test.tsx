@@ -31,7 +31,7 @@ const ADMIN_VIEWER: AuthState = {
       org_id: 'org-1',
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
-      email: 'admin@gordi.id',
+      email: 'admin@example.test',
       archived_at: null,
       created_at: '',
       updated_at: '',
@@ -149,7 +149,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     renderDialog()
 
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
 
     const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
     await user.click(loginToggle)
@@ -169,7 +169,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     renderDialog()
 
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
 
     const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
     await user.click(loginToggle)
@@ -194,7 +194,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     renderDialog({ onClose })
 
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
 
     const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
     await user.click(loginToggle)
@@ -216,7 +216,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     renderDialog()
 
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
     await user.click(screen.getByRole('switch', { name: /create a login now/i }))
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
@@ -244,7 +244,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     renderDialog()
 
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
     expect(screen.getByText(/creating/i)).toBeInTheDocument()
@@ -256,7 +256,7 @@ describe('CreatePersonDialog (AC-011)', () => {
     renderDialog()
 
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
     await screen.findByText(/couldn't create/i)

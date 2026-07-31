@@ -53,7 +53,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrongpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -73,7 +73,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrongpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -91,7 +91,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'nobody@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'nobody@example.test')
     await user.type(screen.getByLabelText('Password'), 'somepass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -109,7 +109,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'pass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -124,7 +124,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'pass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -153,7 +153,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'goodpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -176,7 +176,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'pass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -206,7 +206,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
 
     const magicLinkBtn = screen.getByRole('button', { name: /email me a sign-in link/i })
     await user.click(magicLinkBtn)
@@ -225,13 +225,13 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
     await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
     await waitFor(() => {
       expect(mockSignInWithOtp).toHaveBeenCalledWith(
         expect.objectContaining({
-          email: 'user@gordi.id',
+          email: 'user@example.test',
           options: expect.objectContaining({ shouldCreateUser: false }),
         }),
       )
@@ -248,7 +248,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
 
     const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
     await user.click(forgotBtn)
@@ -267,7 +267,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
     await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
     await waitFor(() => {

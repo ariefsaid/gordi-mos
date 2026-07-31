@@ -21,7 +21,7 @@ const mockUseIsDesktop = vi.mocked(useIsDesktop)
 const ADMIN: AdminPersonRow = {
   id: 'p-admin',
   full_name: 'Admin Gordi',
-  email: 'admin@gordi.id',
+  email: 'admin@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['admin'],
@@ -32,7 +32,7 @@ const ADMIN: AdminPersonRow = {
 const ACTIVE_MEMBER: AdminPersonRow = {
   id: 'p-member',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
@@ -43,7 +43,7 @@ const ACTIVE_MEMBER: AdminPersonRow = {
 const NO_LOGIN_PERSON: AdminPersonRow = {
   id: 'p-no-login',
   full_name: 'Citra Wulandari',
-  email: 'citra@gordi.id',
+  email: 'citra@example.test',
   archived_at: null,
   login: 'none',
   access_roles: ['member'],
@@ -54,7 +54,7 @@ const NO_LOGIN_PERSON: AdminPersonRow = {
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   id: 'p-disabled',
   full_name: 'Dewi Rahayu',
-  email: 'dewi@gordi.id',
+  email: 'dewi@example.test',
   archived_at: null,
   login: 'disabled',
   access_roles: ['member'],
@@ -65,7 +65,7 @@ const DISABLED_LOGIN_PERSON: AdminPersonRow = {
 const ARCHIVED_PERSON: AdminPersonRow = {
   id: 'p-archived',
   full_name: 'Eko Prasetyo',
-  email: 'eko@gordi.id',
+  email: 'eko@example.test',
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],
@@ -213,7 +213,7 @@ describe('PeopleToolbar — search filter', () => {
     const user = userEvent.setup()
     renderTable(ALL_PEOPLE)
 
-    await user.type(screen.getByRole('searchbox'), 'citra@gordi')
+    await user.type(screen.getByRole('searchbox'), 'citra@example')
 
     expect(screen.getByText('Citra Wulandari')).toBeInTheDocument()
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
