@@ -10,6 +10,9 @@
 # Verdict format (one per review):  - <review>: <VERDICT> — <reviewer/notes>
 # Accepted verdicts: PASS  SHIP  FIX-THEN-SHIP
 # Blocking verdicts: REWORK  FAIL  STILL-FAILING  (or blank/missing)
+# DEFERRED: the lens was NOT RUN and the owner accepted that. Clears the gate but is NEVER shown
+#   as [ok] — the summary and the final line both say how many lenses went unreviewed. The verdict
+#   line must name the owner, so an agent cannot defer its own blocker.
 #
 # NETWORK: this script fetches origin/main, because a stale baseline is the failure mode it exists
 # to catch. Env overrides (both are logged in the report; neither is silent):
@@ -202,6 +205,13 @@ fi
 # Blocking verdicts: REWORK, FAIL, STILL-FAILING, or anything else (incl blank)
 
 ACCEPTED_PATTERN='^(PASS|SHIP|FIX-THEN-SHIP)$'
+# DEFERRED — the lens was NOT run, and the owner accepted that. Added 2026-07-31, when a required
+# design review was skipped and the only way to clear the gate was to write PASS for a review that
+# never happened. Laundering "not reviewed" into a green token is the precise failure this whole
+# script exists to prevent, so it gets its own verdict instead: accepted, but never displayed as [ok].
+# Guard against self-granting: the line must attribute the decision to the owner, so an agent cannot
+# quietly defer its own blocker.
+DEFERRED_PATTERN='^DEFERRED$'
 BLOCKING_PATTERN='^(REWORK|FAIL|STILL-FAILING)$'
 
 parse_verdict() {
@@ -225,6 +235,7 @@ parse_verdict() {
 
 FAILURES=()
 SUMMARY_LINES=()
+DEFERRED_COUNT=0
 
 check_review() {
   local key="$1"
@@ -247,6 +258,18 @@ check_review() {
   if echo "$verdict" | grep -qE "$BLOCKING_PATTERN"; then
     FAILURES+=("  - ${label}: verdict is '${verdict}' (blocking — resolve before merge)")
     SUMMARY_LINES+=("  ${label}: ${verdict} [BLOCKING]")
+    return
+  fi
+
+  if echo "$verdict" | grep -qE "$DEFERRED_PATTERN"; then
+    # Must name the owner in the same line — an agent may not defer its own gate.
+    if ! grep -iE "^[[:space:]]*-[[:space:]]+${key}[[:space:]]*:" "$LEDGER" | head -1 | grep -qi 'owner'; then
+      FAILURES+=("  - ${label}: DEFERRED without owner attribution — the line must record WHO accepted the deferral")
+      SUMMARY_LINES+=("  ${label}: DEFERRED [NO OWNER — blocking]")
+      return
+    fi
+    DEFERRED_COUNT=$((DEFERRED_COUNT + 1))
+    SUMMARY_LINES+=("  ${label}: DEFERRED — NOT REVIEWED (owner-accepted)")
     return
   fi
 
@@ -292,6 +315,11 @@ if [[ "${#FAILURES[@]}" -gt 0 ]]; then
   exit 1
 fi
 
-echo "PASS: all required reviews cleared. Safe to merge."
+if [[ "$DEFERRED_COUNT" -gt 0 ]]; then
+  echo "PASS (with ${DEFERRED_COUNT} DEFERRED): required reviews cleared, but ${DEFERRED_COUNT} lens(es)"
+  echo "were NOT RUN and were deferred by the owner. This is not the same as reviewed."
+else
+  echo "PASS: all required reviews cleared. Safe to merge."
+fi
 echo ""
 exit 0
