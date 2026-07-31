@@ -64,10 +64,10 @@ pi --provider zai --model glm-5.1 -p --no-session \
 ```
 
 - **`< /dev/null` is load-bearing** — without it `-p` can block on stdin.
-- **`--append-system-prompt`** injects the role contract. `.claude/agents/*.md` are **tracked**
-  (present in every worktree). `.claude/skills/*` are **gitignored** (vendored) — reference them by
-  **absolute path from the primary checkout**, e.g.
-  `--append-system-prompt /Users/ariefsaid/Coding/gordi-mos/.claude/skills/feature-forge/SKILL.md`.
+- **`--append-system-prompt`** injects the role contract. All of `.claude/` (agents + skills) lives
+  in its **own nested repo** (`.claude/.git`), gitignored by the main repo — so it is NOT auto-present
+  in main-repo worktrees. Reference agents and skills by **absolute path from the primary checkout**, e.g.
+  `--append-system-prompt /Users/ariefsaid/Coding/gordi-mos/.claude/skills/to-spec/SKILL.md`.
   (Stack multiple `--append-system-prompt` flags: role contract + the skill[s] it owns.)
 - Run long dispatches as **harness-tracked background tasks** with a generous timeout. **Never
   `nohup … &`** — the wrapper is reaped when the parent shell exits and the run dies silently.

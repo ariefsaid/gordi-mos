@@ -78,7 +78,7 @@ bar itself moved (era timeline E1→E6): `docs/requirements-evolution.md`.
 > - **Agent-native / user-composed UI — ADR-0017 ACCEPTED** (merged to new `dev` branch; +ADR-0010
 >   2026-06-30 amendment; CONTEXT.md glossary; OD-AN-1). Deputy/RLS dual-plane model; **value-first build**
 >   (Issue 1 = mobile-first ops dashboard that births the primitive kit → registry → DSL/compiler →
->   `user_views`+renderer → manual builder → agent sidecar behind a MOS spike). **NEXT = `feature-forge`
+>   `user_views`+renderer → manual builder → agent sidecar behind a MOS spike). **NEXT = `to-spec`
 >   spec for Issue 1.** Full track in `docs/platform-workstream-status.md` §Current focus; memory
 >   `agent-native-ui-program`.
 > - **OLAP ESB warehouse ONLINE on the Tencent VPS** (PG17, loopback, self-sustaining op-native sync @3:05

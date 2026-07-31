@@ -27,7 +27,7 @@ push / merge / deploy. Per-issue loop:
    (schema, auth, cross-cutting), run a `grill-with-docs` session: grill the approach against
    `CONTEXT.md` (the domain glossary, repo root) + `docs/adr/` + `docs/decisions.md`; resolve terms
    into `CONTEXT.md` inline. ADR authorship stays with eng-planner (grill proposes, planner writes).
-2. **Spec (SDD)** — `feature-forge` (new behavior) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
+2. **Spec (SDD)** — `to-spec` (synthesize spec after intake grilling) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs); `design-architect` for UI design-plans.
 4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing test).
 5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (4-lens) for UI.
@@ -84,10 +84,12 @@ both directions.
 |---|---|
 | Intake grilling (plan vs domain language) + `CONTEXT.md` glossary | grill-with-docs (`.claude/skills/`) |
 | Reverse-engineer existing code → spec | spec-miner (`.claude/skills/`) |
-| User stories + acceptance criteria | feature-forge (`.claude/skills/`) |
+| Spec synthesis (user stories · EARS · Given/When/Then AC) | to-spec (`.claude/skills/`) |
 | Design + task planning | superpowers (brainstorming, writing-plans) |
-| TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
-| Code review | superpowers spec + quality reviewers |
+| TDD build | `tdd` (`.claude/skills/`, superpowers-enriched) |
+| Debugging | `diagnosing-bugs` (`.claude/skills/` — feedback-loop-first, 6-phase) |
+| Verification | superpowers (verification-before-completion) |
+| Code review | `code-review` skill = aggregating engine; role agents = the axes (spec · quality · security · design · qa); superpowers (requesting/receiving-code-review) = process wrappers |
 | Design-system stewardship (`DESIGN.md`) + Phase-0 mockups | design-architect (impeccable, design-consultation) |
 | UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
 | Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |

@@ -18,10 +18,12 @@ for s in careful freeze guard cso design-review design-consultation; do
   rm -f "$DEST/$s/SKILL.md.tmpl"
 done
 
-echo "==> jeffallan/claude-skills (feature-forge + spec-miner only)"
+echo "==> jeffallan/claude-skills (spec-miner only)"
+# feature-forge RETIRED 2026-07-31: its EARS/AC discipline folded into the upgraded `to-spec`
+# override; the interview half is already covered by grill-with-docs (loop step 1 intake).
 git clone --depth 1 --filter=blob:none --sparse https://github.com/jeffallan/claude-skills.git "$TMP/jeff"
-git -C "$TMP/jeff" sparse-checkout set skills/feature-forge skills/spec-miner
-for s in feature-forge spec-miner; do
+git -C "$TMP/jeff" sparse-checkout set skills/spec-miner
+for s in spec-miner; do
   rm -rf "${DEST:?}/$s"
   cp -R "$TMP/jeff/skills/$s" "$DEST/$s"
 done
@@ -63,12 +65,20 @@ for s in ui-ux-pro-max design-system ui-styling; do
 done
 # NOTE: deliberately NOT vendoring design/banner/slides/brand sub-skills (Gemini-API generative; need GEMINI_API_KEY).
 
-echo "==> grill-with-docs (mattpocock/skills) — intake grilling + CONTEXT.md glossary steward"
-# Vetted 2026-06-11 at commit 694fa30 (3 prompt-only .md files, no executables). Re-vet on re-vendor.
+echo "==> mattpocock/skills — full engineering + productivity sets"
+# Vetted 2026-07-31 at HEAD: eng+prod skills are prompt-only .md + a harmless per-skill codex
+# `agents/openai.yaml` interface config; the ONLY executable is
+# diagnosing-bugs/scripts/hitl-loop.template.sh (a benign interactive template — no net/eval/telemetry).
+# Re-vet on re-vendor. We vendor ONLY engineering/ + productivity/ (skip deprecated/in-progress/personal/misc).
 git clone --depth 1 --filter=blob:none --sparse https://github.com/mattpocock/skills.git "$TMP/mps"
-git -C "$TMP/mps" sparse-checkout set skills/engineering/grill-with-docs
-rm -rf "${DEST:?}/grill-with-docs"
-cp -R "$TMP/mps/skills/engineering/grill-with-docs" "$DEST/grill-with-docs"
+git -C "$TMP/mps" sparse-checkout set skills/engineering skills/productivity
+for cat in engineering productivity; do
+  for d in "$TMP/mps/skills/$cat"/*/; do          # */ matches dirs only → category README.md skipped
+    s="$(basename "$d")"
+    rm -rf "${DEST:?}/$s"
+    cp -R "$d" "$DEST/$s"
+  done
+done
 
 echo "==> agent-browser (discovery stub) — rendered UI verification from pi (docs/pi-delegation.md §3a)"
 # The CLI (npm i -g agent-browser) serves its own version-matched usage skill via
@@ -79,7 +89,30 @@ if [ -f /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md ]; the
   cp /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md "$DEST/agent-browser/SKILL.md"
 fi
 
+# --- Project overrides (OVERLAY, not replace) ---
+# Our upgraded files (committed, git-tracked, de-branded, OURS: implement, to-spec, code-review, tdd)
+# are OVERLAID on top of the pristine vendored skill — our SKILL.md wins while upstream SIBLINGS
+# (tests.md, mocking.md, agents/…) are KEPT. Before overlaying, snapshot the pristine upstream to
+# .claude/skill-original/<name>/ (gitignored) so `diff skill-original/<s>/SKILL.md
+# skill-overrides/<s>/SKILL.md` shows exactly our delta and a re-vendor reveals upstream drift.
+# See CLAUDE.md skill-ownership table.
+OVERRIDES="$ROOT/.claude/skill-overrides"
+ORIGINAL="$ROOT/.claude/skill-original"
+if [ -d "$OVERRIDES" ]; then
+  for d in "$OVERRIDES"/*/; do
+    [ -d "$d" ] || continue
+    s="$(basename "$d")"
+    if [ -d "$DEST/$s" ]; then
+      mkdir -p "$ORIGINAL"; rm -rf "${ORIGINAL:?}/$s"; cp -R "$DEST/$s" "$ORIGINAL/$s"   # snapshot pristine
+    fi
+    echo "==> override (overlay): $s — our files win, upstream siblings kept"
+    mkdir -p "$DEST/$s"
+    cp -R "$d". "$DEST/$s/"                                                              # overlay contents
+  done
+fi
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling grill-with-docs agent-browser"
+echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling agent-browser + mattpocock full eng+prod set"
+echo "Project overrides applied from .claude/skill-overrides/ (implement to-spec code-review tdd)."
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

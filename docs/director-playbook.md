@@ -16,7 +16,7 @@ first slice and record the deferral in `docs/backlog.md`.
 ## 2. The per-issue loop (one issue at a time, one branch, one PR)
 1. **Intake** — clarify the issue with the owner. State the locked decisions (`docs/decisions.md`)
    you're applying up front.
-2. **Spec (SDD)** — delegate to `feature-forge` (new behavior — the MOS default, it's greenfield)
+2. **Spec (SDD)** — delegate to `to-spec` (synthesize the spec after intake grilling — the MOS default)
    and/or `spec-miner` (reverse-engineer existing code). Output: `docs/specs/<feature>.spec.md` —
    EARS `FR-/NFR-###` + Given/When/Then `AC-###`, with `[OWNER-DECISION]` flags on anything
    business-semantic. **Owner signs off the spec.**
