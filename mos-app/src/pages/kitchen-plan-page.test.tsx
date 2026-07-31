@@ -154,9 +154,15 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     fireEvent.blur(input)
     // Wait for the GOAL — the error alert surfaces (load-robust: only the alert gates the poll, not the
     // call-count, which under full-suite load could momentarily re-throw inside waitFor and flake).
+    // No per-test timeout: it inherits the single global budget (src/test/setup.ts asyncUtilTimeout).
+    // This line used to carry `{ timeout: 5000 }`, which became EXACTLY equal to the global once that
+    // was raised — redundant, and still the binding constraint. It then failed CI at 5081ms: on a
+    // 2-core runner with v8 coverage instrumentation this wait genuinely needs more than 5s, and it
+    // passes locally with coverage only because this machine is faster. Two knobs for one budget is
+    // how you get one nobody notices is binding, so there is now one.
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save|denied|try again/i)
-    }, { timeout: 5000 })
+    })
     // Once the error alert is shown the save has fired exactly once — now a deterministic check.
     expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error

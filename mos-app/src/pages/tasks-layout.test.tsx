@@ -448,9 +448,12 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // so the default 1000ms waitFor budget and Vitest's default 5000ms test budget are too tight.
     // Widen the budgets for this genuinely-chained transition; the goal (archived title gone from
     // BOTH list and drawer, no reload) is unchanged.
+    // No per-test timeout — inherits the single global budget (src/test/setup.ts asyncUtilTimeout).
+    // A local override tighter than the global silently becomes the binding constraint; that is what
+    // failed CI on kitchen-plan-page at 5081ms. One knob.
     await waitFor(() => {
       expect(screen.queryByText('Archive me')).toBeNull()
-    }, { timeout: 4000 })
+    })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
     expect(document.querySelector('.content-header .ch-count')?.textContent).toBe('1')
   }, 10_000)

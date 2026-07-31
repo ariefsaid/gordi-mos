@@ -699,9 +699,12 @@ describe('AC-073: new entry appears in feed without full reload', () => {
     })
 
     // After submit, navigates back to /ops and re-fetches
+    // No per-test timeout — inherits the single global budget (src/test/setup.ts asyncUtilTimeout).
+    // A local override tighter than the global silently becomes the binding constraint; that is what
+    // failed CI on kitchen-plan-page at 5081ms. One knob.
     await waitFor(() => {
       expect(screen.getByText('Newly logged item')).toBeInTheDocument()
-    }, { timeout: 3000 })
+    })
   })
 })
 
