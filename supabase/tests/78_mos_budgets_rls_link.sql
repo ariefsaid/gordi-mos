@@ -9,7 +9,7 @@
 -- RPC. begin;...rollback; — nothing ships to prod.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(13);
 
 select mos._test_seed_role_tree();
 
@@ -81,6 +81,15 @@ select throws_ok($$
   select '00000000-0000-0000-0000-0000000000a1', id, 'ING-MILK', 0.18, 'L'
     from mos.budgets where scenario_label = 'Baseline' limit 1
 $$, '42501', null, 'AC-PB-013: direct INSERT into mos.budget_lines is refused — capture_budget RPC is the sole write path (M1)');
+
+-- AC-PB-013 (cont.): the migration revokes insert AND UPDATE, but only the INSERT half was pinned.
+-- The update half is the one the finding specifically named — `created_by` was mutable on a direct
+-- UPDATE, and total_budgeted_cogs could be rewritten after capture, bypassing the RPC's recompute.
+-- Untested, the obvious future soft-archive migration (the original grant at 20260710000003:99 is
+-- literally commented "no delete (soft-archive)") would re-grant UPDATE and land green.
+select throws_ok($$
+  update mos.budgets set total_budgeted_cogs = 1 where scenario_label = 'Baseline'
+$$, '42501', null, 'AC-PB-013: direct UPDATE of mos.budgets is refused — no post-capture rewrite of the server-computed total (M1)');
 
 -- AC-PB-009 (can('cogs.write')): finance CAN STILL capture a budget — expressed through the intended path,
 -- mos.capture_budget (which server-recomputes total_budgeted_cogs from the linked cost lines and rejects a

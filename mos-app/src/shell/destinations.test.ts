@@ -52,7 +52,10 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
 
   it('AC-402: Plan = [Dashboard] gated finance/admin/manager/supervisor; hidden (not live) for a member (no dead-end)', () => {
     const plan = DESTINATIONS.find((d) => d.id === 'plan')!
-    expect(plan.anyOf).toEqual(REVENUE_VIEW_ROLES)
+    // Two distinct claims, deliberately not one. toEqual against the constant alone is a tautology:
+    // it passes even if someone edits the constant, which is the drift the AC exists to catch.
+    expect(plan.anyOf).toEqual(['finance', 'admin', 'manager', 'supervisor']) // the POLICY
+    expect(plan.anyOf).toBe(REVENUE_VIEW_ROLES)                               // consumes the CONSTANT
     // Dashboard is always present; the ADR-0022 budget/pricing links are flag-gated (SHOW_PLAN_BUDGET).
     expect(plan.links.map((l) => l.path)).toEqual(
       SHOW_PLAN_BUDGET
