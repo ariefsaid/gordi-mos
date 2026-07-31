@@ -53,6 +53,19 @@ The prod DB connection string is a secret. It is **never** stored in a file in t
 
 **Resend prod key** (email SMTP, OD-P1-11): stored in 1Password vault `AS`. Committed non-secret coordinates: `supabase/op.resend.env` (cross-ref for the full SMTP env table in `supabase/README.md` §Production email). **NEVER commit a key into the repo.**
 
+**Staging auth email — VERIFIED WORKING 2026-07-31.** A live magic-link probe
+(`POST /auth/v1/otp` with the publishable key, `create_user:false`, to the owner's own
+`arief@gordi.id`) returned **HTTP 200**, GoTrue stamped `auth.users.recovery_sent_at` at the same
+second, and the mail **arrived** with the link pointing at **`gordi-mos.pages.dev`** — i.e. staging's
+`site_url` is correct and has NOT been clobbered by the localhost `config push` gotcha (row above).
+So magic link / password reset are usable on staging for anyone with a **real inbox**. Two limits
+that still apply: (a) the four synthetic `@ops.gordi.local` staff have **no mailbox**, so email flows
+can never serve them — admin-set password only (ADR-0011 D2); (b) if staging is still on Supabase's
+**built-in** sender rather than Resend, throughput is only ~2–4 mails/hour — check the From address
+(built-in = `…@mail.app.supabase.io`; Resend = `Gordi Admin <admin@gordi.id>`) before onboarding
+several people in one sitting. `auth.audit_log_entries` is **empty on this project** — don't use it
+to verify sends; use the `*_sent_at` columns on `auth.users` instead.
+
 **Staging (Supabase Cloud) — what's secret vs not:** the **URL + publishable key are public** (in the SPA bundle) — keep them in `docs/environments.md` / CF Pages env vars, **not** op. The only op-worthy secret is the **DB password / connection string**, and only if you ever run `db push` non-interactively or from CI (the authed CLI doesn't need it for an interactive push). If you store it: grab the **Direct connection** string (Dashboard → Database → Connection string → *Direct*, port 5432 — IPv6) for migrations/admin, or the **Session pooler** (port 5432, pooler host) as the **IPv4 fallback** (CI runners are IPv4-only). **Not** the **Transaction pooler** (port 6543 — transaction mode breaks migration DDL/locks). Store in vault `AS` + a committed `op.supabase-staging.env` coordinate (mirror `op.resend.env`) if/when needed; the `sb_secret_…` key only if something server-side is wired (the SPA never uses it).
 
 ## Production deploy (ris-dev, self-hosted) — later (Phase 3-1, owner-gated)
