@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(18);
 
 -- #131 / GHSA-85fp-gf27-wg2c — provisioned passwords are admin-known and never expire.
 -- The flag forces the holder to replace one before the app is usable.
@@ -63,27 +63,65 @@ select is(
   true,
   'AC-131b: an admin reset re-flags the account — the admin knows this password too');
 
--- ── clear_must_change_password clears ONLY the caller ───────────────────────────────────────
--- Flag a second person, act as d7, clear. d3 must survive: an RPC that cleared by argument rather
--- than by the session's own person would let any user disarm someone else's gate.
+-- ── The flag clears ONLY because the password actually changed ──────────────────────────────
+-- GHSA-85fp-gf27-wg2c: the original shape exposed shared.clear_must_change_password() to
+-- `authenticated`. It took no argument and never checked that anything had happened — the
+-- "set the password FIRST, then clear" ordering lived only in the SPA. So the threat actor the
+-- flag exists to stop (the provisioner, who holds the password) could sign in, POST the RPC
+-- straight from devtools, and keep using the admin-known password on a permanently unflagged
+-- account. The RPC is gone; the password change itself is what clears the flag now.
+select hasnt_function('shared', 'clear_must_change_password', array[]::text[],
+  'AC-131c: there is NO argument-free RPC that clears the flag — a caller cannot disarm the gate
+   without actually changing their password');
+
 reset role;
 update shared.people set must_change_password = true
  where id in ('00000000-0000-0000-0000-0000000000d3','00000000-0000-0000-0000-0000000000d7');
 
-set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":[]}';
-select lives_ok($$ select shared.clear_must_change_password() $$,
-  'clear_must_change_password runs for an ordinary authenticated caller — no access role needed,
-   since being locked out of your own account is not a privilege');
+-- An auth write that RE-WRITES encrypted_password to the value it already had must not clear
+-- anything. This is the full-row-save shape (sign-in stamping last_sign_in_at while persisting the
+-- whole record), so encrypted_password IS in the SET list and `AFTER UPDATE OF encrypted_password`
+-- alone would fire. Only the WHEN (old IS DISTINCT FROM new) guard stops it — without that, merely
+-- signing in with the admin-known password would disarm the gate, which is worse than the RPC it
+-- replaced. Verified to fail when the WHEN clause is removed.
+update auth.users
+   set encrypted_password = encrypted_password, updated_at = now(), last_sign_in_at = now()
+ where id = (select user_id from shared.people where id = '00000000-0000-0000-0000-0000000000d7');
+select is(
+  (select must_change_password from shared.people where id = '00000000-0000-0000-0000-0000000000d7'),
+  true,
+  'AC-131c2: re-writing the SAME password hash does NOT clear the flag — only a real change does');
+
+-- The real path: GoTrue writes a new encrypted_password when the holder sets one.
+update auth.users set encrypted_password = extensions.crypt('a new one they chose', extensions.gen_salt('bf'))
+ where id = (select user_id from shared.people where id = '00000000-0000-0000-0000-0000000000d7');
 select is(
   (select must_change_password from shared.people where id = '00000000-0000-0000-0000-0000000000d7'),
   false,
-  'AC-131c: the caller''s own flag clears');
+  'AC-131g: changing the password clears the flag — the change IS the proof, so there is nothing
+   left to forge');
 select is(
   (select must_change_password from shared.people where id = '00000000-0000-0000-0000-0000000000d3'),
   true,
-  'AC-131d: clearing my own flag does NOT clear anyone else''s — the RPC resolves the caller and
-   takes no person argument');
+  'AC-131h: and it clears ONLY the person whose password changed');
+
+-- ── An admin reset must still land FLAGGED, despite the trigger ─────────────────────────────
+-- admin_reset_password writes auth.users.encrypted_password and THEN raises the flag. The trigger
+-- fires on that write, so it clears the flag mid-RPC and the RPC's own update re-raises it. If
+-- anyone ever reorders those two statements, the reset would silently hand out an admin-known
+-- password with the gate already disarmed — the exact hole this migration closes, reopened.
+reset role;
+update shared.people set must_change_password = false
+ where id = '00000000-0000-0000-0000-0000000000d7';
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select lives_ok($$ select shared.admin_reset_password('00000000-0000-0000-0000-0000000000d7') $$,
+  'admin_reset_password still runs with the trigger installed');
+select is(
+  (select must_change_password from shared.people where id = '00000000-0000-0000-0000-0000000000d7'),
+  true,
+  'AC-131i: an admin reset leaves the account FLAGGED — the trigger clears on the password write,
+   and the RPC re-raises after it. Statement order in that RPC is load-bearing.');
 
 -- ── The gate cannot be disarmed by a direct write ───────────────────────────────────────────
 -- people_update_admin grants UPDATE on any person in the org to any ADMIN. Without a guard, admin B
@@ -100,8 +138,8 @@ select throws_ok($$
   update shared.people set must_change_password = false
    where id = '00000000-0000-0000-0000-0000000000d3'
 $$, '42501',
-  'must_change_password is cleared only by shared.clear_must_change_password()',
-  'AC-131e: an admin cannot clear the flag by a direct write — only the RPC clears it');
+  'must_change_password is cleared only by an actual password change',
+  'AC-131e: an admin cannot clear the flag by a direct write — only changing the password clears it');
 
 -- Raising it from an app session IS allowed: that is an admin forcing a rotation, the feature
 -- rather than a bypass. Asserted so the guard cannot later be widened into a blanket block.

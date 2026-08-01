@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { SetPasswordForm } from '@/auth/set-password-form'
-import { clearMustChangePassword } from '@/lib/db/account'
 import { useAuth } from '@/auth/use-auth'
 
 const ERR_EXPIRED = 'That link has expired — request a new one.'
@@ -39,14 +38,8 @@ export function RecoveryPage() {
     }
 
     // #131: a recovery-link reset is the holder choosing their own password, so it satisfies the
-    // must_change_password gate too. Without this they land on / and are immediately re-gated,
-    // asked to set a password they just set. Swallowed on failure: the flag simply stays up and
-    // the gate re-prompts, which is the same fail-safe the gate itself relies on.
-    try {
-      await clearMustChangePassword()
-    } catch {
-      // no-op — see above
-    }
+    // must_change_password gate too. Nothing to do here — the auth.users trigger lowered the flag
+    // as part of the updateUser above, so they are not re-gated on arrival.
 
     // Clear the recovering flag so AuthProvider can resolve the viewer (audit L1 fix).
     await auth.clearRecovering()

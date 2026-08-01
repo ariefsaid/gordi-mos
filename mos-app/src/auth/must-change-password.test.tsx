@@ -1,25 +1,27 @@
 // #131 — the shell gate. A viewer whose password was set by an admin must replace it before
 // reaching any app content, and must always be able to sign out instead (or a user who cannot
 // choose a password is trapped).
+//
+// The gate is only lowered by the password actually changing: the
+// clear_must_change_password_on_pw_change trigger on auth.users runs inside GoTrue's own write.
+// That contract is owned by supabase/tests/88_must_change_password.sql (AC-131c/c2/g/h/i) — there
+// is deliberately nothing here that clears the flag, because the app cannot.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 vi.mock('./use-auth')
-vi.mock('@/lib/db/account')
 vi.mock('@/lib/supabase', () => ({
   supabase: { auth: { updateUser: vi.fn() } },
 }))
 
 import { useAuth } from './use-auth'
 import { ProtectedRoute } from './protected-route'
-import { clearMustChangePassword } from '@/lib/db/account'
 import { supabase } from '@/lib/supabase'
 import type { PeopleRow } from '@/lib/database.types'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockClear = vi.mocked(clearMustChangePassword)
 const mockUpdateUser = vi.mocked(supabase.auth.updateUser)
 
 function person(mustChange: boolean): PeopleRow {
@@ -61,7 +63,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('location', { ...window.location, reload: vi.fn() })
   mockUpdateUser.mockResolvedValue({ data: { user: null }, error: null } as never)
-  mockClear.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -95,7 +96,7 @@ describe('must_change_password gate', () => {
     expect(signOut).toHaveBeenCalled()
   })
 
-  it('sets the password via Auth, then clears the flag — in that order', async () => {
+  it('sets the password through Auth, then reloads to pick up the lowered flag', async () => {
     authed(true)
     renderApp()
 
@@ -103,10 +104,9 @@ describe('must_change_password gate', () => {
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'correct horse battery')
     await userEvent.click(screen.getByRole('button', { name: /save password/i }))
 
-    await waitFor(() => expect(mockClear).toHaveBeenCalled())
-    // GoTrue is the password authority (#130 installs its policy); the RPC only clears the flag.
+    // GoTrue is the password authority; the DB trigger lowers the flag inside that same write.
+    await waitFor(() => expect(location.reload).toHaveBeenCalled())
     expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'correct horse battery' })
-    expect(mockUpdateUser.mock.invocationCallOrder[0]).toBeLessThan(mockClear.mock.invocationCallOrder[0])
   })
 
   it('leaves the gate up when Auth rejects the password', async () => {
@@ -122,40 +122,7 @@ describe('must_change_password gate', () => {
     await userEvent.click(screen.getByRole('button', { name: /save password/i }))
 
     expect(await screen.findByText(/too short/i)).toBeInTheDocument()
-    expect(mockClear).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
-  })
-
-  it('fails safe: a failed flag-clear keeps the user on the gate', async () => {
-    authed(true)
-    mockClear.mockRejectedValue(new Error('rpc down'))
-    renderApp()
-
-    await userEvent.type(screen.getByLabelText(/new password/i), 'correct horse battery')
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'correct horse battery')
-    await userEvent.click(screen.getByRole('button', { name: /save password/i }))
-
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
     expect(location.reload).not.toHaveBeenCalled()
-  })
-
-  it('resumes at the flag-clear on retry, because the password is already changed', async () => {
-    authed(true)
-    mockClear.mockRejectedValueOnce(new Error('rpc down')).mockResolvedValueOnce(undefined)
-    renderApp()
-
-    await userEvent.type(screen.getByLabelText(/new password/i), 'correct horse battery')
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'correct horse battery')
-    await userEvent.click(screen.getByRole('button', { name: /save password/i }))
-    await screen.findByRole('alert')
-
-    await userEvent.click(screen.getByRole('button', { name: /save password/i }))
-    await waitFor(() => expect(mockClear).toHaveBeenCalledTimes(2))
-
-    // Retrying updateUser would be rejected by GoTrue as `same_password`, stranding the user in a
-    // loop with no visible cause. Step 1 must not run again.
-    expect(mockUpdateUser).toHaveBeenCalledTimes(1)
-    expect(location.reload).toHaveBeenCalled()
   })
 })
