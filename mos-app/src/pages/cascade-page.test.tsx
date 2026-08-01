@@ -27,6 +27,7 @@ const viewerPerson: PeopleRow = {
   user_id: 'user-1',
   full_name: 'Cahya Cafe',
   email: 'cahya@example.test',
+  must_change_password: false,
   archived_at: null,
   created_at: '2026-07-06T00:00:00Z',
   updated_at: '2026-07-06T00:00:00Z',

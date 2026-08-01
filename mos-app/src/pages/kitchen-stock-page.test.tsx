@@ -39,7 +39,7 @@ function viewer(accessRoles: string[]): AuthState {
     viewer: {
       person: {
         id: 'p-1', org_id: 'org-1', user_id: 'auth-1', full_name: 'Budi Santoso',
-        email: 'budi@example.test', archived_at: null,
+        email: 'budi@example.test', must_change_password: false, archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
       roles: [],

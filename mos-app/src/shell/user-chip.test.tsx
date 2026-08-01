@@ -20,6 +20,7 @@ const baseViewer = {
     user_id: 'auth-user-001',
     full_name: 'Dina Pratiwi',
     email: 'dina@example.test',
+    must_change_password: false,
     archived_at: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

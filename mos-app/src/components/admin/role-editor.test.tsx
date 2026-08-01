@@ -32,6 +32,7 @@ const ADMIN_VIEWER: AuthState = {
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
       email: 'admin@example.test',
+      must_change_password: false,
       archived_at: null,
       created_at: '',
       updated_at: '',

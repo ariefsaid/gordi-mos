@@ -6,6 +6,10 @@ export interface PeopleRow {
   user_id: string | null
   full_name: string
   email: string | null
+  // #131: the current password was set by an admin and is known to them. The shell blocks on a
+  // set-password screen until the holder replaces it. Cleared only by
+  // shared.clear_must_change_password() — a direct write is refused by shared._guard_people().
+  must_change_password: boolean
   archived_at: string | null
   created_at: string
   updated_at: string

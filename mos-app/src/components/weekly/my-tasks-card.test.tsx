@@ -49,6 +49,7 @@ const taskBlocked = {
   description: null, due_date: '2026-06-17', // overdue
   objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-15T08:00:00Z',
+  must_change_password: false,
   archived_at: null, created_by: VIEWER_ID,
   created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-15T08:00:00Z',
 }
@@ -61,6 +62,7 @@ const taskInProgress = {
   description: null, due_date: '2026-06-22',
   objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-20T03:00:00Z',
+  must_change_password: false,
   archived_at: null, created_by: VIEWER_ID,
   created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-20T03:00:00Z',
 }
@@ -73,6 +75,7 @@ const taskOpen = {
   description: null, due_date: '2026-07-02',
   objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-20T01:00:00Z',
+  must_change_password: false,
   archived_at: null, created_by: 'person-003',
   created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-20T01:00:00Z',
 }
@@ -86,6 +89,7 @@ const taskDone = {
   description: null, due_date: '2026-06-10', // a past due date, but Done ⇒ not overdue
   objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-18T08:00:00Z',
+  must_change_password: false,
   archived_at: null, created_by: VIEWER_ID,
   created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-18T08:00:00Z',
 }
@@ -99,6 +103,7 @@ const taskOther = {
   description: null, due_date: '2026-07-05',
   objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-19T00:00:00Z',
+  must_change_password: false,
   archived_at: null, created_by: 'person-999',
   created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-19T00:00:00Z',
 }

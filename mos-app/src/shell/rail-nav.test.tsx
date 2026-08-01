@@ -23,6 +23,7 @@ function setAuthAs(accessRoles: string[] = []) {
         user_id: 'auth-user-001',
         full_name: 'Test User',
         email: 'test@example.test',
+        must_change_password: false,
         archived_at: null,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
