@@ -49,10 +49,18 @@ comment on function shared._clear_must_change_password_on_pw_change() is
 -- AFTER UPDATE would clear the flag on any incidental auth write — a sign-in stamp is enough — and
 -- the gate would be exactly as forgeable as the RPC it replaces. Asserted by AC-131c2.
 --
--- ponytail: "the hash changed" is the proof, which is one step short of "the hash changed to
--- something the admin never saw". If GoTrue ever rehashes on login (it does not today), that would
--- read as a rotation. Upgrade path if it ever does: keep the provisioned digest in a definer-only
--- table — NOT a column on shared.people, which is readable org-wide — and compare against it.
+-- KNOWN RESIDUAL, do not read this trigger as "the flag can no longer be wrong". "The hash changed"
+-- is weaker than "the password is now one the admin never saw", and the gap is reachable: an admin
+-- holding the provisioned password can sign in as the holder BEFORE their first login and cycle it
+-- A -> B -> A. GoTrue rejects only same-as-current (422 same_password), not a cycle, so the flag
+-- ends up false with the admin-known password live. The holder is never prompted and never rotates.
+--
+-- This trigger cannot detect it: bcrypt salts per write, so the A-again hash differs from the
+-- original, and the DB never sees plaintext. Closing it needs password history where the plaintext
+-- is — GoTrue, i.e. #130's territory — not here. Tracked in the advisory.
+--
+-- (An earlier draft of this comment worried instead about GoTrue rehashing on login. That is not
+-- the real gap, and it does not happen today.)
 drop trigger if exists clear_must_change_password_on_pw_change on auth.users;
 create trigger clear_must_change_password_on_pw_change
 after update of encrypted_password on auth.users

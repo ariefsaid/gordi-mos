@@ -110,9 +110,13 @@ select is(
 -- fires on that write, so it clears the flag mid-RPC and the RPC's own update re-raises it. If
 -- anyone ever reorders those two statements, the reset would silently hand out an admin-known
 -- password with the gate already disarmed — the exact hole this migration closes, reopened.
+-- d3 must be UNFLAGGED to act: since 20260801000002 a flagged session's current_org_id() is null,
+-- so a flagged admin resolves no org and every admin RPC refuses it. That is the #131 authz gate
+-- doing its job, not a fixture detail — an admin who has not rotated their own provisioned password
+-- cannot administer anyone.
 reset role;
 update shared.people set must_change_password = false
- where id = '00000000-0000-0000-0000-0000000000d7';
+ where id in ('00000000-0000-0000-0000-0000000000d3','00000000-0000-0000-0000-0000000000d7');
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select lives_ok($$ select shared.admin_reset_password('00000000-0000-0000-0000-0000000000d7') $$,
@@ -124,22 +128,29 @@ select is(
    and the RPC re-raises after it. Statement order in that RPC is load-bearing.');
 
 -- ── The gate cannot be disarmed by a direct write ───────────────────────────────────────────
--- people_update_admin grants UPDATE on any person in the org to any ADMIN. Without a guard, admin B
--- — whose password admin A chose and therefore knows — could clear their own flag and skip the
--- rotation entirely. That is the population the flag exists for, so this is the assertion that
--- decides whether the gate is real.
+-- people_update_admin grants UPDATE on any person in the org to any ADMIN, so without _guard_people
+-- an admin could simply write the flag off and skip the rotation.
+--
+-- The target is ANOTHER person's flag (d7), not the caller's own. Since 20260801000002 a flagged
+-- caller has no org at all — current_org_id() is null, so their UPDATE matches zero rows and never
+-- reaches the guard. Self-disarm is therefore blocked twice over. What the guard still uniquely
+-- prevents is an UNFLAGGED admin reaching across and disarming a colleague's gate, which is the
+-- shape asserted here.
 reset role;
 update shared.people set must_change_password = true
+ where id = '00000000-0000-0000-0000-0000000000d7';
+update shared.people set must_change_password = false
  where id = '00000000-0000-0000-0000-0000000000d3';
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select throws_ok($$
   update shared.people set must_change_password = false
-   where id = '00000000-0000-0000-0000-0000000000d3'
+   where id = '00000000-0000-0000-0000-0000000000d7'
 $$, '42501',
   'must_change_password is cleared only by an actual password change',
-  'AC-131e: an admin cannot clear the flag by a direct write — only changing the password clears it');
+  'AC-131e: an admin cannot clear ANOTHER person''s flag by a direct write — only that person
+   changing their own password clears it');
 
 -- Raising it from an app session IS allowed: that is an admin forcing a rotation, the feature
 -- rather than a bypass. Asserted so the guard cannot later be widened into a blanket block.
