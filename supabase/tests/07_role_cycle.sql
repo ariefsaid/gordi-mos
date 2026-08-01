@@ -2,11 +2,21 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(1);
 
--- Regression: a cyclic reports_to_role_id graph (A reports to B, B reports to A) is insertable
--- today (the self-FK has no acyclicity constraint). The is_manager_of recursive CTE must walk a
--- FINITE role set and TERMINATE — under UNION ALL it loops forever and hangs RLS evaluation.
--- We bound the call with statement_timeout so the old (UNION ALL) code surfaces the hang as an
--- error (RED); the UNION fix makes the walk finite and the call returns a boolean (GREEN).
+-- Regression: the is_manager_of recursive CTE must walk a FINITE role set and TERMINATE on a cyclic
+-- reports_to_role_id graph — under UNION ALL it loops forever and hangs RLS evaluation. We bound the
+-- call with statement_timeout so the old (UNION ALL) code surfaces the hang as an error (RED); the
+-- UNION fix makes the walk finite and the call returns a boolean (GREEN).
+--
+-- #136 installed shared._guard_role_hierarchy(), so a cycle can no longer be WRITTEN through normal
+-- paths — and this test's fixture is exactly such a write. The trigger is disabled for the fixture
+-- below, deliberately, because this test's subject is is_manager_of, not the guard (the guard has
+-- its own file, 90_role_hierarchy_acyclicity.sql).
+--
+-- This assertion is NOT made redundant by that guard. The guard closes the write path; it does not
+-- make already-cyclic data impossible — a restore from a pre-#136 backup, a trigger-bypassing data
+-- migration, or a direct superuser fix-up can all still produce one. Termination is the property
+-- that keeps such a graph merely wrong instead of a hang, so it stays asserted independently.
+alter table shared.roles disable trigger guard_role_hierarchy;
 
 insert into shared.orgs (id, name, slug)
   values ('00000000-0000-0000-0000-0000000000c1', 'Org C', 'org-c');
@@ -20,6 +30,9 @@ insert into shared.roles (id, org_id, business_unit_id, name, reports_to_role_id
   ('00000000-0000-0000-0000-0000000000ce','00000000-0000-0000-0000-0000000000c1','00000000-0000-0000-0000-0000000000c2','Role Outsider', null);
 update shared.roles set reports_to_role_id = '00000000-0000-0000-0000-0000000000cb'
   where id = '00000000-0000-0000-0000-0000000000ca';
+
+-- Cycle is in place; restore the guard so the rest of this file runs under production rules.
+alter table shared.roles enable trigger guard_role_hierarchy;
 
 -- Holder is INSIDE the cycle (holds CycA). Viewer holds the UNRELATED Outsider role: the viewer
 -- matches NO ancestor of the holder, so `exists` cannot short-circuit and must DRAIN the ancestor
