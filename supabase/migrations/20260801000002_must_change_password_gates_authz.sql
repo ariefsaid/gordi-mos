@@ -55,11 +55,14 @@ comment on function shared._current_person_must_change_password() is
   '#131: true while the caller''s password is the admin-set one. Read by shared.current_org_id() to '
   'close every org-scoped policy. SECURITY DEFINER to break RLS recursion via shared.people.';
 
--- No REVOKE here, deliberately. EXECUTE on a function defaults to PUBLIC, so revoking it from
--- public also strips `authenticated` — and current_org_id() is SECURITY INVOKER, so every policy
--- evaluation would then fail with "permission denied for function". Nothing is gained by locking
--- it down anyway: it returns one boolean about the caller's own row, which they can already read
--- from shared.people via people_select_self.
+-- Revoke from PUBLIC, then grant BACK to authenticated explicitly. Both halves are required and the
+-- order matters: EXECUTE defaults to PUBLIC, so the revoke alone also strips `authenticated` — and
+-- since current_org_id() is SECURITY INVOKER and every policy calls it, that turns every query into
+-- "permission denied for function". Verified: the revoke-only form fails the whole pgTAP suite.
+-- The grant is what keeps the seam working; the revoke is what stops anon/PUBLIC reaching a DEFINER
+-- function they have no business calling.
+revoke execute on function shared._current_person_must_change_password() from public, anon;
+grant  execute on function shared._current_person_must_change_password() to authenticated;
 
 -- ── 2. The seam ──────────────────────────────────────────────────────────────────────────────
 -- Body from the LATEST definition (20260611000004), per the scar in the plan. The only change is

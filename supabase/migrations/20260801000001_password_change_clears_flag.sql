@@ -45,6 +45,11 @@ comment on function shared._clear_must_change_password_on_pw_change() is
   'SECURITY DEFINER so it can pass shared._guard_people(), which refuses to clear the flag from an '
   '`authenticated` session. This is the ONLY thing that clears the flag.';
 
+-- Nobody calls this directly — it is reached only as a trigger, which fires in the table's own
+-- context and needs no EXECUTE grant. So the full revoke is safe here, unlike the helper in
+-- ...0002, and it keeps a DEFINER function that can lower the rotation flag off PUBLIC's menu.
+revoke execute on function shared._clear_must_change_password_on_pw_change() from public, anon, authenticated;
+
 -- WHEN (old.encrypted_password is distinct from new.encrypted_password) is the whole point: a plain
 -- AFTER UPDATE would clear the flag on any incidental auth write — a sign-in stamp is enough — and
 -- the gate would be exactly as forgeable as the RPC it replaces. Asserted by AC-131c2.
