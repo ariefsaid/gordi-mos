@@ -77,3 +77,9 @@ mos-app/capture-*.mjs
 # Kept on disk, never tracked — a public repo must not carry a target list (2026-07-30).
 docs/reference/warehouse-online.md
 __pycache__/
+
+# Docs — tracked in their OWN nested repo (docs/.git), NOT by this repo.
+# THIS REPO IS PUBLIC (free GitHub Actions). Code syncs to GitHub; docs stay local.
+# ADRs, decisions, runbooks, infra coordinates, and the archived history all live there.
+# See the banner in CLAUDE.md before adding anything to the public tree.
+docs/
