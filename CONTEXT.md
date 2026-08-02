@@ -234,14 +234,25 @@ _Avoid_: supervisor, lead (except inside role names like "Kitchen Lead")
 **Access role** (a.k.a. Permission):
 What a person may *do* in the app — the app-authorization layer, distinct from their org **Role**
 (position) and from **RACI** (R/A/C/I task ownership). A person may hold several at once; effective
-access is the union. First-slice set is **fixed** (a configurable role↔permission model is the deferred
-upgrade path): **admin** (the *system administrator* — user management + system config; the only role
-that sees the admin UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance**
-(review financial data/dashboards sourced from the ESB warehouse), **member** (default — own tasks, file
-own weekly update, log operational activity if rostered). **manager** is NOT an assigned access role — it
-is *derived* from the role chain (see **Manager**); effective access = assigned access role(s) ∪ derived
-manager. Granting **admin**/**finance** is admin-only and never self-assignable; the first admin is seeded.
+access is the union. The set is a **fixed vocabulary that grows by migration**, six values today:
+**admin** (the *system administrator* — user management + system config; the only role that sees the
+admin UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance** (review
+financial data/dashboards sourced from the ESB warehouse), **member** (default — own tasks, file own
+weekly update, log operational activity if rostered), **manager** (company-wide revenue + COGS/gross
+margin, view-only), **supervisor** (revenue only, within an explicitly granted channel/branch scope).
+Granting **admin** / **finance** / **manager** / **supervisor** is admin-only and never
+self-assignable; the first admin is seeded.
+
+Two senses of "manager" coexist and must not be conflated: the **stored** `manager` access role above,
+and the **derived** reporting-line manager (see **Manager**) which is walked from the role chain and is
+never assigned. Effective access = assigned access role(s) ∪ derived manager capability.
 _Avoid_: role (reserve for org position), permission group, RACI role
+
+**Jabatan** (UI: **Position**):
+The displayed org position a person holds — the same object as **Role**, named in the UI so it is
+never confused with **Access role** (UI: *Access level*). Jabatan says what someone *is*; access role
+says what they may *do*. Neither is ever labelled "Role" in the UI.
+_Avoid_: role (in UI copy), title, access level (that's the authorization axis)
 
 ## Surfaces
 
