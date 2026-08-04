@@ -52,10 +52,18 @@ jobs:
         # SQL line comments are stripped first so a mere *mention* of "security definer" in a
         # comment (e.g. "writes are RPC-only via the SECURITY DEFINER approval RPC") is not a
         # false positive — only an actual definer clause in executable SQL is flagged.
+        #
+        # 2026-08-04: that claim was only half true. `sed 's/--.*//'` strips `--` comments but NOT
+        # SQL *string literals*, so a `comment on function ... is '... SECURITY DEFINER ...'` tripped
+        # the gate on a function explicitly declared `security invoker`. COMMENT ON statements are now
+        # stripped too. Deliberately narrow: a `security definer` clause can never appear inside a
+        # COMMENT ON statement, so this cannot hide a real one. Stripping *all* quoted strings was
+        # rejected — an unbalanced quote anywhere would silently over-strip and turn a security gate
+        # into a false negative, which is far worse than the false positive it fixes.
         run: |
           failed=0
           for f in supabase/migrations/*.sql; do
-            body=$(sed 's/--.*//' "$f")
+            body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
             if echo "$body" | grep -qi 'security definer'; then
               if ! echo "$body" | grep -qi 'revoke execute on function'; then
                 echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
