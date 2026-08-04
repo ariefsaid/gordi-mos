@@ -55,5 +55,11 @@ begin
   return new;
 end $$;
 
+-- SECURITY DEFINER hygiene (integration lint): a trigger function cannot usefully be invoked
+-- directly — Postgres rejects it with "trigger functions can only be called as triggers" — but the
+-- house rule is belt-and-braces on every definer function, with no per-case exemptions to reason
+-- about. The trigger itself is unaffected: triggers execute the function regardless of EXECUTE grants.
+revoke execute on function mos._signal_guard_update() from public, anon, authenticated;
+
 -- DOWN (manual, pre-production): restore the prior body from 20260716000003_mos_signals_rls.sql
 -- (the version without the HIGH-1 content-author guard).

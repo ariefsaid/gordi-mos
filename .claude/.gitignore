@@ -1,0 +1,8 @@
+# .claude workspace repo — versions CURATED config only. Everything else is vendored,
+# generated, or per-machine (skills/, skill-original/, worktrees/, plugins/, settings.local.json).
+/*
+!/.gitignore
+!/agents
+!/skill-overrides
+!/settings.json
+!/launch.json
