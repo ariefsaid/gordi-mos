@@ -40,9 +40,36 @@ _Avoid_: department, division; operating area (that's an **Activity**)
 **Activity**:
 An **operating workstream within a BU** — kitchen, bar, ecommerce (inside Retail Ops); roasting
 (inside B2B Ops). The unit ops surfaces are organized around. A **Module** serves an Activity but
-usually covers only a slice of it (today's Kitchen module = plan/log/stock/review, one part of the
-kitchen Activity); Modules grow Features toward covering their Activity.
+usually covers only a slice of it (today's Café module = plan/log/stock/review for the kitchen
+Activity only); Modules grow Features toward covering their Activity. **The Café Module serves *two*
+Activities — kitchen and bar** (OD-WAY-26); today it ships only the kitchen half.
 _Avoid_: business unit (that's the owning team), app, module (that's the code)
+
+**Branch**:
+An **inventory-and-accounting context in the ERP** — *not* a physical place, and this distinction is
+load-bearing. Gordi has **one physical kitchen**; it produces for several branches, and which branch a
+production run belongs to decides whose raw materials are consumed and whose WIP is credited. The ERP
+models each branch as self-contained, **including branches whose kitchen work physically happens
+elsewhere** — so a WIP movement into such a branch has *no ERP counterpart*, because in its books
+nothing moved.
+_Avoid_: site, location, outlet, store (all imply place — the place is a constant here); "the kitchen"
+as a branch synonym
+
+**Production stream**:
+The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · kitchen`, `GHQ · bar`,
+`RRS · kitchen`. This is the axis the Café Module is scoped on (OD-WAY-26): it selects the item list,
+the ERP coordinates, and the default a capture surface opens on. A person carries a stream assignment
+that **defaults** their surface and filters their item list, but it is a default, **not an access
+boundary** — they can switch to help another branch (OD-WAY-31).
+_Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
+fold destination into action — a storage workaround, not the model; DD-WAY-13)
+
+> **Two traps in this area, both of which have already misled a session:**
+> 1. **A WIP → finished-goods step is not a MOS event.** The ERP's BOM consumes WIP at point of sale.
+>    Do not model it.
+> 2. **The incumbent kitchen app's stock tab reads "Stok HQ", where "HQ" means *the central
+>    kitchen*** — which books to a different branch than the one whose ERP code is `GHQ`. Porting that
+>    label as-is creates a permanent collision.
 
 **Revenue stream**:
 A **reporting lens for money** — Cafe Ops (kitchen + bar POS), Ecommerce, B2B. May map 1:1 to an
@@ -298,10 +325,14 @@ cross-cutting seams: the ESB-outbox `source_module` and a Daily Log entry's `ori
 emitting Module. Distinct from a **Feature** (finer capability *within* a Module) and from a
 **Business Unit** (the owning team) and from an **Activity** (the operating workstream a Module serves — a Module usually covers one slice of one Activity).
 **WIP-based activities share the ops-module spine:** **Kitchen and Bar are both WIP-producing** (they
-pre-produce), so both are served by the **Kitchen Module's** pattern — plan → log → stock → review. The
-eventual per-Activity scoping (a "WIP folder" so the kitchen team sees kitchen WIPs and the bar team bar
-WIPs) is **deliberately deferred** — you don't disrupt an incumbent team's established UX for model-purity;
-change it only as a considered UX decision, not incidentally.
+pre-produce), so both are served by the **Café Module's** pattern — plan → log → stock → review.
+~~The eventual per-Activity scoping is deliberately deferred.~~ **Superseded 2026-08-03 by OD-WAY-26 /
+OD-WAY-25:** per-**Production stream** scoping is now **in MVP scope**, because the bar streams are
+where the business is actually losing money — they reach the ERP by hand today, and the retyping step
+is the failure. The deferral's *reason* still binds, though, and is now the constraint on how it lands:
+**you do not disrupt an incumbent team's established UX for model-purity.** The two streams the
+incumbent app already serves keep their exact behaviour (OD-K-1 parity is behavioural), while the model
+underneath stops folding destination into action type.
 _Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained, below)
 
 **Feature**:
