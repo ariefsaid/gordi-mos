@@ -920,10 +920,12 @@ grant select, insert, update, delete on reporting.esb_ar_reduction to service_ro
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 6. RLS — enabled AND forced on every table
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- FORCE matters: without it the table owner is exempt from its own policies, and the definer
--- functions above run as the owner. Enabled-but-not-forced is a silent hole, so mos_01_rls_posture
--- asserts both flags over pg_class rather than checking a hardcoded list — a table added later
--- without RLS fails the suite instead of sitting outside it.
+-- FORCE subjects the table OWNER to its own policies. Read that narrowly: it does NOT constrain the
+-- definer functions above, which run as a role holding BYPASSRLS, and BYPASSRLS overrides FORCE —
+-- those functions are DEFINER precisely so they can bypass RLS, and each carries its own guards for
+-- that reason. FORCE is kept on every table as defence in depth, binding any future owner or grantee
+-- without BYPASSRLS. mos_01_rls_posture asserts both flags over pg_class rather than against a
+-- hardcoded list, so a table added later without RLS fails the suite instead of sitting outside it.
 alter table mos.objectives                enable row level security;
 alter table mos.objectives                force  row level security;
 alter table mos.work_lines                enable row level security;

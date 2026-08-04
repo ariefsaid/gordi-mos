@@ -739,8 +739,12 @@ grant insert, update on shared.person_access_roles  to authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 7. RLS — enabled AND forced on every table in `shared`
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- FORCE matters: without it the table owner is exempt from its own policies, and the definer
--- functions above run as the owner. Enabled-but-not-forced is a silent hole.
+-- FORCE subjects the table OWNER to its own policies. Read that narrowly: it does NOT constrain the
+-- definer functions above, which run as a role holding BYPASSRLS, and BYPASSRLS overrides FORCE —
+-- those functions are DEFINER precisely so they can bypass RLS, and each carries its own guards for
+-- that reason. FORCE is kept on every table as defence in depth, binding any future owner or grantee
+-- without BYPASSRLS; it is not what holds the line today. Crediting it with that would invite the
+-- next reader to drop the grant and policy posture that is.
 alter table shared.orgs                enable row level security;
 alter table shared.orgs                force  row level security;
 alter table shared.business_units      enable row level security;

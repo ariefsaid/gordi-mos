@@ -20,7 +20,7 @@
 -- DirectMgr ...0d2 holds ops_lead. Org B's log ...ac09 is the cross-tenant subject.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(37);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -237,6 +237,42 @@ select is((select usable_qty from ops.kitchen_stock
 reset role;
 select is((select count(*)::int from integrations.esb_push), (select n + 6 from _outbox_before),
   'six successful approvals created exactly six outbox rows — no path other than approval wrote one');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- I. The minted identifier is scoped to the org that mints it
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- ops.kitchen_batch_seq is keyed (org_id, prefix, log_date), so the counter counts per org and the
+-- identifier it produces is a per-org namespace. ops.log_entries already scopes the same identifier
+-- the same way, on (org_id, batch_id). This section pins kitchen_logs to that scope in both
+-- directions, so a later widening or narrowing goes red rather than being noticed by accident.
+select is(
+  (select string_agg(a.attname, ',' order by a.attnum)
+     from pg_constraint c, unnest(c.conkey) k(attnum), pg_attribute a
+    where c.conrelid = 'ops.kitchen_logs'::regclass and c.contype = 'u'
+      and a.attrelid = c.conrelid and a.attnum = k.attnum),
+  'org_id,batch_id',
+  'the batch identifier is unique on (org_id, batch_id) — the same scope its counter works in, and the same scope ops.log_entries uses for it');
+
+select lives_ok($$
+  insert into ops.kitchen_logs
+    (org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi,
+     submitted_by, batch_id)
+  values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-00000000bb09','2026-06-20',
+          '00000000-0000-0000-0000-00000000bf09','kitchen','produce',
+          '00000000-0000-0000-0000-00000000ab09',9,'00000000-0000-0000-0000-0000000000b4',
+          'PR-20260620-001')
+  $$, 'each org keeps its own batch-id namespace: the same identifier in another org is a different batch, and both are allowed');
+
+select throws_ok($$
+  insert into ops.kitchen_logs
+    (org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi,
+     submitted_by, batch_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20',
+          '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
+          '00000000-0000-0000-0000-00000000ab01',9,'00000000-0000-0000-0000-0000000000d1',
+          'PR-20260620-001')
+  $$, '23505', null,
+  '...and within one org it is still unique, so the identifier the approval minted cannot be reused there');
 
 select * from finish();
 rollback;

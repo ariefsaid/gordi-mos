@@ -242,7 +242,11 @@ create table ops.kitchen_logs (
   review_note      text,
   reviewed_by      uuid references shared.people(id) on delete set null,
   reviewed_at      timestamptz,
-  batch_id         text unique,
+  -- Minted at approval. Its uniqueness is scoped to the org, below, matching the counter that mints
+  -- it — ops.kitchen_batch_seq is keyed (org_id, prefix, log_date) — and matching how the same
+  -- identifier is already scoped on ops.log_entries, whose partial unique index is on
+  -- (org_id, batch_id). One tenant's batch ids are its own namespace, exactly as its counter is.
+  batch_id         text,
 
   -- ── ERP posting history (OD-K-4) ────────────────────────────────────────────────────────────
   -- posted_to_esb was an audit mirror on both prior chains: DD-WAY-20 verified that NO predicate
@@ -260,7 +264,11 @@ create table ops.kitchen_logs (
 
   -- AC-011: a MOS-authored row must name its submitter; an imported row need not (OD-WAY-38).
   constraint kitchen_logs_submitter_required_for_mos check (
-    source <> 'mos' or submitted_by is not null)
+    source <> 'mos' or submitted_by is not null),
+
+  -- The batch identifier is unique WITHIN an org, which is the scope its counter works in. NULLs are
+  -- distinct under the default semantics, so the many rows awaiting approval are unaffected.
+  constraint kitchen_logs_batch_id_org_key unique (org_id, batch_id)
 );
 comment on table ops.kitchen_logs is
   'Production fact table (FR-020), increment semantics (FR-021). Scoped by the (branch, activity) production stream (OD-WAY-28). Submitted until a gated approval (FR-024/044). Carries Teable history imported at the flip alongside MOS-authored rows (OD-WAY-38).';
@@ -283,10 +291,9 @@ create index kitchen_logs_org_date_idx    on ops.kitchen_logs (org_id, log_date)
 create index kitchen_logs_org_status_idx  on ops.kitchen_logs (org_id, status);
 create index kitchen_logs_item_date_idx   on ops.kitchen_logs (org_id, wip_item_id, log_date);
 create index kitchen_logs_org_stream_idx  on ops.kitchen_logs (org_id, branch_id, activity, log_date);
--- The enqueue refusal looks a log up by (org_id, batch_id); batch_id alone is already unique, but the
--- org column keeps the guard's lookup from depending on that uniqueness holding across tenants.
-create index kitchen_logs_org_batch_idx   on ops.kitchen_logs (org_id, batch_id)
-  where batch_id is not null;
+-- The enqueue refusal looks a log up by (org_id, batch_id). No separate index for it: the
+-- kitchen_logs_batch_id_org_key constraint above already indexes exactly those two columns in that
+-- order, so a second one would be write cost for no read.
 
 create trigger kitchen_logs_set_updated_at
   before update on ops.kitchen_logs

@@ -3,9 +3,12 @@
 --
 -- AC-005: RLS is enabled on every table in `ops`. Asserted as a CATCH-ALL over the catalog rather
 -- than against a list of table names, so a table added by a later ticket without RLS fails THIS file
--- instead of quietly sitting outside its plan. FORCE is asserted the same way and for the same
--- reason: without it the table owner is exempt from its own policies, and the approval path runs as
--- the owner, so enabled-but-not-forced is a silent hole rather than a cosmetic omission.
+-- instead of quietly sitting outside its plan. FORCE is asserted the same way, but read its meaning
+-- precisely: FORCE subjects the table OWNER to its own policies, and it does NOT constrain the
+-- approval path, which runs as a role holding BYPASSRLS — BYPASSRLS overrides FORCE, and that path
+-- is SECURITY DEFINER precisely so it can bypass RLS. FORCE is asserted as defence in depth against
+-- a future owner or grantee that does not hold BYPASSRLS. The controls actually holding the line are
+-- the three PRIVILEGE assertions below.
 --
 -- The outbox landing zone is an `integrations` table authored in this pass (its trigger is AC-012's
 -- refusal and a trigger needs its table), so its posture is asserted here with the rest of it rather

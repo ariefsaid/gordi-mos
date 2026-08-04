@@ -403,9 +403,23 @@ grant select, insert, update on ops.kitchen_plans to service_role;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 6. RLS posture
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- ENABLED and FORCED on every table. FORCE matters here for the same reason it does in `shared`:
--- without it the table owner is exempt from its own policies, and the approval path runs as the
--- owner, so enabled-but-not-forced is a silent hole rather than a cosmetic omission.
+-- ENABLED and FORCED on every table.
+--
+-- ⚠ BE PRECISE ABOUT WHAT FORCE BUYS, because the obvious reading credits it with work it does not
+-- do. FORCE subjects the table OWNER to its own policies. It does NOT constrain the approval path:
+-- that function is SECURITY DEFINER and runs as the owning role, which holds BYPASSRLS, and
+-- BYPASSRLS overrides FORCE. The approval path is meant to bypass RLS — that is why it is DEFINER,
+-- and why every guard it needs is written into its body rather than left to a policy.
+--
+-- What actually keeps the app tier out of posting state and stock is PRIVILEGE and the absence of a
+-- write policy: no INSERT/UPDATE grant on ops.kitchen_stock or integrations.esb_push, no grant at
+-- all on ops.kitchen_batch_seq, and no write policy for `authenticated` on any of the three. Those
+-- are the controls; ops_01_rls_posture.sql asserts them directly for that reason.
+--
+-- FORCE stays, and stays on everything, as defence in depth: it binds any future owner or grantee
+-- that does NOT hold BYPASSRLS, and enabled-but-not-forced would be a real hole for such a role. It
+-- is simply not the thing holding the line today, and a comment that says otherwise is how the next
+-- reader removes the grant posture and keeps the flag.
 alter table ops.log_entries       enable row level security;
 alter table ops.log_entries       force  row level security;
 alter table ops.wip_items         enable row level security;
