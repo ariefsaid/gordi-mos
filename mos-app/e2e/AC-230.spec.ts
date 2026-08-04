@@ -135,8 +135,11 @@ test.beforeAll(async () => {
   // This is a fixture collision, not an app bug (two distinct work-lines that happen to share a
   // name render as two distinct groups — correct). Detach CASCADE's two process tasks (null their
   // work_line_id) for the duration of this journey so Cahya's read-path is exactly this spec's
-  // seed (1 process + 1 project). Restored verbatim in afterAll; AC-305 runs later (alphabetical)
-  // and sees its original seeded state. The detach is idempotent (no-op if CASCADE is absent).
+  // seed (1 process + 1 project). Restored verbatim in afterAll so the run leaves the seeded state
+  // as it found it. The detach is idempotent (no-op if CASCADE is absent).
+  //
+  // The CASCADE fixture itself stays: the AC-305 spec that consumed it is deleted with the cascade
+  // surface (#179, OD-WAY-32), but this spec still needs those rows to exist to isolate against.
   await execSql(`
     UPDATE mos.tasks SET work_line_id = NULL
     WHERE id IN ('c3050000-0000-0000-0000-000000000101', 'c3050000-0000-0000-0000-000000000102');
@@ -147,8 +150,8 @@ test.beforeAll(async () => {
 // ── Cleanup ────────────────────────────────────────────────────────────────────
 // Delete only the tasks seeded by this spec. Work-lines are left intact.
 test.afterAll(async () => {
-  // Restore the AC-305 CASCADE process tasks detached in beforeAll (work_line_id → c305…-0001) so
-  // AC-305 sees its seeded state. Idempotent + safe even if beforeAll's detach never ran.
+  // Restore the CASCADE process tasks detached in beforeAll (work_line_id → c305…-0001) so the
+  // seeded state survives this run. Idempotent + safe even if beforeAll's detach never ran.
   await execSql(`
     UPDATE mos.tasks SET work_line_id = 'c3050000-0000-0000-0000-000000000001'
     WHERE id IN ('c3050000-0000-0000-0000-000000000101', 'c3050000-0000-0000-0000-000000000102');
