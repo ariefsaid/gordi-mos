@@ -66,11 +66,21 @@ jobs:
         # the boot is already the floor cost here. Not worth the risk for a few seconds.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
+      # NOTE (2026-08-04): this lint appears in BOTH the `pgtap` and `db` jobs below — keep the two
+      # copies in step. `sed 's/--.*//'` strips `--` comments but NOT SQL *string literals*, so a
+      # `comment on function ... is '... SECURITY DEFINER ...'` tripped the gate on a function
+      # explicitly declared `security invoker`. COMMENT ON statements are now stripped too.
+      # Deliberately narrow: a `security definer` clause can never appear inside a COMMENT ON
+      # statement, so this cannot hide a real one. Stripping *all* quoted strings was rejected — one
+      # unbalanced quote anywhere would silently over-strip and turn a security gate into a false
+      # negative, far worse than the false positive it fixes. Found on `v4-redesign`, where a ported
+      # comment tripped it (PR #175). No file on `dev` trips it today; this lands ahead of that
+      # surface arriving.
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
         run: |
           failed=0
           for f in supabase/migrations/*.sql; do
-            body=$(sed 's/--.*//' "$f")
+            body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
             if echo "$body" | grep -qi 'security definer'; then
               if ! echo "$body" | grep -qi 'revoke execute on function'; then
                 echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
@@ -124,7 +134,7 @@ jobs:
         run: |
           failed=0
           for f in supabase/migrations/*.sql; do
-            body=$(sed 's/--.*//' "$f")
+            body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
             if echo "$body" | grep -qi 'security definer'; then
               if ! echo "$body" | grep -qi 'revoke execute on function'; then
                 echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
