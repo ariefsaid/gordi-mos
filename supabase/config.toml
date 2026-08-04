@@ -74,7 +74,10 @@ enabled = true
 # seed.dev-auth.sql + seed.dev-tasks.sql are DEV-ONLY: dev-persona Auth accounts
 # (one-click demo login) + a sample Tasks dataset for the demo/design review.
 # Both must stay out of any prod seed run (they reference the fictional *.dev data).
-sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql"]
+# ⚠ NARROWED FOR THE SCHEMA SQUASH (OD-WAY-35, #181–#186). seed.dev-tasks.sql seeds mos.tasks and
+# seed.dev-auth.sql links the dev personas to auth users; both are still in the repo, and the ticket
+# that restores the `mos` baseline re-lists them here.
+sql_paths = ["./seed.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
