@@ -2,13 +2,16 @@
 -- Real names/emails ONLY via the gitignored deploy seed. NEVER add real PII here.
 -- Fixed UUIDs so tests and fixtures can reference them deterministically.
 --
--- ⚠ SQUASH IN PROGRESS (OD-WAY-35, #181–#186). This file currently seeds the `shared` half only,
--- because #181 has authored `shared` and the mos / ops / integrations / reporting baselines land in
--- #182–#185. Their seed sections — certified metrics, WIP items, kitchen plans, the COGS
--- read-models, the dev task set, the dev auth personas — come back with the schema they belong to.
--- The prior content is recoverable from `origin/dev`. `supabase/config.toml` has `db.seed.sql_paths`
--- narrowed to this file for the same reason; seed.dev-tasks.sql and seed.dev-auth.sql are still in
--- the repo and are re-listed by the ticket that restores `mos`.
+-- ⚠ SQUASH IN PROGRESS (OD-WAY-35, #181–#186). `shared` (#181) and `mos` (#182) are authored; the
+-- ops / integrations / reporting baselines land in #183–#185, so their seed sections — WIP items,
+-- kitchen plans, the COGS read-models — are still absent and come back with the schema they belong
+-- to. The prior content is recoverable from `origin/dev`.
+--
+-- `supabase/config.toml`'s db.seed.sql_paths is RESTORED as of #182: seed.dev-tasks.sql and
+-- seed.dev-auth.sql are applied again, so `supabase db reset` leaves a database with working demo
+-- logins. Both only need `shared` and `mos`, which now exist. Do not narrow that list again — the
+-- frontend chain shares this local stack and a missing dev login reads as a broken app rather than
+-- a missing seed (docs/gotchas.md).
 
 -- The single org (OD-P1-1).
 insert into shared.orgs (id, name, slug) values
@@ -115,3 +118,23 @@ insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'finance')
 on conflict (person_id, access_role) do nothing;
+
+-- ── mos: the certified-metric registry (ADR-0022 D6) ─────────────────────────────────────────
+-- Repeated here for the same reason as the branch catalog above: the migration seeds every org that
+-- exists AT MIGRATION TIME, and on a fresh `supabase db reset` the Gordi org is created by this
+-- file, after migrations have run. The definitions themselves are authored in
+-- 20260805000007_mos_functions.sql — change them there and mirror the change here, never only here.
+insert into mos.certified_metrics (key, org_id, name, meaning, unit, grain, certified, certified_at) values
+  (
+    'cogs.budgeted', '10000000-0000-0000-0000-000000000001',
+    'Budgeted COGS',
+    'A menu item''s BOM (recipe qty x materials) costed at the linked ingredient cost lines — the certified budgeted COGS that pricing and budgeting both consume (ADR-0022 D1).',
+    'IDR', 'menu item', true, now()
+  ),
+  (
+    'margin.gross_pct', '10000000-0000-0000-0000-000000000001',
+    'Gross margin %',
+    'Projected gross margin at a candidate price against the linked certified budgeted COGS — (price - cogs) / price. Read-only pre-flight; MOS never sets a price (ADR-0022 D5).',
+    'percent', 'menu item x price', true, now()
+  )
+on conflict (org_id, key) do nothing;
