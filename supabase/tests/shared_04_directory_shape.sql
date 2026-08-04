@@ -5,7 +5,7 @@
 -- it degrades safely if the hook's org/person invariant were ever violated.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(14);
 
 select shared._test_seed_directory();
 
@@ -60,6 +60,17 @@ select ok(not shared.is_manager_of('00000000-0000-0000-0000-0000000000d1'),
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
 select ok(not shared.is_manager_of('00000000-0000-0000-0000-0000000000d2'),
   'a subordinate does not manage their own manager — the relation is strictly upward');
+
+-- ── is_managed_by: the same chain, asked from the other end ──────────────────────────────────
+-- Sharing runs the opposite way from reviewing, so both directions exist. Asserted separately
+-- because "the reverse of a correct function" is not itself a proof — the swap is easy to get wrong.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
+select ok(shared.is_managed_by('00000000-0000-0000-0000-0000000000d2'),
+  'is_managed_by is true when the named person is the caller''s manager');
+select ok(not shared.is_managed_by('00000000-0000-0000-0000-0000000000d4'),
+  'is_managed_by is false for a peer — it is not merely "we are related"');
+select ok(not shared.is_managed_by('00000000-0000-0000-0000-0000000000b4'),
+  'is_managed_by is false for a person in another org (fail closed across the tenant boundary)');
 
 -- ── Fail-closed on an inconsistent claim ─────────────────────────────────────────────────────
 -- is_manager_of's correctness relies on the hook minting org_id and person_id from the SAME people

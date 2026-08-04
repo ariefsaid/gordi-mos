@@ -208,6 +208,46 @@ $$;
 comment on function shared.is_manager_of(uuid) is
   'True iff current person holds a role strictly above any role the target holds (recursive union, OD-P1-7). Cycle-safe: terminates on a cyclic graph.';
 
+-- The REVERSE question: does p_manager manage ME? Both directions are needed because sharing runs
+-- the other way from reviewing — a manager shares a user view TO their reports, so the VIEWER asks
+-- "does the owner manage me". Same recursion, source and target swapped, same UNION cycle-safety.
+-- It lives here, with the directory it walks, rather than inside the migration of whichever schema
+-- happens to be its first consumer.
+create or replace function shared.is_managed_by(p_manager_person_id uuid)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with recursive
+  current_roles as (
+    select pr.role_id from shared.person_roles pr
+    where pr.person_id = shared.current_person_id()
+  ),
+  ancestor_roles as (
+    select r.id, r.reports_to_role_id
+    from shared.roles r
+    join current_roles cr on cr.role_id = r.id
+    union
+    select parent.id, parent.reports_to_role_id
+    from shared.roles parent
+    join ancestor_roles a on a.reports_to_role_id = parent.id
+  ),
+  manager_roles as (
+    select pr.role_id from shared.person_roles pr
+    where pr.person_id = p_manager_person_id
+  )
+  select exists (
+    select 1
+    from ancestor_roles a
+    join manager_roles mr on mr.role_id = a.id
+    where a.id not in (select role_id from current_roles)
+  )
+$$;
+comment on function shared.is_managed_by(uuid) is
+  'True iff p_manager_person_id manages the CURRENT person — the reverse of is_manager_of. Backs manager-to-report sharing. SECURITY INVOKER; cycle-safe.';
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 2. Access roles — what a person may DO (CONTEXT.md "Access role", ADR-0011 D5)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
