@@ -284,6 +284,16 @@ comment on column shared.branches.archived_at is 'Soft-retire timestamp. NULL = 
 create index branches_org_idx on shared.branches (org_id);
 create index branches_active_org_idx on shared.branches (org_id) where archived_at is null;
 
+-- The composite-FK target. A composite foreign key needs a unique index over exactly its referenced
+-- columns, and (org_id, id) is meaningful only to the surfaces that link to this catalog while
+-- carrying their own org_id — reporting's fact rows do exactly that (...0014). It is redundant with
+-- the primary key by content (id alone is already unique) and exists solely so the org seam on those
+-- links can be declared rather than triggered.
+create unique index branches_org_id_key on shared.branches (org_id, id);
+comment on index shared.branches_org_id_key is
+  'Composite-FK target for branch links that must stay inside one org (reporting fact rows). '
+  'Redundant with the primary key by content; it exists so the org seam is declarative.';
+
 create trigger branches_set_updated_at
   before update on shared.branches
   for each row execute function shared.set_updated_at();

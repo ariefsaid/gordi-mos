@@ -27,7 +27,8 @@
 --     OD-WAY-39 rules out by name: it turns a new ERP branch into a failed nightly job, moving the
 --     breakage from ingest-time to constraint-time rather than removing it.
 --   * What the link DOES carry is a composite foreign key on (org_id, branch_id) into
---     shared.branches (org_id, id) — see the unique index below. This is deliberate and it is not a
+--     shared.branches (org_id, id), whose unique index (shared.branches_org_id_key) is authored with
+--     the catalog itself in ...0001. This is deliberate and it is not a
 --     hard FK on the fact row's ERP identity: under MATCH SIMPLE a composite FK is NOT ENFORCED AT
 --     ALL when any of its columns is null, so an unlinked row is unconstrained, which is exactly
 --     propose-not-reject's resting state. The moment a link IS set, it must point at a branch in the
@@ -70,7 +71,8 @@
 --       drop table reporting.ingredient_cost_lines cascade;
 --       drop table reporting.sales_margin_daily cascade;
 --       drop table reporting.sales_daily_revenue cascade;
---       drop index shared.branches_org_id_key;
+--       (shared.branches_org_id_key, the composite-FK target these links point at, is dropped by
+--        ...0001's DOWN, which owns shared.branches.)
 --       (reporting.esb_ar_reduction and the schema itself are dropped by ...0005's DOWN, which owns
 --        them; `create schema reporting` lives in ...0001 with the other four.)
 
@@ -82,20 +84,6 @@ comment on schema reporting is
   'Curated financial read-models snapshotted from the ESB warehouse. Read by finance and admin '
   '(everything), manager (revenue + margin, company-wide) and supervisor (revenue, within a granted '
   'channel/branch scope). No end-user write path exists on any table in it.';
-
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 0. The composite-FK target on the branch catalog
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- One index on a `shared` table, authored from the `reporting` pass for a dependency reason — the
--- same class as reporting.esb_ar_reduction in the `mos` pass and integrations.esb_push in the `ops`
--- pass. A composite FK needs a unique index over exactly its referenced columns, and (org_id, id) is
--- meaningful only to the surfaces that link to the catalog while carrying their own org_id. It is
--- redundant with the primary key by content (id alone is already unique) and exists solely so the
--- org seam on the link can be declared rather than triggered.
-create unique index branches_org_id_key on shared.branches (org_id, id);
-comment on index shared.branches_org_id_key is
-  'Composite-FK target for branch links that must stay inside one org (reporting fact rows). '
-  'Redundant with the primary key by content; it exists so the org seam is declarative.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 1. reporting.sales_daily_revenue — the revenue fact
