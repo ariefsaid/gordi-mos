@@ -8,10 +8,10 @@ OS constellation (see `docs/decisions.md` OD-P0-9).
 ## Work
 
 **Task**:
-The unit of owned work and the **cascade-bridgeable unit** (layer 6) — always carries R and A people, a
-business unit, and a status. Its permanent cascade parent is a **Project/Process** (layer 4); the
-link is an additive nullable seam (ADR-0003/0014) so the cascade grows in without reshaping the task. A
-Task never routes *through* an Output — Output is an optional side-grouping, not a link in the chain.
+The unit of owned work and the **bottom of the cascade** — always carries R and A people, a business
+unit, and a status. Its cascade parent is a **Project/Process**; the link is an additive nullable seam
+(ADR-0003/0014). The cascade is **three levels**, so there is nothing below a Task and nothing between it
+and its Project/Process (`OD-WAY-32`).
 _Avoid_: action item, to-do, work item, ticket
 
 **Checklist item** (a.k.a. subtask):
@@ -76,8 +76,18 @@ A **reporting lens for money** — Cafe Ops (kitchen + bar POS), Ecommerce, B2B.
 Activity or span several; owned by the reporting plane, not the org chart.
 _Avoid_: activity / BU (when grouping revenue), channel (reserve for the POS/B2B source field)
 
-**Follow-up**:
-A work item for chasing an outstanding commitment — a **B2B AR invoice** or a retail **Pending bill**.
+**Follow-up** — ⚑ **dark, deferred, and being renamed. Read `OD-WAY-34` before touching it.**
+A **finance/accounting** record, **not** a work item and **not** part of Work (owner, 2026-08-04: *"this
+is not a work/task/process activity from a task management perspective, this is a finance accounting
+activity"*). Scope is the **retail Pending bill stream only** — the B2B AR stream is *not* a problem,
+because the ERP is used exactly as intended there. The job is **reconciliation, not chasing**: knowing
+which bills are open and which are closed, which today lives only in a hand-kept finance spreadsheet.
+Deferred until directly after the MVP; the shipped table stays dark and out of #155's rebuild
+(`DD-WAY-16`). The name itself is wrong — "Follow-up" names chasing — and should be replaced with a
+reconciliation noun when it is built.
+
+*The description below is the shipped model, retained because the evidence-gated settle survives whatever
+the table becomes.* Its chase states, its `b2b_ar` kind and its lane split do **not** survive.
 A task-family record (counterparty, amount, due) attached to the underlying money record; worked from
 a queue in **Work**, with comments/@mentions like any task. **Settlement lifecycle MOS owns:** open (aging)
 → **chased** (contact logged: when + who) → **promised** (promise-to-pay date) → **partial** (payment logged,
@@ -97,8 +107,12 @@ _Avoid_: reminder, chase (as nouns), collection (accounting jargon)
 **Pending bill**:
 A **retail** POS sale left unpaid at transaction time — mainly owners and regulars running a tab.
 Distinct from B2B AR (formal invoices). ESB records issuance and aggregate journal reductions only;
-invoice/tab-grain settlement truth is owned by MOS (today: sheets — to be ported).
-_Avoid_: AR (that's the B2B stream), tab (informal, UI copy ok), debt
+invoice/tab-grain settlement truth is owned by MOS (today: sheets — **porting deferred to directly after
+the MVP**, `OD-WAY-34`). ⚑ **This is the only AR stream MOS addresses.** The ERP is not malfunctioning: a
+sales invoice *is* created and correctly carried as owed, and the deferred-payment method is a deliberate
+local extension for owners and regulars. Only the **closure event at invoice grain** is missing, because
+settlement happens as a ledger entry.
+_Avoid_: AR (that's the B2B stream, which needs no MOS surface), tab (informal, UI copy ok), debt
 
 **Blocked**:
 A task that cannot proceed until something outside the R person's control resolves. Subsumes the
@@ -107,28 +121,43 @@ _Avoid_: waiting, on hold, stuck
 
 ## Cascade (Strategy-to-Execution Stack)
 
-The six-level spine the MOS grows into — **Strategy → Objective → Outcome → Project/Process → Output →
-Task** (vault calls layer 4 "Program/Process"; in-app the term is Project/Process). Each level has its
-own owner, timebox, and measure; lower levels *contribute* up, they don't copy down. The first slice
-builds three (Objective · Project/Process · Task); the rest are vocabulary that folds in additively
-(ADR-0014). Adopted because a 3-level model
-collapses the two cuts that make recurring work trackable — aspiration≠measurement (Objective≠Outcome)
-and work-system≠artifact (Program/Process≠Output).
+**Three levels: Objective → Project/Process → Task.** Each level has its own owner and timebox; lower
+levels *contribute* up, they don't copy down.
 
-**Objective** (layer 2):
-A yearly, measurable goal that work rolls up to — the "what we want this year." Carries A/R ownership and
-a lane; it is the grouping a person's work is read against. (Strategy, layer 1, folds in above later as
-the same self-similar shape, via a nullable parent.)
+**"Cascade" is vocabulary, never a surface.** It names the relation, and it must never appear as a route,
+a rail item, or a UI label — the requirement it stands for is **roll-up and drill-down from any level, on
+the records themselves**: an Objective shows its Projects/Processes, a Project/Process shows its Objective
+and its Tasks. Progress is a **count roll-up** of child status, two hops. There is no measure or target
+field, and no separate measurement layer.
+
+*Why three and not six.* The founding model had six — Strategy · Objective · Outcome · Program/Process ·
+Output · Task — and ADR-0014 kept the other three as vocabulary-that-folds-in-later. `OD-WAY-32` (owner,
+2026-08-04) **drops them**: *"to have 6 level is too much to implement, so we cut it down to 3 for this
+MOS app."* `OD-WAY-33` drops the measure layer with them, because a target is a field someone has to keep
+current, and that ceremony is what killed both earlier attempts at this system. Adding measures later is
+additive and cheap; the argument that a three-level model loses too much is superseded.
+
+**Objective** (the top of the cascade):
+A yearly goal that work rolls up to — the "what we want this year." Carries A/R ownership and a lane; it
+is the grouping a person's work is read against. Its **progress is derived** — a count roll-up of its
+Projects/Processes, which roll up their Tasks — so it carries **no measure, baseline, or target field**
+(`OD-WAY-33`). Nothing sits above it: Strategy is dropped, not deferred.
 _Avoid_: goal, mission, OKR (that's the measurement layers)
 
-**Outcome** (layer 3 — vocabulary now, table later):
-The KPI/KR target that *proves* an Objective is being met — the number, distinct from the aspiration.
-Deferred; folds in between Objective and the Project/Process layer additively.
-_Avoid_: metric (the measurement act), KR (one kind), result
+**Outcome** — ⚑ **DROPPED, not deferred** (`OD-WAY-32`/`OD-WAY-33`, 2026-08-04):
+Was the KPI/KR target layer between Objective and Project/Process. There is no measurement layer and no
+target field. Progress is a count roll-up. Should a measure ever be wanted it is additive nullable columns
+on the Objective, not a layer — verified: `mos.objectives` is a bare catalog and nothing materialises
+progress.
+_Avoid_: using "Outcome" as a cascade level at all; it is no longer part of the vocabulary.
 
-**Project / Process** (layer 4 — the work-system that moves a goal):
+**Project / Process** (the middle of the cascade — the work-system that moves a goal):
 One entity distinguished by **`type ∈ {project, process}`**; carries A/R ownership, a business unit, a
-lane, and a nullable Objective link. It is a Task's permanent cascade parent. **No umbrella term is
+lane, and a nullable Objective link. ⚑ **That Objective link does not exist in the schema yet** —
+`mos.work_lines` has no `objective_id`, and Tasks carry `objective_id` and `work_line_id` flat and
+independently. Without it the middle level cannot roll up. One nullable FK, tracked as `DD-WAY-15`.
+
+It is a Task's permanent cascade parent. **No umbrella term is
 locked** (owner 2026-06-23 — "use the Project/Process pair for now"; the earlier "Initiative" is dropped);
 refer to the pair, or to the specific type.
 _Avoid_: Initiative, workstream, work (umbrella terms — none locked); **work-line** in UI copy
@@ -148,11 +177,11 @@ content, daily fulfillment. The home for daily ongoing *assigned* work — NOT t
 a person is A/R on, never from Daily Log entries. A Process *uses* SOPs but is not one.
 _Avoid_: SWP (the wiki's term — say Process), routine, SOP (that's documentation), activity (reserved)
 
-**Output** (layer 5 — vocabulary now, table later):
-A discrete deliverable a Program/Process produces in a week/month — the unit of committed load ("2–5 per
-person per week; tasks are infinite, outputs are not"). Deferred; folds in as an optional grouping that
-*also* belongs to its Project/Process — never inserted between Task and Project/Process (ADR-0014).
-_Avoid_: deliverable, milestone (one kind), artifact
+**Output** — ⚑ **DROPPED, not deferred** (`OD-WAY-32`, 2026-08-04):
+Was a weekly/monthly deliverable grouping under a Project/Process, carrying the committed-load idea
+("2–5 per person per week; tasks are infinite, outputs are not"). Not built and not planned. The load
+idea survives as guidance, not as an entity.
+_Avoid_: using "Output" as a cascade level at all; it is no longer part of the vocabulary.
 
 **Lane**:
 *Why* a piece of work exists — **Run/BAU** (keep service steady, KPI-measured), **Optimize** (harden /
@@ -163,7 +192,7 @@ _Avoid_: category, stream, type (reserve `type` for Program|Process)
 ## Ownership (RACI)
 
 **Accountable / Responsible per layer**:
-The A/R split is not task-only — every cascade layer (Objective · Project/Process · Output · Task) carries an
+The A/R split is not task-only — every cascade level (Objective · Project/Process · Task) carries an
 Accountable and a Responsible owner (the wiki's per-layer ownership model; a cross-functional Outcome gets
 a single **DRI**). C/I stay task-level. A person's "load" is read from the layers they are A or R on — so
 RACI-on-a-task is one instance of a uniform ownership shape, not the product's headline.
@@ -294,7 +323,9 @@ separate **workspaces** or a **toggle with layered rails** — deferred v2, don'
 it.)_ For the **owner-director / function-owner** it is a **financial +
 ops cockpit**: revenue · margins · a **money-position strip (AR · AP · unbilled · unearned)** · **ops KPIs**
 (the "state of ops" per Activity — specific metric set TBD, owner-decided) · the **cascade progress +
-updates** list. Money-position workflow scope: **AR is a worked queue now** (the Follow-up lifecycle);
+updates** list — ⚑ cascade progress is now a **count roll-up read on the Objective record**, not a ladder
+screen (`OD-WAY-32`/`OD-WAY-33`). Money-position workflow scope: ⚑ **AR is NOT a worked queue** — it is a
+finance reconciliation surface, retail-only, deferred until directly after the MVP (`OD-WAY-34`);
 **AP / unbilled** are visibility + drill-to-read-only with their engagement workflows phased later;
 **unearned** stays visibility-only. A **member** sees their My Week + ops content dominant, no finance row.
 "Dashboard" is acceptable UI copy for its KPI area.

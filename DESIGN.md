@@ -669,7 +669,7 @@ adds **no** color, font, radius, shadow, or gradient token — it is a grammar, 
   DOM order: head → strip → tool rail → table. View-tabs + segs are `role="tablist"` with roving
   tabindex; sortable headers are real `<button>`s with `aria-sort`; `DataTable` exposes `<caption>`/`aria-label`.
 - **Exemplars.** `/dashboard` (the reference instance — head + FreshnessLabel + KPI strip + global toolbar
-  + tab strip + DataTable/ChartFrame), `/tasks` (the de-facto reference), `/work/cascade`, `/ops` (Daily
+  + tab strip + DataTable/ChartFrame), `/tasks` (the de-facto reference), `/ops` (Daily
   Log feed), `/inbox`, `/kitchen/log`, `/kitchen/plan`, `/kitchen/stock`, `/kitchen/review`, `/kitchen/pushes`.
 
 #### 2. Write-Review — bounded surface for authoring or deciding on ONE thing
