@@ -9,7 +9,6 @@
 // BU-scoped (§3.6): a BU-head's function-cockpit shows the BU money slot, never whole-company tiles;
 // a member gets no cockpit ⇒ no finance section. Every tile drills (anchor A4).
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
@@ -143,7 +142,6 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
           canSeeMargin={canSeeMargin}
         />
         <OpsKpiSection />
-        <CascadeDrill />
       </section>
     )
   }
@@ -163,7 +161,6 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
           canSeeMargin={canSeeMargin}
         />
         <OpsKpiSection />
-        <CascadeDrill />
       </section>
     )
   }
@@ -186,13 +183,3 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
   return <CaptureFirstSection viewerId={personId} now={now} />
 }
 
-// Cascade drill — a one-line reuse of the existing /work/cascade destination (no aggregation built
-// this slice; tasks/cascade are org-readable so a BU-head drilling there is in-model).
-function CascadeDrill() {
-  const t = useT()
-  return (
-    <div className="home-stack-cascade-drill">
-      <Link to="/work/cascade">{t('home.stack.cascade.drill')} →</Link>
-    </div>
-  )
-}

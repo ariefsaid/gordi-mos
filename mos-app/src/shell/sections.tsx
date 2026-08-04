@@ -49,13 +49,13 @@ export const ADMIN_SECTIONS: Section[] = [
 
 // NOTE (nav-five-destinations FR-420): the standalone CATALOG_SECTIONS + SALES_SECTIONS nav groups
 // are RETIRED. Objectives + Projects & Processes are now Work's manage-mode (relocated under
-// /work/, reachable only from the cascade — see destinations.tsx + router.tsx); Sales is now a
-// Plan destination link. Neither appears as a rail group for any role.
+// /work/, reached from the capability-gated Work rail items — see destinations.tsx + router.tsx);
+// Sales is now a Plan destination link. Neither appears as a rail group for any role.
 
 /**
  * Returns the Section whose path matches the given pathname, or null.
  * Scans SECTIONS, KITCHEN_SECTIONS, then ADMIN_SECTIONS. (Destination-owned routes — Tasks,
- * Cascade, Daily Log, Sales, the Work manage routes — are resolved in the Breadcrumb via the
+ * Daily Log, Sales, the Work manage routes — are resolved in the Breadcrumb via the
  * DESTINATIONS model's own links, so they need no entry here; this registry is the fallback for
  * routes owned by no destination, e.g. /admin/*.) '/' matches exactly; other paths match exactly
  * or by prefix.

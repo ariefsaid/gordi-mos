@@ -80,17 +80,6 @@
   flex: 0 0 auto;
 }
 
-/* Cascade drill — a one-line link reusing /work/cascade. */
-.home-stack-cascade-drill {
-  margin: 10px 2px 0;
-}
-.home-stack-cascade-drill a {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary);
-  text-decoration: none;
-}
-
 /* Capture-first CTA — the contributor's dominant one-tap capture entry (→ /ops/new). */
 .home-stack-capture-cta {
   display: flex;

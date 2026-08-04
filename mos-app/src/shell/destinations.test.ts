@@ -22,11 +22,13 @@ describe('AC-400: DESTINATIONS — the five-destination regroup', () => {
     expect(isLive(home, [])).toBe(true)
   })
 
-  it('AC-400: Work links = Tasks, Cascade, Updates(flag) ungated; NO Daily Log; catalog routes capability-gated', () => {
+  it('AC-400: Work links = Tasks, Updates(flag) ungated; NO Daily Log; catalog routes capability-gated', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
-    // Ungated links (no capability) show for everyone.
+    // Ungated links (no capability) show for everyone. The cascade is vocabulary, never a rail
+    // item (CONTEXT.md; OD-WAY-32, #179) — a rail link to a cut route would dead-end every viewer.
     const ungated = work.links.filter((l) => !l.capability).map((l) => l.path)
-    expect(ungated).toEqual(['/tasks', '/work/cascade', ...(SHOW_WEEKLY_UPDATES ? ['/updates'] : [])])
+    expect(ungated).toEqual(['/tasks', ...(SHOW_WEEKLY_UPDATES ? ['/updates'] : [])])
+    expect(DESTINATIONS.flatMap((d) => d.links).some((l) => l.path.includes('cascade'))).toBe(false)
     // Daily Log moved to Operate — must NOT appear under Work.
     expect(work.links.some((l) => l.path === '/ops')).toBe(false)
     // The two catalog manage routes carry a capability gate (FR-424, owner decision 2026-07-07):
@@ -128,9 +130,9 @@ describe('destinationForPath — resolution (FR-S03 / FR-424)', () => {
     expect(destinationForPath('/ops/new')?.id).toBe('operate')
   })
 
-  it('returns the "work" destination for /tasks, /work/cascade, and /tasks/some-id (prefix match)', () => {
+  it('returns the "work" destination for /tasks, /work/objectives, and /tasks/some-id (prefix match)', () => {
     expect(destinationForPath('/tasks')?.id).toBe('work')
-    expect(destinationForPath('/work/cascade')?.id).toBe('work')
+    expect(destinationForPath('/work/objectives')?.id).toBe('work')
     expect(destinationForPath('/tasks/some-id')?.id).toBe('work')
   })
 

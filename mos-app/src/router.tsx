@@ -10,7 +10,6 @@ import { AppShell } from './shell/app-shell'
 import { HomePage } from './pages/home-page'
 import { StackedUnionHome } from './pages/stacked-union-home'
 import { TasksLayout } from './pages/tasks-layout'
-import { CascadePage } from './pages/cascade-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { UpdatesPage } from './pages/updates-page'
@@ -91,7 +90,6 @@ export const routeConfig: RouteObject[] = [
               { path: ':taskId', element: <TaskDrawer mode="view" /> },
             ],
           },
-          { path: 'work/cascade', element: <CascadePage /> },
           { path: 'work/follow-ups', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
           { path: 'work/follow-ups/:id', element: SHOW_FOLLOWUPS ? <FollowUpsPage /> : <Navigate to="/" replace /> },
           // Flag-hidden for the first rollout (config/features.ts): the routes stay mounted
@@ -116,12 +114,12 @@ export const routeConfig: RouteObject[] = [
             element: <AdminRoute />,
             children: [{ path: 'admin/people', element: <AdminUsersPage /> }],
           },
-          // Cascade catalog = Work's manage-mode (nav-five-destinations FR-421). The retired
-          // top-level paths redirect into the cascade (decisions.md: "direct visits redirect into
-          // it"); the manage pages are relocated under /work/ behind RequireCapability (which
-          // bounces non-holders to /work/cascade). Page components are reused unchanged (NFR-404).
-          { path: 'objectives', element: <Navigate to="/work/cascade" replace /> },
-          { path: 'projects-processes', element: <Navigate to="/work/cascade" replace /> },
+          // The catalogs are Work's manage-mode (nav-five-destinations FR-421), relocated under
+          // /work/ behind RequireCapability (which bounces non-holders to /tasks). The retired
+          // top-level paths redirect to their relocated selves. Page components are reused
+          // unchanged (NFR-404).
+          { path: 'objectives', element: <Navigate to="/work/objectives" replace /> },
+          { path: 'projects-processes', element: <Navigate to="/work/projects-processes" replace /> },
           {
             element: <RequireCapability capability="objective.manage" />,
             children: [{ path: 'work/objectives', element: <ObjectivesPage /> }],
