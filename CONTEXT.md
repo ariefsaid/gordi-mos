@@ -52,8 +52,21 @@ production run belongs to decides whose raw materials are consumed and whose WIP
 models each branch as self-contained, **including branches whose kitchen work physically happens
 elsewhere** — so a WIP movement into such a branch has *no ERP counterpart*, because in its books
 nothing moved.
-_Avoid_: site, location, outlet, store (all imply place — the place is a constant here); "the kitchen"
-as a branch synonym
+
+Branch gets **one canonical catalog** in `shared` in the schema rebuild (OD-WAY-39), and every
+branch-bearing surface links to it. `reporting` rows keep the ERP's `branch_code` text **exactly as
+sent** and carry a *separate, nullable* link beside it — so a branch the ERP adds ingests fine, unlinked,
+and is mapped afterwards. Never constrain the reporting fact rows with a hard reference: that turns a new
+ERP branch into a failed nightly job.
+_Avoid_: location, outlet, store (all imply place — the place is a constant here); "the kitchen" as a
+branch synonym. **Site is a different term, not a forbidden synonym — see Site.**
+
+**Site**:
+A **physical place, used only as org structure** — a Team sits at one. `shared.sites` is a real, seeded,
+RLS-protected table and Signals depend on it; do not delete it (DD-WAY-17). It is **not** the branch
+catalog and its seed is not the branch list. Keep the planes apart: a **Site** is where people are, a
+**Branch** is whose books a movement lands in.
+_Avoid_: using Site to scope a production record — that axis is the **Production stream** below
 
 **Production stream**:
 The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · kitchen`, `GHQ · bar`,
