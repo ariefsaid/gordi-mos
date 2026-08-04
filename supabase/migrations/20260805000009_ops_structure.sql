@@ -339,8 +339,9 @@ create trigger kitchen_stock_set_updated_at
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Per (org, prefix, date) counter (KQ-5, FR-051). The approval path upserts with
 -- ON CONFLICT ... DO UPDATE SET last_n = last_n + 1 RETURNING last_n, which atomically locks,
--- increments and returns; the lock is held for a sub-millisecond mint and the unique(batch_id) on
--- kitchen_logs is the collision backstop.
+-- increments and returns; the lock is held for a sub-millisecond mint and the
+-- unique (org_id, batch_id) on kitchen_logs is the backstop — the same two columns this counter is
+-- keyed on, so the backstop covers exactly the namespace the counter counts in.
 --
 -- CARRIED unchanged, including the three prefixes — and they are NOT the three literals DD-WAY-13
 -- bans. PR/TR/TB is a counter NAMESPACE, derived from (action, origin branch, destination branch) at
