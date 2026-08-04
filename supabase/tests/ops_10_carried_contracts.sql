@@ -15,6 +15,13 @@
 -- the audit trail of the retirement itself, and a reader checking "was anything dropped?" should be
 -- able to read one file against one list rather than reconstruct it from six diffs.
 --
+-- ON THE `carried/NN` TAGS. Each assertion below cites the retired suite it came from rather than
+-- that suite's own AC number. The retired numbering belonged to the pre-squash chain and overlaps
+-- the port spec's live AC range — six ids collided outright, so `grep -r AC-014` returned confident
+-- green assertions about an unrelated contract. A traceability check that passes for the wrong
+-- reason is the same defect class as a test that does. `carried/28` says exactly where the assertion
+-- came from and cannot be mistaken for a spec id.
+--
 -- Retired file each section carries, in order:
 --   A  27_ops_log_constraints, 47_log_entries_origin_kitchen
 --   B  24_ops_log_insert
@@ -61,18 +68,18 @@ select throws_ok($$
   $$, '23514', 'new row for relation "log_entries" violates check constraint "log_entries_origin_check"',
   'origin is a closed vocabulary too, so a surface cannot invent a provenance for its own rows');
 
--- AC-071. The kitchen mirror that WROTE origin='kitchen' is deferred, but the value is retained in
+-- carried/47. The kitchen mirror that WROTE origin='kitchen' is deferred, but the value is retained in
 -- the CHECK on purpose, and the legacy 'kitchen_app' beside it is the incumbent's own writer. A port
 -- that tightened this set would break the incumbent silently rather than loudly.
 select lives_ok($$
   insert into ops.log_entries (business_unit_id, origin, title)
   values ('00000000-0000-0000-0000-00000000bb01','kitchen','origin kitchen')
-  $$, 'AC-071: origin=kitchen is accepted — the value the deferred mirror will write');
+  $$, 'carried/47: origin=kitchen is accepted — the value the deferred mirror will write');
 
 select lives_ok($$
   insert into ops.log_entries (business_unit_id, origin, title)
   values ('00000000-0000-0000-0000-00000000bb01','kitchen_app','origin kitchen_app')
-  $$, 'AC-071: the incumbent''s legacy kitchen_app origin still writes — back-compat is a retained value, not an accident');
+  $$, 'carried/47: the incumbent''s legacy kitchen_app origin still writes — back-compat is a retained value, not an accident');
 
 -- The error CODE is the assertion, not merely the refusal. Migration ...0010 states that the guard
 -- deliberately does not pre-empt this column rule so the code stays 23502; a guard that grew a null
@@ -94,14 +101,14 @@ values ('00000000-0000-0000-0000-00000000ec01','00000000-0000-0000-0000-00000000
 select is(
   (select org_id from ops.log_entries where id = '00000000-0000-0000-0000-00000000ec01'),
   '00000000-0000-0000-0000-0000000000a1'::uuid,
-  'AC-010: an insert naming no org_id lands in the session''s org, from the unspoofable claim helper');
+  'carried/24: an insert naming no org_id lands in the session''s org, from the unspoofable claim helper');
 
 select is(
   (select created_by from ops.log_entries where id = '00000000-0000-0000-0000-00000000ec01'),
   '00000000-0000-0000-0000-0000000000d1'::uuid,
-  'AC-010: ...and created_by lands as the session person, so authorship is never client-supplied');
+  'carried/24: ...and created_by lands as the session person, so authorship is never client-supplied');
 
--- AC-011: a spoofed org_id is refused. WHICH mechanism refuses it is the part worth stating exactly,
+-- carried/24: a spoofed org_id is refused. WHICH mechanism refuses it is the part worth stating exactly,
 -- because the obvious answer is wrong and this assertion was written twice before it was right.
 --
 -- The insert policy does carry `org_id = shared.current_org_id()`, and it looks like the control. It
@@ -120,7 +127,7 @@ select throws_ok($$
   insert into ops.log_entries (org_id, business_unit_id, title)
   values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-00000000bb01','spoofed org')
   $$, '23514', 'business_unit_id must belong to the same org as the log entry',
-  'AC-011: an insert naming another org''s org_id is refused by ops._guard_log_entry, which fires before the policy — the policy''s org clause is defence in depth, not the control');
+  'carried/24: an insert naming another org''s org_id is refused by ops._guard_log_entry, which fires before the policy — the policy''s org clause is defence in depth, not the control');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- C. ops.log_entries.linked_task_id — the optional cross-schema link (28)
@@ -143,24 +150,24 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select lives_ok($$
   insert into ops.log_entries (id, business_unit_id, title, linked_task_id)
   values ('00000000-0000-0000-0000-00000000ec02','00000000-0000-0000-0000-00000000bb01','linked','00000000-0000-0000-0000-00000000ed01')
-  $$, 'AC-014: a same-org task may be linked — the positive that makes the two refusals below a seam and not a dead column');
+  $$, 'carried/28: a same-org task may be linked — the positive that makes the two refusals below a seam and not a dead column');
 
 select lives_ok($$
   insert into ops.log_entries (id, business_unit_id, title)
   values ('00000000-0000-0000-0000-00000000ec03','00000000-0000-0000-0000-00000000bb01','unlinked')
-  $$, 'AC-014: the link is optional — a null linked_task_id is the ordinary case');
+  $$, 'carried/28: the link is optional — a null linked_task_id is the ordinary case');
 
 select throws_ok($$
   insert into ops.log_entries (business_unit_id, title, linked_task_id)
   values ('00000000-0000-0000-0000-00000000bb01','xorg link','00000000-0000-0000-0000-00000000ed09')
   $$, '23514', 'linked_task_id must belong to the same org as the log entry',
-  'AC-014: a task in another org cannot be linked — the FK checks existence only, so the cross-schema org seam is the guard''s');
+  'carried/28: a task in another org cannot be linked — the FK checks existence only, so the cross-schema org seam is the guard''s');
 
 select throws_ok($$
   update ops.log_entries set linked_task_id = '00000000-0000-0000-0000-00000000ed09'
    where id = '00000000-0000-0000-0000-00000000ec02'
   $$, '23514', 'linked_task_id must belong to the same org as the log entry',
-  'AC-014: nor re-pointed at one on UPDATE — an INSERT-only guard would leave the seam open to a second statement');
+  'carried/28: nor re-pointed at one on UPDATE — an INSERT-only guard would leave the seam open to a second statement');
 
 -- ON DELETE SET NULL, from the privileged side: the app tier cannot hard-delete a task, so this is
 -- the admin/cascade path. The entry must SURVIVE — a cascade here would delete floor history because
@@ -171,7 +178,7 @@ select is(
   (select count(*) filter (where linked_task_id is null)::int from ops.log_entries
     where id = '00000000-0000-0000-0000-00000000ec02'),
   1,
-  'AC-041: removing the referenced task nulls the link and the entry survives — ON DELETE SET NULL, never CASCADE');
+  'carried/28: removing the referenced task nulls the link and the entry survives — ON DELETE SET NULL, never CASCADE');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- D. ops.log_entries — archiving is a soft, reversible, still-visible state (23, 25)
@@ -185,7 +192,7 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is(
   (select count(*)::int from ops.log_entries where id = '00000000-0000-0000-0000-00000000ea02'),
   1,
-  'AC-003: an archived entry is STILL org-readable — RLS does not filter it, so the default feed''s predicate is a UI choice and remains reversible');
+  'carried/23: an archived entry is STILL org-readable — RLS does not filter it, so the default feed''s predicate is a UI choice and remains reversible');
 
 -- Author ...0d1 is not Peer ...0d4's manager, so the archive attempt is a no-op rather than an error.
 update ops.log_entries set archived_at = null where id = '00000000-0000-0000-0000-00000000ea02';
@@ -193,7 +200,7 @@ reset role;
 select isnt(
   (select archived_at from ops.log_entries where id = '00000000-0000-0000-0000-00000000ea02'),
   null,
-  'AC-023: a non-editor cannot UNarchive either — the same gate covers archive in both directions, and it fails as zero rows rather than an error');
+  'carried/25: a non-editor cannot UNarchive either — the same gate covers archive in both directions, and it fails as zero rows rather than an error');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
@@ -202,7 +209,7 @@ reset role;
 select is(
   (select archived_at from ops.log_entries where id = '00000000-0000-0000-0000-00000000ea02'),
   null,
-  'AC-023: the author unarchives their own entry — a soft delete that could not be undone would be a hard one with extra steps');
+  'carried/25: the author unarchives their own entry — a soft delete that could not be undone would be a hard one with extra steps');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- E. The dual-hat edit gate, composed end to end (25)
@@ -222,7 +229,7 @@ reset role;
 select is(
   (select title from ops.log_entries where id = '00000000-0000-0000-0000-00000000ec04'),
   'edited by first lead',
-  'AC-024: the lead of the dual-hat author''s FIRST held role can edit their entry');
+  'carried/25: the lead of the dual-hat author''s FIRST held role can edit their entry');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
@@ -231,7 +238,7 @@ reset role;
 select is(
   (select title from ops.log_entries where id = '00000000-0000-0000-0000-00000000ec04'),
   'edited by second lead',
-  'AC-024: ...and so can the lead of the SECOND — the edit gate unions over held roles, it does not pick one');
+  'carried/25: ...and so can the lead of the SECOND — the edit gate unions over held roles, it does not pick one');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- F. ops.kitchen_plans — the upsert key (37)
@@ -333,7 +340,7 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1"
 select is(
   (select count(*)::int from ops.wip_items where org_id = '00000000-0000-0000-0000-0000000000a1'),
   0,
-  'AC-006: an org-B admin reads zero org-A WIP items — the item catalog''s seam is not one-directional either');
+  'carried/36: an org-B admin reads zero org-A WIP items — the item catalog''s seam is not one-directional either');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- G. ops.kitchen_logs — the guard as a catalog object, and the two behaviours nothing named (38, 40, 49)
@@ -363,7 +370,7 @@ reset role;
 select is(
   (select status from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ee01'),
   'Submitted',
-  'AC-001: a member''s log lands Submitted by DEFAULT — the insert policy pins the value, and this is the column default that has to agree with it');
+  'carried/38: a member''s log lands Submitted by DEFAULT — the insert policy pins the value, and this is the column default that has to agree with it');
 
 -- The reject stamp REWRITES the NEW row inside the guard. reviewed_by and reviewed_at are asserted
 -- in ops_08; the note the reviewer actually typed is the one field the guard must leave alone, and
@@ -389,7 +396,7 @@ select lives_ok($$
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- J. Approval writes NO Daily Log mirror row (46)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- AC-060/061 are DEFERRED: the prior chain mirrored each approval into ops.log_entries and that
+-- The Daily Log mirror is DEFERRED: the prior chain mirrored each approval into ops.log_entries and that
 -- mirror was removed. The surface it used survives — origin still admits 'kitchen' and the partial
 -- unique index on the batch id is still there — so re-adding the mirror is a small change, and
 -- nothing would have gone red. An absence is only evidence if something is watching it.
@@ -401,7 +408,7 @@ select is(
     where org_id = '00000000-0000-0000-0000-0000000000a1' and origin = 'kitchen'
       and title not in ('origin kitchen')),
   0,
-  'AC-060/061 stay deferred: an approval writes no Daily Log mirror row — asserted so re-adding one is a decision rather than a side effect');
+  'carried/46: the deferred Daily Log mirror stays deferred — an approval writes no Daily Log mirror row — asserted so re-adding one is a decision rather than a side effect');
 
 select * from finish();
 rollback;

@@ -16,7 +16,7 @@
 -- goes to, which is why branch_id points at the canonical catalog rather than at shared.sites.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(25);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -155,6 +155,22 @@ select throws_ok($$
           '00000000-0000-0000-0000-00000000ab01',1,'00000000-0000-0000-0000-0000000000d1')
   $$, '23514', 'branch_id must belong to the same org as the kitchen log',
   'a log cannot point its stream at another org''s branch — an existence-only FK is a cross-tenant reference unless something checks the org');
+
+-- ── The stream COUNT, as it is published to anyone inspecting the schema ─────────────────────
+-- DD-WAY-25: there are FIVE distinct (branch, activity) pairs and ONE is captured, not "six, two
+-- captured" — that count treats an action type as a stream, and every coverage argument leaning on
+-- it was reading 33% where the truth is 20%. The behaviour here was always right (nothing seeds a
+-- six-row catalog, deliberately), but the wrong count had shipped into a `comment on column`, which
+-- is the copy a reader gets from \d+ or from any schema browser. Asserted as a class rather than by
+-- pinning exact text, so rewording a comment is free and re-introducing the count is not.
+reset role;
+select is(
+  (select count(*)::int from pg_description d
+     join pg_class c on c.oid = d.objoid
+     join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'ops' and d.description ~* '(six|6) (of the )?(distinct )?(production )?streams'),
+  0,
+  'DD-WAY-25: no comment in the ops catalog publishes a six-stream count — the number a schema reader sees agrees with the ruling');
 
 select * from finish();
 rollback;

@@ -183,7 +183,7 @@ comment on column ops.kitchen_plans.branch_id is
 comment on column ops.kitchen_plans.activity is
   'Activity half of the production stream — kitchen or bar, the two WIP-producing activities the Cafe Module serves (OD-WAY-26).';
 comment on column ops.kitchen_plans.destination_branch_id is
-  'Whose books the output goes to, for a transfer. NULL for produce. With `activity` this names the destination stream (DD-WAY-13). Equal to branch_id means the movement has no ERP counterpart.';
+  'Whose books the output goes to, for a transfer. NULL for produce. A destination is a BRANCH and carries no activity of its own (DD-WAY-26): a selling branch has no production activity, and the ERP''s BOM consumes the WIP at point of sale. Equal to branch_id means the movement has no ERP counterpart.';
 comment on column ops.kitchen_plans.source is
   'mos = authored in MOS; teable_import = a historical row imported at the flip into this live table rather than an archive (OD-WAY-38), so a COGS series has no seam at the flip date.';
 
@@ -202,10 +202,12 @@ create trigger kitchen_plans_set_updated_at
 -- (FR-020/021). Submitted→Approved/Rejected is RLS + guard gated (...0010). batch_id is minted at
 -- approval (FR-050). The ERP-posting history is mirrored here for audit.
 --
--- THIS IS THE TABLE THE CASH CASE RUNS THROUGH (OD-WAY-27). Four of six production streams reach the
--- ERP today on a paper form that a supervisor retypes; that transcription step is what blew up July's
--- COGS. Every column below that carries the stream exists so those four streams can be captured
--- typed, against a fixed item list, with no human retyping anything.
+-- THIS IS THE TABLE THE CASH CASE RUNS THROUGH (OD-WAY-27). There are FIVE distinct
+-- (branch, activity) production streams and exactly ONE is captured today (DD-WAY-25 — the earlier
+-- "six, two captured" counts an action type as a stream, and the ruling's own table gives it away).
+-- The other four reach the ERP on a paper form that a supervisor retypes; that transcription step is
+-- what blew up July's COGS. Every column below that carries the stream exists so those four can be
+-- captured typed, against a fixed item list, with no human retyping anything.
 create table ops.kitchen_logs (
   id               uuid primary key default gen_random_uuid(),
   org_id           uuid not null references shared.orgs(id) on delete cascade,
@@ -244,8 +246,11 @@ create table ops.kitchen_logs (
   reviewed_at      timestamptz,
   -- Minted at approval. Its uniqueness is scoped to the org, below, matching the counter that mints
   -- it — ops.kitchen_batch_seq is keyed (org_id, prefix, log_date) — and matching how the same
-  -- identifier is already scoped on ops.log_entries, whose partial unique index is on
-  -- (org_id, batch_id). One tenant's batch ids are its own namespace, exactly as its counter is.
+  -- identifier is already scoped on ops.log_entries. Note that log_entries has NO batch_id column:
+  -- it carries the value inside `detail` and its partial unique index is over the JSON expression
+  -- (org_id, detail::jsonb ->> 'batch_id') where origin = 'kitchen'. Same scope, different storage,
+  -- and a reader sent looking for a column there finds nothing.
+  -- One tenant's batch ids are its own namespace, exactly as its counter is.
   batch_id         text,
 
   -- ── ERP posting history (OD-K-4) ────────────────────────────────────────────────────────────
@@ -275,11 +280,11 @@ comment on table ops.kitchen_logs is
 comment on column ops.kitchen_logs.branch_id is
   'Origin half of the (branch, activity) production stream (OD-WAY-28) — whose books the raw comes from and the output is credited to. Links to the canonical branch catalog (OD-WAY-39). There is one physical kitchen; it is a constant and is not modelled.';
 comment on column ops.kitchen_logs.activity is
-  'Activity half of the production stream — kitchen or bar (OD-WAY-26). Two of the six streams are captured today; the other four reach the ERP by hand.';
+  'Activity half of the production stream — kitchen or bar (OD-WAY-26). There are five distinct (branch, activity) streams and ONE is captured today; the other four reach the ERP by hand (DD-WAY-25).';
 comment on column ops.kitchen_logs.action is
   'produce or transfer (DD-WAY-13). Replaces the three-literal action_type, which folded destination into action because Teable had one flat field. The ERP was always parameterised.';
 comment on column ops.kitchen_logs.destination_branch_id is
-  'Whose books the output goes to, for a transfer; NULL for produce. With `activity` this names the destination stream. Equal to branch_id means the ERP already books the origin branch as holding it, so the movement has NO ERP counterpart — this is what makes the incumbent''s "Transfer to Bungur" a no-op, and the reason is accounting, not location.';
+  'Whose books the output goes to, for a transfer; NULL for produce. A destination is a BRANCH and carries no activity of its own (DD-WAY-26) — a selling branch receives WIP, it does not produce. Equal to branch_id means the ERP already books the origin branch as holding it, so the movement has NO ERP counterpart — this is what makes the incumbent''s "Transfer to Bungur" a no-op, and the reason is accounting, not location.';
 comment on column ops.kitchen_logs.source is
   'mos = captured in MOS; teable_import = imported from Teable at the flip into this live table rather than an archive (OD-WAY-38). A COGS series with a seam at the flip date is the exact shape of problem that let July''s blow-up hide.';
 comment on column ops.kitchen_logs.submitted_by is

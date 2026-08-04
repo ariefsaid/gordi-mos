@@ -166,10 +166,25 @@ begin
   if tg_op = 'UPDATE' and new.source is distinct from old.source then
     raise exception 'source is immutable on a kitchen log' using errcode = '42501';
   end if;
-  -- 20260620000008: leaving Submitted (to Approved or Rejected) requires ops_lead/admin.
-  if tg_op = 'UPDATE' and old.status = 'Submitted' and new.status <> 'Submitted' then
+  -- 20260620000008, stated as the rule it is meant to be: EVERY status transition is a reviewer
+  -- action. The gate is keyed on the ACT of changing status rather than on which status is being
+  -- left, so it reads the same in both directions and does not have to be re-derived per transition.
+  --
+  -- Review is ONE-WAY. Approved and Rejected are terminal for the app tier, and a correction is
+  -- recorded as a new log — which is how the floor already works on paper. This is the same intent
+  -- the field freeze below carries: figures stop moving once they have been reviewed. An approved
+  -- log has also already produced a downstream ERP document, and those identifiers are minted once
+  -- per batch, so a reopen would need a compensating design for that document before it could mean
+  -- anything. Whether a reviewer should be able to reopen at all is a product decision no ruling
+  -- authorises; between two unruled options this is the one that cannot alter a figure somebody has
+  -- already signed off. Raised for the owner rather than assumed settled.
+  if tg_op = 'UPDATE' and new.status is distinct from old.status then
     if not (shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
       raise exception 'only ops_lead/admin may approve or reject a kitchen log' using errcode = '42501';
+    end if;
+    if old.status <> 'Submitted' then
+      raise exception 'a reviewed kitchen log keeps its status; record a correction as a new log'
+        using errcode = '42501';
     end if;
   end if;
   -- 20260620000012: Submitted→Rejected stamps reviewer provenance server-side (FR-044). Reject is a
@@ -378,7 +393,26 @@ create trigger esb_push_not_posted_guard
 grant select, insert, update on ops.log_entries   to authenticated;
 grant select, insert, update on ops.wip_items     to authenticated;
 grant select, insert, update on ops.kitchen_plans to authenticated;
-grant select, insert, update on ops.kitchen_logs  to authenticated;
+-- ops.kitchen_logs takes a COLUMN-LIST update grant rather than a table-level one. The posting
+-- columns — batch_id, posted_to_esb, esb_doc_num, posted_at — are the ERP dispatch record, and they
+-- are written by exactly two parties: the approval path, which runs as the definer, and the worker,
+-- which is service_role. Neither needs an app-tier grant, and the app tier has no reason to set any
+-- of them. Withholding the privilege is the control: a missing column grant fails closed with
+-- nothing to widen, where a trigger branch is one edit away from being relaxed. It also keeps the
+-- posted marker sound as the AC-012 enqueue refusal's predicate: that refusal decides whether a
+-- batch may be sent to the ERP by reading this marker, so the marker belongs to the parties that
+-- own the dispatch and to no one else.
+--
+-- The list is EVERY OTHER COLUMN, deliberately. Withholding more would be a better-looking grant and
+-- a worse change: org_id, submitted_by and source are already immutable via ops._guard_kitchen_log,
+-- with the guard's own error message asserted, and moving them to a privilege refusal would silently
+-- replace a proven mechanism with a different one and leave two tests passing for a new reason.
+-- Exactly four columns change hands here.
+grant select, insert on ops.kitchen_logs to authenticated;
+grant update (id, org_id, business_unit_id, log_date, branch_id, activity, action,
+              destination_branch_id, wip_item_id, qty_porsi, notes, status, source, submitted_by,
+              review_note, reviewed_by, reviewed_at, created_at, updated_at)
+  on ops.kitchen_logs to authenticated;
 -- kitchen_stock is written only by the approval path, which runs as the definer. No write grant to
 -- authenticated at all: the absence of the privilege is the control, not the absence of a policy.
 grant select on ops.kitchen_stock to authenticated;
@@ -523,20 +557,24 @@ comment on policy kitchen_logs_insert_member on ops.kitchen_logs is
 -- member could edit any other member's pending row. Production capture moves into MOS precisely so
 -- the numbers become trustworthy, and "anyone may edit anyone's pending entry" is the one property
 -- that argues against that.
+-- The submitter's arm is scoped by BOTH terms: their own row, and only while it is still awaiting
+-- review. A member's edit window is the period before review, and the status term is what expresses
+-- the second half of that — "your own row" alone names a person, not a period. The reviewer arms
+-- carry no status term, because reviewing is exactly what they are for.
 create policy kitchen_logs_update_own_or_reviewer on ops.kitchen_logs
   for update to authenticated
   using (
     org_id = shared.current_org_id()
-    and (submitted_by = shared.current_person_id()
+    and ((submitted_by = shared.current_person_id() and status = 'Submitted')
          or shared.has_access_role('ops_lead')
          or shared.has_access_role('admin')))
   with check (
     org_id = shared.current_org_id()
-    and (submitted_by = shared.current_person_id()
+    and ((submitted_by = shared.current_person_id() and status = 'Submitted')
          or shared.has_access_role('ops_lead')
          or shared.has_access_role('admin')));
 comment on policy kitchen_logs_update_own_or_reviewer on ops.kitchen_logs is
-  'Non-privileged edits are scoped to the submitter''s own rows; ops_lead/admin retain review-edit. submitted_by is immutable post-insert (ops._guard_kitchen_log), so USING and WITH CHECK cannot disagree — a member can neither re-attribute a row to themselves nor away from themselves. An imported row has a NULL submitted_by and therefore matches no member, so only ops_lead/admin can touch history.';
+  'Non-privileged edits are scoped to the submitter''s own rows AND to the period before review; ops_lead/admin retain review-edit at any status. submitted_by is immutable post-insert (ops._guard_kitchen_log), so USING and WITH CHECK cannot disagree — a member can neither re-attribute a row to themselves nor away from themselves. An imported row has a NULL submitted_by and therefore matches no member, so only ops_lead/admin can touch history.';
 
 -- ── ops.kitchen_stock ────────────────────────────────────────────────────────────────────────
 create policy kitchen_stock_select_org on ops.kitchen_stock

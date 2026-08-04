@@ -12,8 +12,8 @@
 --
 -- So the stored model is `action` + origin stream + destination branch, and the three labels become
 -- presentation, derived. OD-K-1 parity is BEHAVIOURAL — same tabs, same labels, same flow — and
--- deriving delivers it exactly, while the stored model stops lying about six streams by describing
--- one.
+-- deriving delivers it exactly, while the stored model stops describing every production stream
+-- through the one destination the incumbent happened to name.
 --
 -- All four derivations agree on one structural rule, and it is the correction OD-WAY-26 makes to the
 -- incumbent's own stated reasoning:
@@ -24,7 +24,8 @@
 -- so a movement that never left those books has nothing to record. The incumbent's module docstring
 -- gives the location explanation; its behaviour is right and its explanation is wrong, and anyone
 -- porting from the comments inherits the error. Expressed structurally here, the rule generalises to
--- all six streams instead of naming one destination.
+-- every stream and every branch, including ones the incumbent never had a case for, instead of
+-- naming one destination.
 --
 -- ── One helper deliberately NOT carried here, named so it is not lost ────────────────────────
 -- integrations.current_esb_target_env() — the GUC read that stamps target_env at enqueue — belongs

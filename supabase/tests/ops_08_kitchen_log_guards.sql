@@ -11,7 +11,7 @@
 -- success to the caller and produces a row nobody asked for.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(21);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -121,6 +121,68 @@ select throws_ok($$
           '00000000-0000-0000-0000-00000000ab01',1)
   $$, '23514', 'destination_branch_id must belong to the same org as the kitchen log',
   'nor transfer INTO another org''s branch — the destination is checked as well as the origin');
+
+-- ── The edit window closes at review ─────────────────────────────────────────────────────────
+-- Three controls in three different layers, asserted separately because each can be removed on its
+-- own and the other two do not announce it.
+--
+-- 1. PRIVILEGE. The posting columns are the ERP dispatch record and are written only by the approval
+--    path (definer) and the worker (service_role). The app tier holds no column grant on them, which
+--    also keeps the enqueue refusal's predicate honest — it reads the posted marker, so that marker
+--    must not be writable by the tier the refusal constrains.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+
+select throws_ok($$
+  update ops.kitchen_logs set posted_to_esb = false where id = '00000000-0000-0000-0000-00000000aa01'
+  $$, '42501', 'permission denied for table kitchen_logs',
+  'the posting marker is not writable from the app tier — refused by PRIVILEGE, before any policy or guard is consulted');
+
+select throws_ok($$
+  update ops.kitchen_logs set batch_id = 'PR-20260601-999' where id = '00000000-0000-0000-0000-00000000aa01'
+  $$, '42501', 'permission denied for table kitchen_logs',
+  '...and neither is the batch identifier — the ERP document reference is minted once and is not the app tier''s to restate');
+
+-- The positive that makes the two above a column boundary rather than a table nobody can write.
+select lives_ok($$
+  update ops.kitchen_logs set qty_porsi = 13 where id = '00000000-0000-0000-0000-00000000ac01'
+  $$, '(positive): an ordinary correction on the same table still lands, so the refusals above are the four columns and not the grant');
+
+-- 2. THE GUARD. Every status change is a reviewer action, and review is one-way. The carried rule
+--    keyed on the status being LEFT rather than on the act of changing status, which described one
+--    direction of a two-directional door.
+select throws_ok($$
+  update ops.kitchen_logs set status = 'Submitted' where id = '00000000-0000-0000-0000-00000000aa02'
+  $$, '42501', 'a reviewed kitchen log keeps its status; record a correction as a new log',
+  'a reviewed log keeps its status — even for a reviewer, because the figures behind it have already been signed off and its ERP identifiers are minted once');
+
+update ops.kitchen_logs set status = 'Rejected', review_note = 'portion mismatch'
+ where id = '00000000-0000-0000-0000-00000000ac02';
+select throws_ok($$
+  update ops.kitchen_logs set status = 'Submitted' where id = '00000000-0000-0000-0000-00000000ac02'
+  $$, '42501', 'a reviewed kitchen log keeps its status; record a correction as a new log',
+  '...and that holds for a rejected log too, so the rule is about leaving review rather than about one outcome of it');
+
+-- 3. THE POLICY. A submitter's arm is scoped to their own row AND to the period before review, so
+--    the reach ends where the reviewer's begins. RLS filters rather than raises, so this is a
+--    zero-row no-op and the value is read back to prove it.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+update ops.kitchen_logs set qty_porsi = 999 where id = '00000000-0000-0000-0000-00000000aa02';
+reset role;
+select is(
+  (select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000aa02'),
+  6::numeric(12,2),
+  'the submitter''s own edit stops at review: their reviewed row is outside the policy, so the update affects zero rows and the quantity is unchanged');
+
+-- The same submitter on a row still awaiting review, so the zero above is the status term and not a
+-- broken persona.
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+update ops.kitchen_logs set qty_porsi = 14 where id = '00000000-0000-0000-0000-00000000ac03';
+reset role;
+select is(
+  (select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac03'),
+  14::numeric(12,2),
+  '(positive): the same submitter DOES still correct a line that has not been reviewed — the window closes at review, it was not closed altogether');
 
 select * from finish();
 rollback;

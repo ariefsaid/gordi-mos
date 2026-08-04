@@ -18,6 +18,10 @@
 -- reject's resting state — while a mapped row must name a branch in its own org. Both halves are
 -- asserted, because a constraint that is inert when it should bite is the same defect as one that
 -- bites when it should be inert.
+--
+-- OWNS: AC-010 (the ERP branch join — an unmapped code ingests, a mapped one resolves to one branch
+-- identity, and the org seam holds across the link). This file is that AC's single owner in the test
+-- pyramid; nothing else asserts it, and the tag was missing until #186.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(15);

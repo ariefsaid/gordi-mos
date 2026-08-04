@@ -354,7 +354,7 @@ as $$
   )
 $$;
 comment on function shared.can(text) is
-  'True iff the session holds an access role granted capability p (ADR-0020 D4). Resolves person->roles->capability from current_access_roles() (JWT, unspoofable). SECURITY INVOKER.';
+  'True iff the session holds an access role granted capability p (ADR-0020 D4). Reads the roles straight off the JWT via current_access_roles() and joins them to role_capabilities — the person->role hop already happened in the token hook, so this function makes NO directory lookup and must not grow one. SECURITY INVOKER.';
 
 -- ── No-lockout helper ────────────────────────────────────────────────────────────────────────
 -- Active admin = admin role live + person not archived + login exists and is not banned. SECURITY
@@ -517,10 +517,6 @@ create trigger person_roles_guard
 -- POSITION. An admin setting their own job title is legitimate, and in a single-admin org it is the
 -- only way the position ever gets set — a hard block is a lockout footgun that closes no hole,
 -- because an admin can already reset any password. Attribution is the proportionate control.
---
--- KNOWN REMAINING GAP, recorded rather than silently carried: removal is a hard DELETE, so
--- revocation stays unattributable. Closing it needs a soft-delete column or an audit-log table, and
--- is_manager_of() would have to learn to ignore revoked rows.
 
 -- ── shared.person_access_roles ───────────────────────────────────────────────────────────────
 -- Four invariants, all of which have to be here rather than in a WITH CHECK:

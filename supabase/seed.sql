@@ -2,10 +2,13 @@
 -- Real names/emails ONLY via the gitignored deploy seed. NEVER add real PII here.
 -- Fixed UUIDs so tests and fixtures can reference them deterministically.
 --
--- ⚠ SQUASH IN PROGRESS (OD-WAY-35, #181–#186). `shared` (#181) and `mos` (#182) are authored; the
--- ops / integrations / reporting baselines land in #183–#185, so their seed sections — WIP items,
--- kitchen plans, the COGS read-models — are still absent and come back with the schema they belong
--- to. The prior content is recoverable from `origin/dev`.
+-- The squash (OD-WAY-35, #181–#186) is COMPLETE and every section is present again. The ops and
+-- reporting sections — WIP items, the plan for today, the COGS read-models — were held back while
+-- their schemas were being authored and were restored in #186, the ops ones reshaped onto the
+-- (branch, activity) production stream that replaced `action_type`. If a section is ever removed
+-- again, say which surface renders empty without it: this file is what makes Café and Plan show
+-- anything at all on a fresh reset, and an empty surface reads as a broken app rather than a
+-- missing seed. That mistake has now been made twice on this file (docs/gotchas.md).
 --
 -- `supabase/config.toml`'s db.seed.sql_paths is RESTORED as of #182: seed.dev-tasks.sql and
 -- seed.dev-auth.sql are applied again, so `supabase db reset` leaves a database with working demo
@@ -138,3 +141,100 @@ insert into mos.certified_metrics (key, org_id, name, meaning, unit, grain, cert
     'percent', 'menu item x price', true, now()
   )
 on conflict (org_id, key) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- ops — the item catalog and a plan for today
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- ── Kitchen WIP items — the real roster (32: 16 CREATE + 16 REUSE) ───────────────────────────
+-- Names are parity with the incumbent's own item list. ESB identifiers are populated by the push
+-- flow later (the Teable source carries none), so they are left null here; `flag_active` defaults
+-- true, which is what puts every row in front of a capture surface.
+insert into ops.wip_items (id, org_id, name, category) values
+  ('a1100000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Nasi Putih', 'Rice/Staple'),
+  ('a1100000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Risoles Beef Mayo', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Bakwan Sayur', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Oseng Bakso', 'Meat'),
+  ('a1100000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'Lontong Sayur', 'Rice/Staple'),
+  ('a1100000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Ayam Gulai', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'Pisang Goreng', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'Singkong Goreng', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 'Tongkol Sambal Matah', 'Seafood'),
+  ('a1100000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Kaya Toast', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'Cumi Cabe Ijo', 'Seafood'),
+  ('a1100000-0000-0000-0000-00000000000c', '10000000-0000-0000-0000-000000000001', 'Ayam Garang Asem', 'Chicken'),
+  ('a1100000-0000-0000-0000-00000000000d', '10000000-0000-0000-0000-000000000001', 'Bakwan Jagung', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', 'Sosis Solo', 'Meat'),
+  ('a1100000-0000-0000-0000-00000000000f', '10000000-0000-0000-0000-000000000001', 'Tape Goreng', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', 'Arem Arem', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', 'Tumis Buncis', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000001', 'Orek Tempe', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000013', '10000000-0000-0000-0000-000000000001', 'Tumis Daun Singkong', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Semur Telur', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'Ayam Suwir', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000001', 'Ayam Woku', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000017', '10000000-0000-0000-0000-000000000001', 'Kentang Balado', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000018', '10000000-0000-0000-0000-000000000001', 'Sayur Lodeh', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000019', '10000000-0000-0000-0000-000000000001', 'Sambal Merah', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001a', '10000000-0000-0000-0000-000000000001', 'Teri Kacang', 'Seafood'),
+  ('a1100000-0000-0000-0000-00000000001b', '10000000-0000-0000-0000-000000000001', 'Semur Tahu', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001c', '10000000-0000-0000-0000-000000000001', 'Kentang Mustofa', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Sayur Asem', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001e', '10000000-0000-0000-0000-000000000001', 'Terong Balado', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001f', '10000000-0000-0000-0000-000000000001', 'Ayam Goreng Lengkuas', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'Seafood')
+on conflict (id) do nothing;
+
+-- ── A plan for "today" ───────────────────────────────────────────────────────────────────────
+-- So the Plan editor's horizon and the Log variance gate have something to work against in local
+-- dev. Stock is not seeded: it is recomputed from approved logs, and seeding a balance would put a
+-- number on screen that no movement produced.
+--
+-- RESHAPED from the prior chain's row, and the reshape is the point rather than a port detail. The
+-- old rows carried `action_type = 'Production'` and keyed their upsert on
+-- (org, date, item, action_type). That column no longer exists: OD-WAY-28 replaced it with the
+-- (branch, activity) production stream plus a movement, so a plan now has to say WHOSE BOOKS it is
+-- for. These three are the Rumah Rames kitchen stream, which is the one the incumbent captures.
+insert into ops.kitchen_plans
+  (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, plan_by) values
+  ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000001',
+   '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 50, '40000000-0000-0000-0000-000000000002'),
+  ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000002',
+   '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 30, '40000000-0000-0000-0000-000000000002'),
+  ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000006',
+   '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 25, '40000000-0000-0000-0000-000000000002')
+on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- reporting — the Plan-destination COGS read-models (ADR-0022 D2/D6, ADR-0010)
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- Representative dev rows so Budget and Pricing are real and testable in the running app. The
+-- warehouse snapshot job upserts these tables in production; finance and procurement own the
+-- numbers, and consumers LINK by ESB code rather than copying a cost (anchor A5).
+--
+-- Three menu items, chosen to cover the three states the surfaces have to render, not just the
+-- happy one: MENU-CAPPUC is fresh and complete; MENU-CROISS is complete but priced off a 90-day-old
+-- butter line, which is what exercises the fail-loud freshness path; MENU-MUFFIN references an
+-- ingredient with NO cost line at all, which is what makes mos.capture_budget raise instead of
+-- quietly costing it at zero.
+insert into reporting.ingredient_cost_lines (org_id, ingredient_esb_code, name, unit_cost, unit, as_of, loaded_at) values
+  ('10000000-0000-0000-0000-000000000001', 'ING-MILK-FRESH',   'Fresh Milk',      18000.00, 'L',  now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-ESPRESSO-BEAN','Espresso Beans', 320000.00, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-BUTTER-GK',    'Butter',          95000.00, 'kg', now() - interval '90 days', now() - interval '90 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-FLOUR-AP',     'Flour AP',        14000.00, 'kg', now() - interval '5 days',  now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'ING-SUGAR-WHITE',  'White Sugar',     16000.00, 'kg', now() - interval '5 days',  now() - interval '5 days')
+on conflict (org_id, ingredient_esb_code) do update
+  set name = excluded.name, unit_cost = excluded.unit_cost, unit = excluded.unit,
+      as_of = excluded.as_of, loaded_at = excluded.loaded_at;
+
+insert into reporting.bom_lines (org_id, menu_item_esb_code, ingredient_esb_code, recipe_qty, qty_unit, as_of, loaded_at) values
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CAPPUC', 'ING-MILK-FRESH',    0.18, 'L',  now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CAPPUC', 'ING-ESPRESSO-BEAN', 0.018,'kg', now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CROISS', 'ING-BUTTER-GK',     0.04, 'kg', now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CROISS', 'ING-FLOUR-AP',      0.06, 'kg', now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-CROISS', 'ING-SUGAR-WHITE',   0.01, 'kg', now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-MUFFIN', 'ING-FLOUR-AP',      0.08, 'kg', now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-MUFFIN', 'ING-SUGAR-WHITE',   0.03, 'kg', now() - interval '5 days', now() - interval '5 days'),
+  ('10000000-0000-0000-0000-000000000001', 'MENU-MUFFIN', 'ING-MILK-FRESH-UNS',0.05, 'L',  now() - interval '5 days', now() - interval '5 days')
+on conflict (org_id, menu_item_esb_code, ingredient_esb_code) do update
+  set recipe_qty = excluded.recipe_qty, qty_unit = excluded.qty_unit, as_of = excluded.as_of,
+      loaded_at = excluded.loaded_at;
