@@ -25,50 +25,57 @@ function authed(accessRoles: string[]) {
   }
 }
 
+// The harness mounts BOTH the surviving bounce target (/tasks — reachable by every authenticated
+// viewer) and the deleted cascade path, so a test can tell the two destinations apart. `dead`
+// rendering at all means the guard still points at a route the app no longer serves (#179, OD-WAY-32).
 function renderGuard(initialEntry: string, capability: string) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route element={<RequireCapability capability={capability} />}>
-          <Route path="/objectives" element={<div data-testid="protected">Objectives</div>} />
-          <Route path="/projects-processes" element={<div data-testid="protected">Projects</div>} />
+          <Route path="/work/objectives" element={<div data-testid="protected">Objectives</div>} />
+          <Route path="/work/projects-processes" element={<div data-testid="protected">Projects</div>} />
         </Route>
-        <Route path="/work/cascade" element={<div data-testid="cascade">Cascade</div>} />
+        <Route path="/tasks" element={<div data-testid="tasks">Tasks</div>} />
+        <Route path="/work/cascade" element={<div data-testid="dead">Cascade</div>} />
       </Routes>
     </MemoryRouter>,
   )
 }
 
 describe('RequireCapability', () => {
-  it('AC-302: redirects a viewer without capabilities from /objectives to /work/cascade', () => {
+  it('AC-002 (#179): a viewer without the capability lands on /tasks, never on the cut cascade path', () => {
     mockUseAuth.mockReturnValue(authed([]))
-    renderGuard('/objectives', 'objective.manage')
+    renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expect(screen.getByTestId('cascade')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks')).toBeInTheDocument()
+    expect(screen.queryByTestId('dead')).not.toBeInTheDocument()
   })
 
-  it('AC-302: allows admin into /objectives', () => {
+  it('AC-302: allows admin into /work/objectives', () => {
     mockUseAuth.mockReturnValue(authed(['admin']))
-    renderGuard('/objectives', 'objective.manage')
+    renderGuard('/work/objectives', 'objective.manage')
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 
-  it('AC-302: redirects ops_lead from /objectives without objective.manage', () => {
+  it('AC-302: redirects ops_lead from /work/objectives without objective.manage', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
-    renderGuard('/objectives', 'objective.manage')
-    expect(screen.getByTestId('cascade')).toBeInTheDocument()
+    renderGuard('/work/objectives', 'objective.manage')
+    expect(screen.getByTestId('tasks')).toBeInTheDocument()
+    expect(screen.queryByTestId('dead')).not.toBeInTheDocument()
   })
 
-  it('AC-302: allows ops_lead into /projects-processes with workline.manage', () => {
+  it('AC-302: allows ops_lead into /work/projects-processes with workline.manage', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
-    renderGuard('/projects-processes', 'workline.manage')
+    renderGuard('/work/projects-processes', 'workline.manage')
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 
   it('AC-302: redirects while loading (no protected flash)', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as never)
-    renderGuard('/objectives', 'objective.manage')
+    renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expect(screen.getByTestId('cascade')).toBeInTheDocument()
+    expect(screen.getByTestId('tasks')).toBeInTheDocument()
+    expect(screen.queryByTestId('dead')).not.toBeInTheDocument()
   })
 })

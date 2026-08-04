@@ -122,8 +122,8 @@ describe('AC-408: breadcrumb resolves manage/Plan/Operate routes through their d
   }
 })
 
-// Routes NOT owned by a destination (Admin, cascade catalog, manage surfaces — drill-only or
-// role-gated) keep resolving via sectionForPath's own label, unaffected.
+// Routes NOT owned by a destination (Admin and other drill-only or role-gated surfaces) keep
+// resolving via sectionForPath's own label, unaffected.
 describe('Routes outside DESTINATIONS resolve via their own section label (unaffected)', () => {
   it('renders "Admin › People" at /admin/people', () => {
     const { container } = renderBreadcrumb('/admin/people')

@@ -103,11 +103,14 @@ describe('AC-RG01: Rail regroup — destination groups', () => {
     expect(workLabel).toBeInTheDocument()
   })
 
-  it('AC-304: under locale=id, the Cascade link label resolves through useT()', () => {
+  // Was pinned on the Cascade rail label until that link was cut (#179, OD-WAY-32). Re-pinned on
+  // Tasks, the ungated Work link every viewer sees — and a stronger check, because 'Tugas' differs
+  // from the English string, so a rail that skipped useT() would fail this.
+  it('AC-304: under locale=id, a Work rail label resolves through useT()', () => {
     localStorage.setItem('mos.locale', 'id')
     renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Cascade' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Tugas' })).toBeInTheDocument()
   })
 
   it('AC-403: a member sees Home/Work/Operate/Inbox groups but NO Plan group (gated off)', () => {
@@ -394,11 +397,11 @@ describe('AC-070: Admin nav group', () => {
 // ── Catalog = capability-gated Work rail links (FR-424, owner decision 2026-07-07) ──────────────
 // Supersedes FR-420: Objectives + Projects & Processes render UNDER Work for a viewer who holds the
 // matching capability (objective.manage / workline.manage). Still NO standalone "Catalog" group,
-// and they never appear for a viewer without the capability. The cascade Manage links stay too.
+// and they never appear for a viewer without the capability.
 describe('AC-404: Work catalog links are capability-gated (no standalone Catalog group)', () => {
   it('AC-404: admin (objective.manage + workline.manage) sees BOTH catalog links under Work', () => {
     setAuthAs(['admin'])
-    renderRailNav('/work/cascade')
+    renderRailNav('/work/objectives')
     expect(queryGroupLabel('Catalog')).toBeNull()
     expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
     expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects-processes')
@@ -442,7 +445,7 @@ describe('AC-401: Daily Log renders under the Operate group', () => {
     renderRailNav('/ops')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: 'Daily Log' })).toHaveAttribute('href', '/ops')
-    // And it is NOT under Work (Work has Tasks/Cascade/Updates only).
+    // And it is NOT under Work (Work has Tasks/Updates only).
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     expect(work.links.some((l) => l.path === '/ops')).toBe(false)
   })

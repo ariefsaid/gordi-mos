@@ -151,45 +151,19 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
   })
 })
 
-describe('cascade i18n (AC-304)', () => {
-  const CASCADE_KEYS = [
-    'cascade.title',
-    'cascade.subtitle',
-    'cascade.link',
-    'cascade.mine',
-    'cascade.all',
-    'cascade.unlinked',
-    'cascade.noWorkLine',
-    'cascade.manage.objectives',
-    'cascade.manage.projects',
-    'cascade.empty.title',
-    'cascade.empty.body',
-    'cascade.mine.empty.title',
-    'cascade.mine.empty.body',
-    'cascade.error.title',
-    'cascade.error.retry',
-    'cascade.loading',
-    'cascade.card.owner',
-    'cascade.card.due',
-    'cascade.overdue',
-    'cascade.untitledObjective',
-    'cascade.untitledWorkLine',
-  ] as const
-
-  it('every cascade.* key is present in both en and id', () => {
-    for (const key of CASCADE_KEYS) {
-      expect(messages.en[key], `en missing ${key}`).toBeDefined()
-      expect(messages.id[key], `id missing ${key}`).toBeDefined()
+// The cascade screen is cut (#179, OD-WAY-32), so the strings that only ever labelled it are cut
+// with it — a translator should never be asked to keep copy for a surface that no longer exists.
+// "Cascade" survives as glossary vocabulary in CONTEXT.md, not as UI copy.
+describe('cascade i18n is retired with the surface (#179)', () => {
+  it('no cascade.* key survives in either locale', () => {
+    for (const locale of ['en', 'id'] as const) {
+      expect(Object.keys(messages[locale]).filter((k) => k.startsWith('cascade.'))).toEqual([])
     }
   })
 
-  it('under locale:id, every cascade.* key resolves to a localized string, not the key itself', () => {
-    localStorage.setItem('mos.locale', 'id')
-    const { result } = renderHook(() => useT(), { wrapper })
-    for (const key of CASCADE_KEYS) {
-      const resolved = result.current(key)
-      expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
-      expect(resolved.length).toBeGreaterThan(0)
+  it('the Home cascade-drill label is gone from both locales', () => {
+    for (const locale of ['en', 'id'] as const) {
+      expect(Object.keys(messages[locale])).not.toContain('home.stack.cascade.drill')
     }
   })
 })

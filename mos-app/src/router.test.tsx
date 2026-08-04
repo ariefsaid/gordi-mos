@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, Navigate, type RouteObject } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
@@ -112,16 +114,25 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS defa
 })
 
 // FR-421 (nav-five-destinations): the catalog manage routes are RELOCATED under /work/ as
-// Work's manage-mode, and the retired top-level paths redirect into the cascade. The manage pages
-// stay behind RequireCapability (bounces non-holders to /work/cascade); page components reused.
+// Work's manage-mode. The cascade is vocabulary, never a route (CONTEXT.md; OD-WAY-32, #179), so
+// the retired top-level paths redirect straight to the relocated catalogs, which stay behind
+// RequireCapability. Page components are reused unchanged.
 describe('router — catalog manage-mode relocated under /work/ (FR-421)', () => {
-  it('AC-302/304: wires /work/cascade directly + /work/objectives + /work/projects-processes behind capability gates', () => {
+  // Walks the whole nested route tree and collects every declared path.
+  function allPaths(routes: RouteObject[]): string[] {
+    return routes.flatMap((r) => [...(r.path ? [r.path] : []), ...(r.children ? allPaths(r.children) : [])])
+  }
+
+  it('AC-001 (#179): no route anywhere in the table declares the cascade path', () => {
+    expect(allPaths(routeConfig)).not.toContain('work/cascade')
+    expect(allPaths(routeConfig).filter((p) => p.includes('cascade'))).toEqual([])
+  })
+
+  it('AC-304: /work/objectives + /work/projects-processes stay behind their capability gates', () => {
     const protectedRoute = routeConfig.find(
       r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
     )!
     const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-
-    expect(shell.children!.some((r) => r.path === 'work/cascade')).toBe(true)
 
     const objectivesGate = shell.children!.find(
       r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/objectives'),
@@ -134,17 +145,17 @@ describe('router — catalog manage-mode relocated under /work/ (FR-421)', () =>
     expect(workLinesGate.element).toEqual(<RequireCapability capability="workline.manage" />)
   })
 
-  it('AC-405: /objectives + /projects-processes are redirect routes to /work/cascade (replace)', () => {
+  it('AC-405: /objectives + /projects-processes redirect to the relocated catalogs (replace)', () => {
     const protectedRoute = routeConfig.find(
       r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
     )!
     const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
 
     const objectivesRedirect = shell.children!.find((r) => r.path === 'objectives')!
-    expect(objectivesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+    expect(objectivesRedirect.element).toEqual(<Navigate to="/work/objectives" replace />)
 
     const workLinesRedirect = shell.children!.find((r) => r.path === 'projects-processes')!
-    expect(workLinesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
+    expect(workLinesRedirect.element).toEqual(<Navigate to="/work/projects-processes" replace />)
   })
 })
 
@@ -252,5 +263,23 @@ describe('router — Plan budget + pricing routes (ADR-0022, SHOW_PLAN_BUDGET de
     // Pinned exclusion: unlike /dashboard, supervisor is deliberately absent here.
     expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
     expect(planGate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'supervisor']} />)
+  })
+})
+
+// AC-003 (#179): the cascade screen is cut, not hidden. "Cascade" survives as glossary vocabulary
+// for the Objective → Project/Process → Task relation (CONTEXT.md), but the surface that rendered
+// it — the page, its stylesheet, and the ladder builder that fed only that page — is gone from the
+// tree. Guards the cut against a later slice quietly re-landing the screen (OD-WAY-32).
+describe('cascade surface removed from the source tree (#179)', () => {
+  const srcDir = join(process.cwd(), 'src')
+
+  it.each([
+    'pages/cascade-page.tsx',
+    'pages/cascade-page.css',
+    'pages/cascade-page.test.tsx',
+    'lib/cascade/build-ladder.ts',
+    'lib/cascade/build-ladder.test.ts',
+  ])('%s is absent', (relative) => {
+    expect(existsSync(join(srcDir, relative))).toBe(false)
   })
 })

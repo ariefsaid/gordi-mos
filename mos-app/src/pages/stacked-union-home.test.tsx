@@ -207,8 +207,8 @@ describe('AC-HS12: BU-head (no finance) sees only own-BU — no whole-company ti
   })
 })
 
-describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops, cascade → /work/cascade', () => {
-  it('owner-cockpit money tiles link to /dashboard, ops-KPI to /ops, cascade to /work/cascade', async () => {
+describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops', () => {
+  it('owner-cockpit money tiles link to /dashboard, ops-KPI to /ops, and nothing drills to the cut cascade', async () => {
     mockListRevenue.mockResolvedValue([
       { revenue_date: '2026-07-06', channel: 'POS', esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', transactions: 80, clean_revenue: 12_000_000, snapshot_as_of: '2026-07-07T00:00:00Z', source_contract_version: 'v1' },
     ])
@@ -230,9 +230,11 @@ describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops, c
     const opsDrill = screen.getByRole('link', { name: /See today's floor activity/i })
     expect(opsDrill.getAttribute('href')).toBe('/ops')
 
-    // Cascade drill → /work/cascade
-    const cascadeDrill = screen.getByRole('link', { name: /Cascade progress/i })
-    expect(cascadeDrill.getAttribute('href')).toBe('/work/cascade')
+    // The cascade drill is cut with its destination (#179, OD-WAY-32): Home must not offer a
+    // link into a route the app no longer serves.
+    expect(screen.queryByRole('link', { name: /Cascade progress/i })).not.toBeInTheDocument()
+    const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
+    expect(hrefs.some((h) => h?.includes('cascade'))).toBe(false)
   })
 })
 
