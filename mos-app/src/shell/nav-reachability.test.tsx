@@ -25,7 +25,7 @@
  *    to it — which is exactly defect 1.
  *
  * A fifth followed: module visibility was decided by a regex over the viewer's JOB-ROLE NAME, so
- * five of ten seeded job roles saw no module at all while the routes admitted them.
+ * many seeded job roles saw no module at all while the routes admitted them.
  *
  * `OD-WAY-51` (owner ruling) settles the model rather than the symptoms: **navigation mirrors what
  * the route admits.** If a route admits a viewer, that viewer gets a rendered way in, at every
@@ -379,7 +379,7 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     })
 
     it('OD-WAY-51: a viewer whose job role matches NO module still reaches the ungated screens', () => {
-      // The persona the old model excluded outright. Five of ten seeded job roles are like this.
+      // The persona the old model excluded outright — a substantial share of the roster.
       const p = persona('no-module viewer')
       for (const path of ['/cafe/log', '/cafe/plan', '/cafe/stock']) {
         expect(phoneLinks(p), `${path} unreachable on a phone`).toContain(path)
