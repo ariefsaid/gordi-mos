@@ -56,12 +56,18 @@ function renderHost(auth: AuthState) {
   )
 }
 
-const authedViewer: AuthState = {
+// Narrowed to the authenticated arm, not the whole union: the "plain member" case below re-spreads
+// `.viewer`, which is only reachable on this arm. `must_change_password` is on `PeopleRow` on this
+// line (the credential security series, which exists only here) and v4's fixture predates it.
+type AuthedState = Extract<AuthState, { status: 'authenticated' }>
+
+const authedViewer: AuthedState = {
   status: 'authenticated',
   viewer: {
     person: {
       id: 'person-author', org_id: 'org-1', user_id: 'auth-1', full_name: 'Signal Author',
-      email: 'author@example.test', archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      email: 'author@example.test', archived_at: null, must_change_password: false,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     },
     roles: [], isManager: false, accessRoles: ['ops_lead'],
   },

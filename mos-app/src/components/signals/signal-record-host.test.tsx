@@ -75,7 +75,12 @@ function authedViewer(personId = VIEWER_ID): AuthState {
   return {
     status: 'authenticated',
     viewer: {
-      person: { id: personId, org_id: 'org-1', user_id: 'u1', full_name: 'Author One', email: null, archived_at: null, created_at: '', updated_at: '' },
+      // `must_change_password` is on this line's `PeopleRow` (the credential security series that
+      // exists only here); v4's fixture predates it.
+      person: {
+        id: personId, org_id: 'org-1', user_id: 'u1', full_name: 'Author One', email: null,
+        archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+      },
       roles: [], isManager: false, accessRoles: [],
     },
     signOut: vi.fn(),

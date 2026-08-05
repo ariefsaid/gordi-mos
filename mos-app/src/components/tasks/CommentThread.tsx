@@ -14,6 +14,14 @@ export type CommentThreadProps = {
   people: PersonOption[]
   canPost: boolean
   onPost: (body: string) => Promise<void> | void
+  /**
+   * How the "Comments" section heading renders. 'visible' (default) keeps the card heading, so
+   * every existing call site is unchanged. 'srOnly' hides it visually while keeping it for
+   * assistive tech — the Signal record already titles this area "Discussion" in its own region
+   * heading, so a second visible "Comments" heading inside it is a duplicate the sighted reader
+   * has to skip and the outline has to carry. Ported from v4 with #193.
+   */
+  heading?: 'visible' | 'srOnly'
 }
 
 function personName(people: PersonOption[], id: string): string {
@@ -24,7 +32,7 @@ function mentionSlug(name: string): string {
   return name.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
 }
 
-export function CommentThread({ comments, people, canPost, onPost }: CommentThreadProps) {
+export function CommentThread({ comments, people, canPost, onPost, heading = 'visible' }: CommentThreadProps) {
   const [draft, setDraft] = useState('')
   const [posting, setPosting] = useState(false)
   const showMentionPicker = canPost && /(^|\s)@[a-z0-9_.-]*$/i.test(draft)
@@ -50,7 +58,7 @@ export function CommentThread({ comments, people, canPost, onPost }: CommentThre
 
   return (
     <section className="card" aria-label="Comments" role="region">
-      <h2 className="card-h2">Comments</h2>
+      <h2 className={heading === 'srOnly' ? 'sr-only' : 'card-h2'}>Comments</h2>
       {comments.length === 0 ? (
         <p className="empty-substate">No comments yet.</p>
       ) : (

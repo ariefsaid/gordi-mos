@@ -24,7 +24,6 @@ import {
   type SignalCollectionActions,
 } from '@/components/signals/signal-collection-actions'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { BOOT_SIGNAL_RECORD_ID } from '@/components/signals/signal-page-mode'
 import './signals-archive-page.css'
@@ -111,16 +110,12 @@ export function SignalsArchivePage() {
   // renders its own modal overlay, so the list stays full-width underneath (no grid track).
   const splitOpen = Boolean(recordId) && isSplit
 
-  // Record-scoped "Ask Deputy" seed: prefer the loaded signal's own message so the composer opens
-  // with "About Signal: <message>". Falls back to the generic record noun when the record isn't in
-  // the loaded set (deep link) — the seed is an editable draft, so a generic reference is fine.
-  const askSignalDraft = useMemo(() => {
-    if (!recordId) return null
-    const body = controller.state.data?.records.find((r) => r.id === recordId)?.body?.trim()
-    const title = body ? (body.length > 72 ? `${body.slice(0, 71).trimEnd()}…` : body) : t('signals.record.title')
-    return t('assistant.askAbout.signal', { title })
-  }, [recordId, controller.state.data, t])
-
+  // PORT NOTE (#193): v4 seeds a record-scoped "Ask Deputy" action here and on the canonical page,
+  // opening the Deputy composer with "About Signal: <message>". This line's agent runtime takes
+  // `openPanel()` with NO seed, so the button would open an empty composer and silently drop the
+  // record reference — which is why #190 parked the same affordance on `RecordPageChrome` rather
+  // than porting a control that misleads. The seam (`actions` here, `trailing` there) is left open
+  // for the ticket that lands the seeded composer; see the PR body's map-#150 entry.
   const signalEntry = useMemo(() => {
     if (!recordId) return null
     return {
@@ -129,11 +124,10 @@ export function SignalsArchivePage() {
       tenant: 'record' as const,
       label: t('signals.record.title'),
       title: t('signals.record.title'),
-      actions: askSignalDraft ? <AskDeputyAction draft={askSignalDraft} /> : undefined,
       pageTo: { pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() },
       content: <SignalRecordHost signalId={recordId} mode="panel" />,
     }
-  }, [recordId, searchWithoutRecord, t, askSignalDraft])
+  }, [recordId, searchWithoutRecord, t])
 
   useEffect(() => {
     if (!signalEntry) {
@@ -367,11 +361,6 @@ export function SignalRecordPage() {
   const [title, setTitle] = useState<string | null>(null)
   // R6-P2 parity with TaskRecordPage: reflect the resolved record name in the browser tab.
   useDocumentTitle(t('common.docTitle', { page: title ? `${title} · ${t('nav.signals')}` : t('nav.signals') }))
-  // Record-scoped Ask-Deputy seed (mirrors the panel's askSignalDraft) — resolved once the record
-  // loads; a compact reference so the composer opens with "About Signal: <message>".
-  const deputyDraft = title
-    ? t('assistant.askAbout.signal', { title: title.length > 72 ? `${title.slice(0, 71).trimEnd()}…` : title })
-    : null
   if (!signalId) return <Navigate to="/work/signals" replace />
   // SR-3 / SR-8 (mirrors TaskRecordPage exactly): the generic "Signal" page head + its job
   // sentence are pure duplication above the record's OWN identity header (SIGNAL overline +
@@ -385,11 +374,7 @@ export function SignalRecordPage() {
       jobSentence="Review and follow up on this Signal."
       hideHead
     >
-      <RecordPageChrome
-        backTo="/work/signals"
-        backLabel={t('nav.signals')}
-        deputyDraft={deputyDraft}
-      />
+      <RecordPageChrome backTo="/work/signals" backLabel={t('nav.signals')} />
       <SignalRecordHost signalId={signalId} mode="page" onTitleResolved={setTitle} />
     </PageFamilyFrame>
   )
