@@ -271,7 +271,6 @@ export const messages = {
     'common.cancel': 'Cancel',
     'common.working': 'Working…',
     'common.unexpectedError': 'Something went wrong. Try again.',
-    'common.help': 'Help',
     // The record overlay/page chrome (#190) — the ONE set of control labels every record kind
     // renders, whether it opened as a panel beside a collection or as a canonical page.
     'record.openFullPage': 'Open full page',
@@ -599,7 +598,6 @@ export const messages = {
     'common.cancel': 'Batal',
     'common.working': 'Memproses…',
     'common.unexpectedError': 'Terjadi kesalahan. Coba lagi.',
-    'common.help': 'Bantuan',
     'record.openFullPage': 'Buka halaman penuh',
     'record.close': 'Tutup',
     'record.back': 'Kembali',
