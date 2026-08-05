@@ -414,34 +414,42 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
   })
 })
 
-// ── Mobile: Work-line + Objective in card dl ──────────────────────────────────
-
-describe('Mobile cards: Work-line + Objective shown in card detail list', () => {
+// ── Mobile: card detail list is PIC/Supervisor/Due only ────────────────────────
+// v4 distill (mobile-grouped-cards.tsx TaskCard comment, citing .claude/skills/impeccable
+// distill.md "remove redundancy"): Work-line, Objective and Source were dropped from the phone
+// card body — they rendered an empty "—" line for every ad-hoc task, "noise wearing information's
+// clothes". PIC + Supervisor + Due are the decision-relevant fields for weekly triage (the same
+// set the desktop row already settled on, Wave 2c OD-REDESIGN-61..64); full typed metadata is one
+// tap away on the record. This describe block used to assert the pre-distill card shape.
+describe('Mobile cards: detail list is PIC/Supervisor/Due (Work-line/Objective dropped as redundant)', () => {
   beforeEach(() => {
     stubMatchMedia(false, false) // mobile viewport
     __resetTasksViewPrefForTests()
   })
 
-  it('mobile card shows Work-line name + type label for a task with a work line', async () => {
+  it('mobile card shows PIC, Supervisor, and Due — NOT the Work-line/Objective names', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Mobile task', work_line_id: 'wl-2', objective_id: 'obj-2' }),
     ])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
-    // Work-line name present in the card (scoped to the card)
     const card = screen.getByText('Mobile task').closest('article')
-    expect(card).toHaveTextContent('New Menu Design')
-    // Objective name present in the card
-    expect(card).toHaveTextContent('Launch autumn menu')
+    expect(card).toHaveTextContent('PIC')
+    expect(card).toHaveTextContent('Supervisor')
+    expect(card).toHaveTextContent('Due')
+    // The Work-line/Objective NAMES are gone from the card body — they're one tap away on the
+    // record, not restated here (distill.md "remove redundancy").
+    expect(card).not.toHaveTextContent('New Menu Design')
+    expect(card).not.toHaveTextContent('Launch autumn menu')
   })
 
-  it('mobile card shows "—" for empty work_line_id', async () => {
+  it('mobile card shows "—" for an empty due date', async () => {
     mockListTasks.mockResolvedValue([
-      makeTask({ id: 't1', title: 'Mobile task', work_line_id: null, objective_id: null }),
+      makeTask({ id: 't1', title: 'Mobile task', work_line_id: null, objective_id: null, due_date: null }),
     ])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
-    // At least one "—" for empty field in the card
+    // At least one "—" for the empty field in the card
     const card = screen.getByText('Mobile task').closest('article')
     expect(card?.textContent).toContain('—')
   })

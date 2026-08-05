@@ -581,6 +581,9 @@ describe('TaskSurface — saved-view URL preservation', () => {
     renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Saved view task' } })
+    // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId) — a
+    // valid submit needs it explicitly chosen.
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     // After-create returns to the collection (not the drawer), preserving the view + flagging the new row.
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine&highlight=new-task-id'))
@@ -598,7 +601,7 @@ describe('TaskSurface — saved-view URL preservation', () => {
 })
 
 describe('TaskSurface — create mode', () => {
-  it('AC-080 (TaskSurface create): PIC/Supervisor default to creator, Team defaults to primary-role Team; all editable', async () => {
+  it('AC-080 (TaskSurface create): PIC defaults to creator, Supervisor starts empty (required), Team defaults to primary-role Team; all editable', async () => {
     renderCreate()
     await waitFor(() => {
       const buSelect = screen.getByLabelText(/team/i) as HTMLSelectElement
@@ -606,8 +609,11 @@ describe('TaskSurface — create mode', () => {
     })
     const rSelect = screen.getByLabelText(/^pic$/i) as HTMLSelectElement
     expect(rSelect.value).toBe(VIEWER_ID)
+    // Supervisor starts EMPTY — a deliberate v4 product decision (OD-REDESIGN-3/14/41,
+    // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct accountable
+    // roles; auto-collapsing Supervisor to the creator/PIC defeats that model.
     const aSelect = screen.getByLabelText(/^supervisor$/i) as HTMLSelectElement
-    expect(aSelect.value).toBe(VIEWER_ID)
+    expect(aSelect.value).toBe('')
     expect(rSelect).not.toBeDisabled()
     expect(aSelect).not.toBeDisabled()
   })
@@ -654,6 +660,7 @@ describe('TaskSurface — create mode', () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Doomed task' } })
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/couldn.t be created/i)
@@ -673,8 +680,9 @@ describe('TaskSurface — create mode', () => {
     expect(screen.getAllByText('Create task').length).toBeGreaterThan(0)
     expect(document.querySelector('.tc-create-drawer')).toBeTruthy()
     expect(document.querySelector('.tc-card')).toBeNull()
-    // create still works at drawer width
+    // create still works at drawer width. Supervisor starts empty and is required (AC-080).
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Drawer task' } })
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Drawer task' })))
   })
@@ -730,6 +738,8 @@ describe('TaskSurface — create mode', () => {
     )
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Reportable task' } })
+    // Supervisor starts empty and is required (AC-080) — a valid submit needs it chosen.
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(onTaskCreated).toHaveBeenCalledWith('new-task-id'))
   })
@@ -738,6 +748,8 @@ describe('TaskSurface — create mode', () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'New Task Alpha' } })
+    // Supervisor starts empty and is required (AC-080) — a valid submit needs it chosen.
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => {
       expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({

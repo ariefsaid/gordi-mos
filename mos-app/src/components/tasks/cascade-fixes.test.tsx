@@ -486,7 +486,13 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 // ── Fix-5: Mobile card dt labels are visible (not sr-only) ───────────────────
 
 describe('Fix-5 — Mobile card dt labels are visible', () => {
-  it('Fix-5: Work-line dt label is visible (not sr-only) in mobile task card', () => {
+  // Ported for #192: mobile-grouped-cards.tsx's TaskCard dropped Work-line/Objective from the
+  // card body (v4 distill, .claude/skills/impeccable distill.md "remove redundancy" — PIC +
+  // Supervisor + Due are the decision-relevant fields; full metadata is one tap away on the
+  // record). Fix-5's actual claim — every rendered dt label is visible, not sr-only — still
+  // holds; it's re-pinned against the CURRENT field set (PIC/Supervisor/Due) rather than the
+  // pre-distill one (Work-line/Project-Process).
+  it('Fix-5: PIC/Supervisor/Due dt labels are visible (not sr-only) in mobile task card', () => {
     const taskWithWl = makeTask({ id: 't1', work_line_id: 'wl-project' })
     render(
       <MemoryRouter>
@@ -515,9 +521,11 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
     const srOnlyDts = dts.filter(dt => dt.classList.contains('sr-only'))
     // After fix: 0 dt elements may be sr-only (all are visible label:value)
     expect(srOnlyDts.length).toBe(0)
-    // The dt text content is readable ("Work-line", "Objective", "Due", "Owner", "Activity")
+    // The dt text content is readable — the current field set is PIC/Supervisor/Due.
     const dtTexts = dts.map(dt => dt.textContent)
-    expect(dtTexts.some(t => /project\/process/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /^pic$/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /due/i.test(t ?? ''))).toBe(true)
   })
 
   it('Fix-5: task-card-meta dt elements are not display:none or visually hidden', () => {

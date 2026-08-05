@@ -90,7 +90,7 @@ beforeEach(() => {
 
 // ── AC-080: prefills on open ───────────────────────────────────────────────
 describe('AC-080 — create form prefills', () => {
-  it('PIC and Supervisor pre-fill to creator; Team defaults to primary-role Team, all editable', async () => {
+  it('PIC pre-fills to the creator, Supervisor starts empty (required), Team defaults to primary-role Team — all editable', async () => {
     renderCreate()
 
     await waitFor(() => {
@@ -99,12 +99,17 @@ describe('AC-080 — create form prefills', () => {
       expect(teamSelect.value).toBe('bu-1')
     })
 
-    // PIC and Supervisor selects are present and pre-filled to creator
+    // PIC pre-fills to the creator.
     const picSelect = screen.getByLabelText(/^pic$/i) as HTMLSelectElement
     expect(picSelect.value).toBe(VIEWER_ID)
 
+    // Supervisor starts EMPTY — a deliberate v4 product decision (OD-REDESIGN-3/14/41,
+    // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct
+    // accountable roles, and auto-collapsing Supervisor to the creator/PIC defeats that model.
+    // CONTEXT.md's real resolution order (PIC's manager, etc.) needs a directory lookup this
+    // surface doesn't have, so Supervisor is a required, explicit choice instead of a guess.
     const supervisorSelect = screen.getByLabelText(/^supervisor$/i) as HTMLSelectElement
-    expect(supervisorSelect.value).toBe(VIEWER_ID)
+    expect(supervisorSelect.value).toBe('')
 
     // Team field is editable (not disabled)
     const teamSelect = screen.getByLabelText(/^team$/i)
@@ -210,7 +215,9 @@ describe('AC-081 — create form validation', () => {
     await waitFor(() => screen.getByLabelText(/title/i))
 
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'New Task Alpha' } })
-    // BU already pre-filled to bu-1
+    // BU already pre-filled to bu-1. Supervisor starts empty and is required (see AC-080) —
+    // a valid submit needs it explicitly chosen.
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
 
     await waitFor(() => {

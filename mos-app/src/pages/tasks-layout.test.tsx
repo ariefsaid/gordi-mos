@@ -393,8 +393,11 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open · 0 total')
     })
 
-    // Fill + submit the create form (title required; BU pre-fills from role)
+    // Fill + submit the create form (title required; BU pre-fills from role). Supervisor starts
+    // empty and is required (OD-REDESIGN-3/14/41, task-surface.tsx accountablePersonId) — a valid
+    // submit needs it explicitly chosen.
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Freshly created' } })
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
 
     // The new row appears in the table and the count reflects it — no reload.

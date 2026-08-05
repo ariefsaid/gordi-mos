@@ -135,7 +135,10 @@ export const messages = {
     'inbox.severity.warning': 'Warning',
     'inbox.severity.critical': 'Critical',
     // NFR-300/FR-321 — phone card grammar + overdue prefix + catalog-resilience fallbacks.
-    'followUps.title': 'Follow-up queue',
+    // Ported for #192 (Tasks): renamed by v4 to "AR" (Follow-ups is scoped to Accounts
+    // Receivable — the Task follow-ups view embeds the SAME table via FollowUpQueueEmbed, so both
+    // consumers share this one key). follow-ups-page.test.tsx updated to match.
+    'followUps.title': 'AR Follow-up queue',
     'followUps.subtitle': 'Chase, settle, and confirm invoice-grain commitments',
     'followUps.overdue': 'Overdue',
     'followUps.loading': 'Loading follow-ups…',
@@ -602,7 +605,7 @@ export const messages = {
     'inbox.severity.warning': 'Peringatan',
     'inbox.severity.critical': 'Kritis',
     // NFR-300/FR-321 — tata bahasa kartu ponsel + prefiks terlambat + fallback ketahanan katalog.
-    'followUps.title': 'Antrean follow-up',
+    'followUps.title': 'Antrean AR Follow-up',
     'followUps.subtitle': 'Kejar, lunasi, dan konfirmasi komitmen per invoice',
     'followUps.overdue': 'Terlambat',
     'followUps.loading': 'Memuat follow-up…',

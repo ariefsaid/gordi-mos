@@ -77,8 +77,20 @@ describe('RequireCapability', () => {
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 
-  it('AC-302: redirects ops_lead from /work/objectives without objective.manage', () => {
+  // OD-V4-1 (supabase/migrations/20260805000006_mos_access_control.sql, already in the squashed
+  // baseline): ops_lead's shared.role_capabilities seed grants objective.manage — write at lead
+  // level, not admin-only (capabilities.ts mirrors this; see lib/capabilities.test.ts). This case
+  // used to pin ops_lead as the "lacks it" example, which pinned a stale mirror rather than the
+  // shipped contract. `member` genuinely lacks objective.manage, so it keeps this synthetic-path
+  // guard-redirect case honest.
+  it('AC-302: allows ops_lead into /work/objectives with objective.manage (OD-V4-1)', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
+    renderGuard('/work/objectives', 'objective.manage')
+    expect(screen.getByTestId('protected')).toBeInTheDocument()
+  })
+
+  it('AC-302: redirects member from /work/objectives without objective.manage', () => {
+    mockUseAuth.mockReturnValue(authed(['member']))
     renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
     expectLandsOnALiveSurface()
