@@ -18,7 +18,7 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   test('admin: Work → Objectives → /work/objectives with down-trace', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
-    // Work → Objectives (phone opens the drawer for secondary nav, mirroring AC-305). The link is
+    // Work → Objectives (phone opens the drawer for secondary nav). The link is
     // capability-gated on objective.manage, which ADMIN holds.
     await page.getByRole('button', { name: /open navigation/i }).click()
     await page.getByRole('dialog').getByRole('link', { name: 'Objectives' }).click()
