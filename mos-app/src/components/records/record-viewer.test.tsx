@@ -26,7 +26,7 @@ function taskAdapter(overrides: Partial<RecordViewerAdapter> = {}): RecordViewer
         fields: [
           { key: 'businessUnit', label: 'Business Unit', control: 'select', value: 'bu-retail', displayValue: 'Retail Ops', editable: true, options: [{ value: 'bu-retail', label: 'Retail Ops' }, { value: 'bu-hq', label: 'HQ Ops' }] },
           { key: 'pic', label: 'Person in charge (PIC)', control: 'person', value: 'p-1', displayValue: 'Riri', editable: true, options: [{ value: 'p-1', label: 'Riri' }] },
-          { key: 'supervisor', label: 'Supervisor', control: 'person', value: 'p-2', displayValue: 'Ibnu', editable: true, options: [{ value: 'p-2', label: 'Ibnu' }] },
+          { key: 'supervisor', label: 'Supervisor', control: 'person', value: 'p-2', displayValue: 'Wayan Kusuma', editable: true, options: [{ value: 'p-2', label: 'Wayan Kusuma' }] },
           { key: 'team', label: 'Team', control: 'team', value: null, displayValue: 'Team not assigned yet (data migration)', editable: false, readOnlyReason: 'No team_id on this task yet' },
         ],
       },

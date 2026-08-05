@@ -18,7 +18,7 @@ const SUPERVISOR = 'p-sup'
 
 const people: PersonOption[] = [
   { id: PIC, full_name: 'Riri' },
-  { id: SUPERVISOR, full_name: 'Ibnu' },
+  { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
 ]
 const businessUnits: BusinessUnitOption[] = [
   { id: 'bu-retail', name: 'Retail Ops' },
@@ -91,7 +91,7 @@ describe('createTaskRecordAdapter', () => {
 
     expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
     expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
-    expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Ibnu')
+    expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Wayan Kusuma')
     expect(fieldByKey(adapter, 'status').displayValue).toBe('Open')
     expect(fieldByKey(adapter, 'dueDate').value).toBe('2026-07-25')
 

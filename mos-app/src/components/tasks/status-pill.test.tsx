@@ -42,6 +42,40 @@ describe('StatusPill — AC-118 always-label rule (label is the redundant cue)',
   }
 })
 
+describe('StatusPill — openTreatment="neutral" swaps Open\'s amber for the neutral gray (design review F3)', () => {
+  // #191 (Home port) — Home's stream row sits an amber Open pill beside its own amber
+  // reason chip, reading as a second warning tier. openTreatment="neutral" is the fix:
+  // it swaps only Open's tag colour + text token to the DESIGN.md §5 neutral gray, and
+  // leaves every other status (and every other StatusPill call site's default
+  // 'flagged' treatment) untouched.
+  it('renders Open as neutral gray, not amber, when openTreatment="neutral"', () => {
+    const { container } = render(<StatusPill status="Open" openTreatment="neutral" />)
+    const tag = container.querySelector('.mk-tag') as HTMLElement
+    const style = tag.getAttribute('style') ?? ''
+    expect(style).toContain('--ds-tag-background-gray')
+    expect(style).not.toContain('--ds-tag-background-amber')
+    expect(tag).toHaveStyle({ color: 'var(--muted-foreground)' })
+  })
+
+  it('leaves Open amber under the default "flagged" treatment', () => {
+    const { container } = render(<StatusPill status="Open" />)
+    const tag = container.querySelector('.mk-tag') as HTMLElement
+    const style = tag.getAttribute('style') ?? ''
+    expect(style).toContain('--ds-tag-background-amber')
+    expect(style).not.toContain('--ds-tag-background-gray')
+    expect(tag).toHaveStyle({ color: 'var(--warning-foreground)' })
+  })
+
+  it('ignores openTreatment="neutral" for every non-Open status', () => {
+    const { container } = render(<StatusPill status="Blocked" openTreatment="neutral" />)
+    const tag = container.querySelector('.mk-tag') as HTMLElement
+    const style = tag.getAttribute('style') ?? ''
+    expect(style).toContain('--ds-tag-background-red')
+    expect(style).not.toContain('--ds-tag-background-gray')
+    expect(tag).toHaveStyle({ color: 'var(--status-lost-text)' })
+  })
+})
+
 describe('StatusPill — Issue 2 AA text-token lock', () => {
   it.each([
     ['Open', '--warning-foreground'],
