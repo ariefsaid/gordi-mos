@@ -9,18 +9,20 @@
 //   item 7: alertdialog reveal has aria-describedby on the alertdialog element itself
 //   item 9: route renamed /admin/users → /admin/people
 
-import { useState, useEffect, useCallback, useId } from 'react'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { useT } from '@/i18n/use-t'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { Button } from '@/components/ui/button'
-import { ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
 import type { PersonAction } from '@/components/admin/user-table'
+import { usePeopleListPresentsCards } from '@/components/admin/use-people-list-presents-cards'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
 import { RoleEditor } from '@/components/admin/role-editor'
-import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
 import {
@@ -52,7 +54,11 @@ type PendingConfirm =
 
 export function AdminUsersPage() {
   const auth = useAuth()
+  const t = useT()
   const viewerPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  // DO-22(b): same presentation decision the UserTable itself makes — chrome and list
+  // presentation can never disagree.
+  const presentsCards = usePeopleListPresentsCards()
 
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [people, setPeople] = useState<AdminPersonRow[]>([])
@@ -67,6 +73,19 @@ export function AdminUsersPage() {
   const [actionError, setActionError] = useState('')
 
   const { toast, showToast, clearToast } = useToast()
+
+  // GAP-7: ONE success channel per locus. An IN-PLACE edit (enable/disable login, which updates
+  // the person's row where the user is already looking) confirms with an inline "Saved" at the row
+  // locus (the record grammar), never a floating toast. The toast is reserved for changes that land
+  // ELSEWHERE (archive/restore move the row out of the current segment view).
+  const [justSavedId, setJustSavedId] = useState<string | null>(null)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashSaved = useCallback((personId: string) => {
+    setJustSavedId(personId)
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    savedTimerRef.current = setTimeout(() => setJustSavedId(null), 1600)
+  }, [])
+  useEffect(() => () => { if (savedTimerRef.current) clearTimeout(savedTimerRef.current) }, [])
 
   // IDs for alertdialog aria-labelledby/describedby (item 7)
   const revealHeadingId = useId()
@@ -119,10 +138,10 @@ export function AdminUsersPage() {
           break
 
         case 'enable-login':
-          // No confirm — low-stakes reversible action
+          // No confirm — low-stakes reversible action. GAP-7: in-place edit → inline Saved at the row.
           await setLoginEnabled(person.id, true)
           await load()
-          showToast(`${person.full_name}: login enabled.`)
+          flashSaved(person.id)
           break
 
         case 'create-login': {
@@ -136,7 +155,7 @@ export function AdminUsersPage() {
           // No confirm — low-stakes reversible action
           await restorePerson(person.id)
           await load()
-          showToast(`${person.full_name} restored.`)
+          showToast(t('admin.people.toast.restored', { name: person.full_name }))
           break
 
         case 'manage-roles':
@@ -145,7 +164,7 @@ export function AdminUsersPage() {
           break
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Action failed. Try again.')
+      setActionError(err instanceof Error ? err.message : t('admin.people.actionFailed'))
     }
   }
 
@@ -159,17 +178,18 @@ export function AdminUsersPage() {
   }
 
   async function handleConfirmDisable(person: AdminPersonRow) {
+    // GAP-7: disabling login is an in-place edit (the row's login pill flips) → inline Saved at the row.
     await setLoginEnabled(person.id, false)
     setPendingConfirm(null)
     await load()
-    showToast(`${person.full_name}: login disabled.`)
+    flashSaved(person.id)
   }
 
   async function handleConfirmArchive(person: AdminPersonRow) {
     await archivePerson(person.id)
     setPendingConfirm(null)
     await load()
-    showToast(`${person.full_name} archived.`)
+    showToast(t('admin.people.toast.archived', { name: person.full_name }))
   }
 
   function handleRevealDone() {
@@ -180,15 +200,28 @@ export function AdminUsersPage() {
     void load()
   }
 
+  // Shell state seam (V3 Management family): the People load state maps to the
+  // shared PageFamilyState. The UserTable body keeps its own empty/segment states.
+  const frameState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : 'default'
+
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="People"
-        count={loadState === 'loaded' ? people.length : null}
-        meta={<span>Manage who can sign in and what they can do.</span>}
-        action={<Button variant="primary" onClick={() => setAddOpen(true)}>+ Add person</Button>}
-      />
+    // Census R2 DO-7 sibling sweep (GUARD-R2 class): People has no in-body result-header, so its
+    // count moves into the head as ONE labeled meta sentence ("9 people" — the Tasks grammar),
+    // never the bare ".ch-count" digit pill; "—" while counts are unknown.
+    <PageFamilyFrame
+      family="management"
+      title={t('admin.people.title')}
+      jobSentence={t('admin.people.job')}
+      meta={
+        <span data-testid="people-count-line" className="ch-meta-line tabular-nums">
+          {loadState === 'loaded'
+            ? t(people.length === 1 ? 'admin.people.count.one' : 'admin.people.count.other', { count: people.length })
+            : '—'}
+        </span>
+      }
+      action={<Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
+      state={frameState}
+    >
 
       {/* Action error (inline, non-fatal) */}
       {actionError && (
@@ -196,14 +229,19 @@ export function AdminUsersPage() {
           <ErrorState
             message={actionError}
             onRetry={() => setActionError('')}
-            retryLabel="Dismiss"
+            retryLabel={t('admin.people.dismiss')}
           />
         </div>
       )}
 
+      {/* DO-22(b) (census admin-people P2-B): when the list presents as CARDS (phone /
+          coarse pointer) the person cards carry their own card chrome — the outer
+          container drops its border/shadow/bg so cards never nest inside a card. The
+          container card exists for the table presentation only. */}
       <div
+        data-testid="people-list-container"
         className="mx-6 mb-6 rounded-lg overflow-hidden"
-        style={{
+        style={presentsCards ? undefined : {
           border: '1px solid var(--border)',
           boxShadow: 'var(--shadow-rest)',
           background: 'var(--card)',
@@ -225,17 +263,19 @@ export function AdminUsersPage() {
                 className="text-xs font-semibold uppercase"
                 style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em' }}
               >
-                Person
+                {t('admin.people.col.person')}
               </span>
             </div>
-            <SkeletonRows count={6} />
+            {/* Cohesion-debt 2026-07-19, item #3: one loading grammar — LoadingShell
+                (role=status) instead of a role-less bare SkeletonRows. */}
+            <LoadingShell count={6} />
           </>
         )}
 
         {loadState === 'error' && (
           <div className="py-12 px-4">
             <ErrorState
-              message="Couldn't load people. Try again."
+              message={t('admin.people.loadError')}
               onRetry={load}
             />
           </div>
@@ -247,6 +287,7 @@ export function AdminUsersPage() {
             viewerPersonId={viewerPersonId}
             onAction={handleAction}
             onAddPerson={() => setAddOpen(true)}
+            justSavedId={justSavedId}
           />
         )}
       </div>
@@ -280,9 +321,9 @@ export function AdminUsersPage() {
       {pendingConfirm?.type === 'reset-password' && (
         <ConfirmDialog
           open
-          title={`Reset password for ${pendingConfirm.person.full_name}?`}
-          body="Their current password will stop working. A new temporary password will be shown once."
-          confirmLabel="Reset password"
+          title={t('admin.people.confirm.reset.title', { name: pendingConfirm.person.full_name })}
+          body={t('admin.people.confirm.reset.body')}
+          confirmLabel={t('admin.people.confirm.reset.confirm')}
           tone="primary"
           onConfirm={() => handleConfirmResetPassword(pendingConfirm.person)}
           onCancel={() => setPendingConfirm(null)}
@@ -292,9 +333,9 @@ export function AdminUsersPage() {
       {pendingConfirm?.type === 'disable-login' && (
         <ConfirmDialog
           open
-          title={`Disable sign-in for ${pendingConfirm.person.full_name}?`}
-          body="They won't be able to log in until you enable it again. Nothing is deleted."
-          confirmLabel="Disable"
+          title={t('admin.people.confirm.disable.title', { name: pendingConfirm.person.full_name })}
+          body={t('admin.people.confirm.disable.body')}
+          confirmLabel={t('admin.people.confirm.disable.confirm')}
           tone="primary"
           onConfirm={() => handleConfirmDisable(pendingConfirm.person)}
           onCancel={() => setPendingConfirm(null)}
@@ -304,9 +345,9 @@ export function AdminUsersPage() {
       {pendingConfirm?.type === 'archive' && (
         <ConfirmDialog
           open
-          title={`Archive ${pendingConfirm.person.full_name}?`}
-          body="They drop out of the directory and lose access, but nothing is deleted."
-          confirmLabel="Archive"
+          title={t('admin.people.confirm.archive.title', { name: pendingConfirm.person.full_name })}
+          body={t('admin.people.confirm.archive.body')}
+          confirmLabel={t('admin.people.confirm.archive.confirm')}
           tone="destructive"
           onConfirm={() => handleConfirmArchive(pendingConfirm.person)}
           onCancel={() => setPendingConfirm(null)}
@@ -315,24 +356,20 @@ export function AdminUsersPage() {
 
       {/* Password reveal — for reset-password + create-login actions.
           The alertdialog element owns aria-labelledby/describedby (item 7 fix):
-          previously these were only on the inner wrapper div, not the alertdialog element. */}
+          previously these were only on the inner wrapper div, not the alertdialog element.
+          Neither Esc nor the backdrop dismisses it — the password is shown exactly once,
+          so Done is the only exit (design-plan §4.4). */}
       {reveal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'var(--scrim)' }}
-          // No backdrop dismiss on reveal — intentional (design-plan §4.4)
+        <ModalShell
+          open
+          onClose={handleRevealDone}
+          role="alertdialog"
+          ariaLabelledBy={revealHeadingId}
+          ariaDescribedBy={revealWarningId}
+          closeOnBackdrop={false}
+          closeOnEscape={false}
         >
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby={revealHeadingId}
-            aria-describedby={revealWarningId}
-            className="relative w-full max-w-md rounded-lg p-6"
-            style={{
-              background: 'var(--card)',
-              boxShadow: 'var(--shadow-overlay)',
-            }}
-          >
+          <div className="p-6">
             <PasswordReveal
               personName={reveal.personName}
               password={reveal.password}
@@ -343,11 +380,11 @@ export function AdminUsersPage() {
               warningId={revealWarningId}
             />
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {/* Success toast (item 6) */}
       <Toast toast={toast} onDismiss={clearToast} />
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

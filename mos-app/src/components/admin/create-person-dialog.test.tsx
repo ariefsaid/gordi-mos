@@ -52,12 +52,20 @@ beforeEach(() => {
   )
 })
 
-function renderDialog(props: { open?: boolean; onClose?: () => void; onCreated?: () => void } = {}) {
+function renderDialog(
+  props: {
+    open?: boolean
+    onClose?: () => void
+    onCreated?: () => void
+    onShowToast?: (message: string) => void
+  } = {},
+) {
   return render(
     <CreatePersonDialog
       open={props.open ?? true}
       onClose={props.onClose ?? vi.fn()}
       onCreated={props.onCreated ?? vi.fn()}
+      onShowToast={props.onShowToast}
     />,
   )
 }
@@ -226,6 +234,33 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   })
 
+  it('uses one shared modal shell and Escape closes only the dismissible form phase', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderDialog({ onClose })
+
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the show-once password protected from Escape dismissal', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPwProtected')
+    renderDialog({ onClose })
+
+    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+    await screen.findByText('TempPwProtected')
+    await user.keyboard('{Escape}')
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+  })
+
   it('AC-011: validation — empty name shows an error, createPerson not called', async () => {
     const user = userEvent.setup()
     renderDialog()
@@ -263,11 +298,77 @@ describe('CreatePersonDialog (AC-011)', () => {
     await screen.findByText(/couldn't create/i)
   })
 
-  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
-  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+  // ── JQ-3: the "Create a login now" intent must never be silently lost ─────────
+
+  it('JQ-3: login-requested create surfaces the show-once credential reveal (never a plain "added" toast)', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPwJQ3')
+    const onShowToast = vi.fn()
+    const onClose = vi.fn()
+    renderDialog({ onShowToast, onClose })
+
+    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
+    await user.type(screen.getByLabelText('Email'), 'hire@example.test')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    // The credential handoff fired: the reveal shows the password.
+    await screen.findByText('TempPwJQ3')
+    // …and the dialog did NOT short-circuit into the no-login "added" success.
+    expect(onShowToast).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('JQ-3: person-created-but-login-failed surfaces an honest actionable message, not a silent "added"', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockRejectedValue(new Error('provisioning RPC failed'))
+    const onCreated = vi.fn()
+    const onClose = vi.fn()
+    const onShowToast = vi.fn()
+    renderDialog({ onCreated, onClose, onShowToast })
+
+    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
+    await user.type(screen.getByLabelText('Email'), 'hire@example.test')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    // The list refreshes (the new no-login person is now visible with a Create-login row action)…
+    await waitFor(() => expect(onCreated).toHaveBeenCalled())
+    // …and the admin is told the login step did NOT happen + how to recover — never a bare "added".
+    const message = onShowToast.mock.calls.at(-1)?.[0] as string
+    expect(message).toMatch(/sign-in couldn't be created/i)
+    expect(message).toMatch(/create login/i)
+    expect(message).not.toBe('New Hire added.')
+    // No credential reveal is shown (none was created).
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('JQ-3: a full create failure (person not written) keeps the honest "couldn\'t create" error', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockRejectedValue(new Error('rls denied'))
+    const onCreated = vi.fn()
+    const onShowToast = vi.fn()
+    renderDialog({ onCreated, onShowToast })
+
+    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
+    await user.type(screen.getByLabelText('Email'), 'hire@example.test')
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    await screen.findByText(/couldn't create/i)
+    // Nothing was written → no list refresh, no misleading "added" toast, no login attempt.
+    expect(onCreated).not.toHaveBeenCalled()
+    expect(onShowToast).not.toHaveBeenCalled()
+    expect(mockCreateLogin).not.toHaveBeenCalled()
+  })
+
+  // FIX B1 regression — the canonical shell owns the visible Single-Border Rule.
+  it('FIX-B1: dialog card uses the canonical bordered modal surface', () => {
     renderDialog()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.style.border).toBeTruthy()
-    expect(dialog.style.border).not.toBe('')
+    expect(dialog).toHaveClass('modal-shell__surface')
   })
 })

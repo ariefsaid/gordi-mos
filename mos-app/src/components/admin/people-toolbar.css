@@ -30,7 +30,7 @@
   border: 1px solid var(--input);
   border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   color: var(--muted-foreground);
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
   min-width: 180px;
   flex: 1 1 180px;
   max-width: 280px;
@@ -41,7 +41,12 @@
   outline: none;
   background: transparent;
   font: inherit;
-  font-size: 14px;
+  /* v4: matches .people-search-mini's own font-size (was --font-size-body, one rung
+     smaller than its wrapper — the typed value read smaller than its own placeholder).
+     Also aligns with the sibling Tasks toolbar, whose .search-input carries the same
+     --font-size-body-lg as its .search-mini wrapper (operate.md: "if the save button
+     looks different in two places, one is wrong"). */
+  font-size: var(--font-size-body-lg);
   color: var(--foreground);
   width: 100%;
 }
@@ -50,49 +55,21 @@
   color: var(--muted-foreground);
 }
 
-/* ── Segmented status filter (DESIGN.md §"Inline segmented (seg)") ─────────── */
-/* secondary track, "on" = white background pill + foreground + 600 + lift */
-.people-seg {
-  display: inline-flex;
-  height: 32px;
-  padding: 3px;
-  background: var(--secondary);
-  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+/* ── Segmented status filter — shared ViewTabs (interaction-contract I7) ────── */
+/* The strip renders inline in this compact toolbar row, not as ViewTabs' default
+   full-bleed sticky page strip — reset that chrome (mirrors collection-toolbar's
+   own `.view-tabs` reset). The tab-underline grammar itself stays ViewTabs' own
+   (Rule 11 — never a bespoke segmented control here). */
+.people-status-tabs {
   flex-shrink: 0;
 }
 
-.people-seg-btn {
-  border: 0;
+.people-status-tabs .view-tabs {
+  position: static;
+  padding: 0;
+  border-bottom: 0;
   background: transparent;
-  font: inherit;
-  font-size: 13px;
-  padding: 0 10px;
-  border-radius: calc(var(--radius-sm) - 2px); /* inner control corner OD-P3-10 */
-  color: var(--secondary-foreground);
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.people-seg-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
-}
-
-/* Active segment: crisp ring + lift (DESIGN.md "Pressed/selected lift") */
-.people-seg-btn[aria-selected='true'] {
-  background: var(--background);
-  font-weight: 600;
-  color: var(--foreground);
-  box-shadow: 0 0 0 1px var(--border-strong),
-    0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
-  cursor: default;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .people-seg-btn {
-    transition: none;
-  }
+  z-index: auto;
 }
 
 /* ── Mobile reflow (<768px) ────────────────────────────────────────────────── */
@@ -106,19 +83,58 @@
   .people-search-mini {
     max-width: 100%;
     min-width: 0;
+    /* Census R2 DO-3 (admin-people P1): in this column context the base `flex: 1 1 180px`
+       WIDTH-basis governs HEIGHT — the search field ballooned to ~180px tall. Reset the
+       basis; keep the 44px coarse floor. (Cafe's twin `.cafe-capture-link` is the cafe
+       lane's fix — same root cause.) */
+    flex: 0 0 auto;
+    min-height: 44px;
   }
 
-  .people-seg {
+  /* v4 (2026-07-27): the 5-way equal-share stretch below could not hold once every
+     segment carried its real Indonesian label — "Dinonaktifkan"/"Diarsipkan" pushed the
+     nowrap row (DO-22(d) bans wrapping to two lines) past the toolbar's own width.
+     align-items:stretch still floors a flex item's cross-size at its min-content size,
+     so `.people-status-tabs` overflowed its 295px parent by ~46px and the outer
+     `overflow-hidden` on admin-users-page.tsx's `people-list-container` silently
+     clipped "Diarsipkan" off the visible edge — unreachable, not just ugly. That is
+     the exact "layouts must survive Indonesian string expansion without truncation"
+     failure PRODUCT.md's Accessibility & Inclusion section names.
+     Fix: stop forcing a fit. `min-width: 0` lets the item actually shrink to its
+     parent instead of overflowing it, and the strip becomes a proper horizontal-scroll
+     chip row — the SAME grammar already used for the saved-view chip strip
+     (`collection-toolbar.css` `.collection-toolbar__views`) and the BU filter row
+     (`global-toolbar.css`): intrinsic-width chips, the strip scrolls, nothing clips. */
+  .people-status-tabs {
+    min-width: 0;
+  }
+
+  .people-status-tabs .view-tabs {
     width: 100%;
-    justify-content: stretch;
+    max-width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox — a quiet scroll region, not a visible one */
+    -webkit-overflow-scrolling: touch;
   }
 
-  .people-seg-btn {
-    flex: 1 1 0;
-    min-height: 44px; /* ≥44px touch target */
-    padding: 0 6px;
-    font-size: 12px;
+  .people-status-tabs .view-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .people-status-tabs .view-tabs__tab {
+    /* Content-sized, not equal-share (DO-18(b) precedent, collection-toolbar.css) —
+       the strip scrolls, the tab keeps its intrinsic width. */
+    flex: none;
+    height: 44px; /* ≥44px touch target — overrides ViewTabs' own 40px mobile height */
+    padding: 0 12px;
+    font-size: var(--font-size-label);
     text-align: center;
+    justify-content: center;
+    /* DO-22(d) (admin-people P3-E): "No login" wrapped to two lines inside the equal-share
+       phone strip — a tab label always fits one line. */
+    white-space: nowrap;
   }
 
   .people-tb-spacer {
