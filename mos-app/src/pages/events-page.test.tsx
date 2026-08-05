@@ -70,6 +70,20 @@ describe('AC-1003 (events): sanctioned quiet EmptyState, no fake action', () => 
     expect(screen.getByRole('heading', { level: 2, name: 'Nothing scheduled yet' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 3 })).toBeNull()
   })
+
+  // The empty state IS this surface's entire content, so an untranslated one leaves an Indonesian
+  // viewer with an English page under an Indonesian heading. `useT` falls back to `en` silently
+  // when a key is missing from `id`, so "it renders" proves nothing — these assert the Indonesian
+  // strings themselves. (Found by mutation: replacing the `id` copy with its `en` twin left every
+  // other assertion in this file green.)
+  it('translates the empty state itself, not just the page chrome, under Indonesian', () => {
+    renderEvents('id')
+    expect(screen.getByRole('heading', { level: 2, name: 'Belum ada acara terjadwal' })).toBeInTheDocument()
+    expect(
+      screen.getByText(/cupping, workshop, pemesanan.*setelah fitur acara diaktifkan/i),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Nothing scheduled yet')).not.toBeInTheDocument()
+  })
 })
 
 // EventsPage is on the Workspace PageFamilyFrame, so its own page head (region 3) owns the job
@@ -78,6 +92,10 @@ describe('AC-1003 (events): sanctioned quiet EmptyState, no fake action', () => 
 // is what makes this a real check of the page-family-migration registry entry for `/events`.
 describe('AC-1002 (events): the job sentence renders above EventsPage exactly once', () => {
   beforeEach(() => {
+    // Pinned, not inherited: `renderEvents` writes the locale to localStorage and this block
+    // renders without it, so leaving it unset makes the case depend on whichever locale the
+    // previous test in the file happened to leave behind.
+    localStorage.setItem('mos.locale', 'en')
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: {

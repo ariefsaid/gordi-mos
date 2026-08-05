@@ -114,6 +114,17 @@ describe('PORT-024: ProfilePage', () => {
     // The page itself re-renders in Indonesian — the goal, not the mechanism
     expect(await screen.findByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
     expect(screen.getByLabelText('Bahasa')).toHaveValue('id')
+    // …and its BODY re-renders too, not just the title. `useT` falls back to `en` silently when a
+    // key is missing from the `id` catalog, so a page that switches its heading and keeps English
+    // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
+    // with its `en` twin left the rest of this file green. Every card heading is checked.
+    for (const heading of ['Identitas', 'Bahasa', 'Tata letak Beranda']) {
+      expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument()
+    }
+    for (const english of ['Identity', 'Home layout']) {
+      expect(screen.queryByRole('heading', { name: english })).toBeNull()
+    }
+    expect(screen.getByText('Orang').tagName).toBe('DT')
     // Persisted (ADR-0021 seam) — and honored on a fresh mount, not just in memory.
     expect(localStorage.getItem('mos.locale')).toBe('id')
     cleanup()
