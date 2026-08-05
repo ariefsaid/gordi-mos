@@ -782,8 +782,8 @@ export const messages = {
     // ── Signals (#193) ─────────────────────────────────────────────────────────────────────
     // Copy carried verbatim from v4's catalog, both locales. Also the shared record-viewer and
     // collection-toolbar strings the Signals archive is the first surface here to render.
-    'common.savedView': 'Saved view',
-    'common.view': 'View',
+    // ('common.savedView' / 'common.view': already declared by #192's Tasks port above — same
+    // key, same value, dropped here per npm run typecheck TS1117.)
     'signals.notify.people': 'people',
     'signals.notify.person': 'person',
     'signals.record.editedOnce': 'Edited · 1 revision',
@@ -1649,8 +1649,8 @@ export const messages = {
     // ── Signals (#193) ─────────────────────────────────────────────────────────────────────
     // Copy carried verbatim from v4's catalog, both locales. Also the shared record-viewer and
     // collection-toolbar strings the Signals archive is the first surface here to render.
-    'common.savedView': 'Tampilan tersimpan',
-    'common.view': 'Tampilan',
+    // ('common.savedView' / 'common.view': already declared by #192's Tasks port above — same
+    // key, same value, dropped here per npm run typecheck TS1117.)
     'signals.notify.people': 'orang',
     'signals.notify.person': 'orang',
     'signals.record.editedOnce': 'Diedit · 1 revisi',
