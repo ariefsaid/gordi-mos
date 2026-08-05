@@ -46,6 +46,14 @@ export interface EmptyStateProps {
    * table.)
    */
   headingLevel?: 2 | 3 | 4 | 5 | 6
+  /**
+   * Drop the region landmark when this sits inside an already-labelled landmark (#191 — Home's
+   * region-rows.tsx: the tabpanel/section around a region already carries its own accessible
+   * name, so an all-clear EmptyState inside it must not add a second, redundant `region`).
+   * Ported from v4's `state-kit.tsx`, scoped to just this prop (v4 also carries a `suggestions`
+   * list for the Assistant panel's empty state, which is unrelated to this port and left out).
+   */
+  nested?: boolean
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
@@ -72,6 +80,7 @@ export function EmptyState({
   variant = 'quiet',
   icon,
   headingLevel = 3,
+  nested = false,
   children,
   className,
 }: EmptyStateProps) {
@@ -80,8 +89,8 @@ export function EmptyState({
 
   return (
     <div
-      role="region"
-      aria-labelledby={titleId}
+      role={nested ? undefined : 'region'}
+      aria-labelledby={nested ? undefined : titleId}
       data-testid="empty-state"
       data-empty-variant={variant}
       className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}
