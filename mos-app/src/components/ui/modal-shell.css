@@ -27,8 +27,22 @@
   border-bottom-left-radius: 0;
 }
 
+/* The Access-level panel is the one dialog tall enough to need a pinned header and footer:
+   it stacks Access roles + Position + Revenue scope, and a viewer on a short viewport was
+   left unable to reach either the ✕ or Close (WCAG 1.4.10). So the surface stops scrolling
+   and hands its height to the panel, which scrolls only its middle region. Without the
+   `overflow: hidden` the surface scrolls too and the pinning silently does nothing. */
 .modal-shell__surface:has(> .role-editor-panel) {
   width: min(100%, 24rem);
+  display: flex;
+  overflow: hidden;
+}
+
+.role-editor-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
 }
 
 @media (max-width: 640px) {

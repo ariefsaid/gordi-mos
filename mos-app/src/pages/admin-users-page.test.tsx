@@ -13,6 +13,9 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('@/shell/use-is-desktop')
 import { useIsDesktop } from '@/shell/use-is-desktop'
 
+vi.mock('@/shell/use-is-coarse-pointer')
+import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
+
 vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   listRoles: vi.fn(),
@@ -108,6 +111,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
   vi.mocked(useIsDesktop).mockReturnValue(true)
+  vi.mocked(useIsCoarsePointer).mockReturnValue(false)
   mockListRoles.mockResolvedValue([])
   mockListRevenueScopeOptions.mockResolvedValue([])
 })
@@ -238,20 +242,86 @@ describe('AdminUsersPage — Catalog-Manage content head (Wave 2: W2-3)', () => 
     expect(screen.getAllByRole('button', { name: /add person/i })).toHaveLength(1)
   })
 
-  it('W2-3: the count pill reflects people.length when loaded', async () => {
+  // DELIBERATE goal change (Census R2 DO-7 sibling sweep, GUARD-R2 class): the bare ".ch-count"
+  // digit pill becomes ONE labeled meta sentence — "5 people" — in the Tasks head grammar. The
+  // old W2-3 pair asserted the pill's presence, so they are replaced rather than kept: a bare
+  // digit next to a title is exactly what the sweep removed.
+  it('DO-7: the head carries a labeled people-count sentence, never a naked digit pill', async () => {
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
     const { container } = renderPage()
     await screen.findByText('Budi Santoso')
-    const pill = container.querySelector('.ch-count')
-    expect(pill).toBeTruthy()
-    expect(pill!.textContent).toBe(String(PEOPLE_ALL_STATES.length))
+    expect(container.querySelector('.ch-count')).toBeNull()
+    expect(screen.getByTestId('people-count-line').textContent?.trim())
+      .toBe(`${PEOPLE_ALL_STATES.length} people`)
   })
 
-  it('W2-3: the count pill is omitted while loading', () => {
+  it('DO-7: while counts are unknown the head shows a placeholder, never a stale bare digit', () => {
     mockListAdminPeople.mockReturnValue(new Promise(() => {}))
     const { container } = renderPage()
     expect(container.querySelector('.ch-count')).toBeNull()
-    expect(screen.getByTestId('page-head')).toBeInTheDocument()
+    expect(screen.getByTestId('people-count-line').textContent?.trim()).toBe('—')
+  })
+})
+
+describe('AdminUsersPage — DO-22(b) (Census R2, admin-people P2-B): no nested cards', () => {
+  it('DO-22(b): on phone the outer container drops its card chrome — person cards never nest inside a card', async () => {
+    vi.mocked(useIsDesktop).mockReturnValue(false)
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+    const outer = screen.getByTestId('people-list-container')
+    expect(outer.style.border).toBe('')
+    expect(outer.style.background).toBe('')
+  })
+
+  it('DO-22(b): the desktop table presentation keeps the container card chrome', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+    const outer = screen.getByTestId('people-list-container')
+    expect(outer.style.border).toContain('1px solid')
+  })
+})
+
+// V3 Issue 3, Task 11/12 — People is the Management page-family representative.
+describe('AdminUsersPage — V3 Management frame', () => {
+  it('renders People inside the Management page family with one main, one h1, and the People job sentence', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+
+    // Exactly one <main> landmark, carrying the management family marker.
+    const mains = document.querySelectorAll('main')
+    expect(mains).toHaveLength(1)
+    const main = mains[0]
+    expect(main.getAttribute('data-page-family')).toBe('management')
+
+    // Exactly one h1 — the resolved People title (never the internal family name).
+    const h1s = screen.getAllByRole('heading', { level: 1 })
+    expect(h1s).toHaveLength(1)
+    expect(h1s[0]).toHaveTextContent('People')
+
+    // The People job sentence is visible; the internal family name never renders as chrome.
+    expect(screen.getByText('Manage who can sign in and what they can do.')).toBeInTheDocument()
+    expect(screen.queryByText('Management')).toBeNull()
+  })
+
+  it('marks the loading state on the Management frame while people resolve', () => {
+    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-family')).toBe('management')
+    expect(main?.getAttribute('data-page-state')).toBe('loading')
+    expect(main?.getAttribute('aria-busy')).toBe('true')
+  })
+
+  it('marks the error state on the Management frame and keeps retry', async () => {
+    mockListAdminPeople.mockRejectedValue(new Error('rls denied'))
+    renderPage()
+    await screen.findByText(/couldn't load people/i)
+    const main = document.querySelector('main')
+    expect(main?.getAttribute('data-page-state')).toBe('error')
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 })
 
