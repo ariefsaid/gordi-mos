@@ -133,6 +133,20 @@ describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC
     ).toHaveTextContent('botol')
   })
 
+  it('a null/stale binding falls back to the item\'s OWN default unit — never the hardcoded porsi label', () => {
+    // 'pack' deliberately differs from the translated fallback so a regression to the
+    // hardcoded string cannot pass this test.
+    const UNIT_PACK: ItemUnitOption = { id: 'u-pack', name: 'pack', is_default: true }
+    renderStepper({
+      unitOptions: [UNIT_PACK, UNIT_BOTOL],
+      onUnitChange: vi.fn(),
+      line: { item_unit_id: null },
+    })
+    expect(
+      screen.getByRole('button', { name: /change unit for nasi goreng/i }),
+    ).toHaveTextContent('pack')
+  })
+
   it('hosts that predate unit wiring keep the incumbent fixed label — no affordance, porsi text', () => {
     renderStepper()
     expect(screen.queryByRole('button', { name: /change unit/i })).not.toBeInTheDocument()

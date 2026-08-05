@@ -22,7 +22,7 @@
 -- ab02 (transferable / NON-transferable), de06 an UNCONFIRMED alternate of ab02.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(17);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -176,6 +176,23 @@ select is(
   null::uuid,
   'an item with no unit row binds nothing — the column is nullable BY DESIGN for pre-master-data history');
 
+-- The first-fill arm re-enters the SAME seam the INSERT arm runs (the trigger validates a
+-- binding whenever one is WRITTEN, not only at insert): a NULL may be filled, but never with
+-- another item's unit, and never across orgs — even by a privileged writer.
+select throws_ok($$
+  update ops.kitchen_logs
+     set item_unit_id = '00000000-0000-0000-0000-00000000de04'
+   where id = '00000000-0000-0000-0000-00000000ac21'
+  $$, '23514', 'item_unit_id must reference a unit of the log''s own wip item',
+  '_bind_kitchen_log_item_unit: a NULL binding cannot be first-filled with another ITEM''s unit');
+
+select throws_ok($$
+  update ops.kitchen_logs
+     set item_unit_id = '00000000-0000-0000-0000-00000000de09'
+   where id = '00000000-0000-0000-0000-00000000ac21'
+  $$, '23514', 'item_unit_id must belong to the same org as the kitchen log',
+  '_bind_kitchen_log_item_unit: a NULL binding cannot be first-filled across orgs — the seam holds on the backfill arm too');
+
 insert into ops.item_units
   (id, org_id, wip_item_id, unit_name, esb_product_detail_id, is_default) values
   ('00000000-0000-0000-0000-00000000dd12','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000dd11','porsi','PD-PORSI-D11',true);
@@ -184,6 +201,7 @@ update ops.kitchen_logs l
    set item_unit_id = u.id
   from ops.item_units u
  where u.wip_item_id = l.wip_item_id
+   and l.org_id = u.org_id
    and u.is_default
    and l.item_unit_id is null;
 

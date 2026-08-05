@@ -112,7 +112,11 @@ export function WipItemStepper({
   // offered unit earns the affordance; with exactly one there is nothing to change and
   // nothing renders but the text.
   const boundUnit = unitOptions?.find(u => u.id === line.item_unit_id)
-  const unitLabel = boundUnit?.name ?? t('kitchen.unit.porsi')
+  // A null/stale binding falls back to the item's OWN default unit (then first offered),
+  // never straight to the translated 'porsi' — that string is master data only for hosts
+  // that pass no units at all (pre-unit wiring), not a guess for items that have some.
+  const fallbackUnit = unitOptions?.find(u => u.is_default) ?? unitOptions?.[0]
+  const unitLabel = boundUnit?.name ?? fallbackUnit?.name ?? t('kitchen.unit.porsi')
   const offersUnitChange = (unitOptions?.length ?? 0) > 1 && onUnitChange !== undefined
 
   function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {

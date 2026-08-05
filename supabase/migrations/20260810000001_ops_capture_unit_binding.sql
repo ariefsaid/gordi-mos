@@ -50,10 +50,16 @@ create index kitchen_logs_item_unit_idx on ops.kitchen_logs (item_unit_id);
 -- binding history to the default is a statement of fact, not a guess: those rows were captured
 -- in that unit — it was the only one. An item with no unit row (no coordinates) stays NULL,
 -- which is what the column's nullability is for.
+--
+-- The org equality is defense in depth, not a behaviour change: a log's wip item is same-org
+-- (ops._guard_kitchen_log) and a unit's item is same-org (ops._guard_item_unit), so the join
+-- cannot cross tenants on current data — but the backfill states the invariant itself rather
+-- than inheriting it, exactly as the bind trigger does for writes.
 update ops.kitchen_logs l
    set item_unit_id = u.id
   from ops.item_units u
  where u.wip_item_id = l.wip_item_id
+   and l.org_id = u.org_id
    and u.is_default
    and l.item_unit_id is null;
 
