@@ -1,0 +1,271 @@
+/* Catalog collection list presentation (V3 catalog grammar — Projects & Processes / Objectives).
+   A single quiet list of small catalog rows: name + optional type tag + up/down trace, with the
+   inline management actions (Rename / Archive / Unarchive) that ARE the row's primary interaction.
+   DESIGN.md tokens only; 44px coarse targets. */
+
+/* impeccable layout/distill pass (2026-07-27): this list already renders inside the shared
+   .record-collection-view card (border + radius-lg + shadow-rest — the E7 "one collection-surface
+   treatment", applied by the page around <RecordCollectionSurface>). Each row used to ALSO carry
+   its own border + radius-lg + card background + a 6px gap between them — a card nested inside a
+   card, the exact shape distill.md bans ("never nest cards inside cards") and craft-floor.md
+   refuses ("same-size cards ... as the page structure"). Rows are now a flat, hairline-divided
+   list — the same --row-divider grammar every sibling RecordCollection presentation already uses
+   (data-table.css, TasksWorkspace.css, record-collection.css's own table rows) — so a catalog
+   reads as one scannable list, not a stack of identical boxes. */
+.catalog-collection__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-collection__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 52px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--row-divider);
+}
+
+.catalog-collection__row:last-child {
+  border-bottom: none;
+}
+
+/* Quiet hover wash — --surface-secondary (grey), matching the DataTable row-hover convention
+   (never the blue --accent). A prior gap: rows had no hover state at all. */
+.catalog-collection__row:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+
+.catalog-collection__row--archived {
+  opacity: 0.66;
+}
+
+.catalog-collection__identity {
+  display: flex;
+  min-width: 0;
+  /* basis 0 (not 220px): the name shares one line with the flex-none actions cluster and
+     ellipsizes only when genuinely too long. A non-zero basis forced the whole cluster to wrap
+     onto its own line at phone widths (220 + gap + actions > row), ballooning the row and
+     right-flushing the actions with dead whitespace beside the name. */
+  flex: 1 1 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.catalog-collection__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-collection__row--archived .catalog-collection__name {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+.catalog-collection__trace {
+  flex-basis: 100%;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.35;
+}
+
+.catalog-collection__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ── OD-V4-1 H4: per-row relations disclosure (a real drill target, not inert text) ──────────── */
+.catalog-collection__disclosure {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+/* 44x44 hit area on a 28x28 glyph — same ported `.help-tip` technique as
+   `.dt-cards-group-toggle` (see data-table.css). This is the ONLY drill-in a catalog
+   row has (OD-V4-1 H4 relations), on the app's weakest-scoring surface, so an
+   undersized target here is the difference between reaching the cascade and not.
+   Measured live at 375x812 before the fix: 28.0x28.0, `::before` content `none`.
+   28 + (2 x 8) = 44. WCAG 2.5.8. */
+.catalog-collection__disclosure::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.catalog-collection__disclosure:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  color: var(--foreground);
+}
+
+.catalog-collection__disclosure-chevron {
+  transition: transform 0.15s ease-out;
+}
+
+.catalog-collection__disclosure-chevron--open {
+  transform: rotate(90deg);
+}
+
+.catalog-collection__relations {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+
+.catalog-collection__relations-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.catalog-collection__relations-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.catalog-collection__relations-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.catalog-collection__relations-heading {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.catalog-collection__relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-collection__relations-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.catalog-collection__relations-link {
+  color: var(--primary);
+  font-size: var(--font-size-body);
+  text-decoration: none;
+}
+
+.catalog-collection__relations-link:hover {
+  text-decoration: underline;
+}
+
+.catalog-collection__relations-count {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+/* Inline rename editor — one commit contract (Enter/Save, Esc/Cancel). */
+.catalog-collection__edit {
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.catalog-collection__edit-field {
+  min-width: 180px;
+  flex: 1 1 220px;
+}
+
+.catalog-collection__error {
+  flex-basis: 100%;
+  color: var(--field-error-text);
+  font-size: var(--font-size-label);
+}
+
+/* Coarse-pointer targets: every row control clears 44px without changing the fine-pointer look. */
+@media (pointer: coarse) {
+  .catalog-collection__actions .btn,
+  .catalog-collection__edit .btn {
+    min-height: 44px;
+  }
+}
+
+/* ── Phone reflow (Census R2 DO-2 · objectives F1 P1) ─────────────────────────
+   Sharing one line with the flex-none Rename/Archive cluster left the identity
+   ~8 characters at 390 ("Café HQ …", "Operational Excell…") — identity starvation.
+   On phone the identity takes the full row (the actions wrap onto their own line
+   below, right-aligned as before) and the name WRAPS instead of ellipsizing, so
+   a catalog row is always recognizable by its full name. */
+@media (max-width: 480px) {
+  .catalog-collection__identity {
+    flex-basis: 100%;
+  }
+
+  .catalog-collection__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
+/* ── Page-level inline create bar (the ONE primary create affordance) ───────────────────────── */
+.catalog-create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.catalog-create__name {
+  flex: 1 1 240px;
+  min-width: 220px;
+}
+
+.catalog-create__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--field-error-text);
+  font-size: var(--font-size-label);
+}
+
+@media (pointer: coarse) {
+  .catalog-create .btn {
+    min-height: 44px;
+  }
+}
