@@ -2,14 +2,18 @@
 // S4 Stock view (/cafe/stock) — read-only, auto-computed, any authed member.
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
 //
-// Proves (unit): AC-011 (#237, FR-060/061) — the page reads ONE selected (branch,
-// activity) stream (default from shared.default_stream(), switchable), shows the
-// system-quantity net (`stok` = approved production − approved transfers for THAT
-// stream) directly beside the ERP inventory comparison column, and never labels the
-// central kitchen "HQ"/"Stok HQ" (the CONTEXT.md trap — that label collides with the
-// GHQ branch). Plus AC-032 (negative balances preserved) and the shared-kit reflow
-// invariants (RI-IXD-6). Covers all states: loading, empty, error+retry, populated,
-// unauthenticated. Read-only is the signal: NO edit affordances anywhere.
+// Proves (unit): AC-011's RENDER half (#237, FR-060/061) — the page reads ONE selected
+// (branch, activity) stream (default from shared.default_stream(), switchable — in the
+// EMPTY state too, FR-003), places the system-quantity column directly beside the ERP
+// inventory comparison column, never renders a stale stream's rows under a newer
+// stream's label, and never labels the central kitchen "HQ"/"Stok HQ" (the CONTEXT.md
+// trap — that label collides with the GHQ branch). The NET itself (approved production
+// − approved transfers, per stream, cross-stream isolated) is owned at pgTAP:
+// supabase/tests/ops_09_daily_log_and_stock.sql + ops_10_carried_contracts.sql block H
+// — this file mocks fetchKitchenStock at that seam. Plus AC-032 (negative balances
+// preserved) and the shared-kit reflow invariants (RI-IXD-6). Covers all states:
+// loading, empty, error+retry, populated, unauthenticated. Read-only is the signal:
+// NO edit affordances anywhere.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
@@ -215,6 +219,56 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar' })
   })
 
+  it('stale-response race: a SLOWER older fetch resolving last never overwrites the newer stream\'s rows', async () => {
+    // Bootstrap lands stream rows; then two switches whose fetches resolve OUT OF
+    // ORDER — the older (stale) one last. Without the generation guard the stale
+    // rows would render under the newer stream's label: this test fails on the
+    // unguarded implementation (verified red before the guard existed).
+    mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    let resolveStale!: (rows: KitchenStockRow[]) => void
+    const stalePromise = new Promise<KitchenStockRow[]>(res => { resolveStale = res })
+    mockFetchStock.mockReturnValueOnce(stalePromise) // switch #1 — will resolve LAST
+    fireEvent.change(screen.getByRole('combobox', { name: /branch/i }), {
+      target: { value: BRANCH_RAD.id },
+    })
+
+    mockFetchStock.mockResolvedValueOnce([
+      { wip_item_id: 'w9', wip_item_name: 'Fresh Dish', category: null, stok: 7, tersedia: 7 },
+    ]) // switch #2 — the latest read
+    fireEvent.change(screen.getByRole('combobox', { name: /activity/i }), {
+      target: { value: 'bar' },
+    })
+    await screen.findByText('Fresh Dish')
+
+    // NOW the stale response arrives.
+    resolveStale([
+      { wip_item_id: 'w8', wip_item_name: 'Stale Dish', category: null, stok: 99, tersedia: 99 },
+    ])
+    // Flush the stale continuation, then assert the newer stream's rows still win.
+    await waitFor(() => expect(screen.queryByText('Stale Dish')).toBeNull())
+    expect(screen.getByText('Fresh Dish')).toBeInTheDocument()
+  })
+
+  it('FR-003: an EMPTY stream still offers the picker (no implicit wall) and switching away works', async () => {
+    mockFetchStock.mockResolvedValueOnce([]) // default stream is empty
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText(/no stock to show/i)
+
+    // The picker is present in the empty state — an empty stream is not a dead end.
+    const branchSelect = screen.getByRole('combobox', { name: /branch/i })
+    expect(branchSelect).toBeInTheDocument()
+    expect(branchSelect).not.toBeDisabled()
+
+    mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
+    fireEvent.change(branchSelect, { target: { value: BRANCH_RAD.id } })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    const [, stream] = mockFetchStock.mock.calls[1]
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
+  })
+
   it('AC-011 / FR-061: the central kitchen is labelled by its branch alias — no label reads "HQ"/"Stok HQ"', async () => {
     setDesktop()
     mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
@@ -301,7 +355,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
   })
 
-  it('AC-011: the system-quantity net (stok) sits DIRECTLY BESIDE the ERP inventory column', async () => {
+  it('AC-011 (render): the system-quantity column sits DIRECTLY BESIDE the ERP inventory column — the net itself is owned by pgTAP ops_09/ops_10', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })

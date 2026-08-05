@@ -61,6 +61,13 @@ describe('fetchDefaultStream — shared.default_stream() resolved against the ca
     expect(await fetchDefaultStream(CATALOG)).toBeNull()
   })
 
+  it('malformed payload (not a rowset / non-string halves) → null, never a crash or a garbage cast', async () => {
+    mockRpc({ branch_id: BRANCH_RR.id, activity: 'kitchen' }) // object, not array
+    expect(await fetchDefaultStream(CATALOG)).toBeNull()
+    mockRpc([{ branch_id: 42, activity: 'kitchen' }]) // non-string half
+    expect(await fetchDefaultStream(CATALOG)).toBeNull()
+  })
+
   it('RPC error → throws (distinguishable from "no default")', async () => {
     mockRpc(null, { message: 'boom' })
     await expect(fetchDefaultStream(CATALOG)).rejects.toThrow('fetchDefaultStream failed — boom')

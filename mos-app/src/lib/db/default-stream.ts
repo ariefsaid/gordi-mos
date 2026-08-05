@@ -29,8 +29,12 @@ export async function fetchDefaultStream(
 ): Promise<ProductionStream | null> {
   const { data, error } = await supabase.schema('shared').rpc('default_stream')
   if (error) throw new Error(`fetchDefaultStream failed — ${error.message}`)
-  const row = ((data ?? []) as DefaultStreamRow[])[0]
-  if (!row?.branch_id || !row.activity) return null
+  // Shape-validate before trusting the payload: anything that is not a rowset whose
+  // first row carries string halves resolves as "no default", never a crash or a cast
+  // of garbage into a stream.
+  if (!Array.isArray(data)) return null
+  const row = (data as DefaultStreamRow[])[0]
+  if (typeof row?.branch_id !== 'string' || typeof row.activity !== 'string') return null
   const branch = branches.find(b => b.id === row.branch_id)
   if (!branch) return null
   if (!(PRODUCTION_ACTIVITIES as readonly string[]).includes(row.activity)) return null

@@ -14,12 +14,16 @@
 // the GHQ branch — so no label here may read "HQ" for it (FR-061, CONTEXT.md trap); the
 // stream is named through branchDisplayName (the Rumah Rames display alias).
 //
-// Proves (unit): AC-011 (per-stream net beside the ERP column, no "HQ" label), AC-032
-// (negative balances preserved). Access: any authenticated member may read (FR-060 is
+// Proves (unit): AC-011's RENDER half (the system-quantity column beside the ERP column,
+// per-stream scoping + switch, no "HQ" label) and AC-032 (negative balances preserved).
+// The NET itself — approved production minus approved transfers, per stream, cross-stream
+// isolated — is owned at pgTAP: supabase/tests/ops_09_daily_log_and_stock.sql (+ ops_10
+// block H for the one-round-trip reader this page calls through fetchKitchenStock).
+// Access: any authenticated member may read (FR-060 is
 // org-readable; RLS is the authority — no UI role gate). Date defaults to WIB today
 // (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -107,22 +111,32 @@ export function KitchenStockPage() {
     { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
   ]
 
+  // Stale-response guard: every read bumps the generation, and only the LATEST
+  // generation's result may land. Without this, two rapid stream switches can resolve
+  // out of order and render stream A's rows under stream B's label — the exact
+  // wrong-books confusion FR-061 exists to end, produced by the page itself. Shared by
+  // bootstrap and applyStream so a slow bootstrap can't clobber a later switch either.
+  const requestGen = useRef(0)
+
   // Initial load: catalog → default stream → that stream's rows. The default comes from
   // shared.default_stream() (FR-001 — the viewer's live primary stream Team); a viewer
   // with no stream default (FR-002 shape) falls back to the catalog default — this is a
   // read surface, so an explicit-choice wall would only cost a glance, and the picker
   // stays one tap away either way (FR-003).
   const bootstrap = useCallback(async () => {
+    const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
       const branchRows = await listActiveBranches()
       const resolved = (await fetchDefaultStream(branchRows)) ?? defaultStreamFrom(branchRows)
       const data = resolved ? await fetchKitchenStock(asOf, resolved) : []
+      if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setBranches(branchRows)
       setStream(resolved)
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
+      if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
   }, [asOf])
@@ -131,12 +145,16 @@ export function KitchenStockPage() {
   // another stream's books (OD-WAY-28) — a kept list would show one stream's numbers
   // under another stream's name, the exact confusion FR-061 exists to end.
   const applyStream = useCallback(async (next: ProductionStream) => {
+    const gen = ++requestGen.current
     setStream(next)
     setLoad({ kind: 'loading' })
     try {
-      setRows(await fetchKitchenStock(asOf, next))
+      const data = await fetchKitchenStock(asOf, next)
+      if (gen !== requestGen.current) return // superseded — a newer read owns the state
+      setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
+      if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
   }, [asOf])
@@ -186,7 +204,7 @@ export function KitchenStockPage() {
         </>
       )}
 
-      {load.kind === 'loading' && <LoadingShell count={3} />}
+      {load.kind === 'loading' && branches.length === 0 && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -195,14 +213,13 @@ export function KitchenStockPage() {
         />
       )}
 
-      {load.kind === 'ready' && rows.length === 0 && (
-        <EmptyState
-          title={t('kitchen.stock.empty.title')}
-          copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: asOf })}
-        />
-      )}
-
-      {load.kind === 'ready' && rows.length > 0 && (
+      {/* The stream picker renders in EVERY loaded state — the empty state AND while a
+          stream switch is in flight. An empty stream with no picker is an implicit wall
+          (the viewer would be stuck in the very stream that has nothing to show), and a
+          picker that unmounts during the re-read makes rapid correction impossible —
+          both violate FR-003 (switchable default, never a wall). The generation guard
+          above is what makes rapid switching safe to allow. */}
+      {(load.kind === 'ready' || (load.kind === 'loading' && branches.length > 0)) && (
         <div className="ks-block">
           <KitchenToolbar
             search={search}
@@ -218,15 +235,26 @@ export function KitchenStockPage() {
               activityAriaLabel={t('kitchen.stock.stream.activityAria')}
             />
           </KitchenToolbar>
-          <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
-          <DataTable
-            columns={stockColumns}
-            rows={visibleRows}
-            isDesktop={isDesktop}
-            state={visibleRows.length > 0 ? 'ready' : 'empty'}
-            emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: asOf })}
-          />
+          {load.kind === 'loading' ? (
+            <LoadingShell count={3} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              title={t('kitchen.stock.empty.title')}
+              copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: asOf })}
+            />
+          ) : (
+            <>
+              <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
+              <DataTable
+                columns={stockColumns}
+                rows={visibleRows}
+                isDesktop={isDesktop}
+                state={visibleRows.length > 0 ? 'ready' : 'empty'}
+                emptyLabel={t('kitchen.filter.noMatch')}
+                caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: asOf })}
+              />
+            </>
+          )}
         </div>
       )}
     </PageFamilyFrame>
