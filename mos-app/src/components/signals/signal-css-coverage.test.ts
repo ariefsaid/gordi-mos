@@ -32,11 +32,6 @@ const SIGNAL_ATTENTION_CLASSES = [
   'signal-attention',
   ...ATTENTION_VALUES.map((a) => `signal-attention--${attentionSlug(a)}`),
 ]
-// signals-archive-page.tsx attentionClass(): `signal-row-attention signal-row-attention--${slug}`
-const ARCHIVE_ROW_ATTENTION_CLASSES = [
-  'signal-row-attention',
-  ...ATTENTION_VALUES.map((a) => `signal-row-attention--${attentionSlug(a)}`),
-]
 const MENTION_KIND_VALUES: MentionKind[] = ['person', 'team', 'bu']
 // signal-mention-picker.tsx: `type-badge type-badge--${kind}`
 const TYPE_BADGE_CLASSES = ['type-badge', ...MENTION_KIND_VALUES.map((k) => `type-badge--${k}`)]
@@ -74,7 +69,11 @@ const SUITES: Suite[] = [
   {
     component: 'src/pages/signals-archive-page.tsx',
     css: ['src/pages/signals-archive-page.css', 'src/styles/drawer.css'],
-    extraClasses: ARCHIVE_ROW_ATTENTION_CLASSES,
+    // The archive's own skin is now one class, and it is emitted inside a template literal
+    // (`record-collection-view signals-archive-main record-collection-view--${presentation}`),
+    // which staticClassTokens deliberately skips. Listing it here is what keeps this suite
+    // exercising the page at all — see the note below on what it replaced.
+    extraClasses: ['signals-archive-main'],
     ignoreClasses: ['signal-record-drawer-root'],
   },
 ]
@@ -83,7 +82,7 @@ const SUITES: Suite[] = [
 // className internally (mk-*, empty-state, …) via their own kit CSS, forwarded through as a
 // literal in the component's JSX only incidentally; they're covered by their own component's
 // test, not this Signal-surface pairing.
-const OWNED_PREFIX = /^(signal-|mention-|type-badge|drawer-|muted-2)/
+const OWNED_PREFIX = /^(signals?-|mention-|type-badge|drawer-|muted-2)/
 
 describe('Signal CSS coverage — every className a Signal component renders has a matching CSS rule (design-review step-4 regression invariant)', () => {
   for (const suite of SUITES) {
@@ -103,6 +102,19 @@ describe('Signal CSS coverage — every className a Signal component renders has
       }
     })
   }
+
+  // PORT NOTE (#193): v4's suite fed the archive an `ARCHIVE_ROW_ATTENTION_CLASSES` extra list,
+  // sourced from an `attentionClass()` helper the archive page HAD when it rendered its own rows.
+  // The archive is a RecordCollection consumer now; that helper is gone from the whole v4 tree
+  // (the only surviving mention is the constant's own comment), and the attention tint moved to
+  // the table presentation, where SIGNAL_TABLE_CLASSES covers it. So the list named classes no
+  // component can produce, and the guard failed for a reason that was about the guard. Removing
+  // it does NOT weaken the suite — this case replaces it with the stronger claim, that the class
+  // family is genuinely absent rather than merely unstyled, which is what would let it come back
+  // as markup-without-skin through a `className={…}` expression staticClassTokens cannot see.
+  it('the retired .signal-row-attention family is absent from the archive source, not merely unstyled', () => {
+    expect(read('src/pages/signals-archive-page.tsx')).not.toMatch(/signal-row-attention/)
+  })
 
   it('no signal CSS file references the mockup-only --e7-* token namespace (design-authority-audit-2026-07-17.md)', () => {
     const allCss = [...new Set(SUITES.flatMap((s) => s.css)), 'src/styles/drawer.css']

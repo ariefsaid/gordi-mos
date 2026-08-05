@@ -63,14 +63,11 @@ describe('GUARD H6/H8(a): Signal title identity clamps to 2 lines, never a nowra
     expect(body!, 'a feed is for reading — the body is not clamped').not.toMatch(/line-clamp/)
   })
 
-  it('GUARD: the TASK row title keeps its 2-line clamp — an identifier, not prose', () => {
-    const streamCss = stripComments(
-      readFileSync(resolve(process.cwd(), 'src/components/home/home-stream.css'), 'utf8'),
-    )
-    const body = ruleBody(streamCss, /\.stream-row-title\s*\{/)
-    expect(body, 'home-stream.css must define .stream-row-title').not.toBeNull()
-    expect(body!).toMatch(/-webkit-line-clamp:\s*2/)
-  })
+  // PORT NOTE (#193): v4's third case here reads `src/components/home/home-stream.css` and pins
+  // `.stream-row-title`'s 2-line clamp — the CONTRAST case for the rule above. That file is Home's
+  // (#191) and does not exist on this line yet, so the case travels with Home's port rather than
+  // being asserted against a stylesheet that is not there. Nothing about the Signal grammar below
+  // depends on it; it documents why the feed body is deliberately NOT clamped.
 
   it('GUARD: the archive TABLE title (.signal-table-message) is a 2-line clamp, not nowrap', () => {
     const body = ruleBody(tableCss, /\.signal-table-message\s*\{/)

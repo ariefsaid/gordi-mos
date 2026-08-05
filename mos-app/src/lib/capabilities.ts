@@ -1,12 +1,27 @@
 // Client capability derivation (ADR-0020 D4 — convenience only; RLS is the authority, FR-333).
-// Mirrors the shared.role_capabilities seed (supabase/migrations/20260708000001) for the v1
-// grants. Reuses auth.viewer.accessRoles (the JWT access_roles claim — same source the DB reads).
+// Mirrors the shared.role_capabilities seed for the v1 grants. Reuses auth.viewer.accessRoles (the
+// JWT access_roles claim — same source the DB reads).
+//
+// The seed now lives in the squashed baseline, `supabase/migrations/20260805000006_mos_access_control.sql`
+// (the old 20260708000001 chain was discarded by Stage 1). The signal.* rows below are copied from
+// that file, role for role — grep `signal.create_for_team` there and the three blocks line up. This
+// map is a MIRROR, so it is only ever as true as the last person who checked it; the boundary is
+// RLS and `shared.can()` (ADR-0020 D4 / FR-333 / NFR-004), and a wrong entry here costs an affordance,
+// never an authorization.
+//
+// Not mirrored here, deliberately: `process.start` / `process.adopt` (Café's, #196–#198) and the
+// ops_lead extension of `objective.manage` (Objectives', #194). Each surface's port brings its own
+// rows, so the map grows with a checkable citation rather than in one unreviewed sweep.
+//
 // TODO(admin-editable-roles, ADR-0020 D2): replace this static map with an RPC
 // (shared.my_capabilities()) once grants become admin-editable. Until then the seed is static.
 export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
-  admin: ['objective.manage', 'workline.manage', 'followup.confirm'],
-  finance: ['followup.confirm'],
-  ops_lead: ['workline.manage'],
+  admin: [
+    'objective.manage', 'workline.manage', 'followup.confirm',
+    'signal.create_for_team', 'signal.mention_bu', 'signal.retract',
+  ],
+  finance: ['followup.confirm', 'signal.mention_bu', 'signal.retract'],
+  ops_lead: ['workline.manage', 'signal.create_for_team', 'signal.mention_bu', 'signal.retract'],
 }
 
 /** Roles that admit to Revenue VIEW (ADR-0051 D4). Exported for router/destinations consistency. */
