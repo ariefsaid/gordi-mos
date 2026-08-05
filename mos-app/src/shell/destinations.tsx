@@ -167,45 +167,60 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
 ]
 
 /**
- * OD-REDESIGN-68 (owner sketch 2026-07-14, confirmed 2026-07-18): the rail shows YOUR work,
- * not the org chart. The owner's frame sketch has no module blocks — for org-wide roles
- * (Managing Director, admin, finance) the rail is exactly the sketch: Home · Work(4) · Signals ·
- * Money · Inbox + utility. A module renders only for a viewer whose JOB ROLE belongs to that
- * BU (the e7 Ayu pattern: a barista sees Café, flat, no BU heading). Everyone still reaches
- * module routes via ⌘K / Home links / direct URL — this scopes the RAIL, not authorization.
- * ponytail: name-keyword affiliation (role name → BU), same ceiling as RATIFY-7F name-based
- * resolution; upgrade to team.business_unit when the viewer payload carries it.
+ * OD-WAY-51 (owner ruling): **navigation mirrors what the route admits.** If a route admits a
+ * viewer, that viewer gets a rendered way in, at every viewport. The navigation is never narrower
+ * than the authorization.
+ *
+ * So a module renders for whoever its ROUTE admits — `isLive` resolves the destination's own
+ * access-role gate and nothing else. `workMatch` survives, but ONLY as emphasis: which module gets
+ * promoted to the phone's bottom-tab slot and which one the context row names. It no longer
+ * decides whether a link exists.
+ *
+ * What it used to do, and why the ruling exists: OD-REDESIGN-68 scoped modules to the viewer's own
+ * work by matching their JOB-ROLE NAME against a regex. Against the real roster that excluded five
+ * of ten job roles from every module — Operational Manager, both Finance / Accounting roles, both
+ * Marketing roles — so Café's Log, Plan and Stock had no entry on any surface for them while the
+ * route admitted every authenticated viewer. Two comments justified that by claiming "everyone
+ * still reaches module routes via ⌘K"; the palette held seven hardcoded entries, none of them
+ * Café. The justification was false, and it is gone rather than replaced.
+ *
+ * The ruling accepts the consequence: a Finance viewer now sees Café in their nav and may find it
+ * clutter. If a surface's audience really should be narrower, the fix is to narrow the ROUTE —
+ * never to hide the link while leaving the route open.
  */
-export function modulesForRoles(roleNames: string[], accessRoles: string[]): Destination[] {
-  return modulesByBUForRoles(roleNames, accessRoles).flatMap((g) => g.items)
+export function allModules(accessRoles: string[]): Destination[] {
+  return modulesByBU(accessRoles).flatMap((g) => g.items)
 }
 
 /**
- * Same viewer-scoped module filter as `modulesForRoles`, grouped by the owning BU
- * (OD-REDESIGN-1: "Modules grouped by Business Unit"; DESIGN.md Navigation/Rail: "Grouped
- * items under Overline group labels"). Only groups with >=1 live, role-matched item are
- * returned — the desktop rail (F2 fix) renders one Overline per group; mobile surfaces
- * (bottom-tab-bar, mobile-drawer) keep using the flat `modulesForRoles` and are unaffected.
+ * Every module the viewer's ROUTES admit, grouped by the owning BU (OD-REDESIGN-1: "Modules
+ * grouped by Business Unit"). Groups with no admitted item are dropped so the rail never renders
+ * an empty overline.
+ *
+ * Takes access roles only. It used to take job-role NAMES too and filter on `workMatch`;
+ * OD-WAY-51 removed that — see `allModules` above.
  */
-export function modulesByBUForRoles(
-  roleNames: string[],
-  accessRoles: string[],
-): { bu: MessageKey; items: Destination[] }[] {
-  const joined = roleNames.join(' ')
+export function modulesByBU(accessRoles: string[]): { bu: MessageKey; items: Destination[] }[] {
   return MODULES.map((g) => ({
     bu: g.bu,
-    items: g.items.filter((m) => isLive(m, accessRoles) && m.workMatch != null && m.workMatch.test(joined)),
+    items: g.items.filter((m) => isLive(m, accessRoles)),
   })).filter((g) => g.items.length > 0)
 }
 
 /**
- * OD-REDESIGN-68: the single module promoted to the phone bottom-nav's role-scoped slot
- * (and thus excluded from the More menu) — the viewer's FIRST affiliated module, or null
- * for an org-wide role that has no module. Shared by the bottom tab bar + the More drawer
- * so exactly one surface owns the module (never both). Any additional modules stay in More.
+ * The module promoted to the phone bottom-nav's third slot — EMPHASIS, not visibility
+ * (OD-WAY-51). `workMatch` still picks it: a barista's phone leads with Café, a roaster's with
+ * Roastery. A viewer whose job-role name matches no module simply gets no promoted slot, and
+ * reaches every module they are admitted to through the More drawer, which lists them all.
+ *
+ * Returns null rather than falling back to an arbitrary module: promoting one nobody asked for
+ * would be a guess presented as a preference.
  */
 export function primaryModuleForViewer(roleNames: string[], accessRoles: string[]): Destination | null {
-  return modulesForRoles(roleNames, accessRoles)[0] ?? null
+  const joined = roleNames.join(' ')
+  return (
+    allModules(accessRoles).find((m) => m.workMatch != null && m.workMatch.test(joined)) ?? null
+  )
 }
 
 export const UTILITY: Destination[] = [

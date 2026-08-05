@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { DESTINATIONS, UTILITY, isLive, modulesByBUForRoles, type Destination } from './destinations'
+import { DESTINATIONS, UTILITY, isLive, modulesByBU, type Destination } from './destinations'
 import { visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
 import type { RailCounts } from '@/lib/db/rail-counts'
@@ -250,7 +250,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   // artifact (OD-68, 2026-07-18) — DESIGN.md's rail spec and OD-REDESIGN-1's own text both call
   // for grouped overlines, so the flat rendering was never a ratified end-state.
   const myModuleGroups = viewer
-    ? modulesByBUForRoles(viewer.roles.map((r) => r.name), accessRoles)
+    ? modulesByBU(accessRoles)
     : []
 
   return (

@@ -24,8 +24,17 @@
  *  - it was ROLE-BLIND. It ignored `anyOf` entirely, so re-narrowing any role gate was invisible
  *    to it — which is exactly defect 1.
  *
- * So: render the three real nav surfaces, for a persona, and read the links back out of the DOM.
- * A path counts as reachable only if some viewer can actually see a link to it somewhere.
+ * A fifth followed: module visibility was decided by a regex over the viewer's JOB-ROLE NAME, so
+ * five of ten seeded job roles saw no module at all while the routes admitted them.
+ *
+ * `OD-WAY-51` (owner ruling) settles the model rather than the symptoms: **navigation mirrors what
+ * the route admits.** If a route admits a viewer, that viewer gets a rendered way in, at every
+ * viewport; the nav is never narrower than the authorization.
+ *
+ * So this file renders the three real nav surfaces for a persona, reads the links back out of the
+ * DOM, and compares them against what `routeConfig`'s own gates say that persona may reach —
+ * both directions. The expected set comes from the route table, never from the persona list, so a
+ * viewer nobody designed for is a first-class case instead of a blind spot.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
@@ -45,7 +54,7 @@ vi.mock('@/lib/db/notifications', () => ({
 import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
-import { flattenRoutes, isRedirect } from '@/test/route-table'
+import { flattenRoutes, isRedirect, routeAdmits } from '@/test/route-table'
 import type { RouteHandle } from './route-classification'
 
 function setAuthAs(accessRoles: string[], roleNames: string[]) {
@@ -83,6 +92,10 @@ const PERSONAS: Persona[] = [
   // with would look unreachable when it is merely un-personified.
   { name: 'roastery member', accessRoles: ['member'], roleNames: ['Roastery Lead'] },
   { name: 'ecommerce member', accessRoles: ['member'], roleNames: ['Ecommerce Lead'] },
+  // OD-WAY-51's first-class case, not an afterthought: against the real roster five of ten job
+  // roles match no module regex at all. Under the ruling that must change nothing about what they
+  // can reach.
+  { name: 'no-module viewer', accessRoles: ['member'], roleNames: ['Operational Manager'] },
   { name: 'admin', accessRoles: ['admin'], roleNames: ['Managing Director'] },
   { name: 'finance', accessRoles: ['finance'], roleNames: ['Finance Lead'] },
   { name: 'manager', accessRoles: ['manager'], roleNames: ['Ops Manager'] },
@@ -289,20 +302,42 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     expect(phone.size).toBeGreaterThan(8)
   })
 
-  it.each(surfaces.map((s) => [s.path] as const))(
-    '%s is reachable from a rendered nav link',
-    (path) => {
-      if (path in NO_NAV_ENTRY_BY_DESIGN) {
-        expect(NO_NAV_ENTRY_BY_DESIGN[path].length, `${path} needs a real reason`).toBeGreaterThan(20)
-        return
-      }
-      const { rail, phone } = allReachable()
-      expect(
-        rail.has(path) || phone.has(path),
-        `${path} renders a surface but no viewer sees a link to it at either viewport`,
-      ).toBe(true)
-    },
-  )
+  // ── OD-WAY-51, the whole rule in two assertions ──────────────────────────────────────────
+  //
+  // "If a route admits a viewer, that viewer gets a rendered way in — at every viewport. The
+  // navigation must never be narrower than the authorization."
+  //
+  // The expected set is DERIVED from routeConfig's own gates, per persona. That is the part that
+  // matters: the previous sweep accepted "SOME persona reaches it", and the personas were picked
+  // to match the very regex that was hiding things — so it could only ever confirm what someone
+  // had already thought of. Now a persona nobody designed for is a first-class case.
+  describe.each(PERSONAS.map((p) => [p.name, p] as const))('%s', (_name, p) => {
+    const admitted = () =>
+      surfaceRoutes()
+        .map((s) => s.path)
+        .filter((path) => !(path in NO_NAV_ENTRY_BY_DESIGN))
+        .filter((path) => routeAdmits(path, p.accessRoles))
+
+    it('reaches every route that admits them, on the rail', () => {
+      const rendered = new Set(railLinks(p))
+      const missing = admitted().filter((path) => !rendered.has(path))
+      expect(missing, 'admitted by the route, no rendered rail link').toEqual([])
+    })
+
+    it('reaches every route that admits them, on a phone', () => {
+      const rendered = new Set(phoneLinks(p))
+      const missing = admitted().filter((path) => !rendered.has(path))
+      expect(missing, 'admitted by the route, no rendered phone link').toEqual([])
+    })
+
+    it('is never shown a link the route would bounce them from', () => {
+      // The reverse direction. A nav wider than the route is its own defect: the viewer taps a
+      // link and gets thrown out, which reads as the app being broken rather than as a permission.
+      const shown = [...new Set([...railLinks(p), ...phoneLinks(p)])]
+      const bounced = shown.filter((path) => !routeAdmits(path, p.accessRoles))
+      expect(bounced, 'rendered in the nav but the route bounces this viewer').toEqual([])
+    })
+  })
 
   it('every exception is a route that still exists — the list cannot rot', () => {
     const live = new Set(flattenRoutes().map((f) => f.path))
@@ -340,6 +375,23 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
       const links = phoneLinks(persona('Café floor member'))
       expect(links).not.toContain('/cafe/review')
       expect(links).not.toContain('/cafe/pushes')
+    })
+
+    it('OD-WAY-51: a viewer whose job role matches NO module still reaches the ungated screens', () => {
+      // The persona the old model excluded outright. Five of ten seeded job roles are like this.
+      const p = persona('no-module viewer')
+      for (const path of ['/cafe/log', '/cafe/plan', '/cafe/stock']) {
+        expect(phoneLinks(p), `${path} unreachable on a phone`).toContain(path)
+        expect(railLinks(p), `${path} unreachable on the rail`).toContain(path)
+      }
+    })
+
+    it('OD-WAY-51: …and is still NOT shown Review or Pushes — their routes gate them', () => {
+      // The ruling widens nav to match the route; it does not remove gates. Without this the case
+      // above would pass just as well if every gate had been deleted.
+      const p = persona('no-module viewer')
+      expect(phoneLinks(p)).not.toContain('/cafe/review')
+      expect(railLinks(p)).not.toContain('/cafe/pushes')
     })
 
     it('a Café ops lead reaches all five at 390px, Review and Pushes included', () => {

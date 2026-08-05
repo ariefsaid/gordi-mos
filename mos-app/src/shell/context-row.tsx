@@ -20,7 +20,9 @@ function pageOwnsJobSentence(pathname: string): boolean {
 function resolveViewerScope(roleNames: string[], accessRoles: string[], t: Translate): string {
   // Resolve scope from the BU/Module DATA MODEL, not a free-text role-name string match: the
   // module registry's `workMatch` is the ONE authority for role→BU affiliation — the same map
-  // that gates the rail (destinations.tsx `modulesByBUForRoles`). A Kitchen or Bar *Area* role
+  // that the phone's promoted tab uses (destinations.tsx `primaryModuleForViewer`). It no longer
+  // gates the rail — OD-WAY-51 made module VISIBILITY route-driven; `workMatch` is emphasis only,
+  // and naming the viewer's scope is exactly that. A Kitchen or Bar *Area* role
   // resolves to its owning Café *Module* (CONTEXT.md: "Kitchen and Bar are Areas inside the Café
   // Module"), so a Kitchen Lead shows "Café" on every route, never a less-specific "Team" /
   // role-name fallback (F1). The prior hand-rolled substring list ('barista'/'cafe'/'roast'/…)
