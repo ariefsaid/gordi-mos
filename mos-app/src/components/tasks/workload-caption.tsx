@@ -4,6 +4,8 @@
 // Self-reference ("Your work:") when the filtered person is the viewer.
 // One short sentence max; no new visual language; everyday words.
 
+import { useT } from '@/i18n/use-t'
+
 export type WorkloadSummary = {
   /** The display name (first name only) of the filtered person; or 'You' if it's the viewer. */
   isSelf: boolean
@@ -22,30 +24,30 @@ type WorkloadCaptionProps = {
   summary: WorkloadSummary
 }
 
-function pluralise(n: number, singular: string, plural: string): string {
-  return `${n} ${n === 1 ? singular : plural}`
-}
-
 export function WorkloadCaption({ summary }: WorkloadCaptionProps) {
+  const t = useT()
   const { isSelf, firstName, projectCount, dailyCount, unassignedCount } = summary
 
-  const subject = isSelf ? 'Your work' : `${firstName}'s work`
+  const subject = isSelf ? t('tasks.workload.you') : t('tasks.workload.person', { name: firstName })
   const parts: string[] = []
-  if (projectCount > 0) parts.push(pluralise(projectCount, 'project', 'projects'))
-  if (dailyCount > 0) parts.push(pluralise(dailyCount, 'daily job', 'daily jobs'))
+  if (projectCount > 0) {
+    parts.push(t(projectCount === 1 ? 'tasks.workload.project.one' : 'tasks.workload.project.many', { count: projectCount }))
+  }
+  if (dailyCount > 0) {
+    parts.push(t(dailyCount === 1 ? 'tasks.workload.daily.one' : 'tasks.workload.daily.many', { count: dailyCount }))
+  }
 
-  // RI-4: append "and N unassigned" when there are open unclassified tasks so the
-  // sentence reconciles with reality and nothing is silently omitted (NFR-206).
-  if (unassignedCount > 0) parts.push(`${unassignedCount} unassigned`)
+  // RI-4: append the unassigned count so the sentence reconciles with reality.
+  if (unassignedCount > 0) parts.push(t('tasks.workload.unassigned', { count: unassignedCount }))
 
-  const body = parts.length > 0 ? parts.join(' and ') + '.' : 'no work-lines yet.'
+  const body = parts.length > 0 ? parts.join(` ${t('tasks.workload.and')} `) + '.' : t('tasks.workload.none')
   const sentence = `${subject}: ${body}`
 
   return (
     <p
       className="workload-caption"
       role="status"
-      aria-label="Workload summary"
+      aria-label={t('tasks.workload.summary')}
     >
       {sentence}
     </p>

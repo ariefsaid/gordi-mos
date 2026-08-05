@@ -57,3 +57,21 @@ export async function getRoles(): Promise<RoleScopeRow[]> {
   if (error) throw new Error(`getRoles failed — ${error.message}`)
   return (data ?? []) as RoleScopeRow[]
 }
+
+export interface RoleOption {
+  id: string
+  name: string
+}
+
+/** Batched role-name lookup by id (design fix wave item 4 — Rule 11, mirrors team.ts's
+ *  `.from('roles').select('id,name')` pattern). Backs the Occurrence group-by's "via <role name>"
+ *  generated-ownership provenance line. Returns `[]` (no network call) for an empty id list. */
+export async function listRoleNames(roleIds: string[]): Promise<RoleOption[]> {
+  if (roleIds.length === 0) return []
+  const { data, error } = await shared()
+    .from('roles')
+    .select('id,name')
+    .in('id', roleIds)
+  if (error) throw new Error(`listRoleNames failed — ${error.message}`)
+  return (data ?? []) as RoleOption[]
+}

@@ -1,16 +1,23 @@
 /* ════════════════════════════════════════════════════════════════════════════
    GlobalToolbar — the one toolbar above both tabs (design-plan §2.8, FR-011/AC-011).
-   Desktop: single flex row (window group · 1px divider · cut group · freshness).
-   Flat utility surface — NO resting shadow (Soft-Elevation Rule: shadow only on
-   tiles/chart/table/stub). Token-only (DESIGN.md).
+   Desktop: single flex row (window group · 1px divider · cut group — NO freshness
+   stamp, r5 F-6 redundancy law: head meta + chart own "as of"),
+   carried by the inner .global-toolbar-rail. Flat utility surface — NO resting
+   shadow (Soft-Elevation Rule: shadow only on tiles/chart/table/stub).
+   Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
 .global-toolbar {
+  padding: 6px 24px 10px;
+  box-sizing: border-box;
+}
+
+/* The filter row itself. On desktop this IS the whole toolbar; on phone it is the
+   horizontally-scrolling rail while the Custom range row sits below it (DO-21). */
+.global-toolbar-rail {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 6px 24px 10px;
-  box-sizing: border-box;
 }
 
 .global-toolbar-group {
@@ -27,34 +34,40 @@
 }
 
 .global-toolbar-overline {
-  font-size: 11.5px;
+  font-size: var(--font-size-overline);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
 
-.global-toolbar-freshness {
-  margin-left: auto;
-}
-
 /* Mobile: sticky filter rail BELOW the tab strip (not over it). The tab strip
    sticks at top:0 (z-index 2, height 40px); this rail sticks at top:40px so both
-   stay visible. Horizontally scrollable so the 3-option CutToggle never wraps.
-   The toolbar keeps all 3 cut options on phone (mockup-mobile drops Activity by
-   mistake — design-plan gap G2). */
+   stay visible. The inner rail scrolls horizontally so the 3-option CutToggle
+   never wraps. The toolbar keeps all 3 cut options on phone (mockup-mobile drops
+   Activity by mistake — design-plan gap G2). */
 @media (max-width: 767px) {
   .global-toolbar {
     position: sticky;
     top: 40px; /* below the 40px tab strip */
     z-index: 1; /* below the tab strip (z-index 2) */
+    padding: 0;
+    background: color-mix(in srgb, var(--secondary) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .global-toolbar-rail {
     gap: 8px;
     padding: 8px 14px;
     overflow-x: auto;
     flex-wrap: nowrap;
-    background: color-mix(in srgb, var(--secondary) 92%, transparent);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border);
+    /* money-2: with Channel/Activity cut off screen the row previously ended flush with
+       no hint that more pills exist off-canvas (design-plan gap G2's overflow-x:auto had
+       no scroll cue). Fade the trailing 28px so a sliver of the next pill always shows
+       through as a "there's more" affordance — harmless (imperceptible) on the rare frame
+       where the row happens to fit exactly. */
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
   }
   .global-toolbar-divider,
   .global-toolbar-overline {
@@ -63,8 +76,16 @@
   .global-toolbar-group {
     flex: none;
   }
-  .global-toolbar-freshness {
-    margin-left: 0;
-    flex: none;
+  /* DO-21 (money F-4): the Custom From/To pair lives on its OWN full-width row
+     below the rail — never inline in the horizontal scroller, so picking Custom
+     doesn't shove Branch/Channel/Activity off-canvas. Shares the rail's frosted
+     sticky surface; the pair stretches edge-to-edge with the rail's padding. */
+  .global-toolbar-range-row {
+    padding: 0 14px 8px;
+  }
+  .global-toolbar-range-row .window-selector-range {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
   }
 }

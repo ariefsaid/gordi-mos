@@ -41,11 +41,15 @@ import {
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
 
-vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
-import { listActiveBranches } from '@/lib/db/branches'
-
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 import { getPeople } from '@/lib/db/directory'
+
+// resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
+// stream the plan read is scoped to (kitchen-review-page.tsx fetchQueue) — un-mocked, it
+// hits Supabase for real and every fetch lands in the error state. Same fixture shape as
+// kitchen-log-page.test.tsx's BRANCHES.
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+import { listActiveBranches } from '@/lib/db/branches'
 
 import { KitchenReviewPage } from './kitchen-review-page'
 import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
@@ -194,6 +198,8 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     } as MediaQueryList)
     try {
       mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
+      // Keyed by MOVEMENT ('produce' | 'transfer:<destinationBranchId>'), per DD-WAY-13 —
+      // planQtyFor() in kitchen-review-page.tsx looks up movementKey(), never the label.
       mockPlan.mockResolvedValue({ w1: { produce: 12 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } })
       render(<KitchenReviewPage />, { wrapper })
       expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()

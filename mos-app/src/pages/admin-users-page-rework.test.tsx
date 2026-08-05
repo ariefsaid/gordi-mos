@@ -249,7 +249,11 @@ describe('AdminUsersPage — confirm dialogs', () => {
 // ── Success toasts (item 6) ────────────────────────────────────────────────────
 
 describe('AdminUsersPage — success toasts', () => {
-  it('shows a success toast after enable-login succeeds', async () => {
+  // DELIBERATE goal change (GAP-7): item 6 said "success toasts after every action". The rule is
+  // now one success channel PER LOCUS — an in-place edit confirms where the viewer is already
+  // looking, and the floating toast is reserved for a change that lands somewhere else. So this
+  // assertion is inverted rather than dropped: it now proves the toast copy does NOT appear.
+  it('GAP-7: enable-login (an in-place edit) confirms with an inline "Saved" at the row, not a floating toast', async () => {
     const user = userEvent.setup()
     const disabledPerson: AdminPersonRow = { ...TWO_PEOPLE[1], login: 'disabled' }
     mockListAdminPeople.mockResolvedValue([TWO_PEOPLE[0], disabledPerson])
@@ -261,10 +265,10 @@ describe('AdminUsersPage — success toasts', () => {
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
     await user.click(screen.getByRole('menuitem', { name: /enable login/i }))
 
-    // Toast should appear
-    await screen.findByRole('status')
-    const toast = screen.getByRole('status')
-    expect(toast.textContent).toMatch(/budi santoso|login enabled/i)
+    // The inline "Saved" appears at the locus (the record grammar); no floating toast copy.
+    const saved = await screen.findByText(/^saved$/i)
+    expect(saved.closest('.people-row-saved')).toBeInTheDocument()
+    expect(screen.queryByText(/login enabled/i)).not.toBeInTheDocument()
   })
 
   it('shows a success toast after restore succeeds', async () => {
@@ -325,11 +329,18 @@ describe('AdminUsersPage — password reveal a11y', () => {
     await screen.findByText('TmpPw9999')
 
     const alertdialog = screen.getByRole('alertdialog')
+    expect(alertdialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
     const describedById = alertdialog.getAttribute('aria-describedby')
     expect(describedById).toBeTruthy()
     const describedByEl = document.getElementById(describedById!)
     expect(describedByEl).not.toBeNull()
     expect(describedByEl!.textContent).toMatch(/copy this now/i)
+
+    // The password is shown exactly once, so a stray Escape must not be able to dismiss it —
+    // Done is the only exit (design-plan §4.4).
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   })
 })
 

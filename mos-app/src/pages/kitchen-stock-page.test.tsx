@@ -23,6 +23,9 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 })
 import { fetchKitchenStockAcrossStreams } from '@/lib/db/kitchen-logs'
 
+// resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
+// stream fetchStock() scopes to (kitchen-stock-page.tsx) — un-mocked, it hits Supabase for
+// real and every fetch lands in the error state. Same fixture shape as kitchen-log-page's.
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 

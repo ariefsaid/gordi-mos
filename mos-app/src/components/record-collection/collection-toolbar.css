@@ -1,0 +1,312 @@
+.collection-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* E7-floor anatomy (owner score gate, 2026-07-22): the saved-view chip strip leads row 1,
+   the presentation switch trails — saved views are the primary axis and read first. A single
+   flex row with every select allowed to wrap was the source of the "several apps" feeling —
+   its visual order changed with width, so each row keeps one fixed left→right order. */
+.collection-toolbar__primary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.collection-toolbar__primary-spacer { flex: 1 1 auto; min-width: 12px; }
+
+/* Layout-independent primary action (D-D2) — trails row 1, after the presentation switch. */
+.collection-toolbar__primary-action { flex: 0 0 auto; display: flex; align-items: center; }
+
+.collection-toolbar__presentations .view-tabs {
+  position: static;
+  z-index: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.collection-toolbar__views {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox — the chip strip is a quiet scroll region, not a visible one */
+  -webkit-overflow-scrolling: touch;
+}
+/* Block 2(a) (Luna 390 audit): the saved-view chip strip is a proper horizontal scroll region —
+   it never clips a chip ('Follow-ups') and never overflows the page. Hide the scrollbar webkit. */
+.collection-toolbar__views::-webkit-scrollbar { display: none; }
+
+.collection-toolbar__view {
+  /* DO-18(b) (census-sweep R2 tasks FINDING6): flex:none — as a flex child the chip's default
+     shrink squashed the last chip ("Follow-up…") at 390 instead of letting the strip's
+     overflow-x:auto scroll (Block 2(a)). Chips keep intrinsic width; the STRIP scrolls. */
+  flex: none;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--secondary-foreground);
+  font: inherit;
+  font-size: var(--font-size-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.collection-toolbar__view:hover { color: var(--foreground); }
+.collection-toolbar__view:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.collection-toolbar__view--active {
+  background: var(--background);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.collection-toolbar__views-divider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+/* E7/pre-E7 salvage (OD-REDESIGN-72/79): a visible label for the single saved-view axis, so
+   presets and user views read as one intentional control rather than unlabeled chips. */
+.collection-toolbar__views-label {
+  flex: none;
+  /* R3 (owner review r2): the micro-label sat flush against the "All" chip. Give it the row's
+     gap rhythm so "Saved view" reads as a label OF the chip strip, not fused to the first chip.
+     A left pad balances the label inside the pill track; the right gap opens the label→chip seam. */
+  padding-left: 4px;
+  margin-inline-end: 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-mono);
+  white-space: nowrap;
+}
+
+.collection-toolbar__query {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--secondary) 28%, var(--card));
+}
+.collection-toolbar__query-spacer { flex: 1 1 auto; min-width: 0; }
+.collection-toolbar__filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* Lean + disclosure (OD-REDESIGN-84.1): the ONE "View & filters" door. An inline row, not a
+   popup, so it keeps normal document focus order and can't be clipped by a scroll container. */
+.collection-toolbar__options-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-mono);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.collection-toolbar__options-trigger:hover { border-color: var(--border-strong); background: var(--secondary); }
+.collection-toolbar__options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.collection-toolbar__options-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.collection-toolbar__options-chevron { transition: transform var(--dur-med) ease; }
+.collection-toolbar__options-chevron--open { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .collection-toolbar__options-chevron { transition: none; }
+}
+
+.collection-toolbar__options {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--secondary) 28%, var(--card));
+}
+.collection-toolbar__option-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.collection-toolbar__select .mk-select__box { max-width: 180px; }
+.collection-toolbar__select .mk-select__field { text-overflow: ellipsis; }
+
+.collection-toolbar__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: 150px;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  background: var(--background);
+}
+
+.collection-toolbar__search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.collection-toolbar__search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body-lg);
+}
+
+.collection-toolbar__search input::placeholder { color: var(--muted-foreground); }
+
+.collection-toolbar__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-mono);
+  white-space: nowrap;
+}
+
+.collection-toolbar__save {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-basis: 100%;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.collection-toolbar__save-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.collection-toolbar__save-field input {
+  width: min(260px, 60vw);
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body-lg);
+}
+
+.collection-toolbar__save-field input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* Capture-first phone contract shared by collection hosts. The domain toolbar remains the
+   single source of controls; this wrapper only changes when secondary controls are revealed. */
+.collection-mobile-options {
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.collection-mobile-options-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.collection-mobile-options-trigger:hover { background: var(--secondary); }
+.collection-mobile-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.collection-mobile-options-summary {
+  margin-left: 4px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.collection-mobile-options-chevron {
+  display: block;
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform var(--dur-med) ease;
+}
+.collection-mobile-options-chevron--open { transform: rotate(180deg); }
+.collection-mobile-options-panel .collection-toolbar { border-bottom: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .collection-mobile-options-chevron { transition: none; }
+}
+
+@media (max-width: 767px) {
+  .collection-toolbar { align-items: stretch; }
+  .collection-toolbar__primary { align-items: stretch; flex-wrap: wrap; padding: 8px; }
+  .collection-toolbar__presentations,
+  .collection-toolbar__views { max-width: 100%; }
+  .collection-toolbar__primary-spacer { display: none; }
+  .collection-toolbar__query { justify-content: flex-start; padding: 8px; }
+  .collection-toolbar__filter-group { width: 100%; }
+  .collection-toolbar__query > * { min-height: 44px; }
+  /* Phone hosts render the options panel expanded inside their outer "View & filters" wrapper;
+     each disclosed control is a full-width 44px touch target. */
+  .collection-toolbar__options { padding: 8px; gap: 12px; }
+  .collection-toolbar__option-field { width: 100%; }
+  .collection-toolbar__option-field .mk-select__box { width: 100%; max-width: none; height: 44px; }
+  .collection-toolbar__select .mk-select__box { height: 44px; max-width: min(220px, 70vw); }
+  .collection-toolbar__search { min-height: 44px; max-width: none; }
+  .collection-toolbar__view { min-height: 44px; }
+  .collection-toolbar__save { align-items: stretch; flex-wrap: wrap; }
+  .collection-toolbar__save-field { flex: 1 1 100%; }
+  .collection-toolbar__save-field input { width: 100%; min-height: 44px; }
+}

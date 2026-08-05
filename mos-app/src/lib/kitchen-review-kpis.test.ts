@@ -28,8 +28,10 @@ const LOGS: ReviewLogRow[] = [
 ]
 
 // Keyed by MOVEMENT ('produce' | 'transfer:<destinationBranchId>'), not the derived label —
-// the real fetchPlanMap contract. w1 on-plan (20==20), w2 off-plan (7 != 10), w3 on-plan
-// (10==10).
+// the real fetchPlanMap contract (DD-WAY-13). Keying by the derived label ('Production',
+// 'Transfer to Radiant') silently resolves every lookup to 0 — this fixture previously did
+// that and on-plan/off-plan always came out 0/3. w1 on-plan (20==20), w2 off-plan (7 != 10),
+// w3 on-plan (10==10).
 const PLAN_MAP: PlanMap = {
   w1: { produce: 20 },
   w2: { produce: 10 },

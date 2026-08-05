@@ -1,0 +1,98 @@
+/* Shared Home layout primitives (OD-V4-9, FR-930/FR-932).
+   ONE definition each: the work/feed layout, the tile grid and tile, and the region tabs.
+   A layout option may override only what genuinely differs, and must say why at the override. */
+
+/* The Home page-content frame — the inline-size CONTAINER every branch below is measured against
+   (DESIGN.md § Layout → The Container-Query Rule). `.home-layout` cannot be its own container: a
+   container query styles a container's descendants, never the container itself. Named, so a branch
+   can never bind to an unrelated ancestor that happens to be a container. */
+.home-frame { container: home / inline-size; }
+
+/* Home is not a readable single column, so it does not take the readable-measure cap.
+   PageFrame caps its content region at 1180px and LEFT-aligns it (page-families.css) — the right
+   call for one column of prose-width content, the wrong one here: Home is a two-column operating
+   surface (work region + the standing Signals aside), so the cap stopped the header rule, the
+   arrangement and the Signals column ~250px short of the content area and stranded a dead gutter
+   to their right on a wide monitor ("why is the container for home got cut mid screen
+   horizontally?" — owner, ~1730px window).
+
+   Same shape as the ONE precedent already in the codebase (TasksWorkspace.css, "owner-eyes item 7
+   — kill the dead right void") and the SAME 1760px full-bleed cap, so Home's right edge lands
+   where the data workspace's does rather than introducing a second wide-surface width. Scoped by
+   `:has(.home-frame)` so only the route that hosts Home is affected — every single-column readable
+   page keeps its 1180px measure. The `.page-frame--v3` prefix is carried so this outranks the
+   shared rule on specificity rather than on stylesheet order.
+
+   The reclaimed width goes to the WORK region: the Signals track is minmax(240px, 300px), so it
+   holds at 300px and the arrangement absorbs the rest — which is what the container-query
+   thresholds below were built to be measured against. */
+.page-frame--v3 .page-frame__content:has(.home-frame) { max-width: 1760px; }
+
+.home-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 32px; align-items: start; }
+.home-layout > * { min-width: 0; }
+
+.home-bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+/* Gap (20px) deliberately EXCEEDS .home-tile padding (16px): separation between groups must beat
+   spacing within them, or the grid reads as one mush. */
+.home-tile {
+  display: flex; flex-direction: column; min-width: 0; padding: 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+  box-shadow: var(--shadow-rest); /* Soft-Elevation Rule, DESIGN.md OD-P3-11 */
+}
+/* Two weights, and the pair sums to the column count at BOTH desktop bands — so every bento row
+   lands exactly on the grid and no tile is left with a hole beside it (the owner rejected exactly
+   that raggedness: "the boxes dont align … feels untidy nor professional"). 6 cols: 4+2 and 2+4.
+   4 cols: 4 | 2+2 | 4. `wide` is the consequence tier — the regions that carry the viewer's own
+   work and need room for a task row; `narrow` is the notice tier. needs-you leads by being first,
+   top-left, and in the wide tier (OD-V4-7); nothing outranks it. */
+.home-tile[data-weight="wide"]   { grid-column: span 4; }
+.home-tile[data-weight="narrow"] { grid-column: span 2; }
+/* The LEAD tile is marked by tone, not by weight: `needs-you` and `my-work` are BOTH `wide`, so the
+   span that gives needs-you its room says nothing about which of the two leads. One step up the
+   surface ramp does. Distinct from the row-hover fill beside it — hover is `--secondary`
+   (→ --surface-secondary), this is --surface-tertiary, a different step of the same ramp (measured
+   in the browser: 0.984 0.976 0.957 vs 0.969 0.957 0.933), so the tile never reads as hovered. */
+.home-tile[data-region="needs-you"] { background: var(--surface-tertiary); }
+
+.home-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+/* body-lg, not the label rung: at 12px inside 15px/600 row titles the tile's own NAME was the
+   quietest thing in the tile — the region it heads read below the rows it contains. */
+.home-tile-name { font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; }
+.home-tile-count { font-size: var(--font-size-label); color: var(--muted-foreground); white-space: nowrap; }
+
+.home-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+.home-tab {
+  font: inherit; font-weight: 500; border: 0; background: none; color: var(--muted-foreground);
+  padding: 8px 12px; cursor: pointer; min-height: 44px; /* coarse-pointer floor, NFR-921 */
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.home-tab:hover { color: var(--foreground); }
+.home-tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--primary); }
+.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.home-tab-count { color: var(--muted-foreground); font-weight: 400; margin-left: 4px; }
+
+/* ── Responsive: driven by the FRAME's actual width, never the window ─────────────────────────
+   These were `@media (max-width: 940px / 620px)`. The window is not what the arrangements have to
+   fit — the page content is, and the 232px rail collapses at 920px independently of the viewport.
+   Measured on Overview before the fix: the work column ran 812px @1440 → 488px @1100 → 572px
+   @1024, i.e. WIDER at the narrower window, because the rail collapsed in between. A trigger that
+   makes the thing it controls non-monotonic is measuring the wrong quantity: at 1100 the bento was
+   still holding 6 columns of 64.66px, squeezing row titles to 99px and wrapping meta to 3 lines.
+   The thresholds themselves are unchanged (DESIGN.md § Breakpoint inventory: home-single-column
+   940, home-bento-stack 620) — only what they are measured against. Branching the PRIMITIVES means
+   all three arrangements inherit one behaviour and none can drift from it. ── */
+@container home (max-width: 940px) {
+  .home-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  /* The base spans need no override here: at 4 columns `wide` (span 4) is a full row and `narrow`
+     (span 2) is a half, which packs to 4 | 2+2 | 4 — every row still full. */
+  .home-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container home (max-width: 620px) {
+  .home-bento { grid-template-columns: minmax(0, 1fr); }
+  /* One column: every tile spans the whole row regardless of its weight. Matched on
+     `[data-weight]` so it outranks the base `.home-tile[data-weight="wide|narrow"]` spans on
+     SPECIFICITY (0,2,0 vs 0,2,0 with source order deciding — this block is authored last), which
+     is what `!important` was standing in for. `!important` here would also have been unbeatable
+     by any future per-region override at this width. */
+  .home-tile[data-weight] { grid-column: span 1; }
+}

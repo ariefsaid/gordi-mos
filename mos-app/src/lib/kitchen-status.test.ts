@@ -40,11 +40,17 @@ describe('kitchenStatus — plan §6.1 mapping (on/over/under/not-started/logged
     })
   })
 
-  it('none: plan===0, made===0 → neutral dot:false "—" (dotless em-dash)', () => {
+  // cafe-4 (#196): the em-dash label was replaced in kitchen-status.ts itself — a naked "—" reads
+  // as a rendering failure at a glance, especially when a whole day's table is off-plan/unlogged.
+  // This assertion is stale against that same change, not the other way around: kitchen-status.ts's
+  // own comment documents the reason, and the i18n catalog (`kitchen.status.notLogged`: 'Not
+  // logged' / 'Belum dicatat') and kitchen-log-page.tsx's statusLabel() wrapper both already agree
+  // with 'Not logged'. Updating the assertion here to match, rather than reverting the app.
+  it('none: plan===0, made===0 → neutral dot:false "Not logged" (cafe-4)', () => {
     expect(kitchenStatus({ made: 0, plan: 0, isOffPlan: true })).toEqual({
       tone: 'neutral',
       dot: false,
-      label: '—',
+      label: 'Not logged',
     })
   })
 })

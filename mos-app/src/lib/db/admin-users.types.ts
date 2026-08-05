@@ -1,3 +1,5 @@
+import type { MessageKey } from '@/i18n/messages'
+
 // Admin user management types — plan §3.1.
 // LoginStatus: none (no user_id) | active | disabled (banned_until > now).
 // AdminPersonRow: the merged view the SPA list renders.
@@ -46,6 +48,27 @@ export function roleLabel(slug: string): string {
 /** Human description for a role slug, or empty string if unknown. */
 export function roleDescription(slug: string): string {
   return ROLE_META[slug]?.description ?? ''
+}
+
+/**
+ * Locale-facing role label + description (#201, the Admin surfaces' i18n pass).
+ * Known slugs route through the `admin.role.*` catalog keys (both locales); unknown slugs
+ * keep the raw-slug fallback so nothing ever renders blank. Type-only i18n import — this
+ * stays a lib module at runtime.
+ *
+ * ROLE_META above is the slug REGISTRY (which roles exist); the catalog is the COPY. Both
+ * carry every slug in ASSIGNABLE_ROLES, and `admin-users.types.test.ts` asserts they agree,
+ * so adding a role to one without the other fails a test rather than rendering a bare slug.
+ */
+export function localizedRoleMeta(
+  slug: string,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+): { label: string; description: string } {
+  if (!(slug in ROLE_META)) return { label: slug, description: '' }
+  return {
+    label: t(`admin.role.${slug}` as MessageKey),
+    description: t(`admin.role.${slug}.desc` as MessageKey),
+  }
 }
 
 // ── Jabatan (Position) ────────────────────────────────────────────────────────

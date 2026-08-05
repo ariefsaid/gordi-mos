@@ -4,12 +4,13 @@
 // TaskSurface.css.test.ts fs-read pattern), rendered for the route-head contract (RI-IA-1).
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
 import { I18nProvider } from './i18n/I18nProvider'
+import { PAGE_FAMILY_CONTRACTS } from './shell/page-families'
 
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
@@ -39,12 +40,21 @@ vi.mock('./lib/db/weekly-updates', () => ({
   listTeamUpdates: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
+// Ported for #192 (Tasks): TasksWorkspace's cascade catalogs — mocked pending so the unit test
+// never reaches the real supabase client (mirrors pages/tasks-layout.test.tsx).
+vi.mock('./lib/db/objectives', () => ({ listObjectives: vi.fn(() => new Promise(() => {})) }))
+vi.mock('./lib/db/work-lines', () => ({ listWorkLines: vi.fn(() => new Promise(() => {})) }))
+vi.mock('./lib/comments/postComment', () => ({
+  listComments: vi.fn(() => new Promise(() => {})),
+  postComment: vi.fn(),
+}))
 
 import { MyWeek } from './pages/my-week'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
+import { OverlayHostProvider } from './shell/overlay-host'
 
 const authedState: AuthState = {
   status: 'authenticated',
@@ -221,8 +231,17 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
   })
 
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
+    // Ported for #192: lives at /work/tasks now (not the retired /tasks), and TasksWorkspace
+    // requires OverlayHostProvider (Stage 2's shared record-panel host) — mirrors the render
+    // harness pages/tasks-layout.test.tsx uses for the same component.
     const { container } = withAuth(
-      <MemoryRouter initialEntries={['/tasks']}><TasksLayout /></MemoryRouter>,
+      <MemoryRouter initialEntries={['/work/tasks']}>
+        <OverlayHostProvider>
+          <Routes>
+            <Route path="/work/tasks" element={<TasksLayout />} />
+          </Routes>
+        </OverlayHostProvider>
+      </MemoryRouter>,
     )
     expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('[class*="page-title"]')).toBeNull()
@@ -236,15 +255,54 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
     'pages/updates-page.tsx',
-    'pages/inbox-page.tsx',
     'components/catalog/catalog-manager.tsx',
   ]
 
+  // The invariant is that these pages get the CONTENT-variant head — not that they each
+  // spell `<PageHead variant="content">` themselves. Two sanctioned routes reach it:
+  //
+  //   1. a direct <PageHead variant="content">, and
+  //   2. <PageFamilyFrame family="workspace"|"management">, which renders PageHead with
+  //      `variant={PAGE_FAMILY_CONTRACTS[family].headVariant}` — 'content' for both.
+  //
+  // The original grep only knew route 1, so a page migrating to the shared frame failed a
+  // guard whose stated invariant it still satisfied. That is a test crediting a mechanism
+  // rather than the guarantee: it would have blocked every page-family migration in the
+  // port while the head each of them rendered was correct throughout.
+  //
+  // Route 2's premise is pinned by its own test below, so this cannot quietly become a
+  // rubber stamp if someone re-points a family at the prose head.
+  const CONTENT_HEAD = /<PageHead[\s\S]{0,160}variant="content"/
+  const CONTENT_FAMILY_FRAME = /<PageFamilyFrame[\s\S]{0,200}family="(workspace|management)"/
+
   for (const file of targets) {
-    it(`${file} renders PageHead variant="content"`, () => {
-      expect(readSrc(file)).toMatch(/<PageHead[\s\S]{0,160}variant="content"/)
+    it(`${file} renders the content-variant head (directly or via PageFamilyFrame)`, () => {
+      const src = readSrc(file)
+      expect(CONTENT_HEAD.test(src) || CONTENT_FAMILY_FRAME.test(src)).toBe(true)
     })
   }
+
+  it('the PageFamilyFrame route really does yield the content head (the premise above)', () => {
+    // If this flips, the second branch of the assertion above stops meaning what it says —
+    // and every page that migrated to the frame would be on the prose head unnoticed.
+    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
+    expect(PAGE_FAMILY_CONTRACTS.management.headVariant).toBe('content')
+  })
+})
+
+// `pages/inbox-page.tsx` left RI-IA-2's literal source-scan above when #195 ported it onto the v4
+// shell's `PageFamilyFrame` (Stage 2, #188) — the same content-header PageHead chrome the scan
+// checks for, just rendered by the shared frame rather than written out in the page's own JSX. A
+// text match can't see through that indirection, so the contract is proven structurally instead:
+// InboxPage passes `family="workspace"`, and `PAGE_FAMILY_CONTRACTS.workspace.headVariant` is
+// `'content'` (page-families.ts) — the exact PageHead variant this page renders is pinned at the
+// contract, not re-derived here. Every other surface still on the list above is unported and still
+// writes `<PageHead>` directly; each drops off the same way when its own port lands.
+describe('RI-IA-2: pages/inbox-page.tsx proves the content-header contract via PageFamilyFrame', () => {
+  it("InboxPage's family ('workspace') resolves to PageHead variant 'content'", () => {
+    expect(readSrc('pages/inbox-page.tsx')).toMatch(/family="workspace"/)
+    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
+  })
 })
 
 describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {
@@ -416,15 +474,16 @@ describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, · separator
 
 // ════════════════════════════════════════════════════════════════════════════
 // RI-IXD-5: ONE Select shell — bounded-choice dropdowns use the shared
-// <Select> primitive. The only raw native selects left are the Tasks DB-view
-// chip overlays plus deferred task detail/create inline cases documented in
-// docs/reviews/feat-ui-coherence.md.
+// <Select> primitive.
+//
+// Tightened by #192 (Tasks port): the two Tasks exceptions and record-details-panel.tsx (deleted
+// by the port) all moved to the shared `useListboxPopover` / `<Select>` pattern on v4, so the
+// invariant now holds with no Tasks carve-out. An allowlist entry pointing at a deleted file is
+// silently vacuous either way (`allowedRawSelectFiles.has()` on a path `listNonTestSource` never
+// yields), but leaving it would misdescribe the current exception set to the next reader.
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-IXD-5: no raw select outside documented Tasks exceptions', () => {
   const allowedRawSelectFiles = new Set([
-    'components/tasks/tasks-toolbar.tsx',
-    'components/tasks/task-surface.tsx',
-    'components/tasks/record-details-panel.tsx',
     'components/ui/select.tsx',
   ])
 
