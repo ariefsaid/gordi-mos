@@ -18,7 +18,7 @@ vi.mock('./config/features', () => ({
   SHOW_PLAN_BUDGET: true,
 }))
 
-import { flattenRoutes, isRedirect, lazyPayloadOf, resolvePageAt } from './test/route-table'
+import { describeRedirectMap, flattenRoutes, isRedirect, lazyPayloadOf, resolvePageAt } from './test/route-table'
 import type { RouteHandle } from './shell/route-classification'
 
 import { HomePage } from './pages/home-page'
@@ -66,6 +66,12 @@ function surfaceRoutes() {
     )
   })
 }
+
+// The same AC-017 enumeration router.test.tsx runs with the flags off. With them ON the map
+// grows two rows — /plan/budget → /money/budget and /plan/pricing → /money/pricing — that are
+// flag fallbacks to `/` in the other configuration and so are asserted nowhere else. Every row
+// of the published redirect map is backed by one of these two runs.
+describeRedirectMap('plan/budget + follow-ups flags ON')
 
 describe('AC-019: every route but the index and login loads on demand, behind one loading shell', () => {
   const routes = surfaceRoutes()

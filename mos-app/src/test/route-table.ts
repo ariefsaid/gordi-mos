@@ -6,7 +6,7 @@
 // so deleting a route from the real table turns the assertion red.
 
 import { Suspense, isValidElement, type ComponentType, type ReactElement, type ReactNode } from 'react'
-import { expect } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { Navigate, matchRoutes, type RouteObject } from 'react-router-dom'
 import { routeConfig } from '@/router'
 import { RouteRedirect } from '@/shell/route-redirect'
@@ -207,4 +207,48 @@ export function expectOneHop(sourcePath: string, to: string): void {
   const sourceGates = gatesOnPath(sourcePath)
   const added = gatesOnPath(dest).filter((g) => !sourceGates.includes(g))
   expect(added, `${sourcePath} → ${dest} adds gates the source does not carry`).toEqual([])
+}
+
+/**
+ * AC-017 over the WHOLE redirect map, as one reusable suite.
+ *
+ * It lives here rather than in a single spec file because the map's shape depends on the feature
+ * flags: with `SHOW_PLAN_BUDGET` and `SHOW_FOLLOWUPS` off, `/plan/budget` and `/plan/pricing` are
+ * flag fallbacks to `/`, and their real destinations — `/money/budget`, `/money/pricing` — are
+ * never asserted at all. Running the same enumeration under both flag configurations is what makes
+ * every published row of the map actually backed by a test rather than by the half of the table
+ * the default configuration happens to expose.
+ *
+ * Call it from a spec that has already mocked `config/features` the way it wants.
+ */
+export function describeRedirectMap(configuration: string): void {
+  const redirects = allRedirects()
+
+  describe(`AC-017 (${configuration}): every retired route reaches its replacement in one hop`, () => {
+    it('the map is not empty — the enumeration itself has to be able to fail', () => {
+      expect(redirects.filter((r) => r.kind === 'map').length).toBeGreaterThan(15)
+    })
+
+    it.each(redirects.map((r) => [r.from, r.to, r.kind] as const))(
+      '%s → %s (%s) lands on a live surface, adds no gate, and does not chain',
+      (from, to) => {
+        expectOneHop(from, to)
+      },
+    )
+
+    it.each(redirects.map((r) => [r.from, r.replace] as const))(
+      '%s replaces its history entry, so Back does not re-enter it',
+      (_from, replace) => {
+        expect(replace).toBe(true)
+      },
+    )
+
+    it('no redirect names another redirect — the whole map is depth one', () => {
+      const chained = redirects.filter(({ to }) => {
+        const leaf = leafInThisTable(pathnameOf(to))
+        return isRedirect(leaf?.route.element)
+      })
+      expect(chained).toEqual([])
+    })
+  })
 }
