@@ -20,15 +20,14 @@ type StatusPillProps = {
   status: TaskStatus
   label?: string
   /**
-   * Home's consequence-ranked stream renders StatusPill beside Signals' amber
-   * attention pills (Urgent/Needs attention), so a heavy-saturated "Open" pill
-   * reads as a third warning tier instead of the neutral not-yet-started
-   * baseline it actually is (design-review F3; rule:product-color-state-vocab,
-   * rule:product-ban-heavy-inactive-color). 'neutral' swaps Open's amber for the
-   * DESIGN.md §5 "Default/neutral badge" pair (secondary-family bg + muted-
-   * foreground text) — In Progress/Blocked/Done are unaffected either way.
-   * Default 'flagged' is byte-identical to the pre-existing behavior, so every
-   * other StatusPill call site (Tasks, Admin, Follow-ups, Weekly, RecordField)
+   * #191 (Home port) — Home's consequence-ranked stream renders StatusPill beside its own reason
+   * chip in the same row tail (stream-row.tsx), and some reason tones are amber too — a
+   * heavy-saturated "Open" pill next to them reads as a third warning tier instead of the neutral
+   * not-yet-started baseline it actually is (design-review F3; rule:product-color-state-vocab,
+   * rule:product-ban-heavy-inactive-color). 'neutral' swaps Open's amber for the DESIGN.md §5
+   * "Default/neutral badge" pair (secondary-family bg + muted-foreground text); In Progress/
+   * Blocked/Done are unaffected either way. Default 'flagged' is byte-identical to the pre-existing
+   * behavior, so every other StatusPill call site (Tasks, Admin, Follow-ups, Weekly, RecordField)
    * is untouched.
    */
   openTreatment?: 'flagged' | 'neutral'

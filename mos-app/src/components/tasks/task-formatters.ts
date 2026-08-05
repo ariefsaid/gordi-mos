@@ -29,7 +29,10 @@ export function formatAge(isoDate: string, now: Date): string {
 }
 
 /** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun".
- * Delegates to the canonical locale-aware date module (cohesion-debt 2026-07-19, item #1). */
+ * Delegates to the canonical locale-aware date module (cohesion-debt 2026-07-19, item #1) rather
+ * than a hardcoded en-GB `toLocaleDateString` — #191 (Home port) needs the viewer's locale on this
+ * same formatter every other call site here already used unlocalized. Every existing caller passes
+ * no `locale`, so the default reproduces the prior en-GB output exactly. */
 export function formatDate(d: string, locale: Locale = 'en'): string {
   return formatWeekdayDayMonth(d, locale)
 }

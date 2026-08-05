@@ -47,10 +47,14 @@ export interface EmptyStateProps {
    */
   headingLevel?: 2 | 3 | 4 | 5 | 6
   /**
-   * Ported for #192 (Tasks): drop the `region` landmark + its labelling when this EmptyState sits
-   * inside an already-labelled landmark — RecordViewer's empty body is already inside the record
-   * panel/page's own labelled region, so a nested region here would be a redundant landmark a
-   * screen-reader user has to tab past. Default false keeps every existing call site's semantics.
+   * Drop the `region` landmark + its labelling when this EmptyState sits inside an already-labelled
+   * landmark, so a screen-reader user has no redundant landmark to tab past. Two ports arrived at
+   * this same prop independently: #191 (Home's `region-rows.tsx` — the tabpanel/section around a
+   * region already carries its own accessible name) and #192 (Tasks — RecordViewer's empty body is
+   * already inside the record panel/page's own labelled region). Ported from v4's `state-kit.tsx`,
+   * scoped to just this prop (v4 also carries a `suggestions` list for the Assistant panel's empty
+   * state, which is unrelated to either port and left out). Default false keeps every existing call
+   * site's semantics.
    */
   nested?: boolean
   /** Actions row (CTAs). */

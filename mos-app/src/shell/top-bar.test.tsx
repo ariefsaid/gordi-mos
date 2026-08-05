@@ -138,12 +138,12 @@ describe('AC-014: TopBar layout (OD-57)', () => {
     expect(bell.getAttribute('aria-disabled')).not.toBe('true')
   })
 
-  // Carried from v4's `top-bar-inbox-bell.test.tsx` phone case. On v4 the bell has two doors —
-  // desktop quick-triage in the shared overlay host, phone the full route — and the whole of the
-  // desktop door needs the Inbox triage SURFACE, which #190 did not port (it landed the host the
-  // door mounts into; `InboxTriageConnected` arrives with the Inbox surface). Until then ONE door on
-  // every viewport, and it is v4's own no-host fallback path. The rest of that file travels with
-  // the Inbox surface; this is the half that is live here, kept covered rather than dropped.
+  // The bell has two doors (#195): desktop quick-triage in the shared overlay host, phone (or no
+  // host mounted) the full `/inbox` route — see top-bar-inbox-bell.test.tsx for the desktop door
+  // and the record-open/focus-return cases, isolated there so their mocks don't perturb this
+  // file's broader layout suite. This render has no `OverlayHostProvider`, so `host` is null and
+  // the bell takes the same no-host fallback path a phone viewer gets — the case still worth
+  // covering here since it is this file's own render shape, not duplicated from the other file.
   it('the Inbox bell navigates to the /inbox route (the door that is live without the overlay host)', () => {
     renderTopBarWithLocation()
     expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks')
