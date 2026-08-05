@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, Navigate, type RouteObject } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
@@ -10,6 +10,7 @@ import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
+import { allRoutes, isRedirect, redirectProps, leafInThisTable } from './test/route-table'
 
 // nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
 // but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
@@ -118,14 +119,26 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS defa
 // the retired top-level paths redirect straight to the relocated catalogs, which stay behind
 // RequireCapability. Page components are reused unchanged.
 describe('router — catalog manage-mode relocated under /work/ (FR-421)', () => {
-  // Walks the whole nested route tree and collects every declared path.
-  function allPaths(routes: RouteObject[]): string[] {
-    return routes.flatMap((r) => [...(r.path ? [r.path] : []), ...(r.children ? allPaths(r.children) : [])])
-  }
+  it('AC-001 (#179, OD-WAY-32): no PAGE is served at a cascade path — a redirect away is all there is', () => {
+    // The ruling cut the cascade SCREEN. A redirect entry is not a screen, so the guard forbids a
+    // page at that path rather than forbidding the path outright — reading it as "no entry may name
+    // the path" is what killed the doormat every other retired path keeps (#217).
+    const cascadeRoutes = allRoutes(routeConfig).filter((r) => (r.path ?? '').includes('cascade'))
+    expect(cascadeRoutes.map((r) => r.path)).toEqual(['work/cascade'])
+    for (const r of cascadeRoutes) expect(isRedirect(r.element)).toBe(true)
+  })
 
-  it('AC-001 (#179): no route anywhere in the table declares the cascade path', () => {
-    expect(allPaths(routeConfig)).not.toContain('work/cascade')
-    expect(allPaths(routeConfig).filter((p) => p.includes('cascade'))).toEqual([])
+  it('AC-001 (#217, FR-015): the retired cascade path lands on a live route in one hop, history replaced', () => {
+    const cascade = allRoutes(routeConfig).find((r) => r.path === 'work/cascade')
+    expect(cascade).toBeDefined()
+    const { to, replace } = redirectProps(cascade!.element)
+    // FR-015: the history entry is replaced, so Back does not re-enter the retired path.
+    expect(replace).toBe(true)
+    // …and the destination is resolved against THIS table: a live surface, not the not-found
+    // catch-all, and not a second redirect. Remove the destination route and this goes red.
+    const leaf = leafInThisTable(to)
+    expect(leaf?.route.path).not.toBe('*')
+    expect(isRedirect(leaf?.route.element)).toBe(false)
   })
 
   it('AC-304: /work/objectives + /work/projects-processes stay behind their capability gates', () => {
