@@ -4,7 +4,7 @@
 // the row's primary interaction — a catalog row has no record panel, so it never invents one. The
 // Archived view swaps those for Unarchive. Mutations are read from the page via the actions context.
 //
-// OD-V4-1 H4: every row ALSO carries a disclosure toggle (▸) that expands its bidirectional
+// OD-V4-1 H4: every row ALSO carries a disclosure toggle that expands its bidirectional
 // relations — child Projects/Processes for an Objective, parent Objective(s) for a Project/Process,
 // and either way the row's own Tasks — each a real <Link> to an existing route (/work/objectives,
 // /work/projects, /work/tasks/:id). Not a new cascade page/route (docs/v4-inheritance.md INC-1):
@@ -30,6 +30,10 @@ import './catalog-collection.css'
 /** OD-V4-1 H4 cap: an objective/work_line with dozens of tasks gets a bounded inline list, not a
     runaway DOM — the row's disclosure is a real drill-in for the common case, not a full report. */
 const MAX_RELATIONS_TASKS = 12
+
+// The disclosure marker is an SVG chevron, rotated by CSS when open — never a text triangle.
+// RI-IXD-1 (src/consistency.regression.test.tsx) fails the suite on a literal triangle character
+// anywhere in a non-test .tsx, comments included, so this note names none.
 
 function DisclosureChevron({ expanded }: { expanded: boolean }) {
   return (
