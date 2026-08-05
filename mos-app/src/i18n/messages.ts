@@ -362,9 +362,9 @@ export const messages = {
     'common.cancel': 'Cancel',
     'common.working': 'Working…',
     'common.unexpectedError': 'Something went wrong. Try again.',
-    // One document-title shape and one load-failure sentence, both parameterised, so a page
-    // never hand-rolls either. `common.what.*` names the noun the failure is about.
-    'common.docTitle': '${page} — Gordi MOS',
+    // One load-failure sentence, parameterised, so a page never hand-rolls it.
+    // `common.what.*` names the noun the failure is about. `common.docTitle` is
+    // NOT redeclared here — the Home port (#191) already added it above.
     'common.loadFailed': 'Couldn’t load ${what}. Check your connection and try again.',
     'common.what.budgets': 'budgets',
     'common.what.costLines': 'the BOM and ingredient cost lines',
@@ -904,7 +904,7 @@ export const messages = {
     'common.cancel': 'Batal',
     'common.working': 'Memproses…',
     'common.unexpectedError': 'Terjadi kesalahan. Coba lagi.',
-    'common.docTitle': '${page} — Gordi MOS',
+    // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     'common.loadFailed': 'Gagal memuat ${what}. Periksa koneksi Anda lalu coba lagi.',
     'common.what.budgets': 'anggaran',
     'common.what.costLines': 'baris BOM dan biaya bahan',
