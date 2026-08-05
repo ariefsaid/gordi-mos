@@ -88,16 +88,22 @@ comment on function shared.current_person_id() is 'Person id from the JWT custom
 
 -- ── Is the CALLER on an admin-set password? ──────────────────────────────────────────────────
 -- SECURITY DEFINER is load-bearing, not habit: shared.people's own SELECT policy calls
--- current_org_id(), which calls this function. Were this INVOKER, reading people here would
--- re-evaluate that policy and Postgres would abort with "infinite recursion detected in policy for
--- relation people".
+-- current_org_id(), which calls this function, and shared.people is FORCE ROW LEVEL SECURITY —
+-- even the table owner answers to its own policies.
 --
--- READ THIS BEFORE DEPLOYING TO A NEW ENVIRONMENT. Definer alone is NOT what breaks the cycle:
--- shared.people is FORCE ROW LEVEL SECURITY, which subjects even the table owner to its own
--- policies. The cycle is broken only because this function's owner carries the BYPASSRLS role
--- attribute. On any environment where the migration owner lacks it, EVERY policy evaluation
--- recurses and the database is effectively down, not merely degraded. The pgTAP suite asserts the
--- attribute so that fails loudly at test time instead of silently at 3am.
+-- READ THIS BEFORE DEPLOYING TO A NEW ENVIRONMENT, and read it as MEASURED, not predicted
+-- (shared_07_password_rotation, checked by hand, 2026-08-05): losing the owner's BYPASSRLS
+-- attribute on THIS function does not raise an error and does not close anything — it fails OPEN.
+-- The nested read on shared.people falls under people's own policies and returns no rows either
+-- way, so coalesce(..., false) reads "no rotation pending" and current_org_id() carries on
+-- resolving the org normally. The rotation gate simply goes dark, silently. It stays fail-closed
+-- in practice only because shared._current_person_is_live(), defined below, shares this
+-- function's owner — THAT function closes the whole org seam on the same missing attribute (see
+-- its comment), and its failure covers this one's. That shared-owner dependency, not anything in
+-- either function body, is what makes losing BYPASSRLS here survivable today; a future deploy that
+-- gives these two functions different owners would not have that cover. The pgTAP suite asserts
+-- BYPASSRLS on the owner of both functions, plus a catalog-wide check over every definer function
+-- in `shared` that reads shared.people, so a helper added later is covered without editing a test.
 --
 -- Fails closed-for-the-user / open-for-the-org on a missing claim: no person_id claim (anon, or an
 -- orphan) means no person to be flagged, so coalesce to false and current_org_id() behaves exactly
@@ -128,11 +134,20 @@ revoke execute on function shared._current_person_must_change_password() from pu
 grant  execute on function shared._current_person_must_change_password() to authenticated;
 
 -- ── Does the CALLER's claim set still describe a live directory row? ─────────────────────────
--- Same shape, same reasons, same recursion break as the rotation check above: SECURITY DEFINER
--- because shared.people's own SELECT policy calls current_org_id(), which calls this. That means it
--- carries the SAME deployment dependency — the owner must hold BYPASSRLS or every policy evaluation
--- recurses — and shared_07_password_rotation asserts the attribute for this function as well as for
--- the rotation one, so neither claim rests on a comment.
+-- Same shape as the rotation check above, same owner dependency, opposite failure mode. SECURITY
+-- DEFINER because shared.people's own SELECT policy calls current_org_id(), which calls this.
+-- Losing the owner's BYPASSRLS attribute on THIS function does not raise an error either —
+-- measured, not predicted (shared_07_password_rotation, checked by hand, 2026-08-05) — but unlike
+-- the rotation check, it fails CLOSED. The nested read on shared.people falls under people's own
+-- policies and returns no rows, so this function resolves false for a named person, and
+-- current_org_id() then returns NULL for everybody: a silent total lockout, every org-scoped read
+-- in every schema returns zero rows, nothing in the log. That is the failure that actually holds
+-- the seam shut when the rotation check's own BYPASSRLS goes missing too — the two share an owner
+-- in every deployment today, and it is THIS function's fail-closed behaviour, not the rotation
+-- check's, that the net safety of the pair rests on. shared_07_password_rotation asserts
+-- BYPASSRLS on the owner of both functions individually, plus a catalog-wide check over every
+-- definer function in `shared` that reads shared.people, so neither claim rests on a comment and a
+-- helper added later is covered automatically.
 --
 -- Read the polarity carefully, because it is the opposite of the rotation check's. A session with NO
 -- person_id claim returns TRUE — "nothing to invalidate" — so anon and the service/seed connection

@@ -90,15 +90,18 @@ select is(
 -- ── Deploy guard ─────────────────────────────────────────────────────────────────────────────
 -- shared.people is FORCE ROW LEVEL SECURITY, so being the table owner does not exempt
 -- _current_person_must_change_password() from people's own policy — and that policy calls
--- current_org_id(), which calls this function. The only reason it terminates is the owner's
--- BYPASSRLS attribute. On an environment where the migration role lacks it, every policy evaluation
--- on every table recurses: not a degraded feature, a down database. Asserted here so a bad
--- environment fails at test time rather than under live traffic.
+-- current_org_id(), which calls this function. Losing the owner's BYPASSRLS attribute here does
+-- NOT recurse and does NOT error: the nested read simply returns no rows (see the migration
+-- comment above the function), this function's coalesce(..., false) reads that as "no rotation
+-- pending", and the rotation gate goes silently dark — it fails OPEN. The seam stays closed in
+-- practice only because _current_person_is_live(), asserted below, shares this function's owner
+-- and fails CLOSED on the same missing attribute. Asserted here so a bad environment fails at test
+-- time rather than under live traffic.
 select ok(
   (select r.rolbypassrls
      from pg_proc p join pg_roles r on r.oid = p.proowner
     where p.oid = 'shared._current_person_must_change_password()'::regprocedure),
-  'the owner of _current_person_must_change_password() has BYPASSRLS — without it the policy cycle recurses');
+  'the owner of _current_person_must_change_password() has BYPASSRLS — without it the rotation gate fails open silently (masked only because _current_person_is_live() shares the owner and fails closed)');
 
 -- shared.current_org_id() reads a SECOND definer function on shared.people, and it inherits the whole
 -- of the paragraph above: same table, same FORCE, same cycle through people_select_org.
