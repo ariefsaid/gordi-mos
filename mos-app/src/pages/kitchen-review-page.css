@@ -204,6 +204,19 @@
   font-size: 14px;
 }
 
+/* ── #236: stream filter (FR-041) + the not-your-stream decision placeholder ── */
+.kr-filter {
+  display: flex;
+  justify-content: flex-end;
+}
+.kr-filter-select {
+  max-width: 260px;
+}
+.krow-othersstream {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
 /* ── States: loading / empty / error are the shared StateKit
    (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). ── */
 

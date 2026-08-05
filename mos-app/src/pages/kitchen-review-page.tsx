@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -9,16 +9,20 @@ import { useT } from '@/i18n/use-t'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
+  fetchDefaultStream,
+  listStreamPairs,
+  streamCatalogFrom,
   approveKitchenLog,
   rejectKitchenLog,
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { movementKey, streamKey } from '@/lib/kitchen-action-label'
+import { activityLabel, branchDisplayName, movementKey, streamKey } from '@/lib/kitchen-action-label'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
+import { Select } from '@/components/ui/select'
 import { Tag } from '@/components/ui/tag'
 import { DataTable } from '@/components/dashboard/data-table'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
@@ -275,7 +279,12 @@ export function KitchenReviewPage() {
   const auth = useAuth()
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  // #236 (FR-040/041): stream supervisors join the review surface. The page-level split is
+  // DISPLAY ONLY — the write contract (who may decide which stream's rows) is the server's
+  // guard/policy (NFR-002); everything here merely mirrors it so refusals are rare, not possible.
+  const isLeadOrAdmin = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const isSupervisor = accessRoles.includes('supervisor')
+  const allowed = isLeadOrAdmin || isSupervisor
 
   const [logDate] = useState(wibToday)
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
@@ -283,6 +292,16 @@ export function KitchenReviewPage() {
   // the queue (#247/#197), not one flat map for the whole queue.
   const [streamPlans, setStreamPlans] = useState<Map<string, PlanMap>>(new Map())
   const [peopleMap, setPeopleMap] = useState<Map<string, string>>(new Map())
+  // The enumerable stream catalog (FR-005) drives the filter's options; the viewer's own
+  // stream — their live primary Team's (branch, activity), same resolution the capture
+  // surface uses (FR-001) — drives the filter's DEFAULT (FR-041) and, for a supervisor,
+  // which rows carry decision controls.
+  const [streamCatalog, setStreamCatalog] = useState<ProductionStream[]>([])
+  const [ownStreamKey, setOwnStreamKey] = useState<string | null>(null)
+  const [streamFilter, setStreamFilter] = useState<string>('all')
+  // The default is applied ONCE, after the first load resolves the viewer's own stream — a
+  // ref, not state, so re-fetches never fight the viewer's own filter choice.
+  const filterInitialized = useRef(false)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
 
@@ -294,7 +313,6 @@ export function KitchenReviewPage() {
   const [notice, setNotice] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
-  const kpiData = useReviewKpis(logs, streamPlans)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -307,10 +325,12 @@ export function KitchenReviewPage() {
   const fetchQueue = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [rows, branchRows, people] = await Promise.all([
+      const [rows, branchRows, people, pairs, ownStream] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
         listActiveBranches(),
         getPeople(),
+        listStreamPairs(),
+        fetchDefaultStream(),
       ])
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
       // the queue (#247/#197) — not the single hardcoded stream the prior version read.
@@ -327,24 +347,70 @@ export function KitchenReviewPage() {
           async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const,
         ),
       )
+      const ownKey = ownStream ? streamKey(ownStream.branch_id, ownStream.activity) : null
       setLogs(rows)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
+      setStreamCatalog(streamCatalogFrom(pairs, branchRows))
+      setOwnStreamKey(ownKey)
+      // FR-041 filter defaults, applied once: a stream supervisor opens on THEIR stream;
+      // ops_lead/admin open cross-stream. A supervisor with no stream (no live primary
+      // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
+      if (!filterInitialized.current) {
+        filterInitialized.current = true
+        if (!isLeadOrAdmin && isSupervisor && ownKey) setStreamFilter(ownKey)
+      }
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
     }
-  }, [logDate])
+  }, [logDate, isLeadOrAdmin, isSupervisor])
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || !allowed) return
     fetchQueue()
   }, [auth.status, allowed, fetchQueue, retryKey])
 
-  const productionPending = useMemo(
-    () => logs.some(l => l.action_type === 'Production'),
-    [logs],
+  // #236 (FR-043): the production-first gate is PER STREAM — the set of streams whose
+  // production is still Submitted, computed over the WHOLE queue (a row's lock depends on
+  // its own stream's state, never on what the filter happens to show). The server owns
+  // the rule (P0004); this mirror only decides which Approve buttons are worth offering.
+  const pendingProductionStreams = useMemo(() => {
+    const set = new Set<string>()
+    for (const l of logs) {
+      if (l.action === 'produce') set.add(streamKey(l.branch_id, l.activity))
+    }
+    return set
+  }, [logs])
+
+  const rowGated = useCallback(
+    (log: ReviewLogRow) =>
+      log.action === 'transfer' && pendingProductionStreams.has(streamKey(log.branch_id, log.activity)),
+    [pendingProductionStreams],
   )
+
+  // #236 (FR-040): which rows THIS viewer may decide. ops_lead/admin decide everything;
+  // a supervisor decides their own stream's rows. Mirror of the server predicate — the
+  // guard/policy refuses regardless of what renders here (NFR-002).
+  const canDecide = useCallback(
+    (log: ReviewLogRow) =>
+      isLeadOrAdmin ||
+      (isSupervisor && ownStreamKey !== null && streamKey(log.branch_id, log.activity) === ownStreamKey),
+    [isLeadOrAdmin, isSupervisor, ownStreamKey],
+  )
+
+  // FR-040/041: the displayed queue — one stream, or every stream. Display scoping only;
+  // the rows a viewer may DECIDE are canDecide's (and ultimately the server's) business.
+  const visibleLogs = useMemo(
+    () =>
+      streamFilter === 'all'
+        ? logs
+        : logs.filter(l => streamKey(l.branch_id, l.activity) === streamFilter),
+    [logs, streamFilter],
+  )
+
+  // KPIs summarise the queue AS FILTERED — the numbers must describe the rows on screen.
+  const kpiData = useReviewKpis(visibleLogs, streamPlans)
 
   // #247/#196 fix: the prior grouping walked a hardcoded 3-literal ACTION_ORDER
   // (['Production', 'Transfer to Radiant', 'Transfer to Bungur']) — a log whose derived
@@ -354,12 +420,12 @@ export function KitchenReviewPage() {
   // order they first appear in the queue.
   const groupOrder = useMemo(() => {
     const seen: string[] = []
-    for (const log of logs) {
+    for (const log of visibleLogs) {
       if (!seen.includes(log.action_type)) seen.push(log.action_type)
     }
     seen.sort((a, b) => (a === 'Production' ? -1 : b === 'Production' ? 1 : 0))
     return seen
-  }, [logs])
+  }, [visibleLogs])
 
   const removeRow = useCallback((id: string) => {
     setLogs(prev => prev.filter(l => l.id !== id))
@@ -396,11 +462,9 @@ export function KitchenReviewPage() {
   }
 
   const bulkEligible = useCallback(
-    (action: string): ReviewLogRow[] => {
-      if (isTransfer(action) && productionPending) return []
-      return logs.filter(l => l.action_type === action)
-    },
-    [logs, productionPending],
+    (action: string): ReviewLogRow[] =>
+      visibleLogs.filter(l => l.action_type === action && canDecide(l) && !rowGated(l)),
+    [visibleLogs, canDecide, rowGated],
   )
 
   async function handleBulkApprove(action: string) {
@@ -450,6 +514,12 @@ export function KitchenReviewPage() {
       setRetryKey(k => k + 1)
       return
     }
+    // FR-043 (P0004): the server's per-stream ordering gate — surfaced as guidance, since the
+    // stream's Submitted production may have landed after this queue was fetched.
+    if (err instanceof KitchenRpcError && err.code === 'P0004') {
+      setActionError(t('kitchen.review.productionPendingErr'))
+      return
+    }
     if (err instanceof KitchenRpcError && err.code === '42501') {
       setActionError('You are not permitted to review this log.')
       return
@@ -466,8 +536,10 @@ export function KitchenReviewPage() {
   const bulkDisabled = !isOnline || submittingId !== null || bulkAction !== null
   const tableGroups: DataTableGroup<ReviewLogRow>[] = groupOrder
     .map(action => {
-      const rows = logs.filter(l => l.action_type === action)
-      const transferGated = isTransfer(action) && productionPending
+      const rows = visibleLogs.filter(l => l.action_type === action)
+      // #236: the gate message shows when any DISPLAYED row of the group is stream-locked
+      // (FR-043 is per stream, so one stream's backlog no longer gates every group).
+      const transferGated = isTransfer(action) && rows.some(rowGated)
       const eligibleCount = bulkEligible(action).length
       const showActions = transferGated || eligibleCount > 0
       return {
@@ -554,7 +626,13 @@ export function KitchenReviewPage() {
       key: 'decision',
       header: 'Decision',
       render: (log) => {
-        const gated = log.action === 'transfer' && productionPending
+        // #236 (FR-040): a row outside the supervisor's own stream carries no decision
+        // controls — its stream's reviewer (or the ops lead) decides it. Display honesty
+        // only: the server refuses regardless (NFR-002).
+        if (!canDecide(log)) {
+          return <span className="krow-othersstream">{t('kitchen.review.opsLeadOnly')}</span>
+        }
+        const gated = rowGated(log)
         return (
           <KitchenReviewDecision
             log={log}
@@ -600,7 +678,7 @@ export function KitchenReviewPage() {
     )
   }
 
-  const submittedCount = logs.length
+  const submittedCount = visibleLogs.length
 
   return (
     <PageFamilyFrame
@@ -610,6 +688,27 @@ export function KitchenReviewPage() {
       meta={<span className="kr-date tabular">{logDate}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
+      {/* #236 (FR-041): the stream filter — a supervisor opens on their own stream,
+          ops_lead/admin on all; either can move it. Display scoping only (NFR-002:
+          the decision contract is the server's). */}
+      {load.kind === 'ready' && streamCatalog.length > 0 && (
+        <div className="kr-filter kr-block">
+          <Select
+            className="kr-filter-select"
+            aria-label={t('kitchen.review.streamFilterAria')}
+            value={streamFilter}
+            onChange={e => setStreamFilter(e.target.value)}
+          >
+            <option value="all">{t('kitchen.review.allStreams')}</option>
+            {streamCatalog.map(s => (
+              <option key={streamKey(s.branch.id, s.activity)} value={streamKey(s.branch.id, s.activity)}>
+                {branchDisplayName(s.branch)} · {activityLabel(t, s.activity)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       {load.kind === 'ready' && submittedCount > 0 && (
         <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
       )}
