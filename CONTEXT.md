@@ -70,19 +70,35 @@ _Avoid_: using Site to scope a production record — that axis is the **Producti
 
 **Production stream**:
 The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · kitchen`, `GHQ · bar`,
-`RRS · kitchen`. This is the axis the Café Module is scoped on (OD-WAY-26): it selects the item list,
-the ERP coordinates, and the default a capture surface opens on. A person carries a stream assignment
-that **defaults** their surface and filters their item list, but it is a default, **not an access
-boundary** — they can switch to help another branch (OD-WAY-31).
+`RRS · kitchen`. Three Branches × two Activities = **six streams**, of which two are captured today
+(OD-WAY-42). This is the axis the Café Module is scoped on (OD-WAY-26): it selects the item list,
+the ERP coordinates, and the default a capture surface opens on. **A Team _is_ a stream** — `GHQ ·
+kitchen` and `GHQ · bar` are different teams with different leads — so a person's primary team supplies
+the default (OD-WAY-49). It is a default, **not an access boundary**: they can switch to help another
+branch (OD-WAY-31). Review queues follow the same line, one per stream, with an ops-lead fallback so
+no stream stalls unapproved (OD-WAY-48).
 A stream is **named by its branch's canonical catalog name** wherever it is named as a stream; the
 `Bungur` alias names a transfer **destination** and the derived action label, never a stream.
 _Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
 fold destination into action — a storage workaround, not the model; DD-WAY-13)
 
-> **Two traps in this area, both of which have already misled a session:**
+**Unit** (of a WIP item):
+**Master data, not an input.** An item is made in one unit, shown fixed beside the quantity box;
+changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — the ERP
+identifies a *product detail*, meaning **product ＋ unit**, and holds the conversions between an item's
+units. So an item's allowed units are **enumerable from the ERP, never invented in MOS**, and each one
+is a distinct ERP coordinate with its own recipe. This is the answer to *"what stops a wrong unit being
+entered"*: in the common case nothing is entered at all.
+_Avoid_: a free unit dropdown on the default path; treating unit as a display label
+
+> **Three traps in this area, all of which have already misled a session:**
 > 1. **A WIP → finished-goods step is not a MOS event.** The ERP's BOM consumes WIP at point of sale.
 >    Do not model it.
-> 2. **The incumbent kitchen app's stock tab reads "Stok HQ", where "HQ" means *the central
+> 2. **Raw material is never captured either** — it is derived from the ERP recipe (OD-WAY-45). A
+>    capture surface has **no raw-material input at all**. The check on real usage is inventory
+>    movement plus stocktake, which is why the **stock comparison screen is load-bearing**, not
+>    decoration: it is the only place a real-versus-recipe divergence can surface.
+> 3. **The incumbent kitchen app's stock tab reads "Stok HQ", where "HQ" means *the central
 >    kitchen*** — which books to a different branch than the one whose ERP code is `GHQ`. Porting that
 >    label as-is creates a permanent collision.
 
