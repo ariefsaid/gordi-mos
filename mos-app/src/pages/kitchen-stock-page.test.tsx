@@ -23,11 +23,22 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 })
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 
+// resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
+// stream fetchStock() scopes to (kitchen-stock-page.tsx) — un-mocked, it hits Supabase for
+// real and every fetch lands in the error state. Same fixture shape as kitchen-log-page's.
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+import { listActiveBranches } from '@/lib/db/branches'
+
 import { KitchenStockPage } from './kitchen-stock-page'
-import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
+import type { KitchenStockRow, BranchOption } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockFetch = vi.mocked(fetchKitchenStock)
+const mockListActiveBranches = vi.mocked(listActiveBranches)
+
+const BRANCH_RUMAH_RAMES: BranchOption = {
+  id: '30000000-0000-0000-0000-0000000000b1', code: 'rumah_rames', name: 'Rumah Rames',
+}
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -59,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockFetch.mockResolvedValue([])
+  mockListActiveBranches.mockResolvedValue([BRANCH_RUMAH_RAMES])
 })
 
 describe('KitchenStockPage — auth', () => {

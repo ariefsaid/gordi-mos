@@ -9,7 +9,6 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import {
   SHOW_DAILY_LOG,
   SHOW_USER_VIEWS,
-  SHOW_HOME_STACKED,
   SHOW_FOLLOWUPS,
   SHOW_PLAN_BUDGET,
 } from './config/features'
@@ -72,6 +71,9 @@ const ProjectsProcessesPage = lazyPage(() =>
 const InboxPage = lazyPage(() => import('./pages/inbox-page').then((m) => ({ default: m.InboxPage })))
 const OpsPage = lazyPage(() => import('./pages/ops-page').then((m) => ({ default: m.OpsPage })))
 const OpsAddForm = lazyPage(() => import('./pages/ops-add-form').then((m) => ({ default: m.OpsAddForm })))
+const CafeOpeningPage = lazyPage(() =>
+  import('./pages/cafe-opening-page').then((m) => ({ default: m.CafeOpeningPage })),
+)
 const KitchenLogPage = lazyPage(() => import('./pages/kitchen-log-page').then((m) => ({ default: m.KitchenLogPage })))
 const KitchenPlanPage = lazyPage(() => import('./pages/kitchen-plan-page').then((m) => ({ default: m.KitchenPlanPage })))
 const KitchenReviewPage = lazyPage(() =>
@@ -157,12 +159,15 @@ export const routeConfig: RouteObject[] = [
         element: <AppShell />,
         handle: infrastructureHandle('layout'),
         children: [
-          // Home. SHOW_HOME_STACKED stays exactly as `dev` has it (default false → HomePage,
-          // which is also what v4 routes here): both compositions are `dev` surfaces, and
-          // choosing between them is Home's own port ticket, not the route table's.
+          // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
+          // design: the region/attention model (needs-you, failed checks, mentions, my work
+          // today) in whichever of Focused/Overview/List the viewer has chosen, replacing both
+          // prior `dev` compositions this route used to switch between (SHOW_HOME_STACKED is
+          // retired — see config/features.ts). Eager, still, for the same reason as the import
+          // above: the index route is the first paint every session gets.
           {
             index: true,
-            element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage />,
+            element: <HomePage />,
             handle: pageHandle('workspace'),
           },
           // DEV-only preview of the stacked-union Home, reachable regardless of the flag so
@@ -380,26 +385,18 @@ export const routeConfig: RouteObject[] = [
           { path: 'inbox', element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
 
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
-          // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D) and has no `dev`
-          // counterpart. It was wired to the slice stub, which meant the rail's Café entry — the
-          // one module with live kitchen staff on it — landed a barista on "Not in this slice
-          // yet". AC-020 is explicit that an unported surface serves what `dev` serves, and
-          // `dev`'s Café home is the Log; that rule was applied to /work/signals and missed here.
-          //
-          // So the destination home forwards to the Log until the opening surface ports, at which
-          // point this one entry becomes the real page. A redirect rather than wiring KitchenLogPage
-          // at both paths, so the URL keeps saying which screen the viewer is actually on.
+          // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D): the Café Module
+          // home hosts CafeOpeningPanel, then links out to the working screens (#196, PORT-023).
           {
             path: 'cafe',
-            element: <RouteRedirect to="/cafe/log" />,
-            handle: redirectHandle('/cafe/log'),
+            element: withSuspense(<CafeOpeningPage />),
+            handle: pageHandle('workspace'),
           },
           { path: 'cafe/log', element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
           { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
-          // Names /cafe/log, not /cafe: /cafe forwards to the Log until the opening surface ports,
-          // and a redirect that lands on a redirect is two hops. When Café's opening page lands,
-          // this goes back to /cafe in the same PR that makes /cafe a page again.
+          // Names /cafe/log, not /cafe: /cafe is now the opening surface itself (see above),
+          // and a redirect that lands on a redirect is two hops.
           { path: 'kitchen', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
           { path: 'kitchen/log', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
           { path: 'kitchen/plan', element: <RouteRedirect to="/cafe/plan" />, handle: redirectHandle('/cafe/plan') },
