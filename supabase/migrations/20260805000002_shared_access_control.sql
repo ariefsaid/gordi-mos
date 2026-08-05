@@ -123,7 +123,8 @@ as $$
 $$;
 comment on function shared._current_person_must_change_password() is
   'True while the caller''s password is the admin-set one. Read by shared.current_org_id() to close '
-  'every org-scoped policy. SECURITY DEFINER to break RLS recursion via shared.people.';
+  'every org-scoped policy. SECURITY DEFINER so this read reaches shared.people unfiltered by that '
+  'table''s own policies — the org seam has not resolved yet when this runs.';
 
 -- Revoke from PUBLIC, then grant BACK to authenticated explicitly. Both halves are required and the
 -- order matters: EXECUTE defaults to PUBLIC, so the revoke alone also strips `authenticated` — and
@@ -191,9 +192,10 @@ comment on function shared._current_person_is_live() is
   'org than the token claims, or no longer linked to the token''s own login. Read by '
   'shared.current_org_id(). A session with no person_id claim is "live" — there is nothing to '
   'invalidate — so anon and the service connection are unaffected, and the login arm is skipped when '
-  'there is no `sub` claim (the service/seed connection). SECURITY DEFINER to break RLS recursion via '
-  'shared.people, exactly as _current_person_must_change_password does; both owners'' BYPASSRLS '
-  'attribute is asserted in shared_07_password_rotation.';
+  'there is no `sub` claim (the service/seed connection). SECURITY DEFINER so this read reaches '
+  'shared.people unfiltered by that table''s own policies, exactly as '
+  '_current_person_must_change_password does; both owners'' BYPASSRLS attribute is asserted in '
+  'shared_07_password_rotation.';
 revoke execute on function shared._current_person_is_live() from public, anon;
 grant  execute on function shared._current_person_is_live() to authenticated;
 
