@@ -120,6 +120,11 @@ export const routeConfig: RouteObject[] = [
           // unchanged (NFR-404).
           { path: 'objectives', element: <Navigate to="/work/objectives" replace /> },
           { path: 'projects-processes', element: <Navigate to="/work/projects-processes" replace /> },
+          // The cascade SCREEN is cut (OD-WAY-32) — "cascade" is vocabulary, never a surface. The
+          // path keeps its doormat all the same: every other retired path in this table redirects
+          // in one hop (FR-015), and a redirect entry is not a screen. Destination is /tasks, the
+          // one Work surface every authenticated viewer can reach (#217).
+          { path: 'work/cascade', element: <Navigate to="/tasks" replace /> },
           {
             element: <RequireCapability capability="objective.manage" />,
             children: [{ path: 'work/objectives', element: <ObjectivesPage /> }],
