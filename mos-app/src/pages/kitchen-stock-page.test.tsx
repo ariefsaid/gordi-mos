@@ -1,13 +1,17 @@
 // KitchenStockPage tests — TDD, AC-tagged.
 // S4 Stock view (/cafe/stock) — read-only, auto-computed, any authed member.
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
-// Proves (unit): FR-060/061 (the two cuts stok=usable_qty + tersedia=available_qty
-// per active WIP item), AC-031 (usable net), AC-032 (negative balances preserved),
-// #198 (stock is read ACROSS every (branch, activity) stream, each row's stream shown).
-// Covers all states: loading, empty, error+retry, populated, unauthenticated.
-// Read-only is the signal: NO edit affordances anywhere.
+//
+// Proves (unit): AC-011 (#237, FR-060/061) — the page reads ONE selected (branch,
+// activity) stream (default from shared.default_stream(), switchable), shows the
+// system-quantity net (`stok` = approved production − approved transfers for THAT
+// stream) directly beside the ERP inventory comparison column, and never labels the
+// central kitchen "HQ"/"Stok HQ" (the CONTEXT.md trap — that label collides with the
+// GHQ branch). Plus AC-032 (negative balances preserved) and the shared-kit reflow
+// invariants (RI-IXD-6). Covers all states: loading, empty, error+retry, populated,
+// unauthenticated. Read-only is the signal: NO edit affordances anywhere.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -19,22 +23,25 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, fetchKitchenStockAcrossStreams: vi.fn() }
+  return { ...actual, fetchKitchenStock: vi.fn() }
 })
-import { fetchKitchenStockAcrossStreams } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 
-// resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
-// stream fetchStock() scopes to (kitchen-stock-page.tsx) — un-mocked, it hits Supabase for
-// real and every fetch lands in the error state. Same fixture shape as kitchen-log-page's.
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
+// shared.default_stream() (FR-001) — the viewer's live primary stream Team. Un-mocked
+// it hits Supabase for real and every bootstrap lands in the error state.
+vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+import { fetchDefaultStream } from '@/lib/db/default-stream'
+
 import { KitchenStockPage } from './kitchen-stock-page'
-import type { KitchenStockStreamRow } from '@/lib/db/kitchen-logs.types'
+import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockFetch = vi.mocked(fetchKitchenStockAcrossStreams)
+const mockFetchStock = vi.mocked(fetchKitchenStock)
 const mockBranches = vi.mocked(listActiveBranches)
+const mockDefaultStream = vi.mocked(fetchDefaultStream)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -57,22 +64,58 @@ function viewer(accessRoles: string[]): AuthState {
   } as AuthState
 }
 
-const BRANCH_A = { id: 'branch-a', code: 'rumah_rames', name: 'Rumah Rames' }
-const BRANCH_B = { id: 'branch-b', code: 'radiant', name: 'Radiant' }
-const STREAM_A = { branch: BRANCH_A, activity: 'kitchen' as const }
-const STREAM_B = { branch: BRANCH_B, activity: 'kitchen' as const }
+// The catalog DELIBERATELY contains the GHQ branch: the FR-061 trap is precisely that
+// "Stok HQ" (the incumbent's label for the CENTRAL kitchen, which books to Rumah Rames)
+// collides with this branch. The central kitchen must render under the Rumah Rames
+// display alias ('Bungur'), never "HQ".
+const BRANCH_GHQ = { id: 'branch-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
+const BRANCH_RR = { id: 'branch-rr', code: 'rumah_rames', name: 'Rumah Rames' }
+const BRANCH_RAD = { id: 'branch-rad', code: 'radiant', name: 'Radiant' }
+const CENTRAL_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
 
-const STOCK_ROWS: KitchenStockStreamRow[] = [
-  { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8, stream: STREAM_A },
-  { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: -3, tersedia: -3, stream: STREAM_A },
+const STOCK_ROWS: KitchenStockRow[] = [
+  { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 12, tersedia: 8 },
+  { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: -3, tersedia: -3 },
 ]
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(viewer(['member']))
-  mockBranches.mockResolvedValue([BRANCH_A, BRANCH_B])
-  mockFetch.mockResolvedValue([])
+  mockBranches.mockResolvedValue([BRANCH_GHQ, BRANCH_RAD, BRANCH_RR])
+  mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
+  mockFetchStock.mockResolvedValue([])
 })
+
+function setDesktop() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === '(min-width: 768px)',
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+function setPhone() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+afterEach(() => { setPhone() })
 
 describe('KitchenStockPage — auth', () => {
   it('auth loading: shows a busy state', () => {
@@ -94,32 +137,33 @@ describe('KitchenStockPage — auth', () => {
     expect(link).toBeInTheDocument()
     // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
     expect(link).toHaveAttribute('href', '/mos/login')
-    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockFetchStock).not.toHaveBeenCalled()
+    expect(mockDefaultStream).not.toHaveBeenCalled()
   })
 
   it('any authenticated member may view stock (read-only — no role gate)', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(<KitchenStockPage />, { wrapper })
-    await waitFor(() => expect(mockFetch).toHaveBeenCalled())
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
     expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
   })
 })
 
 describe('KitchenStockPage — states', () => {
   it('loading: shows a busy skeleton while stock loads', () => {
-    mockFetch.mockReturnValue(new Promise(() => {})) // never resolves
+    mockFetchStock.mockReturnValue(new Promise(() => {})) // never resolves
     render(<KitchenStockPage />, { wrapper })
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
   it('empty: a calm empty when no items/stock for the date', async () => {
-    mockFetch.mockResolvedValue([])
+    mockFetchStock.mockResolvedValue([])
     render(<KitchenStockPage />, { wrapper })
     expect(await screen.findByText(/no .*stock|nothing/i)).toBeInTheDocument()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(STOCK_ROWS)
+    mockFetchStock.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
@@ -127,100 +171,75 @@ describe('KitchenStockPage — states', () => {
   })
 })
 
-describe('KitchenStockPage — #198 multi-stream (every stream in the catalog is read; each row shows its own)', () => {
-  it('fetches stock for every (branch × activity) combination in the active branch catalog', async () => {
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shared.default_stream(), switchable)', () => {
+  it('reads stock for the shared.default_stream() stream, not a hardcoded one', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
-    await waitFor(() => expect(mockFetch).toHaveBeenCalled())
-    const [, streams] = mockFetch.mock.calls[0]
-    // 2 branches × 2 activities (kitchen, bar) = 4 streams
-    expect(streams).toHaveLength(4)
-    expect(streams).toEqual(expect.arrayContaining([
-      { branch: BRANCH_A, activity: 'kitchen' },
-      { branch: BRANCH_A, activity: 'bar' },
-      { branch: BRANCH_B, activity: 'kitchen' },
-      { branch: BRANCH_B, activity: 'bar' },
-    ]))
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    expect(mockFetchStock).toHaveBeenCalledTimes(1)
+    const [, stream] = mockFetchStock.mock.calls[0]
+    expect(stream).toEqual(RADIANT_BAR)
   })
 
-  it('groups rows by stream and shows a group label naming the branch (#198 — "Stok HQ" is Rumah Rames, not Gordi HQ)', async () => {
-    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({
-      matches: true,
-      media: '(min-width: 768px)',
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    } as MediaQueryList)
-    try {
-      mockFetch.mockResolvedValue([
-        { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8, stream: STREAM_A },
-        { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 4, tersedia: 4, stream: STREAM_B },
-      ])
-      render(<KitchenStockPage />, { wrapper })
-      // The same dish appears once per stream — wait for both rows to land.
-      await waitFor(() => expect(screen.getAllByText('Ayam Bakar')).toHaveLength(2))
-      const groupLabels = Array.from(document.querySelectorAll('.dt-group-label')).map(el => el.textContent)
-      // Rumah Rames is displayed under its own alias — never the literal "HQ" meaning
-      // the central kitchen confused with Gordi HQ.
-      expect(groupLabels.some(l => l?.includes('Bungur'))).toBe(true)
-      expect(groupLabels.some(l => l?.includes('Radiant'))).toBe(true)
-    } finally {
-      matchMediaSpy.mockRestore()
-    }
+  it('falls back to the catalog default when the viewer has no stream default (FR-002 shape)', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    const [, stream] = mockFetchStock.mock.calls[0]
+    // defaultStreamFrom: the rumah_rames catalog default, kitchen activity
+    expect(stream).toEqual(CENTRAL_KITCHEN)
+  })
+
+  it('AC-011: switching the stream re-reads the net FOR THE SELECTED STREAM (never keeps another stream\'s rows)', async () => {
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const switched: KitchenStockRow[] = [
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 4, tersedia: 4 },
+    ]
+    mockFetchStock.mockResolvedValue(switched)
+
+    const branchSelect = screen.getByRole('combobox', { name: /branch/i })
+    fireEvent.change(branchSelect, { target: { value: BRANCH_RAD.id } })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(2))
+    const [, stream] = mockFetchStock.mock.calls[1]
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
+
+    const activitySelect = screen.getByRole('combobox', { name: /activity/i })
+    fireEvent.change(activitySelect, { target: { value: 'bar' } })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(3))
+    const [, streamAfterActivity] = mockFetchStock.mock.calls[2]
+    expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar' })
+  })
+
+  it('AC-011 / FR-061: the central kitchen is labelled by its branch alias — no label reads "HQ"/"Stok HQ"', async () => {
+    setDesktop()
+    mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    // The selected branch option for the central kitchen reads the display alias.
+    const branchSelect = screen.getByRole('combobox', { name: /branch/i }) as HTMLSelectElement
+    expect(branchSelect.value).toBe(BRANCH_RR.id)
+    expect(branchSelect.selectedOptions[0].textContent).toBe('Bungur')
+
+    // The incumbent's trap label never renders, anywhere on the surface.
+    expect(screen.queryByText(/stok hq/i)).toBeNull()
+    // The caption names the stream through the alias too — never "HQ" for these books.
+    const caption = screen.getByRole('table').querySelector('caption')
+    expect(caption?.textContent).toContain('Bungur')
+    expect(caption?.textContent).not.toMatch(/HQ/)
   })
 })
 
-describe('KitchenStockPage — populated (FR-060/061)', () => {
-    // The structural cut/negative tests run against the desktop <table> branch.
-  afterEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    })
-  })
-  function setDesktop() {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: (query: string) => ({
-        matches: query === '(min-width: 768px)',
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    })
-  }
-  function setPhone() {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    })
-  }
-
+describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
   it('RI-IXD-6: desktop stock uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
@@ -230,7 +249,7 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
 
   it('RI-IXD-6: phone stock uses the shared DataTable card branch, not a parallel local table', async () => {
     setPhone()
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
@@ -241,7 +260,7 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
 
   it('renders stock-specific KPI labels (not Log labels)', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
@@ -255,9 +274,9 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
 
   it('no-data rows keep the Negative balances KPI neutral, not success-green', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0, stream: STREAM_A },
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0, stream: STREAM_A },
+    mockFetchStock.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: 0, tersedia: 0 },
     ])
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -272,9 +291,9 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
 
   it('explains all-zero stock as live-entered absence, not a broken feed', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0, stream: STREAM_A },
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0, stream: STREAM_A },
+    mockFetchStock.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: 0, tersedia: 0 },
     ])
     render(<KitchenStockPage />, { wrapper })
 
@@ -282,9 +301,32 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
     expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
   })
 
+  it('AC-011: the system-quantity net (stok) sits DIRECTLY BESIDE the ERP inventory column', async () => {
+    setDesktop()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+
+    const table = screen.getByRole('table')
+    const headers = within(table).getAllByRole('columnheader').map(h => h.textContent ?? '')
+    const stokIdx = headers.findIndex(h => /^stock$/i.test(h.trim()))
+    const erpIdx = headers.findIndex(h => /erp inventory/i.test(h))
+    expect(stokIdx).toBeGreaterThan(-1)
+    expect(erpIdx).toBe(stokIdx + 1) // beside, not merely present
+
+    // The per-stream net values render in the row (12 = Σ produce − Σ transfer for the
+    // selected stream — the DB function's contract, mocked here at its seam).
+    const ayamRow = screen.getByText('Ayam Bakar').closest('tr') as HTMLElement
+    expect(within(ayamRow).getByText('12')).toBeInTheDocument()
+    expect(within(ayamRow).getByText('8')).toBeInTheDocument()
+    // ERP comparison cell is a visible placeholder until the ERP read is wired.
+    expect(within(ayamRow).getByText('—')).toBeInTheDocument()
+    expect(screen.getByText(/erp inventory not connected yet/i)).toBeInTheDocument()
+  })
+
   it('renders a semantic table with the two cuts (stok + tersedia) per item', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
 
@@ -302,25 +344,24 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
 
   it('AC-032: preserves negative balances (does not clamp to 0)', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     const nasiRow = (await screen.findByText('Nasi Goreng')).closest('tr') as HTMLElement
     // -3 shown, not 0
     expect(within(nasiRow).getAllByText('-3').length).toBeGreaterThan(0)
   })
 
-  it('read-only: no edit/save/approve controls anywhere', async () => {
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+  it('read-only: no edit/save/approve controls anywhere (the stream scope is a read scope, not an edit)', async () => {
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.queryByRole('button', { name: /save|edit|approve|submit/i })).toBeNull()
-    expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })
 
   it('numeric cells carry the .tabular class for aligned digits', async () => {
     setDesktop()
-    mockFetch.mockResolvedValue(STOCK_ROWS)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     const ayamRow = (await screen.findByText('Ayam Bakar')).closest('tr')!
     const numCell = within(ayamRow).getByText('12')

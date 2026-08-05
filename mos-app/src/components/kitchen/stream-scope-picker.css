@@ -1,0 +1,19 @@
+/* StreamScopePicker — ksp- namespace (C1: disjoint from kl-/kp-/kpu-/kr-/ks-/kpe-).
+   Mirrors the capture surface's kl-scope layout: inline pair on desktop, full-width
+   44px-tall pickers on a phone — a half-width <select> truncates a branch name to the
+   point where two branches read the same, the exact ambiguity the catalog exists to end. */
+.ksp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.ksp-branch,
+.ksp-activity { flex: 0 1 auto; min-width: 0; }
+@media (max-width: 390px) {
+  .ksp { width: 100%; }
+  .ksp-branch,
+  .ksp-activity { flex: 1 1 100%; min-height: 44px; }
+}

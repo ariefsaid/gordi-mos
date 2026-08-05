@@ -1,32 +1,41 @@
 // KitchenStockPage — /cafe/stock — S4 Stock view (read-only, auto-computed).
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
-// A glance, not an edit surface: each active WIP item with its two cuts for the
-// selected date — stok (usable_qty, FR-060) and tersedia (available_qty, FR-061) —
-// ACROSS EVERY (branch, activity) production stream (#198, OD-WAY-28). "Stok HQ" means
-// the central kitchen, which books to Rumah Rames — not Gordi HQ — so a stock view that
-// cannot say whose books a row is looking at is the shape of problem that hides a COGS
-// error. Rows are grouped by stream, each carrying its own stream label.
-// Proves (unit): FR-060/061 (two cuts per item), AC-032 (negative balances preserved),
-// #198 (every row's stream is shown). Access: any authenticated member may read (spec
-// FR-060 is org-readable; RLS is the authority — no UI role gate). Date defaults to WIB
-// today (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
+//
+// PER-STREAM (#237, FR-060): the page reads ONE (branch, activity) production stream at a
+// time — default resolved from shared.default_stream() (the viewer's live primary stream
+// Team, FR-001), switchable to any stream via the same scope affordance the capture
+// surface uses (FR-003 — a default, never a wall). Each active WIP item shows its system
+// quantity — `stok`, the net of approved production minus approved transfers for the
+// SELECTED stream — beside the ERP inventory comparison column (placeholder until the ERP
+// read is wired) and the start-of-day `tersedia` cut. This is the verification plane that
+// derived raw usage depends on (OD-WAY-45): load-bearing, not decoration.
+//
+// "Stok HQ" in the incumbent means the CENTRAL KITCHEN, which books to Rumah Rames — not
+// the GHQ branch — so no label here may read "HQ" for it (FR-061, CONTEXT.md trap); the
+// stream is named through branchDisplayName (the Rumah Rames display alias).
+//
+// Proves (unit): AC-011 (per-stream net beside the ERP column, no "HQ" label), AC-032
+// (negative balances preserved). Access: any authenticated member may read (FR-060 is
+// org-readable; RLS is the authority — no UI role gate). Date defaults to WIB today
+// (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { fetchKitchenStockAcrossStreams } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, defaultStreamFrom } from '@/lib/db/kitchen-logs'
+import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
-import type { BranchOption, KitchenStockStreamRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
-import { PRODUCTION_ACTIVITIES } from '@/lib/db/kitchen-logs.types'
-import { activityLabel, branchDisplayName, streamKey } from '@/lib/kitchen-action-label'
+import type { BranchOption, KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
+import { activityLabel, branchDisplayName } from '@/lib/kitchen-action-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
+import { StreamScopePicker } from '@/components/kitchen/stream-scope-picker'
+import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import './kitchen-stock-page.css'
@@ -44,7 +53,8 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
-function streamLabel(t: ReturnType<typeof useT>, stream: ProductionStream): string {
+function streamLabel(t: ReturnType<typeof useT>, stream: ProductionStream | null): string {
+  if (!stream) return '—'
   return `${branchDisplayName(stream.branch)} · ${activityLabel(t, stream.activity)}`
 }
 
@@ -55,12 +65,14 @@ export function KitchenStockPage() {
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  const [rows, setRows] = useState<KitchenStockStreamRow[]>([])
+  const [branches, setBranches] = useState<BranchOption[]>([])
+  const [stream, setStream] = useState<ProductionStream | null>(null)
+  const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useState('')
-  // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`, across every stream.
+  // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over the SELECTED stream's rows.
   const kpiData = useStockKpiStripData(rows)
   const hasLoggedStockData = rows.some(row => row.stok !== 0 || row.tersedia !== 0)
   const searchQuery = search.trim().toLowerCase()
@@ -68,7 +80,12 @@ export function KitchenStockPage() {
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
   ))
 
-  const stockColumns: DataTableColumn<KitchenStockStreamRow>[] = [
+  // FR-060 column order: the system-quantity net (`stok`) sits DIRECTLY BESIDE the ERP
+  // inventory column — the comparison is the point. The ERP cell is a placeholder ('—')
+  // until the ERP read is wired (#237 preserves the ported page's placeholder source;
+  // no new ERP calls); the note under the toolbar says so rather than letting an empty
+  // column read as "zero everywhere".
+  const stockColumns: DataTableColumn<KitchenStockRow>[] = [
     {
       key: 'wip_item_name',
       header: t('kitchen.stock.col.dish'),
@@ -81,37 +98,43 @@ export function KitchenStockPage() {
       ),
     },
     { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
+    {
+      key: 'erp_qty',
+      header: t('kitchen.stock.col.erp'),
+      numeric: true,
+      render: () => <span className="ks-erp-pending">—</span>,
+    },
     { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
   ]
 
-  // One group per (branch, activity) stream (#198) — "each row's stream is shown", and
-  // grouping keeps a viewer from ever comparing one stream's stok to another's plan by
-  // accident (the same class of mistake #247 fixed in the review queue).
-  const streamGroups: DataTableGroup<KitchenStockStreamRow>[] = useMemo(() => {
-    const byStream = new Map<string, { label: string; rows: KitchenStockStreamRow[] }>()
-    for (const row of visibleRows) {
-      const key = streamKey(row.stream.branch.id, row.stream.activity)
-      const entry = byStream.get(key)
-      if (entry) entry.rows.push(row)
-      else byStream.set(key, { label: streamLabel(t, row.stream), rows: [row] })
-    }
-    return Array.from(byStream.entries()).map(([key, { label, rows: groupRows }]) => ({
-      key,
-      label,
-      count: groupRows.length,
-      rows: groupRows,
-    }))
-  }, [visibleRows, t])
-
-  const fetchStock = useCallback(async () => {
+  // Initial load: catalog → default stream → that stream's rows. The default comes from
+  // shared.default_stream() (FR-001 — the viewer's live primary stream Team); a viewer
+  // with no stream default (FR-002 shape) falls back to the catalog default — this is a
+  // read surface, so an explicit-choice wall would only cost a glance, and the picker
+  // stays one tap away either way (FR-003).
+  const bootstrap = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const branches: BranchOption[] = await listActiveBranches()
-      const streams: ProductionStream[] = branches.flatMap(branch =>
-        PRODUCTION_ACTIVITIES.map(activity => ({ branch, activity })),
-      )
-      const data = await fetchKitchenStockAcrossStreams(asOf, streams)
+      const branchRows = await listActiveBranches()
+      const resolved = (await fetchDefaultStream(branchRows)) ?? defaultStreamFrom(branchRows)
+      const data = resolved ? await fetchKitchenStock(asOf, resolved) : []
+      setBranches(branchRows)
+      setStream(resolved)
       setRows(data)
+      setLoad({ kind: 'ready' })
+    } catch {
+      setLoad({ kind: 'error' })
+    }
+  }, [asOf])
+
+  // Switching the stream re-reads the rows: the same dish has a different balance in
+  // another stream's books (OD-WAY-28) — a kept list would show one stream's numbers
+  // under another stream's name, the exact confusion FR-061 exists to end.
+  const applyStream = useCallback(async (next: ProductionStream) => {
+    setStream(next)
+    setLoad({ kind: 'loading' })
+    try {
+      setRows(await fetchKitchenStock(asOf, next))
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -121,8 +144,8 @@ export function KitchenStockPage() {
   // Read once authenticated (an unauthenticated viewer never triggers the read).
   useEffect(() => {
     if (auth.status !== 'authenticated') return
-    fetchStock()
-  }, [auth.status, fetchStock, retryKey])
+    void bootstrap()
+  }, [auth.status, bootstrap, retryKey])
 
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
@@ -175,7 +198,7 @@ export function KitchenStockPage() {
       {load.kind === 'ready' && rows.length === 0 && (
         <EmptyState
           title={t('kitchen.stock.empty.title')}
-          copy={t('kitchen.stock.empty.copy', { date: asOf })}
+          copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: asOf })}
         />
       )}
 
@@ -186,15 +209,23 @@ export function KitchenStockPage() {
             onSearchChange={setSearch}
             searchPlaceholder={t('kitchen.stock.searchPlaceholder')}
             ariaLabel={t('kitchen.stock.toolbarAria')}
-          />
+          >
+            <StreamScopePicker
+              branches={branches}
+              stream={stream}
+              onChange={next => { void applyStream(next) }}
+              branchAriaLabel={t('kitchen.stock.stream.branchAria')}
+              activityAriaLabel={t('kitchen.stock.stream.activityAria')}
+            />
+          </KitchenToolbar>
+          <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
           <DataTable
             columns={stockColumns}
             rows={visibleRows}
-            groups={streamGroups}
             isDesktop={isDesktop}
             state={visibleRows.length > 0 ? 'ready' : 'empty'}
             emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.stock.caption', { date: asOf })}
+            caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: asOf })}
           />
         </div>
       )}

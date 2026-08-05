@@ -31,6 +31,12 @@
   color: var(--muted-foreground);
 }
 
+/* ── ERP inventory comparison cell (FR-060) — placeholder until the ERP read is
+   wired. Muted so a pending '—' never reads as a live zero. ── */
+.ks-erp-pending {
+  color: var(--muted-foreground);
+}
+
 /* ── States: loading / empty / error are the shared StateKit
    (components/ui/state-kit.tsx → SkeletonRows / EmptyState / ErrorState). Their
    tokens live in CardHead.css; no kitchen-local skeleton/empty/error CSS here. ── */
