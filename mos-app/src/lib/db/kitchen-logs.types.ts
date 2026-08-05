@@ -3,20 +3,6 @@
 // DB stamped: org_id, submitted_by (on insert), reviewed_by/reviewed_at (on approve).
 // The client NEVER sends org_id, submitted_by, reviewed_by — NFR-003.
 
-/**
- * The three strings the incumbent app shows. They are a DERIVED LABEL, never a stored
- * column (`DD-WAY-13`): the squashed baseline has no `action_type`, and
- * `ops.kitchen_action_label(action, destination_branch_id)` produces exactly these
- * strings from the stored movement. This union survives only as the label vocabulary of
- * the two currently-captured streams — the surfaces that still read it
- * (`kitchen-plan-page`, `kitchen-review-page`) have not been ported yet. New code takes
- * `KitchenMovement` and derives its label through `@/lib/kitchen-action-label`.
- */
-export type KitchenActionType =
-  | 'Production'
-  | 'Transfer to Bungur'
-  | 'Transfer to Radiant'
-
 // ── The (branch, activity) production stream (OD-WAY-28) ─────────────────────
 // Every log, plan and stock row is born inside a stream. There is ONE physical kitchen and
 // it is a constant, not a dimension; what varies is whose books the raw comes from and the
@@ -85,8 +71,14 @@ export interface KitchenPlanRow {
   id: string
   org_id: string
   date: string // 'YYYY-MM-DD' WIB
+  /** origin half of the (branch, activity) stream — NOT NULL at the DB (OD-WAY-28) */
+  branch_id: string
+  activity: ProductionActivity
   wip_item_id: string
-  action_type: KitchenActionType
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  action: KitchenAction
+  /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
+  destination_branch_id: string | null
   qty_porsi: number
   notes: string | null
   plan_by: string | null
@@ -133,6 +125,16 @@ export interface KitchenStockRow {
   tersedia: number
 }
 
+/**
+ * One Stock view row scoped to ONE (branch, activity) stream (#198, OD-WAY-28). "Stok
+ * HQ" means the central kitchen, which books to Rumah Rames — not Gordi HQ — so the
+ * stream is shown on every row rather than assumed. `fetchKitchenStockAcrossStreams`
+ * returns one of these per (active WIP item × active stream) pair.
+ */
+export interface KitchenStockStreamRow extends KitchenStockRow {
+  stream: ProductionStream
+}
+
 // ── ops.kitchen_logs (insert payload) ────────────────────────────────────────
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.
@@ -157,7 +159,10 @@ export interface KitchenLogRow {
   org_id: string
   business_unit_id: string
   log_date: string
-  action_type: KitchenActionType
+  branch_id: string
+  activity: ProductionActivity
+  action: KitchenAction
+  destination_branch_id: string | null
   wip_item_id: string
   qty_porsi: number
   notes: string | null
@@ -194,6 +199,14 @@ export interface ReviewLogRow {
    *  ("is this a transfer?") and plan lookups key off these, never off the label. */
   action: KitchenAction
   destination_branch_id: string | null
+  /**
+   * the (branch, activity) production stream this log belongs to (OD-WAY-28, #197). The
+   * plan baseline it is compared against must be read from THIS stream — a queue that can
+   * span more than one stream and looks up variance against a single hardcoded stream
+   * would silently compare a row to the wrong plan the moment a second stream is captured.
+   */
+  branch_id: string
+  activity: ProductionActivity
   wip_item_id: string
   /** WIP item display name (embedded from ops.wip_items). */
   wip_item_name: string
@@ -216,12 +229,15 @@ export interface ApproveResult {
 /** The forward "pesanan" horizon length in days (FR-035, [oracle] PESANAN_HORIZON_DAYS). */
 export const PESANAN_HORIZON_DAYS = 14
 
-// One editable plan cell in the S2 editor: the qty_porsi for an (item, action_type)
-// on the selected date. `id` is the existing ops.kitchen_plans row id when a plan
-// already exists for that key (drives the select-then-update upsert path), else null.
+// One editable plan cell in the S2 editor: the qty_porsi for an (item, movement) on the
+// selected date WITHIN one (branch, activity) stream (OD-WAY-28) — the stream is chosen
+// once for the whole editor session, not carried per cell (mirrors the capture surface).
+// `id` is the existing ops.kitchen_plans row id when a plan already exists for that key
+// (drives the select-then-update upsert path), else null.
 export interface PlanCell {
   wip_item_id: string
-  action_type: KitchenActionType
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  movement: KitchenMovement
   /** planned porsi (≥ 0 — note: kitchen_plans allows 0, unlike logs' > 0) */
   qty_porsi: number
   /** existing row id (null = no plan row yet for this key) */
@@ -234,13 +250,20 @@ export interface PlanCell {
 export interface UpsertKitchenPlanInput {
   log_date: string // 'YYYY-MM-DD' WIB → DB column `date`
   wip_item_id: string
-  action_type: KitchenActionType
+  /** origin half of the (branch, activity) stream this plan row belongs to (OD-WAY-28) */
+  branch_id: string
+  activity: ProductionActivity
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  action: KitchenAction
+  /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
+  destination_branch_id: string | null
   qty_porsi: number // ≥ 0
   notes?: string | null
 }
 
 // One row in the read-only pesanan (14-day forward horizon) view (FR-035, AC-024).
-// A flat display shape: date + item + action + planned qty. The WIP item name is
+// A flat display shape: date + item + movement + planned qty, scoped to ONE stream (the
+// query that produces this is stream-filtered — OD-WAY-28). The WIP item name is
 // embedded same-schema (ops.kitchen_plans → ops.wip_items); RLS scopes to the org.
 export interface PesananRow {
   log_date: string // 'YYYY-MM-DD' WIB
@@ -248,7 +271,8 @@ export interface PesananRow {
   wip_item_name: string
   /** optional category display label from ops.wip_items (read-only UI sugar). */
   category?: string | null
-  action_type: KitchenActionType
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  movement: KitchenMovement
   qty_porsi: number
 }
 

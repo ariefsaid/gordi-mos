@@ -1,9 +1,9 @@
 // KitchenStockPage tests — TDD, AC-tagged.
-// S4 Stock view (/mos/kitchen/stock) — read-only, auto-computed, any authed member.
+// S4 Stock view (/cafe/stock) — read-only, auto-computed, any authed member.
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
 // Proves (unit): FR-060/061 (the two cuts stok=usable_qty + tersedia=available_qty
-// per active WIP item), AC-031 (usable net), AC-032 (negative balances preserved).
-// (AC-033 start/end-of-day cut math is owned at the DB/unit layer for the #45 fn.)
+// per active WIP item), AC-031 (usable net), AC-032 (negative balances preserved),
+// #198 (stock is read ACROSS every (branch, activity) stream, each row's stream shown).
 // Covers all states: loading, empty, error+retry, populated, unauthenticated.
 // Read-only is the signal: NO edit affordances anywhere.
 
@@ -19,9 +19,9 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, fetchKitchenStock: vi.fn() }
+  return { ...actual, fetchKitchenStockAcrossStreams: vi.fn() }
 })
-import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStockAcrossStreams } from '@/lib/db/kitchen-logs'
 
 // resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
 // stream fetchStock() scopes to (kitchen-stock-page.tsx) — un-mocked, it hits Supabase for
@@ -30,15 +30,11 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
 import { KitchenStockPage } from './kitchen-stock-page'
-import type { KitchenStockRow, BranchOption } from '@/lib/db/kitchen-logs.types'
+import type { KitchenStockStreamRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockFetch = vi.mocked(fetchKitchenStock)
-const mockListActiveBranches = vi.mocked(listActiveBranches)
-
-const BRANCH_RUMAH_RAMES: BranchOption = {
-  id: '30000000-0000-0000-0000-0000000000b1', code: 'rumah_rames', name: 'Rumah Rames',
-}
+const mockFetch = vi.mocked(fetchKitchenStockAcrossStreams)
+const mockBranches = vi.mocked(listActiveBranches)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -61,16 +57,21 @@ function viewer(accessRoles: string[]): AuthState {
   } as AuthState
 }
 
-const STOCK_ROWS: KitchenStockRow[] = [
-  { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8 },
-  { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: -3, tersedia: -3 },
+const BRANCH_A = { id: 'branch-a', code: 'rumah_rames', name: 'Rumah Rames' }
+const BRANCH_B = { id: 'branch-b', code: 'radiant', name: 'Radiant' }
+const STREAM_A = { branch: BRANCH_A, activity: 'kitchen' as const }
+const STREAM_B = { branch: BRANCH_B, activity: 'kitchen' as const }
+
+const STOCK_ROWS: KitchenStockStreamRow[] = [
+  { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8, stream: STREAM_A },
+  { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: -3, tersedia: -3, stream: STREAM_A },
 ]
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(viewer(['member']))
+  mockBranches.mockResolvedValue([BRANCH_A, BRANCH_B])
   mockFetch.mockResolvedValue([])
-  mockListActiveBranches.mockResolvedValue([BRANCH_RUMAH_RAMES])
 })
 
 describe('KitchenStockPage — auth', () => {
@@ -123,6 +124,52 @@ describe('KitchenStockPage — states', () => {
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+  })
+})
+
+describe('KitchenStockPage — #198 multi-stream (every stream in the catalog is read; each row shows its own)', () => {
+  it('fetches stock for every (branch × activity) combination in the active branch catalog', async () => {
+    mockFetch.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled())
+    const [, streams] = mockFetch.mock.calls[0]
+    // 2 branches × 2 activities (kitchen, bar) = 4 streams
+    expect(streams).toHaveLength(4)
+    expect(streams).toEqual(expect.arrayContaining([
+      { branch: BRANCH_A, activity: 'kitchen' },
+      { branch: BRANCH_A, activity: 'bar' },
+      { branch: BRANCH_B, activity: 'kitchen' },
+      { branch: BRANCH_B, activity: 'bar' },
+    ]))
+  })
+
+  it('groups rows by stream and shows a group label naming the branch (#198 — "Stok HQ" is Rumah Rames, not Gordi HQ)', async () => {
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({
+      matches: true,
+      media: '(min-width: 768px)',
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList)
+    try {
+      mockFetch.mockResolvedValue([
+        { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 12, tersedia: 8, stream: STREAM_A },
+        { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 4, tersedia: 4, stream: STREAM_B },
+      ])
+      render(<KitchenStockPage />, { wrapper })
+      // The same dish appears once per stream — wait for both rows to land.
+      await waitFor(() => expect(screen.getAllByText('Ayam Bakar')).toHaveLength(2))
+      const groupLabels = Array.from(document.querySelectorAll('.dt-group-label')).map(el => el.textContent)
+      // Rumah Rames is displayed under its own alias — never the literal "HQ" meaning
+      // the central kitchen confused with Gordi HQ.
+      expect(groupLabels.some(l => l?.includes('Bungur'))).toBe(true)
+      expect(groupLabels.some(l => l?.includes('Radiant'))).toBe(true)
+    } finally {
+      matchMediaSpy.mockRestore()
+    }
   })
 })
 
@@ -209,8 +256,8 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
   it('no-data rows keep the Negative balances KPI neutral, not success-green', async () => {
     setDesktop()
     mockFetch.mockResolvedValue([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0 },
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0, stream: STREAM_A },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0, stream: STREAM_A },
     ])
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -226,8 +273,8 @@ describe('KitchenStockPage — populated (FR-060/061)', () => {
   it('explains all-zero stock as live-entered absence, not a broken feed', async () => {
     setDesktop()
     mockFetch.mockResolvedValue([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0 },
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', stok: 0, tersedia: 0, stream: STREAM_A },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', stok: 0, tersedia: 0, stream: STREAM_A },
     ])
     render(<KitchenStockPage />, { wrapper })
 

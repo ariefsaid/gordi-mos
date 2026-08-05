@@ -7,11 +7,18 @@
 //  - reject sends status=Rejected + note (FR-041, AC-041)
 //  - production-first gate disables Transfer Approve while Production Submitted (AC-042)
 //  - all states: loading, empty (good-empty), error+retry, forbidden, success (row leaves)
+//
+// #247/#197: every row's plan baseline is now looked up against ITS OWN (branch, activity)
+// stream (streamKey), not one hardcoded stream — fetchPlanMap is mocked per the real
+// contract (a PlanMap keyed by MOVEMENT — 'produce' | 'transfer:<destinationBranchId>' —
+// never by the derived label string).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -45,7 +52,7 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
 import { KitchenReviewPage } from './kitchen-review-page'
-import type { ReviewLogRow, BranchOption } from '@/lib/db/kitchen-logs.types'
+import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockList = vi.mocked(listSubmittedKitchenLogs)
@@ -53,10 +60,10 @@ const mockPlan = vi.mocked(fetchPlanMap)
 const mockApprove = vi.mocked(approveKitchenLog)
 const mockReject = vi.mocked(rejectKitchenLog)
 const mockGetPeople = vi.mocked(getPeople)
-const mockListActiveBranches = vi.mocked(listActiveBranches)
+const mockBranches = vi.mocked(listActiveBranches)
 
-const BRANCH_RUMAH_RAMES: BranchOption = {
-  id: '30000000-0000-0000-0000-0000000000b1', code: 'rumah_rames', name: 'Rumah Rames',
+function wrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
 function viewer(accessRoles: string[]): AuthState {
@@ -76,13 +83,24 @@ function viewer(accessRoles: string[]): AuthState {
   } as AuthState
 }
 
+// Both fixture logs originate from the SAME (branch, activity) stream — production and a
+// transfer both happen at the one physical kitchen, whose books are Rumah Rames (OD-WAY-26).
+const BRANCH_ID = 'branch-rumah-rames'
+const RADIANT_ID = 'branch-radiant'
+const BRANCHES = [
+  { id: BRANCH_ID, code: 'rumah_rames', name: 'Rumah Rames' },
+  { id: RADIANT_ID, code: 'radiant', name: 'Radiant' },
+]
+
 const PROD_LOG: ReviewLogRow = {
   id: 'log-prod', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
+  branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w1', wip_item_name: 'Nasi Goreng', qty_porsi: 8, notes: 'kurang bahan',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
 }
 const XFER_LOG: ReviewLogRow = {
-  id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: 'branch-radiant',
+  id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: RADIANT_ID,
+  branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w2', wip_item_name: 'Cold Brew', qty_porsi: 42, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T13:02:00Z',
 }
@@ -92,7 +110,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
-  mockListActiveBranches.mockResolvedValue([BRANCH_RUMAH_RAMES])
+  mockBranches.mockResolvedValue(BRANCHES)
   mockGetPeople.mockResolvedValue([
     { id: 'p1', full_name: 'Budi Santoso' },
     { id: 'p2', full_name: 'Eka' },
@@ -104,7 +122,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
       <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/review']}>
-        <KitchenReviewPage />
+        <I18nProvider><KitchenReviewPage /></I18nProvider>
       </MemoryRouter>,
     )
     expect(await screen.findByText(/available to ops leads/i)).toBeInTheDocument()
@@ -112,12 +130,12 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
     expect(mockList).not.toHaveBeenCalled()
     // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
     const backLink = screen.getByRole('link', { name: /back to log/i })
-    expect(backLink).toHaveAttribute('href', '/mos/kitchen/log')
+    expect(backLink).toHaveAttribute('href', '/mos/cafe/log')
   })
 
   it('an admin is allowed (not forbidden)', async () => {
     mockUseAuth.mockReturnValue(viewer(['admin']))
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await waitFor(() => expect(mockList).toHaveBeenCalled())
     expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
   })
@@ -126,13 +144,13 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
 describe('KitchenReviewPage — states', () => {
   it('loading: shows a busy skeleton while the queue loads', () => {
     mockList.mockReturnValue(new Promise(() => {})) // never resolves
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
   it('empty: renders the shared awaiting EmptyState when no Submitted logs', async () => {
     mockList.mockResolvedValue([])
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
 
     const emptyState = screen.getByTestId('empty-state')
@@ -145,7 +163,7 @@ describe('KitchenReviewPage — states', () => {
 
   it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
     mockList.mockResolvedValue([])
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText(/nothing to review/i)
 
     const emptyState = screen.getByTestId('empty-state')
@@ -157,7 +175,7 @@ describe('KitchenReviewPage — states', () => {
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockList.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce([PROD_LOG])
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
@@ -180,13 +198,13 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     } as MediaQueryList)
     try {
       mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
-      // Keyed by MOVEMENT (`produce` / `transfer:<destination branch id>`), per DD-WAY-13 —
+      // Keyed by MOVEMENT ('produce' | 'transfer:<destinationBranchId>'), per DD-WAY-13 —
       // planQtyFor() in kitchen-review-page.tsx looks up movementKey(), never the label.
-      mockPlan.mockResolvedValue({ w1: { produce: 12 }, w2: { 'transfer:branch-radiant': 40 } })
-      render(<KitchenReviewPage />)
+      mockPlan.mockResolvedValue({ w1: { produce: 12 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } })
+      render(<KitchenReviewPage />, { wrapper })
       expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
       expect(screen.getByText('Cold Brew')).toBeInTheDocument()
-      // one DataTable group per action_type, in ACTION_ORDER (Production before Transfer)
+      // one DataTable group per action_type, Production first (FR-042's gate)
       const groupLabels = document.querySelectorAll('.dt-group-label')
       expect(groupLabels).toHaveLength(2)
       expect(groupLabels[0].textContent).toBe('Production')
@@ -209,10 +227,46 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     }
   })
 
+  it('defect 247/196 regression: a log whose destination is a THIRD branch still gets its own group (not silently dropped)', async () => {
+    // Before this fix, the queue grouped through a hardcoded 3-literal ACTION_ORDER
+    // (Production / Transfer to Radiant / Transfer to Bungur) — a log naming any OTHER
+    // destination matched none of the three and never appeared in any group.
+    const THIRD_ID = 'branch-third'
+    const THIRD_LOG: ReviewLogRow = {
+      ...XFER_LOG, id: 'log-third', action_type: 'Transfer to Sudirman', destination_branch_id: THIRD_ID,
+      wip_item_id: 'w3', wip_item_name: 'Es Teh',
+    }
+    mockList.mockResolvedValue([THIRD_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    expect(await screen.findByText('Es Teh')).toBeInTheDocument()
+  })
+
+  it('plan variance is looked up against the ROW\'S OWN stream, not a single hardcoded one (#247/#197)', async () => {
+    // A second stream (a different branch) carries a log for the SAME wip item — its plan
+    // must not bleed into the first stream's variance reading.
+    const OTHER_BRANCH_ID = 'branch-other'
+    const OTHER_LOG: ReviewLogRow = {
+      ...PROD_LOG, id: 'log-other', branch_id: OTHER_BRANCH_ID, wip_item_id: 'w1', qty_porsi: 99,
+    }
+    mockBranches.mockResolvedValue([...BRANCHES, { id: OTHER_BRANCH_ID, code: 'other', name: 'Other' }])
+    mockList.mockResolvedValue([PROD_LOG, OTHER_LOG])
+    // Two distinct streams present → fetchPlanMap called once per stream.
+    mockPlan.mockImplementation(async (_date, stream) =>
+      stream.branch.id === BRANCH_ID ? { w1: { produce: 8 } } : { w1: { produce: 99 } })
+    render(<KitchenReviewPage />, { wrapper })
+    // Both rows share the same wip item name — wait for both to land.
+    await waitFor(() => expect(screen.getAllByText('Nasi Goreng')).toHaveLength(2))
+    await waitFor(() => expect(mockPlan).toHaveBeenCalledTimes(2))
+    // Both rows read on-plan (8==8 in stream 1, 99==99 in stream 2) — neither row's variance
+    // was computed against the WRONG stream's plan.
+    const tags = document.querySelectorAll('.krow-variance')
+    expect(Array.from(tags).every(tag => tag.textContent?.includes('on-plan'))).toBe(true)
+  })
+
   it('shows the production-first gate message on a blocked Transfer group (FR-042)', async () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
     mockPlan.mockResolvedValue({})
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Cold Brew')
     expect(screen.getByText(/blocked until production approved/i)).toBeInTheDocument()
   })
@@ -223,7 +277,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockList.mockResolvedValue([PROD_LOG])
     mockPlan.mockResolvedValue({ w1: { produce: 8 } }) // plan == logged → on-plan
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-003' })
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
@@ -236,7 +290,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockList.mockResolvedValueOnce([PROD_LOG]).mockResolvedValueOnce([])
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     mockApprove.mockRejectedValue(new KitchenRpcError('P0003', 'not Submitted'))
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     expect(await screen.findByText(/already reviewed/i)).toBeInTheDocument()
@@ -248,7 +302,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     mockList.mockResolvedValue([PROD_LOG]) // qty 8
     mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 → off-plan
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     // first click reveals the note gate, does NOT approve
@@ -265,7 +319,7 @@ describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
     mockList.mockResolvedValue([PROD_LOG])
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     mockReject.mockResolvedValue(undefined)
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
     const note = screen.getByRole('textbox', { name: /reject note for nasi goreng/i })
@@ -280,7 +334,7 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
   it('disables Transfer Approve while a Production log is still Submitted; Reject stays live', async () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
     mockPlan.mockResolvedValue({})
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Cold Brew')
     // the Transfer row's Approve is disabled …
     const xferApprove = screen.getByRole('button', { name: /approve cold brew/i })
@@ -303,16 +357,19 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
 // gate (only bulk approves-all without per-row notes, mirroring the oracle).
 const PROD_ONPLAN_A: ReviewLogRow = {
   id: 'log-a', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
+  branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wA', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:00:00Z',
 }
 const PROD_ONPLAN_B: ReviewLogRow = {
   id: 'log-b', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
+  branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wB', wip_item_name: 'Sambal', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T08:05:00Z',
 }
 const PROD_OFFPLAN: ReviewLogRow = {
   id: 'log-c', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
+  branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wC', wip_item_name: 'Tahu', qty_porsi: 7, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:10:00Z',
 }
@@ -323,7 +380,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B, PROD_OFFPLAN])
     mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 }, wC: { produce: 10 } })
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-007' })
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
     // the group-header bulk button counts ALL 3 Submitted logs (off-plan included)
@@ -349,8 +406,8 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
       ...XFER_LOG, id: 'log-x2', wip_item_name: 'Latte', wip_item_id: 'wX', qty_porsi: 30,
     }
     mockList.mockResolvedValue([PROD_LOG, XFER_OFFPLAN])
-    mockPlan.mockResolvedValue({ w1: { produce: 8 }, wX: { 'transfer:branch-radiant': 25 } }) // 30 != 25 → off-plan
-    render(<KitchenReviewPage />)
+    mockPlan.mockResolvedValue({ w1: { produce: 8 }, wX: { [`transfer:${RADIANT_ID}`]: 25 } }) // 30 != 25 → off-plan
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Latte')
 
     // Production bulk is offered (1 Submitted) and live
@@ -366,7 +423,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     mockApprove
       .mockResolvedValueOnce({ batch_id: 'PR-20260620-009' })
       .mockRejectedValueOnce(new KitchenRpcError('XX000', 'db down'))
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
     fireEvent.click(screen.getByRole('button', { name: /approve all \(2\)/i }))
@@ -384,7 +441,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     mockList.mockResolvedValue([PROD_OFFPLAN])
     mockPlan.mockResolvedValue({ wC: { produce: 10 } }) // 7 != 10 → off-plan, still bulk-eligible
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-008' })
-    render(<KitchenReviewPage />)
+    render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Tahu')
     const bulk = screen.getByRole('button', { name: /approve all \(1\)/i })
     fireEvent.click(bulk)
@@ -398,11 +455,12 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
     try {
       mockList.mockResolvedValue([PROD_ONPLAN_A])
       mockPlan.mockResolvedValue({ wA: { produce: 20 } }) // on-plan → would be bulk-eligible online
-      render(<KitchenReviewPage />)
+      render(<KitchenReviewPage />, { wrapper })
       await screen.findByText('Ayam Bakar')
 
       // the offline banner is shown
-      expect(screen.getByText(/you're offline/i)).toBeInTheDocument()
+      // `.` matches either the straight or curly apostrophe — the i18n catalog uses ’ (U+2019).
+      expect(screen.getByText(/you.re offline/i)).toBeInTheDocument()
       // per-row approve is disabled
       expect(screen.getByRole('button', { name: /approve ayam bakar/i })).toBeDisabled()
       // bulk approve is disabled (writes are online-only)
