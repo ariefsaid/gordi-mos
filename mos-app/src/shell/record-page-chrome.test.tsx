@@ -111,7 +111,11 @@ describe('RecordPageChrome', () => {
       makeFakeRuntime(),
     )
     const strip = document.querySelector('[data-viewer-region="page-chrome"]')!
-    const controls = Array.from(strip.querySelectorAll('button')).map((el) => el.textContent)
+    // Ask Deputy is icon-only (accessible name via aria-label, no visible text) — accessible name,
+    // not textContent, is the honest way to identify it.
+    const controls = Array.from(strip.querySelectorAll('button')).map(
+      (el) => el.getAttribute('aria-label') || el.textContent,
+    )
     expect(controls).toEqual(['Collapse to panel', 'Ask Deputy'])
   })
 })

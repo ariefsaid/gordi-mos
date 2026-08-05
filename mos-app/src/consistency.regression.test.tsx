@@ -4,7 +4,7 @@
 // TaskSurface.css.test.ts fs-read pattern), rendered for the route-head contract (RI-IA-1).
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
@@ -39,12 +39,21 @@ vi.mock('./lib/db/weekly-updates', () => ({
   listTeamUpdates: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
+// Ported for #192 (Tasks): TasksWorkspace's cascade catalogs — mocked pending so the unit test
+// never reaches the real supabase client (mirrors pages/tasks-layout.test.tsx).
+vi.mock('./lib/db/objectives', () => ({ listObjectives: vi.fn(() => new Promise(() => {})) }))
+vi.mock('./lib/db/work-lines', () => ({ listWorkLines: vi.fn(() => new Promise(() => {})) }))
+vi.mock('./lib/comments/postComment', () => ({
+  listComments: vi.fn(() => new Promise(() => {})),
+  postComment: vi.fn(),
+}))
 
 import { MyWeek } from './pages/my-week'
 import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
+import { OverlayHostProvider } from './shell/overlay-host'
 
 const authedState: AuthState = {
   status: 'authenticated',
@@ -221,8 +230,17 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
   })
 
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
+    // Ported for #192: lives at /work/tasks now (not the retired /tasks), and TasksWorkspace
+    // requires OverlayHostProvider (Stage 2's shared record-panel host) — mirrors the render
+    // harness pages/tasks-layout.test.tsx uses for the same component.
     const { container } = withAuth(
-      <MemoryRouter initialEntries={['/tasks']}><TasksLayout /></MemoryRouter>,
+      <MemoryRouter initialEntries={['/work/tasks']}>
+        <OverlayHostProvider>
+          <Routes>
+            <Route path="/work/tasks" element={<TasksLayout />} />
+          </Routes>
+        </OverlayHostProvider>
+      </MemoryRouter>,
     )
     expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('[class*="page-title"]')).toBeNull()

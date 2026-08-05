@@ -133,12 +133,16 @@ describe('MobileGroupedCards', () => {
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
   })
 
-  // DO-18(c) (census-sweep R2 tasks FINDING4): the card's recency meta names WHAT the
-  // timestamp means — "Updated" (last_activity_at) — never the ambiguous "Activity Nd".
-  it('DO-18(c): the recency meta is labeled "Updated", not "Activity"', () => {
+  // DO-18(c) (census-sweep R2 tasks FINDING4) named the card's recency meta "Updated", never the
+  // ambiguous "Activity Nd" — but the v4 distill pass (TaskCard comment, .claude/skills/impeccable
+  // distill.md "remove redundancy") went further and dropped the recency line from the card body
+  // entirely: PIC + Supervisor + Due are the decision-relevant fields for weekly triage; the last-
+  // activity timestamp is one tap away on the record, not restated on every card. Neither the old
+  // ambiguous label nor the disambiguated one should appear — the field itself is gone.
+  it("DO-18(c) superseded by the distill pass: no recency meta on the card at all (neither \"Activity\" nor \"Updated\")", () => {
     renderCards()
-    expect(screen.getAllByText('Updated').length).toBeGreaterThan(0)
     expect(screen.queryByText('Activity')).toBeNull()
+    expect(screen.queryByText('Updated')).toBeNull()
   })
 
   it('role="list" on the container and role="listitem" on each card wrapper (a11y)', () => {

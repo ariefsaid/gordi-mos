@@ -214,6 +214,8 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     await revealCreateContext()
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-1' } })
+    // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     // Submit
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => {
@@ -230,6 +232,8 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     await revealCreateContext()
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: 'obj-2' } })
+    // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => {
       expect(mockCreateTask).toHaveBeenCalledWith(
@@ -247,6 +251,8 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     // Do not change work-line — leave at "— None —"
     await revealCreateContext()
     await screen.findByRole('combobox', { name: /project\/process/i }) // wait for it to render
+    // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
     const call = mockCreateTask.mock.calls[0][0]
@@ -261,6 +267,8 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No objective task' } })
     await revealCreateContext()
     await screen.findByRole('combobox', { name: /objective/i })
+    // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
     const call = mockCreateTask.mock.calls[0][0]
