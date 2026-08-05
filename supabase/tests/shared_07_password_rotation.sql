@@ -101,10 +101,16 @@ select ok(
   'the owner of _current_person_must_change_password() has BYPASSRLS — without it the policy cycle recurses');
 
 -- shared.current_org_id() reads a SECOND definer function on shared.people, and it inherits the whole
--- of the paragraph above: same table, same FORCE, same cycle through people_select_org. The
--- consequence if this attribute is ever absent is an AVAILABILITY one and not a disclosure one —
--- policy evaluation recurses and every query on every table fails — which is exactly why it belongs
--- in a test rather than in a comment. A deployment where it is false is down, not degraded.
+-- of the paragraph above: same table, same FORCE, same cycle through people_select_org.
+--
+-- The consequence when this attribute is absent is an AVAILABILITY one and not a disclosure one, and
+-- it is worth stating as MEASURED rather than as predicted, because the two differ. Reassigning this
+-- function to a role without BYPASSRLS (checked by hand, 2026-08-05) did not raise the recursion
+-- error the sibling comment above describes: the definer read simply falls under people's own
+-- policies, matches nothing, and the seam resolves to NULL for everybody. Every org-scoped read in
+-- every schema then returns zero rows, silently. That is a database nobody can use, arriving without
+-- a single error in the log — which is precisely why it belongs in a test that fails at deploy time
+-- rather than in a comment somebody reads afterwards. Fails CLOSED, so it is not an exposure.
 select ok(
   (select r.rolbypassrls
      from pg_proc p join pg_roles r on r.oid = p.proowner
