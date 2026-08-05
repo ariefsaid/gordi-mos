@@ -1,33 +1,33 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+/**
+ * MobileDrawer tests — Redesign Step 2 (T15). The drawer is now the "More" menu:
+ * every authorized non-primary destination (Events, Money, Ecommerce, Roastery,
+ * Admin, Profile) as plain links (no aria-current — the bottom-nav owns that).
+ * AC-021/022 unit arm.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ThemeProvider } from '@/theme/theme-provider'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
-
-// TopBar (which replaced Header) reads useIsNarrow — override via matchMedia stub below
-vi.mock('./use-is-narrow', () => ({ useIsNarrow: () => true }))
-
 const mockUseAuth = vi.mocked(useAuth)
 
 import { MobileDrawer } from './mobile-drawer'
-import { TopBar } from './top-bar'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 
-// R2: Helper to force narrow viewport (matches:true for useIsNarrow)
-function setNarrowViewport(narrow: boolean) {
-  Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-      matches: narrow,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }),
+function setAuthAs(accessRoles: string[] = []) {
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
+        email: 'c@gordi.id', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+      },
+      roles: [], isManager: false, accessRoles,
+    },
+    signOut: vi.fn(),
   })
 }
 
@@ -36,60 +36,18 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-import { useState, useRef } from 'react'
-
-function TestHarness() {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const focusHamburgerRef = useRef<(() => void) | undefined>(undefined)
-  return (
-    <>
-      <TopBar
-        onOpenDrawer={() => setDrawerOpen(true)}
-        onRegisterHamburgerFocus={(fn) => { focusHamburgerRef.current = fn }}
-      />
-      <MobileDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        focusOpener={() => focusHamburgerRef.current?.()}
-      />
-      <LocationDisplay />
-    </>
-  )
-}
-
-function renderNarrow() {
-  setNarrowViewport(true)
-  mockUseAuth.mockReturnValue({
-    status: 'authenticated',
-    viewer: {
-      person: {
-        id: '40000000-0000-0000-0000-000000000001',
-        org_id: '10000000-0000-0000-0000-000000000001',
-        user_id: 'auth-user-001',
-        full_name: 'Cahya Cafe',
-        email: 'cahya@example.test',
-        must_change_password: false,
-        archived_at: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      },
-      roles: [],
-      isManager: false,
-      accessRoles: [],
-    },
-    signOut: vi.fn(),
-  })
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'] }: { open?: boolean; onClose?: () => void; accessRoles?: string[] } = {}) {
+  setAuthAs(accessRoles)
   return render(
-    <I18nProvider>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route
-            path="*"
-            element={<TestHarness />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
+    <ThemeProvider>
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="*" element={<><MobileDrawer open={open} onClose={onClose} /><LocationDisplay /></>} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </ThemeProvider>,
   )
 }
 
@@ -98,90 +56,149 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-afterEach(() => {
-  // Restore default matchMedia stub (matches:false)
-  setNarrowViewport(false)
-})
-
-// AC-014: Mobile drawer behavior
-describe('AC-014: Mobile drawer', () => {
-  it('rail is hidden and hamburger is visible at narrow viewport', () => {
-    renderNarrow()
-    const hamburger = screen.getByRole('button', { name: /open navigation/i })
-    expect(hamburger).toBeInTheDocument()
-    // No persistent rail aside at narrow
-    expect(screen.queryByRole('complementary')).toBeNull()
-  })
-
-  it('activating hamburger opens a dialog with aria-modal and Primary navigation name', async () => {
-    const user = userEvent.setup()
-    renderNarrow()
-    const hamburger = screen.getByRole('button', { name: /open navigation/i })
-    await user.click(hamburger)
+describe('AC-021: More menu lists every authorized non-primary destination (admin)', () => {
+  it('an org-wide admin sees Events, Admin Settings, Profile — and NO module links (OD-REDESIGN-68: More is not the org chart)', () => {
+    renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(dialog).toHaveAttribute('aria-label', 'Primary navigation')
+    expect(screen.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/events')
+    expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
+    expect(screen.getByRole('link', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
+    expect(screen.queryByRole('link', { name: /Ecommerce/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Roastery/ })).toBeNull()
   })
 
-  it('dialog contains the visible nav items (My Week + Tasks always; Weekly Updates / Daily Log per flag)', async () => {
-    const user = userEvent.setup()
-    renderNarrow()
-    await user.click(screen.getByRole('button', { name: /open navigation/i }))
-    const dialog = screen.getByRole('dialog')
-    // nav items are links within the dialog
-    expect(dialog.querySelector('[href="/"]')).toBeTruthy()
-    expect(dialog.querySelector('[href="/tasks"]')).toBeTruthy()
-    expect(!!dialog.querySelector('[href="/updates"]')).toBe(SHOW_WEEKLY_UPDATES)
-    expect(!!dialog.querySelector('[href="/ops"]')).toBe(SHOW_DAILY_LOG)
+  it('admin also sees Money (finance/admin)', () => {
+    renderDrawer({ accessRoles: ['admin'] })
+    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money')
+  })
+})
+
+describe('AC-022: Money absent for non-finance/admin (from More)', () => {
+  it('a plain member does NOT see Money in the More menu', () => {
+    renderDrawer({ accessRoles: [] })
+    expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 
-  it('Escape closes drawer and returns focus to hamburger', async () => {
-    const user = userEvent.setup()
-    renderNarrow()
-    const hamburger = screen.getByRole('button', { name: /open navigation/i })
-    await user.click(hamburger)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(hamburger).toHaveFocus()
+  it('a plain member does NOT see Admin Settings in the More menu', () => {
+    renderDrawer({ accessRoles: [] })
+    expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
   })
 
-  it('Tab cycles focus within the dialog (focus stays inside)', async () => {
-    const user = userEvent.setup()
-    renderNarrow()
-    await user.click(screen.getByRole('button', { name: /open navigation/i }))
-    const dialog = screen.getByRole('dialog')
+  it('finance sees Money but not Admin Settings', () => {
+    renderDrawer({ accessRoles: ['finance'] })
+    expect(screen.getByRole('link', { name: /Money/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
+  })
+})
 
-    // Get all focusables in the dialog
-    const focusables = Array.from(
-      dialog.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
+// Security audit HIGH-1 (2026-07-17): the phone drawer is the only nav surface at <920px, so the
+// sign-out affordance must be mounted here too, not just on the desktop rail.
+describe('AC-005/HIGH-1: sign-out affordance is mounted in the phone drawer and invokable', () => {
+  it('shows the viewer\'s name and a working Sign out item', async () => {
+    const user = userEvent.setup()
+    const signOut = vi.fn()
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
+          email: 'c@gordi.id', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+        },
+        roles: [], isManager: false, accessRoles: ['admin'],
+      },
+      signOut,
+    })
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
     )
-    expect(focusables.length).toBeGreaterThan(0)
 
-    // Tab through all focusables — should wrap back inside
-    for (let i = 0; i < focusables.length; i++) {
-      await user.tab()
-    }
-    // After tabbing past the last item, focus wraps to first inside the dialog
-    expect(dialog.contains(document.activeElement)).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
+    const menuItem = screen.getByRole('menuitem', { name: /sign out/i })
+    expect(menuItem).toBeInTheDocument()
+    await user.click(menuItem)
+    expect(signOut).toHaveBeenCalledOnce()
+  })
+})
+
+describe('More menu navigation + a11y', () => {
+  it('clicking a destination link navigates and closes the drawer', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderDrawer({ onClose, accessRoles: ['admin'] })
+    await user.click(screen.getByRole('link', { name: /Events/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/events')
+    expect(onClose).toHaveBeenCalled()
   })
 
-  it('clicking a nav item (Tasks) navigates to /tasks and closes the dialog', async () => {
+  // Interaction-contract I2: Close/Back must return focus to the opener — the SAME
+  // route-safe focus-return path Escape/backdrop/X already use. Previously the
+  // destination-link onClick called raw `onClose`, so focus could land on a link
+  // that's about to unmount instead of returning to the launcher.
+  it('clicking a destination link ALSO returns focus to the opener (I2 — same path as Escape/backdrop/X)', async () => {
     const user = userEvent.setup()
-    renderNarrow()
-    await user.click(screen.getByRole('button', { name: /open navigation/i }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const onClose = vi.fn()
+    const focusOpener = vi.fn()
+    setAuthAs(['admin'])
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route
+                path="*"
+                element={<><MobileDrawer open onClose={onClose} focusOpener={focusOpener} /><LocationDisplay /></>}
+              />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    await user.click(screen.getByRole('link', { name: /Events/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/events')
+    expect(onClose).toHaveBeenCalled()
+    expect(focusOpener).toHaveBeenCalled()
+  })
 
-    // Click Tasks link in the dialog
-    const tasksLink = screen.getByRole('dialog').querySelector('[href="/tasks"]') as HTMLElement
-    expect(tasksLink).toBeTruthy()
-    await user.click(tasksLink)
+  it('Escape closes the drawer and returns focus to the opener', async () => {
+    const user = userEvent.setup()
+    const focusOpener = vi.fn()
+    setAuthAs(['admin'])
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}>
+            <Routes>
+              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} focusOpener={focusOpener} />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    await user.keyboard('{Escape}')
+    expect(focusOpener).toHaveBeenCalled()
+  })
 
-    // Dialog closes
+  it('does not render when open=false', () => {
+    renderDrawer({ open: false, accessRoles: ['admin'] })
     expect(screen.queryByRole('dialog')).toBeNull()
-    // Location updated
-    expect(screen.getByTestId('location').textContent).toBe('/tasks')
+  })
+
+  // OD-REDESIGN-91 #37: the drawer opens from the LEFT (matches the ☰ position + rail side) —
+  // the prior right-slide was judged "not natural / intuitive". Deliberate UX change.
+  it('#37: the panel is anchored to the LEFT edge (not the right)', () => {
+    renderDrawer({ accessRoles: ['admin'] })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.className).toMatch(/\bleft-0\b/)
+    expect(dialog.className).not.toMatch(/\bright-0\b/)
+    expect(dialog.className).toMatch(/\bmobile-drawer-panel\b/)
   })
 })

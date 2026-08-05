@@ -1,88 +1,113 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath } from './destinations'
+import { destinationForPath, modulesForRoles, primaryModuleForViewer } from './destinations'
 import { useBreadcrumbTitle } from './breadcrumb-title'
+import { useIsNarrow } from './use-is-narrow'
+import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 
-// Shell breadcrumb — wayfinding only, no brand prefix (ADR-0013 D1, AC-S04).
-// Brand lockup lives in TopBar; breadcrumb starts at the section level.
-// Format: `Section` or `Section › Leaf` — current crumb ellipsizes (truncate + title) per AC-S03.
-// Dynamic leaf: on /tasks/:id the resolved task title is pushed via BreadcrumbTitleProvider
-// (ADR-0013 D1 / OD-P4-9, AC-S04b). While loading (title === null) falls back to section only.
-function explicitLeafForPath(pathname: string, dynamicTitle: string | null): string | null {
-  if (pathname === '/ops/new') return 'Add log entry'
-  if (/^\/ops\/[^/]+\/edit$/.test(pathname)) return 'Edit log entry'
-  if (pathname === '/tasks/new') return 'New task'
-  // /tasks/:id — use the resolved task title from context (null = loading, render section only)
-  if (/^\/tasks\/[^/]+$/.test(pathname) && dynamicTitle) return dynamicTitle
-  return null
+// Shell breadcrumb — Redesign Step 2 (§9). `·` separator, last segment bold, no brand
+// prefix (brand lives in TopBar — OD-P4-11 dedup). Resolves the new destinations +
+// Work children + the `?view=` saved-view leaf; a record route pushes the resolved
+// task title via BreadcrumbTitleProvider (AC-019). Unknown/404 routes render nothing.
+// §Task-11 (Issue-8 gate): no `team` leaf — the Team-work view was removed until Issue 8 lands the
+// real Task team_id contract.
+const VIEW_LEAF: Record<string, string> = {
+  mine: 'My work',
+  overdue: 'Overdue',
+  followups: 'AR Follow-ups',
+}
+
+function viewLeaf(search: string): string | null {
+  const params = new URLSearchParams(search)
+  const v = params.get('view')
+  if (!v || v === 'all') return null
+  return VIEW_LEAF[v] ?? null
 }
 
 export function Breadcrumb() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const dynamicTitle = useBreadcrumbTitle()
+  const auth = useAuth()
+  const isNarrow = useIsNarrow()
   const t = useT()
+
   const destination = destinationForPath(pathname)
+  // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
+  if (!destination) return null
 
-  // Resolve the leaf Section: prefer the destination's own matching link (so the Work manage
-  // routes /work/objectives + /work/projects-processes, the Plan /sales link, and the Operate
-  // /ops link all resolve with their labelKey — FR-424), then fall back to the flat section
-  // registry for routes owned by no destination (Admin). '/' matches exactly; others prefix.
-  const destLink = destination?.links.find((l) =>
-    l.path === '/' ? pathname === '/' : pathname === l.path || pathname.startsWith(l.path + '/'),
-  ) ?? null
-  const section = destLink ?? sectionForPath(pathname)
+  // Rule 5 (I7 — "rail owns it; breadcrumb leaf when the viewer has no rail entry"): whichever
+  // location-owning nav surface is on screen for this width takes precedence; the breadcrumb
+  // leaf carries aria-current="page" ONLY for a destination that surface doesn't cover, so
+  // exactly one element carries it on every route, both widths (v4 shell rebuild, Task 3).
+  const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  let leafCarriesCurrent: boolean
+  if (isNarrow) {
+    // Phone: the bottom-tab-bar is the location-owning surface, and it covers only Home · Work
+    // (+ every /work/* child) · the viewer's promoted module · Inbox. The More button is a
+    // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
+    // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
+    // non-promoted module) has no tab, so the breadcrumb leaf owns it.
+    const promoted = viewer ? primaryModuleForViewer(viewer.roles.map((r) => r.name), viewer.accessRoles) : null
+    const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
+    leafCarriesCurrent = !tabIds.has(destination.id)
+  } else {
+    // Desktop: the rail renders every live workspace/utility destination plus the viewer's
+    // affiliated modules (OD-REDESIGN-68) — the only gap is a modules-zone route the viewer
+    // has no rail entry for (e.g. an admin visiting /cafe directly).
+    leafCarriesCurrent =
+      destination.zone === 'modules' &&
+      viewer != null &&
+      !modulesForRoles(viewer.roles.map((r) => r.name), viewer.accessRoles).some((m) => m.id === destination.id)
+  }
 
-  // No section → nothing to show (unknown/404 path)
-  if (!section) return null
+  const destLabel = t(destination.labelKey)
+  const crumbs: string[] = [destLabel]
 
-  // FR-S03 (spec home-v1) + FR-424: a route owned by a destination (Home/Work/Operate/Plan/Inbox)
-  // reads its destination label as the SECTION crumb. For non-Home destinations the route's own
-  // label is promoted to the leaf (e.g. "Work › Tasks", "Operate › Log", "Work › Objectives",
-  // "Plan › Sales", "Operate › Daily Log") — or the explicit/dynamic leaf ("New task", a resolved
-  // task title) when one applies. Home renders bare ("Home", no "Home › Home"). Labels resolve
-  // through the i18n catalog when a labelKey is present (FR-440).
-  const promotesDestinationLabel = !!destination && destination.id !== 'home'
-  const explicitLeaf = explicitLeafForPath(pathname, dynamicTitle)
-  const sectionLabel = destination ? t(destination.labelKey) : (section.labelKey ? t(section.labelKey) : section.label)
-  const promotedLeaf = promotesDestinationLabel ? (section.labelKey ? t(section.labelKey) : section.label) : null
-  // Collapse a self-crumb: a single-link destination whose promoted leaf equals its own
-  // destination label would read "Inbox › Inbox" (UI-coherence audit C3) — render bare instead,
-  // mirroring how Home renders "Home" not "Home › Home".
-  const leafLabel = explicitLeaf ?? (promotedLeaf && promotedLeaf !== sectionLabel ? promotedLeaf : null)
-  const crumbLabels =
-    destination?.id === 'operate' && section.path.startsWith('/kitchen/')
-      ? [sectionLabel, t('nav.kitchen'), leafLabel ?? (section.labelKey ? t(section.labelKey) : section.label)]
-      : pathname.startsWith('/admin/')
-        ? ['Admin', section.labelKey ? t(section.labelKey) : section.label]
-        : leafLabel
-          ? [sectionLabel, leafLabel]
-          : [sectionLabel]
+  if (destination.id === 'work') {
+    // Work child label (Signals/Tasks/Projects & Processes/Objectives) — record routes
+    // resolve to their owning child (e.g. /work/tasks/123 → Tasks).
+    const child = sectionForPath(pathname)
+    const childLabel = child ? (child.labelKey ? t(child.labelKey) : child.label) : 'Tasks'
+    crumbs.push(childLabel)
+    if (pathname === '/work/tasks/new') {
+      crumbs.push('Create task') // OD-71i verb family
+    } else if (dynamicTitle) {
+      crumbs.push(dynamicTitle)
+    } else {
+      const v = viewLeaf(search)
+      if (v) crumbs.push(v)
+    }
+  } else if (destination.id === 'money') {
+    if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))
+  } else if (destination.id === 'cafe') {
+    // /cafe and /cafe/log are the module default → bare "Café"; other sub-routes get a leaf.
+    if (pathname !== '/cafe' && pathname !== '/cafe/log') {
+      const sec = sectionForPath(pathname)
+      if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
+    }
+  } else if (destination.id === 'admin') {
+    const sec = sectionForPath(pathname)
+    if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
+  }
+  // home / events (Signals) / inbox / profile / ecommerce / roastery → bare destLabel.
 
   return (
-    <span style={{ fontSize: 15 }}>
-      {crumbLabels.length === 1 ? (
-        // Section is the current page — bold, truncated
-        <b
-          className="truncate text-foreground font-semibold"
-          title={crumbLabels[0]}
-        >
-          {crumbLabels[0]}
+    <span style={{ fontSize: 'var(--font-size-body-lg)' }}>
+      {crumbs.length === 1 ? (
+        <b className="truncate text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+          {crumbs[0]}
         </b>
       ) : (
-        // Sub-page: intermediate crumbs are muted, final crumb is the bold current.
         <>
-          {crumbLabels.slice(0, -1).map((label) => (
+          {crumbs.slice(0, -1).map((label) => (
             <span key={label}>
               <span className="text-muted-foreground">{label}</span>
-              <span className="mx-[7px]" aria-hidden="true">›</span>
+              <span className="mx-[7px]" aria-hidden="true">·</span>
             </span>
           ))}
-          <b
-            className="truncate text-foreground font-semibold"
-            title={crumbLabels[crumbLabels.length - 1]}
-          >
-            {crumbLabels[crumbLabels.length - 1]}
+          <b className="truncate text-foreground font-semibold" title={crumbs[crumbs.length - 1]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+            {crumbs[crumbs.length - 1]}
           </b>
         </>
       )}

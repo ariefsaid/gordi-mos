@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { messages, type MessageKey } from './messages'
+import { messages, type Locale, type MessageKey } from './messages'
 import { useI18n } from './I18nProvider'
 
 /**
@@ -31,4 +31,25 @@ export function useT(): Translate {
     },
     [locale]
   )
+}
+
+/**
+ * translateFor — the non-React translator.
+ *
+ * `useT()` is the right answer everywhere a component renders. It is not available in the few
+ * places that produce user-visible strings OUTSIDE a render: a collection descriptor's `load()`,
+ * a pure formatter, an error boundary that mounts above `I18nProvider`. Those used to reach for
+ * an English template literal, which is how untranslated copy kept landing in the UI (the
+ * FR-422 trace strings, ErrorFallback). This resolves against the same persisted locale the
+ * provider seeds from, so the two agree.
+ *
+ * Caveat, deliberately not hidden: a string built here is bound at CALL time, so a live locale
+ * switch does not restyle it until the data it belongs to is loaded again. That is correct for
+ * load-time strings and is why this is not offered as a general substitute for `useT`.
+ */
+export function translateFor(locale: Locale): Translate {
+  return (key, vars) => {
+    const template = messages[locale][key] ?? messages.en[key] ?? key
+    return interpolate(template, vars)
+  }
 }

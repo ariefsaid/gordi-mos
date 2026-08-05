@@ -8,7 +8,20 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER, ADMIN } from './fixtures/users'
 
-test.describe('AC-410: five-destination phone shell', () => {
+// PARKED by the app-shell chrome port (#188), with a reason and a successor — not silently left
+// red. The five-destination IA this journey encodes (Home/Work/Operate/Plan/Inbox, five bottom
+// tabs) was RETIRED by the ported chrome: the phone bottom bar is now Home · Work · the viewer's
+// own module · Inbox · More, so an admin sees three links and a More disclosure, not five links.
+//
+// It is parked rather than rewritten here because the rewrite cannot be honest yet. The ported
+// destinations point at /work/tasks, /cafe and /inbox, and the route table that makes those
+// resolve is the NEXT ticket (#189). A journey authored against routes that 404 would be red for
+// a reason that has nothing to do with what it asserts. Its successor — together with AC-022's
+// 390px shell walk — belongs in the PR that lands the routes.
+//
+// e2e does not gate a PR onto `dev` (integration.yml runs verify + the pgTAP fast lane there, no
+// browser), so this is parked debt with an owner, not a hidden gate failure.
+test.describe.fixme('AC-410: five-destination phone shell', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
   test('admin sees five tabs (Home/Work/Operate/Plan/Inbox); no Catalog group', async ({ page }) => {

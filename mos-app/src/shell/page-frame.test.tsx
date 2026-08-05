@@ -36,4 +36,20 @@ describe('PageFrame — <main> is a bounded scroll container (F1)', () => {
     expect(main.className).toContain('flex-1')
     expect(main.className).toContain('min-h-0')
   })
+
+  it('adds the V3 family wrapper without changing the legacy frame contract', () => {
+    const { container } = render(
+      <PageFrame family="workspace" state="loading">
+        <div>x</div>
+      </PageFrame>,
+    )
+    const main = container.querySelector('main') as HTMLElement
+    const inner = main.firstElementChild as HTMLElement
+    expect(main.className).toContain('page-frame--v3')
+    expect(main).toHaveAttribute('data-page-family', 'workspace')
+    expect(main).toHaveAttribute('data-page-state', 'loading')
+    expect(main).toHaveAttribute('aria-busy', 'true')
+    expect(inner).toHaveClass('page-frame__content')
+    expect(inner.style.maxWidth).toBe('')
+  })
 })

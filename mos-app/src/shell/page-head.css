@@ -1,0 +1,170 @@
+/* Shared PageHead/content-header grammar. Domain styles may position their
+   content around this shell, but they do not redefine its title row. */
+.content-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  /* v4 chrome-reduction pass (shared-chrome fix): 16/14 → 12/8, both on the DESIGN.md
+     4/8/12/16/20/24/32/48 geometry scale (14 was itself off-scale). Tightened further,
+     mobile-only, below — this base value is the desktop/tablet floor. */
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.content-header .ch-icon {
+  color: var(--muted-foreground);
+  display: inline-flex;
+  flex: none;
+}
+
+.content-header .ch-title {
+  font-weight: 600;
+  font-size: var(--font-size-page-title);
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.content-header .ch-count {
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  flex: none;
+  line-height: 1.4;
+}
+
+.content-header .ch-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.content-header .ch-action {
+  margin-left: auto;
+  flex: none;
+}
+
+.ch-submeta {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body-lg);
+}
+
+/* R2 (owner review r2): the ONE muted meta sentence for a workspace head — "14 tasks · 2 blocked".
+   A single font size (the body token, DESIGN.md body/meta step) so the whole line reads as one
+   register — no count-pill vs. submeta "size soup". Sits inside the content-header .ch-meta wrapper. */
+.content-header .ch-meta-line {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ── The status row: a full-width second row INSIDE the one header block ──────────────────
+   The header's height budget is fixed (~70px, the v4 chrome-reduction floor), so a head that
+   carries a status row pays for it by stepping the title down one rung on the SAME declared
+   ladder — page-title (24px) → subheading (18px). No new sizes, no second header grammar. */
+.content-header .ch-status-row {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+/* THE rung, explained once — every other mention of it in the codebase points here.
+   `subheading` (18px): ONE rung down from page-title (24px), not three. It was `body-lg` (15px)
+   while Home's List band labels (`.stream-band-label`) were still at `subheading` (18px), so the
+   page's own `h1` rendered SMALLER than the group headers inside it. Both halves were corrected:
+   the title came UP to 18px here, and the band labels went DOWN to `body-lg` (15px, commit
+   d9eb26a) — which is where they sit today, a full rung below this. The signed mockup ranks them
+   the same way (`.hdr-title` 1.125rem = 18px against the 16px root; `#c .band-label` ≈ 15.6px).
+   guard-home-head-rank.css.test.ts asserts the RELATION, so the pair can be re-tuned but never
+   inverted or tied. The ~70px budget still holds: the head's height is set by its meta/action
+   row, not by this 3px. */
+.content-header--compact .ch-title {
+  font-size: var(--font-size-subheading);
+}
+
+.page-head--v3.content-header {
+  flex-wrap: wrap;
+}
+
+.content-header .ch-subtitle {
+  flex: 0 0 100%;
+  margin: -4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.page-head--v3 .page-head-job {
+  flex: 0 0 100%;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.page-head--v3:not(.content-header) .page-head-job {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 767.98px) {
+  .content-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    /* v4 chrome-reduction pass: the title/job-sentence/meta wrap stack is exactly the
+       "several full-width rows" cost the fix targets on phone — row-gap 8→4 and an
+       extra margin-bottom cut (12→8, still on-scale) stack with the base padding-bottom
+       cut above. The job sentence itself is UNCHANGED (kept full-text, no truncation —
+       experience-contract Rule 1 / OD-REDESIGN-57): only the whitespace around it shrinks. */
+    row-gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .content-header .ch-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: var(--font-size-page-title);
+  }
+
+  .content-header .ch-meta {
+    order: 4;
+    flex: 0 0 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
+  .content-header .ch-action {
+    order: 3;
+  }
+
+  /* ── Compact head on phone ────────────────────────────────────────────────────────────
+     The generic phone stack (meta last, full width) would push the role BELOW the status
+     row, so the greeting's own qualifier would arrive after the day state it qualifies.
+     The compact head keeps its title row intact — greeting + role, tally pushed right by
+     `.ch-action`'s auto margin — and the status row stays the last, full-width line. It
+     also keeps the subheading title the rule above re-asserts at page-title for every other
+     content head — the h1-below-its-own-band-labels inversion is a phone defect too. */
+  .content-header--compact .ch-title {
+    font-size: var(--font-size-subheading);
+  }
+
+  .content-header--compact .ch-meta {
+    order: 1;
+    flex: 0 1 auto;
+  }
+
+  .content-header--compact .ch-action {
+    order: 2;
+  }
+
+  .content-header--compact .ch-status-row {
+    order: 3;
+  }
+}

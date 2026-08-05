@@ -2,7 +2,7 @@
 // Every identity-bearing single-line string in the revamp must ellipsize (`truncate`)
 // AND carry a `title` so the full value is recoverable on hover when clipped. Several
 // surfaces already assert this per-surface (breadcrumb AC-S03, user chip AC-D03, table
-// name AC-T03, ⌘K AC-W06/result rows, My-Week AC-W06). This file is a durable cross-surface
+// name AC-T03, ⌘K AC-W06/result rows). This file is a durable cross-surface
 // SOURCE guard so a future edit that drops a `title`/`truncate` on any identity string fails
 // here, not only in a manual dark-mode pass.
 import { describe, it, expect } from 'vitest'
@@ -50,10 +50,5 @@ describe('AC-D03: identity-bearing strings ellipsize + carry title (no-bleed, cr
   it('AC-D03: ⌘K result row label — truncate + title', () => {
     const s = src('src/components/command/command-menu.tsx')
     expect(/cm-item-label truncate"[\s\S]{0,40}title=/.test(s)).toBe(true)
-  })
-
-  it('AC-D03: My-Week task name chip — truncate + title', () => {
-    const s = src('src/components/weekly/my-tasks-card.tsx')
-    expect(/mini-name-chip truncate"[\s\S]{0,80}title=\{task\.title\}/.test(s)).toBe(true)
   })
 })

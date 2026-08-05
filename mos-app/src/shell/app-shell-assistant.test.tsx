@@ -15,13 +15,17 @@ vi.mock('@/config/features', () => ({
   },
   SHOW_USER_VIEWS: false,
   SHOW_WEEKLY_UPDATES: false,
-  SHOW_INBOX: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
   SHOW_DAILY_LOG: false,
 }))
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+// The always-live NotificationBell (SHOW_INBOX retired, D-1) fires useUnreadCount → countUnread.
+vi.mock('@/lib/db/notifications', () => ({
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue([]),
+}))
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -34,9 +38,9 @@ const viewer = {
     org_id: '10000000-0000-0000-0000-000000000001',
     user_id: 'auth-user-001',
     full_name: 'Cahya Cafe',
-    email: 'cahya@example.test',
-    must_change_password: false,
+    email: 'cahya@gordi.id',
     archived_at: null,
+    must_change_password: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },

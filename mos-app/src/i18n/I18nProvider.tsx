@@ -15,7 +15,9 @@ type I18nContextValue = {
   setLocale: (next: Locale) => void
 }
 
-const I18nContext = createContext<I18nContextValue | null>(null)
+// Standalone renderers (component tests, embeds, and story-like previews) default to
+// English; the application root still supplies the real persisted provider below.
+const I18nContext = createContext<I18nContextValue>({ locale: 'en', setLocale: () => {} })
 
 export function readPersistedLocale(): Locale {
   if (typeof window === 'undefined') return 'en'
@@ -37,6 +39,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, [locale])
 
+  // a11y audit fix: document.documentElement.lang was never updated on locale switch, so
+  // assistive tech kept pronouncing Indonesian copy with English phonemes app-wide even
+  // though every visible string (and document.title) switched correctly. `lang` is a plain
+  // BCP 47 code, not a message-catalog key, so it is set directly rather than through useT.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.documentElement.lang = locale
+  }, [locale])
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next)
   }, [])
@@ -45,9 +56,5 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useI18n(): I18nContextValue {
-  const ctx = useContext(I18nContext)
-  if (!ctx) {
-    throw new Error('useI18n must be used within an I18nProvider')
-  }
-  return ctx
+  return useContext(I18nContext)
 }

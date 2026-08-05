@@ -1,0 +1,21 @@
+/* Mobile nav drawer — the phone "More" / hamburger menu.
+   OD-REDESIGN-91 #37: it opens from the LEFT to match the ☰ hamburger position
+   (top-left) and the rail side. The owner judged the prior right-slide "not
+   natural / intuitive". The slide direction flips with the anchor: the panel is
+   pinned to the left edge (left-0 in the component) and enters from off-screen-left.
+   Gated behind no-preference, matching styles/drawer.css's sheet-in convention. */
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-drawer-panel {
+    animation: mobile-drawer-in var(--dur-slow) ease;
+  }
+  @keyframes mobile-drawer-in {
+    from {
+      transform: translateX(-100%);
+      opacity: 0.6;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}
