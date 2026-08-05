@@ -169,3 +169,36 @@ describe('KPITile — basis label + DQ badge slots (AC-008)', () => {
     expect(container.querySelector('.dq-badge')).toBeNull()
   })
 })
+
+// census r3 + r5 F-5: grid placement is the COMPOSITION's concern, so the page hands the tile a
+// class rather than the tile growing a `span` prop it would have to understand. The hook has to
+// reach the outermost node in all three shapes (static / interactive / loading) — a class that
+// lands on an inner span cannot place a grid item.
+describe('KPITile — composition className hook', () => {
+  it('carries the composition class on the outer node of a static tile, keeping kpi-tile', () => {
+    render(<KPITile label="Channel mix" value="POS 82% · B2B 18%" className="dash-kpi-tile--mix" />)
+    const tile = screen.getByRole('group', { name: 'Channel mix' })
+    expect(tile).toHaveClass('dash-kpi-tile--mix')
+    expect(tile).toHaveClass('kpi-tile')
+  })
+
+  it('carries it on an INTERACTIVE tile without dropping the selected modifier', () => {
+    render(
+      <KPITile
+        label="Trailing 7-day revenue"
+        value="Rp 98,3 jt"
+        onClick={vi.fn()}
+        selected
+        className="dash-kpi-tile--mix"
+      />,
+    )
+    const tile = screen.getByRole('button', { name: 'Trailing 7-day revenue' })
+    expect(tile).toHaveClass('dash-kpi-tile--mix')
+    expect(tile).toHaveClass('kpi-tile--selected')
+  })
+
+  it('carries it in the LOADING state — a tile that loses its grid placement while loading reflows the row', () => {
+    render(<KPITile label="Channel mix" value="" state="loading" className="dash-kpi-tile--mix" />)
+    expect(screen.getByRole('group', { name: 'Channel mix' })).toHaveClass('dash-kpi-tile--mix')
+  })
+})

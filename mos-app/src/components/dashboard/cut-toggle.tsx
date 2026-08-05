@@ -1,7 +1,7 @@
 // CutToggle — general segmented control over an enum (design-plan §2.5).
 // Reuses the existing `seg` grammar (secondary track, white on-pill + lift).
 // role="tablist"/"tab"/aria-selected + roving tabindex (arrow-key navigable).
-import type { KeyboardEvent } from 'react'
+import { useRef, type KeyboardEvent } from 'react'
 import './cut-toggle.css'
 
 export interface CutToggleProps {
@@ -9,9 +9,14 @@ export interface CutToggleProps {
   value: string
   onChange: (value: string) => void
   ariaLabel?: string
+  /** I18N-1: map an option VALUE to its display label; the value passed to onChange is unchanged
+   *  (so callers keep their enum logic). Defaults to identity for generic (already-labelled) uses. */
+  renderLabel?: (option: string) => string
 }
 
-export function CutToggle({ options, value, onChange, ariaLabel = 'View' }: CutToggleProps) {
+export function CutToggle({ options, value, onChange, ariaLabel = 'View', renderLabel }: CutToggleProps) {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -26,6 +31,10 @@ export function CutToggle({ options, value, onChange, ariaLabel = 'View' }: CutT
     if (nextIndex !== null) {
       e.preventDefault()
       onChange(options[nextIndex])
+      // r5 F-4: roving tabindex must move FOCUS with selection — without this the
+      // old tab keeps focus while its tabIndex drops to -1, stranding keyboard/AT
+      // users on a non-tabbable node.
+      tabRefs.current[nextIndex]?.focus()
     }
   }
 
@@ -36,6 +45,7 @@ export function CutToggle({ options, value, onChange, ariaLabel = 'View' }: CutT
         return (
           <button
             key={option}
+            ref={el => { tabRefs.current[index] = el }}
             type="button"
             role="tab"
             aria-selected={isSelected}
@@ -47,7 +57,7 @@ export function CutToggle({ options, value, onChange, ariaLabel = 'View' }: CutT
             }}
             onKeyDown={e => handleKeyDown(e, index)}
           >
-            {option}
+            {renderLabel ? renderLabel(option) : option}
           </button>
         )
       })}
