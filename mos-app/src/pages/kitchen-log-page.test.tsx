@@ -23,6 +23,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   return {
     defaultStreamFrom: actual.defaultStreamFrom,
     listActiveWipItems: vi.fn(),
+    listCaptureFormItems: vi.fn(),
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
     resolveKitchenBuId: vi.fn(),
@@ -30,8 +31,10 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   }
 })
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+// The missing-item report (AC-013) files through the Daily Log data layer — mocked like the rest.
+vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
 import {
-  listActiveWipItems,
+  listCaptureFormItems,
   fetchPlanMap,
   fetchStockMap,
   resolveKitchenBuId,
@@ -41,7 +44,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, WipItemOption } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockListActiveWipItems = vi.mocked(listActiveWipItems)
+const mockListCaptureFormItems = vi.mocked(listCaptureFormItems)
 const mockFetchPlanMap = vi.mocked(fetchPlanMap)
 const mockFetchStockMap = vi.mocked(fetchStockMap)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
@@ -133,7 +136,7 @@ import { KitchenLogPage } from './kitchen-log-page'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockListActiveWipItems.mockResolvedValue(WIP_ITEMS)
+  mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
@@ -164,7 +167,7 @@ afterEach(() => {
 describe('Loading state', () => {
   it('shows loading skeleton while fetching WIP items', () => {
     // Never resolve — keeps loading
-    mockListActiveWipItems.mockReturnValue(new Promise(() => {}))
+    mockListCaptureFormItems.mockReturnValue(new Promise(() => {}))
     mockFetchPlanMap.mockReturnValue(new Promise(() => {}))
     mockUseAuth.mockReturnValue(VIEWER_MEMBER)
 
@@ -202,7 +205,7 @@ describe('Unauthenticated state', () => {
 // ── empty state (no WIP items) ────────────────────────────────────────────────
 describe('Empty state — no WIP items (FR-011)', () => {
   it('shows "No active WIP items" message', async () => {
-    mockListActiveWipItems.mockResolvedValue([])
+    mockListCaptureFormItems.mockResolvedValue([])
     await renderPage()
     await waitFor(() => {
       expect(screen.getByText(/no active wip items/i)).toBeInTheDocument()
@@ -213,19 +216,29 @@ describe('Empty state — no WIP items (FR-011)', () => {
   // glyph — it reads as "nothing to log, all done" when it actually means "nothing CAN be
   // logged until an ops lead adds items". 'blank' (—) is the honest "no source configured" read.
   it("Half B convergence: uses the 'blank' (never 'quiet' ✓) EmptyState variant", async () => {
-    mockListActiveWipItems.mockResolvedValue([])
+    mockListCaptureFormItems.mockResolvedValue([])
     await renderPage()
     await waitFor(() => {
       expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
     })
     expect(screen.queryByText('✓')).not.toBeInTheDocument()
   })
+
+  // AC-013: the DD-WAY-29 gate can empty this list entirely (nothing confirmed yet) —
+  // the report route must be reachable from the empty state too.
+  it('AC-013: the missing-item report route is visible even when the gate empties the list', async () => {
+    mockListCaptureFormItems.mockResolvedValue([])
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+    })
+  })
 })
 
 // ── error state ───────────────────────────────────────────────────────────────
 describe('Error state — fetch failure', () => {
   it('shows retry message when WIP fetch fails', async () => {
-    mockListActiveWipItems.mockRejectedValue(new Error('network error'))
+    mockListCaptureFormItems.mockRejectedValue(new Error('network error'))
     await renderPage()
     await waitFor(() => {
       expect(screen.getByText(/couldn’t load the dish list/i)).toBeInTheDocument()
@@ -234,7 +247,7 @@ describe('Error state — fetch failure', () => {
   })
 
   it('retries on retry click', async () => {
-    mockListActiveWipItems
+    mockListCaptureFormItems
       .mockRejectedValueOnce(new Error('network error'))
       .mockResolvedValue(WIP_ITEMS)
     mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
@@ -260,6 +273,15 @@ describe('Populated state — WIP items loaded', () => {
     await waitFor(() => {
       expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
       expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    })
+  })
+
+  // AC-013 (FR-012): an item absent under the DD-WAY-29 gate must never read as a bug with
+  // no exit — the capture surface carries a visible route to report it missing.
+  it('AC-013: offers a visible route to report a missing item on the loaded surface', async () => {
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
     })
   })
 
@@ -719,7 +741,7 @@ describe('Offline / write-blocked state (NFR-008)', () => {
 
   it('disables Submit when offline', async () => {
     Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
-    mockListActiveWipItems.mockResolvedValue(WIP_ITEMS)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
     mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
     await renderPage()
 
@@ -733,7 +755,7 @@ describe('Offline / write-blocked state (NFR-008)', () => {
   // never a bare Retry loop when navigator.onLine === false.
   it('RI-2: surfaces the offline indicator in the ERROR branch (not a bare Retry loop)', async () => {
     Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
-    mockListActiveWipItems.mockRejectedValue(new Error('network error'))
+    mockListCaptureFormItems.mockRejectedValue(new Error('network error'))
     await renderPage()
     await waitFor(() => {
       // an explicit offline alert is present alongside Retry
@@ -744,7 +766,7 @@ describe('Offline / write-blocked state (NFR-008)', () => {
 
   it('RI-2: surfaces the offline indicator in the LOADING branch', async () => {
     Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
-    mockListActiveWipItems.mockReturnValue(new Promise(() => {}))
+    mockListCaptureFormItems.mockReturnValue(new Promise(() => {}))
     mockFetchPlanMap.mockReturnValue(new Promise(() => {}))
     mockFetchStockMap.mockReturnValue(new Promise(() => {}))
     mockResolveKitchenBuId.mockReturnValue(new Promise(() => {}))
@@ -810,7 +832,7 @@ describe('I3: shared PageHead variant="content"', () => {
 // ── RI-3: touch floors on error/unauthenticated affordances ───────────────────
 describe('RI-3: interactive controls meet the 44px touch floor', () => {
   it('Retry carries the .btn-touch floor on the error state', async () => {
-    mockListActiveWipItems.mockRejectedValue(new Error('network error'))
+    mockListCaptureFormItems.mockRejectedValue(new Error('network error'))
     await renderPage()
     const retry = await screen.findByRole('button', { name: /try again/i })
     expect(retry.className).toMatch(/btn-touch/)
@@ -983,7 +1005,7 @@ describe('DD-7: the summary band never reports typed-but-unsaved quantities as l
 describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
   it('a planned item lands in Planned; an unplanned one lands in Off-plan', async () => {
     setDesktopMatchMedia(true)
-    mockListActiveWipItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
     await renderPage()
     await waitFor(() => screen.getByText('Sambal Matah'))
 
@@ -1023,7 +1045,7 @@ describe('OD-K-5: search-mini filters', () => {
 describe('OD-K-5: category filter narrows rows', () => {
   it('choosing a category shows only that category\'s dishes', async () => {
     setDesktopMatchMedia(true)
-    mockListActiveWipItems.mockResolvedValue([
+    mockListCaptureFormItems.mockResolvedValue([
       { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
       { id: 'w2', name: 'Nasi Goreng', category: 'Rice' },
     ])

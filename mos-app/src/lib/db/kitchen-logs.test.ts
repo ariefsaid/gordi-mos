@@ -18,6 +18,7 @@ import type { ProductionStream } from './kitchen-logs.types'
 import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
+  listCaptureFormItems,
   fetchPlanMap,
   fetchStockMap,
   fetchKitchenStock,
@@ -126,20 +127,28 @@ function assertNoServerStamps(inserts: unknown[]) {
 
 beforeEach(() => vi.clearAllMocks())
 
-// ── listActiveWipItems ────────────────────────────────────────────────────────
-describe('listActiveWipItems', () => {
+// ── listActiveWipItems / listCaptureFormItems — the reader split ─────────────
+// The DD-WAY-29 gate scopes absence to the CAPTURE form only (FR-011):
+//   * listCaptureFormItems reads the gated ops.capture_form_items view — only
+//     confirmed item-units, no flag consulted client-side.
+//   * listActiveWipItems stays the UNGATED active-item read that feeds the
+//     stock/verification plane (FR-060, OD-WAY-45) and the plan surface — an
+//     unconfirmed item still has real balances to verify.
+describe('listActiveWipItems — the ungated stock/plan read', () => {
   const WIP_ROWS = [
     { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
     { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
   ]
 
-  it('queries wip_items with flag_active=true ordered by name', async () => {
+  it('queries wip_items with flag_active=true ordered by name — NOT the gated view (FR-060)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema({ wip_items: [{ data: WIP_ROWS, error: null }] }, rec) as never,
     )
 
     const result = await listActiveWipItems()
+    expect(rec.fromTables).toContain('wip_items')
+    expect(rec.fromTables).not.toContain('capture_form_items')
     expect(result).toHaveLength(2)
     expect(result[0].name).toBe('Ayam Bakar')
     expect(rec.eqs).toContainEqual(['flag_active', true])
@@ -161,6 +170,68 @@ describe('listActiveWipItems', () => {
       makeSchema({ wip_items: [{ data: [], error: null }] }, rec) as never,
     )
     const result = await listActiveWipItems()
+    expect(result).toEqual([])
+  })
+})
+
+describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-29)', () => {
+  const VIEW_ROWS = [
+    { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+    { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+  ]
+
+  it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ capture_form_items: [{ data: VIEW_ROWS, error: null }] }, rec) as never,
+    )
+
+    const result = await listCaptureFormItems()
+    expect(rec.fromTables).toContain('capture_form_items')
+    expect(rec.fromTables).not.toContain('wip_items')
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({ id: 'w1', name: 'Ayam Bakar', category: 'Main' })
+    expect(rec.orders).toContainEqual(['name', { ascending: true }])
+    expect(rec.selects).toContain('wip_item_id,name,category')
+  })
+
+  it('collapses multiple confirmed units of one item to a single item row', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          capture_form_items: [
+            {
+              data: [
+                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+                { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const result = await listCaptureFormItems()
+    expect(result.map(r => r.id)).toEqual(['w1', 'w2'])
+  })
+
+  it('throws on PostgREST error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ capture_form_items: [{ data: null, error: { message: 'view not found' } }] }, rec) as never,
+    )
+    await expect(listCaptureFormItems()).rejects.toThrow('listCaptureFormItems failed')
+  })
+
+  it('returns empty array when nothing is confirmed', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ capture_form_items: [{ data: [], error: null }] }, rec) as never,
+    )
+    const result = await listCaptureFormItems()
     expect(result).toEqual([])
   })
 })
@@ -525,7 +596,8 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          // listActiveWipItems read
+          // listActiveWipItems read — deliberately UNGATED (FR-060: stock is the
+          // verification plane and keeps seeing every active item)
           wip_items: [
             {
               data: [

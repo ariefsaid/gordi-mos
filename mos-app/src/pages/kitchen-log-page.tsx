@@ -5,7 +5,7 @@
 // — ONE branch in the DOM (P-4).
 //
 // PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
-//  - Data hooks unchanged (listActiveWipItems / fetchPlanMap / fetchStockMap /
+//  - Data hooks unchanged in shape (listCaptureFormItems / fetchPlanMap / fetchStockMap /
 //    resolveKitchenBuId / insertKitchenLogBatch).
 //  - Gates unchanged (needsVarianceNote / transferExceedsAvailable / effectiveTarget).
 //  - Submit payload byte-identical (NEVER sends status / org_id / submitted_by — NFR-003).
@@ -23,7 +23,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
 import {
-  listActiveWipItems,
+  listCaptureFormItems,
   fetchPlanMap,
   fetchStockMap,
   resolveKitchenBuId,
@@ -68,6 +68,7 @@ import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { HelpTip } from '@/components/ui/help-tip'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -192,7 +193,9 @@ export function KitchenLogPage() {
     setStatus({ kind: 'loading' })
     try {
       const [items, branchRows, bu] = await Promise.all([
-        listActiveWipItems(),
+        // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
+        // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
+        listCaptureFormItems(),
         listActiveBranches(),
         resolveKitchenBuId(),
       ])
@@ -442,6 +445,9 @@ export function KitchenLogPage() {
             title={t('kitchen.empty.noActiveItems.title')}
             copy={t('kitchen.log.empty.copy')}
           />
+          {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
+              the report route must be reachable from here too, not only under a full list. */}
+          {buId && <ReportMissingItem businessUnitId={buId} />}
         </div>
       </PageFamilyFrame>
     )
@@ -731,6 +737,20 @@ export function KitchenLogPage() {
             emptyLabel={t('kitchen.filter.noMatch')}
             caption={t('kitchen.log.caption')}
           />
+
+          {/* AC-013 / FR-012: the DD-WAY-29 gate removes unconfirmed items silently, so the
+              surface carries a visible route to report one missing — absence must never read
+              as a bug with no exit. Own type="button" controls only; never submits this form. */}
+          {buId && (
+            <ReportMissingItem
+              businessUnitId={buId}
+              streamLabel={
+                stream
+                  ? `${branchDisplayName(stream.branch)} / ${activityLabel(t, stream.activity)}`
+                  : undefined
+              }
+            />
+          )}
 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit */}
           <div className="kl-footer">

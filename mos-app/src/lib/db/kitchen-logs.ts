@@ -69,8 +69,14 @@ export async function resolveDefaultCaptureStream(): Promise<ProductionStream | 
 // ── WIP items ────────────────────────────────────────────────────────────────
 
 /**
- * List active WIP items sorted by name.
- * Mirrors oracle list_active_wip_items (FR-011).
+ * List active WIP items sorted by name — the UNGATED read.
+ * Mirrors oracle list_active_wip_items.
+ *
+ * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
+ * CAPTURE form only (FR-011) — this read feeds the stock/verification plane (FR-060,
+ * OD-WAY-45) and the plan surface, which must keep seeing every active item: an
+ * unconfirmed item still has real balances to verify, and hiding it there would blind
+ * the very plane that audits the gate. The capture form reads listCaptureFormItems.
  */
 export async function listActiveWipItems(): Promise<WipItemOption[]> {
   const { data, error } = await ops()
@@ -80,6 +86,31 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
     .order('name', { ascending: true })
   if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
   return (data ?? []) as WipItemOption[]
+}
+
+/**
+ * List the items the CAPTURE FORM may offer, sorted by name — read from
+ * ops.capture_form_items, the gated read path (FR-011, DD-WAY-29): only item-units whose
+ * ERP coordinates are CONFIRMED come back, so an unconfirmed item is absent — not disabled,
+ * not warned. The gate is the query, never a flag consulted at render time (NFR-004).
+ *
+ * The view returns one row per confirmed (item, unit); the form's item list is items, so
+ * rows collapse to distinct items here. Unit display is a later slice (FR-020/021).
+ */
+export async function listCaptureFormItems(): Promise<WipItemOption[]> {
+  const { data, error } = await ops()
+    .from('capture_form_items')
+    .select('wip_item_id,name,category')
+    .order('name', { ascending: true })
+  if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
+  const seen = new Set<string>()
+  const items: WipItemOption[] = []
+  for (const row of (data ?? []) as { wip_item_id: string; name: string; category: string | null }[]) {
+    if (seen.has(row.wip_item_id)) continue
+    seen.add(row.wip_item_id)
+    items.push({ id: row.wip_item_id, name: row.name, category: row.category })
+  }
+  return items
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
