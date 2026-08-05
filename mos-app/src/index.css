@@ -234,6 +234,11 @@
      (#ebebeb). Splits the former Single-Border Rule for legibility — controls
      are clearly bordered. Flagged for DESIGN.md ratification. */
   --border:                var(--border-medium);
+  /* #191 (Home port) — the row-divider grammar `components/home/home-stream.css` (and, ahead of
+     their own ports, the record-collection/catalog/tasks-workspace stylesheets) all reference.
+     Ported from v4's `index.css` verbatim: a quieter step of `--border` via color-mix rather than
+     a second hand-picked hairline colour. */
+  --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
   --input:                 var(--border-strong);
   --ring:                  var(--ds-color-blue);
   --violet:                var(--ds-color-violet);
