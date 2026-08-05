@@ -349,8 +349,9 @@ export const messages = {
     'assistant.askAbout.task': "About Task: ${title}",
     'assistant.askAboutRecord': "Ask Deputy",
     'common.clearFilters': "Clear filters",
-    'common.docTitle': "${page} — Gordi MOS",
-    'common.help': "Help",
+    // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
+    // same key, same value, dropped here rather than duplicated (combination hazard fixed the same
+    // way 6e7fe4c fixed it for Home+Inbox's common.help: earlier-merged pair stays).
     'common.resultCount': "${count} items in your scope",
     'common.save': "Save",
     'common.saveCurrentView': "Save current view",
@@ -889,8 +890,9 @@ export const messages = {
     'assistant.askAbout.task': "Tentang tugas: ${title}",
     'assistant.askAboutRecord': "Tanya Deputi",
     'common.clearFilters': "Hapus filter",
-    'common.docTitle': "${page} — Gordi MOS",
-    'common.help': "Bantuan",
+    // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
+    // same key, same value, dropped here rather than duplicated (combination hazard fixed the same
+    // way 6e7fe4c fixed it for Home+Inbox's common.help: earlier-merged pair stays).
     'common.resultCount': "${count} item dalam cakupan Anda",
     'common.save': "Simpan",
     'common.saveCurrentView': "Simpan tampilan saat ini",
