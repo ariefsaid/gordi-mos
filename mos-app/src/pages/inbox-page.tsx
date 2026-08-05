@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 /**
  * InboxPage — the Inbox destination (ADR-0019 D2/D9). A to-triage list of the viewer's
  * notifications; opening a row marks it read and routes to the owning entity (the Inbox never holds
- * the content, it routes to it). Gated by SHOW_INBOX at the route layer.
+ * the content, it routes to it). Unconditionally live — SHOW_INBOX is retired (#188/#189).
  */
 export function InboxPage() {
   const t = useT()

@@ -17,7 +17,7 @@ test('AC-102 (J4): deep-link to /tasks/:id renders the table AND that task drawe
   const title = TASKS.VIEWER_ACCOUNTABLE.title
 
   // Land directly on the deep link (e.g. from My Week / Daily Log).
-  await page.goto(`tasks/${taskId}`)
+  await page.goto(`work/tasks/${taskId}`)
   await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
 
   // Both panes render: the persistent table AND the task's drawer.
@@ -34,7 +34,7 @@ test.describe('mobile', () => {
     const taskId = TASKS.VIEWER_ACCOUNTABLE.id
     const title = TASKS.VIEWER_ACCOUNTABLE.title
 
-    await page.goto(`tasks/${taskId}`)
+    await page.goto(`work/tasks/${taskId}`)
     await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
 
     // Full-screen modal dialog (no 1/3 drawer on a phone).
@@ -52,13 +52,13 @@ test.describe('mobile', () => {
 
 test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens create', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 
   // The seed has one task; create a second so j j has somewhere to land.
   await createTaskViaUI(page, `J6 Second ${Date.now()}`)
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 

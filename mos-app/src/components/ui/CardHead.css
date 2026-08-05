@@ -52,6 +52,16 @@
 .empty-state--awaiting .empty-state-icon {
   background: color-mix(in srgb, var(--warning) 10%, var(--secondary));
 }
+/* `blank` — empty by design (a placeholder route, an unbuilt slice). Deliberately the quietest
+   of the four: no accent tint, so it never reads as an earned all-clear or as pending work. */
+.empty-state--blank .empty-state-icon {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+/* The one loading grammar — a full-width busy region wrapping the shared skeleton rows.
+   Used as every code-split route's Suspense fallback (state-kit.tsx LoadingShell). */
+.loading-shell { width: 100%; box-sizing: border-box; }
 
 /* Skeleton shimmer — shared pulse (reduced-motion aware) */
 .skeleton-rows { list-style: none; margin: 0; padding: 0; }

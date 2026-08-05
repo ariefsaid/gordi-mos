@@ -16,7 +16,7 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // ── 2. Navigate directly to the seeded task's detail ───────────────────────
   const taskId = TASKS.VIEWER_ACCOUNTABLE.id
   const taskTitle = TASKS.VIEWER_ACCOUNTABLE.title
-  await page.goto(`tasks/${taskId}`)
+  await page.goto(`work/tasks/${taskId}`)
   await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
   // The split-view drawer hosts the task surface (ADR-0007); title is its heading.
   const drawer = page.getByRole('complementary', { name: /task detail/i })

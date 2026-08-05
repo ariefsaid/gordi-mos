@@ -181,6 +181,13 @@ export const messages = {
     'account.signOut': 'Sign out',
     'actionLauncher.open': 'Open actions',
     'breadcrumb.detail': 'Detail',
+    // The one loading announcement — LoadingShell's default label, and therefore what every
+    // code-split route says while its chunk is in flight (router.tsx).
+    'common.loading': 'Loading…',
+    // The placeholder-route copy (slice-stub-page.tsx). A real route whose surface has not been
+    // built yet — distinct from a 404, which is a path that will never exist.
+    'stub.notInSlice': 'Not in this slice yet',
+    'stub.comingLater': '${name} lands in a later build step.',
     'dest.admin': 'Admin Settings',
     'dest.cafe': 'Café',
     'dest.ecommerce': 'Ecommerce',
@@ -408,6 +415,9 @@ export const messages = {
     'account.signOut': 'Keluar',
     'actionLauncher.open': 'Buka aksi',
     'breadcrumb.detail': 'Detail',
+    'common.loading': 'Memuat…',
+    'stub.notInSlice': 'Belum ada di slice ini',
+    'stub.comingLater': '${name} hadir di tahap build berikutnya.',
     'dest.admin': 'Pengaturan Admin',
     'dest.cafe': 'Kafe',
     'dest.ecommerce': 'Ecommerce',

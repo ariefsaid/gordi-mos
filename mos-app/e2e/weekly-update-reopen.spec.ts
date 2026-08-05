@@ -62,8 +62,8 @@ test('AC-091: reopen → edit → resubmit, updated content visible to manager',
   await loginAs(page, MANAGER.email, MANAGER.password)
 
   // ── 6. Manager sees updated summary excerpt in review pane ─────────────────
-  await page.goto('updates')
-  await page.waitForURL(/\/updates$/, { timeout: 10_000 })
+  await page.goto('work/signals')
+  await page.waitForURL(/\/work\/signals$/, { timeout: 10_000 })
 
   const reviewPane = page.locator('[aria-label="Team updates"]')
   await expect(reviewPane).toBeVisible({ timeout: 10_000 })

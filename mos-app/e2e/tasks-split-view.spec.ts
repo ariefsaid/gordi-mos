@@ -12,7 +12,7 @@ import { VIEWER } from './fixtures/users'
 
 test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 })
@@ -22,7 +22,7 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   // earlier specs (e.g. tasks-archive) may have mutated.
   const rowText = `J1 Triage ${Date.now()}`
   await createTaskViaUI(page, rowText)
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
 

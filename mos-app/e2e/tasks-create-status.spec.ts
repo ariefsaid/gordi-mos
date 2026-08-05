@@ -13,7 +13,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await loginAs(page, VIEWER.email, VIEWER.password)
 
   // ── 2. Navigate to the Tasks list ──────────────────────────────────────────
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
   // Switch to "All" to see all tasks (not just mine — in case BU filter differs)
@@ -26,7 +26,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   expect(detailUrl).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
 
   // ── 4. Go back to the list and assert the task appears ──────────────────────
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
   // Switch to "All" again to see the newly created task
@@ -64,7 +64,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await expect(activityPane.getByText(/status changed|→ In Progress|In Progress/i).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   await page.getByRole('tab', { name: 'All' }).click()
   const taskRow = page.locator('tr', { hasText: taskTitle }).or(

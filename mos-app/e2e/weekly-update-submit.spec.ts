@@ -61,8 +61,8 @@ test('AC-090: author writes, submits → strip shows Submitted, manager sees Fil
   await loginAs(page, MANAGER.email, MANAGER.password)
 
   // Navigate to /updates
-  await page.goto('updates')
-  await page.waitForURL(/\/updates$/, { timeout: 10_000 })
+  await page.goto('work/signals')
+  await page.waitForURL(/\/work\/signals$/, { timeout: 10_000 })
 
   // ── 5. Assert: manager review pane shows Cahya's row as "Filed" ───────────
   // Wait for the review pane to render (manager sees "Team updates" section)

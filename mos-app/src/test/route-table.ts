@@ -5,10 +5,12 @@
 // the destination. Everything here resolves through `routeConfig` and react-router's own matcher,
 // so deleting a route from the real table turns the assertion red.
 
-import { isValidElement, type ReactNode } from 'react'
+import { Suspense, isValidElement, type ComponentType, type ReactElement, type ReactNode } from 'react'
 import { expect } from 'vitest'
 import { Navigate, matchRoutes, type RouteObject } from 'react-router-dom'
 import { routeConfig } from '@/router'
+import { RouteRedirect } from '@/shell/route-redirect'
+import { LoadingShell } from '@/components/ui/state-kit'
 import { RequireCapability } from '@/auth/require-capability'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { AdminRoute } from '@/auth/admin-route'
@@ -18,16 +20,118 @@ export function allRoutes(routes: RouteObject[] = routeConfig): RouteObject[] {
   return routes.flatMap((r) => [r, ...(r.children ? allRoutes(r.children) : [])])
 }
 
-/** True when the route element is a redirect (a `<Navigate>`) rather than a rendered surface. */
-export function isRedirect(element: ReactNode): boolean {
-  return isValidElement(element) && element.type === Navigate
+export interface FlatRoute {
+  /** The route's FULL path, resolved through its ancestors (`new` → `/work/tasks/new`). */
+  path: string
+  route: RouteObject
 }
 
-/** The `to` / `replace` a redirect element carries. Throws if the element is not a redirect. */
+function joinPath(parent: string, segment: string): string {
+  const joined = segment.startsWith('/') ? segment : `${parent}/${segment}`
+  const collapsed = joined.replace(/\/+/g, '/')
+  return collapsed === '/' ? collapsed : collapsed.replace(/\/$/, '')
+}
+
+/**
+ * The table flattened with each route's FULL path resolved. Pathless routes (the auth gates, the
+ * shell layout route, the capability gates) inherit their parent's path and are kept, so a caller
+ * can still see them — filter on `route.element` when only surfaces matter.
+ */
+export function flattenRoutes(routes: readonly RouteObject[] = routeConfig, parent = ''): FlatRoute[] {
+  return routes.flatMap((route) => {
+    const path = route.index || route.path === undefined ? parent || '/' : joinPath(parent, route.path)
+    return [{ path, route }, ...(route.children ? flattenRoutes(route.children, path) : [])]
+  })
+}
+
+/**
+ * True when the route element forwards somewhere else instead of rendering a surface.
+ *
+ * Two shapes count: `<RouteRedirect>` (every entry in the redirect map) and a bare `<Navigate>`
+ * (what a flag-off route falls back to). Both are hops, and the one-hop assertion has to see
+ * both — a destination that is itself a flag-off `<Navigate>` is as much a second hop as one that
+ * is a redirect-map entry.
+ */
+export function isRedirect(element: ReactNode): boolean {
+  return isValidElement(element) && (element.type === Navigate || element.type === RouteRedirect)
+}
+
+/**
+ * The `to` a redirect element carries, and whether it replaces the history entry.
+ *
+ * `<RouteRedirect>` takes no `replace` prop because it always replaces — that is part of what the
+ * component IS, and `route-redirect.test.tsx` proves it behaviourally (navigate through one, then
+ * go Back, and land where you came from rather than back on the retired path). Reading `true` off
+ * the component's identity here would be circular if that test did not exist; it does.
+ */
 export function redirectProps(element: ReactNode): { to: string; replace: boolean } {
-  if (!isRedirect(element)) throw new Error('route element is not a <Navigate> redirect')
-  const props = (element as React.ReactElement<{ to: string; replace?: boolean }>).props
-  return { to: String(props.to), replace: props.replace === true }
+  if (!isRedirect(element)) throw new Error('route element is not a redirect')
+  const el = element as ReactElement<{ to: string; replace?: boolean }>
+  if (el.type === RouteRedirect) return { to: String(el.props.to), replace: true }
+  return { to: String(el.props.to), replace: el.props.replace === true }
+}
+
+export interface EnumeratedRedirect {
+  from: string
+  to: string
+  replace: boolean
+  /**
+   * `map` — an entry of the redirect map: a retired path forwarding to its canonical replacement.
+   * `flag-fallback` — a route that exists but is switched off, sending the viewer home. Both are
+   * held to one hop; only `map` entries owe the caller their query string.
+   */
+  kind: 'map' | 'flag-fallback'
+}
+
+/** Every forwarding route, read off the real table rather than a hand-kept list. */
+export function allRedirects(): EnumeratedRedirect[] {
+  return flattenRoutes()
+    .filter(({ route }) => isRedirect(route.element))
+    .map(({ path, route }) => ({
+      from: path,
+      ...redirectProps(route.element),
+      kind: (route.element as ReactElement).type === RouteRedirect ? ('map' as const) : ('flag-fallback' as const),
+    }))
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- mirrors React.lazy's own type parameter */
+type MaybePreloadable = ComponentType<any> & {
+  preload?: () => Promise<{ default: ComponentType<any> }>
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * The code-split payload behind a route element, or `undefined` when the element is not a
+ * `<Suspense fallback={<LoadingShell/>}>` wrapper around a lazily-loaded component.
+ *
+ * The fallback identity is part of the check on purpose: a route split behind some other spinner
+ * is still a split route, but it is not behind the app's ONE loading grammar, which is what
+ * AC-019 asks for.
+ */
+export function lazyPayloadOf(element: ReactNode): MaybePreloadable | undefined {
+  if (!isValidElement(element)) return undefined
+  const el = element as ReactElement<{ fallback?: ReactNode; children?: ReactNode }>
+  if (el.type !== Suspense) return undefined
+  const fallback = el.props.fallback
+  if (!isValidElement(fallback) || fallback.type !== LoadingShell) return undefined
+  const child = el.props.children
+  if (!isValidElement(child)) return undefined
+  const payload = child.type as MaybePreloadable
+  return typeof payload?.preload === 'function' ? payload : undefined
+}
+
+/**
+ * The component a route ACTUALLY renders, resolved by running the route's own module loader.
+ *
+ * This is the difference between proving the wiring and trusting a label: the caller compares the
+ * result against a statically imported page component by identity, so re-pointing a route at a
+ * different module turns the assertion red no matter what the route's name or comment says.
+ */
+export async function resolvePageAt(path: string): Promise<ComponentType<unknown> | undefined> {
+  const leaf = leafInThisTable(path)
+  const payload = lazyPayloadOf(leaf?.route.element)
+  if (!payload?.preload) return undefined
+  return (await payload.preload()).default as ComponentType<unknown>
 }
 
 /**
