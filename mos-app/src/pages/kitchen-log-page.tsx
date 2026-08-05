@@ -5,7 +5,7 @@
 // — ONE branch in the DOM (P-4).
 //
 // PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
-//  - Data hooks unchanged (listActiveWipItems / fetchPlanMap / fetchStockMap /
+//  - Data hooks unchanged in shape (listCaptureFormItems / fetchPlanMap / fetchStockMap /
 //    resolveKitchenBuId / insertKitchenLogBatch).
 //  - Gates unchanged (needsVarianceNote / transferExceedsAvailable / effectiveTarget).
 //  - Submit payload byte-identical (NEVER sends status / org_id / submitted_by — NFR-003).
@@ -23,7 +23,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
 import {
-  listActiveWipItems,
+  listCaptureFormItems,
   fetchPlanMap,
   fetchStockMap,
   resolveKitchenBuId,
@@ -193,7 +193,9 @@ export function KitchenLogPage() {
     setStatus({ kind: 'loading' })
     try {
       const [items, branchRows, bu] = await Promise.all([
-        listActiveWipItems(),
+        // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
+        // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
+        listCaptureFormItems(),
         listActiveBranches(),
         resolveKitchenBuId(),
       ])

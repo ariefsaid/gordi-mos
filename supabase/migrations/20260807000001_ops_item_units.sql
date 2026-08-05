@@ -20,6 +20,8 @@
 --
 -- DOWN:
 --   drop view ops.capture_form_items;
+--   drop trigger item_units_stamp_confirmation on ops.item_units;
+--   drop function ops._stamp_item_unit_confirmation();
 --   drop trigger item_units_guard on ops.item_units;
 --   drop function ops._guard_item_unit();
 --   drop table ops.item_units;
@@ -42,10 +44,17 @@ create table ops.item_units (
   -- Exactly one default unit per item (partial unique index below); the form shows the default
   -- as fixed master data and offers alternates only behind "change unit" (FR-020/021).
   is_default            boolean not null default false,
-  -- The confirmation event (FR-030): who/when. confirmed_at is the gate predicate. confirmed_by
-  -- is nullable BY DESIGN, not just for `on delete set null`: the backfilled rows below are
-  -- system-migrated (the coordinates post today; no person recorded them in MOS), and a person
-  -- row's deletion must not un-confirm live master data.
+  -- FR-032: where the ERP's unit-variant list is synced, only variants the ERP flags
+  -- transferable may be offered as alternates. The FLAG lives here because the item-unit record
+  -- is the seam — synced and hand-maintained rows share one shape. Column only in this slice:
+  -- nothing consumes it yet; the offerability filtering is ticket #234's, which reads it.
+  is_transferable       boolean not null default true,
+  -- The confirmation event (FR-030): who/when. confirmed_at is the gate predicate. Both columns
+  -- are SERVER-STAMPED by ops._stamp_item_unit_confirmation (defined after the backfill below) —
+  -- a client-supplied who/when is overridden, never stored. confirmed_by is nullable BY DESIGN,
+  -- not just for `on delete set null`: the backfilled rows are system-migrated (the coordinates
+  -- post today; no person recorded them in MOS), and a person row's deletion must not un-confirm
+  -- live master data.
   confirmed_at          timestamptz,
   confirmed_by          uuid references shared.people(id) on delete set null,
   created_at            timestamptz not null default now(),
@@ -61,7 +70,9 @@ create table ops.item_units (
 comment on table ops.item_units is
   'Unit as master data (FR-030, OD-WAY-46/47): per item-unit, the ERP coordinate pair and a confirmation event. The capture form reads only confirmed rows (DD-WAY-29 via ops.capture_form_items). Backfilled rows carry confirmed_by NULL (system-migrated).';
 comment on column ops.item_units.confirmed_at is
-  'The DD-WAY-29 gate predicate: NULL = the pair appears on no capture form, anywhere.';
+  'The DD-WAY-29 gate predicate: NULL = the pair appears on no capture form, anywhere. Server-stamped on the unconfirmed→confirmed transition; immutable while confirmed; cleared when the coordinates move.';
+comment on column ops.item_units.is_transferable is
+  'FR-032: an ERP-synced variant the ERP flags non-transferable must never be offered as an alternate. Recorded here because the item-unit record is the seam between synced and hand-maintained rows. NOT yet consumed — the offerability filtering belongs to #234, which reads this column.';
 
 create unique index item_units_one_default_uidx on ops.item_units (wip_item_id) where is_default;
 create index item_units_org_idx  on ops.item_units (org_id);
@@ -157,6 +168,65 @@ from ops.wip_items w
 where w.esb_product_detail_id_porsi is not null
 on conflict (wip_item_id, unit_name) do nothing;
 
+-- ── 4b. Confirmation provenance: the event is server-stamped, never client-supplied ──────────
+-- FR-030 records WHO confirmed and WHEN. With plain column writes an ops_lead could file a
+-- confirmation under another same-org person's name, back-date it, or leave confirmed_by NULL —
+-- provenance by convention. This trigger makes it structural:
+--
+--   * unconfirmed → confirmed (INSERT or UPDATE): confirmed_at := now(),
+--     confirmed_by := shared.current_person_id() — whatever the client sent is OVERRIDDEN.
+--     Setting coordinates and confirming in one write stays legal on an unconfirmed row.
+--   * confirmed, coordinates changed (DD-WAY-29): the confirmation is VOID — both columns are
+--     cleared even if the same statement claims a new confirmation, so a re-pointed row drops
+--     off ops.capture_form_items until a separate confirmation event re-admits it.
+--   * confirmed, coordinates unchanged: the recorded who/when is immutable — client values are
+--     discarded in favour of the stored ones.
+--   * explicit un-confirmation (confirmed_at := null): allowed; confirmed_by clears with it.
+--
+-- Created AFTER the backfill deliberately: the backfilled rows (confirmed, confirmed_by NULL =
+-- system-migrated) are the ONLY writes that ever bypass this stamp — every later confirmation
+-- carries a real session person, or NULL under a claimless definer/service context.
+create or replace function ops._stamp_item_unit_confirmation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.confirmed_at is not null then
+      new.confirmed_at := now();
+      new.confirmed_by := shared.current_person_id();
+    else
+      new.confirmed_by := null;
+    end if;
+    return new;
+  end if;
+  -- UPDATE
+  if (new.esb_product_detail_id is distinct from old.esb_product_detail_id
+      or new.esb_product_id is distinct from old.esb_product_id)
+     and old.confirmed_at is not null then
+    new.confirmed_at := null;
+    new.confirmed_by := null;
+  elsif old.confirmed_at is null and new.confirmed_at is not null then
+    new.confirmed_at := now();
+    new.confirmed_by := shared.current_person_id();
+  elsif old.confirmed_at is not null and new.confirmed_at is not null then
+    new.confirmed_at := old.confirmed_at;
+    new.confirmed_by := old.confirmed_by;
+  else
+    new.confirmed_by := null;
+  end if;
+  return new;
+end;
+$$;
+comment on function ops._stamp_item_unit_confirmation() is
+  'FR-030 provenance made structural: the confirmation event is stamped from the session (now(), shared.current_person_id()) on the unconfirmed->confirmed transition, immutable while confirmed, and VOIDED when the ERP coordinates change (DD-WAY-29 - a re-pointed row leaves the capture view until re-confirmed). Client-supplied who/when is always overridden. SECURITY INVOKER.';
+
+create trigger item_units_stamp_confirmation
+  before insert or update on ops.item_units
+  for each row execute function ops._stamp_item_unit_confirmation();
+
 -- ── 5. The gated read path: ops.capture_form_items ───────────────────────────────────────────
 -- The DD-WAY-29 gate as a query predicate (NFR-004): the capture form's item source. One row per
 -- confirmed (item, unit) on an active item; an unconfirmed pair is ABSENT — no flag column is
@@ -226,9 +296,13 @@ begin
   on conflict (id) do nothing;
 
   -- ── Business units ──────────────────────────────────────────────────────────────────────────
-  insert into shared.business_units (id, org_id, name) values
-    ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar'),
-    ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B-Kitchen')
+  -- `code` is LOAD-BEARING, not decoration: the app resolves the Café BU exclusively by
+  -- code='retail_ops' (kitchen-logs.ts resolveKitchenBuId — resolving by display name broke on
+  -- rename once already), and #231's stream-team seed joins on the same code. A fixture BU
+  -- without it is a BU the app cannot find.
+  insert into shared.business_units (id, org_id, name, code) values
+    ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops'),
+    ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B-Kitchen','retail_ops')
   on conflict (id) do nothing;
 
   -- ── A live ops_lead grant ───────────────────────────────────────────────────────────────────
