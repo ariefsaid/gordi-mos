@@ -1,13 +1,25 @@
-// DashboardPage tests — TDD (AC-tagged). The /dashboard composition (Variant B Tabs).
+// DashboardPage tests — the Money page composition (Variant B Tabs).
 // Proves the page's OWN behavior once mounted: reads BOTH reporting tables (AC-004),
 // freshness (AC-020), empty (AC-021), error+retry (AC-023), loading skeleton (AC-022),
 // populated render (revenue + GM basis-labelled KPIs, channel-mix string, detail table
-// columns, "What's coming" strip, filter-in-place, tab persistence).
-// Route-gate (AC-001/002/003) is owned by router.tsx + RequireAccessRole (separate suite).
+// columns, "What's coming" strip, filter-in-place, tab persistence, deep-link hydration).
+//
+// TWO GATES, and this file owns the second one:
+//   READ — which access roles reach the route at all (REVENUE_VIEW_ROLES) is router.tsx's
+//          and RequireAccessRole's, proven in router.test.tsx. Not here.
+//   COST — whether a viewer inside that read sees margin/COGS (canViewMargin, AC-329 /
+//          ADR-0051 D4) is the PAGE's, and is proven by the AC-329 block below.
+//
+// The v4 payload's copy of this file DELETED the AC-329 block and unconditionally fetched
+// and rendered margin. That is a v4 regression against a shipped, owner-locked tier on this
+// line, not a design intent to carry — so the block is kept and v4's design is layered over
+// it. Every other v4 assertion in this file is carried as authored.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/lib/db/reporting', async () => {
@@ -25,6 +37,7 @@ import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporti
 import { useAuth } from '@/auth/use-auth'
 
 import { DashboardPage } from './dashboard-page'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
 const mockMarg = vi.mocked(listSalesMarginDaily)
@@ -120,7 +133,7 @@ function setPhone() {
   })
 }
 
-function renderPage(initialPath = '/dashboard') {
+function renderPage(initialPath = '/money') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <DashboardPage />
@@ -129,7 +142,7 @@ function renderPage(initialPath = '/dashboard') {
 }
 
 /** Render with a given viewer accessRoles set (AC-329 — margin visibility gate). */
-function renderDashboard(accessRoles: string[], initialPath = '/dashboard') {
+function renderDashboard(accessRoles: string[], initialPath = '/money') {
   mockUseAuth.mockReturnValue(authViewer(accessRoles))
   return renderPage(initialPath)
 }
@@ -137,8 +150,8 @@ function renderDashboard(accessRoles: string[], initialPath = '/dashboard') {
 beforeEach(() => {
   vi.clearAllMocks()
   setDesktop()
-  // Default viewer holds admin (both revenue + margin) so pre-existing tests, which don't
-  // specify a role, keep the gross-margin row (finance-view behavior unchanged, ADR-0051 D4).
+  // Default viewer holds admin (both revenue + margin) so the tests that don't name a role
+  // exercise the FULL page (finance-view behavior unchanged, ADR-0051 D4).
   mockUseAuth.mockReturnValue(authViewer(['admin']))
 })
 
@@ -171,6 +184,58 @@ describe('DashboardPage — states', () => {
     expect(screen.queryByText(/^Rp 0/)).not.toBeInTheDocument()
   })
 
+  it('F11 (OD-91 #24): the awaiting-sync affordance is a REAL refresh — it re-fetches the snapshot and can recover to populated', async () => {
+    // Empty on first load, then a real snapshot lands on the refresh re-fetch.
+    mockRev.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysRevenue())
+    mockMarg.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysMargin())
+    renderPage()
+    const refresh = await screen.findByRole('button', { name: /check for new snapshot/i })
+    fireEvent.click(refresh)
+    // Re-fetched the snapshot (not a decorative badge) and recovered to the populated page.
+    await waitFor(() => expect(mockRev).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('heading', { name: /daily revenue/i })).toBeInTheDocument()
+  })
+
+  it('F11 (OD-91 #24): a refresh that fails lands the honest error state — the affordance never lies about success', async () => {
+    mockRev.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('boom'))
+    mockMarg.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysMargin())
+    renderPage()
+    const refresh = await screen.findByRole('button', { name: /check for new snapshot/i })
+    fireEvent.click(refresh)
+    expect(await screen.findByRole('button', { name: /retry|try again/i })).toBeInTheDocument()
+  })
+
+  it('money-3: the empty state carries the dash-empty-fill scoping class so it centers within the full remaining viewport at ≥1280px instead of a stranded fixed-height block', async () => {
+    mockRev.mockResolvedValue([])
+    mockMarg.mockResolvedValue([])
+    renderPage()
+    const heading = await screen.findByRole('heading', { name: /no sales snapshot/i })
+    expect(heading.closest('[data-testid="empty-state"]')).toHaveClass('dash-empty-fill')
+  })
+
+  it('census r3 + r5 F-5: the channel-mix tile spans 2 tracks at EVERY width — span hook on the tile + the unconditional pinned rule — no value spill, no ragged trailing void', async () => {
+    mockRev.mockResolvedValue(sixtyDaysRevenue())
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+    renderPage()
+
+    // The one tile whose value ("POS 83% · B2B 17%") outgrows a narrow track carries
+    // the composition's span hook (grid placement is the page's concern, not the tile's).
+    const tile = await screen.findByRole('group', { name: 'Channel mix' })
+    expect(tile).toHaveClass('dash-kpi-tile--mix')
+
+    // Structural pin of the rule (jsdom computes no grid layout — the stylesheet is the
+    // oracle). r5 F-5 deliberately made the span UNCONDITIONAL: it must live in the base
+    // sheet (before any @media), so desktop 3-up rows are full (3 + 1+2) — no void.
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/dashboard-page.css'), 'utf8')
+    expect(css).toMatch(/\.dash-kpi-tile--mix\s*\{\s*grid-column:\s*span 2;/)
+    expect(css.indexOf('.dash-kpi-tile--mix')).toBeLessThan(css.indexOf('@media'))
+    // And the GM row is REGROUPED (the ruling's other half): 4 tiles never sit in a
+    // 3-up grid — 2×2 base, 4-up from 1024 — so BOM coverage is never stranded.
+    expect(css).toMatch(/\.dash-kpi-grid--gm\s*\{[^}]*repeat\(2, minmax\(0, 1fr\)\)/)
+    const wide = css.split('@media (min-width: 1024px)')[1] ?? ''
+    expect(wide).toMatch(/\.dash-kpi-grid--gm\s*\{[^}]*repeat\(4, minmax\(0, 1fr\)\)/)
+  })
+
   it('AC-023: error — non-secret retry, no DSN/token/SQL/stack text', async () => {
     mockRev.mockRejectedValueOnce(new Error('permission denied for schema reporting'))
     mockMarg.mockResolvedValue([])
@@ -192,6 +257,15 @@ describe('DashboardPage — states', () => {
   })
 })
 
+describe('DashboardPage — Follow-up queue door (Step 9, AC-903)', () => {
+  it('AC-903: hides the Follow-up queue link while SHOW_FOLLOWUPS is dark-launched off', () => {
+    mockRev.mockReturnValue(new Promise(() => {}))
+    mockMarg.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    expect(screen.queryByRole('link', { name: /follow-up queue/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('DashboardPage — populated (desktop, Summary tab)', () => {
   beforeEach(() => {
     setDesktop()
@@ -202,8 +276,19 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
   it('AC-020: shows a freshness "as of" label', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
-    // The snapshot timestamp renders somewhere on the page (page head + global toolbar).
+    // The snapshot timestamp renders somewhere on the page (page head + chart frame).
     expect(screen.getAllByText(/2026/i).length).toBeGreaterThan(0)
+  })
+
+  it('AC-020: freshness reads as a human WIB time, never a raw ISO timestamp', async () => {
+    // A finance reader glances at "as of …" to trust the figures — it must be legible
+    // (e.g. "1 Jul 2026, 10:14 WIB"), not a machine ISO string. Every "as of" label on
+    // the page (page head + chart) routes through the shared FreshnessLabel, so the raw
+    // `2026-07-01T03:14:00Z` fixture must never leak to the DOM.
+    const { container } = renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    expect(container.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)
+    expect(screen.getAllByText(/WIB/).length).toBeGreaterThan(0)
   })
 
   it('renders the revenue KPI tiles (7d, 30d, latest-day, avg check, channel mix)', async () => {
@@ -248,11 +333,18 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     expect(screen.getByText(/roastery yield/i)).toBeInTheDocument()
   })
 
-  it('AC-011: renders the global toolbar above the tabs (cut + window + freshness)', async () => {
+  it('sets the document title to the Money noun (page identity, not "Dashboard")', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    expect(document.title).toBe('Money — Gordi MOS')
+  })
+
+  it('AC-011: renders the global toolbar above the tabs (cut + window)', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     expect(screen.getByRole('toolbar', { name: /dashboard filters/i })).toBeInTheDocument()
-    expect(screen.getByRole('tablist', { name: /dashboard view/i })).toBeInTheDocument()
+    // The view tablist carries the Money noun (page identity), not "Dashboard".
+    expect(screen.getByRole('tablist', { name: /money view/i })).toBeInTheDocument()
   })
 
   it('AC-016: clicking the 7-day revenue tile filters the window in-place (no page load)', async () => {
@@ -264,6 +356,21 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     await waitFor(() => expect(tile7d).toHaveAttribute('aria-current', 'true'))
   })
 
+  it('AC-017: Summary exposes a parameterized full-detail door carrying the active window and cut', async () => {
+    renderPage('/money')
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    const detail = screen.getByRole('link', { name: /view full detail/i })
+    expect(detail).toHaveAttribute('href', '/money/detail?window=30d&cut=branch')
+  })
+
+  it('AC-017: direct parameterized Detail URLs hydrate the same window and cut controls', async () => {
+    renderPage('/money/detail?window=7d&cut=channel')
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    expect(screen.getByRole('tab', { name: '7d' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '30d' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tab', { name: 'Channel' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('renders the chart a11y table fallback in the DOM', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
@@ -271,6 +378,11 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
   })
 })
 
+// ── The COST tier (AC-329 / ADR-0051 D4). Kept against the v4 payload, which deleted it. ──
+// A supervisor is admitted to the Money ROUTE (REVENUE_VIEW_ROLES) and sees revenue. Margin,
+// COGS and BOM coverage are a narrower tier they do not hold. The contract has three parts and
+// each is a separate failure mode: the query is not issued, the tiles are not drawn, and the
+// columns are not drawn. Blanking any of the three would still disclose that the figure exists.
 describe('AC-329: supervisor gets a revenue-only dashboard (ADR-0051 D4)', () => {
   beforeEach(() => {
     setDesktop()
@@ -290,6 +402,15 @@ describe('AC-329: supervisor gets a revenue-only dashboard (ADR-0051 D4)', () =>
     expect(await screen.findByText(/gross margin %/i)).toBeInTheDocument()
   })
 
+  it('a manager — the WIDER revenue-view tier — still reaches the page and still sees revenue', async () => {
+    // The route admits finance, admin, manager and supervisor (AC-127 / ADR-0050 D8,
+    // AC-326 / ADR-0051). A port that narrowed the page to finance|admin would leave a
+    // manager staring at an empty render rather than being bounced, which is why the
+    // page's own behaviour for a manager is pinned here and not only at the route.
+    renderDashboard(['manager'])
+    expect(await screen.findByText(/trailing 7-day revenue/i)).toBeInTheDocument()
+  })
+
   it('a supervisor sees no margin/COGS columns in the Detail table', async () => {
     renderDashboard(['supervisor'])
     await screen.findByText(/trailing 7-day revenue/i)
@@ -298,6 +419,24 @@ describe('AC-329: supervisor gets a revenue-only dashboard (ADR-0051 D4)', () =>
     expect(within(table).queryByRole('columnheader', { name: /cogs/i })).not.toBeInTheDocument()
     expect(within(table).queryByRole('columnheader', { name: /^gross margin$/i })).not.toBeInTheDocument()
     expect(within(table).queryByRole('columnheader', { name: /margin %/i })).not.toBeInTheDocument()
+  })
+
+  it('a supervisor sees no interim/GL-certified footnote — it qualifies COST figures that are not on their screen', async () => {
+    renderDashboard(['supervisor'])
+    await screen.findByText(/trailing 7-day revenue/i)
+    expect(screen.queryByText(/not GL-certified/i)).not.toBeInTheDocument()
+  })
+
+  it('the cost columns are ABSENT for a supervisor, never blanked — no "—" cell under a margin header', async () => {
+    // The distinction the contract turns on: a "—" under "Margin %" still tells a viewer a
+    // margin exists for this row. Absence of the header is the disclosure boundary.
+    renderDashboard(['supervisor'])
+    await screen.findByText(/trailing 7-day revenue/i)
+    fireEvent.click(screen.getByRole('tab', { name: /detail/i }))
+    const table = await screen.findByRole('table', { name: /revenue breakdown/i })
+    const headers = within(table).getAllByRole('columnheader').map(h => h.textContent ?? '')
+    expect(headers).not.toContain('—')
+    expect(headers.some(h => /margin|cogs/i.test(h))).toBe(false)
   })
 })
 
@@ -322,6 +461,18 @@ describe('DashboardPage — Detail tab', () => {
     expect(within(table).getByRole('columnheader', { name: /^gross margin$/i })).toBeInTheDocument()
     expect(within(table).getByRole('columnheader', { name: /margin %/i })).toBeInTheDocument()
   })
+
+  it('r5 F-2: Share % and Margin % speak the SAME id-ID separator — no raw-period percent in the table', async () => {
+    renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+    fireEvent.click(screen.getByRole('tab', { name: /detail/i }))
+    const table = await screen.findByRole('table', { name: /revenue breakdown/i })
+    // Fixtures: POS 10jt/day vs B2B 5jt/day → shares 66,7% / 33,3% (comma, canonical module).
+    expect(within(table).getByText('66,7%')).toBeInTheDocument()
+    expect(within(table).getByText('33,3%')).toBeInTheDocument()
+    // The old raw-period form must not render anywhere in the table.
+    expect(within(table).queryByText(/\d+\.\d+%/)).toBeNull()
+  })
 })
 
 describe('DashboardPage — populated (phone)', () => {
@@ -335,5 +486,35 @@ describe('DashboardPage — populated (phone)', () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     expect(screen.getByText(/trailing 7-day revenue/i)).toBeInTheDocument()
+  })
+})
+
+// I18N-1 (census DO-8): the Money surface routes its KPI/tab/chart/table labels through the
+// i18n catalog — under `id` it renders Indonesian, not English.
+describe('DashboardPage — locale seam (I18N-1)', () => {
+  beforeEach(() => {
+    setDesktop()
+    localStorage.setItem('mos.locale', 'id')
+    mockRev.mockResolvedValue(sixtyDaysRevenue())
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+  })
+  afterEach(() => localStorage.clear())
+
+  it('renders KPI labels, tabs, chart, and table headers in Bahasa Indonesia under id', async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/money']}>
+          <DashboardPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    // Tabs (Ringkasan / Rincian), a KPI label, and the condensed-table header — all Indonesian.
+    expect(await screen.findByRole('tab', { name: 'Ringkasan' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Rincian' })).toBeInTheDocument()
+    expect(screen.getByText('Marjin kotor %')).toBeInTheDocument()
+    // Both the chart fallback and the condensed detail table carry a translated 'Pendapatan' header.
+    expect(screen.getAllByRole('columnheader', { name: 'Pendapatan' }).length).toBeGreaterThan(0)
+    // The old English strings are gone.
+    expect(screen.queryByText('Gross margin %')).toBeNull()
   })
 })
