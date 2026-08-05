@@ -2,7 +2,7 @@
 // 32px, 8px radius, 13/600. variant → primary | outline | ghost | destructive.
 // For <Link>/<a> use the same `.btn .btn-{variant}` classes directly (Button.css
 // is imported globally in main.tsx so class-based usages resolve).
-import { forwardRef, type ButtonHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, Ref } from 'react'
 import './Button.css'
 
 export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive'
@@ -16,22 +16,21 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
+  // Ported for #192 (Tasks — collection-toolbar.tsx's disclosure trigger measures its own DOM
+  // node) and needed the same way by the Signals collection toolbar's disclosure and the Signal
+  // category/mention pickers: a popover trigger has to be measurable and re-focusable by the hook
+  // that owns its listbox. React 19 passes `ref` to a plain function component as an ordinary
+  // prop — no `forwardRef` wrapper needed — but the prop must still be declared for the JSX types
+  // to admit `<Button ref={...} />` at a call site.
+  ref?: Ref<HTMLButtonElement>
 }
 
-// Ref-forwarding, because a popover trigger has to be measurable and re-focusable by the hook that
-// owns its listbox (the collection toolbar's disclosure, the Signal category/mention pickers). The
-// alternative every caller would otherwise reach for is a bare <button> beside this one, which is
-// how a second button grammar starts.
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'outline', className, type = 'button', ...rest },
-  ref,
-) {
+export function Button({ variant = 'outline', className, type = 'button', ...rest }: ButtonProps) {
   return (
     <button
-      ref={ref}
       type={type}
       className={`btn ${VARIANT_CLASS[variant]}${className ? ` ${className}` : ''}`}
       {...rest}
     />
   )
-})
+}

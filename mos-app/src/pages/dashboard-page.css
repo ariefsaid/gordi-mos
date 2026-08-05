@@ -1,39 +1,54 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   DashboardPage — the /dashboard composition layout (design-plan §1, Variant B).
+   DashboardPage — the /money composition layout (design-plan §1, Variant B).
    Desktop: page head → global toolbar → tab strip → one pane (Summary or Detail).
    Token-only (DESIGN.md). Soft-Elevation: shadow on KPI tiles/chart/table only.
+   The page head is the shared PageHead via PageFamilyFrame — this sheet no longer
+   owns a `.dash-head` of its own.
    ════════════════════════════════════════════════════════════════════════════ */
-.dash-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 22px 24px 6px;
-  box-sizing: border-box;
-}
-
-.dash-fresh {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-}
-
 .dash-pane {
   padding: 16px 24px 24px;
   box-sizing: border-box;
 }
 
-/* KPI grid — desktop 5-up (design-plan §1.1), tablet 3-up, phone 2-up (§1.3). */
+/* KPI grid — desktop/tablet 3-up (5 tiles → 3+2), phone 2-up (§1.3).
+   minmax(0, 1fr) is load-bearing (g-money finding 2): a plain 1fr track floors at the tile's
+   min-content, so the nowrap channel-mix value ("POS 83% · B2B 17%") blew the 5 tracks past
+   the sidebar-reduced content column and clipped the last tile at a true 1280 viewport.
+   NO wide-desktop 5-up return: .page-frame__content caps the column at 1180px, so a 5-track
+   tile is ~217px — the 23px channel-mix value needs ~264px and would visibly spill at ANY
+   viewport (measured at 1600). Under that cap, 3-up is the widest clean layout; the
+   design-plan §1.1 5-up predates the v3 frame cap. */
 .dash-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
+
+/* Census r3 + r5 F-5 (Director rulings): the channel-mix value ("POS 83% · B2B 17%",
+   23px nowrap ≈ 230px + 34px chrome ≈ 264px min) paints past its tile wherever a
+   track is narrower than that (the whole phone 2-up range; 3-up below ~1024). SPAN
+   treatment, not font/wrap surgery — and r5 F-5 makes it UNCONDITIONAL: at desktop
+   3-up the 5-tile grid otherwise ends 3 + 2-with-a-void; with the mix tile on 2
+   tracks every row is full at every width (2-up phone → 2/2/full-row; 3-up →
+   3 + 1+2). No ragged trailing voids, value never leaves its tile, no-wrap number
+   grammar intact. */
+.dash-kpi-tile--mix {
+  grid-column: span 2;
+}
 .dash-kpi-grid--gm {
   margin-top: 12px;
+  /* r5 F-5 ("regroup the GM row"): 4 tiles in a 3-up grid stranded BOM coverage
+     with a 2-track trailing void. Full-row arithmetic for 4 tiles: 2×2 through
+     1023 (a 3-up track can't be split evenly by 4), 4-up from 1024 where a track
+     (~197px+) holds the widest GM value at the 23px ceiling. Phone stays on the
+     shared 2-up (2×2, full). */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 1024px) {
+  .dash-kpi-grid--gm {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .dash-loading {
@@ -43,9 +58,46 @@
   margin-bottom: 16px;
 }
 
+/* money-3: at ≥1280px the shared .empty-state block only sizes to its own
+   min-height:240px and the page's content column never stretches to fill the viewport, so
+   the block sits stranded top-left with hundreds of px of dead space below it on tall/wide
+   viewports. .empty-state already centers its frame via flex align/justify-center — it only
+   needs a taller min-height derived from the viewport to fill the page's effective height
+   instead. 300px approximates the fixed chrome above it at this breakpoint (56px topbar +
+   24px frame top padding + 177px page head/toolbar/tab-strip + 48px frame bottom padding) —
+   an approximation is fine here since the goal is "no longer reads as broken/half-loaded",
+   not pixel-exact fill. */
+@media (min-width: 1280px) {
+  .empty-state.dash-empty-fill {
+    min-height: calc(100dvh - 300px);
+  }
+}
+
+/* g-money audit P2: the shared KPITile "?" help control renders its glyph at 14x14 — well
+   under the 44x44 touch-target floor. Scoped to this page's KPI grids only (kpi-tile.css
+   itself is a five-surface shared primitive and out of scope for this PR) via an invisible
+   ::before hit area — the glyph's own box stays 14x14 so nothing repaints larger.
+   inset:-16px (not -15px): the control is box-sizing:border-box with a 1px border, so the
+   ::before's containing block is the 12px PADDING box (14 - 2x1px border), not the 14px
+   border box — -15px would only reach 42x42. -16px pads the CLICKABLE region to the full
+   44x44 (12 + 16 + 16) without shifting layout. The pad stays inside the tile's own 16px
+   padding + the grid's 12px inter-tile gap, so it never reaches a neighbouring target.
+   NOTE, and it is not fixed here: this enlarges the POINTER target only. The control is a
+   <span aria-label> in the shared primitive, so it is still not keyboard-focusable and the
+   help text is still unreachable without a mouse. That needs a primitive-level change with
+   every consumer's tests re-run — see the PR body. */
+.dash-kpi-grid .kpi-tile-help {
+  position: relative;
+}
+.dash-kpi-grid .kpi-tile-help::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+}
+
 .dash-footnote {
   padding: 10px 0 4px;
-  font-size: 11.5px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
   display: flex;
   gap: 16px;
@@ -62,26 +114,34 @@
   margin-top: 14px;
 }
 
-/* Tablet (768–1279px): KPI grids reduce to 3-up (design-plan §1.4). */
-@media (min-width: 768px) and (max-width: 1279px) {
-  .dash-kpi-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+.dash-detail-door {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
+
+/* Desktop/tablet 3-up is the base rule above — no separate 768–1279 override needed now. */
 
 /* Mobile (<768px): phone-first. 2-up KPI tiles, sticky toolbar rail, padding shrinks. */
 @media (max-width: 767px) {
-  .dash-head {
-    padding: 16px 14px 6px;
-  }
   .dash-pane {
     padding: 10px 14px 16px;
   }
   .dash-kpi-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
   .dash-loading {
     padding: 10px 14px;
+  }
+}
+
+.dash-queue-entry {
+  padding: 0 24px;
+  margin-top: 4px;
+}
+@media (max-width: 767px) {
+  .dash-queue-entry {
+    padding: 0 14px;
   }
 }

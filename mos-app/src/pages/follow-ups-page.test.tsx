@@ -94,7 +94,9 @@ describe('FollowUpsPage', () => {
   it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
     const { container } = render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Follow-up queue' })).toBeInTheDocument()
+    // Ported for #192 (Tasks): renamed "AR Follow-up queue" — Follow-ups is AR-scoped, and the
+    // Task follow-ups view embeds this SAME table (FollowUpQueueEmbed) via the shared i18n key.
+    expect(screen.getByRole('table', { name: 'AR Follow-up queue' })).toBeInTheDocument()
     expect(container.querySelector('.dt-table')).toBeTruthy()
     expect(container.querySelector('.follow-ups-table')).toBeNull()
     expect(screen.getAllByText(/Rp/).length).toBeGreaterThan(0)

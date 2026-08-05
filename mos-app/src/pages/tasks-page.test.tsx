@@ -1,30 +1,68 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { useState } from 'react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, SpawnResult } from '@/lib/db/processes.types'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  getTask: vi.fn(),
 }))
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
+  listRoleNames: vi.fn(),
+}))
+vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
+// Design fix wave item 1a: the due-runs membership-scoping loader (reused from signals.ts).
+vi.mock('../lib/db/signals', () => ({
+  listAuthorTeams: vi.fn(),
+}))
+// Step 6 (Track C wiring, C1/C2): mocked at the DAL boundary, never a live DB.
+vi.mock('../lib/db/processes', () => ({
+  listDueRuns: vi.fn(),
+  startRun: vi.fn(),
+  listRunRollups: vi.fn(),
+  listPendingTasks: vi.fn(),
+  resolvePendingTask: vi.fn(),
+  // Design fix wave items 2/4 — batched process_task_defs lookup by id.
+  listTaskDefs: vi.fn(),
 }))
 
-import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listTasks, getTask } from '@/lib/db/tasks'
+import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
+import { listAuthorTeams } from '@/lib/db/signals'
+import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
 // behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
 // real component the /tasks page renders.
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 const mockListTasks = vi.mocked(listTasks)
+const mockGetTask = vi.mocked(getTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListAuthorTeams = vi.mocked(listAuthorTeams)
+const mockListDueRuns = vi.mocked(listDueRuns)
+const mockStartRun = vi.mocked(startRun)
+const mockListRunRollups = vi.mocked(listRunRollups)
+const mockListPendingTasks = vi.mocked(listPendingTasks)
+const mockListTaskDefs = vi.mocked(listTaskDefs)
+const mockListRoleNames = vi.mocked(listRoleNames)
+const mockResolvePendingTask = vi.mocked(resolvePendingTask)
+const mockListObjectives = vi.mocked(listObjectives)
+const mockListWorkLines = vi.mocked(listWorkLines)
 
 // ── Stub matchMedia for useIsDesktop (desktop path by default) ──────────────
 function stubMatchMedia(matches: boolean) {
@@ -47,12 +85,12 @@ function stubMatchMedia(matches: boolean) {
 // ── Viewer fixture ───────────────────────────────────────────────────────────
 const VIEWER_ID = 'viewer-person-id'
 const OTHER_ID  = 'other-person-id'
-const C_PERSON  = 'consulted-person-id'
-const I_PERSON  = 'informed-person-id'
+const SUPPORT_PERSON = 'support-person-id'
+const OBSERVER_PERSON = 'observer-person-id'
 
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  email: 'arief@gordi.id', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 
@@ -95,14 +133,62 @@ function LocationCapture() {
   return null
 }
 
+function makeSavedView(view: 'mine' | 'overdue' | 'followups' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+  switch (view) {
+    case 'mine':
+      return { view: 'mine', activeChip: 'mine', segment: 'mine', overdueOnly: false, reserved: null, search: '?view=mine' }
+    case 'overdue':
+      return { view: 'overdue', activeChip: 'overdue', segment: 'all', overdueOnly: true, reserved: null, search: '?view=overdue' }
+    case 'followups':
+      return { view: 'followups', activeChip: 'followups', segment: 'all', overdueOnly: false, reserved: 'followups', search: '?view=followups' }
+    case 'all':
+    default:
+      return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
+  }
+}
+
+// §Task-11: the Team-work chip was removed; All is the org-visible set.
+async function switchToAll() {
+  const options = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (options?.getAttribute('aria-expanded') === 'false') fireEvent.click(options)
+  fireEvent.click(screen.getByRole('button', { name: 'All' }))
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
+}
+
+// OD-REDESIGN-84.1: filters/group/sort/toggles (incl. the attention pill) live behind the one
+// desktop "View & filters" disclosure. Open it when collapsed; the controls themselves are
+// unchanged, so these journeys just reach through the door first.
+function openViewOptions() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
+
 // ── Render helper ─────────────────────────────────────────────────────────────
-function renderPage(auth: AuthState = authedState) {
+function renderPage(auth: AuthState = authedState, props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
   _capturedLocation = null
+
+  function Harness() {
+    const [savedView, setSavedView] = useState(props.savedView ?? makeSavedView())
+    return (
+      <>
+        <TasksWorkspace
+          {...props}
+          savedView={savedView}
+          onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' || next === 'followups' ? next : 'all')))}
+        />
+        <LocationCapture />
+      </>
+    )
+  }
+
   return render(
     <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/tasks']}>
-        <TasksWorkspace />
-        <LocationCapture />
+      <MemoryRouter initialEntries={['/work/tasks']}>
+        <OverlayHostProvider>
+          <Harness />
+        </OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -118,15 +204,36 @@ const DEFAULT_BUS = [
 const DEFAULT_PEOPLE = [
   { id: VIEWER_ID, full_name: 'Arief Said' },
   { id: OTHER_ID,  full_name: 'Budi Setiawan' },
-  { id: C_PERSON,  full_name: 'Consulted Person' },
-  { id: I_PERSON,  full_name: 'Informed Person' },
+  { id: SUPPORT_PERSON,  full_name: 'Sari Support' },
+  { id: OBSERVER_PERSON, full_name: 'Iman Observer' },
 ]
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // clearAllMocks resets call history but NOT queued mockResolvedValueOnce values. The live engine
+  // now reloads only on load-affecting query keys (includeArchived/groupBy), so a per-filter second
+  // `Once` some tests queue is no longer consumed within its own test — fully reset listTasks so no
+  // leftover resolution leaks into the next test's initial load.
+  mockListTasks.mockReset()
   stubMatchMedia(true) // desktop by default
   mockGetBusinessUnits.mockResolvedValue(DEFAULT_BUS)
   mockGetPeople.mockResolvedValue(DEFAULT_PEOPLE)
+  mockListObjectives.mockResolvedValue([])
+  mockListWorkLines.mockResolvedValue([])
+  mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+  // Step 6 (Track C wiring): quiet defaults so pre-existing tests (accessRoles: [], no occurrence
+  // groupBy) never see the Start-run control or an occurrence fetch.
+  mockListDueRuns.mockResolvedValue([])
+  mockListRunRollups.mockResolvedValue([])
+  mockListPendingTasks.mockResolvedValue([])
+  // Design fix wave item 4: quiet defaults — no generated_from_task_def_id rows in the base
+  // fixtures, so this stays a silent no-op unless a test opts in.
+  mockListTaskDefs.mockResolvedValue([])
+  mockListRoleNames.mockResolvedValue([])
+  // Design fix wave item 1a: zero memberships (the default fixture has none seeded) keeps every
+  // due row — the "pure admin/capability grant" branch of the scoping rule. Tests that need
+  // membership SCOPING set this explicitly.
+  mockListAuthorTeams.mockResolvedValue([])
 })
 
 // ── T-030: AC-067 — loading / error / empty states ─────────────────────────
@@ -154,7 +261,7 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     mockListTasks.mockResolvedValue([])
     renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /\+ new task/i })).toBeTruthy()
+      expect(screen.getByRole('link', { name: /\+ create task/i })).toBeTruthy()
     })
   })
 
@@ -162,15 +269,20 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     mockListTasks.mockRejectedValue(new Error('boom'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    // toolbar filter control labels visible
-    expect(screen.getAllByText(/business unit/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/^status$/i).length).toBeGreaterThan(0)
+    // toolbar stays rendered: its "View & filters" door remains reachable and reveals the filters
+    expect(screen.getByRole('button', { name: /view & filters/i })).toBeInTheDocument()
+    openViewOptions()
+    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
   })
 })
 
-// ── T-031: AC-060 — row content (title+BU, status, owner, due, activity) ───
-describe('AC-060 — row renders title, BU, status, owner, due, activity', () => {
-  it('AC-060: renders title, BU subline, status pill, responsible name, and activity age', async () => {
+// ── T-031: AC-060 — row content (priority decision columns) ───────────────
+// Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the row shows ONLY Title ·
+// Status · PIC · Supervisor · Due. BU/Team + Activity moved to the record drawer
+// (where the typed Task already shows them — OD-62).
+describe('AC-060 — row renders the priority decision columns', () => {
+  it('AC-060: renders title, status pill, PIC name, and due (priority columns)', async () => {
     // Fix C1: names resolved from directory. task only carries IDs.
     // bu-ops is in DEFAULT_BUS as 'Ops Unit', VIEWER_ID is in DEFAULT_PEOPLE as 'Arief Said'.
     const task = makeTask({
@@ -185,28 +297,40 @@ describe('AC-060 — row renders title, BU, status, owner, due, activity', () =>
     renderPage()
 
     await waitFor(() => screen.getByText('SOP stock opname mingguan'))
-    expect(screen.getAllByText('Ops Unit')[0]).toBeTruthy()
     // Status tag (not the select option) — soft Tag (.mk-tag)
     expect(screen.getAllByText('In Progress').find(el => el.closest('.mk-tag'))).toBeTruthy()
-    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // first name only from directory
-    // Activity age rendered as some unit (d/h/m)
-    expect(document.querySelector('.act')).toBeTruthy()
+    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // PIC first name from directory
+    // Due renders (calm future date) — the decision-critical column stays in-frame.
+    expect(document.querySelector('.due-calm')).toBeTruthy()
+    // Wave 2c: BU/Team + Activity moved OUT of the row into the drawer.
+    expect(document.querySelector('tr.task-row .td-bu')).toBeNull()
+    expect(document.querySelector('tr.task-row .act')).toBeNull()
   })
 
-  it('AC-060: shows "+N" overflow when Accountable / Consulted / Informed differ from R', async () => {
-    // Fix C1: no embedded objects — raw IDs only; +N count via otherRaciCount on raw fields
+  it('AC-060: shows typed ownership — PIC + Supervisor columns, no RACI overflow (OD-62)', async () => {
+    // accountable (Supervisor) + consulted + informed differ from responsible (PIC);
+    // under the typed-Task contract the row surfaces PIC + Supervisor only — the
+    // consulted/informed ids must NOT leak as a RACI "+N" overflow.
     const task = makeTask({
-      responsible_person_id: VIEWER_ID,
-      accountable_person_id: OTHER_ID,
-      consulted_person_ids: [C_PERSON],
-      informed_person_ids: [I_PERSON],
+      responsible_person_id: VIEWER_ID,   // PIC = Arief Said
+      accountable_person_id: OTHER_ID,    // Supervisor = Budi Setiawan
+      consulted_person_ids: [SUPPORT_PERSON],
+      informed_person_ids: [OBSERVER_PERSON],
     })
     mockListTasks.mockResolvedValue([task])
     renderPage()
 
     await waitFor(() => screen.getByText('Arief'))
-    // A + C + I = 3 other RACI members beyond R
-    expect(screen.getByText('+3')).toBeTruthy()
+    const row = document.querySelector('tbody tr.task-row')!
+    // PIC column renders the responsible person (first name) and names the role.
+    const ownerCell = row.querySelector('.td-owner')
+    expect(ownerCell?.textContent).toContain('Arief')
+    expect(ownerCell?.querySelector('[aria-label]')?.getAttribute('aria-label')).toMatch(/PIC: Arief Said/i)
+    // Supervisor is its own column (OD-62) — the accountable person.
+    expect(row.querySelector('.td-supervisor')?.textContent).toContain('Budi')
+    // No RACI "+N" overflow or RACI grammar on a Task surface (OD-62).
+    expect(screen.queryByText(/^\+\d+$/)).toBeNull()
+    expect(document.body.textContent).not.toMatch(/RACI|Owner \(R\)|Responsible \(R\)/)
   })
 })
 
@@ -289,6 +413,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
+    openViewOptions()
     const buSelect = screen.getByLabelText(/business unit/i)
     fireEvent.change(buSelect, { target: { value: 'bu-kitchen' } })
 
@@ -296,9 +421,10 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
       expect(screen.queryByText('Roastery task')).toBeNull()
       expect(screen.getByText('Kitchen task')).toBeTruthy()
     })
-    expect(mockListTasks).toHaveBeenLastCalledWith(
-      expect.objectContaining({ businessUnitId: 'bu-kitchen' })
-    )
+    // NOTE: BU/Status filtering is now client-side in the collection projector (honest
+    // empty-vs-filtered-empty; only includeArchived is a server concern). The user goal — "selecting
+    // a BU shows only matching BU tasks" — is asserted by the row visibility above; the previous
+    // server-call assertion tested the retired server-side-filter implementation.
   })
 
   it('AC-063: Status filter — selecting a status shows only matching rows', async () => {
@@ -307,6 +433,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     renderPage()
     await waitFor(() => screen.getByText('Kitchen task'))
 
+    openViewOptions()
     const statusSelect = screen.getByLabelText(/^status$/i)
     fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
 
@@ -314,33 +441,29 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
       expect(screen.queryByText('Kitchen task')).toBeNull()
       expect(screen.getByText('Roastery task')).toBeTruthy()
     })
-    expect(mockListTasks).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: 'Blocked' })
-    )
+    // Status filtering is client-side in the projector now (see the BU-filter note above); the user
+    // goal is asserted by row visibility, not by the retired server-call shape.
   })
 
-  it('AC-063: Person filter — selecting a person shows tasks where they are in any RACI role', async () => {
-    // Use "All" segment so all tasks load visibly regardless of RACI role
-    // Tasks: viewer is R on first, viewer is C on second, neither on third
-    // Fix C1: no embedded objects
-    const taskViewerR = makeTask({
-      id: 'task-viewer-r', title: 'Viewer is R',
-      responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID,
+  it('AC-063: Person filter — selecting a person shows tasks where they are PIC or Supervisor', async () => {
+    // Use "All" view so all tasks load visibly regardless of typed ownership scope.
+    // Tasks: viewer is PIC on first, viewer is Supervisor on second, neither on third.
+    // Fix C1: no embedded objects.
+    const taskViewerPic = makeTask({
+      id: 'task-viewer-pic', title: 'Viewer is PIC',
+      responsible_person_id: VIEWER_ID, accountable_person_id: OTHER_ID,
     })
-    const taskViewerC = makeTask({
-      id: 'task-viewer-c', title: 'Viewer is C',
-      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
-      consulted_person_ids: [VIEWER_ID],
+    const taskViewerSupervisor = makeTask({
+      id: 'task-viewer-supervisor', title: 'Viewer is Supervisor',
+      responsible_person_id: OTHER_ID, accountable_person_id: VIEWER_ID,
     })
     const taskUnrelated = makeTask({
       id: 'task-unrelated', title: 'Not viewer task',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
     })
-    mockListTasks.mockResolvedValue([taskViewerR, taskViewerC, taskUnrelated])
+    mockListTasks.mockResolvedValue([taskViewerPic, taskViewerSupervisor, taskUnrelated])
     renderPage()
-    // Switch to "All" so all tasks are visible before applying person filter
-    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
     await waitFor(() => screen.getByText('Not viewer task'))
 
     // Now apply person filter for the viewer
@@ -348,26 +471,25 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     fireEvent.change(personSelect, { target: { value: VIEWER_ID } })
 
     await waitFor(() => {
-      expect(screen.getByText('Viewer is R')).toBeTruthy()
-      expect(screen.getByText('Viewer is C')).toBeTruthy()
+      expect(screen.getByText('Viewer is PIC')).toBeTruthy()
+      expect(screen.getByText('Viewer is Supervisor')).toBeTruthy()
       expect(screen.queryByText('Not viewer task')).toBeNull()
     })
   })
 })
 
-// ── T-034: AC-064 — Mine / RACI-involved / All segmented control ─────────────
-describe('AC-064 — segmented control: Mine / RACI-involved / All', () => {
+// ── T-034: AC-064 — saved-view chips ─────────────────────────────────────────
+describe('AC-064 — saved-view chips', () => {
   // Fix C1: no embedded objects
   const taskMine = makeTask({
     id: 'mine', title: 'My task',
     responsible_person_id: VIEWER_ID,
     accountable_person_id: VIEWER_ID,
   })
-  const taskConsulted = makeTask({
-    id: 'consulted', title: 'Consulted task',
+  const taskOtherWork = makeTask({
+    id: 'other-work', title: 'Other team task',
     responsible_person_id: OTHER_ID,
     accountable_person_id: OTHER_ID,
-    consulted_person_ids: [VIEWER_ID],
   })
   const taskUnrelated = makeTask({
     id: 'unrelated', title: 'Unrelated task',
@@ -376,38 +498,37 @@ describe('AC-064 — segmented control: Mine / RACI-involved / All', () => {
   })
 
   beforeEach(() => {
-    mockListTasks.mockResolvedValue([taskMine, taskConsulted, taskUnrelated])
+    mockListTasks.mockResolvedValue([taskMine, taskOtherWork, taskUnrelated])
   })
 
-  it('AC-064: "Mine" segment (default) shows only R-or-A tasks', async () => {
-    renderPage()
+  it('AC-064: "My work" shows only PIC-or-Supervisor tasks when seeded from view=mine', async () => {
+    renderPage(authedState, { savedView: makeSavedView('mine') })
     await waitFor(() => screen.getByText('My task'))
-    expect(screen.queryByText('Consulted task')).toBeNull()
+    expect(screen.queryByText('Other team task')).toBeNull()
     expect(screen.queryByText('Unrelated task')).toBeNull()
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('AC-064: "RACI-involved" adds C/I tasks in scope', async () => {
+  it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue / Follow-ups — no Team-work chip', async () => {
+    renderPage()
+    await waitFor(() => screen.getByText('My task'))
+    expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'AR Follow-ups' })).toBeTruthy()
+    // DELIBERATE goal change (record-collection plan §Task-11): no Team-work chip until Issue 8.
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+  })
+
+  it('AC-064 / §Task-11: "All" shows every loaded row regardless of ownership scope', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
 
-    fireEvent.click(screen.getByRole('tab', { name: /^raci$/i }))
+    await switchToAll()
 
     await waitFor(() => {
       expect(screen.getByText('My task')).toBeTruthy()
-      expect(screen.getByText('Consulted task')).toBeTruthy()
-      expect(screen.queryByText('Unrelated task')).toBeNull()
-    })
-  })
-
-  it('AC-064: "All" shows every loaded row regardless of RACI', async () => {
-    renderPage()
-    await waitFor(() => screen.getByText('My task'))
-
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText('My task')).toBeTruthy()
-      expect(screen.getByText('Consulted task')).toBeTruthy()
+      expect(screen.getByText('Other team task')).toBeTruthy()
       expect(screen.getByText('Unrelated task')).toBeTruthy()
     })
   })
@@ -436,6 +557,10 @@ describe('AC-065 — archived rows hidden by default; show-archived toggle revea
     renderPage()
     await waitFor(() => screen.getByText('Active task'))
 
+    {
+      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    }
     const toggle = screen.getByRole('checkbox', { name: /show archived/i })
     fireEvent.click(toggle)
 
@@ -493,16 +618,14 @@ describe('responsive — card list at <768px', () => {
 
 // ── a11y: ARIA roles and labels ──────────────────────────────────────────────
 describe('a11y — aria roles and labels', () => {
-  it('segmented control has tablist/tab roles and aria-selected', async () => {
+  it('saved-view controls expose button semantics with aria-pressed', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
-    // Wait for the Ownership-filter tablist (the view-tab strip was removed per owner)
-    await waitFor(() => screen.getAllByRole('tablist'))
-    expect(screen.getByRole('tab', { name: /mine/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /^raci$/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /^all$/i })).toBeTruthy()
-    // "Mine" is selected by default
-    expect(screen.getByRole('tab', { name: /mine/i }).getAttribute('aria-selected')).toBe('true')
+    await waitFor(() => screen.getByRole('button', { name: 'My work' }))
+    expect(screen.getByRole('group', { name: /tasks saved views/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
+    // §Task-11: the All chip carries default-view pressed state; the Team-work chip is gone.
+    expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('loading region has aria-busy and a visually-hidden loading message', async () => {
@@ -515,15 +638,15 @@ describe('a11y — aria roles and labels', () => {
   it('+ New task link is present with correct href', async () => {
     mockListTasks.mockResolvedValue([])
     renderPage()
-    await waitFor(() => screen.getByRole('link', { name: /\+ new task/i }))
-    const link = screen.getByRole('link', { name: /\+ new task/i })
-    expect(link.getAttribute('href')).toContain('/tasks/new')
+    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
+    const link = screen.getByRole('link', { name: /\+ create task/i })
+    expect(link.getAttribute('href')).toContain('/work/tasks/new')
   })
 })
 
 // ── Fix-1: row-click SPA navigation (no full reload, no hardcoded basename) ────
-describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
-  it('clicking desktop row navigates via router to /tasks/:id (no window.location change)', async () => {
+describe('V3 RecordViewer — task collection opens one shared host', () => {
+  it('clicking desktop row opens the shared host without losing the collection route', async () => {
     const task = makeTask({ id: 'task-nav-1', title: 'Nav test task' })
     mockListTasks.mockResolvedValue([task])
     renderPage()
@@ -535,17 +658,15 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
     expect(rows.length).toBeGreaterThan(0)
     fireEvent.click(rows[0])
 
-    await waitFor(() => {
-      // Router location should update to /tasks/task-nav-1 in-SPA
-      expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-1')
-    })
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy())
+    expect(_capturedLocation?.pathname).toBe('/work/tasks')
 
     // window.location.href must NOT contain the hardcoded /mos/ basename
     // (in jsdom this stays at initial; we assert it's still the test origin, not '/mos/tasks/...')
     expect(window.location.href).not.toContain('/mos/tasks/')
   })
 
-  it('clicking mobile card navigates via router to /tasks/:id', async () => {
+  it('clicking the mobile card opens the same shared host', async () => {
     stubMatchMedia(false) // narrow
     const task = makeTask({ id: 'task-nav-2', title: 'Mobile nav task' })
     mockListTasks.mockResolvedValue([task])
@@ -558,9 +679,8 @@ describe('Fix-1 — row click navigates in-SPA to /tasks/:id', () => {
     expect(cardLink).toBeTruthy()
     fireEvent.click(cardLink)
 
-    await waitFor(() => {
-      expect(_capturedLocation?.pathname).toBe('/tasks/task-nav-2')
-    })
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy())
+    expect(_capturedLocation?.pathname).toBe('/work/tasks')
   })
 })
 
@@ -583,6 +703,7 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
+    openViewOptions()
     // Both BU options present before filtering (from directory DEFAULT_BUS)
     const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
     const optsBefore = Array.from(buSelect.options).map(o => o.text)
@@ -599,27 +720,28 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     expect(optsAfter).toContain('Roastery BU')
   })
 
-  it('AC-C1-person: Person dropdown options come from directory (all people, not just R/A on loaded rows)', async () => {
-    // People with only C/I roles previously showed raw UUIDs; now from directory they show full_name.
+  it('AC-C1-person: Person dropdown options come from the directory, not only loaded PIC/Supervisor rows', async () => {
+    // Directory-only people still receive stable display names even when absent from the rows.
     const task = makeTask({
       id: 't1', title: 'Task with CI',
       responsible_person_id: VIEWER_ID, accountable_person_id: OTHER_ID,
-      consulted_person_ids: [C_PERSON], informed_person_ids: [I_PERSON],
+      consulted_person_ids: [SUPPORT_PERSON], informed_person_ids: [OBSERVER_PERSON],
     })
     mockListTasks.mockResolvedValue([task])
     renderPage()
     await waitFor(() => screen.getByText('Task with CI'))
 
+    openViewOptions()
     const personSelect = screen.getByLabelText(/^person$/i) as HTMLSelectElement
     const opts = Array.from(personSelect.options).map(o => o.text)
-    // All people from directory are present — including C/I-only people with real names
+    // All people from directory are present, with stable display names.
     expect(opts).toContain('Arief Said')
     expect(opts).toContain('Budi Setiawan')
-    expect(opts).toContain('Consulted Person')
-    expect(opts).toContain('Informed Person')
-    // Must NOT show raw UUIDs as display names
-    expect(opts.some(o => o === C_PERSON)).toBe(false)
-    expect(opts.some(o => o === I_PERSON)).toBe(false)
+    expect(opts).toContain('Sari Support')
+    expect(opts).toContain('Iman Observer')
+    // Must NOT show raw UUIDs as display names.
+    expect(opts.some(o => o === SUPPORT_PERSON)).toBe(false)
+    expect(opts.some(o => o === OBSERVER_PERSON)).toBe(false)
   })
 })
 
@@ -640,11 +762,10 @@ describe('Fix M2 — task count suppressed in error state', () => {
     mockListTasks.mockResolvedValue([makeTask(), makeTask({ id: 'task-2', title: 'Task 2' })])
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
-    // Goal-oracle: the loaded count is visible. UI-fidelity rework moved the count to
-    // the content-header count pill (.ch-count) — read it there (was the count-line).
-    // In "Mine" segment default, both tasks are by VIEWER_ID so both appear.
-    const pill = document.querySelector('.content-header .ch-count')
-    expect(pill?.textContent).toBe('2')
+    // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
+    // explicitly distinguish open work from the total set: "N open · M total".
+    const countLine = document.querySelector('[data-testid="tasks-count-line"]')
+    expect(countLine?.textContent).toContain('2 open · 2 total')
   })
 })
 
@@ -691,11 +812,13 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     mockListTasks.mockResolvedValue([archived, live])
     renderPage()
 
-    // Switch to "All" so archived row is visible
-    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
 
     // Toggle show archived
+    {
+      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    }
     const toggle = screen.getByRole('checkbox', { name: /show archived/i })
     fireEvent.click(toggle)
 
@@ -734,8 +857,7 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     mockListTasks.mockResolvedValue([archived, live])
     renderPage()
 
-    await waitFor(() => screen.getByRole('tab', { name: /^all$/i }))
-    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }))
+    await switchToAll()
     fireEvent.click(screen.getByRole('checkbox', { name: /show archived/i }))
 
     await waitFor(() => screen.getByText('Archived mobile task'))
@@ -772,5 +894,302 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
     expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+  })
+})
+
+// process.start-capable fixture — shared by the Step 6 C1 (due-runs) and C2 (assign) describes
+// below; design fix wave item 3 also gates the "N to assign" affordance on this same capability.
+const CAPABLE_AUTH: AuthState = {
+  ...authedState,
+  viewer: { ...authedState.viewer, accessRoles: ['ops_lead'] },
+}
+
+// ── Step 6 (Track C, C1) — the due-runs disclosure (trigger + list) mounted near the toolbar / after
+// the table; occurrence group-by (docs/plans/2026-07-16-occurrence-as-tasks.md C1;
+// docs/specs/occurrence-as-tasks.spec.md §5). "Process Run" must NEVER appear as UI vocabulary
+// anywhere in this page (FR-611). Design fix wave item 1: the row list is COLLAPSED BY DEFAULT
+// (design-review step-6 CRITICAL — a full-width due-row flood buried the Tasks table) — every test
+// below reveals it via the single attention pill (item 3(a) fold) before interacting with a row.
+describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
+  const DUE_ROW: DueProcessRun = {
+    work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
+    owning_team_id: 'team-1', team_name: 'HQ Operations',
+    period_key: '2026-07-17', scheduled_date: '2026-07-17',
+  }
+
+  // Item 3(a): the former "N due to start" pill folded into the ONE attention pill, which
+  // carries the runs disclosure (aria-expanded) when due work exists. The goal-oracle is
+  // unchanged (a capable viewer reveals + starts a due run, collapsed by default); only the
+  // control that reveals it changed from a bespoke trigger to the shared attention pill.
+  // The attention pill lives behind the desktop "View & filters" disclosure (OD-84.1); open that
+  // door first, then exercise the pill's own runs disclosure.
+  async function openAttentionDoor() {
+    const door = await screen.findByRole('button', { name: /view & filters/i })
+    if (door.getAttribute('aria-expanded') === 'false') fireEvent.click(door)
+  }
+
+  async function expandDueRuns() {
+    await openAttentionDoor()
+    const trigger = await screen.findByRole('button', { name: /need attention/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(trigger)
+    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
+  }
+
+  it('the attention pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    renderPage(CAPABLE_AUTH)
+
+    await openAttentionDoor()
+    const trigger = await screen.findByRole('button', { name: '1 need attention' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
+
+    await expandDueRuns()
+    await waitFor(() => screen.getByText('Café HQ daily opening'))
+    // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
+    // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
+    expect(screen.getByRole('button', { name: 'Start · Café HQ daily opening' })).toBeInTheDocument()
+  })
+
+  it('the due-runs trigger is absent for a viewer without process.start', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderPage() // default authedState: accessRoles: []
+    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Start ·/ })).not.toBeInTheDocument()
+    expect(mockListDueRuns).not.toHaveBeenCalled()
+  })
+
+  it('1a: a due row for a Team the viewer is NOT an active member of is scoped out', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    mockListAuthorTeams.mockResolvedValue([{ id: 'some-other-team', name: 'Not Mine', business_unit_id: 'bu-1', site_id: null, is_primary: true }])
+    renderPage(CAPABLE_AUTH)
+
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
+  })
+
+  it('clicking Start · <process name> calls startRun and refreshes the task list', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    const spawnResult: SpawnResult = { run_id: 'run-1', created: 1, pending: 1, idempotent: false }
+    mockStartRun.mockResolvedValue(spawnResult)
+    renderPage(CAPABLE_AUTH)
+
+    await expandDueRuns()
+    await waitFor(() => screen.getByText('Café HQ daily opening'))
+    const before = mockListTasks.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Start · Café HQ daily opening' }))
+
+    await waitFor(() => expect(mockStartRun).toHaveBeenCalledWith('wl-1', 'team-1', '2026-07-17'))
+    await waitFor(() => expect(mockListTasks.mock.calls.length).toBeGreaterThan(before))
+  })
+
+  it('AC-622/FR-611: the Occurrence group-by groups generated Tasks under the run caption — "Process Run" never appears', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café',
+      process_run_id: 'run-1', generated_from_task_def_id: 'def-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 1, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Café HQ daily opening · 17 Jul 2026')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Open the café')).toBeInTheDocument()
+    expect(mockListRunRollups).toHaveBeenCalledWith(['run-1'])
+    // FR-611 — the internal-only string never leaks into the DOM anywhere on this page.
+    expect(document.body.textContent).not.toMatch(/Process Run/)
+  })
+
+  // Design fix wave item 4 (OD-65 mockup regression) — full-stack: an occurrence-grouped row whose
+  // generating def binds a pic_role shows "via <role name>" beside the PIC.
+  it('item 4: an occurrence-grouped row generated from a Role-bound def shows "via <role name>" beside the PIC', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café',
+      process_run_id: 'run-1', generated_from_task_def_id: 'def-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 0, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+    mockListTaskDefs.mockResolvedValue([{ id: 'def-1', title: 'Open the café', pic_role_id: 'role-1' }])
+    mockListRoleNames.mockResolvedValue([{ id: 'role-1', name: 'Cafe Ops Lead' }])
+
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => expect(mockListTaskDefs).toHaveBeenCalledWith(['def-1']))
+    await waitFor(() => expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument())
+  })
+
+  it('AC-622: an ad-hoc Task (no process_run_id) is never forced under an occurrence caption', async () => {
+    const adhoc = makeTask({ id: 'adhoc-1', title: 'Ad-hoc task', process_run_id: null })
+    mockListTasks.mockResolvedValue([adhoc])
+    renderPage()
+    await switchToAll()
+    await waitFor(() => screen.getByText('Ad-hoc task'))
+
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Not part of a recurring occurrence')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Ad-hoc task')).toBeInTheDocument()
+  })
+})
+
+// ── Step 6 (Track C, C2) — the "N to assign" affordance opens PendingResolution ────────────────
+describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
+  it('clicking "N to assign" opens the pending-resolution surface; resolving materializes the Task in the same group', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    // The workspace loads via the collection engine, which re-fetches on view/group changes; the
+    // baseline resolution is persistent so those benign reloads keep returning the same single row.
+    // A one-time override below simulates the post-resolve refresh returning the materialized Task.
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 1, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+    const pending: PendingTaskRow = {
+      id: 'pending-1', process_run_id: 'run-1', task_def_id: 'def-2',
+      candidate_person_ids: [VIEWER_ID, OTHER_ID], reason: 'multiple', resolved_at: null,
+      title: 'Bakery handover',
+    }
+    mockListPendingTasks.mockResolvedValue([pending])
+    mockResolvePendingTask.mockResolvedValue('task-new')
+
+    renderPage(CAPABLE_AUTH)
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
+
+    fireEvent.click(screen.getByRole('button', { name: '1 to assign' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Assign — two people could own this' })
+    expect(mockListPendingTasks).toHaveBeenCalledWith('run-1')
+
+    const nextTask = makeTask({
+      id: 'gen-2', title: 'Bakery handover', process_run_id: 'run-1', responsible_person_id: VIEWER_ID,
+    })
+    mockListTasks.mockResolvedValueOnce([genTask, nextTask])
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Arief Said' }))
+
+    await waitFor(() => expect(mockResolvePendingTask).toHaveBeenCalledWith('pending-1', VIEWER_ID))
+    // The newly-resolved Task appears alongside the single-holder Task, still under the ONE
+    // occurrence caption for this run (no second/divergent group was introduced).
+    await waitFor(() => screen.getByText('Bakery handover'))
+    expect(screen.getAllByText('Café HQ daily opening · 17 Jul 2026')).toHaveLength(1)
+    expect(screen.getByText('Open the café')).toBeInTheDocument()
+  })
+
+  // Design fix wave item 3 — the affordance is capability-gated (RLS remains the real gate on the
+  // underlying resolve_pending_task RPC; the UI simply never shows an action a viewer can't take).
+  it('item 3: a viewer without process.start sees the roll-up summary but never the "N to assign" affordance', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café HQ daily opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 0, in_progress: 0, blocked: 0, done: 1,
+      overdue: 0, pending_unresolved: 1, completion_pct: 100,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+
+    renderPage() // default authedState: accessRoles: []
+    await switchToAll()
+    await waitFor(() => screen.getByText('Open the café'))
+    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+
+    await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
+    expect(screen.getByText(/1\/1 done/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    expect(mockListPendingTasks).not.toHaveBeenCalled()
+  })
+})
+
+// ── Step 7 (Track C, C2) — the Café panel's ?occurrence=<runId> link is honored on arrival ──────
+// (docs/plans/2026-07-17-cafe-retrofit.md C2; cafe-retrofit.spec.md FR-704). Reuses the SAME
+// Step-6 occurrence grouping (Rule 11) — visiting /work/tasks?occurrence=<runId> simply switches the
+// view to the occurrence group-by so the caption for that run is in view; no new grouping mechanism.
+describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence grouping (C2)', () => {
+  function renderWithOccurrenceParam(runId: string) {
+    function Harness() {
+      const [savedView, setSavedView] = useState(makeSavedView())
+      return (
+        <>
+          <TasksWorkspace
+            savedView={savedView}
+            onSavedViewChange={(next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' || next === 'followups' ? next : 'all'))}
+          />
+          <LocationCapture />
+        </>
+      )
+    }
+    return render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={[`/work/tasks?occurrence=${runId}`]}>
+          <OverlayHostProvider>
+            <Harness />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+  }
+
+  it('AC: arriving with ?occurrence=<runId> groups the Tasks page by Occurrence — the run\'s caption is in view; "Process Run" never appears', async () => {
+    const genTask = makeTask({
+      id: 'gen-1', title: 'Open the café floor', process_run_id: 'run-1',
+      responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
+    })
+    mockListTasks.mockResolvedValue([genTask])
+    const rollup: ProcessRunRollup = {
+      process_run_id: 'run-1', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+      overdue: 0, pending_unresolved: 0, completion_pct: 0,
+    }
+    mockListRunRollups.mockResolvedValue([rollup])
+
+    renderWithOccurrenceParam('run-1')
+
+    // No manual "Group" toggle needed — the query param alone lands on the Occurrence grouping.
+    await waitFor(() => {
+      expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    })
+    {
+      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    }
+    expect(screen.getByLabelText(/^group$/i)).toHaveValue('occurrence')
+    expect(document.body.textContent).not.toMatch(/Process Run/)
   })
 })

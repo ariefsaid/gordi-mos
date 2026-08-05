@@ -73,9 +73,57 @@ describe('WindowSelector — preset seg', () => {
     fireEvent.keyDown(tab7, { key: 'ArrowRight' })
     expect(onChange).toHaveBeenCalledWith({ kind: 'preset', days: 30 })
   })
+
+  it('r5 F-4: focus FOLLOWS selection — "Custom" is genuinely arrow-reachable (ArrowRight from 60d)', () => {
+    const onChange = vi.fn()
+    render(
+      <WindowSelector
+        value={{ kind: 'preset', days: 60 }}
+        onChange={onChange}
+        bounds={BOUNDS}
+      />,
+    )
+    const tab60 = screen.getByRole('tab', { name: /60d/i })
+    tab60.focus()
+    fireEvent.keyDown(tab60, { key: 'ArrowRight' })
+    // Selection emitted the seeded custom spec AND focus landed on the Custom tab —
+    // never stranded on the old tabIndex=-1 button.
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'custom' }),
+    )
+    expect(screen.getByRole('tab', { name: /custom/i })).toHaveFocus()
+  })
 })
 
 describe('WindowSelector — custom date range', () => {
+  it('DO F12 (OD-91 #25): when the window is custom, the Custom tab carries the selected state (white-card style binds to aria-selected)', () => {
+    render(
+      <WindowSelector
+        value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
+        onChange={vi.fn()}
+        bounds={BOUNDS}
+      />,
+    )
+    // The Custom tab — not a preset — owns aria-selected while custom is active; the seg's
+    // `[aria-selected='true']` white-card rule follows it, so the active tab reads as selected.
+    expect(screen.getByRole('tab', { name: /custom/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /30d/i })).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('DO-21: hideRange suppresses the inline pair so the composition can place it on its own row', () => {
+    const { container } = render(
+      <WindowSelector
+        value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
+        onChange={vi.fn()}
+        bounds={BOUNDS}
+        hideRange
+      />,
+    )
+    expect(container.querySelector('.window-selector-range')).toBeNull()
+    // The seg itself is untouched — only the pair moves.
+    expect(screen.getByRole('tab', { name: /custom/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('renders a Custom button', () => {
     render(
       <WindowSelector

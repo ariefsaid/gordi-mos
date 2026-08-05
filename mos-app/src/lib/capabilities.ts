@@ -9,9 +9,11 @@
 // RLS and `shared.can()` (ADR-0020 D4 / FR-333 / NFR-004), and a wrong entry here costs an affordance,
 // never an authorization.
 //
-// Not mirrored here, deliberately: `process.start` / `process.adopt` (Café's, #196–#198) and the
-// ops_lead extension of `objective.manage` (Objectives', #194). Each surface's port brings its own
-// rows, so the map grows with a checkable citation rather than in one unreviewed sweep.
+// Ported from v4-redesign (#192, Tasks): `process.start` / `process.adopt` (ADR-0051 D8 — member
+// holds process.start per OD-REDESIGN-71iii, a Team-membership gate on the server keeps it scoped
+// to the member's own Team) and the ops_lead extension of `objective.manage` (OD-V4-1) already
+// exist in the squashed baseline's seed (20260805000006_mos_access_control.sql) — this mirror was
+// simply stale relative to it; #192 brought it current, so the rows below are no longer deferred.
 //
 // TODO(admin-editable-roles, ADR-0020 D2): replace this static map with an RPC
 // (shared.my_capabilities()) once grants become admin-editable. Until then the seed is static.
@@ -19,9 +21,14 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
     'objective.manage', 'workline.manage', 'followup.confirm',
     'signal.create_for_team', 'signal.mention_bu', 'signal.retract',
+    'process.start', 'process.adopt',
   ],
   finance: ['followup.confirm', 'signal.mention_bu', 'signal.retract'],
-  ops_lead: ['workline.manage', 'signal.create_for_team', 'signal.mention_bu', 'signal.retract'],
+  ops_lead: [
+    'objective.manage', 'workline.manage',
+    'signal.create_for_team', 'signal.mention_bu', 'signal.retract', 'process.start',
+  ],
+  member: ['process.start'],
 }
 
 /** Roles that admit to Revenue VIEW (ADR-0051 D4). Exported for router/destinations consistency. */

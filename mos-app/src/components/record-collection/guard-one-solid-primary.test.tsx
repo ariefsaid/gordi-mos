@@ -18,11 +18,18 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { CollectionToolbar } from './collection-toolbar'
 
 // PORT NOTE (#193): v4's version of this file carries a SECOND describe that renders
-// `KitchenReviewPage` and enumerates the same law onto the Café review queue. That surface is
-// #197's to port, and its v4 fixtures already disagree with this line's schema (`action_type` was
-// retired by the squash — see #247). Enumerating a law onto a surface nobody has ported yet would
-// assert against `dev`'s Café page, not v4's, so the enumeration travels with #197. The law's own
-// guard — the shared CollectionToolbar, which this PR does port — is below, unchanged.
+// `KitchenReviewPage` and enumerates the same law onto the Café review queue (census DEFECT-2 —
+// the Café Review queue previously rendered a solid-blue Approve on EVERY row). That enumeration
+// is dropped here: kitchen-review-page.tsx on `dev` still has the old all-primary rendering (v4's
+// fix is a rewrite of that page, not a one-line class change), and its v4 fixtures already
+// disagree with this line's schema (`action_type` was retired by the squash — see #247).
+// Enumerating a law onto a surface nobody has ported yet would assert against `dev`'s Café page,
+// not v4's, so the enumeration travels with #197 (Café plan-and-review — the review queue's
+// owner; #196 is opening-and-production-log only). Flagged on wayfinder map #150; not filed as a
+// public GitHub issue (the defect describes exactly where the app over-emphasizes a
+// bulk-destructive-adjacent action, which is the kind of detail CLAUDE.md's public-repo banner
+// asks to keep out of the tracker until fixed). The law's own guard — the shared
+// CollectionToolbar, which this PR does port — is below, unchanged.
 
 function stubDesktopMatchMedia() {
   Object.defineProperty(window, 'matchMedia', {

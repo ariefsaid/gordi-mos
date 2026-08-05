@@ -30,12 +30,15 @@
   --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
   --status-lost-text:   color(display-p3 0.2796 0.1396 0.0158); /* hsl(0 72% 45%)   */
-  /* Field-error text. Referenced by the record viewer and the collection grammar; without this
-     alias those rules resolve to nothing and an error message renders in the inherited body
-     colour, i.e. indistinguishable from a normal value. Aliased to --status-lost-text, exactly as
-     v4 does. NOTE: on this line --status-lost-text is a BROWN, not the red it is named for —
-     tracked in #147, which owns the colour decision. This alias closes the "renders to nothing"
-     hole; it does not close #147. */
+  /* Field-error text. Referenced by the record viewer and the collection grammar (ported for
+     #192, Tasks: the TaskSurface/RecordViewer alias); without this alias those rules resolve to
+     nothing and an error message renders in the inherited body colour, i.e. indistinguishable
+     from a normal value. Aliased to --status-lost-text, exactly as v4 does, and defined once (not
+     per-theme): var() re-resolves --status-lost-text live per element, so a .dark subtree that
+     overrides --status-lost-text below still resolves the right red through this indirection
+     without redefining --field-error-text itself. NOTE: on this line --status-lost-text is a
+     BROWN, not the red it is named for — tracked in #147, which owns the colour decision. This
+     alias closes the "renders to nothing" hole; it does not close #147. */
   --field-error-text:   var(--status-lost-text);
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
   /* SYS-4 (v4): the theme-aware "blue text on a blue tint" pair — the active rail pill (The One
@@ -249,14 +252,15 @@
   --input:                 var(--border-strong);
   --ring:                  var(--ds-color-blue);
   --violet:                var(--ds-color-violet);
-  /* Shared LIST-ROW rhythm. Record collections stay tabular-with-dividers and the Signals feed
-     stays a legitimately different activity stream — but their ROW tokens must not DISAGREE, or
-     two surfaces the viewer reads in one session draw the same hairline two different greys. One
-     divider colour and one row padding scale, referenced by the dense table, the collection
-     grammar and the Signals feed rows alike. Derived from --border, so the dark theme's own
-     --border override carries through and no second dark value is needed. Ported with #193.
-     v4 also carries a --row-height here; nothing on this line references it yet, so it is left
-     out rather than shipped as an unread token. */
+  /* Shared LIST-ROW rhythm (v4 cohesion-debt 2026-07-19, item #4; ported for #192, Tasks, and
+     #193, Signals). Record collections stay tabular-with-dividers and the Signals feed stays a
+     legitimately different activity stream — but their ROW tokens must not DISAGREE, or two
+     surfaces the viewer reads in one session draw the same hairline two different greys. One
+     divider colour and one row padding scale, referenced by the dense table, collection-grammar
+     / record-collection / TasksWorkspace CSS, and the Signals feed rows alike. Derived from
+     --border, so the dark theme's own --border override carries through and no second dark value
+     is needed. v4 also carries a --row-height here; nothing on this line references it yet, so
+     it is left out rather than shipped as an unread token. */
   --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
   --row-pad-y:             10px;
   --row-pad-x:             12px;

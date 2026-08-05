@@ -42,7 +42,7 @@ interface RatingLabels {
 }
 
 export function AssistantPanel() {
-  const { open, closePanel } = useAgentRuntime()
+  const { open, closePanel, pendingDraft, consumePendingDraft } = useAgentRuntime()
   const panel = useAssistantPanel()
   const isNarrow = useIsNarrow()
   const t = useT()
@@ -105,6 +105,16 @@ export function AssistantPanel() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [open, isNarrow, closePanel])
+
+  // ── Ported for #192 (Tasks): adopt a record-scoped composer seed once on open ────────────────
+  // (e.g. "About Task: <title>", set via openPanel(draft) from AskDeputyAction). Consumed
+  // single-shot so a later plain openPanel() (the launcher, no draft) never resurrects it.
+  useEffect(() => {
+    if (open && pendingDraft != null) {
+      setDraft(pendingDraft)
+      consumePendingDraft()
+    }
+  }, [open, pendingDraft, consumePendingDraft])
 
   // ── Autoscroll the transcript to the latest turn ─────────────────────────────
   useEffect(() => {

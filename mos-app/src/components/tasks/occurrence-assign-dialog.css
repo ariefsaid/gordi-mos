@@ -1,0 +1,7 @@
+/* OccurrenceAssignDialog (Step 6 / C2) — content inside the shared ModalShell. */
+.occ-assign-box {
+  padding: 20px 24px;
+}
+.occ-assign-head { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.occ-assign-empty { font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0; }
+.occ-assign-list { display: flex; flex-direction: column; gap: 16px; }
