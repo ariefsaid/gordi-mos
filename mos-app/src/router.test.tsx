@@ -17,6 +17,7 @@ import {
   isRedirect,
   redirectProps,
   expectOneHop,
+  describeRedirectMap,
   leafInThisTable,
   lazyPayloadOf,
   gatesOnPath,
@@ -128,35 +129,7 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, flag off)', () => {
 // Both suites below enumerate the REAL table. Nothing here is a hand-kept list of paths, so a
 // redirect added to router.tsx without a canonical destination fails without anyone remembering
 // to add a case for it.
-describe('AC-017: every retired route reaches its replacement in exactly one hop', () => {
-  const redirects = allRedirects()
-
-  it('the map is not empty — the enumeration itself has to be able to fail', () => {
-    expect(redirects.filter((r) => r.kind === 'map').length).toBeGreaterThan(15)
-  })
-
-  it.each(redirects.map((r) => [r.from, r.to, r.kind] as const))(
-    '%s → %s (%s) lands on a live surface, adds no gate, and does not chain',
-    (from, to) => {
-      expectOneHop(from, to)
-    },
-  )
-
-  it.each(redirects.map((r) => [r.from, r.replace] as const))(
-    '%s replaces its history entry, so Back does not re-enter it',
-    (_from, replace) => {
-      expect(replace).toBe(true)
-    },
-  )
-
-  it('no redirect names another redirect — the whole map is depth one', () => {
-    const chained = redirects.filter(({ to }) => {
-      const leaf = leafInThisTable(to.split('?')[0])
-      return isRedirect(leaf?.route.element)
-    })
-    expect(chained).toEqual([])
-  })
-})
+describeRedirectMap('plan/budget + follow-ups flags OFF')
 
 describe('AC-018: a retired route requested with ?view= / ?record= keeps its query', () => {
   function LocationProbe() {
