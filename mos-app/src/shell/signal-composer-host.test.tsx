@@ -60,8 +60,8 @@ const authedViewer: AuthState = {
   status: 'authenticated',
   viewer: {
     person: {
-      id: 'person-cahya', org_id: 'org-1', user_id: 'auth-1', full_name: 'Cahya Cafe',
-      email: 'cahya@gordi.id', archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      id: 'person-author', org_id: 'org-1', user_id: 'auth-1', full_name: 'Signal Author',
+      email: 'author@example.test', archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     },
     roles: [], isManager: false, accessRoles: ['ops_lead'],
   },
@@ -124,8 +124,8 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
 
     await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
     const props = mockSignalComposer.mock.calls.at(-1)![0]
-    expect(props.authorId).toBe('person-cahya')
-    expect(props.authorName).toBe('Cahya Cafe')
+    expect(props.authorId).toBe('person-author')
+    expect(props.authorName).toBe('Signal Author')
     // ops_lead holds signal.create_for_team + signal.mention_bu (A2 seed / capabilities.ts).
     expect(props.canCreateForTeam).toBe(true)
     expect(props.canMentionBu).toBe(true)

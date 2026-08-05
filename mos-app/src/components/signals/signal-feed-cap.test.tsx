@@ -13,7 +13,7 @@ import type { SignalRow } from '@/lib/db/signals.types'
 
 function row(i: number, overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: `signal-${i}`, author_id: 'person-cahya', owning_team_id: 'team-hq',
+    id: `signal-${i}`, author_id: 'person-author-a', owning_team_id: 'team-hq',
     occurred_at: `2026-07-16T02:00:0${i % 10}Z`, body: `Signal body number ${i}`,
     attention: 'FYI', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -22,7 +22,7 @@ function row(i: number, overrides: Partial<SignalRow> = {}): SignalRow {
   }
 }
 
-const AUTHORS = { 'person-cahya': 'Cahya Cafe' }
+const AUTHORS = { 'person-author-a': 'Author One' }
 const TEAMS = { 'team-hq': 'HQ Operations' }
 
 function renderFeed(

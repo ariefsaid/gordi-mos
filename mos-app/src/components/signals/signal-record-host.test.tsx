@@ -59,7 +59,7 @@ const mockListComments = vi.mocked(listComments)
 const mockPostComment = vi.mocked(postComment)
 
 const SIGNAL_ID = 'signal-1'
-const VIEWER_ID = 'person-cahya'
+const VIEWER_ID = 'person-author-a'
 const TEAM_ID = 'team-hq'
 const BU_ID = 'bu-retail'
 
@@ -75,7 +75,7 @@ function authedViewer(personId = VIEWER_ID): AuthState {
   return {
     status: 'authenticated',
     viewer: {
-      person: { id: personId, org_id: 'org-1', user_id: 'u1', full_name: 'Cahya Cafe', email: null, archived_at: null, created_at: '', updated_at: '' },
+      person: { id: personId, org_id: 'org-1', user_id: 'u1', full_name: 'Author One', email: null, archived_at: null, created_at: '', updated_at: '' },
       roles: [], isManager: false, accessRoles: [],
     },
     signOut: vi.fn(),
@@ -106,7 +106,7 @@ beforeEach(() => {
   mockGetPeople.mockResolvedValue([
     { id: 'person-dewi', full_name: 'Dewi Director' },
     { id: 'person-peer', full_name: 'Peer Person' },
-    { id: VIEWER_ID, full_name: 'Cahya Cafe' },
+    { id: VIEWER_ID, full_name: 'Author One' },
   ])
   mockListTasks.mockResolvedValue([])
   mockListComments.mockResolvedValue([])

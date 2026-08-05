@@ -32,7 +32,7 @@ const mockCreateSignal = vi.mocked(createSignal)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 
-const AUTHOR_ID = 'person-cahya'
+const AUTHOR_ID = 'person-author-a'
 
 const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
@@ -43,7 +43,7 @@ const TEAMS: TeamOption[] = [
 // listAllTeams (the canCreateForTeam widening) still returns the full set.
 const SOLE_TEAM: TeamOption[] = [TEAMS[0]]
 const BUS: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
-const PEOPLE: PersonOption[] = [{ id: AUTHOR_ID, full_name: 'Cahya Cafe' }, { id: 'person-peer', full_name: 'Peer Person' }]
+const PEOPLE: PersonOption[] = [{ id: AUTHOR_ID, full_name: 'Author One' }, { id: 'person-peer', full_name: 'Peer Person' }]
 
 /** The mention popover's option role collides with the native <select> team options that share
  * the same team name — scope the query to the popover listbox. */
@@ -56,7 +56,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
   return render(
     <I18nProvider>
       <div style={{ width: 390 }}>
-        <SignalComposer authorId={AUTHOR_ID} authorName="Cahya Cafe" {...props} />
+        <SignalComposer authorId={AUTHOR_ID} authorName="Author One" {...props} />
       </div>
     </I18nProvider>,
   )
@@ -109,7 +109,7 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     // 3. Occurrence time
     const occurred = screen.getByLabelText(/occurred/i)
     // 4. Author (read-only line, not a form control)
-    expect(screen.getByText(/Cahya Cafe/)).toBeInTheDocument()
+    expect(screen.getByText(/Author One/)).toBeInTheDocument()
     expect(screen.getByText(/posted by/i)).toBeInTheDocument()
 
     // No category or attention control at initial paint (capture-minimal, Rule 8).
@@ -251,7 +251,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     render(
       <I18nProvider>
         <div onKeyDown={(e) => { if (e.key === 'Escape') hostEscape() }}>
-          <SignalComposer authorId={AUTHOR_ID} authorName="Cahya Cafe" canMentionBu />
+          <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canMentionBu />
         </div>
       </I18nProvider>,
     )

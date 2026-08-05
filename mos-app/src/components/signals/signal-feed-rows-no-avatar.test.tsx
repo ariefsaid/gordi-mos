@@ -13,7 +13,7 @@ import type { SignalRow } from '@/lib/db/signals.types'
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'person-cahya', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'FYI', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -22,7 +22,7 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
   }
 }
 
-const AUTHORS = { 'person-cahya': 'Cahya Cafe' }
+const AUTHORS = { 'person-author-a': 'Author One' }
 const TEAMS = { 'team-hq': 'HQ Operations' }
 
 function renderFeed(variant: 'ambient' | 'archive') {
@@ -41,7 +41,7 @@ function renderFeed(variant: 'ambient' | 'archive') {
 describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author, never their initials', (variant) => {
   it('renders the author name as plain text', () => {
     renderFeed(variant)
-    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toBeInTheDocument()
   })
 
   it('renders no initials mark anywhere in the row', () => {
@@ -53,8 +53,8 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
   it('the meta line still reads author · team · time, with nothing orphaned', () => {
     const { container } = renderFeed(variant)
     const meta = container.querySelector('.home-signal-meta')!
-    expect(within(meta as HTMLElement).getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(within(meta as HTMLElement).getByText('Author One')).toBeInTheDocument()
     expect(within(meta as HTMLElement).getByText('HQ Operations')).toBeInTheDocument()
-    expect(meta.textContent?.startsWith('Cahya Cafe·HQ Operations·')).toBe(true)
+    expect(meta.textContent?.startsWith('Author One·HQ Operations·')).toBe(true)
   })
 })

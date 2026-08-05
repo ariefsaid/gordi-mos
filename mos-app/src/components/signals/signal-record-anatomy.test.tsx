@@ -41,7 +41,7 @@ function composeAndRender(signal: SignalRow) {
     occurredLabel: '20 Jul 2026, 15:00 WIB',
     reach: retracted ? null : (
       <SignalReach
-        mentions={[{ kind: 'person', label: 'Cahya' }]}
+        mentions={[{ kind: 'person', label: 'Author One' }]}
         shieldLine="Visible to HQ Operations · notify 4 people"
         canAcknowledge hasAcknowledged={false} onAcknowledge={vi.fn()}
         acknowledgements={[]} linkedTasksSummary={{ total: 0, open: 0 }}

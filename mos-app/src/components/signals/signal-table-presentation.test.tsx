@@ -15,7 +15,7 @@ vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.valu
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-cahya', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'p-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'Needs attention', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -25,7 +25,7 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
 }
 
 const CONTEXT: SignalCollectionContext = {
-  authorNamesById: new Map([['p-cahya', 'Cahya Cafe']]),
+  authorNamesById: new Map([['p-author-a', 'Author One']]),
   teamNamesById: new Map([['team-hq', 'HQ Operations']]),
   siteNamesByTeamId: new Map(),
   viewerId: 'p-me',
@@ -77,7 +77,7 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     renderTable([row({ body: 'The freezer alarm went off', category: 'Equipment/facility' })])
     // Signal-specific content is present.
     expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument()
-    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toBeInTheDocument()
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
     expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText('Equipment/facility')).toBeInTheDocument()
@@ -87,7 +87,7 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(screen.queryByRole('columnheader', { name: /status/i })).not.toBeInTheDocument()
     expect(screen.getByRole('table')).toHaveClass('record-collection-table', 'collection-grammar-table')
     expect(screen.getByRole('button', { name: 'The freezer alarm went off' })).toHaveClass('collection-grammar-title')
-    expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
+    expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Author One')
   })
 
   it('GAP-9 (OD-91 #14): the Signal table inherits the shared j/k row cursor — j moves it, Enter opens the cursor row', async () => {
@@ -243,7 +243,7 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
       const card = document.querySelector('.signal-collection-presentation .dt-card')
       expect(card).toBeInTheDocument()
       expect(card?.querySelector('.collection-grammar-title')).toHaveTextContent('Phone-readable signal')
-      expect(card?.querySelector('.collection-grammar-meta')).toHaveTextContent('Cahya Cafe')
+      expect(card?.querySelector('.collection-grammar-meta')).toHaveTextContent('Author One')
       expect(card?.querySelector('.dt-card-detail')).toBeInTheDocument()
     } finally {
       desktopState.value = true

@@ -27,7 +27,7 @@ import { SignalFeedSection } from './signal-feed-section'
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'person-cahya', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'FYI', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -36,7 +36,7 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
   }
 }
 
-const AUTHORS = new Map([['person-cahya', 'Cahya Cafe']])
+const AUTHORS = new Map([['person-author-a', 'Author One']])
 const TEAMS = new Map([['team-hq', 'HQ Operations']])
 
 function LocationProbe() {
@@ -86,7 +86,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   it('renders the passed FYI Signals with the resolved author/Team names', async () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toBeInTheDocument()
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
   })
 
@@ -115,12 +115,14 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   it('search narrows the feed by author name', async () => {
     renderSection({
       signals: [
-        row({ id: 's1', author_id: 'person-cahya', body: 'The freezer alarm went off' }),
-        row({ id: 's2', author_id: 'person-rama', body: 'Cooling tray running slow' }),
+        row({ id: 's1', author_id: 'person-author-a', body: 'The freezer alarm went off' }),
+        row({ id: 's2', author_id: 'person-author-b', body: 'Cooling tray running slow' }),
       ],
-      authorNamesById: new Map([['person-cahya', 'Cahya Cafe'], ['person-rama', 'Rama Roastery']]),
+      authorNamesById: new Map([['person-author-a', 'Author One'], ['person-author-b', 'Author Two']]),
     })
-    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'rama')
+    // "two" appears in the second author's NAME and in neither body, so a hit proves the search
+    // reaches the author index rather than the message text.
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'two')
     expect(screen.getByText(/cooling tray/i)).toBeInTheDocument()
     expect(screen.queryByText(/freezer alarm/i)).not.toBeInTheDocument()
   })

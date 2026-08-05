@@ -15,8 +15,8 @@ import {
 // are small presentational components. This file covers each region's goal behaviors; the RENDERED
 // ORDER + the Step-2.5 FAIL gates live in signal-record-anatomy.test.tsx.
 
-const PEOPLE: PersonOption[] = [{ id: 'person-cahya', full_name: 'Cahya Cafe' }]
-const COMMENTS: TaskComment[] = [{ id: 'c1', author_id: 'person-cahya', body: 'Dispatching a tech now.', created_at: '2026-07-16T03:00:00Z' }]
+const PEOPLE: PersonOption[] = [{ id: 'person-author-a', full_name: 'Author One' }]
+const COMMENTS: TaskComment[] = [{ id: 'c1', author_id: 'person-author-a', body: 'Dispatching a tech now.', created_at: '2026-07-16T03:00:00Z' }]
 
 function wrap(node: React.ReactNode) {
   return render(<I18nProvider>{node}</I18nProvider>)
@@ -80,8 +80,8 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
   })
 
   it('lists the "who\'s acknowledged" roster and disables Acknowledge once done (never disappears)', () => {
-    renderReach({ hasAcknowledged: true, acknowledgements: [{ personId: 'person-cahya', personName: 'Cahya Cafe' }] })
-    expect(screen.getByText('Cahya Cafe', { selector: '.signal-ack-name' })).toBeInTheDocument()
+    renderReach({ hasAcknowledged: true, acknowledgements: [{ personId: 'person-author-a', personName: 'Author One' }] })
+    expect(screen.getByText('Author One', { selector: '.signal-ack-name' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /acknowledged/i })).toBeDisabled()
   })
 
@@ -139,7 +139,7 @@ describe('SignalDiscussion — comments in the document grammar', () => {
 
 describe('SignalHistory — disclosed audit, no raw diff in the default view (LAW-5/F4)', () => {
   const revisions: SignalRevisionView[] = [
-    { id: 'rev-1', field: 'body', old_value: 'down about 10%', new_value: 'down about 15%', created_at: '2026-07-16T04:00:00Z', actorName: 'Cahya Cafe' },
+    { id: 'rev-1', field: 'body', old_value: 'down about 10%', new_value: 'down about 15%', created_at: '2026-07-16T04:00:00Z', actorName: 'Author One' },
   ]
 
   it('renders nothing when the Signal has never been edited', () => {
@@ -155,7 +155,7 @@ describe('SignalHistory — disclosed audit, no raw diff in the default view (LA
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(toggle)
     // Now behind the disclosure: a human-readable summary + the readable diff.
-    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toBeInTheDocument()
     expect(screen.getByText(/down about 10%.*down about 15%/)).toBeInTheDocument()
   })
 })

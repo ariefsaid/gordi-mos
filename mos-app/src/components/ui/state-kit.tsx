@@ -39,6 +39,13 @@ export interface EmptyStateProps {
   variant?: EmptyStateVariant
   icon?: ReactNode
   /**
+   * Drop the `region` landmark when this EmptyState sits inside an already-labelled landmark
+   * (the record viewer's own section, a feed group inside a labelled list) — a region nested
+   * directly inside a region announces twice and adds nothing. Ported verbatim from v4 with
+   * #193; purely additive, so no existing call site changes.
+   */
+  nested?: boolean
+  /**
    * Heading level for the title. Defaults to 3, which is what every call site on this branch
    * already renders — the prop exists so a surface whose EmptyState sits directly under the page
    * h1 can pass 2 and not skip a level. (v4 raised the DEFAULT to 2; that changes the outline of
@@ -71,6 +78,7 @@ export function EmptyState({
   note,
   variant = 'quiet',
   icon,
+  nested = false,
   headingLevel = 3,
   children,
   className,
@@ -80,8 +88,8 @@ export function EmptyState({
 
   return (
     <div
-      role="region"
-      aria-labelledby={titleId}
+      role={nested ? undefined : 'region'}
+      aria-labelledby={nested ? undefined : titleId}
       data-testid="empty-state"
       data-empty-variant={variant}
       className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}

@@ -11,7 +11,7 @@ import { SIGNAL_COLLECTION_NEUTRAL_QUERY } from './signal-collection-adapter'
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-cahya', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'p-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'FYI', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -21,7 +21,7 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
 }
 
 const CONTEXT: SignalCollectionContext = {
-  authorNamesById: new Map([['p-cahya', 'Cahya Cafe']]),
+  authorNamesById: new Map([['p-author-a', 'Author One']]),
   teamNamesById: new Map([['team-hq', 'HQ Operations']]),
   siteNamesByTeamId: new Map(),
   viewerId: 'p-me',
@@ -67,7 +67,7 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
   it('renders the Signal rows with resolved author/Team names', () => {
     renderFeed([row()], {})
     expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument()
-    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toBeInTheDocument()
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
   })
 

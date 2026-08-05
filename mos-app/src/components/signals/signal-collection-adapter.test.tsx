@@ -31,7 +31,7 @@ const mockGetPeople = vi.mocked(getPeople)
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-cahya', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'p-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'Needs attention', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -45,7 +45,7 @@ function query(overrides: Partial<SignalCollectionQuery> = {}): SignalCollection
 }
 
 const CTX: SignalCollectionContext = {
-  authorNamesById: new Map([['p-cahya', 'Cahya Cafe'], ['p-riri', 'Riri Roastery']]),
+  authorNamesById: new Map([['p-author-a', 'Author One'], ['p-author-b', 'Author Two']]),
   teamNamesById: new Map([['team-hq', 'HQ Operations'], ['team-radiant', 'Radiant Operations']]),
   siteNamesByTeamId: new Map(),
   viewerId: 'p-me',
@@ -61,7 +61,7 @@ beforeEach(() => {
   mockListAllTeams.mockResolvedValue([
     { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
   ])
-  mockGetPeople.mockResolvedValue([{ id: 'p-cahya', full_name: 'Cahya Cafe' }])
+  mockGetPeople.mockResolvedValue([{ id: 'p-author-a', full_name: 'Author One' }])
 })
 
 describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-013)', () => {
@@ -71,7 +71,7 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(mockGetPeople).toHaveBeenCalledTimes(1)
     expect(mockListAllTeams).toHaveBeenCalledTimes(1)
     expect(loaded.records).toHaveLength(1)
-    expect(loaded.context.authorNamesById.get('p-cahya')).toBe('Cahya Cafe')
+    expect(loaded.context.authorNamesById.get('p-author-a')).toBe('Author One')
     expect(loaded.context.teamNamesById.get('team-hq')).toBe('HQ Operations')
     expect(loaded.context.viewerId).toBe('p-me')
   })

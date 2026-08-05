@@ -45,7 +45,7 @@ const mockGetPeople = vi.mocked(getPeople)
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'person-cahya', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'Needs attention', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -54,7 +54,7 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
   }
 }
 
-const PEOPLE: PersonOption[] = [{ id: 'person-cahya', full_name: 'Cahya Cafe' }]
+const PEOPLE: PersonOption[] = [{ id: 'person-author-a', full_name: 'Author One' }]
 
 function renderPage(initialPath = '/work/signals') {
   return render(
@@ -197,7 +197,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     renderPage('/work/signals?layout=table')
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
     expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument()
-    expect(screen.getAllByText(/Cahya Cafe/)[0]).toBeInTheDocument()
+    expect(screen.getAllByText(/Author One/)[0]).toBeInTheDocument()
     expect(screen.getAllByText(/HQ Operations/).some((node) => node.closest('td'))).toBe(true)
   })
 
