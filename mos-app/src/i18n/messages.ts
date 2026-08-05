@@ -120,6 +120,28 @@ export const messages = {
     'locale.toggle.label': 'Language',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
+    // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
+    // Personal Profile (#199). Identity is read-only — Admin owns the person and role records —
+    // and the language SELECTION lives here (it is the app's only way to reach the Indonesian UI).
+    'profile.identity': 'Identity',
+    'profile.person': 'Person',
+    'profile.role': 'Role',
+    'profile.roles': 'Roles',
+    'profile.managedByAdmin': 'Managed by Admin — ask an admin to correct your name or role.',
+    'profile.homeLayout': 'Home layout',
+    // The third sentence is load-bearing: every thumbnail draws a right-hand strip and nothing
+    // else on the page says what it is.
+    'profile.homeLayout.help': 'How your Home page is arranged. Everyone sees the same information — this only changes the shape. The Signals column is always on the right.',
+    'profile.homeLayout.focused': 'Focused',
+    // Each option carries a name AND a one-sentence description of WHO IT SUITS. The shape half
+    // is the thumbnail's job; the "Best when…" half is the requirement, and it is the only part
+    // of the sentence the wireframe cannot say.
+    'profile.homeLayout.focused.desc': 'One section at a time, chosen from tabs. Counts stay visible so nothing hides. Best when there is a lot on and you want to work through it.',
+    'profile.homeLayout.overview': 'Overview',
+    'profile.homeLayout.overview.desc': 'Every area at once as tiles, sized by how much they matter. Best when you scan the whole company and want no clicks.',
+    'profile.homeLayout.list': 'List',
+    'profile.homeLayout.list.desc': 'One continuous list, grouped by kind — nothing is behind a click. Best when you want the most familiar and most complete view.',
+    'profile.homeLayout.default': 'Default',
     // ADR-0018 P1 — view-composition substrate (user views). Dev-gated harness + renderer.
     'views.render.aria': 'User view',
     'views.render.loading': 'Loading…',
@@ -286,6 +308,11 @@ export const messages = {
     // built yet — distinct from a 404, which is a path that will never exist.
     'stub.notInSlice': 'Not in this slice yet',
     'stub.comingLater': '${name} lands in a later build step.',
+    // Events (#199). The destination is owner-named and in scope, but WHAT IT IS FOR is still
+    // unruled (#158 — external happenings vs internal calendar), so the surface claims no model:
+    // a job sentence and an honest empty state, and nothing that implies a schema.
+    'events.empty.title': 'Nothing scheduled yet',
+    'events.empty.copy': 'Outlet events — cuppings, workshops, bookings — will appear here once events are turned on.',
     'dest.admin': 'Admin Settings',
     'dest.cafe': 'Café',
     'dest.ecommerce': 'Ecommerce',
@@ -568,6 +595,22 @@ export const messages = {
     'locale.toggle.label': 'Bahasa',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
+    // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
+    'profile.identity': 'Identitas',
+    'profile.person': 'Orang',
+    'profile.role': 'Peran',
+    'profile.roles': 'Peran',
+    'profile.managedByAdmin': 'Dikelola Admin — hubungi admin untuk memperbaiki nama atau peran Anda.',
+    'profile.homeLayout': 'Tata letak Beranda',
+    'profile.homeLayout.help': 'Bagaimana halaman Beranda Anda disusun. Semua orang melihat informasi yang sama — ini hanya mengubah bentuknya. Kolom Sinyal selalu ada di sebelah kanan.',
+    'profile.homeLayout.focused': 'Fokus',
+    // The "Paling cocok…" clause is the who-it-suits half; see the en catalog.
+    'profile.homeLayout.focused.desc': 'Satu bagian dalam satu waktu, dipilih dari tab. Jumlah tetap terlihat sehingga tidak ada yang tersembunyi. Paling cocok saat banyak yang harus dikerjakan dan Anda ingin menuntaskannya satu per satu.',
+    'profile.homeLayout.overview': 'Ikhtisar',
+    'profile.homeLayout.overview.desc': 'Semua area sekaligus sebagai kartu, diukur menurut tingkat kepentingannya. Paling cocok saat Anda memindai seluruh perusahaan dan tidak ingin mengklik apa pun.',
+    'profile.homeLayout.list': 'Daftar',
+    'profile.homeLayout.list.desc': 'Satu daftar berkelanjutan, dikelompokkan per jenis — tidak ada yang tersembunyi di balik klik. Paling cocok saat Anda ingin tampilan yang paling familier dan paling lengkap.',
+    'profile.homeLayout.default': 'Bawaan',
     // ADR-0018 P1 — view-composition substrate (user views). Dev-gated harness + renderer.
     'views.render.aria': 'Tampilan pengguna',
     'views.render.loading': 'Memuat…',
@@ -724,6 +767,8 @@ export const messages = {
     'leaveGuard.discard': 'Buang dan keluar',
     'stub.notInSlice': 'Belum ada di slice ini',
     'stub.comingLater': '${name} hadir di tahap build berikutnya.',
+    'events.empty.title': 'Belum ada acara terjadwal',
+    'events.empty.copy': 'Acara outlet — cupping, workshop, pemesanan — akan muncul di sini setelah fitur acara diaktifkan.',
     'dest.admin': 'Pengaturan Admin',
     'dest.cafe': 'Kafe',
     'dest.ecommerce': 'Ecommerce',
