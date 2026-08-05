@@ -13,13 +13,15 @@
 }
 .record-panel-title { font-size: var(--font-size-label); color: var(--muted-foreground); min-width: 0; }
 .record-panel-spacer { flex: 1; }
-/* P1-2 (Luna-measured 32px): coarse-pointer pattern (record-viewer.css `@media (pointer: fine)`
- * tighten-down) — the RESTING size defaults to the 44px touch floor everywhere (phone, tablet,
+/* P1-2 (Luna-measured 32px): the coarse-pointer tighten-down pattern — the RESTING size defaults to
+ * the 44px touch floor everywhere (phone, tablet,
  * any coarse/no-hover pointer), and only a genuine fine pointer (desktop mouse) tightens to the
  * 32px control token. The previous rule was the inverse — 32px everywhere except one CSS-scoped
- * mobile-sheet context (.drawer-modal.drawer-fullscreen), so any OTHER coarse-pointer host (the
- * TaskSurface standalone full-page record-chrome row) fell through to 32px unconditionally, which
- * is the exact bug Luna measured. */
+ * mobile-sheet context (.drawer-modal.drawer-fullscreen), so any OTHER coarse-pointer host fell
+ * through to 32px unconditionally, which is the exact bug Luna measured.
+ * (#190: v4's version of this note cites `record-viewer.css` as where the pattern comes from. That
+ * file is not on this line — the record viewer is a later surface — so the reference is dropped
+ * rather than carried as a pointer into nothing.) */
 .record-panel-btn {
   width: 44px; height: 44px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
   background: transparent; border: 1px solid transparent;

@@ -5,9 +5,16 @@
  * WHY: both consume the shell's right-edge surface track. Showing two peers there violates the
  * owner IA/IxD law "one overlay grammar"
  * (OD-REDESIGN). A collection-owner record overlay (Tasks/Signals/Inbox page records) sits inside
- * the page `.record-split` grid, so it may coexist; AssistantPanel reads that same session and
- * contracts into the record-safe compact desktop regime (OD-REDESIGN-80). Only shell-owner
- * overlays collide and therefore remain mutually exclusive here.
+ * the page `.record-split` grid, so it may coexist. Only shell-owner overlays collide and therefore
+ * remain mutually exclusive here.
+ *
+ * RATIONALE CORRECTED ON THE WAY ACROSS (#190). v4's version of this note says "AssistantPanel reads
+ * that same session and contracts into the record-safe compact desktop regime (OD-REDESIGN-80)",
+ * and offers that as the reason a collection record may coexist. On THIS line AssistantPanel reads
+ * no overlay session at all — it has not been cut over to the shared host. The coexistence rule
+ * still holds, because it rests on WHERE the two surfaces sit (page grid vs shell right edge), not
+ * on Deputy contracting; but the panel's half of that behaviour is not here yet. The Deputy cutover
+ * ticket owns it, and `OverlayCompanionSlot` is the seam waiting for it.
  *
  * INVARIANT: at most one of {shell-owner overlay, Deputy} is open at once. The NEWEST intent
  * wins — the one that just transitioned to open stays, the already-open one yields:

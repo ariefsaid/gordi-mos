@@ -6,9 +6,11 @@
 //
 // harden (2026-07-28): the prompt was `window.confirm`. Three defects, all H9:
 //   1. DESIGN.md (Overlays) prescribes ONE centered blocking dialog for consequential confirms,
-//      and the app already ships it (`ui/confirm-dialog`) — Café Log's own Discard button uses it.
-//      So the SAME page confirmed one destructive action in the house dialog and the other in a
-//      native alert, two grammars for one decision.
+//      and the app already ships it — so a page that confirmed one destructive action in the house
+//      dialog and the other in a native alert used two grammars for one decision.
+//      (RATIONALE CORRECTED ON THE WAY ACROSS, #190: v4 cites "Café Log's own Discard button uses
+//      it" as the proof. On THIS line Café Log uses no ConfirmDialog at all — the shipped consumers
+//      are the Admin people surfaces. The defect is the same; the witness named was not here.)
 //   2. Its buttons are the BROWSER's, labelled in the browser's UI language, not the app's — an
 //      Indonesian-locale user got "OK / Cancel" in whatever Chrome was installed as, on the one
 //      prompt whose wrong answer discards their work. The whole point of `common.cancel` /

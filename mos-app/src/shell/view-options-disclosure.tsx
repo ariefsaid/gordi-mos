@@ -6,15 +6,16 @@ import { Chevron } from './icons'
  * (Rule 8 capture-first · Rule 11 component reuse). A compact trigger (label + optional
  * decorative summary + a chevron) that toggles a collapsible panel of secondary controls.
  *
- * Both hosts mount THIS component:
- *   - Home  — folds the attention/personal order radiogroup behind it at ≤390px.
- *   - Tasks — folds the member phone filter stack behind it (OD-REDESIGN-61).
- *   - Signals — folds the collection toolbar behind it so the first Signal leads on phone.
- *
  * The behavior + a11y wiring (aria-expanded ↔ open, aria-controls ↔ panel id, decorative
- * aria-hidden summary) live here once. Each host passes its OWN skin classes, so the
- * distinct computed styles (Home's right-aligned pill vs Tasks' full-width header) are
- * preserved byte-for-byte — reuse of behavior, skinned per context.
+ * aria-hidden summary) live here once. Each host passes its OWN skin classes, so the distinct
+ * computed styles (a right-aligned pill vs a full-width header) are preserved — reuse of behavior,
+ * skinned per context.
+ *
+ * NO CALLER YET (#190). v4's version of this note lists three hosts that "mount THIS component"
+ * — Home's order radiogroup at ≤390px, the Tasks member phone filter stack (OD-REDESIGN-61), the
+ * Signals collection toolbar. None of those surfaces has ported, so the list is dropped rather than
+ * carried as a claim about code that is not here. It ships now because it is the primitive those
+ * three would otherwise each re-invent, and its own suite holds the contract until they arrive.
  */
 export interface ViewOptionsDisclosureProps {
   /** Whether the panel is expanded. */

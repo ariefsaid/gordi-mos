@@ -7,13 +7,18 @@ import { CloseIcon, BackIcon } from './icons'
 import { useT } from '@/i18n/use-t'
 import type { OverlayOwner } from './overlay-navigation'
 
-// ONE overlay grammar for records (spec docs/specs/record-panel-host.spec.md, FR-1). Every
+// ONE overlay grammar for records. Every
 // record tenant — Task, Signal, and eventually Inbox/Deputy — mounts its CONTENT through this
 // host so they all open the same way: ≥1100px a non-modal inline <aside> split (the page stays
 // live for triage); below that a role=dialog + aria-modal sheet with a scrim, focus trap, Esc,
 // and return-focus. The host owns the modal regime, the .drawer shell (width/border/shadow),
 // the focus contract, and an optional chrome header (title zone · "Open full page" · ✕ Close).
 // Extracted verbatim from the audit-"exemplary" Task drawer (Rule 11 — reuse, no re-invention).
+//
+// (#190: v4's header cites `docs/specs/record-panel-host.spec.md` for the FR-1 numbering. That spec
+// is not in this line's docs tree — the port's governing spec is `docs/specs/v4-port.spec.md` — so
+// the path is dropped rather than carried as a pointer into nothing. The FR/AC ids the cases below
+// use are v4's own and are kept so a reviewer diffing against v4 can still line them up.)
 
 const FOCUSABLE = [
   'a[href]', 'button:not([disabled])', 'input:not([disabled])',

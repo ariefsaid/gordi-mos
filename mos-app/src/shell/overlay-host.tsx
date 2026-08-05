@@ -724,7 +724,9 @@ export function OverlayHostSlot({
           // so the panel would render unpositioned (Luna audit B1: "bare .drawer aside, no 44%
           // track"). owner-shell gives RecordPanelHost a shell-specific right-anchored track at
           // desktop via .drawer-shell-split (reuses the minmax(360px, 44%) token, Rule 11 — one
-          // width). Collection slots don't need this; their pages wrap the slot in .record-split.
+          // width). Collection slots do not need it — their pages are expected to wrap the slot in
+          // `.record-split`. NOTE (#190): no collection page does that yet, because none has ported;
+          // the class ships in styles/drawer.css so the first one to arrive finds the track waiting.
           rootClassName={owner === 'shell' ? 'drawer-shell-split' : undefined}
         >
           {active.entry.content}

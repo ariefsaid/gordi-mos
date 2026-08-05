@@ -6,7 +6,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from './record-panel-host'
 
 // The RecordPanelHost is the ONE overlay grammar every record tenant (Task, Signal, …) mounts
-// through (spec record-panel-host.spec.md, FR-1). These tests drive the dual modal regime, the
+// through. These tests drive the dual modal regime, the
 // focus contract, and the optional chrome directly — the behavioral proof the host owns them.
 
 // Width-regime stub mirroring task-drawer.test.tsx: control which of the 1100/920/768 queries

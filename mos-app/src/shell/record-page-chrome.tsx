@@ -10,10 +10,14 @@ import './record-page-chrome.css'
 // none — the exact per-surface fork the record grammar exists to prevent. This is the shared
 // record-page seam (mirror of E7 `renderRecordPageChrome`): a source-aware "Back to <collection>"
 // link on the leading edge + the record-scoped Ask Deputy affordance trailing, plus any kind-
-// specific trailing control (e.g. Task's collapse-to-split). Both TaskRecordPage and
-// SignalRecordPage (and any future record page) render THIS — whatever carries Task's Back now
-// carries Signal's. The RecordViewer stays free of history/navigation (its ownership boundary),
-// so the Back lives here at the page host, not in the shared viewer.
+// specific trailing control (e.g. Task's collapse-to-split). Every record page renders THIS —
+// whatever carries Task's Back carries Signal's. The record viewer stays free of history and
+// navigation (its ownership boundary), so the Back lives here at the page host, not in the viewer.
+//
+// NO CALLER YET (#190). v4's version of this note names TaskRecordPage and SignalRecordPage as the
+// two that render it; neither is on this line, and claiming them would be a comment that lies. This
+// ships as the seam each record page adopts as it ports — the same deliberate parking `BackIcon`
+// had before this PR, and its own test file holds the shared contract in the meantime.
 
 // PORT NOTE (#190): v4 also renders a record-scoped `AskDeputyAction` here, which seeds the Deputy
 // composer with a reference to the open record — `openPanel(draft)`. This line's agent runtime takes
