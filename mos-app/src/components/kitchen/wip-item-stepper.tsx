@@ -35,6 +35,9 @@ interface WipItemStepperProps {
    *  is a boxing flag ONLY: it must never carry "this is a pointer surface" behaviour
    *  (control height / type size), which is viewport-scoped in wip-item-stepper.css. */
   dense?: boolean
+  /** today's already-logged qty for this (item, movement) on the SELECTED stream — the
+   *  running "already logged N" idiom (FR-014, AC-006). 0/omitted → nothing renders. */
+  alreadyLogged?: number
 }
 
 export function WipItemStepper({
@@ -46,6 +49,7 @@ export function WipItemStepper({
   disabled = false,
   hideName = false,
   dense = false,
+  alreadyLogged = 0,
 }: WipItemStepperProps) {
   const t = useT()
   // v4: `stok` is no longer read here — both layouts already render Stock as a column/field.
@@ -129,9 +133,18 @@ export function WipItemStepper({
           forced every row to ~90px, pushing the dish list off the first viewport. Dense keeps
           only `tersedia`, which has no column of its own. The phone card floor is unchanged:
           it has no columns, so it still needs the full basis line. */}
-      {transfer && (
+      {(transfer || alreadyLogged > 0) && (
         <div className="kls-meta">
-          <span>{t('kitchen.log.stepper.avail')} <strong>{tersedia}</strong></span>
+          {/* the running "already logged N" (FR-014, AC-006): today's recorded actuals for
+              this item + movement on the SELECTED stream — real submitted rows, never the
+              typed-but-unsaved quantity (DD-7's line is the form state; this comes from
+              the database). Renders only once something HAS been logged. */}
+          {alreadyLogged > 0 && (
+            <span>{t('kitchen.log.stepper.already')} <strong>{alreadyLogged}</strong></span>
+          )}
+          {transfer && (
+            <span>{t('kitchen.log.stepper.avail')} <strong>{tersedia}</strong></span>
+          )}
         </div>
       )}
 

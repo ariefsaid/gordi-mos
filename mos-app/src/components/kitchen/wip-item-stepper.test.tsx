@@ -42,6 +42,7 @@ function renderStepper(
     onNotesChange?: () => void
     itemName?: string
     dense?: boolean
+    alreadyLogged?: number
   } = {},
 ) {
   return render(
@@ -52,9 +53,33 @@ function renderStepper(
       onQtyChange={over.onQtyChange ?? vi.fn()}
       onNotesChange={over.onNotesChange ?? vi.fn()}
       dense={over.dense}
+      alreadyLogged={over.alreadyLogged}
     />,
   )
 }
+
+// #233 / FR-014, AC-006: the running "already logged N" — today's recorded actuals for
+// this item + movement on the selected stream, shown beside the row. Comes from the
+// DATABASE (submitted rows), never from the typed-but-unsaved quantity (DD-7's line).
+describe('WipItemStepper — already-logged actuals (FR-014, AC-006)', () => {
+  it('renders "logged N" when something has been logged today', () => {
+    renderStepper({ alreadyLogged: 4 })
+    const meta = document.querySelector('.kls-meta')
+    expect(meta?.textContent).toMatch(/logged\s*4/)
+  })
+
+  it('renders nothing at 0 — a quiet row stays quiet', () => {
+    renderStepper({ alreadyLogged: 0 })
+    expect(document.querySelector('.kls-meta')).toBeNull()
+  })
+
+  it('a transfer row shows both the already-logged count and the tersedia context', () => {
+    renderStepper({ movement: TRANSFER_RADIANT, alreadyLogged: 3, line: { tersedia: 7 } })
+    const meta = document.querySelector('.kls-meta')
+    expect(meta?.textContent).toMatch(/logged\s*3/)
+    expect(meta?.textContent).toMatch(/avail\s*7/)
+  })
+})
 
 describe('WipItemStepper — AC-020/021/022', () => {
   it('displays the item name', () => {

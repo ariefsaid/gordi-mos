@@ -28,6 +28,17 @@ export interface ProductionStream {
   activity: ProductionActivity
 }
 
+/**
+ * A raw (branch_id, activity) pair as the stream substrate stores it — the shape
+ * `shared.default_stream()` returns (FR-001) and the six stream Teams carry (FR-005).
+ * Resolved against the branch catalog into a display-ready ProductionStream by
+ * `streamCatalogFrom` / the capture page.
+ */
+export interface StreamPair {
+  branch_id: string
+  activity: ProductionActivity
+}
+
 /** What happened, in the stored vocabulary (`ops.kitchen_logs.action`). */
 export type KitchenAction = 'produce' | 'transfer'
 
@@ -95,6 +106,11 @@ export type MovementKey = string
 // Plan qty keyed by (wip_item_id, movement key) for fast lookup in the form.
 // Partial so partial test fixtures type-check (most items won't have every movement).
 export type PlanMap = Record<string, Partial<Record<MovementKey, number>>>
+
+// Today's already-logged actuals (Σ qty_porsi of the stream/date's non-Rejected logs),
+// keyed like PlanMap — the "already logged N" idiom (FR-014, AC-006). Stream-scoped:
+// the same dish has different actuals in another stream's books.
+export type ActualsMap = Record<string, Partial<Record<MovementKey, number>>>
 
 // ── ops.kitchen_stock availability (FR-022/023) ──────────────────────────────
 // Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved

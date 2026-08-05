@@ -24,30 +24,33 @@ import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
 import {
   listCaptureFormItems,
+  fetchActualsMap,
+  fetchDefaultStream,
   fetchPlanMap,
   fetchStockMap,
+  listStreamPairs,
   resolveKitchenBuId,
   insertKitchenLogBatch,
-  defaultStreamFrom,
+  streamCatalogFrom,
 } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
 import type {
+  ActualsMap,
   BranchOption,
   KitchenLogLine,
   KitchenMovement,
   PlanMap,
-  ProductionActivity,
   ProductionStream,
   StockMap,
   WipItemOption,
 } from '@/lib/db/kitchen-logs.types'
-import { PRODUCTION_ACTIVITIES } from '@/lib/db/kitchen-logs.types'
 import {
   activityLabel,
   branchDisplayName,
   deriveActionLabel,
   movementKey,
   movementsForStream,
+  streamKey,
   PRODUCE,
 } from '@/lib/kitchen-action-label'
 import {
@@ -147,16 +150,22 @@ export function KitchenLogPage() {
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.log')}`
 
   // The (branch, activity) production stream every captured row belongs to (OD-WAY-28), and
-  // the movement within it (DD-WAY-13). `stream` is null only until the branch catalog has
-  // loaded, or when the org has no branches at all — and while it is null nothing can be
-  // submitted, because `ops.kitchen_logs.branch_id` / `.activity` are NOT NULL (AC-007).
+  // the movement within it (DD-WAY-13). The default is the person's OWN stream — their live
+  // primary Team resolved by shared.default_stream() (FR-001, #233) — never a hardcoded
+  // branch. `stream` is null while loading, and STAYS null when the person has no
+  // stream-linked primary Team: capture then requires an explicit choice from the picker
+  // (FR-002), and nothing can be submitted meanwhile because `ops.kitchen_logs.branch_id` /
+  // `.activity` are NOT NULL (AC-007). `streamOptions` is the six-stream catalog (FR-005):
+  // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const [branches, setBranches] = useState<BranchOption[]>([])
+  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
   const [stream, setStream] = useState<ProductionStream | null>(null)
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
   const [wipItems, setWipItems] = useState<WipItemOption[]>([])
   const [planMap, setPlanMap] = useState<PlanMap>({})
   const [stockMap, setStockMap] = useState<StockMap>({})
+  const [actualsMap, setActualsMap] = useState<ActualsMap>({})
   const [buId, setBuId] = useState('')
   const [lines, setLines] = useState<Record<string, KitchenLogLine>>({})
   const [status, setStatus] = useState<PageStatus>({ kind: 'loading' })
@@ -185,39 +194,57 @@ export function KitchenLogPage() {
     }
   }, [])
 
-  // Load the branch catalog + WIP items + the Café BU id, then the plan and stock FOR THE
-  // RESOLVED STREAM. Plan and stock are stream-scoped reads now (OD-WAY-28): the date-only
-  // signatures they replace summed every branch's balance and reported the total as any one
-  // of them, so the stream has to be resolved before either can be asked for.
+  // Load the branch catalog + the stream catalog + the person's own default stream + WIP
+  // items + the Café BU id, then the plan, stock and actuals FOR THE RESOLVED STREAM.
+  // All three are stream-scoped reads (OD-WAY-28): the date-only signatures they replace
+  // summed every branch's balance and reported the total as any one of them.
+  //
+  // FR-001/002 (#233): the default is shared.default_stream() — the (branch, activity) of
+  // the person's live primary Team. No stream-linked primary Team → NO default: the surface
+  // opens on the explicit "choose stream" state rather than silently filing production
+  // against a branch the person never chose (a wrong default is the defect class this spec
+  // exists to end; a missing one costs one tap).
   const loadData = useCallback(async () => {
     setStatus({ kind: 'loading' })
     try {
-      const [items, branchRows, bu] = await Promise.all([
+      const [items, branchRows, streamPairs, defaultPair, bu] = await Promise.all([
         // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
         // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
         listCaptureFormItems(),
         listActiveBranches(),
+        listStreamPairs(),
+        fetchDefaultStream(),
         resolveKitchenBuId(),
       ])
-      const resolvedStream = defaultStreamFrom(branchRows)
+      const catalog = streamCatalogFrom(streamPairs, branchRows)
+      // The default must BE a catalog stream — a stale pair pointing outside the live
+      // six-stream catalog resolves to "choose", never to a guess (FR-002).
+      const resolvedStream = defaultPair
+        ? catalog.find(
+            s => s.branch.id === defaultPair.branch_id && s.activity === defaultPair.activity,
+          ) ?? null
+        : null
       const resolvedMovement = PRODUCE
-      const [plan, stock] = resolvedStream
+      const [plan, stock, actuals] = resolvedStream
         ? await Promise.all([
             fetchPlanMap(logDate, resolvedStream),
             fetchStockMap(logDate, resolvedStream),
+            fetchActualsMap(logDate, resolvedStream),
           ])
-        : [{} as PlanMap, {} as StockMap]
+        : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
       setWipItems(items)
       setBranches(branchRows)
+      setStreamOptions(catalog)
       setStream(resolvedStream)
       setMovement(resolvedMovement)
       setPlanMap(plan)
       setStockMap(stock)
+      setActualsMap(actuals)
       setBuId(bu)
       setLines(buildLines(items, plan, stock, resolvedMovement))
       setStatus({ kind: 'ready' })
     } catch {
-      // Can't resolve items/branches/stock/BU — render an error state rather than stamping a
+      // Can't resolve items/streams/stock/BU — render an error state rather than stamping a
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
@@ -252,22 +279,24 @@ export function KitchenLogPage() {
     setMovement(next)
   }
 
-  // Switching the stream re-reads the plan and the stock, because both are stream-scoped
-  // facts: the same dish has a different plan and a different balance in another branch's
-  // books. Staged quantities are cleared with them — a typed number belongs to the stream it
-  // was typed against, and silently re-filing it under a different one is how a COGS series
-  // acquires rows nobody meant.
+  // Switching the stream re-reads the plan, the stock and the actuals, because all three
+  // are stream-scoped facts: the same dish has a different plan, a different balance and a
+  // different "already logged" in another branch's books. Staged quantities are cleared with
+  // them — a typed number belongs to the stream it was typed against, and silently re-filing
+  // it under a different one is how a COGS series acquires rows nobody meant.
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     setStream(nextStream)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
     try {
-      const [plan, stock] = await Promise.all([
+      const [plan, stock, actuals] = await Promise.all([
         fetchPlanMap(logDate, nextStream),
         fetchStockMap(logDate, nextStream),
+        fetchActualsMap(logDate, nextStream),
       ])
       setPlanMap(plan)
       setStockMap(stock)
+      setActualsMap(actuals)
       setLines(buildLines(wipItems, plan, stock, PRODUCE))
       setStatus({ kind: 'ready' })
     } catch {
@@ -529,6 +558,7 @@ export function KitchenLogPage() {
           itemName={item.name}
           line={lines[item.id]}
           movement={movement}
+          alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
           onQtyChange={qty => handleQtyChange(item.id, qty)}
           onNotesChange={note => handleNotesChange(item.id, note)}
           disabled={isSubmitting}
@@ -583,6 +613,7 @@ export function KitchenLogPage() {
             itemName={item.name}
             line={line}
             movement={movement}
+            alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
             onQtyChange={qty => handleQtyChange(item.id, qty)}
             onNotesChange={note => handleNotesChange(item.id, note)}
             disabled={isSubmitting}
@@ -676,7 +707,7 @@ export function KitchenLogPage() {
           {/* v4 chrome merge: the scope seg used to be its own bordered band stacked
               directly above this one — two utility strips, two paddings, two rules, for one
               row of controls. It is now the toolbar's LEADING scope slot, so the surface
-              opens with one band and the dish list starts higher. The stream pickers join
+              opens with one band and the dish list starts higher. The stream picker joins
               it there: which books a movement lands in decides what every row in the list
               means, exactly as the movement does, so the two belong in one scope block. */}
           <KitchenToolbar
@@ -689,33 +720,34 @@ export function KitchenLogPage() {
             ariaLabel={t('kitchen.log.toolbarAria')}
           >
             <div className="kl-scope">
+              {/* ONE stream picker over the six-stream catalog (FR-003/005, #233) — a
+                  default, never a wall: it opens on the person's own stream (FR-001) and
+                  is always switchable to any other. It replaced a branch × activity pair
+                  of selects that offered the whole branch catalog — including the
+                  roastery, which is a branch but never a stream. With no default (FR-002)
+                  the placeholder holds the empty value until a stream is chosen. */}
               <Select
-                className="kl-scope-branch"
-                aria-label={t('kitchen.log.stream.branchAria')}
-                value={stream?.branch.id ?? ''}
-                disabled={isSubmitting || branches.length === 0}
+                className="kl-scope-stream"
+                aria-label={t('kitchen.log.stream.pickerAria')}
+                value={stream ? streamKey(stream.branch.id, stream.activity) : ''}
+                disabled={isSubmitting || streamOptions.length === 0}
                 onChange={e => {
-                  const branch = branches.find(b => b.id === e.target.value)
-                  if (branch && stream) void applyStream({ ...stream, branch })
+                  const next = streamOptions.find(
+                    s => streamKey(s.branch.id, s.activity) === e.target.value,
+                  )
+                  if (next) void applyStream(next)
                 }}
               >
-                {branches.map(branch => (
-                  <option key={branch.id} value={branch.id}>{branchDisplayName(branch)}</option>
-                ))}
-              </Select>
-              <Select
-                className="kl-scope-activity"
-                aria-label={t('kitchen.log.stream.activityAria')}
-                value={stream?.activity ?? ''}
-                disabled={isSubmitting || !stream}
-                onChange={e => {
-                  if (stream) {
-                    void applyStream({ ...stream, activity: e.target.value as ProductionActivity })
-                  }
-                }}
-              >
-                {PRODUCTION_ACTIVITIES.map(activity => (
-                  <option key={activity} value={activity}>{activityLabel(t, activity)}</option>
+                {stream === null && (
+                  <option value="" disabled>{t('kitchen.log.stream.choose')}</option>
+                )}
+                {streamOptions.map(s => (
+                  <option
+                    key={streamKey(s.branch.id, s.activity)}
+                    value={streamKey(s.branch.id, s.activity)}
+                  >
+                    {branchDisplayName(s.branch)} · {activityLabel(t, s.activity)}
+                  </option>
                 ))}
               </Select>
               <MovementSeg

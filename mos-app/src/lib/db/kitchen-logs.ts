@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { movementKey } from '@/lib/kitchen-action-label'
 import { listActiveBranches } from './branches'
 import type {
+  ActualsMap,
   BranchOption,
   WipItemOption,
   PlanMap,
@@ -20,7 +21,9 @@ import type {
   ApproveResult,
   KitchenStockRow,
   KitchenStockStreamRow,
+  StreamPair,
 } from './kitchen-logs.types'
+import { PRODUCTION_ACTIVITIES } from './kitchen-logs.types'
 
 const ops = () => supabase.schema('ops')
 const shared = () => supabase.schema('shared')
@@ -61,9 +64,70 @@ export function defaultStreamFrom(branches: readonly BranchOption[]): Production
  * Resolve the opening stream against the live catalog. For surfaces that read one stream
  * and do not let the viewer move it yet; a capture surface loads the catalog itself so it
  * can offer the picker.
+ *
+ * NOT the capture surface's default any more (#233): capture opens on the person's OWN
+ * stream via `fetchDefaultStream()` (FR-001) and falls back to an explicit choice, never
+ * to a hardcoded branch (FR-002). This stays for the read-only surfaces that have not
+ * grown a person-scoped default yet (plan editor).
  */
 export async function resolveDefaultCaptureStream(): Promise<ProductionStream | null> {
   return defaultStreamFrom(await listActiveBranches())
+}
+
+/**
+ * The person's own default capture stream (FR-001, AC-001): the (branch_id, activity) of
+ * their live primary Team membership, resolved by `shared.default_stream()` — the
+ * substrate seeded by the stream-teams migration (OD-WAY-49: their Team IS their stream).
+ * Null when the person has no live primary membership, or their primary Team is not a
+ * stream team — either way the capture surface must require an explicit stream choice
+ * before capture (FR-002). A DEFAULT, never a wall (FR-003/OD-WAY-31): the picker always
+ * offers every stream.
+ */
+export async function fetchDefaultStream(): Promise<StreamPair | null> {
+  const { data, error } = await shared().rpc('default_stream')
+  if (error) throw new Error(`fetchDefaultStream failed — ${error.message}`)
+  const row = ((data ?? []) as { branch_id: string | null; activity: string | null }[])[0]
+  if (!row?.branch_id || !row.activity) return null
+  return { branch_id: row.branch_id, activity: row.activity as ProductionActivity }
+}
+
+/**
+ * The enumerable stream catalog (FR-005, OD-WAY-42): the (branch_id, activity) pairs of
+ * the live stream Teams — exactly the six seeded {GHQ, RRS, Radiant} × {kitchen, bar}.
+ * Read from `shared.teams` where the pair is set: the Team IS the stream (OD-WAY-49), so
+ * the catalog cannot drift from the substrate the default resolves against. The roastery
+ * is a branch but never a stream — it has no stream Team, so it can never appear here
+ * (unlike the branch catalog × activities cross-product this read replaces).
+ */
+export async function listStreamPairs(): Promise<StreamPair[]> {
+  const { data, error } = await shared()
+    .from('teams')
+    .select('branch_id,activity')
+    .not('branch_id', 'is', null)
+    .is('archived_at', null)
+  if (error) throw new Error(`listStreamPairs failed — ${error.message}`)
+  return (data ?? []) as StreamPair[]
+}
+
+/**
+ * Resolve raw stream pairs against an already-loaded branch catalog into display-ready
+ * streams, in a stable order: branch-catalog order (name-sorted by listActiveBranches) ×
+ * activity display order. Pure — no IO. A pair whose branch is not in the active catalog
+ * (archived branch) is dropped: nothing new may be captured against it.
+ */
+export function streamCatalogFrom(
+  pairs: readonly StreamPair[],
+  branches: readonly BranchOption[],
+): ProductionStream[] {
+  const streams: ProductionStream[] = []
+  for (const branch of branches) {
+    for (const activity of PRODUCTION_ACTIVITIES) {
+      if (pairs.some(p => p.branch_id === branch.id && p.activity === activity)) {
+        streams.push({ branch, activity })
+      }
+    }
+  }
+  return streams
 }
 
 // ── WIP items ────────────────────────────────────────────────────────────────
@@ -147,6 +211,40 @@ export async function fetchPlanMap(
     map[row.wip_item_id][
       movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
     ] = row.qty_porsi
+  }
+  return map
+}
+
+/**
+ * Today's already-logged actuals for ONE stream (FR-014, AC-006): Σ qty_porsi of the
+ * date's non-Rejected logs, keyed like PlanMap — the running "already logged N" the
+ * incumbent shows beside each row. Stream-scoped for the same reason the plan and stock
+ * reads are (OD-WAY-28): the same dish has different actuals in another branch's books.
+ * Submitted rows count (they are logged, pending review); Rejected rows do not.
+ */
+export async function fetchActualsMap(
+  logDate: string,
+  stream: ProductionStream,
+): Promise<ActualsMap> {
+  const { data, error } = await ops()
+    .from('kitchen_logs')
+    .select('wip_item_id,action,destination_branch_id,qty_porsi')
+    .eq('log_date', logDate)
+    .eq('branch_id', stream.branch.id)
+    .eq('activity', stream.activity)
+    .neq('status', 'Rejected')
+  if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
+  type ActualRow = {
+    wip_item_id: string
+    action: KitchenAction
+    destination_branch_id: string | null
+    qty_porsi: number
+  }
+  const map: ActualsMap = {}
+  for (const row of (data ?? []) as ActualRow[]) {
+    const key = movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
+    if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
+    map[row.wip_item_id][key] = (map[row.wip_item_id][key] ?? 0) + row.qty_porsi
   }
   return map
 }

@@ -1,7 +1,7 @@
 // Kitchen capture gate logic — pure functions (no React, no DB).
 // The two FR-022/023 gates the S1 Log screen enforces inline:
-//  - Variance-note gate (FR-022): a note is required when qty != the EFFECTIVE
-//    target. For stock-consuming actions the effective target is max(plan − stok, 0).
+//  - Variance-note gate (FR-022; effective target per bar-capture FR-014): a note is
+//    required when qty != the EFFECTIVE target, max(plan − stok, 0) — on every movement.
 //  - Transfer-availability REJECT (FR-023, AC-022): a Transfer line cannot exceed the
 //    available stock (`tersedia`). Over-availability is a HARD STOP — the typed qty is
 //    kept, Submit is blocked, and a "produce first" cue shows (parity with the OLD app's
@@ -43,15 +43,20 @@ export function isStockConsuming(movement: KitchenMovement): boolean {
 }
 
 /**
- * Effective plan target for an (item, action) (FR-022).
- * Production → the raw plan. Stock-consuming (transfer) → max(plan − stok, 0):
- * once stock covers the plan there is nothing left to "target" producing/moving.
+ * Effective plan target for an (item, movement): max(plan − stok, 0) — once stock
+ * covers the plan there is nothing left to "target" producing/moving.
+ *
+ * Production rows subtract stock too (bar-capture FR-014/AC-006, #233): the incumbent's
+ * idiom is "the plan wants 10, 2 are already on hand → make 8". An earlier reading
+ * (kitchen FR-022) kept production at the raw plan; the bar-capture spec supersedes it
+ * on all streams — the plan stays the greyed placeholder anchor, this target is what
+ * the variance-note gate compares against.
  */
 export function effectiveTarget(
   movement: KitchenMovement,
   { plan, stok }: { plan: number; stok: number },
 ): number {
-  if (!isStockConsuming(movement)) return plan
+  void movement // both movements share the target arithmetic since FR-014
   return Math.max(plan - stok, 0)
 }
 
