@@ -4,17 +4,31 @@
 // Design-plan §4.6, FR-041, AC-040.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
 import { shouldFlipUp } from './menu-position'
 import type { PersonAction } from './user-table'
 
+/** Reports the router's current `?search` string to the test whenever it changes. */
+function LocationSearchProbe({ onChange }: { onChange: (search: string) => void }) {
+  const location = useLocation()
+  useEffect(() => { onChange(location.search) }, [location.search, onChange])
+  return null
+}
+
 // Mock useIsDesktop so tests can control desktop/mobile rendering
 vi.mock('@/shell/use-is-desktop')
 import { useIsDesktop } from '@/shell/use-is-desktop'
 const mockUseIsDesktop = vi.mocked(useIsDesktop)
+
+// DO-22(a): mock the pointer-modality hook so tests can flip a touch tablet on
+vi.mock('@/shell/use-is-coarse-pointer')
+import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
+const mockUseIsCoarsePointer = vi.mocked(useIsCoarsePointer)
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -78,8 +92,9 @@ const TWO_ADMINS = [ACTIVE_ADMIN, { ...ACTIVE_MEMBER, id: 'p-admin-2', access_ro
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Default to desktop
+  // Default to desktop + fine pointer
   mockUseIsDesktop.mockReturnValue(true)
+  mockUseIsCoarsePointer.mockReturnValue(false)
 })
 
 function renderTable(
@@ -89,20 +104,63 @@ function renderTable(
     onAction?: (action: PersonAction, person: AdminPersonRow) => void
     onAddPerson?: () => void
     isDesktop?: boolean
+    initialPath?: string
   } = {},
 ) {
   // Control desktop/mobile via the mocked useIsDesktop hook
   mockUseIsDesktop.mockReturnValue(opts.isDesktop !== false)
 
   return render(
-    <UserTable
-      people={people}
-      viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
-      onAction={opts.onAction ?? vi.fn()}
-      onAddPerson={opts.onAddPerson ?? vi.fn()}
-    />,
+    <MemoryRouter initialEntries={[opts.initialPath ?? '/admin/people']}>
+      <UserTable
+        people={people}
+        viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
+        onAction={opts.onAction ?? vi.fn()}
+        onAddPerson={opts.onAddPerson ?? vi.fn()}
+      />
+    </MemoryRouter>,
   )
 }
+
+// ── I7 / D-E1: filter + search state is URL-synced (survives refresh/share) ─────
+
+describe('UserTable — URL-synced filter/search state (I7 / D-E1)', () => {
+  const NO_LOGIN_ANDI: AdminPersonRow = {
+    id: 'p-andi', full_name: 'Andi Wijaya', email: 'andi@example.test',
+    archived_at: null, login: 'none', access_roles: ['member'], jabatan: [], revenue_scope: [],
+  }
+  const DISABLED_ANDI: AdminPersonRow = {
+    id: 'p-andi2', full_name: 'Andi Disabled', email: 'andid@example.test',
+    archived_at: null, login: 'disabled', access_roles: ['member'], jabatan: [], revenue_scope: [],
+  }
+
+  it('hydrates the status filter + search from the URL on load (a shared/refreshed link reproduces the view)', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER, NO_LOGIN_ANDI, DISABLED_ANDI], {
+      initialPath: '/admin/people?status=disabled&q=andi',
+    })
+    // Search box hydrated from ?q= …
+    expect(screen.getByRole('searchbox', { name: /search people/i })).toHaveValue('andi')
+    // … the Disabled segment is selected from ?status= …
+    expect(screen.getByRole('tab', { name: 'Disabled' })).toHaveAttribute('aria-selected', 'true')
+    // … and the visible rows are exactly the disabled 'andi' match.
+    expect(screen.getByText('Andi Disabled')).toBeInTheDocument()
+    expect(screen.queryByText('Andi Wijaya')).not.toBeInTheDocument() // no-login, filtered out by status
+    expect(screen.queryByText('Admin Gordi')).not.toBeInTheDocument()
+  })
+
+  it('writes the status filter back to the URL when the segment changes', async () => {
+    const user = userEvent.setup()
+    let currentSearch = ''
+    render(
+      <MemoryRouter initialEntries={['/admin/people']}>
+        <LocationSearchProbe onChange={(s) => { currentSearch = s }} />
+        <UserTable people={[ACTIVE_ADMIN, DISABLED_ANDI]} viewerPersonId="viewer-id" onAction={vi.fn()} onAddPerson={vi.fn()} />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByRole('tab', { name: 'Disabled' }))
+    expect(currentSearch).toContain('status=disabled')
+  })
+})
 
 // ── Desktop ⋯ menu tests ──────────────────────────────────────────────────────
 
@@ -210,6 +268,59 @@ describe('UserTable — desktop ⋯ menu', () => {
     await user.click(screen.getByRole('menuitem', { name: /archive/i }))
 
     expect(onAction).toHaveBeenCalledWith('archive', ACTIVE_MEMBER)
+  })
+})
+
+// ── I3 conformance: the shared useMenuPopover contract (interaction-contract.md) ──
+// The admin people ⋯ menu adopts the ONE menu/popover grammar: focus enters the first
+// item on open; Arrow/Home/End cycle every menuitem; Esc + outside-click close and return
+// focus to the trigger. Mirrors the RowMenu / UserChip conformance suites.
+describe('UserTable — I3 menu contract (useMenuPopover)', () => {
+  it('focus enters the first menuitem on open', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus(),
+    )
+  })
+
+  it('ArrowDown/ArrowUp cycle across all menuitems (wrapping)', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus())
+
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: /reset password/i })).toHaveFocus()
+
+    // ArrowUp from the first item wraps to the last (Archive).
+    await user.keyboard('{ArrowUp}{ArrowUp}')
+    expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
+  })
+
+  it('Home/End jump to the first/last menuitem', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus())
+
+    await user.keyboard('{End}')
+    expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus()
+  })
+
+  it('closes on outside pointerdown and returns focus to the trigger', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const trigger = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    await user.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(trigger).toHaveFocus()
   })
 })
 
@@ -342,6 +453,38 @@ describe('UserTable — mobile action sheet', () => {
     await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  })
+})
+
+// ── DO-22 (Census R2, admin-people P2-A / P3-C): row door reachability ───────
+
+describe('UserTable — DO-22 row-action reachability', () => {
+  it('DO-22(a): a coarse pointer at desktop width presents the Manage cards, not the hover-dependent table', () => {
+    // Touch tablet at 768–1024: "desktop" by width, but hover does not exist — row
+    // actions must live behind the always-visible Manage door, not the hover ⋯.
+    mockUseIsCoarsePointer.mockReturnValue(true)
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { isDesktop: true })
+
+    expect(screen.getByRole('button', { name: /manage budi santoso/i })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('DO-22(a): the desktop ⋯ trigger is visible at rest — never opacity-0 hover-reveal', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const trigger = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    expect(trigger.className).not.toContain('opacity-0')
+  })
+
+  // Column-name divergence, resolved to this line (ADR-0050 / FR-206, AC-126 above): v4 has one
+  // chip column called "Access roles"; this line splits access from Jabatan and calls them
+  // "Access" and "Position". The invariant DO-22(c) actually pins is unchanged — the Person column,
+  // which carries the dense two-line name+email stack, is never narrower than a chip column.
+  it('DO-22(c): the Person column is authored at least as wide as either chip column', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const pct = (name: RegExp) =>
+      Number.parseFloat((screen.getByRole('columnheader', { name }) as HTMLElement).style.width)
+    expect(pct(/^person$/i)).toBeGreaterThanOrEqual(pct(/^access$/i))
+    expect(pct(/^person$/i)).toBeGreaterThanOrEqual(pct(/^position$/i))
   })
 })
 
