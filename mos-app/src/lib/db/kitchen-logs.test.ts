@@ -19,11 +19,15 @@ import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
   listCaptureFormItems,
+  fetchActualsMap,
+  fetchDefaultStream,
   fetchPlanMap,
   fetchStockMap,
   fetchKitchenStock,
   fetchKitchenStockAcrossStreams,
+  listStreamPairs,
   resolveKitchenBuId,
+  streamCatalogFrom,
   KITCHEN_BU_CODE,
   insertKitchenLog,
   insertKitchenLogBatch,
@@ -50,6 +54,9 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  neqs: Array<[string, unknown]>
+  iss: Array<[string, unknown]>
+  nots: Array<[string, string, unknown]>
   inserts: unknown[]
   updates: unknown[]
   orders: Array<[string, unknown]>
@@ -86,6 +93,18 @@ function makeSchema(
       rec.eqs.push([c, v])
       return builder
     })
+    builder.neq = vi.fn((c: string, v: unknown) => {
+      rec.neqs.push([c, v])
+      return builder
+    })
+    builder.is = vi.fn((c: string, v: unknown) => {
+      rec.iss.push([c, v])
+      return builder
+    })
+    builder.not = vi.fn((c: string, op: string, v: unknown) => {
+      rec.nots.push([c, op, v])
+      return builder
+    })
     builder.order = vi.fn((c: string, o: unknown) => {
       rec.orders.push([c, o])
       return builder
@@ -110,7 +129,10 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], orders: [], rpcCalls: [] }
+  return {
+    fromTables: [], selects: [], eqs: [], neqs: [], iss: [], nots: [],
+    inserts: [], updates: [], orders: [], rpcCalls: [],
+  }
 }
 
 // Payload must NOT carry server-stamped fields
@@ -941,5 +963,152 @@ describe('rejectKitchenLog — guarded UPDATE to Rejected with a required note (
       ) as never,
     )
     await expect(rejectKitchenLog('log-1', 'note')).rejects.toThrow('rejectKitchenLog failed')
+  })
+})
+
+// ── #233 stream context: default stream, six-stream catalog, already-logged ──
+
+describe('fetchDefaultStream — the person’s own stream via shared.default_stream() (FR-001/002)', () => {
+  it('FR-001: resolves the (branch_id, activity) pair of the live primary stream Team', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { default_stream: [{ data: [{ branch_id: BRANCH_ID, activity: 'kitchen' }], error: null }] },
+        rec,
+      ) as never,
+    )
+    const pair = await fetchDefaultStream()
+    expect(pair).toEqual({ branch_id: BRANCH_ID, activity: 'kitchen' })
+    expect(rec.rpcCalls).toContainEqual(['default_stream', undefined])
+  })
+
+  it('FR-002: no live primary membership (no row) → null, never a guessed branch', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ default_stream: [{ data: [], error: null }] }, rec) as never,
+    )
+    expect(await fetchDefaultStream()).toBeNull()
+  })
+
+  it('FR-002: a primary Team that is NOT a stream team (null halves) → null', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { default_stream: [{ data: [{ branch_id: null, activity: null }], error: null }] },
+        rec,
+      ) as never,
+    )
+    expect(await fetchDefaultStream()).toBeNull()
+  })
+
+  it('throws on error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { default_stream: [{ data: null, error: { message: 'boom' } }] },
+        rec,
+      ) as never,
+    )
+    await expect(fetchDefaultStream()).rejects.toThrow('fetchDefaultStream failed')
+  })
+})
+
+describe('listStreamPairs + streamCatalogFrom — the six-stream catalog (FR-005)', () => {
+  it('reads the LIVE stream Teams’ pairs from shared.teams (branch set, not archived)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          teams: [
+            {
+              data: [
+                { branch_id: BRANCH_ID, activity: 'kitchen' },
+                { branch_id: BRANCH_ID, activity: 'bar' },
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const pairs = await listStreamPairs()
+    expect(pairs).toHaveLength(2)
+    expect(rec.fromTables).toContain('teams')
+    // The catalog predicate: the pair is set and the team is live.
+    expect(rec.nots).toContainEqual(['branch_id', 'is', null])
+    expect(rec.iss).toContainEqual(['archived_at', null])
+  })
+
+  it('streamCatalogFrom resolves pairs against the branch catalog in catalog × activity order, dropping unknown branches', () => {
+    const RADIANT = { id: RADIANT_ID, code: 'radiant', name: 'Radiant' }
+    const pairs = [
+      { branch_id: RADIANT_ID, activity: 'bar' as const },
+      { branch_id: BRANCH_ID, activity: 'kitchen' as const },
+      { branch_id: 'gone-branch', activity: 'bar' as const }, // archived branch → dropped
+    ]
+    const catalog = streamCatalogFrom(pairs, [RADIANT, STREAM.branch])
+    expect(catalog).toEqual([
+      { branch: RADIANT, activity: 'bar' },
+      { branch: STREAM.branch, activity: 'kitchen' },
+    ])
+  })
+
+  it('throws on error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ teams: [{ data: null, error: { message: 'boom' } }] }, rec) as never,
+    )
+    await expect(listStreamPairs()).rejects.toThrow('listStreamPairs failed')
+  })
+})
+
+describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014, AC-006)', () => {
+  it('sums the date/stream’s non-Rejected logs per (item, movement)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          kitchen_logs: [
+            {
+              data: [
+                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 3 },
+                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 1 },
+                { wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 2 },
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const map = await fetchActualsMap('2026-08-08', STREAM)
+    expect(map['w1']['produce']).toBe(4) // 3 + 1 — a running sum, not the last row
+    expect(map['w1'][`transfer:${RADIANT_ID}`]).toBe(2)
+    // Scoped to the SELECTED stream and date; Rejected rows excluded.
+    expect(rec.eqs).toContainEqual(['log_date', '2026-08-08'])
+    expect(rec.eqs).toContainEqual(['branch_id', STREAM.branch.id])
+    expect(rec.eqs).toContainEqual(['activity', STREAM.activity])
+    expect(rec.neqs).toContainEqual(['status', 'Rejected'])
+  })
+
+  it('returns an empty map when nothing is logged yet', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    expect(Object.keys(await fetchActualsMap('2026-08-08', STREAM))).toHaveLength(0)
+  })
+
+  it('throws on error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { kitchen_logs: [{ data: null, error: { message: 'boom' } }] },
+        rec,
+      ) as never,
+    )
+    await expect(fetchActualsMap('2026-08-08', STREAM)).rejects.toThrow('fetchActualsMap failed')
   })
 })

@@ -325,13 +325,11 @@
   min-width: 0;
   max-width: 100%;
 }
-.kl-scope-branch,
-.kl-scope-activity { flex: 0 1 auto; min-width: 0; }
+.kl-scope-stream { flex: 0 1 auto; min-width: 0; }
 @media (max-width: 390px) {
-  /* Full-width pickers on a phone: a half-width <select> truncates a branch name to
-     the point where two branches read the same, which is the exact ambiguity the
+  /* Full-width picker on a phone: a half-width <select> truncates a stream name to
+     the point where two streams read the same, which is the exact ambiguity the
      canonical catalog exists to end. */
   .kl-scope { width: 100%; }
-  .kl-scope-branch,
-  .kl-scope-activity { flex: 1 1 100%; min-height: 44px; }
+  .kl-scope-stream { flex: 1 1 100%; min-height: 44px; }
 }

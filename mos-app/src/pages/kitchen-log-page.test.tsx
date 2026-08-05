@@ -1,7 +1,11 @@
 // KitchenLogPage tests — TDD, AC-tagged
 // Covers: AC-020/021/022/030 (submit/validation/transfer cap), all states (loading,
 // empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
-// BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3).
+// BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3);
+// #233 stream context: AC-002 (default from shared.default_stream(), switchable),
+// FR-002 (no default → explicit choice), FR-005 (six streams only), AC-004 (no
+// raw-material input), AC-006 (effective target + already-logged, stream-scoped),
+// AC-012b frontend half (rows carry the SELECTED stream pair).
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -15,17 +19,21 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
-  // `defaultStreamFrom` is pure branch-catalog arithmetic, not IO — the page uses it to
-  // decide which stream to open on, so the real one is kept and only the reads are mocked.
+  // `streamCatalogFrom` is pure catalog arithmetic, not IO — the page uses it to build the
+  // six-stream picker out of the loaded pairs, so the real one is kept and only the reads
+  // are mocked.
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>(
     '@/lib/db/kitchen-logs',
   )
   return {
-    defaultStreamFrom: actual.defaultStreamFrom,
+    streamCatalogFrom: actual.streamCatalogFrom,
     listActiveWipItems: vi.fn(),
     listCaptureFormItems: vi.fn(),
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
+    fetchActualsMap: vi.fn(),
+    fetchDefaultStream: vi.fn(),
+    listStreamPairs: vi.fn(),
     resolveKitchenBuId: vi.fn(),
     insertKitchenLogBatch: vi.fn(),
   }
@@ -35,32 +43,52 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
 import {
   listCaptureFormItems,
+  fetchActualsMap,
+  fetchDefaultStream,
   fetchPlanMap,
   fetchStockMap,
+  listStreamPairs,
   resolveKitchenBuId,
   insertKitchenLogBatch,
 } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
-import type { BranchOption, WipItemOption } from '@/lib/db/kitchen-logs.types'
+import { streamKey } from '@/lib/kitchen-action-label'
+import type { BranchOption, StreamPair, WipItemOption } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListCaptureFormItems = vi.mocked(listCaptureFormItems)
 const mockFetchPlanMap = vi.mocked(fetchPlanMap)
 const mockFetchStockMap = vi.mocked(fetchStockMap)
+const mockFetchActualsMap = vi.mocked(fetchActualsMap)
+const mockFetchDefaultStream = vi.mocked(fetchDefaultStream)
+const mockListStreamPairs = vi.mocked(listStreamPairs)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockInsertKitchenLogBatch = vi.mocked(insertKitchenLogBatch)
 const mockListActiveBranches = vi.mocked(listActiveBranches)
 
-// The canonical branch catalog (OD-WAY-39). The capture surface opens on the branch the one
-// physical kitchen's output books to, which is the single (branch, activity) stream captured
-// today (DD-WAY-25) — so "Transfer to Bungur" is a transfer whose destination IS the origin.
+// The canonical branch catalog (OD-WAY-39) — "Transfer to Bungur" is a transfer whose
+// destination IS the origin. The ROASTERY is deliberately in the catalog: it is a branch
+// (a transfer destination) but carries NO production stream (FR-005, OD-WAY-42), so it
+// must never surface in the stream picker — asserted below.
 const BRANCH_RUMAH_RAMES: BranchOption = {
   id: '30000000-0000-0000-0000-0000000000b1', code: 'rumah_rames', name: 'Rumah Rames',
 }
 const BRANCH_RADIANT: BranchOption = {
   id: '30000000-0000-0000-0000-0000000000b2', code: 'radiant', name: 'Radiant',
 }
-const BRANCHES: BranchOption[] = [BRANCH_RADIANT, BRANCH_RUMAH_RAMES]
+const BRANCH_GORDI_HQ: BranchOption = {
+  id: '30000000-0000-0000-0000-0000000000b3', code: 'gordi_hq', name: 'Gordi HQ',
+}
+const BRANCH_ROASTERY: BranchOption = {
+  id: '30000000-0000-0000-0000-0000000000b4', code: 'roastery', name: 'Roastery',
+}
+const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTERY, BRANCH_RUMAH_RAMES]
+// The six-stream catalog (FR-005): the live stream Teams' pairs — roastery has none.
+const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
+  b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
+)
+// The person's own default stream (FR-001) — what shared.default_stream() resolves.
+const DEFAULT_STREAM_PAIR: StreamPair = { branch_id: BRANCH_RUMAH_RAMES.id, activity: 'kitchen' }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
 
@@ -138,8 +166,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
+  mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockFetchDefaultStream.mockResolvedValue(DEFAULT_STREAM_PAIR)
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
+  mockFetchActualsMap.mockResolvedValue({})
   mockResolveKitchenBuId.mockResolvedValue(BU_ID)
   // Default: online
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
@@ -567,8 +598,9 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    // w1: plan 10, stok 3 → effective target 7; tersedia 9. Log 9 with a note (off-target
-    // 9 != 7 needs a note, but 9 <= tersedia so it's NOT rejected for availability).
+    // w1: transfer plan 10 (absolute — FR-014 scopes stock subtraction to production);
+    // tersedia 9. Log 9 with a note (off-plan 9 != 10 needs a note, but 9 <= tersedia
+    // so it's NOT rejected for availability).
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '9' } })
@@ -600,6 +632,12 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
   })
 
   it('AC-022: a Transfer of <= tersedia is allowed with no cap cue', async () => {
+    // Enough available for the full plan: transfer target = the ABSOLUTE plan (10,
+    // FR-014 — stock is never subtracted on transfers), tersedia 12 covers it.
+    mockFetchStockMap.mockResolvedValue({
+      w1: { stok: 3, tersedia: 12 },
+      w2: { stok: 0, tersedia: 0 },
+    })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -609,13 +647,13 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
     })
 
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // effective target = max(plan 10 − stok 3, 0) = 7 → log exactly 7 (on-target, no note, no cap)
+    // log exactly the plan (10) — on-target, no note, and 10 <= tersedia 12 → no cap
     await act(async () => {
-      fireEvent.change(qtyInput, { target: { value: '7' } })
+      fireEvent.change(qtyInput, { target: { value: '10' } })
       await Promise.resolve()
     })
 
-    expect((qtyInput as HTMLInputElement).value).toBe('7')
+    expect((qtyInput as HTMLInputElement).value).toBe('10')
     expect(screen.queryByText(/insufficient stock/i)).toBeNull()
     expect(screen.queryByText(/note required/i)).toBeNull()
   })
@@ -628,9 +666,10 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Set Ayam Bakar (plan=20) to exactly 20 (on-plan — no note required)
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(ayamInput, { target: { value: '20' } })
+    // Set Nasi Goreng (plan=12, stok 0 → effective target 12, FR-014) to exactly 12
+    // (on-target — no note required)
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -654,8 +693,8 @@ describe('AC-030: successful submit (increment semantics)', () => {
     expect(line.action).toBe('produce')
     expect(line.destination_branch_id).toBeNull()
     expect(line).not.toHaveProperty('action_type')
-    expect(line.wip_item_id).toBe('w1')
-    expect(line.qty_porsi).toBe(20)
+    expect(line.wip_item_id).toBe('w2')
+    expect(line.qty_porsi).toBe(12)
     expect(line.business_unit_id).toBe(BU_ID)
     // CRITICAL: must NOT send server-stamped fields
     expect(line).not.toHaveProperty('status')
@@ -668,9 +707,9 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Set Ayam Bakar to exactly 20 (on-plan)
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(ayamInput, { target: { value: '20' } })
+    // Set Nasi Goreng (plan=12, stok 0 -> effective target 12, FR-014) to exactly 12 (on-target)
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -692,9 +731,9 @@ describe('Submitting state', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Set Ayam Bakar to exactly 20 (on-plan)
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(ayamInput, { target: { value: '20' } })
+    // Set Nasi Goreng (plan=12, stok 0 -> effective target 12, FR-014) to exactly 12 (on-target)
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -714,9 +753,9 @@ describe('Submit error state', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Set Ayam Bakar to exactly 20 (on-plan)
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(ayamInput, { target: { value: '20' } })
+    // Set Nasi Goreng (plan=12, stok 0 -> effective target 12, FR-014) to exactly 12 (on-target)
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -785,8 +824,9 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(ayamInput, { target: { value: '20' } })
+    // Nasi Goreng: plan 12, stok 0 -> effective target 12 (FR-014) -> on-target, no note
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /submit/i }))
@@ -1201,5 +1241,284 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: /discard and leave/i }))
     expect(await screen.findByRole('heading', { name: 'Elsewhere' })).toBeInTheDocument()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #233 — capture surface with stream context, all six streams (bar-capture spec).
+// AC-002 (default pre-selected + switchable), FR-002 (no default → explicit choice),
+// FR-005 (six streams, roastery never one), AC-004 (no raw-material input),
+// AC-006 (plan-as-placeholder + effective target + already-logged + note-on-blur,
+// stream-scoped), AC-012b frontend half (the submitted rows carry the SELECTED pair).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("AC-002 / FR-001: the capture surface opens on the person's own stream and stays switchable", () => {
+  it('AC-002: pre-selects the shared.default_stream() pair — not a hardcoded branch', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch_id: BRANCH_RADIANT.id, activity: 'bar' })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveValue(streamKey(BRANCH_RADIANT.id, 'bar'))
+    // …and the stream-scoped reads were asked for THAT stream, not a constant.
+    const expected = expect.objectContaining({
+      branch: expect.objectContaining({ id: BRANCH_RADIANT.id }),
+      activity: 'bar',
+    })
+    expect(mockFetchPlanMap).toHaveBeenCalledWith(expect.any(String), expected)
+    expect(mockFetchStockMap).toHaveBeenCalledWith(expect.any(String), expected)
+    expect(mockFetchActualsMap).toHaveBeenCalledWith(expect.any(String), expected)
+  })
+
+  it('AC-002/AC-012b (frontend half): switching streams re-scopes plan/stock/actuals and the submitted rows carry the SWITCHED pair', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Default is (Rumah Rames, kitchen); the barista helping at GHQ switches (FR-003).
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: streamKey(BRANCH_GORDI_HQ.id, 'bar') } })
+      await Promise.resolve()
+    })
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+
+    const switched = expect.objectContaining({
+      branch: expect.objectContaining({ id: BRANCH_GORDI_HQ.id }),
+      activity: 'bar',
+    })
+    expect(mockFetchPlanMap).toHaveBeenCalledWith(expect.any(String), switched)
+    expect(mockFetchStockMap).toHaveBeenCalledWith(expect.any(String), switched)
+    expect(mockFetchActualsMap).toHaveBeenCalledWith(expect.any(String), switched)
+
+    // Log Nasi Goreng on-target (plan 12, stok 0 → effective 12) and submit.
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    // The row carries the PICKER's pair (AC-012b's frontend half) — never a constant.
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w2', qty_porsi: 12,
+        branch_id: BRANCH_GORDI_HQ.id, activity: 'bar',
+      }),
+    ])
+  })
+})
+
+describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
+  it('renders the "choose stream" placeholder, fetches no stream-scoped data, and blocks Submit with the reason', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveValue('')
+    expect(screen.getByRole('option', { name: /choose stream/i })).toBeInTheDocument()
+    // No stream → nothing to scope the plan/stock/actuals reads to (never a guess).
+    expect(mockFetchPlanMap).not.toHaveBeenCalled()
+    expect(mockFetchStockMap).not.toHaveBeenCalled()
+    expect(mockFetchActualsMap).not.toHaveBeenCalled()
+    // Submit is disabled up front and the reason is named beside it.
+    expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
+  })
+
+  it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
+      await Promise.resolve()
+    })
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+    expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull()
+
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0])
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).toEqual(
+      expect.objectContaining({ branch_id: BRANCH_RADIANT.id, activity: 'bar' }),
+    )
+  })
+})
+
+describe('FR-005: the picker offers exactly the six-stream catalog — the roastery is never a stream', () => {
+  it('lists all six {branch × activity} streams and no roastery option', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    const options = within(picker).getAllByRole('option')
+    // Six streams — no placeholder (a default resolved), no roastery, no seventh.
+    expect(options).toHaveLength(6)
+    const labels = options.map(o => o.textContent)
+    // CANONICAL catalog names (OD-WAY-39) — never the 'Bungur' destination alias:
+    // a Rumah Rames barista picking their own stream reads 'Rumah Rames', not the
+    // incumbent's transfer-destination label.
+    for (const branchLabel of ['Gordi HQ', 'Radiant', 'Rumah Rames']) {
+      for (const activity of ['Kitchen', 'Bar']) {
+        expect(labels).toContain(`${branchLabel} · ${activity}`)
+      }
+    }
+    expect(labels.join(' ')).not.toMatch(/bungur/i)
+    expect(within(picker).queryByRole('option', { name: /roastery/i })).toBeNull()
+  })
+})
+
+describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed unit, no unit input", () => {
+  it("a bar stream's form carries one qty input per item + fixed unit label — no raw-material field, no unit input", async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch_id: BRANCH_GORDI_HQ.id, activity: 'bar' })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Exactly one typed-qty input per confirmed item — nothing else numeric to fill.
+    const qtyInputs = screen.getAllByRole('spinbutton')
+    expect(qtyInputs).toHaveLength(WIP_ITEMS.length)
+    // No raw-material capture anywhere (OD-WAY-45: raw usage is derived, never typed).
+    expect(screen.queryByText(/raw material|bahan baku/i)).toBeNull()
+    expect(screen.queryByRole('spinbutton', { name: /raw|bahan/i })).toBeNull()
+    // No note fields at rest (the variance note is gate-revealed, not a standing input).
+    expect(screen.queryByRole('textbox')).toBeNull()
+    // Each row shows its fixed unit as TEXT beside the qty (FR-020) — no unit input:
+    // the only comboboxes on the surface are the stream picker and the category filter.
+    expect(screen.getAllByText('porsi')).toHaveLength(WIP_ITEMS.length)
+    for (const combobox of screen.getAllByRole('combobox')) {
+      const name = combobox.getAttribute('aria-label') ?? ''
+      expect(name).toMatch(/production stream|category/i)
+    }
+  })
+})
+
+describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-logged + note-on-blur, stream-scoped', () => {
+  // The spec's own numbers: plan 10, already logged 4, 2 in stock → effective target 8.
+  const AC6_PLAN = { w1: { [PRODUCE_KEY]: 10 } }
+  const AC6_STOCK = { w1: { stok: 2, tersedia: 2 }, w2: { stok: 0, tersedia: 0 } }
+  const AC6_ACTUALS = { w1: { [PRODUCE_KEY]: 4 } }
+
+  beforeEach(() => {
+    mockFetchPlanMap.mockResolvedValue(AC6_PLAN)
+    mockFetchStockMap.mockResolvedValue(AC6_STOCK)
+    mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
+  })
+
+  it('AC-006: the plan seeds the placeholder, "logged 4" renders, and qty == plan − stock passes without a note', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    // Plan-as-placeholder (FR-015): the greyed anchor is the plan, not an entry.
+    expect(qty).toHaveAttribute('placeholder', '10')
+    // The running "already logged N" actuals (FR-014) — from the DB, not the form.
+    const meta = document.querySelector('.kls-meta')
+    expect(meta?.textContent).toMatch(/logged\s*4/)
+
+    // Effective target = plan − stock = 8 (FR-014): logging exactly 8 is on-target.
+    await act(async () => {
+      fireEvent.change(qty, { target: { value: '8' } })
+      fireEvent.blur(qty)
+      await Promise.resolve()
+    })
+    expect(screen.queryByText(/note required — off plan/i)).toBeNull()
+  })
+
+  it('AC-006: a variant qty reveals the required-note gate on blur', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    // 10 is the RAW plan — off the effective target (8), so the gate must reveal on blur.
+    await act(async () => {
+      fireEvent.change(qty, { target: { value: '10' } })
+      await Promise.resolve()
+    })
+    expect(screen.queryByText(/note required — off plan/i)).toBeNull() // not before blur
+    await act(async () => {
+      fireEvent.blur(qty)
+      await Promise.resolve()
+    })
+    await waitFor(() => {
+      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /note for ayam bakar/i })).toBeInTheDocument()
+    })
+  })
+
+  it("AC-006 stream-scoped: switching streams shows the CHOSEN stream's already-logged, not the old one's", async () => {
+    mockFetchActualsMap.mockImplementation(async (_date, stream) =>
+      stream.branch.id === BRANCH_GORDI_HQ.id ? { w1: { [PRODUCE_KEY]: 9 } } : AC6_ACTUALS,
+    )
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*4/)
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') } })
+      await Promise.resolve()
+    })
+    await waitFor(() => {
+      expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*9/)
+    })
+  })
+})
+
+describe('stale-response race: an older stream fetch resolving LAST never lands under a newer stream', () => {
+  it('the newer switch owns the form — the stale response is discarded, and the picker stays mounted mid-switch', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Switch #1 → (Radiant, bar): its plan fetch HANGS — it will resolve last, stale.
+    let resolveStale!: (map: Record<string, Partial<Record<string, number>>>) => void
+    mockFetchPlanMap.mockImplementationOnce(
+      () => new Promise(res => { resolveStale = res }),
+    )
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
+      await Promise.resolve()
+    })
+
+    // While switch #1 is in flight the picker MUST stay mounted (FR-003 — a slow
+    // stream is never a dead end; getByRole throws here if the switch unmounts it).
+    const pickerDuringLoad = screen.getByRole('combobox', { name: /production stream/i })
+
+    // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
+    mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
+    await act(async () => {
+      fireEvent.change(pickerDuringLoad, {
+        target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') },
+      })
+      await Promise.resolve()
+    })
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+    expect(
+      screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
+    ).toHaveAttribute('placeholder', '33')
+
+    // NOW the stale switch-#1 response arrives (w2 → 77). It must be discarded: without
+    // the request-generation guard it would re-seed the lines with Radiant-bar's plan
+    // under the Gordi-HQ label — and submit would file those rows to GHQ's books.
+    await act(async () => {
+      resolveStale({ w2: { [PRODUCE_KEY]: 77 } })
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue(
+      streamKey(BRANCH_GORDI_HQ.id, 'kitchen'),
+    )
+    expect(
+      screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
+    ).toHaveAttribute('placeholder', '33')
   })
 })

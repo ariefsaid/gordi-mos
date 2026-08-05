@@ -1,7 +1,8 @@
 // Kitchen capture gate logic — pure functions (no React, no DB).
 // The two FR-022/023 gates the S1 Log screen enforces inline:
-//  - Variance-note gate (FR-022): a note is required when qty != the EFFECTIVE
-//    target. For stock-consuming actions the effective target is max(plan − stok, 0).
+//  - Variance-note gate (FR-022; effective target per bar-capture FR-014): a note is
+//    required when qty != the EFFECTIVE target — max(plan − stok, 0) on production
+//    (FR-014 scopes the subtraction to production only), the absolute plan on transfers.
 //  - Transfer-availability REJECT (FR-023, AC-022): a Transfer line cannot exceed the
 //    available stock (`tersedia`). Over-availability is a HARD STOP — the typed qty is
 //    kept, Submit is blocked, and a "produce first" cue shows (parity with the OLD app's
@@ -43,15 +44,26 @@ export function isStockConsuming(movement: KitchenMovement): boolean {
 }
 
 /**
- * Effective plan target for an (item, action) (FR-022).
- * Production → the raw plan. Stock-consuming (transfer) → max(plan − stok, 0):
- * once stock covers the plan there is nothing left to "target" producing/moving.
+ * Effective plan target for an (item, movement) — what the variance-note gate compares
+ * the typed quantity against.
+ *
+ * PRODUCTION → max(plan − stok, 0): bar-capture FR-014/AC-006 (#233) scope the stock
+ * subtraction to production ONLY — the incumbent's idiom is "the plan wants 10, 2 are
+ * already on hand → make 8". The plan stays the greyed placeholder anchor; this target
+ * is what the gate compares against. (An earlier kitchen-spec reading kept production
+ * at the raw plan; FR-014 supersedes it.)
+ *
+ * TRANSFER → the raw plan: a transfer plan is an ABSOLUTE movement quantity — "move 10
+ * to Radiant" means move 10, whatever is on hand. Stock is what the transfer draws
+ * from, and feasibility is FR-023's job (the `tersedia` cap), never this target's.
+ * Subtracting stock here made an on-plan transfer with stock on hand demand a variance
+ * note for hitting its own plan.
  */
 export function effectiveTarget(
   movement: KitchenMovement,
   { plan, stok }: { plan: number; stok: number },
 ): number {
-  if (!isStockConsuming(movement)) return plan
+  if (isStockConsuming(movement)) return plan
   return Math.max(plan - stok, 0)
 }
 
