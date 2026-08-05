@@ -42,6 +42,17 @@ export function movementKey(movement: KitchenMovement): MovementKey {
     : `transfer:${movement.destinationBranchId ?? ''}`
 }
 
+/**
+ * Stable client-side index for a (branch, activity) stream (OD-WAY-28). Pairs with
+ * `movementKey` to build a compound key for maps that must distinguish rows across
+ * streams — e.g. the review queue's per-row plan lookup (#197/#198): a queue that can
+ * span more than one stream must compare each row to ITS OWN stream's plan, never a
+ * single hardcoded one.
+ */
+export function streamKey(branchId: string, activity: ProductionActivity): string {
+  return `${branchId}|${activity}`
+}
+
 export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean {
   return movementKey(a) === movementKey(b)
 }

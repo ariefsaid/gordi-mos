@@ -19,6 +19,7 @@ import type {
   ReviewLogRow,
   ApproveResult,
   KitchenStockRow,
+  KitchenStockStreamRow,
 } from './kitchen-logs.types'
 
 const ops = () => supabase.schema('ops')
@@ -228,6 +229,27 @@ export async function fetchKitchenStock(
   })
 }
 
+/**
+ * Fetch the read-only Stock view's display rows ACROSS every given (branch, activity)
+ * stream (#198, OD-WAY-28): one row per (active WIP item × stream) pair, each carrying
+ * the stream it belongs to. "Stok HQ" means the central kitchen, which books to Rumah
+ * Rames — not Gordi HQ — so a stock view that cannot say WHOSE books a row is looking at
+ * is the shape of problem that hides a COGS error. Runs one `fetchKitchenStock` per
+ * stream in parallel; bounded by the branch catalog × 2 activities, both small.
+ */
+export async function fetchKitchenStockAcrossStreams(
+  asOf: string,
+  streams: readonly ProductionStream[],
+): Promise<KitchenStockStreamRow[]> {
+  const perStream = await Promise.all(
+    streams.map(async (stream): Promise<KitchenStockStreamRow[]> => {
+      const rows = await fetchKitchenStock(asOf, stream)
+      return rows.map(row => ({ ...row, stream }))
+    }),
+  )
+  return perStream.flat()
+}
+
 // ── Kitchen log insert ────────────────────────────────────────────────────────
 
 /**
@@ -327,8 +349,11 @@ export class KitchenRpcError extends Error {
 // `action_label` is the DERIVED label (DD-WAY-13): PostgREST exposes
 // `ops.action_label(ops.kitchen_logs)` as a virtual column, so every surface reads the same
 // derivation the database owns instead of re-deriving it — and no row stores a literal.
+// `branch_id,activity` (#197/#198): the row's OWN (branch, activity) stream (OD-WAY-28) —
+// added so the review queue can look up each row's plan baseline against ITS stream
+// rather than one hardcoded stream (the #247/#196 defect this port fixes).
 const REVIEW_SELECT =
-  'id,log_date,action,destination_branch_id,action_label,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+  'id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
 
 /**
  * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
@@ -355,6 +380,8 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     log_date: string
     action: KitchenAction
     destination_branch_id: string | null
+    branch_id: string
+    activity: ProductionActivity
     action_label: string | null
     wip_item_id: string
     qty_porsi: number
@@ -375,6 +402,8 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
       action_type: r.action_label ?? '',
       action: r.action,
       destination_branch_id: r.destination_branch_id,
+      branch_id: r.branch_id,
+      activity: r.activity,
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
       qty_porsi: r.qty_porsi,

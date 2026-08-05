@@ -17,13 +17,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import { Tag } from '@/components/ui/tag'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
@@ -88,77 +88,81 @@ function formatDate(iso: string | null): string {
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
-const pushColumns: DataTableColumn<EsbPushRow>[] = [
-  {
-    key: 'source_ref',
-    header: 'Batch',
-    cardLabel: '',
-    render: row => <span className="mono">{row.source_ref}</span>,
-  },
-  {
-    key: 'endpoint',
-    header: 'Endpoint',
-    render: row => <span className="kpu-cell-muted">{row.endpoint}</span>,
-  },
-  {
-    key: 'target_env',
-    header: 'Target',
-    render: row => {
-      const cfg = envConfig(row.target_env)
-      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] {
+  return [
+    {
+      key: 'source_ref',
+      header: t('kitchen.pushes.col.batch'),
+      cardLabel: '',
+      render: row => <span className="mono">{row.source_ref}</span>,
     },
-  },
-  {
-    key: 'status',
-    header: 'Status',
-    render: row => {
-      const cfg = statusConfig(row.status)
-      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+    {
+      key: 'endpoint',
+      header: t('kitchen.pushes.col.endpoint'),
+      render: row => <span className="kpu-cell-muted">{row.endpoint}</span>,
     },
-  },
-  { key: 'retry_count', header: 'Retries', numeric: true },
-  {
-    key: 'last_error',
-    header: 'Error',
-    render: row => {
-      const isDeadLetter = row.status === 'dead_letter'
-      const showError = row.status === 'failed' || isDeadLetter
-      if (!showError || !row.last_error) return <span className="kpu-dash">—</span>
-      return (
-        <>
-          <span className="kpu-cell-muted">{row.last_error}</span>
-          {isDeadLetter && (
-            <span className="kpu-escalate-hint" aria-label="Manual intervention required">
-              Escalate to platform
-            </span>
-          )}
-        </>
-      )
+    {
+      key: 'target_env',
+      header: t('kitchen.pushes.col.target'),
+      render: row => {
+        const cfg = envConfig(row.target_env)
+        return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+      },
     },
-  },
-  {
-    key: 'esb_doc_num',
-    header: 'ESB Doc',
-    render: row => row.esb_doc_num
-      ? <span className="mono">{row.esb_doc_num}</span>
-      : <span className="kpu-dash">—</span>,
-  },
-  {
-    key: 'created_at',
-    header: 'Created',
-    render: row => <span className="kpu-time tabular">{formatDate(row.created_at)}</span>,
-  },
-  {
-    key: 'posted_at',
-    header: 'Posted',
-    render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
-  },
-]
+    {
+      key: 'status',
+      header: t('kitchen.pushes.col.status'),
+      render: row => {
+        const cfg = statusConfig(row.status)
+        return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+      },
+    },
+    { key: 'retry_count', header: t('kitchen.pushes.col.retries'), numeric: true },
+    {
+      key: 'last_error',
+      header: t('kitchen.pushes.col.error'),
+      render: row => {
+        const isDeadLetter = row.status === 'dead_letter'
+        const showError = row.status === 'failed' || isDeadLetter
+        if (!showError || !row.last_error) return <span className="kpu-dash">—</span>
+        return (
+          <>
+            <span className="kpu-cell-muted">{row.last_error}</span>
+            {isDeadLetter && (
+              <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
+                {t('kitchen.pushes.escalate')}
+              </span>
+            )}
+          </>
+        )
+      },
+    },
+    {
+      key: 'esb_doc_num',
+      header: t('kitchen.pushes.col.esbDoc'),
+      render: row => row.esb_doc_num
+        ? <span className="mono">{row.esb_doc_num}</span>
+        : <span className="kpu-dash">—</span>,
+    },
+    {
+      key: 'created_at',
+      header: t('kitchen.pushes.col.created'),
+      render: row => <span className="kpu-time tabular">{formatDate(row.created_at)}</span>,
+    },
+    {
+      key: 'posted_at',
+      header: t('kitchen.pushes.col.posted'),
+      render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
+    },
+  ]
+}
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function KitchenPushesPage() {
-  useDocumentTitle('Kitchen Pushes — Gordi MOS')
+  const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.pushes') }))
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.pushes')}`
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
@@ -190,52 +194,48 @@ export function KitchenPushesPage() {
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFrame>
-        <LoadingState />
-      </PageFrame>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
     )
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden">
-          <p className="kpu-forbidden-msg">You need to sign in to view kitchen pushes.</p>
-          <Link to="/login" className="btn btn-primary">Sign in</Link>
+          <p className="kpu-forbidden-msg">{t('kitchen.pushes.signInMsg')}</p>
+          <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <PageFrame>
-        <PageHead variant="content" title="Kitchen · Pushes" count={null} />
-        <div className="kpu-block kpu-forbidden" role="region" aria-label="Access restricted">
-          <p className="kpu-forbidden-title">Pushes is available to ops leads only.</p>
-          <p className="kpu-forbidden-msg">
-            The ESB outbox is visible to ops leads and admins.
-          </p>
-          <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+        <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
+          <p className="kpu-forbidden-title">{t('kitchen.pushes.leadsOnly')}</p>
+          <p className="kpu-forbidden-msg">{t('kitchen.pushes.leadsOnlyMsg')}</p>
+          <Link to="/cafe/log" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Kitchen · Pushes"
-        count={load.kind === 'ready' ? rows.length : null}
-      />
-
-      {load.kind === 'loading' && <LoadingState />}
+    <PageFamilyFrame
+      family="workspace"
+      title={pageTitle}
+      jobSentence={t('job.cafe')}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
+    >
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't load pushes — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.pushes') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -243,39 +243,29 @@ export function KitchenPushesPage() {
       {load.kind === 'ready' && rows.length === 0 && (
         <EmptyState
           variant="awaiting"
-          title="No pushes yet"
-          copy="The ESB outbox is empty right now."
-          note="Pull again to check for new push activity."
+          title={t('kitchen.pushes.empty.title')}
+          copy={t('kitchen.pushes.empty.copy')}
+          note={t('kitchen.pushes.empty.note')}
         >
           <button
             type="button"
             className="btn btn-outline"
             onClick={() => setRetryKey(k => k + 1)}
           >
-            Refresh
+            {t('kitchen.review.refresh')}
           </button>
         </EmptyState>
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
         <DataTable
-          columns={pushColumns}
+          columns={pushColumns(t)}
           rows={rows}
           isDesktop={isDesktop}
           rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
-          caption="Kitchen ESB push outbox"
+          caption={t('kitchen.pushes.caption')}
         />
       )}
-    </PageFrame>
-  )
-}
-
-// ── Loading skeleton ──────────────────────────────────────────────────────────
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kpu-block">
-      <SkeletonRows count={3} />
-    </div>
+    </PageFamilyFrame>
   )
 }

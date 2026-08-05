@@ -9,7 +9,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
+import { I18nProvider } from '@/i18n/I18nProvider'
+
+// PageFamilyFrame (the v4 shell chrome this page ports to — #197) calls useLocation()
+// unconditionally, so every render needs Router context, not just the ones that render a
+// <Link>. Mirrors kitchen-log-page.test.tsx's own wrapper.
+function wrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
+}
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -27,6 +36,9 @@ vi.mock('@/lib/db/kitchen-plans', () => ({
 }))
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+import { listActiveBranches } from '@/lib/db/branches'
+
 import { KitchenPlanPage } from './kitchen-plan-page'
 import type { WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
@@ -35,6 +47,11 @@ const mockItems = vi.mocked(listActiveWipItems)
 const mockPlans = vi.mocked(listKitchenPlans)
 const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
+const mockBranches = vi.mocked(listActiveBranches)
+
+// The default capture stream (defaultStreamFrom picks the 'rumah_rames' code, or falls
+// back to branches[0] — mirrors kitchen-logs.ts DEFAULT_CAPTURE_BRANCH_CODE).
+const BRANCHES = [{ id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }]
 
 function viewer(accessRoles: string[]): AuthState {
   return {
@@ -55,18 +72,20 @@ const ITEMS: WipItemOption[] = [
   { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
   { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
 ]
+const PRODUCE = { action: 'produce' as const, destinationBranchId: null }
 const PLAN_CELLS: PlanCell[] = [
-  { id: 'pl1', wip_item_id: 'w1', action_type: 'Production', qty_porsi: 12 },
+  { id: 'pl1', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 12 },
 ]
 const PESANAN: PesananRow[] = [
-  { log_date: '2026-06-21', wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', action_type: 'Production', qty_porsi: 12 },
-  { log_date: '2026-06-28', wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', action_type: 'Production', qty_porsi: 8 },
+  { log_date: '2026-06-21', wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', movement: PRODUCE, qty_porsi: 12 },
+  { log_date: '2026-06-28', wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', movement: PRODUCE, qty_porsi: 8 },
 ]
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockItems.mockResolvedValue(ITEMS)
+  mockBranches.mockResolvedValue(BRANCHES)
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   mockUpsert.mockResolvedValue('new-id')
@@ -76,7 +95,7 @@ beforeEach(() => {
 describe('KitchenPlanPage — auth', () => {
   it('auth loading: shows a busy state', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as AuthState)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
@@ -100,7 +119,7 @@ describe('KitchenPlanPage — auth', () => {
 describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   it('loads active items + the date plan; renders one editable qty per item', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     await waitFor(() => expect(mockPlans).toHaveBeenCalled())
     // editable qty inputs exist (the editor affordance) — one per item
@@ -110,7 +129,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('FR-031: editing a cell + save calls upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
@@ -119,14 +138,20 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     const arg = mockUpsert.mock.calls[0][0]
     expect(arg.qty_porsi).toBe(15)
     expect(arg.wip_item_id).toBe('w1')
-    expect(arg.action_type).toBe('Production')
+    // #247: the movement (DD-WAY-13), not the removed action_type column — plus the
+    // (branch, activity) stream the row is being planned against (OD-WAY-28).
+    expect(arg.action).toBe('produce')
+    expect(arg.destination_branch_id).toBeNull()
+    expect(arg.branch_id).toBe('branch-1')
+    expect(arg.activity).toBe('kitchen')
+    expect(Object.keys(arg)).not.toContain('action_type')
     expect(Object.keys(arg)).not.toContain('org_id')
     expect(Object.keys(arg)).not.toContain('plan_by')
   })
 
   it('does not save when the value is unchanged (no needless write)', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.blur(input) // blur with the same value 12
@@ -135,7 +160,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('shows a quiet saved confirmation after a successful save (no view transition)', async () => {
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
@@ -147,7 +172,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('save error: surfaces a message, keeps the edit on screen', async () => {
     mockUpsert.mockRejectedValueOnce(new Error('denied'))
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     fireEvent.change(input, { target: { value: '15' } })
@@ -171,14 +196,14 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('empty: ops_lead sees an editable blank grid (items, all qty 0) — not "no plan"', async () => {
     mockPlans.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(0)
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockItems.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
@@ -186,7 +211,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('offline: edits blocked + a banner (online-only writes, NFR-008)', async () => {
     const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByText(/offline/i)).toBeInTheDocument()
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
@@ -231,7 +256,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → planned total = 12
     const region = screen.getByRole('region', { name: /planning summary/i })
@@ -251,7 +276,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
     expect(screen.getByText(/planned total/i)).toBeInTheDocument()
@@ -276,7 +301,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
       }),
     })
     mockPlans.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
     expect(screen.getByText('No plan created yet')).toBeInTheDocument()
@@ -297,14 +322,14 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
       }),
     })
     mockPlans.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
     expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
-    const { container } = render(<KitchenPlanPage />)
+    const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     // ITEMS both carry category 'Main' → one group header 'Main' (phone-default cards).
     // Selector note: grouping now renders via the shared DataTable. Phone cards emit the
@@ -316,10 +341,10 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
-    expect(screen.queryByRole('table', { name: /kitchen plan/i })).toBeNull()
+    expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
   })
 
   it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
@@ -335,8 +360,8 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    render(<KitchenPlanPage />)
-    expect(await screen.findByRole('table', { name: /kitchen plan/i })).toBeInTheDocument()
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByRole('table', { name: /café plan/i })).toBeInTheDocument()
   })
 })
 
@@ -346,7 +371,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('AC-024: member sees the 14-day forward horizon read-only', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     await waitFor(() => expect(mockPesanan).toHaveBeenCalled())
@@ -357,7 +382,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('AC-024: member NEVER gets edit/save affordances or calls the editor read/write', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('button', { name: /save|edit|approve|submit/i })).toBeNull()
@@ -367,13 +392,13 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('member empty: a calm "nothing planned" — not a broken table', async () => {
     mockPesanan.mockResolvedValue([])
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText(/nothing planned/i)).toBeInTheDocument()
   })
 
   it('member rows are grouped by date with the planned qty shown', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     // the planned qty renders (tabular)
     expect(screen.getByText('12')).toBeInTheDocument()
@@ -384,7 +409,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 
   it('member error + retry: re-fetches the horizon', async () => {
     mockPesanan.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(PESANAN)
-    render(<KitchenPlanPage />)
+    render(<KitchenPlanPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /retry/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()

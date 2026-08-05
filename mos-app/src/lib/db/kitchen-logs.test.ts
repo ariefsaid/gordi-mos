@@ -21,6 +21,7 @@ import {
   fetchPlanMap,
   fetchStockMap,
   fetchKitchenStock,
+  fetchKitchenStockAcrossStreams,
   resolveKitchenBuId,
   KITCHEN_BU_CODE,
   insertKitchenLog,
@@ -610,6 +611,45 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
   })
 })
 
+// ── fetchKitchenStockAcrossStreams — the #198 multi-stream Stock view ──────────
+describe('fetchKitchenStockAcrossStreams — one row per (active item × stream), stream shown (#198)', () => {
+  const OTHER_STREAM: ProductionStream = {
+    branch: { id: RADIANT_ID, code: 'radiant', name: 'Radiant' },
+    activity: 'kitchen',
+  }
+
+  it('fetches every given stream and tags each returned row with its own stream', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          wip_items: [
+            { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
+          ],
+          kitchen_stock_for_date: [
+            { data: [{ wip_item_id: 'w1', usable_qty: 12, available_qty: 8 }], error: null },
+            { data: [{ wip_item_id: 'w1', usable_qty: 0, available_qty: 0 }], error: null },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+
+    const rows = await fetchKitchenStockAcrossStreams('2026-06-20', [STREAM, OTHER_STREAM])
+    expect(rows).toHaveLength(2) // 1 item × 2 streams
+    expect(rows.find(r => r.stream.branch.id === BRANCH_ID)).toMatchObject({
+      wip_item_id: 'w1', stok: 12, tersedia: 8, stream: STREAM,
+    })
+    expect(rows.find(r => r.stream.branch.id === RADIANT_ID)).toMatchObject({
+      wip_item_id: 'w1', stok: 0, tersedia: 0, stream: OTHER_STREAM,
+    })
+  })
+
+  it('returns [] for an empty stream list', async () => {
+    expect(await fetchKitchenStockAcrossStreams('2026-06-20', [])).toEqual([])
+  })
+})
+
 // ── listSubmittedKitchenLogs — review queue read (FR-040, AC-040/090) ──────────
 describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () => {
   const SUBMITTED_ROWS = [
@@ -618,6 +658,8 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       log_date: '2026-06-20',
       action: 'produce',
       destination_branch_id: null,
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
       action_label: 'Production',
       wip_item_id: 'w1',
       wip_items: { name: 'Nasi Goreng' },
@@ -633,6 +675,8 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       log_date: '2026-06-20',
       action: 'transfer',
       destination_branch_id: RADIANT_ID,
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
       action_label: 'Transfer to Radiant',
       wip_item_id: 'w2',
       wip_items: { name: 'Cold Brew' },
@@ -659,6 +703,10 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     expect(rec.fromTables).toContain('kitchen_logs')
     // same-schema embed of the WIP item name (FR-040 plan-vs-logged display)
     expect(rec.selects.join(' ')).toMatch(/wip_items/)
+    // carries the row's own (branch, activity) stream (#197/#198) — the queue's per-row
+    // plan lookup depends on this being selected, not assumed from a single default.
+    expect(rec.selects.join(' ')).toMatch(/branch_id/)
+    expect(rec.selects.join(' ')).toMatch(/activity/)
 
     // Flattened display shape
     expect(rows).toHaveLength(2)
@@ -669,6 +717,8 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       action_type: 'Production',
       action: 'produce',
       destination_branch_id: null,
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
       qty_porsi: 8,
       submitted_by: 'p1',
     })
