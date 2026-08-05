@@ -59,6 +59,12 @@ export function ProjectsProcessesPage() {
     controller.state.data?.records.find((r) => r.id === id)?.name ?? ''
 
   const actions: CatalogCollectionActions = {
+    // Unconditionally true, and unlike Objectives that is actually load-bearing here: this route
+    // sits behind `RequireCapability workline.manage` (FR-424, untouched by OD-V4-1), so reaching
+    // this component IS the capability check. A viewer without it is bounced by the router and
+    // never renders this page. Do not "harden" this into a can() call without first removing that
+    // route gate — two checks for one rule is how they drift apart.
+    canManage: true,
     rename: async (id, name) => {
       await projectsProcessesCatalogActions.rename(id, name)
       announce(t('catalog.announce.renamed', { name }))

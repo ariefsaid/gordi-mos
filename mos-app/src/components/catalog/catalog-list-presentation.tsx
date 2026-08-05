@@ -241,6 +241,13 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
               <span className="catalog-collection__name">{row.name}</span>
               {typeTag}
             </div>
+            {/* PORT-028: a viewer without the write capability gets the row, its trace and its
+                relations — everything that makes the cascade legible — and no write affordance at
+                all. Rendering a disabled Rename would be worse than rendering none: it advertises
+                a door that is not theirs. Objectives is the surface this can happen on (OD-V4-1
+                removed its read gate); Projects/Processes is still route-gated, so its viewers
+                always hold the capability and always see these. */}
+            {actions.canManage && (
             <div className="catalog-collection__actions">
               {archivedView ? (
                 <Button
@@ -272,6 +279,7 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
                 </>
               )}
             </div>
+            )}
             {trace && (
               <span className="catalog-collection__trace" data-testid="catalog-trace">{trace}</span>
             )}

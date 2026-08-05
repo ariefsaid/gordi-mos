@@ -9,6 +9,19 @@
 import { createContext, useContext, type ReactNode } from 'react'
 
 export interface CatalogCollectionActions {
+  /**
+   * Whether THIS viewer may write to the catalog. When false the list renders read-only: no
+   * Rename / Archive / Unarchive on any row, and the page renders no create bar. Reading is
+   * untouched — rows, traces and the relations disclosure all still render.
+   *
+   * This exists because the two catalogs no longer share a gate. Projects/Processes sits behind
+   * `RequireCapability workline.manage`, so reaching it IS the permission. Objectives does not:
+   * OD-V4-1 removed its read gate, so a viewer with no `objective.manage` now legitimately
+   * reaches the surface and must not be offered writes they cannot perform (PORT-028).
+   *
+   * Affordance only. RLS is the boundary (NFR-004, DD-WAY-8) and refuses the write regardless.
+   */
+  canManage: boolean
   /** Rename a row (mutates via the DAL, then reloads the collection). Rejects on failure. */
   rename: (id: string, name: string) => Promise<void>
   /** Archive a row (soft). Rejects on failure. */

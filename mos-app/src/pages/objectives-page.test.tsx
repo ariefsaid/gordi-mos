@@ -3,6 +3,15 @@
 // (down-trace), computed over listTasks + listWorkLinesAll (no schema change). The management CRUD
 // (create / rename / archive / unarchive) is preserved; these journeys assert the goal (the DAL call
 // fires and the collection reloads), never the old inline-add chrome.
+//
+// PORTED 2026-08-05 (#194). Three assertions here named the create affordance "Add objective" and
+// contradicted the v4 SOURCE, which calls it "Create objective" (`catalog.objectives.add`, and
+// `catalog.objectives.adding` = "Creating…"). The source is the newer of the two: the copy landed in
+// b81bb42 (2026-07-28) and these assertions were written in 2d33247 (2026-07-23), so the copy pass
+// changed the label and left the tests behind. The label is refreshed to the source's; the GOAL each
+// test encodes — exactly ONE create affordance, the inline Add bar, with no action slot in the head,
+// and the SAME one in the teaching empty state — is asserted unchanged. Indonesian agrees
+// ('Buat objective' = "Create objective"), so the two locales are not being pulled apart.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -17,13 +26,35 @@ vi.mock('@/lib/db/objectives', () => ({
 }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
+vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 
 import {
   listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
 } from '@/lib/db/objectives'
 import { listWorkLinesAll } from '@/lib/db/work-lines'
 import { listTasks } from '@/lib/db/tasks'
+import { useAuth } from '@/auth/use-auth'
+import type { AuthState } from '@/auth/context'
 import { ObjectivesPage } from './objectives-page'
+
+// Every test below except the PORT-028 pair asserts MANAGE-mode behaviour (create / rename /
+// archive). Before #194 that premise was implicit — the page offered writes to anyone. It is now
+// explicit, because Objectives has no read gate (OD-V4-1) and therefore has two real audiences.
+// `ops_lead` holds objective.manage; `member` does not (src/lib/capabilities.ts).
+function viewerWithRoles(accessRoles: string[]): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p-1', org_id: 'org-1', user_id: 'auth-1', full_name: 'Test Viewer',
+        email: 'viewer@example.test', must_change_password: false, archived_at: null,
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      roles: [], isManager: false, accessRoles,
+    },
+    signOut: vi.fn(),
+  } as AuthState
+}
 
 function task(id: string, objectiveId: string | null, workLineId: string | null): TaskListRow {
   return {
@@ -48,6 +79,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(useAuth).mockReturnValue(viewerWithRoles(['ops_lead']))
   vi.mocked(listObjectivesAll).mockResolvedValue([
     { id: 'obj-1', name: 'Grow revenue', archived_at: null },
     { id: 'obj-2', name: 'Lonely objective', archived_at: null },
@@ -123,15 +155,52 @@ describe('V3 collection grammar conformance', () => {
     const { container } = renderPage()
     await screen.findByText('Grow revenue')
     expect(container.querySelector('.ch-action')).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'Add objective' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Create objective' })).toHaveLength(1)
   })
 
   it('in the teaching empty state the create affordance is the SAME inline Add bar', async () => {
     vi.mocked(listObjectivesAll).mockResolvedValue([])
     const { container } = renderPage()
     await screen.findByText('No objectives yet')
-    expect(screen.getAllByRole('button', { name: 'Add objective' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Create objective' })).toHaveLength(1)
     expect(container.querySelector('.ch-action')).toBeNull()
+  })
+})
+
+// OD-V4-1 (owner-ratified 2026-07-27) removed the objective.manage READ gate: Objectives is
+// visible to everyone, because seeing what the company committed to is the point. That makes a
+// viewer who can READ but cannot WRITE a first-class audience of this surface — the only surface
+// in Work that has one. These two tests are that viewer's contract.
+describe('PORT-028: a viewer without objective.manage reads Objectives, and is offered no writes', () => {
+  beforeEach(() => {
+    vi.mocked(listTasks).mockResolvedValue([task('t1', 'obj-1', 'wl-1')])
+    // `member` holds process.start and nothing else — no objective.manage.
+    vi.mocked(useAuth).mockReturnValue(viewerWithRoles(['member']))
+  })
+
+  it('renders the surface read-only — no create bar, no row write actions, and no redirect', async () => {
+    const { container } = renderPage()
+
+    // Reading is not gated: the rows render, and so does everything that makes the cascade
+    // legible from here. If a redirect had fired, none of this would be in the document.
+    await screen.findByText('Grow revenue')
+    expect(screen.getByText('Lonely objective')).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="record-collection-toolbar"]')).toBeTruthy()
+    expect(await screen.findByTestId('catalog-trace')).toBeInTheDocument()
+
+    // Writing is. Not disabled — absent. A disabled Rename still advertises a door.
+    expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create objective' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Rename Grow revenue' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Archive Grow revenue' })).toBeNull()
+  })
+
+  it('still exposes the relations disclosure — line-of-sight up the cascade is what they came for', async () => {
+    renderPage()
+    await screen.findByText('Grow revenue')
+    const disclosure = screen.getByRole('button', { name: 'Show relations for Grow revenue' })
+    fireEvent.click(disclosure)
+    expect(await screen.findByTestId('catalog-relations')).toBeInTheDocument()
   })
 })
 
@@ -141,9 +210,9 @@ describe('Catalog CRUD is preserved under the new grammar', () => {
   it('create: submitting the inline Add bar calls createObjective and reloads', async () => {
     renderPage()
     await screen.findByText('Grow revenue')
-    const form = screen.getByRole('form', { name: 'Add objective' })
+    const form = screen.getByRole('form', { name: 'Create objective' })
     fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Delight guests' } })
-    fireEvent.click(within(form).getByRole('button', { name: 'Add objective' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Create objective' }))
     await waitFor(() => expect(createObjective).toHaveBeenCalledWith('Delight guests'))
     // reload after the mutation (initial load + reload)
     await waitFor(() => expect(vi.mocked(listObjectivesAll).mock.calls.length).toBeGreaterThan(1))

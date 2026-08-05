@@ -14,6 +14,8 @@
 // Unarchive) are its primary interaction; the ONE primary create affordance is the inline Add bar
 // above the collection.
 import { useCallback, useId, useState } from 'react'
+import { useAuth } from '@/auth/use-auth'
+import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -50,6 +52,20 @@ export function ObjectivesPage() {
   const query = controller.state.query
   const projection = controller.state.projection
 
+  // PORT-028. This is the ONE place the two catalogs differ. Projects/Processes is route-gated
+  // (`RequireCapability workline.manage`), so arriving there proves the capability. Objectives has
+  // no read gate at all — OD-V4-1 made it visible to everyone, because line-of-sight up the cascade
+  // is the point — so arriving here proves nothing about write. Without this check the page offers
+  // Create / Rename / Archive to every viewer and the database refuses them one click later.
+  //
+  // Four separate comments on this line (this page's own header, router.tsx, destinations.tsx,
+  // sections.ts) already asserted that "write stays behind can('objective.manage')". Nothing
+  // implemented it; the read gate's removal took the only check with it. This is the check.
+  //
+  // Affordance only — RLS is the boundary either way (NFR-004, DD-WAY-8).
+  const auth = useAuth()
+  const canManage = can(auth.status === 'authenticated' ? auth.viewer.accessRoles : [], 'objective.manage')
+
   const [live, setLive] = useState('')
   const announce = useCallback((msg: string) => setLive(msg), [])
   const [newName, setNewName] = useState('')
@@ -62,6 +78,7 @@ export function ObjectivesPage() {
     controller.state.data?.records.find((r) => r.id === id)?.name ?? ''
 
   const actions: CatalogCollectionActions = {
+    canManage,
     rename: async (id, name) => {
       await objectivesCatalogActions.rename(id, name)
       announce(t('catalog.announce.renamed', { name }))
@@ -171,7 +188,10 @@ export function ObjectivesPage() {
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 
       {/* The ONE primary create affordance (State-Kit Rule): the inline Add bar. The head carries no
-          action slot, so there is no duplicate create CTA. */}
+          action slot, so there is no duplicate create CTA. PORT-028: a read-only viewer gets no
+          create bar — the collection below still renders in full, which is the whole point of
+          OD-V4-1 admitting them. */}
+      {canManage && (
       <form className="catalog-create" aria-label={t('catalog.objectives.add')} onSubmit={handleAdd}>
         <div className="catalog-create__name">
           <TextInput
@@ -190,6 +210,7 @@ export function ObjectivesPage() {
         </Button>
         {addError && <p className="catalog-create__error" role="alert">{addError}</p>}
       </form>
+      )}
 
       <CatalogCollectionActionsProvider actions={actions}>
         <div className="record-collection-view record-collection-view--list">

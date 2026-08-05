@@ -3,6 +3,16 @@
 // inferred from task linkage (work_lines has no objective_id column) over listTasks + listObjectivesAll
 // (no schema change). The management CRUD (create with a Type field / rename / archive / unarchive) and
 // the Project·Process type filter are preserved; journeys assert the goal, not the old inline-add chrome.
+//
+// PORTED 2026-08-05 (#194). Two assertion literals here contradicted the v4 SOURCE and were refreshed
+// to it; every goal is asserted unchanged.
+//   1. The create affordance was named "Add project or process"; the source calls it "Create project
+//      or process" (`catalog.projects.add`). Same cause as the sibling Objectives file — the copy
+//      landed in b81bb42 (2026-07-28), the assertions in 2d33247 (2026-07-23). Indonesian agrees
+//      ('Buat proyek atau proses').
+//   2. The FR-422 orphan trace was matched as "no parent objective (N)"; the source renders
+//      "no parent Objective (N)" (`catalog.trace.noParent`). Objective is a domain term and is
+//      capitalised throughout CONTEXT.md's three-level cascade, so the source is the contract here.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -92,7 +102,7 @@ describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
       expect(container.querySelectorAll('[data-testid="catalog-trace"]')).toHaveLength(2)
     })
     const traces = [...container.querySelectorAll('[data-testid="catalog-trace"]')].map((n) => n.textContent)
-    expect(traces.some((t) => t?.includes('no parent objective (1)'))).toBe(true)
+    expect(traces.some((t) => t?.includes('no parent Objective (1)'))).toBe(true)
   })
 })
 
@@ -121,7 +131,7 @@ describe('V3 collection grammar conformance', () => {
     const { container } = renderPage()
     await screen.findByText('Menu launch')
     expect(container.querySelector('.ch-action')).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'Add project or process' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Create project or process' })).toHaveLength(1)
   })
 })
 
@@ -131,10 +141,10 @@ describe('Catalog CRUD + type filter are preserved under the new grammar', () =>
   it('create: the inline Add bar creates a work_line with the chosen Type (FR-013/014)', async () => {
     renderPage()
     await screen.findByText('Menu launch')
-    const form = screen.getByRole('form', { name: 'Add project or process' })
+    const form = screen.getByRole('form', { name: 'Create project or process' })
     fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Weekly stock opname' } })
     fireEvent.change(within(form).getByRole('combobox'), { target: { value: 'process' } })
-    fireEvent.click(within(form).getByRole('button', { name: 'Add project or process' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Create project or process' }))
     await waitFor(() => expect(createWorkLine).toHaveBeenCalledWith('Weekly stock opname', 'process'))
   })
 
