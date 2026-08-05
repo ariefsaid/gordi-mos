@@ -12,6 +12,7 @@
  *   Fix-7: useCascadeCatalogs hook — mount-once load, no block on loading gate
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
@@ -21,7 +22,6 @@ import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -54,13 +54,14 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  email: 'arief@gordi.id', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -115,11 +116,36 @@ function stubMatchMedia(split = true, desktop = true) {
   })
 }
 
+function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+  return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
+}
+
+// §Task-11: the Team-work chip was removed; All is the org-visible set.
+async function switchToAll() {
+  const viewOptions = screen.queryByRole('button', { name: /view options/i })
+  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
+  fireEvent.click(screen.getByRole('button', { name: 'All' }))
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
+}
+
 function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
+  function Harness() {
+    const [savedView, setSavedView] = useState(props.savedView ?? makeSavedView())
+    return (
+      <TasksWorkspace
+        {...props}
+        savedView={savedView}
+        onSavedViewChange={props.onSavedViewChange ?? (() => setSavedView(makeSavedView()))}
+      />
+    )
+  }
+
   return render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <TasksWorkspace {...props} />
+        <OverlayHostProvider><Harness /></OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -128,7 +154,6 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
@@ -138,6 +163,14 @@ beforeEach(() => {
 })
 
 // ── RI-3: Task column never 0 width + scroll container scrollable ─────────────
+
+
+// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
+// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+function ensureViewOptionsOpen() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
 
 describe('RI-3 — Task column width and scroll container', () => {
   it('RI-3: .tasks-scroll has overflow-x: auto so wide content scrolls instead of clipping', () => {
@@ -155,17 +188,39 @@ describe('RI-3 — Task column width and scroll container', () => {
     expect(body).not.toMatch(/overflow-x:\s*visible/)
   })
 
-  it('RI-3: .tasks-table has a min-width so fixed cols do not starve the Task column', () => {
+  it('RI-3: the Task identity column absorbs slack and can never be starved to 0px', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
     const css = readFileSync(cssPath, 'utf8')
-    // The table must declare a min-width so it never collapses below the sum of fixed cols.
-    // This guarantees the Task (width:auto) col always has space.
+    // Score-gate slice (2026-07-22): Task is width:auto so titles never truncate, and the
+    // 0px regression RI-3 originally guarded (auto beside FIXED-PX secondaries) stays
+    // impossible because every secondary column is a bounded %-share summing well under 100.
     const idx = css.indexOf('.tasks-table {')
     expect(idx).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', idx)
     const close = css.indexOf('}', open)
     const body = css.slice(open + 1, close)
     expect(body).toMatch(/min-width:/)
+    const taskRuleSelector = '.tasks-table th:nth-child(1), .tasks-table td:nth-child(1)'
+    const taskRuleIdx = css.indexOf(taskRuleSelector)
+    expect(taskRuleIdx).toBeGreaterThanOrEqual(0)
+    const taskRuleOpen = css.indexOf('{', taskRuleIdx)
+    const taskRuleClose = css.indexOf('}', taskRuleOpen)
+    const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
+    expect(taskRule).toMatch(/width:\s*auto/)
+    // Secondary columns (2..5) at the base tier: all %-shares, summing < 70% so the auto
+    // Task column always keeps a readable share.
+    const shares: number[] = []
+    for (const col of [2, 3, 4, 5]) {
+      const sel = `.tasks-table th:nth-child(${col}), .tasks-table td:nth-child(${col})`
+      const colIdx = css.indexOf(sel)
+      expect(colIdx, `expected a width rule for column ${col}`).toBeGreaterThanOrEqual(0)
+      const colOpen = css.indexOf('{', colIdx)
+      const colClose = css.indexOf('}', colOpen)
+      const match = css.slice(colOpen + 1, colClose).match(/width:\s*(\d+(?:\.\d+)?)%/)
+      expect(match, `column ${col} must use a bounded %-share, not a fixed px width`).toBeTruthy()
+      shares.push(Number(match![1]))
+    }
+    expect(shares.reduce((a, b) => a + b, 0)).toBeLessThan(70)
   })
 })
 
@@ -180,11 +235,9 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     renderWorkspace()
     await waitFor(() => screen.getByText('Menu task'))
 
-    // Switch to All segment so Maya's task is visible regardless of viewer scope
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
 
@@ -206,6 +259,8 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     ])
     renderWorkspace()
     await waitFor(() => screen.getByText('Task A'))
+    await switchToAll()
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -242,7 +297,6 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map([['wl-project', 'New Menu Design']])}
           objectiveMap={new Map()}
         />
@@ -276,7 +330,6 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map([['wl-process', 'Daily IG Content']])}
           objectiveMap={new Map()}
         />
@@ -308,7 +361,6 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map()}
           objectiveMap={new Map()}
         />
@@ -340,10 +392,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Open project task'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -367,10 +418,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Done only'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -395,10 +445,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Project task'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -419,10 +468,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
     renderWorkspace()
     await waitFor(() => screen.getByText('Project task'))
 
-    const seg = screen.getByRole('tablist', { name: /ownership filter/i })
-    const allBtn = Array.from(seg.querySelectorAll('[role="tab"]')).find(b => b.textContent?.includes('All'))
-    if (allBtn) fireEvent.click(allBtn as Element)
+    await switchToAll()
 
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -438,7 +486,13 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 // ── Fix-5: Mobile card dt labels are visible (not sr-only) ───────────────────
 
 describe('Fix-5 — Mobile card dt labels are visible', () => {
-  it('Fix-5: Work-line dt label is visible (not sr-only) in mobile task card', () => {
+  // Ported for #192: mobile-grouped-cards.tsx's TaskCard dropped Work-line/Objective from the
+  // card body (v4 distill, .claude/skills/impeccable distill.md "remove redundancy" — PIC +
+  // Supervisor + Due are the decision-relevant fields; full metadata is one tap away on the
+  // record). Fix-5's actual claim — every rendered dt label is visible, not sr-only — still
+  // holds; it's re-pinned against the CURRENT field set (PIC/Supervisor/Due) rather than the
+  // pre-distill one (Work-line/Project-Process).
+  it('Fix-5: PIC/Supervisor/Due dt labels are visible (not sr-only) in mobile task card', () => {
     const taskWithWl = makeTask({ id: 't1', work_line_id: 'wl-project' })
     render(
       <MemoryRouter>
@@ -457,7 +511,6 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
           setOverdueOnly={() => {}}
-          buildOthers={() => []}
           workLineMap={new Map([['wl-project', 'New Menu Design']])}
           objectiveMap={new Map([['obj-1', 'Grow direct orders']])}
         />
@@ -468,9 +521,11 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
     const srOnlyDts = dts.filter(dt => dt.classList.contains('sr-only'))
     // After fix: 0 dt elements may be sr-only (all are visible label:value)
     expect(srOnlyDts.length).toBe(0)
-    // The dt text content is readable ("Work-line", "Objective", "Due", "Owner", "Activity")
+    // The dt text content is readable — the current field set is PIC/Supervisor/Due.
     const dtTexts = dts.map(dt => dt.textContent)
-    expect(dtTexts.some(t => /project\/process/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /^pic$/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /due/i.test(t ?? ''))).toBe(true)
   })
 
   it('Fix-5: task-card-meta dt elements are not display:none or visually hidden', () => {
@@ -529,6 +584,8 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
       </AuthContext.Provider>,
     )
 
+    // F17 (OD-91 #29): the Project/Process picker lives behind the "+ Add context" reveal now.
+    fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
     // Wait for work-line select to appear
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
@@ -552,6 +609,7 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     const initialWorkLinesCalls = vi.mocked(listWorkLines).mock.calls.length
 
     // Trigger a filter change (status filter) — should NOT re-trigger catalog loads
+    ensureViewOptionsOpen()
     const statusSelect = screen.getByRole('combobox', { name: /status/i })
     fireEvent.change(statusSelect, { target: { value: 'Open' } })
     await waitFor(() => {}) // allow any async effects to settle

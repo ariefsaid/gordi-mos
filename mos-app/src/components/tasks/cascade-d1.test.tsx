@@ -20,7 +20,6 @@ import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
-import { __resetExpandPrefForTests } from './use-expand-pref'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -53,6 +52,7 @@ import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockListObjectives = vi.mocked(listObjectives)
@@ -61,7 +61,7 @@ const mockListWorkLines = vi.mocked(listWorkLines)
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  email: 'arief@gordi.id', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -119,19 +119,23 @@ function stubMatchMedia(split = true, desktop = true) {
 }
 
 function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
-  return render(
+  const utils = render(
     <AuthContext.Provider value={authedState}>
       <MemoryRouter initialEntries={['/tasks']}>
-        <TasksWorkspace {...props} />
+        <OverlayHostProvider><TasksWorkspace {...props} /></OverlayHostProvider>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
+  // Grouping and sorting are intentionally behind the desktop View options disclosure.
+  // These legacy cascade tests exercise the controls, not the disclosure itself.
+  const viewOptions = screen.queryByRole('button', { name: /view options/i })
+  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
+  return utils
 }
 
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetExpandPrefForTests()
   __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
@@ -142,11 +146,20 @@ beforeEach(() => {
 
 // ── FR-231: Work-line option in the Group chip ────────────────────────────────
 
+
+// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
+// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+function ensureViewOptionsOpen() {
+  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+}
+
 describe('FR-231 — Work-line option in the Group chip', () => {
   it('the Group chip includes a "Work-line" option', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
     expect(options).toContain('Project/Process')
@@ -164,6 +177,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     renderTable()
     await waitFor(() => screen.getByText('Shoot Tuesday reel'))
     // Switch groupBy to 'workline'
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -187,6 +201,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     ])
     renderTable()
     await waitFor(() => screen.getByText('Orphan task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -207,6 +222,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     ])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     // Still works for status
     fireEvent.change(groupSelect, { target: { value: 'status' } })
@@ -225,6 +241,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Daily task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -239,6 +256,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Project task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -257,6 +275,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Orphan'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -271,6 +290,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Process task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
@@ -283,50 +303,34 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
   })
 })
 
-// ── FR-234/235: Work-line + Objective columns in the table ────────────────────
-
-describe('FR-234 — Work-line and Objective columns appear in the table', () => {
-  it('thead has "Work-line" and "Objective" column headers', async () => {
+// ── FR-234/235: Work-line + Objective — moved to the drawer (Wave 2c) ────────
+// OD-REDESIGN-61..64 (e7 priority columns): the default desktop DB-view table shows
+// ONLY Title · PIC · Supervisor · Status · Due. Work-line/Project-Process + Objective
+// (and Team/Source/Activity) moved OUT of the table into the record drawer/full page,
+// where the typed Task already shows them (OD-62). This is column PRIORITY, not data
+// removal — the work-line group-by dimension (FR-231/232/233) + workload caption
+// (FR-236) are unchanged, and resolution + reachability stay proven by the mobile
+// card tests below + the TaskSurface drawer.
+describe('FR-234 — Work-line/Objective moved OUT of the default desktop table (Wave 2c)', () => {
+  it('thead does NOT render Work-line or Objective column headers (priority trim)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('columnheader', { name: /project\/process/i })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /objective/i })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /project\/process/i })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /objective/i })).toBeNull()
+    // Priority decision headers remain (incl. Due — the regression was Due clipping).
+    expect(screen.getByRole('columnheader', { name: /due/i })).toBeInTheDocument()
   })
 
-  it('FR-235: resolves work_line_id to name in the row', async () => {
+  it('a body row does NOT render Work-line/Objective cells (moved to drawer)', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'IG task', work_line_id: 'wl-1', objective_id: 'obj-1' }),
     ])
     renderTable()
     await waitFor(() => screen.getByText('IG task'))
-    // Work-line name resolved from the map
-    expect(screen.getByText('Daily IG Content')).toBeInTheDocument()
-    // Objective name resolved from the map
-    expect(screen.getByText('Grow direct orders')).toBeInTheDocument()
-  })
-
-  it('FR-235: shows "—" when work_line_id is null', async () => {
-    mockListTasks.mockResolvedValue([
-      makeTask({ id: 't1', title: 'No-WL task', work_line_id: null, objective_id: null }),
-    ])
-    renderTable()
-    await waitFor(() => screen.getByText('No-WL task'))
-    // At least one "—" for the empty work-line column
-    const dashes = screen.getAllByText('—')
-    expect(dashes.length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('FR-235: shows "—" when objective_id is null', async () => {
-    mockListTasks.mockResolvedValue([
-      makeTask({ id: 't1', title: 'No-obj task', work_line_id: 'wl-1', objective_id: null }),
-    ])
-    renderTable()
-    await waitFor(() => screen.getByText('No-obj task'))
-    // Work-line name appears (resolved)
-    expect(screen.getByText('Daily IG Content')).toBeInTheDocument()
-    // At least one "—" (for objective)
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
+    const row = screen.getByText('IG task').closest('tr')!
+    expect(row.querySelector('.td-workline')).toBeNull()
+    expect(row.querySelector('.td-objective')).toBeNull()
   })
 })
 
@@ -343,6 +347,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     // Wait for data
     await waitFor(() => screen.getByText('IG task'))
     // Switch to groupby=workline
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     // Filter to a single person (Maya)
@@ -365,6 +370,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     ])
     renderTable()
     await waitFor(() => screen.getByText('My IG task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -381,6 +387,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     ])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     // no personFilter set — wait for the group header to appear
@@ -397,6 +404,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     ])
     renderTable()
     await waitFor(() => screen.getByText('Status task'))
+    ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'status' } })
     const personSelect = screen.getByRole('combobox', { name: /person/i })
@@ -406,34 +414,43 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
   })
 })
 
-// ── Mobile: Work-line + Objective in card dl ──────────────────────────────────
-
-describe('Mobile cards: Work-line + Objective shown in card detail list', () => {
+// ── Mobile: card detail list is PIC/Supervisor/Due only ────────────────────────
+// v4 distill (mobile-grouped-cards.tsx TaskCard comment, citing .claude/skills/impeccable
+// distill.md "remove redundancy"): Work-line, Objective and Source were dropped from the phone
+// card body — they rendered an empty "—" line for every ad-hoc task, "noise wearing information's
+// clothes". PIC + Supervisor + Due are the decision-relevant fields for weekly triage (the same
+// set the desktop row already settled on, Wave 2c OD-REDESIGN-61..64); full typed metadata is one
+// tap away on the record. This describe block used to assert the pre-distill card shape.
+describe('Mobile cards: detail list is PIC/Supervisor/Due (Work-line/Objective dropped as redundant)', () => {
   beforeEach(() => {
     stubMatchMedia(false, false) // mobile viewport
     __resetTasksViewPrefForTests()
-    __resetExpandPrefForTests()
   })
 
-  it('mobile card shows Work-line name + type label for a task with a work line', async () => {
+  it('mobile card shows PIC, Supervisor, and Due — NOT the Work-line/Objective names', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Mobile task', work_line_id: 'wl-2', objective_id: 'obj-2' }),
     ])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
-    // Work-line name present in the card
-    expect(screen.getByText('New Menu Design')).toBeInTheDocument()
-    // Objective name present in the card
-    expect(screen.getByText('Launch autumn menu')).toBeInTheDocument()
+    const card = screen.getByText('Mobile task').closest('article')
+    expect(card).toHaveTextContent('PIC')
+    expect(card).toHaveTextContent('Supervisor')
+    expect(card).toHaveTextContent('Due')
+    // The Work-line/Objective NAMES are gone from the card body — they're one tap away on the
+    // record, not restated here (distill.md "remove redundancy").
+    expect(card).not.toHaveTextContent('New Menu Design')
+    expect(card).not.toHaveTextContent('Launch autumn menu')
   })
 
-  it('mobile card shows "—" for empty work_line_id', async () => {
+  it('mobile card shows "—" for an empty due date', async () => {
     mockListTasks.mockResolvedValue([
-      makeTask({ id: 't1', title: 'Mobile task', work_line_id: null, objective_id: null }),
+      makeTask({ id: 't1', title: 'Mobile task', work_line_id: null, objective_id: null, due_date: null }),
     ])
     renderTable()
     await waitFor(() => screen.getByText('Mobile task'))
-    // At least one "—" for empty field
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
+    // At least one "—" for the empty field in the card
+    const card = screen.getByText('Mobile task').closest('article')
+    expect(card?.textContent).toContain('—')
   })
 })

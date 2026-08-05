@@ -29,15 +29,27 @@ export function formatAge(isoDate: string, now: Date): string {
 }
 
 /** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun".
- * #191 (Home port): delegates to the shared locale-aware date module rather than a hardcoded
- * en-GB `toLocaleDateString` — Home's attention rows (`home-attention.ts`) need the viewer's
- * locale on this same formatter every other call site here already used unlocalized. Every
+ * Delegates to the canonical locale-aware date module (cohesion-debt 2026-07-19, item #1) —
+ * #191 (Home port) needed this same delegation for its attention rows (`home-attention.ts`), which
+ * want the viewer's locale on a formatter every other call site here still used unlocalized. Every
  * existing caller passes no `locale`, so the default reproduces the prior en-GB output exactly. */
 export function formatDate(d: string, locale: Locale = 'en'): string {
   return formatWeekdayDayMonth(d, locale)
 }
 
-/** Collect unique persons (A + C + I) that are NOT the responsible person; returns count. */
+/** Resolve the human-facing provenance label for a Task row or record. */
+export function taskSourceLabel(workLineName: string, objectiveName: string, adHocLabel: string): string {
+  return workLineName || objectiveName || adHocLabel
+}
+
+/**
+ * Retained for Home's My-Tasks card (`components/weekly/my-tasks-card.tsx`) — that surface is
+ * NOT ported by #192 (it belongs to #191, the Home port, not yet started) and still uses the RACI
+ * vocabulary v4's Tasks components moved past (PIC/Supervisor). v4 dropped this export entirely
+ * because v4 has no My-Tasks card in this shape; deleting it here would break a live `dev` screen
+ * outside this PR's scope, so it stays until #191 either ports Home onto the new vocabulary or
+ * retires the card.
+ */
 export function otherRaciCount(task: TaskListRow): number {
   const r = task.responsible_person_id
   const seen = new Set<string>()

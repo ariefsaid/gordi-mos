@@ -1,5 +1,6 @@
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
+import { useT } from '@/i18n/use-t'
 
 type GroupHeaderRowProps = {
   /** The group label (status name, person name, BU name, or work-line name). */
@@ -36,6 +37,22 @@ type GroupHeaderRowProps = {
    * screen readers). Pass nothing or omit.
    */
   controlsId?: string
+  /**
+   * Step 6 (B8, AC-622 render / OD-P3-6): when this group is an occurrence group, its derived
+   * `mos.process_run_rollup` counts. Presence supersedes the generic plain `count`/overdue-subtotal
+   * display with the occurrence summary grammar ("${done}/${total} done · N overdue · N to
+   * assign") — reuses this SAME header row, never a second/divergent header component. `label`
+   * carries the run's caption (never the internal-only string "Process Run", FR-611).
+   */
+  occurrenceRollup?: { total: number; done: number; overdue: number; pendingUnresolved: number }
+  /**
+   * Step 6 (C2, spec §5): opens the pending-PIC resolution surface (PendingResolution, B7) for
+   * this occurrence. When present AND `occurrenceRollup.pendingUnresolved > 0`, a separate
+   * "N to assign" affordance renders (distinct from the plain roll-up summary text above — that
+   * text stays a single unsplit string so it keeps reporting the count even while this button is
+   * the actionable entry point). Omitted entirely at zero-pending or when no handler is given.
+   */
+  onAssignPending?: () => void
 }
 
 /**
@@ -45,16 +62,17 @@ type GroupHeaderRowProps = {
  * project → blue categorical tag; process → gray calm tag.
  */
 function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
+  const t = useT()
   if (type === 'project') {
     return (
       <Tag color="blue" weight="medium" className="wl-type-tag">
-        Project
+        {t('tasks.type.project')}
       </Tag>
     )
   }
   return (
     <Tag color="gray" weight="medium" className="wl-type-tag">
-      Daily / ongoing
+      {t('tasks.type.daily')}
     </Tag>
   )
 }
@@ -73,39 +91,71 @@ function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
  */
 export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
-  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly,
+  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly, occurrenceRollup,
+  onAssignPending,
 }: GroupHeaderRowProps) {
+  const t = useT()
   return (
     <tr className="grp">
       <td colSpan={colSpan}>
-        <div className="gbar">
+        <div className="gbar collection-grammar-group-bar">
           <button
             type="button"
-            className="caret"
+            className="caret collection-grammar-group-toggle"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `Expand ${label} group` : `Collapse ${label} group`}
+            aria-label={collapsed ? t('tasks.group.expand', { label }) : t('tasks.group.collapse', { label })}
             onClick={onToggle}
           >
             {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
             <Chevron className={`grp-chev${collapsed ? ' grp-chev-collapsed' : ''}`} />
           </button>
-          <span className="glabel">{label}</span>
+          <span className="glabel collection-grammar-group-label">{label}</span>
           {/* FR-233: work-line type label — text always present, never color-only (WCAG 1.4.1) */}
           {workLineType != null && (
             <WorkLineTypeTag type={workLineType} />
           )}
-          <span className="gcount tabular-nums">{count}</span>
-          {overdue > 0 && (
+          {occurrenceRollup ? (
+            <span className="gcount collection-grammar-group-count tabular-nums">
+              {/* Design fix wave item 6 (MINOR — "1 to assign" stutter): when the "N to assign"
+                  button ALSO renders just below, the summary drops the pending clause entirely
+                  (the button already carries the count); a non-capable viewer (no button) keeps
+                  a clause, but neutral "N unassigned" wording — never actionable-sounding text
+                  with nothing to click. */}
+              {t(
+                occurrenceRollup.pendingUnresolved === 0
+                  ? 'processes.rollup.summary'
+                  : onAssignPending
+                    ? 'processes.rollup.summaryNoAssign'
+                    : 'processes.rollup.summaryUnassigned',
+                {
+                  done: occurrenceRollup.done, total: occurrenceRollup.total,
+                  overdue: occurrenceRollup.overdue, pending: occurrenceRollup.pendingUnresolved,
+                },
+              )}
+            </span>
+          ) : (
+            <span className="gcount collection-grammar-group-count tabular-nums">{count}</span>
+          )}
+          {occurrenceRollup && occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+            <button
+              type="button"
+              className="gsub gsub-pending"
+              onClick={onAssignPending}
+            >
+              {t('processes.pending.assignCount', { count: occurrenceRollup.pendingUnresolved })}
+            </button>
+          )}
+          {!occurrenceRollup && overdue > 0 && (
             readOnly
-              ? <span>· {overdue} overdue</span>
+              ? <span>· {t('tasks.filter.overdueCount', { count: overdue })}</span>
               : (
                   <button
                     type="button"
                     className="gsub"
-                    aria-label={`Filter to ${overdue} overdue tasks`}
+                    aria-label={t('tasks.filter.overdueAria', { count: overdue })}
                     onClick={onOverdueFilter}
                   >
-                    · {overdue} overdue
+                    · {t('tasks.filter.overdueCount', { count: overdue })}
                   </button>
                 )
           )}
@@ -113,11 +163,11 @@ export function GroupHeaderRow({
             <button
               type="button"
               className="gadd"
-              aria-label={`Add task to ${label}`}
+              aria-label={t('tasks.group.add', { label })}
               data-prefill={prefill}
               onClick={onAddTask}
             >
-              + Add task
+              {t('tasks.add')}
             </button>
           )}
         </div>
