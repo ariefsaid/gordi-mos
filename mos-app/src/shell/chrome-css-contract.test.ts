@@ -25,6 +25,10 @@ const SHELL = __dirname
 const CHROME_CLASS_PREFIXES = [
   'bottom-tab', 'mobile-drawer', 'mobile-action', 'rail-item', 'rail-count', 'rail-tooltip',
   'content-header', 'ch-', 'page-head', 'page-frame', 'scrim', 'tap-target-phone',
+  // The record overlay/page chrome (#190). `drawer` covers the shared modal regime the record
+  // panel host applies — the exact class family that had no stylesheet at the shell root before
+  // this port, which is this test's own failure mode one layer up.
+  'drawer', 'record-panel', 'record-page', 'record-split', 'overlay-companion',
 ]
 
 /**
@@ -35,6 +39,8 @@ const NOT_STYLED_BY_CSS: Record<string, string> = {
   'ctx-row': 'ContextRow styles the strip inline (its height collapses to 0 on a route whose head owns the context); the class is a query hook',
   'ctx-scope': 'inline flex/maxWidth — the crumb must never shrink, which is a per-element rule, not a shared one',
   'ctx-job': 'inline flex/minWidth, paired with ctx-scope above',
+  'overlay-companion-host--phone-over-record':
+    'a state hook, not a skin: at phone widths RecordPanelHost already selects its modal regime, so .drawer-modal-root owns the layering above an open record and the companion needs no rule of its own. The two DESKTOP companion layouts beside it are styled, which is what makes this one a deliberate blank rather than the missing-rule bug',
 }
 
 function cssSources(dir: string, out: string[] = []): string[] {

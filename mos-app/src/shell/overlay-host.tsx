@@ -195,6 +195,7 @@ export function OverlayHostProvider({
   const suppressPopRef = useRef(false)
   const restoreCacheRef = useRef<Map<number, HostFrame>>(new Map())
   const didDeepLinkRef = useRef(false)
+  const didMountRef = useRef(false)
 
   // A stable default driver (built once) so the controller does not re-run the POP effect on
   // every render when no driver is injected. Tests inject an explicit driver.
@@ -303,6 +304,21 @@ export function OverlayHostProvider({
 
   // ── Browser POP sync (Task 3 step 3 + Task 3A steps 4-5) ────────────────────
   useEffect(() => {
+    if (!didMountRef.current) {
+      // FIRST PASS AFTER MOUNT IS NOT A GESTURE (#190). A router reports its INITIAL navigation as
+      // POP — nobody pressed Back; that is just how an entry that was already on the stack is
+      // described. This effect's closure captures the location and navigation type from the render
+      // that scheduled it, so on mount it holds the pre-open location while a CHILD effect (a
+      // collection restoring its own `?record=` on a cold load) has already opened the session:
+      // child effects run before the parent's. The parent then read a live session against a
+      // marker-free location, computed "popped past the root", and closed the record the collection
+      // had just opened. It reproduces on any cold arrival at a collection URL that opens a panel,
+      // and only there — which is why an in-app click was never affected and the defect survived
+      // the suite it ships with. There is no previous location on the mount pass, so there is
+      // nothing for it to sync to.
+      didMountRef.current = true
+      return
+    }
     if (suppressPopRef.current) {
       // Our own history move landed — ignore it.
       suppressPopRef.current = false
@@ -726,6 +742,12 @@ export function OverlayHostSlot({
  * scrim, modality, and close chrome. Browser Back and the controller's route stack remain owned by
  * the primary OverlayHost session until the later multi-surface stack cutover.
  */
+const COMPANION_LAYOUT_CLASS = {
+  standalone: 'overlay-companion-host overlay-companion-host--standalone',
+  'with-record': 'overlay-companion-host overlay-companion-host--with-record',
+  'phone-over-record': 'overlay-companion-host overlay-companion-host--phone-over-record',
+} as const
+
 export function OverlayCompanionSlot({
   open,
   entry,
@@ -741,6 +763,12 @@ export function OverlayCompanionSlot({
   const layout = recordOpen
     ? isNarrow ? 'phone-over-record' : 'with-record'
     : 'standalone'
+  // Whole class strings, not `overlay-companion-host--${layout}`. The shell chrome CSS contract
+  // (chrome-css-contract.test.ts) reads the classes the chrome APPLIES out of this source and
+  // checks each is defined by a stylesheet — it exists because a class that resolves to nothing
+  // looks identical to one that resolves correctly in every jsdom test. An interpolated class name
+  // is invisible to that scan, so the one place a missing rule could hide is written out in full.
+  const layoutClass = COMPANION_LAYOUT_CLASS[layout]
 
   // Keep the owning component mounted even while its physical host is closed. Deputy's runtime,
   // transcript, draft, and history state therefore survive close/reopen without leaving a hidden
@@ -772,7 +800,7 @@ export function OverlayCompanionSlot({
       // listens at document scope without suppressing a higher modal's event contract.
       escapeCapture={isNarrow && recordOpen}
       escapeOnDocument
-      rootClassName={`overlay-companion-host overlay-companion-host--${layout}`}
+      rootClassName={layoutClass}
       onClose={(via) => onClose(via ?? 'explicit-close')}
     >
       {entry.content}

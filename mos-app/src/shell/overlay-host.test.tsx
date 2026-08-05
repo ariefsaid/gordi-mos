@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -710,6 +710,53 @@ describe('overlay host — browser POP transaction (clean + dirty)', () => {
     // The active session is untouched — the foreign marker did not steal it.
     expect(getApi().session?.id).toBe(ours)
     expect(getApi().session?.frames.at(-1)?.entry.key).toBe('record:1')
+  })
+
+  // FOUND AND FIXED WHILE PORTING (#190). A router reports its INITIAL navigation as POP — nobody
+  // pressed Back. This effect's closure holds the location and navigation type from the render that
+  // scheduled it, so on mount it held the pre-open location while a CHILD effect (a collection
+  // restoring its own `?record=` on a cold load) had already opened the session: child effects run
+  // before the parent's. The parent read a live session against a marker-free location, computed
+  // "popped past the root", and closed the record the collection had just opened. Only a COLD
+  // arrival is affected, which is why an in-app click never was, and why the v4 suite this file is
+  // carried from never saw it — every one of its cases opens through the API after mount.
+  it('mount is not a gesture: a session opened by a child effect on a cold arrival survives', async () => {
+    const { driver, connect } = wireDriver()
+    let api!: OverlayHostApi
+    // A collection that opens its record in its own mount effect, exactly as a `?record=` restore
+    // does. The open is deliberately NOT wrapped in act() by the test — it has to happen inside
+    // React's own mount effect pass for the ordering that produced the defect to occur.
+    function CollectionOnMount() {
+      api = useOverlayHost()
+      const ref = useRef(api)
+      ref.current = api
+      useEffect(() => {
+        void ref.current.openRoot(makeEntry({ key: 'record:cold' }), 'route', true)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
+      return <OverlayHostSlot owner="shell" />
+    }
+    const router = createMemoryRouter(
+      [{ path: '*', element: (
+        <OverlayHostProvider historyDriver={driver}>
+          <CollectionOnMount />
+        </OverlayHostProvider>
+      ) }],
+      { initialEntries: ['/work/signals?record=cold'] },
+    )
+    render(<RouterProvider router={router} />)
+    connect(router)
+
+    await waitFor(() => expect(api.session?.frames.at(-1)?.entry.key).toBe('record:cold'))
+    expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(1)
+    // …and the marker landed on the entry the collection had already pushed, not a duplicate.
+    expect(readOverlayMarker(router.state.location.state)?.depth).toBe(0)
+    // The seam is still live afterwards — the guard suppresses exactly one pass, not the sync. A
+    // linked-record push adds a real history entry, and a browser Back off it re-syncs the stack.
+    await act(() => api.push(makeEntry({ key: 'record:linked' })))
+    expect(api.session?.frames.map((f) => f.entry.key)).toEqual(['record:cold', 'record:linked'])
+    await act(() => router.navigate(-1))
+    expect(api.session?.frames.map((f) => f.entry.key)).toEqual(['record:cold'])
   })
 
   it('R-T-4 no-index fallback: when index() is unavailable the dirty Back DENY still restores the marker', async () => {

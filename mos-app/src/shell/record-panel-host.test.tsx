@@ -291,3 +291,146 @@ describe('RecordPanelHost — focus contract (FR-1)', () => {
     expect(document.activeElement?.closest('.record-panel-chrome')).toBeTruthy()
   })
 })
+
+// ── WCAG 2.1 AA on the phone regime (#190, authored here per DD-WAY-21) ──────────────────────
+// A record panel on a phone is the case most likely to be wrong: it is the ONLY regime where the
+// panel owns the whole screen, so it is the only one where a leak out of the trap strands the user
+// on a page they cannot see. v4's suite proves focus ENTERS and RETURNS and that Escape closes; it
+// never proves the trap wraps, that the panel announces itself, or that its surface is not a
+// fixed-width column on a 390px screen.
+describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
+  const phone = () => stubWidths({ split: false, band: false, desktop: false })
+
+  it('announces itself: role=dialog + aria-modal + an accessible name from `label`', () => {
+    phone()
+    renderHost({ label: 'Signal record' })
+    const dialog = screen.getByRole('dialog', { name: 'Signal record' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    // The name comes from the prop, not from happening to contain that text.
+    expect(dialog.getAttribute('aria-label')).toBe('Signal record')
+  })
+
+  it('traps Tab inside the sheet: last → first forward, first → last backward', () => {
+    // The host's trap filters to elements jsdom would call laid out (`offsetParent !== null`), and
+    // jsdom gives every element a null offsetParent. Without this stub the filter collapses to the
+    // single focused element, first === last, and the two assertions below pass whatever the trap
+    // does — the vacuum this case exists to avoid. Restored in the finally.
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent')
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      configurable: true,
+      get() { return document.body },
+    })
+    try {
+      phone()
+      renderHost({
+        label: 'Signal',
+        title: 'Signal',
+        children: (
+          <>
+            <button type="button">first control</button>
+            <button type="button">last control</button>
+          </>
+        ),
+      })
+      const dialog = screen.getByRole('dialog', { name: 'Signal' })
+      const controls = within(dialog).getAllByRole('button')
+      expect(controls.length).toBeGreaterThan(1) // a one-control panel cannot prove a wrap
+      const first = controls[0]
+      const last = controls.at(-1)!
+
+      last.focus()
+      fireEvent.keyDown(dialog, { key: 'Tab' })
+      expect(document.activeElement).toBe(first)
+
+      first.focus()
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+      expect(document.activeElement).toBe(last)
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'offsetParent', original)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
+    }
+  })
+
+  it('the split regime does NOT trap — the page beside it stays reachable by Tab', () => {
+    // The trap is a property of owning the whole screen. At ≥1100px the collection is live beside
+    // the panel, so trapping there would strand the user in the panel. Asserted as the negative of
+    // the case above so the two regimes cannot silently converge.
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent')
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      configurable: true,
+      get() { return document.body },
+    })
+    try {
+      stubWidths({ split: true, desktop: true })
+      renderHost({
+        label: 'Signal',
+        title: 'Signal',
+        children: (
+          <>
+            <button type="button">first control</button>
+            <button type="button">last control</button>
+          </>
+        ),
+      })
+      const aside = screen.getByRole('complementary', { name: 'Signal' })
+      const controls = within(aside).getAllByRole('button')
+      const last = controls.at(-1)!
+      last.focus()
+      fireEvent.keyDown(aside, { key: 'Tab' })
+      // No wrap: focus is left exactly where the browser's own Tab order will take it.
+      expect(document.activeElement).toBe(last)
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'offsetParent', original)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
+    }
+  })
+
+  it('is dismissible by keyboard alone — Escape closes with the escape intent', () => {
+    phone()
+    const onClose = vi.fn()
+    renderHost({ label: 'Signal', title: 'Signal', onClose })
+    // Escape is listened for on the DOCUMENT in the modal regime, because the sheet owns the whole
+    // screen and focus may rest anywhere inside it.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenLastCalledWith('escape')
+  })
+
+  it('every chrome control keeps an accessible name and stays in the Tab order', () => {
+    phone()
+    renderHost({
+      label: 'Signal',
+      title: 'Signal',
+      canGoBack: true,
+      onBack: vi.fn(),
+      onOpenPage: vi.fn(),
+    })
+    const controls = Array.from(
+      document.querySelectorAll<HTMLElement>('.record-panel-chrome button'),
+    )
+    expect(controls.length).toBe(3) // Back · Open full page · Close
+    for (const control of controls) {
+      expect(control.getAttribute('aria-label')?.trim()).toBeTruthy()
+      expect(control.getAttribute('tabindex')).not.toBe('-1')
+    }
+  })
+
+  it('the phone sheet is viewport-sized, never a fixed-width column (no 390px overflow)', () => {
+    // jsdom computes no layout, so the geometry claim is asserted against the stylesheet — the
+    // same technique the 44px touch-floor case above uses. What would produce a horizontal scroll
+    // at 390px is a sheet wider than the viewport, so the rule that owns the phone surface must
+    // size itself from the viewport and set no px width.
+    phone()
+    renderHost({ label: 'Signal' })
+    expect(document.querySelector('.drawer-modal.drawer-fullscreen')).toBeTruthy()
+
+    const css = readFileSync(resolve(process.cwd(), 'src/styles/drawer.css'), 'utf8')
+    const fullscreen = css.slice(css.indexOf('.drawer-modal.drawer-fullscreen {'))
+    const body = fullscreen.slice(fullscreen.indexOf('{') + 1, fullscreen.indexOf('}'))
+    expect(body).toMatch(/inset:\s*0/)
+    expect(body).toMatch(/width:\s*auto/)
+    expect(body).not.toMatch(/width:\s*\d+px/)
+    // The band sheet also collapses to full-bleed below 768px rather than leaving a half-width
+    // column with the page bleeding through beside it.
+    expect(css).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.drawer-modal\.drawer-sheet\s*\{[^}]*width:\s*auto/s)
+  })
+})
