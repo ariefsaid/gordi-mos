@@ -138,8 +138,17 @@
 .drawer-modal.drawer-sheet {
   position: absolute; top: 0; right: 0; bottom: 0;
   /* Intermediate-width (768–1099px) right sheet: ~45% of the viewport, capped at 520px
-     (plan Task 4 Step 3). max-width:100% keeps it in-bounds if the viewport is narrow. */
-  width: min(45vw, 520px); max-width: 100%; border-radius: 0;
+     (plan Task 4 Step 3), and never narrower than 360px.
+     THE FLOOR IS LOAD-BEARING — it was lost once already. v4 writes this `min(45vw, 520px)`,
+     with no lower bound, and carrying that verbatim narrowed the sheet against what `dev` ships
+     (`clamp(360px, 50vw, 520px)`): at a 768px viewport it computes to 345.6px instead of 384px.
+     That is below the 360px minimum of the `minmax(360px, 44%)` split track this same file calls
+     the app's ONE record width four rules above — so the file contradicted itself, in the exact
+     768–1099px band where this rule is the one that applies. `clamp()` keeps v4's 45vw/520px
+     intent and restores the floor. `drawer.css.test.ts` derives the floor from `.record-split`
+     rather than repeating the literal, so the two cannot drift apart again silently.
+     `max-width: 100%` still wins below 360px, so the floor never overflows a narrow viewport. */
+  width: clamp(360px, 45vw, 520px); max-width: 100%; border-radius: 0;
   border: 0; border-left: 1px solid var(--border);
   box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
   display: flex; flex-direction: column;
