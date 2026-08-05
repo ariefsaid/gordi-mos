@@ -21,7 +21,7 @@
 --   Author   ...0d1  member — submitted most fixture rows
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(38);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -258,6 +258,47 @@ select throws_ok($$
   select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ad02','mine now')
   $$, '42501', 'cannot approve a log outside your org',
   'fail-closed: the cross-tenant refusal still precedes every authority question');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- D. The decide freeze — a decision changes the status and the review fields, nothing else
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- #236 review finding: the Submitted→Submitted freeze alone left a decide free to re-home the
+-- row's facts in the same statement — the transition was authorised against the OLD stream while
+-- WITH CHECK validated the NEW one. Now ANY identity/qty/note change riding a status transition
+-- is refused, on the direct-UPDATE path here and therefore on the RPC path too (the RPC's own
+-- UPDATE fires this same guard, and its signature — a log id and a note — can carry no field).
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+
+select throws_ok($$
+  update ops.kitchen_logs
+     set status = 'Rejected', review_note = 'and moved',
+         branch_id = '00000000-0000-0000-0000-00000000bf01'
+   where id = '00000000-0000-0000-0000-00000000ad04'
+  $$, '42501', 'a decision changes only the status and the review fields; the log''s facts are frozen',
+  'decide freeze: a reject cannot re-home the row into another branch''s books in the same statement');
+
+select throws_ok($$
+  update ops.kitchen_logs
+     set status = 'Rejected', review_note = 'and shrunk', qty_porsi = 1
+   where id = '00000000-0000-0000-0000-00000000ad04'
+  $$, '42501', 'a decision changes only the status and the review fields; the log''s facts are frozen',
+  'decide freeze: a reviewer cannot "correct" the quantity as a side effect of deciding — a correction is a new log');
+
+select throws_ok($$
+  update ops.kitchen_logs
+     set status = 'Approved', wip_item_id = '00000000-0000-0000-0000-00000000ab02'
+   where id = '00000000-0000-0000-0000-00000000ac05'
+  $$, '42501', 'a decision changes only the status and the review fields; the log''s facts are frozen',
+  'decide freeze: the →Approved side is frozen too — the write path the RPC rides refuses identity changes');
+
+select lives_ok($$
+  update ops.kitchen_logs set status = 'Rejected', review_note = 'legitimate decide'
+   where id = '00000000-0000-0000-0000-00000000ad04'
+  $$, 'decide freeze (positive): status + review note alone still decides — the freeze refuses riders, not reviews');
+reset role;
+select is((select status || '|' || reviewed_by::text from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ad04'),
+  'Rejected|00000000-0000-0000-0000-0000000000d2',
+  'decide freeze: ...and the legitimate decide landed with its provenance stamped');
 
 select * from finish();
 rollback;

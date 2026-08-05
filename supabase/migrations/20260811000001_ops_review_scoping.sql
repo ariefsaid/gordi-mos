@@ -152,6 +152,28 @@ begin
       raise exception 'a reviewed kitchen log keeps its status; record a correction as a new log'
         using errcode = '42501';
     end if;
+    -- #236 review finding: THE DECIDE FREEZE. A status transition may change the status and the
+    -- review fields — nothing else. Without this, the freeze below (Submitted→Submitted only)
+    -- left a decide free to re-home the row's facts in the same statement: the transition was
+    -- authorised against the OLD stream while WITH CHECK validated the NEW one, so a reject could
+    -- carry branch_id/qty/date changes nobody authorised. Approve's legitimate stamps
+    -- (reviewed_by/reviewed_at/review_note/batch_id) are set by the RPC — which by construction
+    -- carries NO caller fields (it takes a log id and a note) — and reject's are stamped below;
+    -- neither touches the columns listed here, so this arm fires on both paths purely as the
+    -- refusal it is. qty and the submitter's note are included deliberately: a reviewer
+    -- "correcting" a figure while deciding it is the same silent-rewrite class — a correction is
+    -- a new log (or a pre-decision edit the submitter can see), never a side effect of a decision.
+    if new.action is distinct from old.action
+       or new.destination_branch_id is distinct from old.destination_branch_id
+       or new.branch_id is distinct from old.branch_id
+       or new.activity is distinct from old.activity
+       or new.wip_item_id is distinct from old.wip_item_id
+       or new.log_date is distinct from old.log_date
+       or new.qty_porsi is distinct from old.qty_porsi
+       or new.notes is distinct from old.notes then
+      raise exception 'a decision changes only the status and the review fields; the log''s facts are frozen'
+        using errcode = '42501';
+    end if;
   end if;
   -- NEW (#236, FR-043/AC-010): the per-stream ordering gate. The incumbent's rule — transfers
   -- wait for the day's production count to be reviewed, because an approved transfer of WIP whose
@@ -254,12 +276,13 @@ $$;
 comment on function ops._guard_kitchen_log() is
   'Guard (folds 20260620000008 + 20260620000012; #236 re-gates review per stream): '
   'Submitted→Approved/Rejected is the row''s stream reviewer — supervisor with live primary '
-  'membership of the row''s stream Team — or ops_lead/admin (FR-040/041, 42501); a transfer''s '
-  'Submitted→Approved is refused while the same stream/day has Submitted production (FR-043, '
-  'P0004); Submitted→Rejected stamps reviewed_by/reviewed_at; submitted_by, org_id and source are '
-  'immutable, as are the stream, movement, wip item and date on a Submitted row (42501); '
-  'business_unit_id, wip_item_id, branch_id, destination_branch_id, submitted_by and reviewed_by '
-  'must be same-org (23514). SECURITY INVOKER.';
+  'membership of the row''s stream Team — or ops_lead/admin (FR-040/041, 42501); a decide changes '
+  'only the status and the review fields — the movement, stream, item, date, qty and submitter '
+  'note are frozen through every status transition (42501); a transfer''s Submitted→Approved is '
+  'refused while the same stream/day has Submitted production (FR-043, P0004); Submitted→Rejected '
+  'stamps reviewed_by/reviewed_at; submitted_by, org_id and source are immutable, as is the row''s '
+  'identity on a Submitted→Submitted edit (42501); business_unit_id, wip_item_id, branch_id, '
+  'destination_branch_id, submitted_by and reviewed_by must be same-org (23514). SECURITY INVOKER.';
 
 -- The trigger itself is unchanged and keeps firing this re-authored function; not re-created.
 
@@ -386,7 +409,10 @@ begin
                 || lpad(v_next_n::text, 3, '0');
 
   -- (7) flip to Approved with reviewer provenance. ops._guard_kitchen_log does NOT stamp reviewer
-  -- fields on →Approved precisely because this path sets them explicitly.
+  -- fields on →Approved precisely because this path sets them explicitly. The decide freeze holds
+  -- here twice over: this function takes a log id and a note — no caller field can reach the row —
+  -- and the guard fires on this very UPDATE, so even a rewritten body could not carry an identity,
+  -- qty or note change through an approval.
   update ops.kitchen_logs
      set status      = 'Approved',
          reviewed_by = shared.current_person_id(),
