@@ -134,8 +134,26 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
   const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
   const promotedModule = primaryModuleForViewer(roleNames, accessRoles)
+  // Zone 2 keeps every viewer-scoped module. The promoted one contributes only its CHILDREN — its
+  // own row is already the bottom bar's module tab, so repeating it here would be the duplicate
+  // the "exactly one surface owns the module" rule exists to prevent.
+  //
+  // It used to be dropped whole, children included (#242). Below 920px there is no rail, and the
+  // bottom bar renders one link per module with no children — so for every viewer who HAS a
+  // module (Café is always the promoted one for kitchen staff) that module's sub-screens had no
+  // nav entry on a phone at all. Café's five screens are the ones kitchen staff use daily, on
+  // their primary device.
   const moduleGroups = modulesByBUForRoles(roleNames, accessRoles)
-    .map((g) => ({ bu: g.bu, items: g.items.filter((m) => m.id !== promotedModule?.id) }))
+    .map((g) => ({
+      bu: g.bu,
+      items: g.items
+        .map((m) => ({
+          module: m,
+          showParent: m.id !== promotedModule?.id,
+          children: visibleSections(m.children ?? [], accessRoles),
+        }))
+        .filter((i) => i.showParent || i.children.length > 0),
+    }))
     .filter((g) => g.items.length > 0)
   const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
 
@@ -218,18 +236,20 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             <div key={g.bu}>
               <DrawerGroupLabel>{t(g.bu)}</DrawerGroupLabel>
               <ul className="flex flex-col gap-[2px]">
-                {g.items.map((m) => (
+                {g.items.map(({ module: m, showParent, children }) => (
                   <li key={m.id}>
-                    <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
-                    {/* A module's own screens, indented beneath it. This drawer is the phone's
-                        ONLY route to a module's sub-surfaces — the bottom bar gives a module one
-                        tab — so a module whose children are not drawn here has no phone nav at
-                        all. Café is the case that matters: five screens with live kitchen staff
-                        on them. Gated children (Review · Pushes) are filtered by the same helper
-                        the rail uses, against the same roles their route enforces. */}
-                    {visibleSections(m.children ?? [], accessRoles).length > 0 && (
-                      <ul className="flex flex-col gap-[2px] pl-6">
-                        {visibleSections(m.children ?? [], accessRoles).map((c) => (
+                    {showParent && (
+                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
+                    )}
+                    {/* A module's own screens. This drawer is the phone's ONLY route to them —
+                        the bottom bar gives a module one tab and no children — so a module whose
+                        children are not drawn here has no phone nav at all. Gated children
+                        (Review · Pushes) are filtered by the same helper the rail uses, against
+                        the same roles their route enforces. Indented under a parent row; flush
+                        when the parent is the bottom tab and only the children render here. */}
+                    {children.length > 0 && (
+                      <ul className={`flex flex-col gap-[2px] ${showParent ? 'pl-6' : ''}`}>
+                        {children.map((c) => (
                           <li key={c.path}>
                             <DrawerRow
                               to={c.path}
