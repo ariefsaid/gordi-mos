@@ -40,6 +40,7 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 import { KitchenStockPage } from './kitchen-stock-page'
+import { branchDisplayName } from '@/lib/kitchen-action-label'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -269,24 +270,50 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
   })
 
-  it('AC-011 / FR-061: the central kitchen is labelled by its branch alias — no label reads "HQ"/"Stok HQ"', async () => {
+  // INVERTED by #238's owner ruling (CONTEXT.md, Production stream). #237 shipped this surface
+  // naming the stream through the 'Bungur' display alias and pinned that here — which encoded the
+  // wrong rule: the capture page's stream picker had always used the canonical catalog name and
+  // explicitly refused the alias, so one stream read under two names depending on which surface
+  // was open. The ruling: a stream is named by its branch's CANONICAL name everywhere it is named
+  // AS A STREAM; the alias names a transfer DESTINATION and the derived action label, which is
+  // where the incumbent used it and where OD-K-1 parity lives.
+  //
+  // The assertion was inverted rather than deleted, and it now pins BOTH halves — canonical for
+  // the stream, alias still alive for the destination — so the DISTINCTION is what is asserted.
+  // Deleting the alias half would have left nothing standing between "the alias moved" and "the
+  // alias was dropped", and dropping it would break incumbent parity.
+  it('AC-011 / FR-061 (#238 ruling): the stream is named CANONICALLY — and never "HQ"/"Stok HQ"', async () => {
     setDesktop()
     mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    // The selected branch option for the central kitchen reads the display alias.
+    // The selected branch option for the central kitchen reads the CATALOG name, matching the
+    // capture surface exactly — the two are routinely open side by side.
     const branchSelect = screen.getByRole('combobox', { name: /branch/i }) as HTMLSelectElement
     expect(branchSelect.value).toBe(BRANCH_RR.id)
-    expect(branchSelect.selectedOptions[0].textContent).toBe('Bungur')
+    expect(branchSelect.selectedOptions[0].textContent).toBe('Rumah Rames')
+    expect(branchSelect.textContent).not.toMatch(/Bungur/)
 
-    // The incumbent's trap label never renders, anywhere on the surface.
+    // The incumbent's trap label never renders, anywhere on the surface. Unchanged, and the
+    // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.
     expect(screen.queryByText(/stok hq/i)).toBeNull()
-    // The caption names the stream through the alias too — never "HQ" for these books.
+    // The caption names the stream the same way — canonical, and still never "HQ" for these books.
     const caption = screen.getByRole('table').querySelector('caption')
-    expect(caption?.textContent).toContain('Bungur')
+    expect(caption?.textContent).toContain('Rumah Rames')
+    expect(caption?.textContent).not.toMatch(/Bungur/)
     expect(caption?.textContent).not.toMatch(/HQ/)
+  })
+
+  it('AC-011 (#238 ruling, the other half): the Bungur alias is ALIVE for a transfer DESTINATION', async () => {
+    // The alias was not dropped, only confined. branchDisplayName is what the derived action
+    // label ("Transfer to Bungur") and every destination offer resolve through — the incumbent's
+    // own string, and OD-K-1 parity is behavioural. Pinned at the helper, because that is the one
+    // seam both halves of the rule pass through: a future "cleanup" deleting BRANCH_DISPLAY_ALIAS
+    // would go red here while every stream-naming assertion above stayed green.
+    expect(branchDisplayName(BRANCH_RR)).toBe('Bungur')
+    expect(BRANCH_RR.name).toBe('Rumah Rames')
   })
 })
 

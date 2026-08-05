@@ -21,9 +21,15 @@ import {
 // and it resolves against an already-loaded branch catalog, so it runs after that read
 // rather than inside the parallel batch.
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+// #238 (FR-031): the per-stream completeness confirmation. It lives HERE — see the block that
+// renders it, beside the stream filter — because this page is already the stream lead's surface
+// and already resolves the three things the confirmation needs: which stream is in view, whether
+// this viewer leads it, and the names to render a confirmer with.
+import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
+import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { activityLabel, branchDisplayName, movementKey, streamKey } from '@/lib/kitchen-action-label'
+import { activityLabel, movementKey, streamKey } from '@/lib/kitchen-action-label'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
@@ -67,6 +73,14 @@ function formatTime(iso: string): string {
   const d = new Date(new Date(iso).getTime() + WIB_OFFSET_MS)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+}
+
+/** Format an ISO timestamp to YYYY-MM-DD (WIB, same fixed offset as formatTime). */
+function formatDate(iso: string): string {
+  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+  const d = new Date(new Date(iso).getTime() + WIB_OFFSET_MS)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,6 +318,10 @@ export function KitchenReviewPage() {
   const [streamCatalog, setStreamCatalog] = useState<ProductionStream[]>([])
   const [ownStreamKey, setOwnStreamKey] = useState<string | null>(null)
   const [streamFilter, setStreamFilter] = useState<string>('all')
+  // #238 (FR-031): every stream's completeness state, keyed by streamKey. Read org-wide by
+  // policy, so one fetch serves the filter wherever it moves.
+  const [completeness, setCompleteness] = useState<Map<string, StreamCompleteness>>(new Map())
+  const [confirmingStream, setConfirmingStream] = useState<string | null>(null)
   // The default is applied ONCE, after the first load resolves the viewer's own stream — a
   // ref, not state, so re-fetches never fight the viewer's own filter choice.
   const filterInitialized = useRef(false)
@@ -330,11 +348,12 @@ export function KitchenReviewPage() {
   const fetchQueue = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [rows, branchRows, people, pairs] = await Promise.all([
+      const [rows, branchRows, people, pairs, confirmations] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
         listActiveBranches(),
         getPeople(),
         listStreamPairs(),
+        listStreamCompleteness(),
       ])
       const ownStream = await fetchDefaultStream(branchRows)
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
@@ -358,6 +377,7 @@ export function KitchenReviewPage() {
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
       setStreamCatalog(streamCatalogFrom(pairs, branchRows))
       setOwnStreamKey(ownKey)
+      setCompleteness(new Map(confirmations.map(c => [streamKey(c.branch_id, c.activity), c])))
       // FR-041 filter defaults, applied once: a stream supervisor opens on THEIR stream;
       // ops_lead/admin open cross-stream. A supervisor with no stream (no live primary
       // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
@@ -403,6 +423,24 @@ export function KitchenReviewPage() {
       (isSupervisor && ownStreamKey !== null && streamKey(log.branch_id, log.activity) === ownStreamKey),
     [isLeadOrAdmin, isSupervisor, ownStreamKey],
   )
+
+  // ── #238 (FR-031): the stream in view, and whether this viewer may speak for it ────────────
+  // A completeness confirmation is a claim about ONE stream's list, so it is offered for one
+  // stream at a time — the one the filter names. On "all streams" there is no single list to
+  // vouch for and the block does not render at all.
+  const selectedStream = useMemo(
+    () =>
+      streamFilter === 'all'
+        ? null
+        : streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null,
+    [streamFilter, streamCatalog],
+  )
+  // The same authority that decides the stream's rows confirms its list (FR-031 via FR-040/041):
+  // its supervisor, or ops_lead/admin. A mirror of ops.can_review_stream — the policy is what
+  // makes it true; this only decides whether offering the control is honest.
+  const canConfirmSelected =
+    selectedStream !== null &&
+    (isLeadOrAdmin || (isSupervisor && streamFilter === ownStreamKey))
 
   // FR-040/041: the displayed queue — one stream, or every stream. Display scoping only;
   // the rows a viewer may DECIDE are canDecide's (and ultimately the server's) business.
@@ -463,6 +501,24 @@ export function KitchenReviewPage() {
       handleDecisionError(err)
     } finally {
       setSubmittingId(null)
+    }
+  }
+
+  // #238 (FR-031). Records the confirmation and NOTHING else — no queue refetch, no gate to
+  // re-evaluate, because the record gates nothing (DD-WAY-29 owns what appears on a form).
+  async function handleConfirmComplete() {
+    if (!selectedStream || !isOnline) return
+    const key = streamKey(selectedStream.branch.id, selectedStream.activity)
+    setConfirmingStream(key)
+    setActionError('')
+    try {
+      const row = await confirmStreamComplete(selectedStream.branch.id, selectedStream.activity)
+      setCompleteness(prev => new Map(prev).set(key, row))
+      setNotice(t('kitchen.review.completeness.saved'))
+    } catch {
+      setActionError(t('kitchen.review.completeness.failed'))
+    } finally {
+      setConfirmingStream(null)
     }
   }
 
@@ -706,11 +762,56 @@ export function KitchenReviewPage() {
           >
             <option value="all">{t('kitchen.review.allStreams')}</option>
             {streamCatalog.map(s => (
+              // CANONICAL branch names (OD-WAY-39, and the #238 owner ruling now in CONTEXT.md):
+              // a stream is named by its branch's catalog name everywhere it is named AS A
+              // STREAM; the 'Bungur' alias names a transfer DESTINATION and the derived action
+              // label, never a stream. This filter used the alias until #238's authenticated
+              // render found one stream reading "Rumah Rames · Bar" on capture and "Bungur · Bar"
+              // here — two names for one stream, on the two surfaces most likely to be open side
+              // by side.
               <option key={streamKey(s.branch.id, s.activity)} value={streamKey(s.branch.id, s.activity)}>
-                {branchDisplayName(s.branch)} · {activityLabel(t, s.activity)}
+                {s.branch.name} · {activityLabel(t, s.activity)}
               </option>
             ))}
           </Select>
+
+          {/* #238 (FR-031): the stream lead's completeness confirmation, on the surface that is
+              already theirs. It states what IS true — confirmed, by whom, when — and never what
+              is blocked, because it blocks nothing: DD-WAY-29's coordinate gate alone decides
+              what reaches a capture form (NFR-004). An unconfirmed stream reads as a gap with a
+              name on it, which is the whole point (OD-WAY-47). Shown for one stream at a time;
+              the button appears only for the people the policy would actually accept. */}
+          {selectedStream && (() => {
+            const key = streamKey(selectedStream.branch.id, selectedStream.activity)
+            const confirmed = completeness.get(key) ?? null
+            const busy = confirmingStream === key
+            return (
+              <div className="kr-complete" role="group" aria-label={t('kitchen.review.completeness.aria')}>
+                <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>
+                  {confirmed
+                    ? t('kitchen.review.completeness.confirmed', {
+                        who: peopleMap.get(confirmed.confirmed_by) ?? '—',
+                        when: formatDate(confirmed.confirmed_at),
+                      })
+                    : t('kitchen.review.completeness.unconfirmed')}
+                </span>
+                {canConfirmSelected && (
+                  <button
+                    type="button"
+                    className="btn btn-outline kr-complete-btn"
+                    disabled={busy || !isOnline}
+                    onClick={handleConfirmComplete}
+                  >
+                    {busy
+                      ? t('kitchen.review.completeness.saving')
+                      : confirmed
+                        ? t('kitchen.review.completeness.reconfirm')
+                        : t('kitchen.review.completeness.confirm')}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 

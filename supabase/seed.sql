@@ -197,6 +197,34 @@ insert into ops.wip_items (id, org_id, name, category) values
   ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'Seafood')
 on conflict (id) do nothing;
 
+-- ── Their CONFIRMED default unit — what puts them on a capture form (#238) ───────────────────
+-- Since #232 the capture form reads ops.capture_form_items, which returns only item-units whose
+-- ERP coordinates are CONFIRMED: an unconfirmed item is ABSENT, not disabled (DD-WAY-29). The
+-- migration's backfill keys on wip_items.esb_product_detail_id_porsi, and the rows above carry
+-- none (see the note there — the Teable source has no ESB identifiers), so a fresh `db reset`
+-- produced ZERO confirmed item-units and an EMPTY capture form for every persona on every
+-- stream. The app was correct; there was simply nothing to offer. It cost #238 an e2e fixture
+-- and would have cost the owner a render pass.
+--
+-- Same shape as the migration backfill — one confirmed default 'porsi' unit per item — with a
+-- DEV-only synthetic coordinate. `DEV-PD-` prefixed and derived from the row id: deterministic
+-- across resets, and unmistakable for a real ERP coordinate at a glance, in a payload, or in a
+-- log. Nothing here reaches an ERP: this file is applied by `supabase db reset` (local) only,
+-- staging and prod take migrations, and the dispatch target is gated pre-flip regardless.
+--
+-- confirmed_at is set to a non-null marker and RE-STAMPED by ops._stamp_item_unit_confirmation
+-- to now(); confirmed_by lands NULL under the seed's claimless session — the system-recorded
+-- shape, exactly as the backfilled rows carry.
+insert into ops.item_units
+  (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, confirmed_at)
+select w.org_id, w.id, 'porsi',
+       'DEV-PD-' || replace(w.id::text, '-', ''),
+       'DEV-P-'  || replace(w.id::text, '-', ''),
+       true, now()
+from ops.wip_items w
+where w.org_id = '10000000-0000-0000-0000-000000000001'
+on conflict (wip_item_id, unit_name) do nothing;
+
 -- ── A plan for "today" ───────────────────────────────────────────────────────────────────────
 -- So the Plan editor's horizon and the Log variance gate have something to work against in local
 -- dev. Stock is not seeded: it is recomputed from approved logs, and seeding a balance would put a

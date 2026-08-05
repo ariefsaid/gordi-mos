@@ -289,17 +289,24 @@ describe('router — Money gates (dev security series preserved)', () => {
 })
 
 describe('router — Café review + pushes are role-gated', () => {
-  it('AC-006: /cafe/review + /cafe/pushes sit behind RequireAccessRole(ops_lead|admin)', () => {
+  // The two used to share one gate. #236 (FR-040) made the stream supervisor a reviewer on the
+  // server and in the page but not here, so the reviewer it created was bounced off the URL —
+  // found by #238's cross-stack journey. Review now admits them; Pushes, the dispatch surface,
+  // does not, so the two gates are deliberately different and asserted apart.
+  it('AC-006: /cafe/review sits behind RequireAccessRole(ops_lead|admin|supervisor) — the FR-040 reviewer included', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} />)
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/review', 'kitchen/review'])
+  })
+
+  it('AC-006: /cafe/pushes stays behind RequireAccessRole(ops_lead|admin) — posting state is not a review queue', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/pushes'),
+    )!
     expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} />)
-    expect(gate.children!.map((c) => c.path).sort()).toEqual([
-      'cafe/pushes',
-      'cafe/review',
-      'kitchen/pushes',
-      'kitchen/review',
-    ])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/pushes', 'kitchen/pushes'])
   })
 })
 

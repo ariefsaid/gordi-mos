@@ -62,3 +62,30 @@ export const MEMBER = {
   personId: '4e000000-0000-0000-0000-0000000000e1', // dedicated e2e person (E2E Member)
   displayName: 'E2E Member',
 }
+
+// ── AC-014 (#238) — the bar-capture journey's two personas ────────────────────────────────────
+// A BAR STREAM is what this journey needs and no dev persona is one: every dev persona's primary
+// Team is org structure, not a (branch, activity). So these two are dedicated e2e people, granted
+// a live primary membership of the (Rumah Rames, bar) stream Team in global-setup — which makes
+// BAR_MEMBER's capture surface open on that stream by default (FR-001) and BAR_SUPERVISOR its
+// stream reviewer (FR-040). Same dedicated-e2e isolation as ADMIN/MEMBER: e2e-namespaced person
+// ids (4e00…), so no dev persona's team, roles or login is touched.
+//
+// NFR-005 (public repo): role-shaped display names only — never a staff name.
+export const BAR_MEMBER = {
+  email: 'e2e.bar.member@example.test',
+  password: 'e2e-password-123',
+  personId: '4e000000-0000-0000-0000-0000000000b1',
+  displayName: 'E2E Bar Member',
+}
+
+export const BAR_SUPERVISOR = {
+  email: 'e2e.bar.supervisor@example.test',
+  password: 'e2e-password-123',
+  personId: '4e000000-0000-0000-0000-0000000000b2',
+  displayName: 'E2E Bar Supervisor',
+}
+
+/** The stream both personas belong to — resolved by branch CODE, since the seeded stream Teams
+ *  carry generated ids (shared.seed_stream_teams). */
+export const BAR_STREAM = { branchCode: 'rumah_rames', activity: 'bar' } as const

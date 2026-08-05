@@ -12,7 +12,11 @@
 //
 // "Stok HQ" in the incumbent means the CENTRAL KITCHEN, which books to Rumah Rames — not
 // the GHQ branch — so no label here may read "HQ" for it (FR-061, CONTEXT.md trap); the
-// stream is named through branchDisplayName (the Rumah Rames display alias).
+// stream is named by the branch's CANONICAL catalog name, which is what keeps that true.
+// #238 owner ruling (CONTEXT.md, Production stream): canonical everywhere a stream is named;
+// the 'Bungur' alias names a transfer DESTINATION and the derived action label only. #237
+// shipped the alias on this surface; the ruling moved it, and the test was inverted to pin
+// both halves rather than deleted.
 //
 // Proves (unit): AC-011's RENDER half (the system-quantity column beside the ERP column,
 // per-stream scoping + switch, no "HQ" label) and AC-032 (negative balances preserved).
@@ -34,7 +38,7 @@ import { fetchKitchenStock, defaultStreamFrom } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
-import { activityLabel, branchDisplayName } from '@/lib/kitchen-action-label'
+import { activityLabel } from '@/lib/kitchen-action-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -57,9 +61,16 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
+/**
+ * Names the stream this surface is showing — so, per the #238 owner ruling (CONTEXT.md,
+ * Production stream), by the branch's CANONICAL catalog name. The 'Bungur' alias names a
+ * transfer DESTINATION and the derived action label, never a stream. Still never "HQ"/"Stok HQ"
+ * for the central kitchen either (FR-061, CONTEXT.md trap — that collides with the GHQ branch);
+ * the canonical name is what keeps that true, since it is the catalog's own.
+ */
 function streamLabel(t: ReturnType<typeof useT>, stream: ProductionStream | null): string {
   if (!stream) return '—'
-  return `${branchDisplayName(stream.branch)} · ${activityLabel(t, stream.activity)}`
+  return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
 }
 
 export function KitchenStockPage() {

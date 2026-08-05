@@ -74,6 +74,8 @@ The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · 
 the ERP coordinates, and the default a capture surface opens on. A person carries a stream assignment
 that **defaults** their surface and filters their item list, but it is a default, **not an access
 boundary** — they can switch to help another branch (OD-WAY-31).
+A stream is **named by its branch's canonical catalog name** wherever it is named as a stream; the
+`Bungur` alias names a transfer **destination** and the derived action label, never a stream.
 _Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
 fold destination into action — a storage workaround, not the model; DD-WAY-13)
 
