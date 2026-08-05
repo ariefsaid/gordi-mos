@@ -1589,3 +1589,119 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
     ).toHaveAttribute('placeholder', '33')
   })
 })
+
+// ── AC-007 (#235): the destination picker, both movement classes, both surfaces ─
+// FR-013. The movement control IS the destination picker — there is no second surface for
+// movements — and the list it offers is derived from the branch catalog, so both classes
+// come out of one derivation:
+//
+//   CROSS-BRANCH        any branch that is not the origin's. "Another branch's bar" and the
+//                       kitchen's existing cross-branch transfers are the SAME offer, because
+//                       a destination is a branch and carries no activity (OD-WAY-44).
+//   INTRA-BRANCH        the origin's own branch, offered from either activity surface and
+//                       recorded as destination = own branch. Unqualified it reads as a second
+//                       entry for the person's own branch name, which is why the counterpart
+//                       activity rides along as a display gloss.
+//
+// The gloss is the assertable half of "offerable": these tests read the option the way a
+// barista does, not by pulling a branch id out of the component's props.
+describe('AC-007: destinations cover both movement classes from both activity surfaces (FR-013)', () => {
+  it('AC-007: the BAR surface offers another branch AND its own branch qualified as the kitchen', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Intra-branch: destination = own branch, read as "to our kitchen" (bar → own kitchen).
+    expect(
+      screen.getByRole('tab', { name: /transfer to bungur within branch · kitchen/i }),
+    ).toBeInTheDocument()
+
+    // Cross-branch: another branch, offered exactly as it always was — a bar → bar movement
+    // and a kitchen → another branch movement are one and the same offer.
+    expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeInTheDocument()
+  })
+
+  it('AC-007: the KITCHEN surface offers its own branch qualified as the bar, with the incumbent cross-branch transfers preserved', async () => {
+    // The default fixture stream is (Rumah Rames, kitchen) — the incumbent's own stream, whose
+    // cross-branch labels are the ones OD-K-1 parity is measured against. They must come
+    // through this change byte-identical; only the own-branch entry gains its qualifier.
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(
+      screen.getByRole('tab', { name: /transfer to bungur within branch · bar/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
+  })
+
+  it('AC-007: the qualified option follows the ORIGIN, not a hardcoded branch', async () => {
+    // On a Radiant stream it is RADIANT that is intra-branch and Bungur that is a cross-branch
+    // destination — the mirror image of the two tests above. Without this, a qualifier pinned
+    // to the incumbent's one branch would pass both of them.
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(
+      screen.getByRole('tab', { name: /transfer to radiant within branch · kitchen/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Transfer to Bungur' })).toBeInTheDocument()
+  })
+
+  it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('tab', { name: /within branch/i })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Transfer to Bungur' })).toBeInTheDocument()
+  })
+
+  it('AC-007: an intra-branch movement is submitted as destination = the origin branch', async () => {
+    // The offer is only half of it — the row it produces is what the held arm (AC-008) reads.
+    // Destination equals origin, and the activity travels as the row's own stream, NOT as a
+    // property of the destination: there is no destination-activity field to send (OD-WAY-44).
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to bungur within branch · kitchen/i }))
+      await Promise.resolve()
+    })
+
+    // w1: tersedia 9, no plan for this movement → 2 is under the cap and off-plan, so the
+    // variance note is required (unchanged gate — an intra-branch movement is a transfer like
+    // any other on the way in; what differs is only what dispatch does with it).
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '2' } })
+      fireEvent.blur(qtyInput)
+      await Promise.resolve()
+    })
+    const note = screen.getByRole('textbox', { name: /note for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(note, { target: { value: 'cut fruit to the kitchen' } })
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w1', qty_porsi: 2,
+        action: 'transfer',
+        branch_id: BRANCH_RUMAH_RAMES.id,
+        destination_branch_id: BRANCH_RUMAH_RAMES.id,
+        activity: 'bar',
+      }),
+    ])
+  })
+})

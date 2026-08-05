@@ -16,11 +16,15 @@
 -- protections against re-POSTing a document the ERP already holds; the other is that nothing else
 -- creates an outbox row, which is what the "exactly one row" assertions are about.
 --
+-- Section J (#235) extends the same door to the second movement class from a BAR stream, and owns
+-- AC-008: an approved intra-branch movement lands on the held arm with no ERP document, while an
+-- approved cross-branch transfer from the same stream rides the normal dispatch path.
+--
 -- Personas: Author ...0d1 is a member of org A whose ops_lead grant is seeded already-revoked;
 -- DirectMgr ...0d2 holds ops_lead. Org B's log ...ac09 is the cross-tenant subject.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(45);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -273,6 +277,81 @@ select throws_ok($$
           'PR-20260620-001')
   $$, '23505', null,
   '...and within one org it is still unique, so the identifier the approval minted cannot be reused there');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- J. AC-008 (#235) — the two movement classes, from a BAR stream
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- Sections F and G already prove the two dispatch arms on the incumbent's (Rumah Rames, kitchen)
+-- stream: same-branch destination → 'noop', different branch → 'simple-transfer'. This section
+-- does not repeat that. It covers what bar capture adds and what the earlier sections cannot say:
+--
+--   1. The arms hold for a stream the incumbent never captured. Both rows below are (Gordi HQ,
+--      bar) — the intra-branch one is what a barista files when they hand cut fruit to their own
+--      branch's kitchen, and it is the first time that movement can exist as a row at all. If the
+--      endpoint rule had quietly grown an activity term, this is where it would show: same branch
+--      pair as ac05, different activity, and the answer must be identical.
+--   2. A HELD row has no ERP document and is not waiting for one (FR-050/053). Endpoint alone
+--      does not say that — a row can carry 'noop' and still have been posted by a worker that
+--      decided to try. The document fields are what the claim is actually about, and they are
+--      what the pushes surface renders as "held" rather than "pending" (FR-052).
+--
+-- Fresh date (2026-06-23) and its own stream, so the per-stream ordering gate (FR-043) has no
+-- Submitted production to lock against and the batch counters start at -001 — a number that says
+-- which arm ran, since the prefix comes from the same branch comparison the endpoint does.
+insert into ops.kitchen_logs
+  (id, org_id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id,
+   wip_item_id, qty_porsi, status, submitted_by) values
+  ('00000000-0000-0000-0000-00000000ac21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-00000000ab03',5,'Submitted','00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-00000000ac22','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
+
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+
+-- ── The intra-branch movement: approved, and HELD ────────────────────────────────────────────
+select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','ok'), 'TB-20260623-001',
+  'AC-008: a bar stream''s movement to its OWN branch approves and mints a TB batch — the same-branch arm, on a stream the incumbent never reached');
+
+select is((select endpoint from integrations.esb_push where source_ref = 'TB-20260623-001'), 'noop',
+  'AC-008: it resolves to the held/no-op arm — destination branch = origin branch, and the activity plays no part in that comparison (FR-051)');
+
+select ok((select esb_doc_num is null and posted_at is null and status <> 'posted'
+             from integrations.esb_push where source_ref = 'TB-20260623-001'),
+  'FR-050/053: the held row carries NO ERP document and is not posted — the ERP has no counterpart for an intra-branch movement to be posted to, so this is the permanent state, not a queue position');
+
+select row_eq($$
+  select payload->>'activity', payload->>'branch_code', payload->>'destination_branch_code'
+    from integrations.esb_push where source_ref = 'TB-20260623-001' $$,
+  row('bar'::text,'gordi_hq'::text,'gordi_hq'::text)::record,
+  'the message names the bar stream and the same branch on both sides — which is the whole of what makes it intra-branch (OD-WAY-44: there is no destination activity to carry)');
+
+select is((select count(*)::int from integrations.esb_push where source_ref = 'TB-20260623-001'), 1,
+  '...and it is ONE row, not a second attempt at a document that does not exist');
+
+-- ── The cross-branch movement from the same stream, same day, same item ──────────────────────
+-- Everything about these two rows is equal except the destination branch. Whatever separates them
+-- downstream is therefore that comparison and nothing else.
+select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac22','ok'), 'TR-20260623-001',
+  'AC-008: the same bar stream''s movement to ANOTHER branch mints a TR batch');
+
+select row_eq($$
+  select endpoint, status, payload->>'destination_branch_code'
+    from integrations.esb_push where source_ref = 'TR-20260623-001' $$,
+  row('simple-transfer'::text,'pending'::text,'radiant'::text)::record,
+  'AC-008: ...and it enqueues a real transfer through the normal dispatch path — pending, with the destination on the message, exactly as a kitchen cross-branch transfer does');
+
+-- ── The sweep: no held row anywhere has an ERP document ──────────────────────────────────────
+-- Both no-ops in this file — the incumbent's carried kitchen case and the new bar one — read at
+-- once. A posting arm added later for intra-branch movements (the move FR-053 forbids) turns this
+-- red on the first approval it touches, whatever surface produced the row.
+-- Both counts, deliberately: "none of them has a document" is satisfied by an outbox with no held
+-- rows in it at all, and that is the reading a future refactor would silently drift into.
+reset role;
+select row_eq($$
+  select count(*)::int,
+         count(*) filter (where esb_doc_num is not null or posted_at is not null)::int
+    from integrations.esb_push where endpoint = 'noop' $$,
+  row(2, 0)::record,
+  'FR-053: BOTH held movements — the incumbent''s carried kitchen one and the new bar one — are in the outbox, and NEITHER carries an ERP document; the intra-branch posting arm does not exist and is not to be built');
 
 select * from finish();
 rollback;

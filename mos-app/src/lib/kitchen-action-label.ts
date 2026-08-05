@@ -19,6 +19,7 @@ import type {
   KitchenMovement,
   MovementKey,
   ProductionActivity,
+  ProductionStream,
 } from '@/lib/db/kitchen-logs.types'
 
 /**
@@ -61,10 +62,20 @@ export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean 
 export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
 
 /**
- * Every movement capturable from an origin stream: produce, then a transfer to each active
- * branch — INCLUDING the origin branch itself, which is the incumbent's "Transfer to
- * Bungur" for the Rumah Rames stream (a within-books move: the WIP leaves the kitchen's
- * hands, but the ERP already books that branch as holding it, so nothing is posted).
+ * Every movement capturable from an origin stream (FR-013): produce, then a transfer to each
+ * active branch. That single list carries BOTH movement classes, from either activity
+ * surface, because a destination is a branch and nothing else (OD-WAY-44):
+ *
+ *   - CROSS-BRANCH — any branch that is not the origin. A bar → another branch's bar and the
+ *     kitchen's existing cross-branch transfers are the same row shape and the same
+ *     (preserved) labels; they post through the normal dispatch path.
+ *   - INTRA-BRANCH CROSS-ACTIVITY — the origin branch itself, offered from both sides (bar →
+ *     own branch's kitchen, kitchen → own branch's bar). This is also the incumbent's
+ *     "Transfer to Bungur" on the Rumah Rames stream. There is no destination-activity
+ *     dimension and none is being added: what is stored is destination = own branch, and the
+ *     counterpart activity is a GLOSS the capture control renders (see `isIntraBranch`), never
+ *     a column. Approved, such a movement is held — no ERP document (FR-050/053).
+ *
  * Destination order follows the catalog order the caller supplies.
  */
 export function movementsForStream(branches: readonly BranchOption[]): KitchenMovement[] {
@@ -75,6 +86,33 @@ export function movementsForStream(branches: readonly BranchOption[]): KitchenMo
       destinationBranchId: branch.id,
     })),
   ]
+}
+
+/**
+ * True when a movement is the intra-branch cross-activity one for this origin stream: a
+ * transfer whose destination branch IS the origin branch (FR-013/050).
+ *
+ * Read as a QUESTION ABOUT BRANCHES, exactly as `ops.esb_endpoint_for` asks it server-side
+ * (FR-051). Activity plays no part in the comparison on either side of the seam.
+ */
+export function isIntraBranch(
+  movement: KitchenMovement,
+  origin: ProductionStream | null | undefined,
+): boolean {
+  return (
+    movement.action === 'transfer' &&
+    origin != null &&
+    movement.destinationBranchId === origin.branch.id
+  )
+}
+
+/**
+ * The other activity of the origin's branch — what an intra-branch movement is understood to
+ * be moving to (bar → kitchen, kitchen → bar). DISPLAY ONLY: it names nothing stored, and
+ * deriving it is what lets the surface stay legible without a destination-activity column.
+ */
+export function counterpartActivity(activity: ProductionActivity): ProductionActivity {
+  return activity === 'bar' ? 'kitchen' : 'bar'
 }
 
 /**

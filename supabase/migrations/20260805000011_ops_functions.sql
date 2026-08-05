@@ -137,6 +137,17 @@ comment on function ops.kitchen_batch_prefix(text, uuid, uuid) is
 --
 -- The 'noop' arm is the one that has misled sessions: it is not "same location", it is "these books
 -- never recorded it leaving".
+--
+-- AND THERE IS NO FOURTH ARM TO ADD (FR-053, #235, corrected in place 2026-08-12 alongside
+-- 20260812000001). The noop arm is the PERMANENT treatment of an intra-branch movement, not a
+-- placeholder for a posting arm somebody still owes: the production master-data lookup (2026-08-05,
+-- #227 addendum) found no kitchen/bar location distinction, and production-type locations are not
+-- valid transfer endpoints, so there is no ERP counterpart to post to as the master data is
+-- configured. Bar capture (#235) makes the surface able to produce these rows from both activity
+-- surfaces — bar → own branch's kitchen and kitchen → own branch's bar — so the arm now carries
+-- real traffic, and the temptation to "finish" it grows with the volume. Revisit only if the ERP's
+-- master data grows per-activity locations. The comparison stays branches-only; no
+-- destination-activity dimension (FR-051, OD-WAY-44).
 create or replace function ops.esb_endpoint_for(
   p_action text, p_branch_id uuid, p_destination_branch_id uuid)
 returns text
@@ -152,7 +163,15 @@ as $$
   end
 $$;
 comment on function ops.esb_endpoint_for(text, uuid, uuid) is
-  'Derives the ERP operation for a movement (FR-071). produce posts an assembly; a transfer between branches posts a simple transfer; a transfer WITHIN one branch''s books posts nothing, because the ERP already books that branch as holding it (OD-WAY-26) — not because it stayed in the same place, which is what the incumbent''s own comments say.';
+  'Derives the ERP operation for a movement (FR-071). produce posts an assembly; a transfer '
+  'between branches posts a simple transfer; a transfer WITHIN one branch''s books posts '
+  'nothing, because the ERP already books that branch as holding it (OD-WAY-26) — not because '
+  'it stayed in the same place, which is what the incumbent''s own comments say. The noop arm '
+  'is the PERMANENT model for intra-branch movements, not a placeholder (FR-053, #235): the '
+  'production master-data lookup found no per-activity locations and production-type locations '
+  'are invalid transfer endpoints, so no ERP counterpart exists to post to as configured. Do '
+  'not add a posting arm here; revisit only if that master data grows per-activity locations. '
+  'The comparison is branches only — no destination-activity dimension (FR-051, OD-WAY-44).';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 4. Start-of-day available stock

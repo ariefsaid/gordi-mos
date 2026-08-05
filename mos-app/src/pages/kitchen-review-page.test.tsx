@@ -29,7 +29,6 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
     fetchPlanMap: vi.fn(),
-    fetchDefaultStream: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
     rejectKitchenLog: vi.fn(),
@@ -38,12 +37,17 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
-  fetchDefaultStream,
   listStreamPairs,
   approveKitchenLog,
   rejectKitchenLog,
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
+
+// The viewer's own stream comes from the ONE resolver (#234 consolidation), which returns a
+// ProductionStream resolved against the branch catalog — not the raw pair the deleted twin
+// in kitchen-logs.ts returned.
+vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 import { getPeople } from '@/lib/db/directory'
@@ -479,7 +483,7 @@ const XFER_OTHER_STREAM: ReviewLogRow = {
 describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
   it('FR-041: a supervisor is allowed in, and the filter defaults to THEIR stream — other streams\' rows are off-screen', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
-    mockDefaultStream.mockResolvedValue({ branch_id: BRANCH_ID, activity: 'kitchen' })
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
@@ -499,7 +503,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
 
   it('FR-040: a supervisor viewing another stream sees its rows WITHOUT decision controls', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
-    mockDefaultStream.mockResolvedValue({ branch_id: BRANCH_ID, activity: 'kitchen' })
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')

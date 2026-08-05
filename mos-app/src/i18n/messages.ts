@@ -471,6 +471,12 @@ export const messages = {
     'common.what.upcomingPlan': 'the upcoming plan',
     'doc.cafeOps': 'Café Operations',
     'kitchen.actionType.aria': 'Action type',
+    // The intra-branch cross-activity movement (FR-013): destination = the origin's OWN
+    // branch, qualified with the counterpart activity so it reads as what it is instead of
+    // as a second entry for the person's own branch name. ${activity} is derived for
+    // display; nothing stores a destination activity (OD-WAY-44).
+    'kitchen.actionType.intraBranch': 'within branch · ${activity}',
+    'kitchen.actionType.intraBranch.short': '· ${activity}',
     'kitchen.actionType.production': 'Production',
     'kitchen.actionType.transferBungur': 'Transfer to Bungur',
     'kitchen.actionType.transferBungur.short': '→ Bungur',
@@ -591,8 +597,12 @@ export const messages = {
     'kitchen.pushes.escalateAria': 'Manual intervention required',
     'kitchen.pushes.leadsOnly': 'Pushes is available to ops leads only.',
     'kitchen.pushes.leadsOnlyMsg': 'The ESB outbox is visible to ops leads and admins.',
+    // A held (intra-branch) movement has no ERP document and never will (FR-052/053) — said
+    // in words, so it cannot be read as "not posted yet".
+    'kitchen.pushes.noErpDoc': 'no ERP document',
     'kitchen.pushes.restrictedAria': 'Access restricted',
     'kitchen.pushes.signInMsg': 'You need to sign in to view Café pushes.',
+    'kitchen.pushes.status.held': 'held',
     'kitchen.qty.producedAria': 'Quantity produced for ${dish}',
     'kitchen.status.logged': 'Logged',
     'kitchen.status.notLogged': 'Not logged',
@@ -1568,6 +1578,8 @@ export const messages = {
     'common.what.upcomingPlan': 'rencana mendatang',
     'doc.cafeOps': 'Operasi Kafe',
     'kitchen.actionType.aria': 'Jenis aksi',
+    'kitchen.actionType.intraBranch': 'dalam cabang · ${activity}',
+    'kitchen.actionType.intraBranch.short': '· ${activity}',
     'kitchen.actionType.production': 'Produksi',
     'kitchen.actionType.transferBungur': 'Transfer ke Bungur',
     'kitchen.actionType.transferBungur.short': '→ Bungur',
@@ -1682,8 +1694,10 @@ export const messages = {
     'kitchen.pushes.escalateAria': 'Perlu penanganan manual',
     'kitchen.pushes.leadsOnly': 'Antrean hanya tersedia untuk ops lead.',
     'kitchen.pushes.leadsOnlyMsg': 'Antrean ESB terlihat oleh ops lead dan admin.',
+    'kitchen.pushes.noErpDoc': 'tanpa dokumen ERP',
     'kitchen.pushes.restrictedAria': 'Akses dibatasi',
     'kitchen.pushes.signInMsg': 'Anda perlu masuk untuk melihat antrean Kafe.',
+    'kitchen.pushes.status.held': 'ditahan',
     'kitchen.qty.producedAria': 'Jumlah yang diproduksi untuk ${dish}',
     'kitchen.status.logged': 'Tercatat',
     'kitchen.status.notLogged': 'Belum dicatat',
