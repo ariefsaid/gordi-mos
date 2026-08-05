@@ -10,6 +10,7 @@ import { resolve, join } from 'node:path'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
 import { I18nProvider } from './i18n/I18nProvider'
+import { PAGE_FAMILY_CONTRACTS } from './shell/page-families'
 
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
@@ -237,7 +238,6 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
     'pages/updates-page.tsx',
-    'pages/inbox-page.tsx',
     'components/catalog/catalog-manager.tsx',
   ]
 
@@ -270,6 +270,21 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     // and every page that migrated to the frame would be on the prose head unnoticed.
     expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
     expect(PAGE_FAMILY_CONTRACTS.management.headVariant).toBe('content')
+  })
+})
+
+// `pages/inbox-page.tsx` left RI-IA-2's literal source-scan above when #195 ported it onto the v4
+// shell's `PageFamilyFrame` (Stage 2, #188) — the same content-header PageHead chrome the scan
+// checks for, just rendered by the shared frame rather than written out in the page's own JSX. A
+// text match can't see through that indirection, so the contract is proven structurally instead:
+// InboxPage passes `family="workspace"`, and `PAGE_FAMILY_CONTRACTS.workspace.headVariant` is
+// `'content'` (page-families.ts) — the exact PageHead variant this page renders is pinned at the
+// contract, not re-derived here. Every other surface still on the list above is unported and still
+// writes `<PageHead>` directly; each drops off the same way when its own port lands.
+describe('RI-IA-2: pages/inbox-page.tsx proves the content-header contract via PageFamilyFrame', () => {
+  it("InboxPage's family ('workspace') resolves to PageHead variant 'content'", () => {
+    expect(readSrc('pages/inbox-page.tsx')).toMatch(/family="workspace"/)
+    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
   })
 })
 

@@ -9,7 +9,6 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import {
   SHOW_DAILY_LOG,
   SHOW_USER_VIEWS,
-  SHOW_HOME_STACKED,
   SHOW_FOLLOWUPS,
   SHOW_PLAN_BUDGET,
 } from './config/features'
@@ -157,12 +156,15 @@ export const routeConfig: RouteObject[] = [
         element: <AppShell />,
         handle: infrastructureHandle('layout'),
         children: [
-          // Home. SHOW_HOME_STACKED stays exactly as `dev` has it (default false → HomePage,
-          // which is also what v4 routes here): both compositions are `dev` surfaces, and
-          // choosing between them is Home's own port ticket, not the route table's.
+          // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
+          // design: the region/attention model (needs-you, failed checks, mentions, my work
+          // today) in whichever of Focused/Overview/List the viewer has chosen, replacing both
+          // prior `dev` compositions this route used to switch between (SHOW_HOME_STACKED is
+          // retired — see config/features.ts). Eager, still, for the same reason as the import
+          // above: the index route is the first paint every session gets.
           {
             index: true,
-            element: SHOW_HOME_STACKED ? <StackedUnionHome /> : <HomePage />,
+            element: <HomePage />,
             handle: pageHandle('workspace'),
           },
           // DEV-only preview of the stacked-union Home, reachable regardless of the flag so

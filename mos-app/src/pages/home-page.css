@@ -1,36 +1,81 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   HomePage — layout only (Task 4.4/§4.5). Two stacked KPI rows (finance row is
-   role-guarded and absent entirely for non-finance/admin viewers) reflowing
-   auto-fit 160px→1fr, a FreshnessLabel, then the MyWeekPanel below. Token-only
-   (DESIGN.md spacing scale) — mirrors sales-dashboard-page.css's KPI grid.
+   HomePage — the consequence-ranked stream layout (owner redirect 2026-07-22).
+   The stream + its ambient Signals tail own their own row texture (home-stream.css
+   / signal-feed-section.css); this file owns only the head. The OD-18 order
+   preference (and its Personal Profile control) was retired (OD-V4-10).
+
+   The head is the mockup's compact day header (home-priority-2026-07-28 `.hdr`):
+   ONE ~70px block carrying greeting + role, the day's tally, a rule-driven state
+   line and a thin progress track. The block is the SHARED `.content-header`
+   (page-head.css) in its `--compact` mode — Home fills its slots, it does not
+   grow a second header grammar.
    ════════════════════════════════════════════════════════════════════════════ */
-.home-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+
+/* ── Row 1, left: the head's meta line — role identity. Shares the workspace head's
+   `.ch-meta-line` grammar; the nowrap is relaxed so a long role name wraps instead of
+   overflowing at phone width, and the size steps down to the overline rung so the role
+   stays clearly subordinate to the greeting it qualifies — the compact head's title is a
+   rung below page-title (see page-head.css `.content-header--compact .ch-title`), so the
+   14px body rung sat too close under it. ── */
+.content-header .ch-meta .home-head-meta {
+  white-space: normal;
+  font-size: var(--font-size-overline);
+}
+
+/* ── Row 1, right: `N handled · N left` (mockup `.hdr-counts`). The caption rung, muted,
+   tabular so the pair doesn't jitter as the day moves. ── */
+.home-head-counts {
+  font-size: var(--font-size-overline);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* ── Row 2: the state line + progress track (mockup `.hdr-state`). ── */
+.home-head-state {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-/* A single tile (e.g. supervisor's lone revenue KPI, or the "everyone" row when the
-   ops-log flag is off) would otherwise fill the whole 1fr track and stretch edge-to-
-   edge. Cap it to a normal tile width and left-align — the finance/manager 2-tile
-   row is untouched since this only matches when there is exactly one child. */
-.home-kpi-grid > .home-kpi-link:only-child {
-  max-width: 320px;
-  justify-self: start;
+.home-head-msg {
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  color: var(--foreground);
 }
 
-.home-kpi-grid + .freshness-label {
-  display: inline-block;
-  margin-bottom: 16px;
+/* Pending is a statement about the READ, not about the day — it takes the muted register
+   so it never reads as this morning's verdict. */
+.home-head-msg--pending {
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 
-/* Link wrapper around each KPITile: no underline/color-bleed onto the tile's own
-   text colors (KPITile owns its own foreground/muted-foreground) — the anchor is
-   purely the drill-target hit area (no-bleed, mirrors .mini-name-chip). */
-.home-kpi-link {
+/* The 4px track. `track: secondary / fill: success` is DESIGN.md's documented progress-bar
+   pairing (§Data table → in-cell patterns, the win-% bar) — not a new visual vocabulary. */
+.home-head-track {
+  flex: 1 1 90px;
+  max-width: 200px;
+  height: 4px;
+  background: var(--secondary);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.home-head-fill {
   display: block;
-  color: inherit;
-  text-decoration: none;
-  min-width: 0;
+  height: 100%;
+  background: var(--success);
+  border-radius: var(--radius-pill);
+}
+
+/* ── The Signals column placeholder (#191 port note in home-page.tsx) ─────────────────────────
+   `HomeSignalsPending` renders the SAME `.signal-feed-section`/`.signal-feed-head`/
+   `.signal-feed-label` grammar the real feed will use (components/signals/signal-feed-section.css,
+   ported ahead of its component for AC-932 — see that file's note), so the slot does not visually
+   jump when #193 wires the live feed in. Only the pending copy's own style is new. */
+.home-signals-pending {
+  margin: 0;
+  font-size: var(--font-size-control);
+  color: var(--muted-foreground);
 }
