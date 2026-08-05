@@ -26,25 +26,40 @@
   --brand-navy:      color(display-p3 0.0313 0.0311 0.0893); /* hsl(218 46% 22%)  — structural weight */
   --brand-navy-text: color(display-p3 0.0435 0.0436 0.1192); /* hsl(218 42% 26%)  — AA text on light */
   --brand-orange:    color(display-p3 0.9 0.45 0.2);          /* vivid orange — brand sprinkle / active-tab accent (was a bad dark-brown p3 conversion) */
+  /* SYS-3 (backfill census, HIGH): the elevation-shadow CAST colour. In LIGHT, --brand-navy is a
+     near-black navy, so mixing it at low alpha gives a legible drop shadow — keep that verbatim.
+     Dark overrides this below (brand-navy is a MID-TONE in dark → its low-alpha mix vanishes on a
+     dark surface). The shadow recipes reference --shadow-cast, not --brand-navy, so the base is
+     theme-aware. No-Pure-Black-Shadow Rule preserved (light = navy; dark = a barely-navy near-black). */
+  --shadow-cast:     var(--brand-navy);
   /* Status-pill darkened-AA text tokens (DESIGN.md §5 / ADR-0008) — P3 form */
   --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
-  --status-lost-text:   color(display-p3 0.2796 0.1396 0.0158); /* hsl(0 72% 45%)   */
-  /* Field-error text. Referenced by the record viewer and the collection grammar (ported for
-     #192, Tasks: the TaskSurface/RecordViewer alias); without this alias those rules resolve to
-     nothing and an error message renders in the inherited body colour, i.e. indistinguishable
-     from a normal value. Aliased to --status-lost-text, exactly as v4 does, and defined once (not
-     per-theme): var() re-resolves --status-lost-text live per element, so a .dark subtree that
-     overrides --status-lost-text below still resolves the right red through this indirection
-     without redefining --field-error-text itself. NOTE: on this line --status-lost-text is a
-     BROWN, not the red it is named for — tracked in #147, which owns the colour decision. This
-     alias closes the "renders to nothing" hole; it does not close #147. */
-  --field-error-text:   var(--status-lost-text);
+  --status-lost-text:   color(display-p3 0.45 0.05 0.04); /* destructive red; AA on light status/error surfaces */
+  --field-error-text:   var(--status-lost-text); /* I4 field-error text — the alias TaskSurface/catalog reference */
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
-  /* SYS-4 (v4): the theme-aware "blue text on a blue tint" pair — the active rail pill (The One
-     Blue on --ds-color-blue3). In LIGHT this is the mid-blue --ds-color-blue verbatim (the tint is
-     pale → AA already; light renders identically). Dark overrides it below: mid-blue's luminance
-     (~0.15) can NEVER reach 4.5:1 on a dark tint however dark the tint, so the TEXT must lighten. */
+  --warning-foreground: color(display-p3 0.28 0.22 0.08);        /* hsl(28 80% 34%) — E7 deep brown */
+  /* a11y audit fix (WCAG AA-1/AA-2): the mos-design-kit's Tag green/amber text (used by
+     kitchen-pushes' "Terkirim"/"Gagal" status tags — 70 of 77 flagged nodes on /cafe/pushes
+     alone) measured 4.36:1 and 4.27:1 against their own tint backgrounds — both below the
+     4.5:1 AA floor for normal text (kit defaults in styles/tokens/theme-light.css:
+     --ds-tag-text-green ≈ rgb(0,130,77) on ≈ rgb(230,246,235); --ds-tag-text-amber ≈
+     rgb(173,98,0) on ≈ rgb(255,247,194)). Overridden at the token level (last write in the
+     light cascade wins over the @import'd kit default) rather than patched at the call site,
+     so every Tag green/amber consumer app-wide inherits the fix. Reuses same-hue tokens
+     already AA-darkened for exactly this purpose instead of inventing new ones:
+     --status-won-text is the established AA-safe green (same family as "posted"/success);
+     --warning-foreground is DESIGN.md's own documented Warning-Amber foreground (deep
+     brown — the amber family's AA text per §Colors/Tertiary). Re-measured: 14.4:1 / 10.4:1
+     on the same backgrounds — both clear AA with margin, no hue change, dark theme untouched
+     (its own tag-text-green/amber already measure 7.9:1 / 10.2:1, no fix needed there). */
+  --ds-tag-text-green: var(--status-won-text);
+  --ds-tag-text-amber: var(--warning-foreground);
+  /* SYS-4 (backfill census, MEDIUM) / DO-11: the theme-aware "blue text on a blue tint" pair —
+     the active rail pill (The One Blue on --ds-color-blue3) and the @mention person badge (on
+     --accent-subtle). In LIGHT this is the mid-blue --ds-color-blue verbatim (both surfaces are
+     pale → AA already; light unchanged). Dark overrides it below: mid-blue's luminance (~0.15) can
+     NEVER reach 4.5:1 on a dark tint no matter how dark the tint, so the TEXT must lighten. */
   --text-on-accent-tint: var(--ds-color-blue);
 }
 
@@ -57,9 +72,14 @@
   --status-won-text:    color(display-p3 0.55 0.78 0.55);     /* green text on dark */
   --status-lost-text:   color(display-p3 0.92 0.60 0.60);     /* red text on dark */
   --status-violet-text: color(display-p3 0.70 0.62 1.0);      /* violet text on dark */
-  /* SYS-4: lighten the on-blue-tint text so it clears AA on the dark rail pill.
-     Reuses the proven --status-open-text dark value: 7.7:1 on --ds-color-blue3
-     (was 2.9:1 with the theme-invariant mid-blue). */
+  --warning-foreground: color(display-p3 0.85 0.75 0.45);     /* E7 dark mode: light amber-brown — AA on bright warning tint */
+  /* SYS-3: near-black cast (a whisper of navy, not #000 → No-Pure-Black-Shadow Rule kept). The
+     dark shadow recipes below also lift the alpha: a light-theme 5% mix that reads on paper
+     needs a much deeper mix to register against a 0.10-luminance dark surface. */
+  --shadow-cast:     color(display-p3 0.008 0.008 0.02);
+  /* SYS-4: lighten the on-blue-tint text so it clears AA on the dark rail pill / mention chip.
+     Reuses the proven --status-open-text dark value: 7.7:1 on --ds-color-blue3, 8.3:1 on
+     --accent-subtle (was 2.9 / 3.1 with the theme-invariant mid-blue). */
   --text-on-accent-tint: color(display-p3 0.62 0.72 1.0);
 }
 
@@ -67,44 +87,50 @@
 :root,
 .light,
 .dark {
-  --rail-w: 232px;     /* DESIGN.md authority (§Rail/§Density): 232px desktop rail */
-  --rail-w-compact: 72px; /* OD-REDESIGN-84.2 (P1-1): 920–1099.98px icon-only rail */
+  --rail-w: 232px;     /* DESIGN.md authority (§Rail/§Density): 232px desktop rail (R-T-5 geometry parity) */
+  --rail-w-compact: 72px; /* OD-REDESIGN-84.2 (P1-1): 920–1099.98px icon-only rail (E7 tablet regime parity) */
   --header-h: 56px;
-  --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
   --ctx-row-h: 40px;   /* region 2 — the shell context row (scope crumb + job sentence) */
+  --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
   --assistant-w: 400px; /* ADR-0018 P2: deputy slide-over drawer width (desktop right drawer) */
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
-  /* ── Z-index tier scale (v4 cohesion-debt item #3). ONE documented ladder replaces the ad-hoc
-     20/31/40/50/90/100/9999 heap. The tier ORDER is the contract: a modal/confirm always outranks
-     a drawer, so a confirm launched from inside a drawer is never hidden. Local micro-stacking
-     within a component's own stacking context (sticky table headers, tab strips: z-1/z-2) is NOT
-     an app tier and stays inline — these vars are for overlays that float over the page. */
-  --z-sticky:  10;   /* pinned in-flow chrome floating over content */
+  /* ── Z-index tier scale (cohesion-debt 2026-07-19, item #3). ONE documented
+     ladder replaces the ad-hoc 20/31/40/50/90/100/9999 heap. The tier ORDER is
+     the contract: a modal/confirm always outranks a drawer, so a confirm launched
+     from inside a drawer is never hidden (the bug: an admin confirm at z-50 opened
+     BEHIND the drawer root at z-90). Local micro-stacking within a component's own
+     stacking context (sticky table headers, tab strips: z-1/z-2) is NOT an app tier
+     and stays inline — these vars are for overlays that float over the page. */
+  --z-sticky:  10;   /* pinned in-flow chrome floating over content (FAB, sticky nav) */
   --z-popover: 20;   /* menus, pickers, dropdowns anchored to a trigger */
-  --z-drawer:  30;   /* side sheets / slide-overs + their scrim (More drawer, Assistant) */
+  --z-drawer:  30;   /* side sheets / slide-overs + their scrim (Task drawer, More, Assistant) */
   --z-modal:   40;   /* centered dialogs, confirms, ⌘K launcher — ABOVE any drawer */
   --z-toast:   50;   /* transient status toasts — above everything */
 
-  /* ── Transition-duration scale (v4 cohesion-debt item #5). The kit's
-     --ds-animation-duration-* tokens are authored UNITLESS (seconds) and so can't drop into a
-     `transition`/`animation` shorthand without calc(*1s). This is the directly-usable ms scale. */
-  --dur-fast: 120ms;  /* control state transitions — border/bg/color, toggles, icon buttons */
-  --dur-med:  150ms;  /* reveal / movement micro-interactions — chevron rotate, underline slide */
+  /* ── Transition-duration scale (cohesion-debt 2026-07-19, item #5). The kit's
+     --ds-animation-duration-* tokens are authored UNITLESS (seconds: 0.075/0.15/
+     0.3/1.5) and so can't drop into a `transition`/`animation` shorthand without
+     calc(*1s); only 0.15s matched a value actually in use. So the app exposes a
+     directly-usable ms scale and every hard-coded 120/150/160/180ms references it.
+     The 160ms Toggle oddball folds onto --dur-med (150). */
+  --dur-fast: 120ms;  /* control state transitions — input/border/bg/color, toggles, icon buttons */
+  --dur-med:  150ms;  /* reveal / movement micro-interactions — chevron rotate, tab underline slide */
   --dur-slow: 180ms;  /* overlay entrances — drawer sheet slide, deputy panel slide */
 
   /* OD-P3-11 resting shadow — faintly navy-tinted near-black, ≤0.06 total alpha.
-     P3 form: brand-navy channel @ low alpha. No-Pure-Black-Shadow Rule preserved. */
+     P3 form: --shadow-cast channel @ low alpha (theme-aware base — SYS-3).
+     No-Pure-Black-Shadow Rule preserved. Dark bumps the alpha in the .dark override below. */
   --shadow-rest:
-    0 1px 2px color-mix(in srgb, var(--brand-navy) 5%, transparent),
-    0 1px 3px color-mix(in srgb, var(--brand-navy) 4%, transparent);
+    0 1px 2px color-mix(in srgb, var(--shadow-cast) 5%, transparent),
+    0 1px 3px color-mix(in srgb, var(--shadow-cast) 4%, transparent);
 
   /* OD-P3-12 gradients — navy-tinted whispers, never purple. Reuse accent (blue)
      + brand-navy. The gradient is a SHEEN, not a new hue (One-Blue Rule preserved). */
   --gradient-primary-sheen: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--accent) 100%, white 3%) 0%,
-    var(--accent) 100%
+    hsl(225 75% 58%) 0%,
+    hsl(225 75% 52%) 100%
   );
   --gradient-surface-wash: linear-gradient(
     180deg,
@@ -113,10 +139,18 @@
   );
 
   /* Scrim + popover shadow tokens — promote the raw literals the codemod replaces
-     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source. */
-  --scrim:           color-mix(in srgb, var(--ds-font-color-primary) 45%, transparent);
-  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent);
-  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+     (TasksWorkspace.css scrim, TaskSurface.css popover shadow). Single source.
+     ── ONE scrim (cohesion-debt 2026-07-19, item #1). Four scrims existed:
+     --surface-overlay 72%, this --scrim 32%, a foreground-45% literal (confirm /
+     occurrence dialogs), and a Tailwind bg-foreground/40. Reconciled to ONE
+     deliberate value: 45% on brand-navy. 32% read as a weak wash under a modal;
+     45% is a real dim (matching the confirm-overlay value that was already the
+     modal scrim), navy-tinted to honour the No-Pure-Black Rule. ⌘K folds onto the
+     same token rather than keeping its heavier 72% one-off. Consumed via the
+     `.scrim` utility (below) or var(--scrim) directly. */
+  --scrim:           color-mix(in srgb, var(--brand-navy) 45%, transparent);
+  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--shadow-cast) 10%, transparent);
+  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--shadow-cast) 16%, transparent);
 
   /* Faint brand-tinted lift on the primary action at rest (OD-P3-12) — the single
      source for the value .btn-primary inlines. Named so surfaces (e.g. the kitchen
@@ -125,10 +159,27 @@
 
   /* DESIGN.md §307 "Overlay" shadow — used by dialogs + ⋯ menu popover.
      Previously referenced as --shadow-overlay but was undefined; defined here so
-     overlays render with correct floating depth instead of flat. */
+     overlays render with correct floating depth instead of flat. SYS-3: was a hardcoded
+     mid-navy hsl (0.16/0.08 alpha) that vanished on dark surfaces; now mixes the theme-aware
+     --shadow-cast at the same light-theme weight, with the .dark override lifting the alpha. */
   --shadow-overlay:
-    0 10px 30px hsl(240 10% 8% / 0.16),
-    0 2px 6px hsl(240 10% 8% / 0.08);
+    0 10px 30px color-mix(in srgb, var(--shadow-cast) 16%, transparent),
+    0 2px 6px color-mix(in srgb, var(--shadow-cast) 8%, transparent);
+}
+
+/* ── SYS-3 (backfill census, HIGH): dark-mode elevation. A shadow that reads at 4–16% mix on a
+   light surface disappears against a ~0.10-luminance dark surface. Dark keeps the near-black
+   --shadow-cast (set in the .dark brand block) AND multiplies the alpha so cards/tiles/popovers/
+   dialogs regain depth. Values are the light recipe's geometry with heavier casts. */
+.dark {
+  --shadow-rest:
+    0 1px 2px color-mix(in srgb, var(--shadow-cast) 42%, transparent),
+    0 1px 3px color-mix(in srgb, var(--shadow-cast) 34%, transparent);
+  --shadow-popover:  0 4px 16px color-mix(in srgb, var(--shadow-cast) 55%, transparent);
+  --shadow-drawer:   0 8px 32px color-mix(in srgb, var(--shadow-cast) 60%, transparent);
+  --shadow-overlay:
+    0 10px 30px color-mix(in srgb, var(--shadow-cast) 58%, transparent),
+    0 2px 6px color-mix(in srgb, var(--shadow-cast) 46%, transparent);
 }
 
 /* ── Tailwind v4 theme mapping (ADR-0009 D3). Every --color-* utility resolves to
@@ -153,7 +204,7 @@
   --color-destructive:           var(--ds-color-red);
   --color-destructive-foreground:var(--ds-font-color-inverted);
   --color-warning:               var(--ds-color-amber);
-  --color-warning-foreground:    var(--status-lost-text);   /* AA-darkened amber text (kept token) */
+  --color-warning-foreground:    var(--warning-foreground);   /* AA-darkened amber text (E7 deep brown) */
   --color-success:               var(--ds-color-green);
   --color-success-foreground:    var(--ds-font-color-inverted);
   --color-border:                var(--border-medium);      /* Single-Border Rule: border == input */
@@ -174,26 +225,43 @@
   --radius-sm: 0.5rem;           /* 8px  — CONTROLS (buttons/inputs/badges/nav-items) */
   --radius-xs: 0.25rem;          /* 4px  — checkbox/tiny */
 
-  /* ── Type scale (SEMANTIC layer) — the ONE deliberate size ladder, carried from v4.
-     DESIGN.md §Typography is the authority: "Controls and table cells run 13.5px; the base run is
-     14px." The kit's --ds-font-size-* primitives are a DIFFERENT (oversized ~15.6px) scale and are
-     intentionally NOT chained here; these px values are the DESIGN.md ladder verbatim.
+  /* ── Type scale (SEMANTIC layer) — the ONE deliberate size ladder (v3 kit-normalize).
+     DESIGN.md §Typography is the authority: "Controls and table cells run 13.5px; the
+     base run is 14px." Every primitive in src/components/ui/*.css resolves its
+     font-size to one of these tokens — no raw px (vocabulary guard, kit-vocab.test.ts).
+     The kit's --ds-font-size-* primitives are a DIFFERENT (oversized ~15.6px) scale and
+     are intentionally NOT chained here; these px values are the DESIGN.md ladder verbatim.
      Owner complaint 2026-07 ("multiple font sizes that feel untidy") → this ladder. */
-  --font-size-page-title: 24px;   /* page title (Plus Jakarta 600) */
+  --font-size-page-title: 24px;   /* page title (Plus Jakarta 600) — DESIGN.md page-title */
+  /* typeset: minted, not invented — this size was already live and already documented in prose
+     ("KPI values reuse ~23px/600 for the headline number", DESIGN.md §Hierarchy) and in a code
+     comment (dashboard/kpi-tile.css .kpi-tile-value: "page-title scale — 23px/600"), just never
+     a token. A parallel headline-figure rung beside page-title (24px text titles vs 23px tabular
+     numerals), not a replacement for it — kept distinct on purpose. */
   --font-size-kpi-value:  23px;   /* KPI/headline numeral — DESIGN.md "KPI values reuse ~23px/600" */
-  --font-size-heading:    20px;   /* section/card heading */
-  --font-size-subheading: 18px;   /* sub-section header, empty-state title */
-  --font-size-body-lg:    15px;   /* emphasized body — record titles, primary row text, lead copy */
-  --font-size-body:       14px;   /* base body, table cells, meta (== the html base) */
-  --font-size-control:    13.5px; /* buttons/inputs/select/date/tabs */
-  /* The ONE step above the ramp's control size, and it exists for a mechanical reason rather than
-     taste: iOS/mobile Safari zooms the viewport when a focused input's font-size is < 16px. Use
-     ONLY on text/number inputs tapped on a coarse pointer. Never for display or body copy. */
+  --font-size-heading:    20px;   /* section/card heading — DESIGN.md heading */
+  --font-size-subheading: 18px;   /* sub-section header, empty-state title — DESIGN.md subheading */
+  --font-size-body-lg:    15px;   /* emphasized body — record titles, primary row text, lead copy.
+                                     MINTED OD-REDESIGN-91 #6/B4: the ~65-use 15px family is lawful. */
+  --font-size-body:       14px;   /* base body, table cells, meta — DESIGN.md body (== the html base) */
+  --font-size-control:    13.5px; /* buttons/inputs/select/date/tabs — DESIGN.md "controls run 13.5px" */
+  /* v4: the ONE step above the ramp's control size, and it exists for a mechanical reason, not
+     taste: iOS/mobile Safari zooms the viewport when a focused input's font-size is < 16px. On a
+     touch capture field the floor taps ~21 times in a pass that zoom is disqualifying. Use ONLY
+     on text/number inputs that are tapped on a coarse pointer. Never for display or body copy. */
   --font-size-touch-input: 16px;
-  --font-size-mono:       13px;   /* SF Mono IDs/codes, dense compact text */
-  --font-size-label:      12px;   /* pill/tag labels, field labels, dense metadata */
-  --font-size-overline:   11px;   /* counts, column headers, captions */
+  --font-size-mono:       13px;   /* SF Mono IDs/codes, dense compact text — DESIGN.md mono */
+  --font-size-label:      12px;   /* pill/tag labels, field labels, dense metadata — DESIGN.md label */
+  --font-size-overline:   11px;   /* counts, column headers, captions — DESIGN.md overline */
   --font-size-micro:      10px;   /* avatar initials — the one sub-11 mark */
+
+  /* ── Chip/Pill/Tag inline padding — the documented alignment affordance. A pill's L/R
+     padding insets its text; in a key/value or label column that inset pushes the pill's
+     text off the column's x. Consumers pull the pill flush with the matching `--flush`
+     utility (margin-inline-start: calc(-1 * var(--*-inline-pad))) so pill text aligns with
+     plain-text values above/below. Owner complaint: "text misaligned from transparent pills". */
+  --pill-inline-pad: 9px;
+  --tag-inline-pad:  8px;
 
   /* Fonts — OD-P3-9 pairing. NOTE: @fontsource-variable/dm-sans registers the family
      as "DM Sans Variable" — it MUST lead the stack or the UI silently falls back to
@@ -237,38 +305,52 @@
   --destructive:           var(--ds-color-red);
   --destructive-foreground:var(--ds-font-color-inverted);
   --warning:               var(--ds-color-amber);
-  --warning-foreground:    var(--status-lost-text);
+  /* --warning-foreground is owned by the theme pair above (light: E7 deep brown, .dark: light
+     amber — NOT --status-lost-text, the D-5 red bug). Re-defining it here clobbered the .dark
+     override (equal specificity, later order wins) → invisible dark-mode pill text. */
   --success:               var(--ds-color-green);
   --success-foreground:    var(--ds-font-color-inverted);
-  /* Controls/fields get a VISIBLE hairline (#d6d6d6); dividers/cards stay quiet
-     (#ebebeb). Splits the former Single-Border Rule for legibility — controls
-     are clearly bordered. Flagged for DESIGN.md ratification. */
+  /* Controls/fields get a VISIBLE hairline; dividers/cards stay quiet.
+     Single-Border Rule restored: border == input == --border-medium. */
   --border:                var(--border-medium);
-  /* #191 (Home port) — the row-divider grammar `components/home/home-stream.css` (and, ahead of
-     their own ports, the record-collection/catalog/tasks-workspace stylesheets) all reference.
-     Ported from v4's `index.css` verbatim: a quieter step of `--border` via color-mix rather than
-     a second hand-picked hairline colour. */
-  --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
-  --input:                 var(--border-strong);
+  --input:                 var(--border-medium);
   --ring:                  var(--ds-color-blue);
   --violet:                var(--ds-color-violet);
-  /* Shared LIST-ROW rhythm (v4 cohesion-debt 2026-07-19, item #4; ported for #192, Tasks, and
-     #193, Signals). Record collections stay tabular-with-dividers and the Signals feed stays a
-     legitimately different activity stream — but their ROW tokens must not DISAGREE, or two
-     surfaces the viewer reads in one session draw the same hairline two different greys. One
-     divider colour and one row padding scale, referenced by the dense table, collection-grammar
-     / record-collection / TasksWorkspace CSS, and the Signals feed rows alike. Derived from
-     --border, so the dark theme's own --border override carries through and no second dark value
-     is needed. v4 also carries a --row-height here; nothing on this line references it yet, so
-     it is left out rather than shipped as an unread token. */
+
+  /* ── Shared LIST-ROW rhythm (cohesion-debt 2026-07-19, item #4 — owner call:
+     "proceed with all items"). Record collections stay tabular-with-dividers
+     (Tasks/Home) and the Signals feed stays a legitimately different activity
+     stream — but their ROW TOKENS must not DISAGREE. One divider colour, one
+     row padding scale, one row-height rhythm, referenced by BOTH the dense-table
+     (.dt-table) and the Signals archive rows (.signal-row). ── */
   --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
   --row-pad-y:             10px;
   --row-pad-x:             12px;
+  /* P2 fix: was 50px, disagreeing with DESIGN.md's frontmatter + three prose sections (all
+     52px) and with `.record-collection-view`'s own local override (record-collection.css),
+     which had to re-declare 52px just to be correct. Kitchen's own DataTable-cell CSS
+     comments (kitchen-log-page.css/kitchen-stock-page.css/kitchen-plan-page.css) already
+     assume "the Data Table's 52px row spec" — so 52px was already the de facto contract
+     kitchen tuned its two-line name+category cells against; 50px here was the actual bug,
+     not a competing intent. Raising it to match is a no-new-token correctness fix, not a
+     new design decision. */
+  --row-min-h:             52px;
 }
 
 @layer base {
   html {
     font-family: var(--font-sans);
+  }
+  /* H8(b) (Luna floor): ONE scroll owner. The app shell is a fixed-height grid (app-shell.tsx,
+     `h-dvh`) whose content row scrolls INTERNALLY (its <main data-page-family> is the sole
+     scroller). But the shell root is `100dvh`, and on a viewport where dvh resolves taller than the
+     visual `innerHeight` (a mobile URL-bar / headless quirk) the root overflowed an unconstrained
+     `body`, so the DOCUMENT scrolled TOO — the Task record page showed two nested vertical scroll
+     containers (document + main). Pin html/body to the real viewport and clip: the shell root can
+     be as tall as dvh reports, but the document never becomes a second scroller. */
+  html, body {
+    height: 100%;
+    overflow: hidden;
   }
   body {
     margin: 0;
@@ -303,13 +385,39 @@
     font-feature-settings: "tnum";
   }
 
-  /* The ONE scrim utility — background only, so each overlay keeps its own positioning
-     (fixed inset-0 for a page-covering scrim, absolute inset-0 inside a fixed overlay root).
-     Pairs with --z-drawer/--z-modal. The mobile drawer applies it; without the utility the
-     drawer's overlay renders fully transparent and the content behind it is never dimmed. */
+  /* The ONE scrim utility (cohesion-debt 2026-07-19, item #1) — background only, so
+     each overlay keeps its own positioning (fixed inset-0 for a page-covering scrim,
+     absolute inset-0 inside a fixed overlay root). Pairs with --z-drawer/--z-modal. */
   .scrim { background: var(--scrim); }
 }
 
-/* PageHead prose-variant title-adjacent meta — one muted-text token so the count-badge /
-   date slot reads the same across surfaces, never dark body text competing with the title. */
+/* PageHead prose-variant title-adjacent meta — one muted-text token so the
+   count-badge / date slot reads the same across surfaces, never dark body text
+   competing with the title (cohesion-debt 2026-07-19, item #5). */
 .page-head-meta { color: var(--muted-foreground); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Skeleton shimmer — ONE shared keyframe (cohesion-debt 2026-07-19, item #3).
+   Formerly defined 3×: `sk-pulse` in TaskSurface.css + TasksWorkspace.css and
+   `skeleton-pulse` in CardHead.css. Defined once here; the per-component
+   `.sk` / `.skeleton-bar` rules reference it (reduced-motion opt-outs stay local).
+   ════════════════════════════════════════════════════════════════════════════ */
+@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* a11y audit fix (WCAG AA-3, worst offender in the audit): Inbox's selected filter tab
+   ("Semua"/"All", src/components/inbox/inbox.css .inbox-triage__filter[aria-pressed='true'])
+   pairs near-black --foreground text against an --accent background — and the mos-design-kit
+   aliases --accent to --ds-color-blue (styles/tokens/aliases.css), so the selected pill is
+   effectively solid primary blue. Measured 2.98:1: rgb(37,36,34) on rgb(62,99,221), well
+   under the 4.5:1 AA floor. The rule per DESIGN.md's own guidance: a blue-filled surface
+   needs the inverted/on-primary foreground, not near-black — swap in --primary-foreground,
+   the same near-white token every other solid-blue fill (primary button, active nav pill)
+   already uses. The owning stylesheet is a component file out of scope for this token-level
+   pass, so the fix lives here; the `:root` prefix is a deliberate specificity bump (not
+   !important) because inbox.css loads after index.css in the bundle and would otherwise win
+   the tie at equal specificity. Re-measured: --primary-foreground on this blue clears AA with
+   very large margin (same pairing DESIGN.md documents as ≥4.5:1 across the button's full
+   gradient range). */
+:root .inbox-triage__filter[aria-pressed='true'] {
+  color: var(--primary-foreground);
+}
