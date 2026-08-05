@@ -185,6 +185,24 @@ describe('AC-081 — create form validation', () => {
     expect(mockCreateTask).not.toHaveBeenCalled()
   })
 
+  // AUTHORED HERE (#192, DD-WAY-21): v4 made Supervisor a required field (task-surface.tsx
+  // accountablePersonId comment, OD-REDESIGN-3/14/41 — see AC-080) but shipped no test proving
+  // the submit-blocking half of that contract, only the "starts empty" half. Title and Team both
+  // have this coverage already; Supervisor didn't.
+  it('blocks submit when Supervisor is left empty; shows field-level message; createTask NOT called', async () => {
+    renderCreate()
+    await waitFor(() => screen.getByLabelText(/title/i))
+
+    // Title and Team are both satisfied (BU pre-fills); only Supervisor is missing.
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task missing supervisor' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/supervisor is required/i)).toBeTruthy()
+    })
+    expect(mockCreateTask).not.toHaveBeenCalled()
+  })
+
   it('blocks submit when Team is cleared; shows field-level message', async () => {
     // Use a state with NO roles (so primaryRoleBU = '') to ensure Team starts empty
     const noRoleState: AuthState = {
