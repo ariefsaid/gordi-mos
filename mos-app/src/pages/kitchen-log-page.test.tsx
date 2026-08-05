@@ -71,6 +71,7 @@ const VIEWER_MEMBER: AuthState = {
       full_name: 'Budi Santoso',
       email: 'budi@gordi.id',
       archived_at: null,
+      must_change_password: false,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },

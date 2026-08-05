@@ -4,9 +4,15 @@
 // TODO(admin-editable-roles, ADR-0020 D2): replace this static map with an RPC
 // (shared.my_capabilities()) once grants become admin-editable. Until then the seed is static.
 export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
-  admin: ['objective.manage', 'workline.manage', 'followup.confirm'],
+  admin: ['objective.manage', 'workline.manage', 'followup.confirm', 'process.start'],
   finance: ['followup.confirm'],
-  ops_lead: ['workline.manage'],
+  ops_lead: ['workline.manage', 'process.start'],
+  // process.start (ADR-0051 D8 / OD-REDESIGN-71(iii), supabase/migrations/20260805000006):
+  // the person who runs the floor starts the day. Safe client-side because
+  // mos.spawn_process_run ALSO requires membership of the owning Team — this mirror was
+  // missing the grant entirely, so CafeOpeningPanel's Start control never rendered for
+  // anyone, including ops_lead and admin.
+  member: ['process.start'],
 }
 
 /** Roles that admit to Revenue VIEW (ADR-0051 D4). Exported for router/destinations consistency. */

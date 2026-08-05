@@ -20,10 +20,15 @@ const LOGS: ReviewLogRow[] = [
   },
 ]
 
+// Keyed by MOVEMENT (`produce` / `transfer:<destination branch id>`), per DD-WAY-13 — the
+// source's own comment on planQtyFor() warns that keying by the derived label ('Production',
+// 'Transfer to Radiant') silently resolves every lookup to 0. This fixture previously used
+// those label keys; it never matched computeReviewKpis' actual lookup, so on-plan/off-plan
+// always came out 0/3. Fixed to match the app's documented, deliberate keying — not relaxed.
 const PLAN_MAP: PlanMap = {
-  w1: { Production: 20 },
-  w2: { Production: 10 },
-  w3: { 'Transfer to Radiant': 10 },
+  w1: { produce: 20 },
+  w2: { produce: 10 },
+  w3: { 'transfer:branch-radiant': 10 },
 }
 
 describe('computeReviewKpis', () => {
