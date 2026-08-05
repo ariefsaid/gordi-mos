@@ -210,11 +210,34 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/ops/new': 'record door — opened from the Daily Log surface',
   '/ops/:id/edit': 'record door — opened from a Daily Log row',
   '/ops': "Daily Log — a live dev surface with no v4 IA entry; reached from Home's own links. Owed a retirement-or-adoption ticket",
-  '/money/detail': 'Money detail tab — reached from the Money surface itself, not a separate nav entry',
+  // Corrected: the previous reason said "reached from the Money surface itself", which is false.
+  // The Detail tab does not navigate to this PATH — it writes `?tab=detail` onto the current one
+  // via setSearchParams. Nothing in the app links `/money/detail`; breadcrumb.tsx only renders a
+  // crumb for it. Its one real caller is the `/dashboard/detail` redirect.
+  '/money/detail': 'no link exists to this path — the Detail tab writes ?tab=detail on /money via setSearchParams. It survives only as the /dashboard/detail redirect target, for old bookmarks',
   '/money/budget': "flag-gated (SHOW_PLAN_BUDGET, default off). dev's Plan destination linked it when the flag was on; restoring that link belongs to the Money surface port",
   '/money/pricing': 'flag-gated (SHOW_PLAN_BUDGET, default off). Same as /money/budget',
   '/money/follow-ups': 'flag-gated (SHOW_FOLLOWUPS, default off) and deferred past the MVP',
   '/recovery': 'unauthenticated password-recovery screen — reached from the login page and by emailed link',
+}
+
+/** Routes carrying an element that this sweep does NOT check, and why each is exempt.
+ *
+ *  `surfaceRoutes()` filters on `handle.kind === 'page'`, which fails OPEN: a page route that
+ *  forgets its handle silently escapes the sweep instead of failing it. Pinning the escapee list
+ *  closes that — a new escapee has to be added here deliberately, in front of a reviewer. */
+const NOT_A_SURFACE: Record<string, string> = {
+  '/': 'the index route — Home, always reachable; the sweep skips it by definition',
+  '/login': 'unauthenticated landing screen, outside the shell',
+  '/dev/ui': 'DEV-only primitives gallery, stripped from the production build',
+  '/dev/views': 'DEV-only view-composition harness',
+  '/dev/views/:viewId': 'DEV-only view-composition harness',
+  '/__home-stacked': 'DEV-only preview of the stacked Home composition',
+  '/*': 'the not-found catch-all — a fallback, not a destination; nothing should ever link to it',
+  // Also carries a NO_NAV_ENTRY_BY_DESIGN entry. That one is inert (this route is classified
+  // infrastructure, so the sweep never reaches it) and is left in place deliberately: the rot
+  // check keeps it honest, and it documents the same fact for a reader who looks there first.
+  '/recovery': 'unauthenticated password-recovery screen — classified infrastructure, outside the shell',
 }
 
 /** Page routes that render a surface — redirects, gates and DEV-only harnesses excluded. */
@@ -226,6 +249,21 @@ function surfaceRoutes() {
   })
 }
 
+/** Everything with an element that `surfaceRoutes()` drops, for the fail-closed check below. */
+function escapees(): string[] {
+  const swept = new Set(surfaceRoutes().map((s) => s.path))
+  return [
+    ...new Set(
+      flattenRoutes()
+        .filter(({ path, route }) => {
+          if (route.element === undefined || isRedirect(route.element)) return false
+          return !swept.has(path)
+        })
+        .map((f) => f.path),
+    ),
+  ].sort()
+}
+
 describe('nav reachability — rendered links, real viewers, both viewports', () => {
   beforeEach(() => {
     cleanup()
@@ -233,6 +271,16 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
   })
 
   const surfaces = surfaceRoutes()
+
+  it('nothing escapes the sweep by accident — the escapee list is pinned (fail closed)', () => {
+    // `surfaceRoutes()` filters on handle.kind === 'page'. That fails OPEN: forget a handle and a
+    // real surface silently drops out of every reachability assertion above. Pinning the list
+    // means a new escapee turns this red instead of disappearing quietly.
+    expect(escapees()).toEqual(Object.keys(NOT_A_SURFACE).sort())
+    for (const [path, reason] of Object.entries(NOT_A_SURFACE)) {
+      expect(reason.length, `${path} needs a real reason`).toBeGreaterThan(20)
+    }
+  })
 
   it('the sweep renders real nav and enumerates the real table — it cannot pass on nothing', () => {
     expect(surfaces.length).toBeGreaterThan(15)
@@ -260,6 +308,22 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     const live = new Set(flattenRoutes().map((f) => f.path))
     const stale = Object.keys(NO_NAV_ENTRY_BY_DESIGN).filter((p) => !live.has(p))
     expect(stale).toEqual([])
+  })
+
+  it('every exception is genuinely absent from the rendered nav — the list cannot lie', () => {
+    // The inverse of the sweep, and the half that was missing. Without it an exception can claim
+    // "this has no nav entry" long after someone gives it one, and the file keeps asserting a
+    // reason that stopped being true — which is exactly the wrong-explanation defect this whole
+    // stack keeps producing. Reproduced by the gate: adding /ops as a rendered Café child left the
+    // suite fully green while the exception still declared it unreachable.
+    const { rail, phone } = allReachable()
+    const contradicted = Object.keys(NO_NAV_ENTRY_BY_DESIGN).filter(
+      (p) => rail.has(p) || phone.has(p),
+    )
+    expect(
+      contradicted,
+      'these paths ARE rendered in the nav, so their "no nav entry" exception is false — delete the exception',
+    ).toEqual([])
   })
 
   // ── The phone half. There is no rail below 920px, and the bottom bar renders one link per
