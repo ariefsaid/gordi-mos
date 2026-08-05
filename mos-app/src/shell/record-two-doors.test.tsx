@@ -162,7 +162,22 @@ function harness(initialEntries: (string | { pathname: string; search?: string; 
 /** Routes the two doors by pathname, exactly as the real table does. */
 function Doors() {
   const { pathname } = useLocation()
-  return pathname === COLLECTION ? <Collection /> : <RecordPage />
+  return (
+    <>
+      <SessionProbe />
+      {pathname === COLLECTION ? <Collection /> : <RecordPage />}
+    </>
+  )
+}
+
+/**
+ * Reports the CONTROLLER's state, not the DOM's. "No panel on screen" is also what you get when a
+ * session exists but no slot claimed its owner, so the cold case asserts the stronger fact: on a
+ * canonical-page arrival there is no overlay session at all.
+ */
+function SessionProbe() {
+  const host = useOverlayHost()
+  return <span data-testid="session">{host.session ? host.session.frames.length : 'none'}</span>
 }
 
 function panelHosts() {
@@ -175,7 +190,8 @@ describe('AC-027 — one record, two doors', () => {
     harness([pathnameOf(String((to as { pathname: string }).pathname))])
 
     expect(await screen.findByTestId(PAGE_TESTID)).toHaveTextContent(`page for ${RECORD_ID}`)
-    // The other door did not open.
+    // The other door did not open — and not merely "nothing rendered": no session was created.
+    expect(screen.getByTestId('session')).toHaveTextContent('none')
     expect(screen.queryByTestId(PANEL_TESTID)).toBeNull()
     expect(panelHosts()).toHaveLength(0)
     expect(screen.queryByTestId('collection')).toBeNull()
@@ -185,10 +201,12 @@ describe('AC-027 — one record, two doors', () => {
     harness([COLLECTION])
     expect(screen.getByTestId('collection')).toBeInTheDocument()
     expect(panelHosts()).toHaveLength(0) // nothing open before the selection
+    expect(screen.getByTestId('session')).toHaveTextContent('none')
 
     await userEvent.click(screen.getByRole('button', { name: `Open ${RECORD_ID}` }))
 
     await waitFor(() => expect(panelHosts()).toHaveLength(1))
+    expect(screen.getByTestId('session')).toHaveTextContent('1')
     expect(screen.getByTestId(PANEL_TESTID)).toHaveTextContent(`panel for ${RECORD_ID}`)
     // …beside what the viewer was already looking at, not instead of it.
     expect(screen.getByTestId('collection')).toBeInTheDocument()

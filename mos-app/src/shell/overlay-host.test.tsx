@@ -732,7 +732,6 @@ describe('overlay host — browser POP transaction (clean + dirty)', () => {
       ref.current = api
       useEffect(() => {
         void ref.current.openRoot(makeEntry({ key: 'record:cold' }), 'route', true)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [])
       return <OverlayHostSlot owner="shell" />
     }
