@@ -99,6 +99,14 @@ select is(
 -- dropping back to the table owner does not get past the status gate — and should not. Every state
 -- change below therefore arrives the way a real one would.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+-- #236 (FR-043): the per-stream ordering gate refuses a transfer approval while the same
+-- stream/day still has Submitted production. This file is about stock arithmetic, not the gate
+-- (ops_12 owns that), so the four Submitted produce rows of (Rumah Rames, kitchen) 2026-06-20 are
+-- REJECTED first — a decided row clears the lock, and a Rejected one moves no balance, so every
+-- stock figure below is exactly what it was before the gate existed.
+update ops.kitchen_logs set status = 'Rejected', review_note = 'cleared for the transfer-sign assertions'
+ where id in ('00000000-0000-0000-0000-00000000ac01','00000000-0000-0000-0000-00000000ac02',
+              '00000000-0000-0000-0000-00000000ac03','00000000-0000-0000-0000-00000000ac06');
 update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac04';
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(

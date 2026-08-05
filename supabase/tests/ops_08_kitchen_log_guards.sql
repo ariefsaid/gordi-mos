@@ -26,11 +26,11 @@ set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select throws_ok($$
   update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac01'
-  $$, '42501', 'only ops_lead/admin may approve or reject a kitchen log',
+  $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve or reject a kitchen log',
   'FR-044: a member cannot approve their own production log');
 select throws_ok($$
   update ops.kitchen_logs set status = 'Rejected' where id = '00000000-0000-0000-0000-00000000ac01'
-  $$, '42501', 'only ops_lead/admin may approve or reject a kitchen log',
+  $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve or reject a kitchen log',
   'FR-044: nor reject one — leaving Submitted in either direction is a reviewer action');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';

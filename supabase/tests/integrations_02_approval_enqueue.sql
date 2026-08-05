@@ -39,8 +39,8 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 
 select throws_ok($$
   select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','looks fine')
-  $$, '42501', 'only ops_lead/admin may approve',
-  'a member of the org without ops_lead or admin cannot approve a production log');
+  $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve',
+  'a member of the org without review authority over the stream cannot approve a production log');
 
 select is((select status from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'),
   'Submitted', '...and the log is untouched — the refusal is a raise, not a partial write');

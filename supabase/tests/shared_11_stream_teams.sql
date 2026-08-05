@@ -318,14 +318,20 @@ select throws_ok(
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- OD-WAY-49 — the stream is a default, never a wall
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- The whole slice touches NO policy: asserted directly, over every schema, so a later slice that
--- lets the stream leak into a member predicate fails here rather than shipping a wall.
+-- Originally: the whole slice touches NO policy. Since #236 (FR-040, OD-WAY-48) ONE policy may:
+-- the kitchen-log REVIEWER arm consults the row's stream through ops.is_stream_reviewer, which is
+-- exactly where the spec puts it — "stream appears in the reviewer predicate only, never in
+-- member read/write policies". So the assertion names that one sanctioned policy and still fails
+-- the moment the stream leaks into ANY other predicate — a member wall still cannot ship here.
+-- (ops_12 proves the member arms of the sanctioned policy are byte-identical to the baseline.)
 reset role;
-select is(
-  (select count(*)::int from pg_policies
-    where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'),
-  0,
-  'OD-WAY-49: NO RLS policy in any schema references a stream column — the stream is a capture default, never an authorization dimension');
+select set_eq($$
+  select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
+   where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
+  $$, $$ values
+    ('ops.kitchen_logs :: kitchen_logs_update_own_or_reviewer')
+  $$,
+  'OD-WAY-49: the ONLY policy referencing a stream column is the #236 reviewer arm on kitchen logs — the stream is a capture default, never a member authorization dimension');
 
 -- The two substrate tables keep exactly the policy surface they had before this slice: one
 -- org-scoped SELECT each, nothing added, nothing re-authored.

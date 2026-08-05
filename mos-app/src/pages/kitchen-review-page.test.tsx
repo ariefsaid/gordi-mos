@@ -29,6 +29,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
     fetchPlanMap: vi.fn(),
+    fetchDefaultStream: vi.fn(),
+    listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
     rejectKitchenLog: vi.fn(),
   }
@@ -36,6 +38,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
+  fetchDefaultStream,
+  listStreamPairs,
   approveKitchenLog,
   rejectKitchenLog,
   KitchenRpcError,
@@ -57,6 +61,8 @@ import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 const mockUseAuth = vi.mocked(useAuth)
 const mockList = vi.mocked(listSubmittedKitchenLogs)
 const mockPlan = vi.mocked(fetchPlanMap)
+const mockDefaultStream = vi.mocked(fetchDefaultStream)
+const mockStreamPairs = vi.mocked(listStreamPairs)
 const mockApprove = vi.mocked(approveKitchenLog)
 const mockReject = vi.mocked(rejectKitchenLog)
 const mockGetPeople = vi.mocked(getPeople)
@@ -110,6 +116,13 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
+  // #236: the review page resolves the viewer's own stream (filter default, FR-041) and
+  // the enumerable stream catalog (the filter's options) on every load.
+  mockDefaultStream.mockResolvedValue(null)
+  mockStreamPairs.mockResolvedValue([
+    { branch_id: BRANCH_ID, activity: 'kitchen' },
+    { branch_id: RADIANT_ID, activity: 'bar' },
+  ])
   mockBranches.mockResolvedValue(BRANCHES)
   mockGetPeople.mockResolvedValue([
     { id: 'p1', full_name: 'Budi Santoso' },
@@ -125,7 +138,8 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
         <I18nProvider><KitchenReviewPage /></I18nProvider>
       </MemoryRouter>,
     )
-    expect(await screen.findByText(/available to ops leads/i)).toBeInTheDocument()
+    // #236 copy: review is open to stream supervisors AND ops leads — a member still gets neither
+    expect(await screen.findByText(/available to stream supervisors and ops leads/i)).toBeInTheDocument()
     // the queue read is never even attempted for a member
     expect(mockList).not.toHaveBeenCalled()
     // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
@@ -446,6 +460,79 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     const bulk = screen.getByRole('button', { name: /approve all \(1\)/i })
     fireEvent.click(bulk)
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-c', null))
+  })
+})
+
+// ── #236: per-stream review with ops-lead fallback (FR-040/041/043) ──────────
+// Display-side mirror of the server contract (pgTAP ops_12 owns the refusals): the
+// queue filter defaults to the supervisor's OWN stream and to all-streams for
+// ops_lead/admin; rows outside a supervisor's stream carry no decision controls; the
+// production-first gate keys on the ROW'S stream, not the whole day; and the server's
+// P0004 refusal surfaces as guidance rather than a raw error.
+const XFER_OTHER_STREAM: ReviewLogRow = {
+  id: 'log-xfer-other', log_date: '2026-06-20', action_type: 'Transfer to Bungur', action: 'transfer' as const, destination_branch_id: BRANCH_ID,
+  branch_id: RADIANT_ID, activity: 'bar',
+  wip_item_id: 'w4', wip_item_name: 'Es Kopi', qty_porsi: 5, notes: null,
+  status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T10:00:00Z',
+}
+
+describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
+  it('FR-041: a supervisor is allowed in, and the filter defaults to THEIR stream — other streams\' rows are off-screen', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch_id: BRANCH_ID, activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    const filter = screen.getByRole('combobox', { name: /filter the queue by stream/i })
+    expect(filter).toHaveValue(`${BRANCH_ID}|kitchen`)
+    // own-stream row is shown; the other stream's row is not
+    expect(screen.queryByText('Es Kopi')).not.toBeInTheDocument()
+  })
+
+  it('FR-041: ops_lead defaults to ALL streams — every stream\'s rows are visible', async () => {
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByRole('combobox', { name: /filter the queue by stream/i })).toHaveValue('all')
+    expect(screen.getByText('Es Kopi')).toBeInTheDocument()
+  })
+
+  it('FR-040: a supervisor viewing another stream sees its rows WITHOUT decision controls', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch_id: BRANCH_ID, activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.change(screen.getByRole('combobox', { name: /filter the queue by stream/i }), {
+      target: { value: 'all' },
+    })
+    await screen.findByText('Es Kopi')
+    // own-stream row keeps its controls; the other stream's row carries the ops-lead marker instead
+    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve es kopi/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /reject es kopi/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Ops lead decides')).toBeInTheDocument()
+  })
+
+  it('FR-043: the production-first gate is PER STREAM — another stream\'s pending production does not lock this one\'s transfer', async () => {
+    // stream (RRS, kitchen) has Submitted production + a transfer; stream (Radiant, bar)
+    // has only a transfer. The old page-global gate disabled BOTH transfers.
+    mockList.mockResolvedValue([PROD_LOG, XFER_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Es Kopi')
+    expect(screen.getByRole('button', { name: /approve cold brew/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /approve es kopi/i })).not.toBeDisabled()
+  })
+
+  it('FR-043: the server\'s P0004 ordering refusal surfaces as guidance, not a raw error', async () => {
+    mockList.mockResolvedValue([XFER_OTHER_STREAM])
+    // on-plan (5 == 5) so Approve fires the RPC immediately — no variance-note detour
+    mockPlan.mockResolvedValue({ w4: { [`transfer:${BRANCH_ID}`]: 5 } })
+    mockApprove.mockRejectedValue(new KitchenRpcError('P0004', 'locked'))
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Es Kopi')
+    fireEvent.click(screen.getByRole('button', { name: /approve es kopi/i }))
+    await screen.findByText(/production awaiting review/i)
   })
 })
 
