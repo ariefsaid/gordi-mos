@@ -14,7 +14,7 @@ import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
-import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, resolveDefaultCaptureStream } from '@/lib/db/kitchen-logs'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
@@ -79,7 +79,11 @@ export function KitchenStockPage() {
   const fetchStock = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const data = await fetchKitchenStock(asOf)
+      // Stock is a per-stream balance now (OD-WAY-28) — the date-only read it replaces
+      // summed every branch's balance and reported the total as any one of them. No stream
+      // picker on this surface yet (#198): it reads the stream the capture surface opens on.
+      const stream = await resolveDefaultCaptureStream()
+      const data = stream ? await fetchKitchenStock(asOf, stream) : []
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {

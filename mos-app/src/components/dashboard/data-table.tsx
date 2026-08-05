@@ -75,6 +75,14 @@ export interface DataTableProps<Row> {
   onRetry?: () => void
   /** <caption> / aria — a11y table name */
   caption: string
+  /**
+   * Opt-in, purpose-built phone card body. The default card is a <dl> of every detail
+   * column — right for READING a record, wrong for a high-frequency capture list where the
+   * label/value stack costs ~200px per row. A surface whose phone job is "run down a long
+   * list and act on each" supplies its own compact body here and still keeps DataTable's
+   * grouping, collapse, empty, loading and skeleton machinery. Desktop is unaffected.
+   */
+  renderCard?: (row: Row, index: number) => ReactNode
 }
 
 function cellValue<Row>(row: Row, column: DataTableColumn<Row>): ReactNode {
@@ -99,6 +107,7 @@ export function DataTable<Row extends object>({
   collapsedGroupKeys,
   onToggleGroup: onToggleGroupProp,
   rowClassName,
+  renderCard,
   sort,
   onSortChange,
   footer,
@@ -161,6 +170,7 @@ export function DataTable<Row extends object>({
       )
     : (
         <PhoneCards
+          renderCard={renderCard}
           columns={columns}
           rows={rows}
           groups={groups}
@@ -381,6 +391,8 @@ interface PhoneCardsProps<Row> {
   rows: Row[]
   groups?: DataTableGroup<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  /** Custom compact card body, e.g. Café · Log's phone capture row. */
+  renderCard?: (row: Row, index: number) => ReactNode
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
@@ -395,13 +407,25 @@ function PhoneCard<Row>({
   titleColumn,
   detailColumns,
   rowClassName,
+  renderCard,
 }: {
   row: Row
   rowIndex: number
   titleColumn: DataTableColumn<Row>
   detailColumns: DataTableColumn<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  renderCard?: (row: Row, index: number) => ReactNode
 }) {
+  if (renderCard) {
+    return (
+      <div
+        className={['dt-card', 'dt-card--compact', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
+        data-touch-target="true"
+      >
+        {renderCard(row, rowIndex)}
+      </div>
+    )
+  }
   return (
     <div
       className={['dt-card', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
@@ -431,6 +455,7 @@ function PhoneCards<Row>({
   rows,
   groups,
   rowClassName,
+  renderCard,
   state,
   emptyLabel,
   caption,
@@ -467,6 +492,7 @@ function PhoneCards<Row>({
           titleColumn={titleColumn}
           detailColumns={detailColumns}
           rowClassName={rowClassName}
+          renderCard={renderCard}
         />
       ))}
       {groups && groups.map(group => (
@@ -498,6 +524,7 @@ function PhoneCards<Row>({
               titleColumn={titleColumn}
               detailColumns={detailColumns}
               rowClassName={rowClassName}
+              renderCard={renderCard}
             />
           ))}
         </Fragment>

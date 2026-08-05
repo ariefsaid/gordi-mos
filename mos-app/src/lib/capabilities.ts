@@ -28,6 +28,9 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
     'objective.manage', 'workline.manage',
     'signal.create_for_team', 'signal.mention_bu', 'signal.retract', 'process.start',
   ],
+  // process.start (ADR-0051 D8 / OD-REDESIGN-71(iii), supabase/migrations/20260805000006):
+  // the person who runs the floor starts the day. Safe client-side because
+  // mos.spawn_process_run ALSO requires membership of the owning Team.
   member: ['process.start'],
 }
 

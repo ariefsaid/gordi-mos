@@ -3,10 +3,59 @@
 // DB stamped: org_id, submitted_by (on insert), reviewed_by/reviewed_at (on approve).
 // The client NEVER sends org_id, submitted_by, reviewed_by — NFR-003.
 
+/**
+ * The three strings the incumbent app shows. They are a DERIVED LABEL, never a stored
+ * column (`DD-WAY-13`): the squashed baseline has no `action_type`, and
+ * `ops.kitchen_action_label(action, destination_branch_id)` produces exactly these
+ * strings from the stored movement. This union survives only as the label vocabulary of
+ * the two currently-captured streams — the surfaces that still read it
+ * (`kitchen-plan-page`, `kitchen-review-page`) have not been ported yet. New code takes
+ * `KitchenMovement` and derives its label through `@/lib/kitchen-action-label`.
+ */
 export type KitchenActionType =
   | 'Production'
   | 'Transfer to Bungur'
   | 'Transfer to Radiant'
+
+// ── The (branch, activity) production stream (OD-WAY-28) ─────────────────────
+// Every log, plan and stock row is born inside a stream. There is ONE physical kitchen and
+// it is a constant, not a dimension; what varies is whose books the raw comes from and the
+// output goes to (the branch) and which activity produced it.
+
+/** The activity half of a production stream (`ops.kitchen_logs.activity`). */
+export type ProductionActivity = 'kitchen' | 'bar'
+
+/** The two activities, in display order. */
+export const PRODUCTION_ACTIVITIES: readonly ProductionActivity[] = ['kitchen', 'bar']
+
+/** A row of the canonical branch catalog (`shared.branches`, OD-WAY-39). */
+export interface BranchOption {
+  id: string
+  /** MOS's own stable snake_case identifier — deliberately NOT an ERP branch code. */
+  code: string
+  name: string
+}
+
+/** The origin half plus the activity: the stream a captured row belongs to. */
+export interface ProductionStream {
+  branch: BranchOption
+  activity: ProductionActivity
+}
+
+/** What happened, in the stored vocabulary (`ops.kitchen_logs.action`). */
+export type KitchenAction = 'produce' | 'transfer'
+
+/**
+ * A movement within a stream. `destinationBranchId` is null for a produce and required for
+ * a transfer — the same shape as the `kitchen_logs_destination_matches_action` CHECK. A
+ * transfer whose destination equals its origin is a within-books move: it still leaves the
+ * kitchen's hands (so it consumes stock) but the ERP already books that branch as holding
+ * it, so it has no ERP counterpart.
+ */
+export interface KitchenMovement {
+  action: KitchenAction
+  destinationBranchId: string | null
+}
 
 export type KitchenLogStatus = 'Submitted' | 'Approved' | 'Rejected'
 
@@ -44,9 +93,16 @@ export interface KitchenPlanRow {
   updated_at: string
 }
 
-// Plan qty keyed by (wip_item_id, action_type) for fast lookup in the form.
-// Partial<Record<...>> so partial test fixtures type-check (most items won't have all 3 action types).
-export type PlanMap = Record<string, Partial<Record<KitchenActionType, number>>>
+/**
+ * A movement's stable lookup key — `'produce'` or `'transfer:<destination branch id>'`.
+ * Used to index the plan map, which the DB keys on (item, stream, action, destination).
+ * It is a client-side index only; nothing stores it.
+ */
+export type MovementKey = string
+
+// Plan qty keyed by (wip_item_id, movement key) for fast lookup in the form.
+// Partial so partial test fixtures type-check (most items won't have every movement).
+export type PlanMap = Record<string, Partial<Record<MovementKey, number>>>
 
 // ── ops.kitchen_stock availability (FR-022/023) ──────────────────────────────
 // Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved
@@ -83,7 +139,13 @@ export interface KitchenStockRow {
 export interface CreateKitchenLogInput {
   business_unit_id: string
   log_date: string // 'YYYY-MM-DD' WIB
-  action_type: KitchenActionType
+  /** origin half of the (branch, activity) stream — NOT NULL at the DB (AC-007) */
+  branch_id: string
+  activity: ProductionActivity
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  action: KitchenAction
+  /** null for produce, required for transfer (kitchen_logs_destination_matches_action) */
+  destination_branch_id: string | null
   wip_item_id: string
   qty_porsi: number // > 0 (client + DB CHECK)
   notes?: string | null
@@ -122,7 +184,16 @@ export interface KitchenLogRow {
 export interface ReviewLogRow {
   id: string
   log_date: string
-  action_type: KitchenActionType
+  /**
+   * The DERIVED action label, read from the database's own `ops.action_label` virtual
+   * column (DD-WAY-13). A plain string, not a three-literal union: the same derivation
+   * names the four streams that reach the ERP by hand today.
+   */
+  action_type: string
+  /** the stored movement (DD-WAY-13) — what the label above is derived FROM. Predicates
+   *  ("is this a transfer?") and plan lookups key off these, never off the label. */
+  action: KitchenAction
+  destination_branch_id: string | null
   wip_item_id: string
   /** WIP item display name (embedded from ops.wip_items). */
   wip_item_name: string

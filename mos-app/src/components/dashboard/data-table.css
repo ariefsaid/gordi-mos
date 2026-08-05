@@ -136,6 +136,12 @@
   min-height: 44px; /* touch target floor (design-plan §4.2) */
 }
 
+/* The `renderCard` body's own box. The class is data-table.tsx's, so its style belongs
+   here rather than in a consuming page's stylesheet: routes are code-split, so a page that
+   applies the class without owning it gets whichever chunk happens to be loaded (measured
+   on v4 — 14px base padding instead of the intended 10px 12px). */
+.dt-card--compact { padding: 10px 12px; }
+
 .dt-card-title {
   font-size: 13.5px;
   font-weight: 500;

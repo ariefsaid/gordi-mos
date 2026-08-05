@@ -37,8 +37,15 @@ import {
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 import { getPeople } from '@/lib/db/directory'
 
+// resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
+// stream the plan read is scoped to (kitchen-review-page.tsx fetchQueue) — un-mocked, it
+// hits Supabase for real and every fetch lands in the error state. Same fixture shape as
+// kitchen-log-page.test.tsx's BRANCHES.
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+import { listActiveBranches } from '@/lib/db/branches'
+
 import { KitchenReviewPage } from './kitchen-review-page'
-import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import type { ReviewLogRow, BranchOption } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockList = vi.mocked(listSubmittedKitchenLogs)
@@ -46,6 +53,11 @@ const mockPlan = vi.mocked(fetchPlanMap)
 const mockApprove = vi.mocked(approveKitchenLog)
 const mockReject = vi.mocked(rejectKitchenLog)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListActiveBranches = vi.mocked(listActiveBranches)
+
+const BRANCH_RUMAH_RAMES: BranchOption = {
+  id: '30000000-0000-0000-0000-0000000000b1', code: 'rumah_rames', name: 'Rumah Rames',
+}
 
 function viewer(accessRoles: string[]): AuthState {
   return {
@@ -65,12 +77,12 @@ function viewer(accessRoles: string[]): AuthState {
 }
 
 const PROD_LOG: ReviewLogRow = {
-  id: 'log-prod', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-prod', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'w1', wip_item_name: 'Nasi Goreng', qty_porsi: 8, notes: 'kurang bahan',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
 }
 const XFER_LOG: ReviewLogRow = {
-  id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant',
+  id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: 'branch-radiant',
   wip_item_id: 'w2', wip_item_name: 'Cold Brew', qty_porsi: 42, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T13:02:00Z',
 }
@@ -80,6 +92,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
+  mockListActiveBranches.mockResolvedValue([BRANCH_RUMAH_RAMES])
   mockGetPeople.mockResolvedValue([
     { id: 'p1', full_name: 'Budi Santoso' },
     { id: 'p2', full_name: 'Eka' },
@@ -167,7 +180,9 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     } as MediaQueryList)
     try {
       mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
-      mockPlan.mockResolvedValue({ w1: { Production: 12 }, w2: { 'Transfer to Radiant': 40 } })
+      // Keyed by MOVEMENT (`produce` / `transfer:<destination branch id>`), per DD-WAY-13 —
+      // planQtyFor() in kitchen-review-page.tsx looks up movementKey(), never the label.
+      mockPlan.mockResolvedValue({ w1: { produce: 12 }, w2: { 'transfer:branch-radiant': 40 } })
       render(<KitchenReviewPage />)
       expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
       expect(screen.getByText('Cold Brew')).toBeInTheDocument()
@@ -206,7 +221,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
 describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
   it('on-plan approve calls the RPC with the log id + null note, then removes the row', async () => {
     mockList.mockResolvedValue([PROD_LOG])
-    mockPlan.mockResolvedValue({ w1: { Production: 8 } }) // plan == logged → on-plan
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } }) // plan == logged → on-plan
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-003' })
     render(<KitchenReviewPage />)
     await screen.findByText('Nasi Goreng')
@@ -219,7 +234,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
 
   it('AC: P0003 (already actioned) → friendly notice + re-fetch', async () => {
     mockList.mockResolvedValueOnce([PROD_LOG]).mockResolvedValueOnce([])
-    mockPlan.mockResolvedValue({ w1: { Production: 8 } })
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     mockApprove.mockRejectedValue(new KitchenRpcError('P0003', 'not Submitted'))
     render(<KitchenReviewPage />)
     await screen.findByText('Nasi Goreng')
@@ -231,7 +246,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
   it('AC-040: off-plan approve reveals a required note + blocks until filled', async () => {
     // folded from the retired kitchen-review-row suite (the page now owns the row)
     mockList.mockResolvedValue([PROD_LOG]) // qty 8
-    mockPlan.mockResolvedValue({ w1: { Production: 12 } }) // plan 12 → off-plan
+    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 → off-plan
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
     render(<KitchenReviewPage />)
     await screen.findByText('Nasi Goreng')
@@ -248,7 +263,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
 describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
   it('reject sends status=Rejected + note via rejectKitchenLog, then removes the row', async () => {
     mockList.mockResolvedValue([PROD_LOG])
-    mockPlan.mockResolvedValue({ w1: { Production: 8 } })
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     mockReject.mockResolvedValue(undefined)
     render(<KitchenReviewPage />)
     await screen.findByText('Nasi Goreng')
@@ -287,17 +302,17 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
 // Submitted rows in the section. The per-row single-approve flow keeps its variance-note
 // gate (only bulk approves-all without per-row notes, mirroring the oracle).
 const PROD_ONPLAN_A: ReviewLogRow = {
-  id: 'log-a', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-a', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'wA', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:00:00Z',
 }
 const PROD_ONPLAN_B: ReviewLogRow = {
-  id: 'log-b', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-b', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'wB', wip_item_name: 'Sambal', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T08:05:00Z',
 }
 const PROD_OFFPLAN: ReviewLogRow = {
-  id: 'log-c', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-c', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'wC', wip_item_name: 'Tahu', qty_porsi: 7, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:10:00Z',
 }
@@ -306,7 +321,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
   it('AC-042: "Approve all (N)" approves EVERY Submitted row in the section — incl. off-plan', async () => {
     // 2 on-plan (A=20==plan, B=5==plan) + 1 off-plan (C=7 != plan 10) → N = 3 (ALL Submitted)
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B, PROD_OFFPLAN])
-    mockPlan.mockResolvedValue({ wA: { Production: 20 }, wB: { Production: 5 }, wC: { Production: 10 } })
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 }, wC: { produce: 10 } })
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-007' })
     render(<KitchenReviewPage />)
     await screen.findByText('Ayam Bakar')
@@ -334,7 +349,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
       ...XFER_LOG, id: 'log-x2', wip_item_name: 'Latte', wip_item_id: 'wX', qty_porsi: 30,
     }
     mockList.mockResolvedValue([PROD_LOG, XFER_OFFPLAN])
-    mockPlan.mockResolvedValue({ w1: { Production: 8 }, wX: { 'Transfer to Radiant': 25 } }) // 30 != 25 → off-plan
+    mockPlan.mockResolvedValue({ w1: { produce: 8 }, wX: { 'transfer:branch-radiant': 25 } }) // 30 != 25 → off-plan
     render(<KitchenReviewPage />)
     await screen.findByText('Latte')
 
@@ -346,7 +361,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
 
   it('partial failure: P0003 rows drop, other errors keep the row + a succeeded/failed notice', async () => {
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B])
-    mockPlan.mockResolvedValue({ wA: { Production: 20 }, wB: { Production: 5 } })
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 } })
     // A succeeds; B fails with a generic error (kept in queue)
     mockApprove
       .mockResolvedValueOnce({ batch_id: 'PR-20260620-009' })
@@ -367,7 +382,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
   it('AC-042: an off-plan-only group IS bulk-eligible — "Approve all (1)" is offered', async () => {
     // Parity: off-plan rows are no longer excluded from bulk (oracle approves all Submitted).
     mockList.mockResolvedValue([PROD_OFFPLAN])
-    mockPlan.mockResolvedValue({ wC: { Production: 10 } }) // 7 != 10 → off-plan, still bulk-eligible
+    mockPlan.mockResolvedValue({ wC: { produce: 10 } }) // 7 != 10 → off-plan, still bulk-eligible
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-008' })
     render(<KitchenReviewPage />)
     await screen.findByText('Tahu')
@@ -382,7 +397,7 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
     const onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
     try {
       mockList.mockResolvedValue([PROD_ONPLAN_A])
-      mockPlan.mockResolvedValue({ wA: { Production: 20 } }) // on-plan → would be bulk-eligible online
+      mockPlan.mockResolvedValue({ wA: { produce: 20 } }) // on-plan → would be bulk-eligible online
       render(<KitchenReviewPage />)
       await screen.findByText('Ayam Bakar')
 

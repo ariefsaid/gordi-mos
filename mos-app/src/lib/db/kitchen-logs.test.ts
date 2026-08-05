@@ -14,6 +14,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
+import type { ProductionStream } from './kitchen-logs.types'
 import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
@@ -30,6 +31,17 @@ import {
 } from './kitchen-logs'
 
 const schemaMock = vi.mocked(supabase.schema)
+
+// The (branch, activity) production stream every read and write is scoped to (OD-WAY-28),
+// and the two destinations the incumbent captures. The branch ids are opaque here — the
+// point of the catalog is that nothing keys off a name (OD-WAY-39).
+const BRANCH_ID = '30000000-0000-0000-0000-0000000000b1'
+const RADIANT_ID = '30000000-0000-0000-0000-0000000000b2'
+const BUNGUR_ID = BRANCH_ID // "Transfer to Bungur" is a within-books move: destination = origin
+const STREAM: ProductionStream = {
+  branch: { id: BRANCH_ID, code: 'rumah_rames', name: 'Rumah Rames' },
+  activity: 'kitchen',
+}
 
 // ── Schema mock harness (mirrors ops-log.test.ts) ───────────────────────────
 interface Recorder {
@@ -154,7 +166,7 @@ describe('listActiveWipItems', () => {
 
 // ── fetchPlanMap ──────────────────────────────────────────────────────────────
 describe('fetchPlanMap', () => {
-  it('builds a PlanMap keyed by wip_item_id/action_type', async () => {
+  it('builds a PlanMap keyed by wip_item_id/movement', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -162,9 +174,9 @@ describe('fetchPlanMap', () => {
           kitchen_plans: [
             {
               data: [
-                { wip_item_id: 'w1', action_type: 'Production', qty_porsi: 12 },
-                { wip_item_id: 'w1', action_type: 'Transfer to Radiant', qty_porsi: 5 },
-                { wip_item_id: 'w2', action_type: 'Production', qty_porsi: 20 },
+                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 12 },
+                { wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 5 },
+                { wip_item_id: 'w2', action: 'produce', destination_branch_id: null, qty_porsi: 20 },
               ],
               error: null,
             },
@@ -174,11 +186,11 @@ describe('fetchPlanMap', () => {
       ) as never,
     )
 
-    const map = await fetchPlanMap('2026-06-20')
-    expect(map['w1']['Production']).toBe(12)
-    expect(map['w1']['Transfer to Radiant']).toBe(5)
-    expect(map['w2']['Production']).toBe(20)
-    expect(map['w1']['Transfer to Bungur']).toBeUndefined()
+    const map = await fetchPlanMap('2026-06-20', STREAM)
+    expect(map['w1']['produce']).toBe(12)
+    expect(map['w1'][`transfer:${RADIANT_ID}`]).toBe(5)
+    expect(map['w2']['produce']).toBe(20)
+    expect(map['w1'][`transfer:${BUNGUR_ID}`]).toBeUndefined()
     expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
   })
 
@@ -187,7 +199,7 @@ describe('fetchPlanMap', () => {
     schemaMock.mockReturnValue(
       makeSchema({ kitchen_plans: [{ data: [], error: null }] }, rec) as never,
     )
-    const map = await fetchPlanMap('2026-06-20')
+    const map = await fetchPlanMap('2026-06-20', STREAM)
     expect(Object.keys(map)).toHaveLength(0)
   })
 
@@ -199,7 +211,7 @@ describe('fetchPlanMap', () => {
         rec,
       ) as never,
     )
-    await expect(fetchPlanMap('2026-06-20')).rejects.toThrow('fetchPlanMap failed')
+    await expect(fetchPlanMap('2026-06-20', STREAM)).rejects.toThrow('fetchPlanMap failed')
   })
 })
 
@@ -220,7 +232,10 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     await insertKitchenLog({
       business_unit_id: BU_ID,
       log_date: '2026-06-20',
-      action_type: 'Production',
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
       wip_item_id: WIP_ID,
       qty_porsi: 8,
       notes: 'test note',
@@ -232,7 +247,14 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     // Required fields
     expect(payload.business_unit_id).toBe(BU_ID)
     expect(payload.log_date).toBe('2026-06-20')   // DB column is `log_date`
-    expect(payload.action_type).toBe('Production')
+    // The stream is on every row (OD-WAY-28) and the movement replaces the stored
+    // three-literal action_type (DD-WAY-13). v4 asserted `action_type: 'Production'`; that
+    // column does not exist in the squashed baseline, and the label it named is derived.
+    expect(payload.branch_id).toBe(BRANCH_ID)
+    expect(payload.activity).toBe('kitchen')
+    expect(payload.action).toBe('produce')
+    expect(payload.destination_branch_id).toBeNull()
+    expect(payload).not.toHaveProperty('action_type')
     expect(payload.wip_item_id).toBe(WIP_ID)
     expect(payload.qty_porsi).toBe(8)
     expect(payload.notes).toBe('test note')
@@ -248,7 +270,10 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       insertKitchenLog({
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
-        action_type: 'Production',
+        branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
         wip_item_id: WIP_ID,
         qty_porsi: 0,
       }),
@@ -260,7 +285,10 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       insertKitchenLog({
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
-        action_type: 'Production',
+        branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
         wip_item_id: WIP_ID,
         qty_porsi: -1,
       }),
@@ -279,7 +307,10 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     await insertKitchenLog({
       business_unit_id: BU_ID,
       log_date: '2026-06-20',
-      action_type: 'Transfer to Radiant',
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'transfer',
+      destination_branch_id: RADIANT_ID,
       wip_item_id: WIP_ID,
       qty_porsi: 5,
     })
@@ -301,7 +332,10 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       insertKitchenLog({
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
-        action_type: 'Production',
+        branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
         wip_item_id: WIP_ID,
         qty_porsi: 10,
       }),
@@ -326,14 +360,20 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
       {
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
-        action_type: 'Production',
+        branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
         wip_item_id: 'w1',
         qty_porsi: 5,
       },
       {
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
-        action_type: 'Production',
+        branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
         wip_item_id: 'w1',
         qty_porsi: 3,
       },
@@ -358,14 +398,20 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
         {
           business_unit_id: BU_ID,
           log_date: '2026-06-20',
-          action_type: 'Production',
+          branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
           wip_item_id: 'w1',
           qty_porsi: 5,
         },
         {
           business_unit_id: BU_ID,
           log_date: '2026-06-20',
-          action_type: 'Production',
+          branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
           wip_item_id: 'w2',
           qty_porsi: 0,
         },
@@ -440,11 +486,14 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
       ) as never,
     )
 
-    const map = await fetchStockMap('2026-06-20')
+    const map = await fetchStockMap('2026-06-20', STREAM)
     expect(map['w1']).toEqual({ stok: 3, tersedia: 9 })
     expect(map['w2']).toEqual({ stok: 0, tersedia: 0 })
     // dispatched to the corrected #45 contract: kitchen_stock_for_date(p_as_of)
-    expect(rec.rpcCalls).toContainEqual(['kitchen_stock_for_date', { p_as_of: '2026-06-20' }])
+    expect(rec.rpcCalls).toContainEqual([
+      'kitchen_stock_for_date',
+      { p_as_of: '2026-06-20', p_branch_id: BRANCH_ID, p_activity: 'kitchen' },
+    ])
   })
 
   it('returns an empty map when no stock rows', async () => {
@@ -452,7 +501,7 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
     schemaMock.mockReturnValue(
       makeSchema({ kitchen_stock_for_date: [{ data: [], error: null }] }, rec) as never,
     )
-    const map = await fetchStockMap('2026-06-20')
+    const map = await fetchStockMap('2026-06-20', STREAM)
     expect(Object.keys(map)).toHaveLength(0)
   })
 
@@ -464,7 +513,7 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
         rec,
       ) as never,
     )
-    await expect(fetchStockMap('2026-06-20')).rejects.toThrow('fetchStockMap failed')
+    await expect(fetchStockMap('2026-06-20', STREAM)).rejects.toThrow('fetchStockMap failed')
   })
 })
 
@@ -500,8 +549,11 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
       ) as never,
     )
 
-    const rows = await fetchKitchenStock('2026-06-20')
-    expect(rec.rpcCalls).toContainEqual(['kitchen_stock_for_date', { p_as_of: '2026-06-20' }])
+    const rows = await fetchKitchenStock('2026-06-20', STREAM)
+    expect(rec.rpcCalls).toContainEqual([
+      'kitchen_stock_for_date',
+      { p_as_of: '2026-06-20', p_branch_id: BRANCH_ID, p_activity: 'kitchen' },
+    ])
     expect(rows).toEqual([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', stok: 12, tersedia: 8 },
       // negative balances preserved, not clamped (FR-061, AC-032)
@@ -522,7 +574,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
         rec,
       ) as never,
     )
-    const rows = await fetchKitchenStock('2026-06-20')
+    const rows = await fetchKitchenStock('2026-06-20', STREAM)
     expect(rows).toEqual([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', stok: 0, tersedia: 0 },
     ])
@@ -539,7 +591,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
         rec,
       ) as never,
     )
-    const rows = await fetchKitchenStock('2026-06-20')
+    const rows = await fetchKitchenStock('2026-06-20', STREAM)
     expect(rows).toEqual([])
   })
 
@@ -554,7 +606,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
         rec,
       ) as never,
     )
-    await expect(fetchKitchenStock('2026-06-20')).rejects.toThrow('fetchStockMap failed')
+    await expect(fetchKitchenStock('2026-06-20', STREAM)).rejects.toThrow('fetchStockMap failed')
   })
 })
 
@@ -564,7 +616,9 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     {
       id: 'log-1',
       log_date: '2026-06-20',
-      action_type: 'Production',
+      action: 'produce',
+      destination_branch_id: null,
+      action_label: 'Production',
       wip_item_id: 'w1',
       wip_items: { name: 'Nasi Goreng' },
       qty_porsi: 8,
@@ -577,7 +631,9 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     {
       id: 'log-2',
       log_date: '2026-06-20',
-      action_type: 'Transfer to Radiant',
+      action: 'transfer',
+      destination_branch_id: RADIANT_ID,
+      action_label: 'Transfer to Radiant',
       wip_item_id: 'w2',
       wip_items: { name: 'Cold Brew' },
       qty_porsi: 42,
@@ -611,6 +667,8 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       wip_item_name: 'Nasi Goreng',
       log_date: '2026-06-20',
       action_type: 'Production',
+      action: 'produce',
+      destination_branch_id: null,
       qty_porsi: 8,
       submitted_by: 'p1',
     })

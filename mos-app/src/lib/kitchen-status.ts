@@ -12,7 +12,7 @@ import type { PillTone } from '@/components/ui/pill'
 export interface KitchenStatus {
   tone: PillTone
   label: string
-  /** Leading dot on the Pill. Default true; false for the dotless em-dash "none" case. */
+  /** Leading dot on the Pill. Default true; false for the dotless "not logged" (off-plan, unmade) case. */
   dot?: boolean
 }
 
@@ -31,7 +31,10 @@ export function kitchenStatus(input: {
   // Off-plan (no plan row for this action_type)
   if (plan <= 0) {
     if (made > 0) return { tone: 'neutral', label: 'Logged' }
-    return { tone: 'neutral', dot: false, label: '—' } // dotless em-dash
+    // cafe-4: a naked em-dash reads as a rendering failure at a glance (esp. when every
+    // row in the table is off-plan/unlogged, e.g. no plan configured for the date) —
+    // a muted, dotless, but LABELED pill instead ("intentional empty", not "broken").
+    return { tone: 'neutral', dot: false, label: 'Not logged' }
   }
 
   // Planned (plan > 0)

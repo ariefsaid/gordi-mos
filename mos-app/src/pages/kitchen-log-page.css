@@ -20,7 +20,7 @@
 
 /* ── log date chip in the PageHead meta slot ── */
 .kl-date {
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   color: var(--muted-foreground);
   background: var(--muted);
   padding: 2px 8px;
@@ -35,7 +35,7 @@
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   margin-bottom: 16px;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 .kl-banner-offline {
   background: color-mix(in srgb, var(--warning) 12%, transparent);
@@ -54,26 +54,27 @@
   color: var(--status-won-text);
 }
 
-/* ── KPI strip top spacing (the strip renders above the toolbar) ── */
-.kl-page > .kks,
-.kl-page > .kks-phone {
-  margin: 8px 0 12px;
-}
-
-/* ── action_type seg wrapper (toolbar) ── */
-.kl-seg-wrap { margin-bottom: 16px; }
+/* v4 chrome merge: `.kl-seg-wrap` is gone. The action_type seg was a standalone band
+   (a 50px control plus a 16px margin) stacked above the KitchenToolbar band; it is now
+   that toolbar's leading scope slot, so the wrapper and its margin have no owner. */
 
 /* ── Dish cell (name + category) in the shared DataTable ── */
 .kl-dish { display: inline-flex; flex-direction: column; min-width: 0; }
 .kl-dish-name {
-  font-size: 13.5px;
+  font-size: var(--font-size-control);
   font-weight: 500;
   color: var(--foreground);
+  /* layout pass: the page's 1.45 base line-height stretched this two-line stack to ~36px —
+     more than the dense .kls-dense qty control (32px) it sits beside — making Dish the tallest
+     cell and the new bottleneck against the Data Table's 52px row spec. A name+category label
+     doesn't need reading-prose leading; 1.2 is tight enough to stay legible stacked. */
+  line-height: 1.2;
 }
 .kl-dish-cat {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 400;
   color: var(--muted-foreground);
+  line-height: 1.2;
 }
 
 /* ── The capture form ── */
@@ -84,7 +85,18 @@
 }
 
 /* ── Action footer: tally + Discard + Submit (ONE branch) ──
-   Flat utility surface in normal flow so it cannot overlap grouped rows. */
+   v4 P0 (design critique): sticky, not static-flow. On phone the scroll container ran
+   ~3,237px, so a user who staged a dish at the top had to scroll ~3,000px to reach Submit —
+   the largest thumb-reachable control near the bottom was the global blue `+` FAB, which is
+   NOT Submit. `position: sticky; bottom: 0` pins the footer to the bottom of the scroll
+   container (`.page-frame--v3`, the nearest scrolling ancestor — see page-frame.tsx), which
+   already sits ABOVE the phone bottom-tab bar (the tab bar is its own grid row in
+   app-shell.tsx, a sibling of — not an overlay on — the scrolling main area) and the FAB
+   (fixed-positioned, its own stacking layer). `--card` bg + a 1px `--border` top edge keep
+   rows that scroll underneath legible; flat at rest (Soft-Elevation Rule — a utility surface,
+   no resting shadow). The list container below carries matching bottom padding
+   (`.kl-form .dt-table`/`.dt-cards`) so the sticky footer never permanently covers the last
+   dish row (Task 1 §"add matching bottom padding"). */
 .kl-footer {
   display: flex;
   align-items: center;
@@ -93,6 +105,47 @@
   padding: 12px 0;
   background: var(--card);
   border-top: 1px solid var(--border);
+  position: sticky;
+  /* NOT `bottom: 0`. A sticky box's constraint rect is the scrollport's CONTENT box, and
+     `.page-frame--v3` (page-families.css) — the scrolling ancestor — carries bottom padding
+     (48px desktop / 40px tablet / 16px + --tabbar-h on phone). `bottom: 0` therefore parked
+     this bar that far ABOVE the scrollport's real bottom edge, and dish rows scrolled through
+     the strip BELOW it: the bar read as tearing across the middle of the list. Measured
+     2026-07-28 before the fix: footer bottom 812 vs scrollport bottom 860 at 1280x860, and
+     676 vs 752 at 375x812 — exactly the frame's padding in both cases. Cancelling the reserve
+     lands the bar flush on the scrollport edge (which already sits above the phone tab bar —
+     that is its own grid row in app-shell.tsx, not an overlay). Values mirror
+     page-families.css's padding ladder; keep the two in step. */
+  bottom: -48px;
+  /* Same reserve, cancelled again on the STATIC position: sticky can only lift a box off
+     its in-flow slot, never push it down, so without this the bar snapped back up by the
+     frame's padding the moment the list bottomed out. Keep the two offsets equal. */
+  margin-bottom: -48px;
+  z-index: var(--z-sticky);
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  .kl-footer { bottom: -40px; margin-bottom: -40px; }
+}
+
+/* Reserve room below the list so the sticky footer never permanently overlaps the final
+   dish row — the user can always scroll the last row clear of the pinned footer. Sized
+   generously to the footer's tallest rendered state (phone: stacked tally+actions + the
+   inline F3 blocker reason + safe-area inset) rather than pixel-matched, so small copy/
+   font changes in the footer can't silently reopen the overlap. */
+.kl-form .dt-table,
+.kl-form .dt-cards {
+  margin-bottom: 12px;
+  scroll-margin-bottom: 12px;
+}
+@media (max-width: 767px) {
+  .kl-form .dt-cards {
+    margin-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (min-width: 768px) {
+  .kl-form .dt-table {
+    margin-bottom: 88px;
+  }
 }
 .kl-tally {
   display: flex;
@@ -100,12 +153,12 @@
   min-width: 0;
 }
 .kl-tally-num {
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--foreground);
 }
 .kl-tally-sub {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 .kl-footer-actions {
@@ -122,7 +175,7 @@
    required variance note is still empty.  Uses muted text so it reads as a
    hint, not an error (the error itself lives on the row's note field). */
 .kl-submit-reason {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   align-self: center;
   text-align: right;
@@ -139,7 +192,7 @@
 .kl-error-msg {
   color: var(--status-lost-text);
   margin-bottom: 12px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 .kl-unauth {
   text-align: center;
@@ -160,8 +213,125 @@
     align-items: stretch;
     gap: 8px;
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+    /* see the base rule: cancel `.page-frame--v3`'s phone bottom reserve so the bar sits on
+       the scrollport edge instead of floating a tab-bar's height above it with rows showing
+       through underneath. */
+    bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
+    margin-bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
   }
   .kl-tally { flex-direction: row; gap: 6px; }
   .kl-footer-actions { justify-content: stretch; }
   .kl-submit { width: 100%; min-height: 48px; } /* the one big-touch control exception */
+}
+
+/* ── Row status (v4) ───────────────────────────────────────────────────────────
+   Was a filled Pill on every row; at shift start that painted the whole column
+   solid red. Same tone semantics (kitchenStatus is unchanged), rendered as text
+   so the steppers stay the loudest thing in the row. Token colours only. */
+.kl-status {
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.kl-status--destructive { color: var(--status-lost-text); }
+.kl-status--warning     { color: var(--warning-foreground, var(--foreground)); }
+.kl-status--success     { color: var(--status-won-text); }
+.kl-status--neutral     { color: var(--muted-foreground); }
+
+/* ── Phone capture row (v4) ────────────────────────────────────────────────────
+   Replaces the generic five-field DataTable card on the log surface. Identity
+   left, stepper right (thumb side), basis + status on one muted line beneath.
+   ~76px vs the ~200px it replaces, so a 21-dish service fits ~8 rows a screen
+   instead of ~1. Token colours + documented type ramp only. */
+.kl-card { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
+.kl-card-head {
+  display: flex;
+  /* v4: flex-start, not center — once the variance note reveals, the row grows and `center`
+     drifted the dish name to the vertical middle while the qty field stayed at the top, losing
+     identity/control alignment at exactly the moment the row is most confusing. */
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.kl-card-name {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.kl-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+/* The compact card owns its own padding rhythm; the stepper must not re-box itself.
+   layout/distill pass: the box-stripping used to also be redeclared here via a
+   `.dt-card--compact .kls-card` descendant selector reaching into WipItemStepper's own
+   internals — but both call sites already pass `dense`, which strips the same border/
+   background/padding through .kls-dense in wip-item-stepper.css. That rule was a dead
+   duplicate of that and was removed here.
+   extract (2026-07-28): `.dt-card--compact` itself has now also moved out of this file —
+   it is data-table.tsx's own class (applied by PhoneCard whenever a `renderCard` seam is
+   used), and three OTHER pages besides this one render it, so owning it in a page-specific
+   stylesheet was a cross-page dependency: Café · Plan measured 14px padding (the un-compacted
+   base `.dt-card` fallback) instead of 10px 12px because this file's CSS chunk was never
+   loaded on that route. Canonical definition now lives in data-table.css beside `.dt-card`. */
+
+/* ── Compacted page-head meta line (v4, owner-directed) ────────────────────────
+   Date and the day's plan total on ONE line, in separate columns, replacing a
+   stacked date chip + a standalone metric band. Token colours + documented ramp. */
+.kl-meta-line {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+.kl-plan-sum {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.kl-plan-sum strong {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+}
+/* Dish count reads as a secondary count, not a second headline figure. */
+.kl-plan-dishes::before { content: '· '; }
+.kl-plan-dishes { color: var(--muted-foreground); }
+
+
+/* ── Scope block: the (branch, activity) stream + the movement ─────────────────
+   The stream decides whose books every row in the list lands in, and the movement
+   decides what happened — both answer "what does this list mean", so they sit
+   together in the toolbar's leading scope slot rather than competing with the
+   filters. Wraps at phone width; the movement strip scrolls inside itself
+   (movement-seg.css), so the page never scrolls sideways (NFR-001). */
+.kl-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.kl-scope-branch,
+.kl-scope-activity { flex: 0 1 auto; min-width: 0; }
+@media (max-width: 390px) {
+  /* Full-width pickers on a phone: a half-width <select> truncates a branch name to
+     the point where two branches read the same, which is the exact ambiguity the
+     canonical catalog exists to end. */
+  .kl-scope { width: 100%; }
+  .kl-scope-branch,
+  .kl-scope-activity { flex: 1 1 100%; min-height: 44px; }
 }
