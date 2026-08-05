@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 vi.mock('./use-auth')
 import { useAuth } from './use-auth'
 import { RequireCapability, CAPABILITY_FALLBACK_PATH } from './require-capability'
-import { leafInThisTable, isRedirect } from '@/test/route-table'
+import { expectOneHop } from '@/test/route-table'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -56,10 +56,11 @@ function renderGuard(initialEntry: string, capability: string) {
 function expectLandsOnALiveSurface() {
   const landed = screen.getByTestId('landing').textContent!
   expect(landed).toBe(CAPABILITY_FALLBACK_PATH)
-  const leaf = leafInThisTable(landed)
-  expect(leaf).toBeDefined()
-  expect(leaf?.route.path).not.toBe('*')
-  expect(isRedirect(leaf?.route.element)).toBe(false)
+  // The same one-hop contract the redirect map is held to (#220): the landing path must exist in
+  // the production table, must not be the not-found catch-all, must not be a second redirect, and
+  // must not sit behind a gate of its own — bouncing onto a gated surface is bouncing onto another
+  // bounce. The bounce originates from an ungated capability miss, so `/` is the honest source.
+  expectOneHop('/', landed)
 }
 
 describe('RequireCapability', () => {

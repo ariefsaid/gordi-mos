@@ -10,7 +10,7 @@ import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
-import { allRoutes, isRedirect, redirectProps, leafInThisTable } from './test/route-table'
+import { allRoutes, isRedirect, redirectProps, expectOneHop } from './test/route-table'
 
 // nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
 // but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
@@ -134,11 +134,11 @@ describe('router — catalog manage-mode relocated under /work/ (FR-421)', () =>
     const { to, replace } = redirectProps(cascade!.element)
     // FR-015: the history entry is replaced, so Back does not re-enter the retired path.
     expect(replace).toBe(true)
-    // …and the destination is resolved against THIS table: a live surface, not the not-found
-    // catch-all, and not a second redirect. Remove the destination route and this goes red.
-    const leaf = leafInThisTable(to)
-    expect(leaf?.route.path).not.toBe('*')
-    expect(isRedirect(leaf?.route.element)).toBe(false)
+    // …and the destination is resolved against THIS table: it exists, it is a live surface rather
+    // than the not-found catch-all, it is not a second redirect, and — the clause #220 added — it
+    // carries no gate the retired path does not. `work/cascade` is ungated, so its destination has
+    // to be reachable by every authenticated viewer or the hop is not one hop.
+    expectOneHop('/work/cascade', to)
   })
 
   it('AC-304: /work/objectives + /work/projects-processes stay behind their capability gates', () => {
