@@ -177,10 +177,11 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
  * decides whether a link exists.
  *
  * What it used to do, and why the ruling exists: OD-REDESIGN-68 scoped modules to the viewer's own
- * work by matching their JOB-ROLE NAME against a regex. Against the real roster that excluded five
- * of ten job roles from every module — Operational Manager, both Finance / Accounting roles, both
- * Marketing roles — so Café's Log, Plan and Stock had no entry on any surface for them while the
- * route admitted every authenticated viewer. Two comments justified that by claiming "everyone
+ * work by matching their JOB-ROLE NAME against a regex. A substantial share of the roles actually
+ * in use match none of those regexes, so Café's Log, Plan and Stock had no entry on any surface
+ * for those viewers while the route admitted every authenticated viewer. (The roster itself is
+ * deliberately untracked — see the public-repo rule in CLAUDE.md — so it is not enumerated here.)
+ * Two comments justified the scoping by claiming "everyone
  * still reaches module routes via ⌘K"; the palette held seven hardcoded entries, none of them
  * Café. The justification was false, and it is gone rather than replaced.
  *

@@ -92,10 +92,11 @@ const PERSONAS: Persona[] = [
   // with would look unreachable when it is merely un-personified.
   { name: 'roastery member', accessRoles: ['member'], roleNames: ['Roastery Lead'] },
   { name: 'ecommerce member', accessRoles: ['member'], roleNames: ['Ecommerce Lead'] },
-  // OD-WAY-51's first-class case, not an afterthought: against the real roster five of ten job
-  // roles match no module regex at all. Under the ruling that must change nothing about what they
-  // can reach.
-  { name: 'no-module viewer', accessRoles: ['member'], roleNames: ['Operational Manager'] },
+  // OD-WAY-51's first-class case, not an afterthought: plenty of real job roles match no module
+  // regex at all, and under the ruling that must change nothing about what they can reach. The
+  // role name here is invented on purpose — the real roster is an untracked file (CLAUDE.md's
+  // public-repo rule) and this test needs "matches nothing", not a specific person's job title.
+  { name: 'no-module viewer', accessRoles: ['member'], roleNames: ['Unmatched Role'] },
   { name: 'admin', accessRoles: ['admin'], roleNames: ['Managing Director'] },
   { name: 'finance', accessRoles: ['finance'], roleNames: ['Finance Lead'] },
   { name: 'manager', accessRoles: ['manager'], roleNames: ['Ops Manager'] },
