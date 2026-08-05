@@ -349,8 +349,8 @@ export const messages = {
     'assistant.askAbout.task': "About Task: ${title}",
     'assistant.askAboutRecord': "Ask Deputy",
     'common.clearFilters': "Clear filters",
-    'common.docTitle': "${page} — Gordi MOS",
-    'common.help': "Help",
+    // `common.docTitle` / `common.help` are NOT repeated here — #191 already landed them above with
+    // byte-identical values, and a second literal is a TS1117 duplicate-key error, not an override.
     'common.resultCount': "${count} items in your scope",
     'common.save': "Save",
     'common.saveCurrentView': "Save current view",
@@ -953,8 +953,8 @@ export const messages = {
     'assistant.askAbout.task': "Tentang tugas: ${title}",
     'assistant.askAboutRecord': "Tanya Deputi",
     'common.clearFilters': "Hapus filter",
-    'common.docTitle': "${page} — Gordi MOS",
-    'common.help': "Bantuan",
+    // `common.docTitle` / `common.help` are NOT repeated here — #191 already landed them above with
+    // byte-identical values, and a second literal is a TS1117 duplicate-key error, not an override.
     'common.resultCount': "${count} item dalam cakupan Anda",
     'common.save': "Simpan",
     'common.saveCurrentView': "Simpan tampilan saat ini",
