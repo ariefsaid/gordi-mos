@@ -74,6 +74,13 @@ enabled = true
 # seed.dev-auth.sql + seed.dev-tasks.sql are DEV-ONLY: dev-persona Auth accounts
 # (one-click demo login) + a sample Tasks dataset for the demo/design review.
 # Both must stay out of any prod seed run (they reference the fictional *.dev data).
+# RESTORED in #182, which authored the `mos` baseline these two need. Narrowing this list during the
+# squash (#181) stopped both applying, so every `supabase db reset` left a database with no MOS users
+# and local demo login was dead — invisible in the ticket graph, because it runs through a config
+# file neither the schema chain nor the frontend chain names, and it cost a render-verification.
+# seed.dev-tasks.sql needs only mos.tasks / objectives / work_lines and seed.dev-auth.sql needs only
+# shared.people, so neither depends on the ops / integrations / reporting passes still to come.
+# DO NOT narrow this again: the frontend chain shares this local stack.
 sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql"]
 
 [db.network_restrictions]
