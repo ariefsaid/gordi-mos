@@ -12,7 +12,15 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { WipItemStepper } from './wip-item-stepper'
 import { needsVarianceNote, VARIANCE_NOTE_CUE } from '@/lib/kitchen-gates'
-import type { KitchenActionType, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
+import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+
+// v4 drove this component with the three label literals. They are derived, not stored
+// (DD-WAY-13), so the component takes the MOVEMENT instead — the thing that actually
+// decides whether a line consumes stock. Every assertion below is v4's, unchanged.
+const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
+const TRANSFER_RADIANT: KitchenMovement = {
+  action: 'transfer', destinationBranchId: 'branch-radiant',
+}
 
 const BASE_LINE: KitchenLogLine = {
   wip_item_id: 'w1',
@@ -29,7 +37,7 @@ const BASE_LINE: KitchenLogLine = {
 function renderStepper(
   over: {
     line?: Partial<KitchenLogLine>
-    actionType?: KitchenActionType
+    movement?: KitchenMovement
     onQtyChange?: () => void
     onNotesChange?: () => void
     itemName?: string
@@ -40,7 +48,7 @@ function renderStepper(
     <WipItemStepper
       itemName={over.itemName ?? 'Nasi Goreng'}
       line={{ ...BASE_LINE, ...over.line }}
-      actionType={over.actionType ?? 'Production'}
+      movement={over.movement ?? PRODUCE}
       onQtyChange={over.onQtyChange ?? vi.fn()}
       onNotesChange={over.onNotesChange ?? vi.fn()}
       dense={over.dense}
@@ -68,13 +76,13 @@ describe('WipItemStepper — AC-020/021/022', () => {
   // v4: `stok` is dropped from the stepper (both layouts already render Stock as their own
   // column/field) — only `tersedia` (availability) remains, and only for stock-consuming actions.
   it('shows avail (tersedia) context only for transfer actions (cafe-1: English session → English labels)', () => {
-    renderStepper({ line: { stok: 3, tersedia: 9 }, actionType: 'Transfer to Radiant' })
+    renderStepper({ line: { stok: 3, tersedia: 9 }, movement: TRANSFER_RADIANT })
     expect(screen.getByText(/avail/i)).toBeInTheDocument()
     expect(screen.getByText('9')).toBeInTheDocument()
   })
 
   it('hides avail context for Production', () => {
-    renderStepper({ line: { stok: 3, tersedia: 9 }, actionType: 'Production' })
+    renderStepper({ line: { stok: 3, tersedia: 9 }, movement: PRODUCE })
     expect(screen.queryByText(/avail/i)).toBeNull()
   })
 
@@ -131,7 +139,7 @@ describe('WipItemStepper — AC-020/021/022', () => {
   it('AC-022: shows the transfer-availability cap cue when capError is set (cafe-1: localized)', () => {
     renderStepper({
       line: { qty_porsi: 9, tersedia: 9, capError: 'Stok kurang — produksi dulu', dirty: true },
-      actionType: 'Transfer to Radiant',
+      movement: TRANSFER_RADIANT,
     })
     expect(screen.getByText(/insufficient stock — produce first/i)).toBeInTheDocument()
   })
@@ -202,8 +210,8 @@ describe('WipItemStepper — AC-020/021/022', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 function StagedLineHarness({
   planQty = 19,
-  actionType = 'Production' as KitchenActionType,
-}: { planQty?: number; actionType?: KitchenActionType }) {
+  movement = PRODUCE,
+}: { planQty?: number; movement?: KitchenMovement }) {
   const [line, setLine] = useState<KitchenLogLine>({ ...BASE_LINE, plan_qty: planQty })
   // The page's gateLine (kitchen-log-page.tsx), same composition: an unstaged line has no gate,
   // and the cue is stamped ONLY while the required note is still empty.
@@ -211,14 +219,14 @@ function StagedLineHarness({
     if (next.qty_porsi <= 0) return { ...next, error: '', capError: '' }
     return {
       ...next,
-      error: needsVarianceNote(next, actionType) && !next.notes.trim() ? VARIANCE_NOTE_CUE : '',
+      error: needsVarianceNote(next, movement) && !next.notes.trim() ? VARIANCE_NOTE_CUE : '',
     }
   }
   return (
     <WipItemStepper
       itemName="Nasi Goreng"
       line={line}
-      actionType={actionType}
+      movement={movement}
       onQtyChange={qty => setLine(prev => gate({ ...prev, qty_porsi: qty, dirty: qty > 0 }))}
       onNotesChange={notes => setLine(prev => gate({ ...prev, notes }))}
     />

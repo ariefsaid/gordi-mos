@@ -67,7 +67,7 @@ import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { HelpTip } from '@/components/ui/help-tip'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)

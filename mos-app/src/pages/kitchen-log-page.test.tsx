@@ -14,13 +14,22 @@ import type { AuthState } from '@/auth/context'
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
-vi.mock('@/lib/db/kitchen-logs', () => ({
-  listActiveWipItems: vi.fn(),
-  fetchPlanMap: vi.fn(),
-  fetchStockMap: vi.fn(),
-  resolveKitchenBuId: vi.fn(),
-  insertKitchenLogBatch: vi.fn(),
-}))
+vi.mock('@/lib/db/kitchen-logs', async () => {
+  // `defaultStreamFrom` is pure branch-catalog arithmetic, not IO — the page uses it to
+  // decide which stream to open on, so the real one is kept and only the reads are mocked.
+  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>(
+    '@/lib/db/kitchen-logs',
+  )
+  return {
+    defaultStreamFrom: actual.defaultStreamFrom,
+    listActiveWipItems: vi.fn(),
+    fetchPlanMap: vi.fn(),
+    fetchStockMap: vi.fn(),
+    resolveKitchenBuId: vi.fn(),
+    insertKitchenLogBatch: vi.fn(),
+  }
+})
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import {
   listActiveWipItems,
   fetchPlanMap,
@@ -28,7 +37,8 @@ import {
   resolveKitchenBuId,
   insertKitchenLogBatch,
 } from '@/lib/db/kitchen-logs'
-import type { WipItemOption } from '@/lib/db/kitchen-logs.types'
+import { listActiveBranches } from '@/lib/db/branches'
+import type { BranchOption, WipItemOption } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListActiveWipItems = vi.mocked(listActiveWipItems)
@@ -36,6 +46,20 @@ const mockFetchPlanMap = vi.mocked(fetchPlanMap)
 const mockFetchStockMap = vi.mocked(fetchStockMap)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockInsertKitchenLogBatch = vi.mocked(insertKitchenLogBatch)
+const mockListActiveBranches = vi.mocked(listActiveBranches)
+
+// The canonical branch catalog (OD-WAY-39). The capture surface opens on the branch the one
+// physical kitchen's output books to, which is the single (branch, activity) stream captured
+// today (DD-WAY-25) — so "Transfer to Bungur" is a transfer whose destination IS the origin.
+const BRANCH_RUMAH_RAMES: BranchOption = {
+  id: '30000000-0000-0000-0000-0000000000b1', code: 'rumah_rames', name: 'Rumah Rames',
+}
+const BRANCH_RADIANT: BranchOption = {
+  id: '30000000-0000-0000-0000-0000000000b2', code: 'radiant', name: 'Radiant',
+}
+const BRANCHES: BranchOption[] = [BRANCH_RADIANT, BRANCH_RUMAH_RAMES]
+const PRODUCE_KEY = 'produce'
+const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
 
 const VIEWER_MEMBER: AuthState = {
   status: 'authenticated',
@@ -76,8 +100,8 @@ const WIP_ITEMS: WipItemOption[] = [
 ]
 
 const PLAN_MAP = {
-  w1: { Production: 20, 'Transfer to Radiant': 10 },
-  w2: { Production: 12 },
+  w1: { [PRODUCE_KEY]: 20, [TRANSFER_RADIANT_KEY]: 10 },
+  w2: { [PRODUCE_KEY]: 12 },
 }
 
 // Stock: w1 has 3 on hand, 9 available to transfer.
@@ -109,6 +133,7 @@ import { KitchenLogPage } from './kitchen-log-page'
 beforeEach(() => {
   vi.clearAllMocks()
   mockListActiveWipItems.mockResolvedValue(WIP_ITEMS)
+  mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
   mockResolveKitchenBuId.mockResolvedValue(BU_ID)
@@ -202,8 +227,8 @@ describe('Error state — fetch failure', () => {
     mockListActiveWipItems.mockRejectedValue(new Error('network error'))
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByText(/couldn't load items/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      expect(screen.getByText(/couldn’t load the dish list/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
     })
   })
 
@@ -214,10 +239,10 @@ describe('Error state — fetch failure', () => {
     mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
 
     await renderPage()
-    await waitFor(() => screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => screen.getByRole('button', { name: /try again/i }))
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      fireEvent.click(screen.getByRole('button', { name: /try again/i }))
       await Promise.resolve()
     })
 
@@ -542,7 +567,12 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
     })
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
-      expect.objectContaining({ wip_item_id: 'w1', qty_porsi: 9, action_type: 'Transfer to Radiant' }),
+      // v4 named the movement by its derived label; the row carries the movement itself.
+      expect.objectContaining({
+        wip_item_id: 'w1', qty_porsi: 9,
+        action: 'transfer', destination_branch_id: BRANCH_RADIANT.id,
+        branch_id: BRANCH_RUMAH_RAMES.id, activity: 'kitchen',
+      }),
     ])
   })
 
@@ -592,7 +622,15 @@ describe('AC-030: successful submit (increment semantics)', () => {
     expect(payload).toHaveLength(1)
 
     const line = payload[0]
-    expect(line.action_type).toBe('Production')
+    // The stream is on the row (OD-WAY-28) and the movement replaced the stored
+    // three-literal action_type (DD-WAY-13). v4 asserted `action_type: 'Production'`; the
+    // column it named does not exist in the squashed baseline, and the label it carried is
+    // derived from exactly the two fields asserted here.
+    expect(line.branch_id).toBe(BRANCH_RUMAH_RAMES.id)
+    expect(line.activity).toBe('kitchen')
+    expect(line.action).toBe('produce')
+    expect(line.destination_branch_id).toBeNull()
+    expect(line).not.toHaveProperty('action_type')
     expect(line.wip_item_id).toBe('w1')
     expect(line.qty_porsi).toBe(20)
     expect(line.business_unit_id).toBe(BU_ID)
@@ -699,7 +737,7 @@ describe('Offline / write-blocked state (NFR-008)', () => {
     await waitFor(() => {
       // an explicit offline alert is present alongside Retry
       expect(screen.getByRole('alert', { name: /offline/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
     })
   })
 
@@ -742,7 +780,7 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
     )
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
     })
     // The capture form must NOT render without a resolved BU
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
@@ -773,7 +811,7 @@ describe('RI-3: interactive controls meet the 44px touch floor', () => {
   it('Retry carries the .btn-touch floor on the error state', async () => {
     mockListActiveWipItems.mockRejectedValue(new Error('network error'))
     await renderPage()
-    const retry = await screen.findByRole('button', { name: /retry/i })
+    const retry = await screen.findByRole('button', { name: /try again/i })
     expect(retry.className).toMatch(/btn-touch/)
   })
 
@@ -1000,7 +1038,6 @@ describe('OD-K-5: category filter narrows rows', () => {
 // task 10e — Discard (confirmed) resets all staged qty_porsi to 0
 describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
   it('confirmed Discard clears every staged qty back to 0', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1010,17 +1047,17 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     expect((ayamInput as HTMLInputElement).value).toBe('20')
 
     fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
-    expect(confirmSpy).toHaveBeenCalled()
+    // The house dialog, not the browser's: it is labelled in the app's own locale.
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^discard$/i }))
     // v4: qty resets to BLANK (not "0") — a blank field is the at-rest state, distinguishable
     // from a deliberate zero (wip-item-stepper.tsx).
     await waitFor(() => {
       expect((ayamInput as HTMLInputElement).value).toBe('')
     })
-    confirmSpy.mockRestore()
   })
 
   it('cancelled Discard keeps the staged entries', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1028,8 +1065,9 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     fireEvent.change(ayamInput, { target: { value: '20' } })
 
     fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
     expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
-    confirmSpy.mockRestore()
   })
 })
 
@@ -1044,7 +1082,7 @@ describe('OD-K-5: sticky-footer tally', () => {
     fireEvent.change(ayamInput, { target: { value: '20' } })
 
     expect(screen.getByText(/1 dish/i)).toBeInTheDocument()
-    expect(screen.getByText(/20 units/i)).toBeInTheDocument()
+    expect(screen.getByText(/20 portions/i)).toBeInTheDocument()
   })
 })
 
@@ -1101,17 +1139,14 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
   }
 
   it('with NO staged entries, navigation leaves freely (no prompt)', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm')
     await renderPageInDataRouter()
 
     await userEvent.click(screen.getByRole('link', { name: /go to dashboard/i }))
-    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(await screen.findByRole('heading', { name: 'Elsewhere' })).toBeInTheDocument()
-    confirmSpy.mockRestore()
   })
 
   it('with staged entries, "stay" (Cancel) vetoes navigation and keeps the entries', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
     await renderPageInDataRouter()
 
     // Stage a quantity for Ayam Bakar — the page now holds unsaved work.
@@ -1122,16 +1157,15 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     })
 
     await userEvent.click(screen.getByRole('link', { name: /go to dashboard/i }))
-    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: /stay on this page/i }))
     // Vetoed — still on the log page, the staged qty intact.
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Elsewhere' })).toBeNull()
     expect((screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }) as HTMLInputElement).value).toBe('5')
-    confirmSpy.mockRestore()
   })
 
-  it('with staged entries, "discard" (OK) completes the navigation', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('with staged entries, "discard" completes the navigation', async () => {
     await renderPageInDataRouter()
 
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
@@ -1141,8 +1175,8 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     })
 
     await userEvent.click(screen.getByRole('link', { name: /go to dashboard/i }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: /discard and leave/i }))
     expect(await screen.findByRole('heading', { name: 'Elsewhere' })).toBeInTheDocument()
-    expect(confirmSpy).toHaveBeenCalledTimes(1)
-    confirmSpy.mockRestore()
   })
 })
