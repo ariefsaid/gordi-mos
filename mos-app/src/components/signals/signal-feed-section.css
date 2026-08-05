@@ -5,14 +5,14 @@
    Feed presentation now renders too (rule:product-ban-inconsistent-components — one Signal, one
    anatomy). Shares the --row-* rhythm tokens with the stream.
 
-   #191 port note: this file lands ahead of its own component. `SignalFeedSection` (the live
-   feed, `signal-collection-adapter.tsx`, `signal-record-host.tsx`, …) is Signals' own port,
-   #193 — not wired here (see the note atop `pages/home-page.tsx`). This CSS is pure, inert
-   presentation with no data/JS coupling, and `components/home/guard-home-layout.css.test.ts` +
-   `guard-do16-home-layout.css.test.ts` (both carried from v4) assert these selectors exist
-   exactly once in the corpus as part of Home's "feed" primitive contract (AC-932). Home's own
-   placeholder (`HomeSignalsPending` in home-page.tsx) uses these same classes so the slot does
-   not visually jump when #193 wires the real feed in. */
+   #191 port note: this file originally landed ahead of its own component, as pure inert
+   presentation Home's placeholder (`HomeSignalsPending` in home-page.tsx) borrowed so the slot
+   would not visually jump once #193 wired the real feed in. #193 has now wired
+   `SignalFeedSection`, `signal-collection-adapter.tsx`, `signal-record-host.tsx`, et al., so the
+   selectors below are live for both Home's placeholder and the Signals archive Feed
+   presentation. `components/home/guard-home-layout.css.test.ts` +
+   `guard-do16-home-layout.css.test.ts` (both carried from v4) still assert these selectors exist
+   exactly once in the corpus as part of Home's "feed" primitive contract (AC-932). */
 .signal-feed-section {
   display: flex;
   flex-direction: column;

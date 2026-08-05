@@ -15,7 +15,7 @@ import {
   taskPresentationCompatibleKeys,
   type TaskCollectionPresentation,
   type TaskCollectionQuery,
-} from '@/components/tasks/task-collection-adapter'
+} from '@/components/tasks/task-collection-query'
 
 describe('query-state', () => {
   it('FR-V3-007: Signal Feed saved-view query preserves compatible filters, sort, grouping, and URL state', () => {

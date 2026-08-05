@@ -1,10 +1,15 @@
-// format/date.ts — the ONE locale-aware date module (cohesion-debt 2026-07-19,
-// item #1). Before this, three copies existed: task-formatters' locale-aware
-// weekday label, wib-time's hardcoded-en-GB WIB timestamp, and plan-budget's
-// hardcoded-en-GB day/month/year. The grammars differ by need (a weekday chip vs
-// a full timestamp vs a basis date), but the LOCALE must not: every shape here
-// resolves its locale from the param, falling back to the non-React
-// readPersistedLocale() so the same app never mixes en-GB and the user's locale.
+// format/date.ts — the locale-aware date module, ported from v4 with #193 because the shared
+// RecordField's date control needs `formatDayMonthYear`.
+//
+// PORT NOTE, and it matters: on `v4-redesign` this module's header claims to be THE one date
+// grammar, having absorbed three copies — task-formatters' weekday label, wib-time's hardcoded
+// en-GB WIB timestamp, and plan-budget's hardcoded en-GB day/month/year. **That consolidation has
+// not happened on this line.** Those three still hold their own copies here, and repointing them
+// is each surface's own port (#192 Tasks, #200 Money). Carrying v4's claim across would credit a
+// consolidation that did not occur — which is how the next reader deletes the copy that is still
+// load-bearing. The rule the module DOES enforce today stands unchanged: every shape resolves its
+// locale from the param, falling back to the non-React readPersistedLocale(), so nothing that goes
+// through here mixes en-GB with the viewer's locale.
 import { readPersistedLocale } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
 

@@ -32,10 +32,8 @@ import type { OverlayOwner } from '@/shell/overlay-navigation'
  * bodies stay chrome-free.
  *
  * `signal`'s CANONICAL_ROUTE/RECORD_CONTENT entries here point at the real `/work/signals/:id`
- * route and a placeholder `SignalRecordHost` (see that file's header) — the ported Signals record
- * surface is #193, a separate Stage-3 ticket not yet landed on `dev` (#195 does not scope-creep
- * into it). The registry wiring is real either way: swapping `SignalRecordHost`'s body for the
- * landed surface is the only change #193 needs to make here.
+ * route and the ported `SignalRecordHost` — the Signals record surface landed as #193 (Stage 3),
+ * the same PR that closed this door's placeholder. No further change is needed here.
  *
  * The producer `entity.route` is never used as authority — `CANONICAL_ROUTE` is the only route
  * source, keyed by the typed `{ type }`. `follow_up` is intentionally absent from the registry so

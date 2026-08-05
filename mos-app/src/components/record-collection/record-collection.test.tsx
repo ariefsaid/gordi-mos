@@ -16,7 +16,7 @@ import {
   TASK_COLLECTION_NEUTRAL_QUERY,
   type TaskCollectionPresentation,
   type TaskCollectionQuery,
-} from '@/components/tasks/task-collection-adapter'
+} from '@/components/tasks/task-collection-query'
 
 interface FakeTask {
   id: string
