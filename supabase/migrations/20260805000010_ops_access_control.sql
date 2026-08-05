@@ -87,8 +87,9 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_bu_org   uuid;
-  v_task_org uuid;
+  v_bu_org      uuid;
+  v_task_org    uuid;
+  v_creator_org uuid;
 begin
   if tg_op = 'UPDATE' then
     if new.created_by is distinct from old.created_by then
@@ -118,11 +119,23 @@ begin
     end if;
   end if;
 
+  -- The third reference on this table, checked like the two above. The INSERT policy pins created_by
+  -- to the session person and the branch above pins it on UPDATE, so an app-tier write cannot reach
+  -- this — but the service and import paths write the column directly with no policy behind them,
+  -- and a rule that only holds for the path with a policy is not a rule about the column.
+  if new.created_by is not null then
+    select p.org_id into v_creator_org from shared.people p where p.id = new.created_by;
+    if v_creator_org is distinct from new.org_id then
+      raise exception 'created_by must belong to the same org as the log entry'
+        using errcode = '23514';
+    end if;
+  end if;
+
   return new;
 end;
 $$;
 comment on function ops._guard_log_entry() is
-  'Guard (20260612000006): created_by/org_id immutable on UPDATE (42501); business_unit_id + linked_task_id must be same-org on INSERT/UPDATE (23514). SECURITY INVOKER — the references are org-readable, so a cross-org id reads as NULL and raises.';
+  'Guard (20260612000006): created_by/org_id immutable on UPDATE (42501); business_unit_id, linked_task_id and created_by must be same-org on INSERT/UPDATE (23514). SECURITY INVOKER — the references are org-readable, so a cross-org id reads as NULL and raises.';
 
 create trigger log_entries_guard
   before insert or update on ops.log_entries
@@ -152,6 +165,8 @@ declare
   v_wip_org  uuid;
   v_br_org   uuid;
   v_dest_org uuid;
+  v_sub_org  uuid;
+  v_rev_org  uuid;
 begin
   -- 20260620000008: submitted_by is immutable post-insert — a log cannot be re-attributed.
   if tg_op = 'UPDATE' and new.submitted_by is distinct from old.submitted_by then
@@ -250,11 +265,29 @@ begin
         using errcode = '23514';
     end if;
   end if;
+  -- The two PEOPLE references, held to the same rule as the four above. submitted_by is pinned to
+  -- the session person by the INSERT policy and frozen by the branch at the top of this guard, and
+  -- reviewed_by is stamped server-side on a reject — but reviewed_by is inside the UPDATE column
+  -- grant, so a reviewer's own UPDATE can carry a value for it, and neither column is pinned at all
+  -- on the service and flip-time import paths. Both are nullable by design (an imported row has no
+  -- MOS submitter, an unreviewed row has no reviewer), so both arms are null-guarded.
+  if new.submitted_by is not null then
+    select p.org_id into v_sub_org from shared.people p where p.id = new.submitted_by;
+    if v_sub_org is distinct from new.org_id then
+      raise exception 'submitted_by must belong to the same org as the kitchen log' using errcode = '23514';
+    end if;
+  end if;
+  if new.reviewed_by is not null then
+    select p.org_id into v_rev_org from shared.people p where p.id = new.reviewed_by;
+    if v_rev_org is distinct from new.org_id then
+      raise exception 'reviewed_by must belong to the same org as the kitchen log' using errcode = '23514';
+    end if;
+  end if;
   return new;
 end;
 $$;
 comment on function ops._guard_kitchen_log() is
-  'Guard (folds 20260620000008 + 20260620000012, extended for the stream columns): Submitted→Approved/Rejected is ops_lead/admin only; Submitted→Rejected stamps reviewed_by/reviewed_at; submitted_by, org_id and source are immutable, as are the stream, movement, wip item and date on a Submitted row (42501); business_unit_id, wip_item_id, branch_id and destination_branch_id must be same-org (23514). SECURITY INVOKER.';
+  'Guard (folds 20260620000008 + 20260620000012, extended for the stream columns): Submitted→Approved/Rejected is ops_lead/admin only; Submitted→Rejected stamps reviewed_by/reviewed_at; submitted_by, org_id and source are immutable, as are the stream, movement, wip item and date on a Submitted row (42501); business_unit_id, wip_item_id, branch_id, destination_branch_id, submitted_by and reviewed_by must be same-org (23514). SECURITY INVOKER.';
 
 create trigger kitchen_logs_guard
   before insert or update on ops.kitchen_logs
@@ -275,6 +308,7 @@ declare
   v_wip_org  uuid;
   v_br_org   uuid;
   v_dest_org uuid;
+  v_plan_org uuid;
 begin
   if tg_op = 'UPDATE' and new.org_id is distinct from old.org_id then
     raise exception 'org_id is immutable on a kitchen plan' using errcode = '42501';
@@ -304,11 +338,20 @@ begin
         using errcode = '23514';
     end if;
   end if;
+  -- The planner. Unlike the kitchen log's submitter, no policy pins this column to the session
+  -- person — the write gate is the ops_lead/admin role, which says who may write the row and nothing
+  -- about whose name goes on it.
+  if new.plan_by is not null then
+    select p.org_id into v_plan_org from shared.people p where p.id = new.plan_by;
+    if v_plan_org is distinct from new.org_id then
+      raise exception 'plan_by must belong to the same org as the kitchen plan' using errcode = '23514';
+    end if;
+  end if;
   return new;
 end;
 $$;
 comment on function ops._guard_kitchen_plan() is
-  'Guard: org_id and source immutable on UPDATE (42501); wip_item_id, branch_id and destination_branch_id must be same-org (23514, same seam as ops._guard_kitchen_log). SECURITY INVOKER.';
+  'Guard: org_id and source immutable on UPDATE (42501); wip_item_id, branch_id, destination_branch_id and plan_by must be same-org (23514, same seam as ops._guard_kitchen_log). SECURITY INVOKER.';
 
 create trigger kitchen_plans_guard
   before insert or update on ops.kitchen_plans

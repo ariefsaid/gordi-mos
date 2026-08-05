@@ -7,7 +7,7 @@
 --     all still produce one, and a cycle is a hang, not a wrong answer.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(12);
 
 select shared._test_seed_directory();
 -- org A: Exec f1 -> Lead R f2 -> Staff R f3 -> SubR f6 ; Lead 2 f4 -> Staff 2 f5
@@ -60,6 +60,30 @@ select throws_ok($$
    where id = '00000000-0000-0000-0000-0000000000f3'
 $$, '42501', 'a role may only report to a role in the same org',
   'a cross-org parent is refused');
+
+-- The table's OTHER existence-only reference, held to the same rule. A role's business unit is what
+-- BU-scoped capability grants and @BU fan-out resolve through, so a role scoped across the seam
+-- would answer both of those about the wrong tenant.
+select throws_ok($$
+  update shared.roles set business_unit_id = '00000000-0000-0000-0000-0000000000b2'
+   where id = '00000000-0000-0000-0000-0000000000f3'
+$$, '42501', 'a role may only be scoped to a business unit in the same org',
+  'a cross-org business unit is refused on UPDATE');
+
+-- On INSERT too, and specifically on a ROOT role — the guard returns early once it sees there is no
+-- parent edge to walk, so a check placed after that early return would never run for a root.
+select throws_ok($$
+  insert into shared.roles (id, org_id, business_unit_id, name, reports_to_role_id)
+  values ('00000000-0000-0000-0000-000000000ea2','00000000-0000-0000-0000-0000000000a1',
+          '00000000-0000-0000-0000-0000000000b2','Crossed Root', null)
+$$, '42501', 'a role may only be scoped to a business unit in the same org',
+  'a ROOT role with a cross-org business unit is refused — the check runs before the no-parent early return');
+
+-- Same-org, still allowed: the guard refuses the crossing rather than the column.
+select lives_ok($$
+  update shared.roles set business_unit_id = '00000000-0000-0000-0000-0000000000a3'
+   where id = '00000000-0000-0000-0000-0000000000f3'
+$$, 'a same-org business unit still writes');
 
 -- ── Termination on data that is ALREADY cyclic ───────────────────────────────────────────────
 -- The guard is disabled for the fixture on purpose: the subject here is is_manager_of, not the

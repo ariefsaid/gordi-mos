@@ -11,7 +11,7 @@
 -- success to the caller and produces a row nobody asked for.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(25);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -121,6 +121,59 @@ select throws_ok($$
           '00000000-0000-0000-0000-00000000ab01',1)
   $$, '23514', 'destination_branch_id must belong to the same org as the kitchen log',
   'nor transfer INTO another org''s branch — the destination is checked as well as the origin');
+
+-- The PEOPLE columns are the same class of reference as the four above, and until now the only ones
+-- on this table nothing compared. submitted_by is pinned by the INSERT policy and frozen by the
+-- guard, and reviewed_by is stamped server-side on a reject — but reviewed_by sits inside the UPDATE
+-- column grant, so a reviewer's own statement can carry one, and neither column is pinned at all on
+-- the service and flip-time import paths that write this table without a policy in the way.
+select throws_ok($$
+  insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
+                                wip_item_id, qty_porsi, submitted_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-25',
+          '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
+          '00000000-0000-0000-0000-00000000ab01',1,'00000000-0000-0000-0000-0000000000b4')
+  $$, '23514', 'submitted_by must belong to the same org as the kitchen log',
+  'a log cannot be submitted in a FOREIGN org''s person''s name');
+
+select throws_ok($$
+  insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
+                                wip_item_id, qty_porsi, submitted_by, reviewed_by, reviewed_at, status)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-25',
+          '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
+          '00000000-0000-0000-0000-00000000ab01',1,'00000000-0000-0000-0000-0000000000d1',
+          '00000000-0000-0000-0000-0000000000b4', now(), 'Approved')
+  $$, '23514', 'reviewed_by must belong to the same org as the kitchen log',
+  'nor reviewed by one — reviewed_by is inside the app tier''s column grant, so it needs the same check as the rest');
+
+-- An imported row legitimately has NO submitter, so the null-guard is load-bearing rather than
+-- defensive: without it this write would be diagnosed as a cross-org reference. Run with the role
+-- RESET, because that IS the import path — `source = 'import'` is refused to the app tier by policy,
+-- and the whole point of the guard is that it still applies to the writer the policy does not.
+reset role;
+select lives_ok($$
+  insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
+                                wip_item_id, qty_porsi, source, status, submitted_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-26',
+          '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
+          '00000000-0000-0000-0000-00000000ab01',1,'teable_import','Approved', null)
+  $$, 'a row with NO submitter still writes — an imported line has no MOS submitter, and the check must not invent one');
+
+-- ── The plan carries a planner, and it is held to the same rule ──────────────────────────────
+-- Unlike the log's submitter, no policy pins this column to the session person: the plan's write
+-- gate is the ops_lead/admin role, which says who may write the row and nothing about whose name
+-- goes on it.
+select throws_ok($$
+  insert into ops.kitchen_plans (org_id, log_date, branch_id, activity, action, wip_item_id,
+                                 qty_porsi, plan_by)
+  values ('00000000-0000-0000-0000-0000000000a1','2026-06-25','00000000-0000-0000-0000-00000000bf02',
+          'kitchen','produce','00000000-0000-0000-0000-00000000ab01',1,
+          '00000000-0000-0000-0000-0000000000b4')
+  $$, '23514', 'plan_by must belong to the same org as the kitchen plan',
+  'a plan cannot be attributed to a FOREIGN org''s person');
+
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
 -- ── The edit window closes at review ─────────────────────────────────────────────────────────
 -- Three controls in three different layers, asserted separately because each can be removed on its

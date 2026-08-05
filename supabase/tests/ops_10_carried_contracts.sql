@@ -35,7 +35,7 @@
 --   J  46_approve_rpc_atomicity (the deferred-mirror assertion)
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(35);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -168,6 +168,28 @@ select throws_ok($$
    where id = '00000000-0000-0000-0000-00000000ec02'
   $$, '23514', 'linked_task_id must belong to the same org as the log entry',
   'carried/28: nor re-pointed at one on UPDATE — an INSERT-only guard would leave the seam open to a second statement');
+
+-- The table's THIRD reference, held to the same rule. The INSERT policy pins created_by to the
+-- session person and the guard freezes it on UPDATE, so an app-tier write cannot reach it — but the
+-- service and import paths write this column with no policy in the way, and a rule that only holds
+-- where a policy applies is not a rule about the column. Asserted from the privileged side, which is
+-- exactly the writer the policy does not constrain.
+reset role;
+select throws_ok($$
+  insert into ops.log_entries (org_id, business_unit_id, title, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','foreign author',
+          '00000000-0000-0000-0000-0000000000b4')
+  $$, '23514', 'created_by must belong to the same org as the log entry',
+  'a Daily Log entry cannot be authored by a person from another org, even by the writer no policy constrains');
+
+select lives_ok($$
+  insert into ops.log_entries (org_id, business_unit_id, title, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','home author',
+          '00000000-0000-0000-0000-0000000000d1')
+  $$, '(positive): a same-org author still writes on that same path');
+
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 
 -- ON DELETE SET NULL, from the privileged side: the app tier cannot hard-delete a task, so this is
 -- the admin/cascade path. The entry must SURVIVE — a cascade here would delete floor history because

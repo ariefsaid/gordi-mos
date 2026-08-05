@@ -8,7 +8,7 @@
 -- org itself.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(35);
 
 select shared._test_seed_directory();
 
@@ -171,6 +171,47 @@ select lives_ok($$
   insert into mos.agent_events (run_id, seq, type, text)
   values ('00000000-0000-0000-0000-000000008008',3,'user','The echoed user turn')
 $$, 'a user turn is a first-class event type — without one persisted, a thread cannot be replayed from the database at all');
+
+-- The transcript is a two-link chain — thread -> run -> event — and both links are existence-only
+-- FKs into org-scoped tables. Every row in the chain is owner-pinned by its own policy, so a crossed
+-- link discloses nothing by itself; it is refused anyway, because "the parent is in another org" is
+-- the same defect wherever it appears and a chain whose links are only sometimes checked is how one
+-- of them ends up unchecked. Asserted from the privileged connection, where no policy is in the way.
+reset role;
+insert into mos.agent_threads (id, org_id, owner_id, title)
+values ('00000000-0000-0000-0000-00000000800b','00000000-0000-0000-0000-0000000000b1',
+        '00000000-0000-0000-0000-0000000000b4','Foreign thread');
+insert into mos.agent_runs (id, org_id, thread_id, owner_id)
+values ('00000000-0000-0000-0000-00000000800c','00000000-0000-0000-0000-0000000000b1',
+        '00000000-0000-0000-0000-00000000800b','00000000-0000-0000-0000-0000000000b4');
+
+select throws_ok($$
+  insert into mos.agent_runs (org_id, thread_id, owner_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000800b',
+          '00000000-0000-0000-0000-0000000000d1')
+$$, '42501', 'thread_id belongs to a different org',
+  'a run cannot hang off a FOREIGN org''s thread');
+
+select throws_ok($$
+  insert into mos.agent_events (org_id, run_id, owner_id, seq, type, text)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000800c',
+          '00000000-0000-0000-0000-0000000000d1',1,'assistant','Crossed event')
+$$, '42501', 'run_id belongs to a different org',
+  '...and an event cannot hang off a FOREIGN org''s run — the second link of the same chain');
+
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+
+-- The positive that keeps the two above about the crossing rather than about the chain: a run and an
+-- event on the caller's OWN thread still write, through the ordinary app-tier path.
+select lives_ok($$
+  insert into mos.agent_runs (id, thread_id) values
+    ('00000000-0000-0000-0000-00000000800d','00000000-0000-0000-0000-000000008007')
+$$, 'a run on a same-org thread still writes');
+select lives_ok($$
+  insert into mos.agent_events (run_id, seq, type, text)
+  values ('00000000-0000-0000-0000-00000000800d',1,'assistant','A same-org event')
+$$, '...and an event on that run does too');
 
 -- ── Push subscriptions ───────────────────────────────────────────────────────────────────────
 select lives_ok($$

@@ -6,7 +6,7 @@
 -- raising (a raise inside an RLS predicate surfaces as a probeable 500).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(28);
 
 select shared._test_seed_directory();
 -- org A = ...0a01 with Unit-1/Unit-2, the role tree and people d1..d7
@@ -94,6 +94,92 @@ select is((select count(*)::int from shared.roles), 0,
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"}';
 select cmp_ok((select count(*) from shared.roles), '>', 0::bigint,
   'a valid claim still resolves — the fail-closed path did not break normal extraction');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The seam resolves against the DIRECTORY, not against the claim alone
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- A claim set is minted once and stands until the token expires, so an org claim taken on its own
+-- describes the directory as it was at sign-in. These four say the seam reads the directory as it is
+-- now: the same org claim opens or closes depending on whether the person named alongside it still
+-- resolves to a live row. The control at the end is what makes the other three mean something — it
+-- is the same org_id, so what changed is the person and nothing else.
+--
+-- Note which table is counted: shared.roles, not shared.people. people carries people_select_self,
+-- which is keyed on current_person_id() and deliberately ungated, so a caller always reads their own
+-- row — that is what keeps the set-password screen renderable. Counting people would measure that
+-- policy instead of this seam.
+reset role;
+update shared.people set archived_at = now()
+ where id = '00000000-0000-0000-0000-0000000000d7';
+set local role authenticated;
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7"}';
+select is(shared.current_org_id(), null,
+  'an ARCHIVED person''s claim set resolves to NO org — the seam asks the directory, not the token');
+select is((select count(*)::int from shared.roles), 0,
+  '...and the org-scoped directory therefore reads zero rows, so archiving is an authorization change and not a UI one');
+
+-- A person_id that was never in the directory at all — the same answer by the same route.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000df"}';
+select is(shared.current_org_id(), null,
+  'a person_id claim that names nobody resolves to no org either');
+
+-- THE CONTROL. Identical org claim, live person: the seam opens. Without this the three above would
+-- also pass under a current_org_id() that had simply been broken to return NULL.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
+select is(shared.current_org_id(), '00000000-0000-0000-0000-0000000000a1'::uuid,
+  'the SAME org claim with a LIVE person still resolves — the person is what closed it, not the org');
+
+reset role;
+update shared.people set archived_at = null
+ where id = '00000000-0000-0000-0000-0000000000d7';
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The org-structure junctions cannot be assembled across the seam
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- shared.teams and shared.team_memberships hold four existence-only foreign keys between them, and
+-- an FK lookup checks existence only — it bypasses RLS, so the column alone will accept a row from
+-- any org. These assert the tenancy half that the FK cannot state. team_memberships matters beyond
+-- tidiness: the Signal read gate and the Team post/start gates resolve a caller's rights by asking
+-- whether a membership row exists.
+--
+-- Run with the role RESET, i.e. as the connection that actually writes these tables today. That is
+-- the point rather than a convenience: a trigger fires for every writer, so proving it here proves
+-- it for the seeding path too, where no policy is in the way.
+select throws_ok($$
+  insert into shared.teams (org_id, business_unit_id, name, code)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000b2','Crossed Team','crossed_team')
+$$, '42501', null,
+  'a team cannot be scoped to a FOREIGN org''s business unit');
+
+select throws_ok($$
+  insert into shared.teams (org_id, business_unit_id, site_id, name, code)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2',
+          '00000000-0000-0000-0000-000000000e02','Crossed Site Team','crossed_site_team')
+$$, '42501', null,
+  'a team cannot sit at a FOREIGN org''s site');
+
+select throws_ok($$
+  insert into shared.team_memberships (org_id, person_id, team_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000b4',
+          '00000000-0000-0000-0000-000000000e03')
+$$, '42501', null,
+  'a membership cannot enrol a FOREIGN org''s person — this junction is an authorization input to the Signal read gate, so it is held to the tenancy rule and not only to the FK');
+
+select throws_ok($$
+  insert into shared.team_memberships (org_id, person_id, team_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
+          '00000000-0000-0000-0000-000000000e04')
+$$, '42501', null,
+  '...and cannot enrol a same-org person into a FOREIGN org''s team either — both ends are checked');
+
+-- The honest positive: a wholly same-org membership still writes, so the guard is refusing the
+-- crossing rather than refusing the table.
+select lives_ok($$
+  insert into shared.team_memberships (org_id, person_id, team_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d2',
+          '00000000-0000-0000-0000-000000000e03')
+$$, 'a same-org membership still writes — the guard refuses the crossing, not the junction');
 
 reset role;
 select * from finish();

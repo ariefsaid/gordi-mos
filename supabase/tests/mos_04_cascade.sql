@@ -28,7 +28,7 @@
 -- capabilities and neither cascade one, so it is a genuine "has roles, not this one" negative.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(53);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────
 -- Orgs  A ...00ca / B ...00cb · BUs ...ca01 / ...cb01
@@ -254,6 +254,75 @@ select throws_ok($$
   values ('Cross-Org Anchor','project','00000000-0000-0000-0000-0000000000b2')
 $$, '42501', null,
   'DD-WAY-15: a Project/Process cannot be anchored to a FOREIGN org''s Objective — the new guard carries what the FK cannot');
+
+-- ── The Objective is not the only reference on the table ─────────────────────────────────────
+-- business_unit_id, accountable_person_id and responsible_person_id are the SAME kind of column as
+-- objective_id — existence-only FKs into org-scoped tables — and mos.tasks has org-checked its
+-- equivalents since the round-2 audit. Checking one of four made the rule look like a property of
+-- the cascade edge; these three say it is a property of every reference the table carries.
+-- accountable_person_id is the one with reach beyond this row: mos.spawn_process_run reads it back
+-- as a generated Task's Accountable, so a crossed value here would be copied onto real work.
+select throws_ok($$
+  insert into mos.work_lines (org_id, name, type, business_unit_id)
+  values ('00000000-0000-0000-0000-0000000000ca','Crossed BU Line','project','00000000-0000-0000-0000-00000000cb01')
+$$, '42501', 'business_unit_id belongs to a different org',
+  'a Project/Process cannot be owned by a FOREIGN org''s business unit');
+
+select throws_ok($$
+  insert into mos.work_lines (org_id, name, type, accountable_person_id)
+  values ('00000000-0000-0000-0000-0000000000ca','Crossed A Line','project','00000000-0000-0000-0000-00000000cb10')
+$$, '42501', 'accountable_person_id belongs to a different org',
+  'a Project/Process cannot name a FOREIGN org''s person as Accountable — spawn_process_run copies this onto generated tasks');
+
+select throws_ok($$
+  insert into mos.work_lines (org_id, name, type, responsible_person_id)
+  values ('00000000-0000-0000-0000-0000000000ca','Crossed R Line','project','00000000-0000-0000-0000-00000000cb10')
+$$, '42501', 'responsible_person_id belongs to a different org',
+  '...nor as Responsible');
+
+-- Same-org values still land, so the guard is refusing the crossing and not the columns. Written as
+-- a round-trip rather than a bare lives_ok: a guard that swallowed the values would pass the first
+-- half and fail the second.
+select lives_ok($$
+  insert into mos.work_lines (id, org_id, name, type, business_unit_id, accountable_person_id, responsible_person_id)
+  values ('00000000-0000-0000-0001-00000000000c','00000000-0000-0000-0000-0000000000ca','Fully Referenced','project',
+          '00000000-0000-0000-0000-00000000ca01','00000000-0000-0000-0000-00000000ca12','00000000-0000-0000-0000-00000000ca10')
+$$, 'a Project/Process with all three references same-org is accepted');
+select is(
+  (select accountable_person_id from mos.work_lines where id = '00000000-0000-0000-0001-00000000000c'),
+  '00000000-0000-0000-0000-00000000ca12'::uuid,
+  '...and the value it was given is the value stored');
+
+-- ── The Process definition tables carry the same seam ────────────────────────────────────────
+-- A cadence and a task definition both hang off a work_line_id, and the task definition adds six
+-- job-function references on top. mos.spawn_process_run reads all of them to decide what a generated
+-- Task says and who it is assigned to, so an unchecked reference here becomes a wrong Task later
+-- rather than a wrong row now.
+select throws_ok($$
+  insert into mos.process_cadences (org_id, work_line_id, cadence_kind)
+  values ('00000000-0000-0000-0000-0000000000ca','00000000-0000-0000-0001-000000000003','daily')
+$$, '42501', 'work_line_id belongs to a different org',
+  'a cadence cannot schedule a FOREIGN org''s Process');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position)
+  values ('00000000-0000-0000-0000-0000000000ca','00000000-0000-0000-0001-000000000003','Crossed Def',0)
+$$, '42501', 'work_line_id belongs to a different org',
+  'a task definition cannot belong to a FOREIGN org''s Process');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, pic_person_id)
+  values ('00000000-0000-0000-0000-0000000000ca','00000000-0000-0000-0001-000000000001','Crossed PIC',1,
+          '00000000-0000-0000-0000-00000000cb10')
+$$, '42501', 'pic_person_id belongs to a different org',
+  'a task definition cannot name a FOREIGN org''s person as PIC');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, supervisor_person_id)
+  values ('00000000-0000-0000-0000-0000000000ca','00000000-0000-0000-0001-000000000001','Crossed Sup',2,
+          '00000000-0000-0000-0000-00000000cb10')
+$$, '42501', 'supervisor_person_id belongs to a different org',
+  '...nor as supervisor — the PIC and supervisor halves are checked independently');
 
 -- The reason the edge exists: roll-up from the middle level, and drill-down from the top. Neither
 -- was expressible while an Objective''s children could only be inferred from tasks that happened to

@@ -127,6 +127,36 @@ comment on function shared._current_person_must_change_password() is
 revoke execute on function shared._current_person_must_change_password() from public, anon;
 grant  execute on function shared._current_person_must_change_password() to authenticated;
 
+-- ── Does the CALLER's person_id claim still resolve to a live directory row? ──────────────────
+-- Same shape, same reasons, same recursion break as the rotation check above: SECURITY DEFINER
+-- because shared.people's own SELECT policy calls current_org_id(), which calls this.
+--
+-- Read the polarity carefully, because it is the opposite of the rotation check's. A session with NO
+-- person_id claim returns TRUE — "nothing to invalidate" — so anon and the service/seed connection
+-- behave exactly as they did, and current_org_id() keeps resolving from the org claim alone on paths
+-- that never had a person. What returns FALSE is the specific case this exists for: a claim that
+-- NAMES a person who does not resolve — archived, or gone from the directory entirely.
+create or replace function shared._current_person_is_live()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select shared._claim_uuid('person_id') is null
+      or exists (select 1
+                   from shared.people p
+                  where p.id = shared._claim_uuid('person_id')
+                    and p.archived_at is null)
+$$;
+comment on function shared._current_person_is_live() is
+  'True unless the person_id claim names a directory row that is archived or absent. Read by '
+  'shared.current_org_id(). A session with no person_id claim is "live" — there is nothing to '
+  'invalidate — so anon and the service connection are unaffected. SECURITY DEFINER to break RLS '
+  'recursion via shared.people, exactly as _current_person_must_change_password does.';
+revoke execute on function shared._current_person_is_live() from public, anon;
+grant  execute on function shared._current_person_is_live() to authenticated;
+
 -- ── The org seam ─────────────────────────────────────────────────────────────────────────────
 -- Every org-scoped policy in every schema resolves through this one function, which is why the
 -- rotation gate lives here rather than being re-added to ~90 policies and hoped for.
@@ -134,6 +164,14 @@ grant  execute on function shared._current_person_must_change_password() to auth
 -- Deliberately NOT a JWT claim. A claim would be stale until the token refreshed, so the user who
 -- just set their password would stay locked out until then. Reading the table costs a lookup and is
 -- always current.
+--
+-- The live-person test is here for the SAME reason, and it is the same sentence read the other way
+-- round. A claim set is minted once and then stands until the token expires, so a seam that trusted
+-- the org claim on its own would be describing the directory as it was at sign-in rather than as it
+-- is now. The hook already refuses to mint identity for a person it cannot resolve; this is what
+-- makes a directory change take effect on the next statement instead of at the next mint, which is
+-- the property the rotation gate was given for exactly this argument. Both conditions read the same
+-- one-row lookup on shared.people, so this costs the seam nothing it was not already paying.
 create or replace function shared.current_org_id()
 returns uuid
 language sql
@@ -141,14 +179,16 @@ stable
 set search_path = ''
 as $$
   select case
+           when not shared._current_person_is_live()         then null::uuid
            when shared._current_person_must_change_password() then null::uuid
            else shared._claim_uuid('org_id')
          end
 $$;
 comment on function shared.current_org_id() is
   'Org id from the JWT custom claim (hook-injected, client-unspoofable). OD-P1-1. Returns NULL while '
-  'the caller must change their password, which closes every policy scoped by it — the flag gates '
-  'authorization, not merely the UI.';
+  'the caller must change their password, and NULL when the person_id claim no longer resolves to a '
+  'live directory row — so both the rotation flag and a directory change gate authorization on the '
+  'next statement rather than at the next token mint, not merely the UI.';
 
 create or replace function shared.is_org_member()
 returns boolean
@@ -552,6 +592,23 @@ begin
 
   if tg_op = 'INSERT' then
     new.granted_by := shared.current_person_id();
+
+    -- (5) The grant's subject is in the SAME org as the grant. person_id is an existence-only FK and
+    -- FK lookups bypass RLS, so the column alone will accept any person that exists anywhere; the
+    -- sibling shared._guard_person_roles has carried this check for a Jabatan since the round-2
+    -- audit, and an access role is the more consequential of the two because it is app privilege
+    -- rather than a job title. Compared against new.org_id rather than current_org_id(), which is the
+    -- idiom the tasks / work_lines / log_entries / kitchen guards use: it states the row's own
+    -- internal consistency, so it needs no service-connection exemption and holds on the seed path
+    -- too. The RLS WITH CHECK is what pins new.org_id to the caller's org.
+    -- Null-guarded although the column is NOT NULL: a BEFORE ROW trigger runs before NOT NULL is
+    -- checked, so an unguarded lookup would diagnose a missing required column as a tenancy
+    -- violation and pre-empt the more fundamental rule.
+    if new.person_id is not null
+       and not exists (select 1 from shared.people p
+                        where p.id = new.person_id and p.org_id = new.org_id) then
+      raise exception 'person is not in your org' using errcode = '42501';
+    end if;
   end if;
 
   if new.revoked_at is null
@@ -574,6 +631,7 @@ $$;
 comment on function shared._guard_person_access_roles() is
   'Guard (ADR-0011 D5 + ADR-0016 + ADR-0050 + ADR-0051): admin/finance/manager/supervisor never '
   'self-assignable on grant (42501); org_id/person_id/access_role immutable on UPDATE (42501); '
+  'the subject person must belong to the grant''s own org (42501), like the sibling Jabatan guard; '
   'granted_by/revoked_by forced server-side; no-lockout on the last active admin. SECURITY INVOKER.';
 
 create trigger person_access_roles_guard
@@ -601,8 +659,20 @@ as $$
 declare
   v_cursor uuid := new.reports_to_role_id;
   v_parent_org uuid;
+  v_bu_org uuid;
   v_hops   int  := 0;
 begin
+  -- The OTHER existence-only reference on this table, checked the same way as the parent edge below
+  -- and for the same reason: a role scoped to a business unit is how BU-scoped capabilities and @BU
+  -- fan-out resolve, so the two columns are one invariant and belong in one guard. Checked BEFORE
+  -- the root early-return, or a role with no parent would skip it.
+  if new.business_unit_id is not null then
+    select org_id into v_bu_org from shared.business_units where id = new.business_unit_id;
+    if v_bu_org is distinct from new.org_id then
+      raise exception 'a role may only be scoped to a business unit in the same org' using errcode = '42501';
+    end if;
+  end if;
+
   -- A root closes nothing.
   if v_cursor is null then
     return new;
@@ -641,20 +711,106 @@ begin
 end;
 $$;
 comment on function shared._guard_role_hierarchy() is
-  'Refuses a reports_to_role_id edge that would close a cycle, and refuses a cross-org parent. '
-  'SECURITY DEFINER so the walk sees the true graph rather than the writer''s RLS-filtered view.';
+  'The ONE guard on shared.roles: refuses a reports_to_role_id edge that would close a cycle, and '
+  'refuses a cross-org parent or a cross-org business_unit_id (42501). SECURITY DEFINER so the walk '
+  'sees the true graph rather than the writer''s RLS-filtered view.';
 
 -- Only ever reached as a trigger, which fires in the table's own context and needs no EXECUTE
 -- grant, so the full revoke is safe here (unlike _current_person_must_change_password, which
 -- policies call and which therefore needs the grant back to authenticated).
 revoke execute on function shared._guard_role_hierarchy() from public, anon, authenticated;
 
--- Fires on INSERT always, and on UPDATE only when the edge actually moves — an unrelated rename
--- should not pay for a hierarchy walk.
+-- Fires on INSERT always, and on UPDATE only when one of the guarded columns actually moves — an
+-- unrelated rename should not pay for a hierarchy walk. business_unit_id is in the list because the
+-- guard now checks it; leaving it out would make the check INSERT-only and let an UPDATE re-point a
+-- role at another org's business unit unobserved.
 create trigger guard_role_hierarchy
-before insert or update of reports_to_role_id, org_id on shared.roles
+before insert or update of reports_to_role_id, business_unit_id, org_id on shared.roles
 for each row
 execute function shared._guard_role_hierarchy();
+
+-- ── shared.teams — the org-structure references are same-org ─────────────────────────────────
+-- business_unit_id and site_id are existence-only FKs into org-scoped tables, so the columns alone
+-- accept a row from any org. There is no INSERT/UPDATE grant for `authenticated` today, which is why
+-- this is written as an internal-consistency rule against new.org_id rather than against
+-- current_org_id(): stated that way it holds identically for the seed and service connections that
+-- ARE the writers today, and it will still hold unchanged on the day the deferred admin surface adds
+-- an app-tier write. A guard that only fires for sessions is a guard that starts working later.
+create or replace function shared._guard_teams()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_bu_org   uuid;
+  v_site_org uuid;
+begin
+  if new.business_unit_id is not null then
+    select org_id into v_bu_org from shared.business_units where id = new.business_unit_id;
+    if v_bu_org is distinct from new.org_id then
+      raise exception 'business_unit_id must belong to the same org as the team' using errcode = '42501';
+    end if;
+  end if;
+  if new.site_id is not null then
+    select org_id into v_site_org from shared.sites where id = new.site_id;
+    if v_site_org is distinct from new.org_id then
+      raise exception 'site_id must belong to the same org as the team' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+comment on function shared._guard_teams() is
+  'The ONE guard on shared.teams: business_unit_id and site_id must belong to the team''s own org '
+  '(42501). Existence-only FKs bypass RLS, so the tenancy half lives here. SECURITY INVOKER.';
+
+create trigger teams_guard
+  before insert or update on shared.teams
+  for each row execute function shared._guard_teams();
+
+-- ── shared.team_memberships — a membership joins a person and a team in ONE org ──────────────
+-- Both columns are existence-only FKs, and this junction is an AUTHORIZATION INPUT rather than a
+-- label: mos.can_read_signal's R1 arm, mos.can_post_signal_for_team and mos.can_start_process_for_team
+-- all resolve a caller's rights by asking whether a membership row exists. A row pairing one org's
+-- person with another org's team is therefore not inert reference data even while nothing but the
+-- seed can write it, which is the whole reason it is guarded ahead of a write surface existing.
+create or replace function shared._guard_team_memberships()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_person_org uuid;
+  v_team_org   uuid;
+begin
+  -- Both arms null-guarded although both columns are NOT NULL: a BEFORE ROW trigger runs before NOT
+  -- NULL is checked, so an unguarded lookup would diagnose a missing required column as a tenancy
+  -- violation and pre-empt the more fundamental rule.
+  if new.person_id is not null then
+    select org_id into v_person_org from shared.people where id = new.person_id;
+    if v_person_org is distinct from new.org_id then
+      raise exception 'person_id must belong to the same org as the membership' using errcode = '42501';
+    end if;
+  end if;
+  if new.team_id is not null then
+    select org_id into v_team_org from shared.teams where id = new.team_id;
+    if v_team_org is distinct from new.org_id then
+      raise exception 'team_id must belong to the same org as the membership' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+comment on function shared._guard_team_memberships() is
+  'The ONE guard on shared.team_memberships: the person and the team must both belong to the '
+  'membership''s own org (42501). Team membership is read as an authorization input by the Signal '
+  'read gate and the Team post/start gates, so the pairing is held to the tenancy rule. SECURITY INVOKER.';
+
+create trigger team_memberships_guard
+  before insert or update on shared.team_memberships
+  for each row execute function shared._guard_team_memberships();
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 5. The access-token hook — the single audited claim-injection point (ADR-0001 D1)
@@ -694,14 +850,29 @@ begin
         '[]'::jsonb),
       true);
   else
-    claims := jsonb_set(claims, '{access_roles}', '[]'::jsonb, true);
+    -- No live person resolves, so the hook has no identity and no tenant to state, and it says so
+    -- explicitly rather than by omission. All THREE claims are written, because the hook's output is
+    -- a function of the LOOKUP: `event -> 'claims'` is an input the hook copies forward, so every
+    -- claim the hook owns is stated on every path, whatever arrived under those keys. Identity and
+    -- tenant travel together — shared.current_org_id() reads the org_id claim and every org-scoped
+    -- policy resolves through it — so the three are one statement and are cleared as one. NULL
+    -- rather than absent, for the same reason access_roles is '[]' rather than absent:
+    -- shared._claim_uuid returns NULL for both, so the fail-closed result is identical, and a
+    -- present-and-null claim is legible to anyone reading a decoded token, where a missing key reads
+    -- as "the hook did not run".
+    claims := jsonb_set(claims, '{org_id}',       'null'::jsonb, true);
+    claims := jsonb_set(claims, '{person_id}',    'null'::jsonb, true);
+    claims := jsonb_set(claims, '{access_roles}', '[]'::jsonb,   true);
   end if;
 
   return jsonb_set(event, '{claims}', claims);
 end;
 $$;
 comment on function shared.custom_access_token_hook(jsonb) is
-  'Auth hook: stamps org_id + person_id + access_roles (the non-revoked assigned set) from shared.*. OD-P1-1/2, ADR-0011 D5.';
+  'Auth hook: stamps org_id + person_id + access_roles (the non-revoked assigned set) from shared.*. '
+  'OD-P1-1/2, ADR-0011 D5. When no live person resolves it states all three as empty — null org, null '
+  'person, [] roles — so the minted token describes the lookup rather than whatever the incoming '
+  'event happened to carry.';
 
 -- Supabase Auth runs the hook as supabase_auth_admin; lock execution to that role only.
 revoke execute on function shared.custom_access_token_hook(jsonb) from public, anon, authenticated;

@@ -2,7 +2,7 @@
 -- grant guard, provenance, soft revoke, capabilities, and the no-lockout floor.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(41);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -110,6 +110,64 @@ select ok(not (
   ) -> 'claims' -> 'access_roles' ? 'manager'),
   'the derived reporting-line manager is never stamped into the claim');
 
+-- ── The hook's output is a function of the LOOKUP, not of what arrived on the event ──────────
+-- `event -> 'claims'` is an input, and the hook copies it forward. So every claim the hook owns is
+-- STATED on every branch, including the one where no live person resolves — org_id and person_id as
+-- much as access_roles, since shared.current_org_id() reads exactly that org_id key.
+--
+-- The event below is built the way it has to be for these to prove anything: it carries a plausible
+-- org and person for a user_id that resolves to nobody. Against an empty event they would pass
+-- trivially; what they measure is that the minted claims still describe the lookup WITH an input
+-- present under the same keys.
+select is(
+  shared.custom_access_token_hook(
+    jsonb_build_object('user_id','00000000-0000-0000-0000-0000000000ff',
+      'claims', jsonb_build_object(
+        'org_id',    '00000000-0000-0000-0000-0000000000a1',
+        'person_id', '00000000-0000-0000-0000-0000000000d1'))
+  ) -> 'claims' -> 'org_id',
+  'null'::jsonb,
+  'an org_id arriving on the event does NOT survive a lookup that found no live person — the hook states the org it resolved');
+
+select is(
+  shared.custom_access_token_hook(
+    jsonb_build_object('user_id','00000000-0000-0000-0000-0000000000ff',
+      'claims', jsonb_build_object(
+        'org_id',    '00000000-0000-0000-0000-0000000000a1',
+        'person_id', '00000000-0000-0000-0000-0000000000d1'))
+  ) -> 'claims' -> 'person_id',
+  'null'::jsonb,
+  '...and neither does person_id — identity and tenant are cleared together, so no combination of them can be inherited');
+
+-- An ARCHIVED person, not merely an unlinked auth user: the hook's lookup filters archived_at, so
+-- this is the case that arises in practice — the account still exists, the person no longer does.
+select lives_ok($$
+  update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d1'
+$$, 'the hook''s subject can be archived — the directory keeps the row, which is why the hook has to filter it');
+
+select is(
+  shared.custom_access_token_hook(
+    jsonb_build_object('user_id','00000000-0000-0000-0000-00000000aa01',
+      'claims', jsonb_build_object(
+        'org_id',    '00000000-0000-0000-0000-0000000000a1',
+        'person_id', '00000000-0000-0000-0000-0000000000d1'))
+  ) -> 'claims',
+  jsonb_build_object('org_id', null, 'person_id', null, 'access_roles', '[]'::jsonb),
+  'an ARCHIVED person''s auth user mints null org, null person and no roles — all three, as one statement');
+
+select lives_ok($$
+  update shared.people set archived_at = null where id = '00000000-0000-0000-0000-0000000000d1'
+$$, 'restored, so the assertions below still describe a live subject');
+
+-- The control: with the person live again, the SAME event shape mints a real org and person. Without
+-- this the four above would also pass under a hook that had simply been broken to clear everything.
+select is(
+  shared.custom_access_token_hook(
+    jsonb_build_object('user_id','00000000-0000-0000-0000-00000000aa01','claims', jsonb_build_object())
+  ) -> 'claims' -> 'org_id',
+  to_jsonb('00000000-0000-0000-0000-0000000000a1'::text),
+  'a LIVE person still gets a real org_id — the clearing branch is the exception, not the behaviour');
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- The grant guard
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -131,6 +189,28 @@ select lives_ok($$
   insert into shared.person_access_roles (person_id, access_role)
   values ('00000000-0000-0000-0000-0000000000d5','finance')
 $$, 'an admin may grant finance to another person');
+
+-- ...and "someone else" stops at the tenant boundary. person_id is an existence-only FK, and an FK
+-- lookup bypasses RLS, so the column alone accepts any person that exists anywhere; the row's own
+-- org_id is pinned by the policy, which says nothing about whose id sits in the person column. This
+-- is app privilege rather than a job title, so it is the more consequential of the pair — the
+-- sibling Jabatan guard has carried the same check since the round-2 audit.
+select throws_ok($$
+  insert into shared.person_access_roles (person_id, access_role)
+  values ('00000000-0000-0000-0000-0000000000b4','member')
+$$, '42501', null,
+  'an access role cannot be granted to a person in ANOTHER org — the grant''s own org_id being right does not make its subject right');
+
+-- Run as the migration owner too, so the refusal is proven to be the guard rather than the policy:
+-- this connection bypasses RLS entirely, and the write is still refused.
+reset role;
+select throws_ok($$
+  insert into shared.person_access_roles (org_id, person_id, access_role)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000b4','member')
+$$, '42501', null,
+  '...and the refusal survives an RLS-bypassing connection, so it is the guard refusing and not a policy');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 
 -- Provenance cannot be forged: the guard OVERWRITES a client-supplied granted_by.
 select lives_ok($$

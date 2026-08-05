@@ -20,7 +20,7 @@
 --   ForeignMgr  ...0b4 org B             cross-tenant
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(28);
 
 select shared._test_seed_directory();
 
@@ -143,6 +143,33 @@ select throws_ok($$
   insert into mos.weekly_update_items (org_id, weekly_update_id, label, position)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000006001','   ',0)
 $$, '23514', null, 'a blank line label is refused — whitespace is not content');
+
+-- ── The two people columns are same-org ──────────────────────────────────────────────────────
+-- person_id is the argument mos.can_read_weekly_update walks the reporting line with, so it decides
+-- who reads the row; created_by is pinned by no policy on any path. Both are existence-only FKs.
+-- Asserted from the privileged connection, which is the writer with no policy in the way — the
+-- INSERT policy already pins person_id for an app-tier session, so testing there would measure the
+-- policy rather than this guard.
+reset role;
+select throws_ok($$
+  insert into mos.weekly_updates (org_id, person_id, week_start, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000b4','2026-03-02',
+          '00000000-0000-0000-0000-0000000000d1')
+$$, '42501', 'person_id belongs to a different org',
+  'an update cannot be written ABOUT a person in another org — that person_id is what the read gate walks');
+
+select throws_ok($$
+  insert into mos.weekly_updates (org_id, person_id, week_start, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','2026-03-09',
+          '00000000-0000-0000-0000-0000000000b4')
+$$, '42501', 'created_by belongs to a different org',
+  '...nor created BY one');
+
+select lives_ok($$
+  insert into mos.weekly_updates (org_id, person_id, week_start, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','2026-03-16',
+          '00000000-0000-0000-0000-0000000000d1')
+$$, '(positive): a wholly same-org update still writes on that same path');
 
 select * from finish();
 rollback;

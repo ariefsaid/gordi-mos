@@ -16,7 +16,7 @@
 -- assertions are about. It shapes the fixture; it changes no policy.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(36);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -94,6 +94,50 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-000000005b01', now(), 'Machine-claimed', 'rule')
 $$, '42501', null,
   'source must be ''human'' on an app-written Signal — the other two values exist for producers that do not exist yet');
+
+-- ── The owning Team is a tenancy reference, not only an authorization one ────────────────────
+-- Two different questions travel on owning_team_id and they are answered in two different places.
+-- mos.can_post_signal_for_team asks "may you post for this Team" — an authorization question, whose
+-- first arm is the signal.create_for_team capability and is therefore about the CALLER. "Is this
+-- Team yours to name" is a tenancy question about the ROW, and that one is the guard's. It carries
+-- more weight on this table than on most: mos.can_read_signal joins the owning Team to decide who
+-- may read the Signal at all.
+reset role;
+insert into shared.teams (id, org_id, business_unit_id, name, code)
+values ('00000000-0000-0000-0000-000000005bff','00000000-0000-0000-0000-0000000000b1',
+        '00000000-0000-0000-0000-0000000000b2','Foreign Team','foreign_team');
+set local role authenticated;
+
+-- DirectMgr ...0d2 as ops_lead holds signal.create_for_team, so the authorization half is satisfied
+-- for them whatever team is named — which is what makes this a clean measurement of the other half.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select ok(mos.can_post_signal_for_team('00000000-0000-0000-0000-000000005bff'),
+  'precondition: the post GATE says yes to a foreign team for a signal.create_for_team holder — it is an authorization test, not a tenancy one');
+select throws_ok($$
+  insert into mos.signals (owning_team_id, occurred_at, body)
+  values ('00000000-0000-0000-0000-000000005bff', now(), 'Owned by a foreign team')
+$$, '42501', 'owning_team_id belongs to a different org',
+  '...and the write is refused anyway — the tenancy half is the guard''s, and it is the only thing standing here');
+
+-- Proven against an RLS-bypassing connection too, so the refusal is demonstrably the guard rather
+-- than any policy: this writer has no policy applied to it at all.
+reset role;
+select throws_ok($$
+  insert into mos.signals (org_id, author_id, owning_team_id, occurred_at, body)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
+          '00000000-0000-0000-0000-000000005bff', now(), 'Owned by a foreign team, no policy in the way')
+$$, '42501', 'owning_team_id belongs to a different org',
+  'the same refusal holds for a connection that bypasses RLS entirely — it is the guard, on INSERT');
+
+select throws_ok($$
+  insert into mos.signals (org_id, author_id, owning_team_id, occurred_at, body)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000b4',
+          '00000000-0000-0000-0000-000000005b01', now(), 'Authored by a foreign person')
+$$, '42501', 'author_id belongs to a different org',
+  'and the author reference is held to the same rule on that path — the policy''s author pin covers the app tier, the guard covers the column');
+
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 
 -- ── Immutability and the author-only content rule ────────────────────────────────────────────
 select throws_ok($$
@@ -185,6 +229,44 @@ select throws_ok($$
     '[{"kind":"person","targetId":"00000000-0000-0000-0000-0000000000b4"}]'::jsonb)
 $$, '42501', null,
   'a cross-org mention target is rejected BEFORE anything is written — so a failed post leaves no orphan Signal behind');
+
+-- ── The Signal→Task link ─────────────────────────────────────────────────────────────────────
+-- Its INSERT policy reaches three of the row's four columns: it pins org_id, pins created_by to the
+-- session person, and puts signal_id behind the Signal read gate. task_id is the one it cannot ask
+-- about, because a WITH CHECK cannot join to another table's org without re-opening a read — which
+-- is exactly the shape the guards exist for.
+reset role;
+insert into shared.orgs (id, name, slug) values
+  ('00000000-0000-0000-0000-0000000000c8','Link Probe Org','link-probe-org');
+insert into shared.business_units (id, org_id, name) values
+  ('00000000-0000-0000-0000-00000000c8b1','00000000-0000-0000-0000-0000000000c8','Probe BU');
+insert into shared.people (id, org_id, full_name) values
+  ('00000000-0000-0000-0000-00000000c8d1','00000000-0000-0000-0000-0000000000c8','Probe Person');
+insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+values ('00000000-0000-0000-0000-00000000c8a1','00000000-0000-0000-0000-0000000000c8','Foreign Task',
+        '00000000-0000-0000-0000-00000000c8b1','00000000-0000-0000-0000-00000000c8d1',
+        '00000000-0000-0000-0000-00000000c8d1','00000000-0000-0000-0000-00000000c8d1');
+
+select throws_ok($$
+  insert into mos.signal_tasks (org_id, signal_id, task_id, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000007001',
+          '00000000-0000-0000-0000-00000000c8a1','00000000-0000-0000-0000-0000000000d1')
+$$, '42501', 'task_id belongs to a different org',
+  'a Signal cannot be linked to a FOREIGN org''s Task — the fourth column, which the policy cannot reach');
+
+-- The same-org link still writes, so the guard refuses the crossing rather than the link. The task
+-- is created here rather than borrowed from the fixture, so this cannot silently degrade into
+-- "there was no task to link" — which is precisely how the first draft of this assertion passed for
+-- the wrong reason and then failed for the right one.
+insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+values ('00000000-0000-0000-0000-00000000a7a1','00000000-0000-0000-0000-0000000000a1','Home Task',
+        '00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d1',
+        '00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000d1');
+select lives_ok($$
+  insert into mos.signal_tasks (org_id, signal_id, task_id, created_by)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000007001',
+          '00000000-0000-0000-0000-00000000a7a1','00000000-0000-0000-0000-0000000000d1')
+$$, 'a same-org Signal→Task link still writes');
 
 reset role;
 select * from finish();

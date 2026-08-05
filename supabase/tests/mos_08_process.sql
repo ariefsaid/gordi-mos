@@ -18,7 +18,7 @@
 --   TdTwin   ...d003  role Twin Station, TWO holders                            -> pending, 'multiple'
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(34);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -199,6 +199,58 @@ select is(
 select ok(not has_table_privilege('authenticated','mos.process_runs','INSERT')
       and not has_table_privilege('authenticated','mos.process_run_pending_tasks','UPDATE'),
   'runs and the pending queue hold no write privilege for authenticated — the RPCs are the only way in, so the gates and the idempotency key cannot be sidestepped');
+
+-- ── A job function is expressible three ways, and all three stop at the tenant boundary ──────
+-- A template names its PIC and its supervisor as a person, a role, or a team. The person arm is
+-- asserted in mos_04_cascade; these are the other two, on both halves, because mos._function_holders
+-- resolves a role-or-team reference into an assignee and it is pinned to an explicit org — so a
+-- crossed reference here would be a definition permanently naming a function that can never resolve.
+-- Fixtures live in the Probe Org created above, which is what makes them genuinely foreign.
+reset role;
+insert into shared.business_units (id, org_id, name)
+values ('00000000-0000-0000-0000-0000000099c9','00000000-0000-0000-0000-0000000000c9','Probe Unit');
+insert into shared.roles (id, org_id, business_unit_id, name)
+values ('00000000-0000-0000-0000-000000009f01','00000000-0000-0000-0000-0000000000c9',
+        '00000000-0000-0000-0000-0000000099c9','Probe Role');
+insert into shared.teams (id, org_id, business_unit_id, name, code)
+values ('00000000-0000-0000-0000-000000009c01','00000000-0000-0000-0000-0000000000c9',
+        '00000000-0000-0000-0000-0000000099c9','Probe Team','probe_team');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, pic_role_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c001','Crossed PIC Role',80,
+          '00000000-0000-0000-0000-000000009f01')
+$$, '42501', 'pic_role_id belongs to a different org',
+  'a template cannot name a FOREIGN org''s role as the PIC job function');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, pic_team_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c001','Crossed PIC Team',81,
+          '00000000-0000-0000-0000-000000009c01')
+$$, '42501', 'pic_team_id belongs to a different org',
+  '...nor a FOREIGN org''s team as the PIC scope');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, supervisor_role_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c001','Crossed Sup Role',82,
+          '00000000-0000-0000-0000-000000009f01')
+$$, '42501', 'supervisor_role_id belongs to a different org',
+  'the supervisor half is checked independently of the PIC half — role arm');
+
+select throws_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, supervisor_team_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c001','Crossed Sup Team',83,
+          '00000000-0000-0000-0000-000000009c01')
+$$, '42501', 'supervisor_team_id belongs to a different org',
+  '...and team arm');
+
+-- Same-org, still writable — a template that names a real in-org role and team is the normal case,
+-- and the fixture's own templates are built exactly that way.
+select lives_ok($$
+  insert into mos.process_task_defs (org_id, work_line_id, title, position, pic_role_id, supervisor_role_id)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c001','Honest Template',84,
+          '00000000-0000-0000-0000-00000000e001','00000000-0000-0000-0000-00000000e002')
+$$, 'a template naming same-org job functions still writes');
 
 reset role;
 select * from finish();

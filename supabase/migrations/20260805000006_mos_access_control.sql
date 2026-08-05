@@ -353,12 +353,24 @@ grant  execute on function mos.can_work_lane(text) to authenticated;
 -- is org-readable, so a cross-org id is invisible to the caller, the lookup returns no row, and the
 -- guard raises. 42501 matches the sibling cascade check on mos.tasks — same class of violation,
 -- same code, so a client need not learn two.
+--
+-- The Objective is not the only reference the table carries. business_unit_id, accountable_person_id
+-- and responsible_person_id are the SAME kind of column — existence-only FKs into org-scoped
+-- directory tables — and mos.tasks has org-checked its equivalents since the round-2 audit. The rule
+-- is a property of every reference on a tenant-scoped table rather than of the cascade edge, so all
+-- four are written together here and the next reader sees one rule rather than one exception.
+-- accountable_person_id carries furthest: mos.spawn_process_run reads it back as a generated Task's
+-- Accountable, so its tenancy propagates onto real work.
 create or replace function mos._guard_work_lines()
 returns trigger
 language plpgsql
 security invoker
 set search_path = ''
 as $$
+declare
+  v_bu_org   uuid;
+  v_acc_org  uuid;
+  v_resp_org uuid;
 begin
   if new.objective_id is not null then
     if not exists (
@@ -368,15 +380,147 @@ begin
       raise exception 'objective_id belongs to a different org' using errcode = '42501';
     end if;
   end if;
+
+  -- Every arm is guarded on `is not null` because all three columns are nullable, and a NULL means
+  -- "not set" rather than "set to nothing" — the lookup would return NULL and the comparison would
+  -- report a tenancy violation for a value the caller never supplied.
+  if new.business_unit_id is not null then
+    select bu.org_id into v_bu_org from shared.business_units bu where bu.id = new.business_unit_id;
+    if v_bu_org is distinct from new.org_id then
+      raise exception 'business_unit_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
+  if new.accountable_person_id is not null then
+    select p.org_id into v_acc_org from shared.people p where p.id = new.accountable_person_id;
+    if v_acc_org is distinct from new.org_id then
+      raise exception 'accountable_person_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
+  if new.responsible_person_id is not null then
+    select p.org_id into v_resp_org from shared.people p where p.id = new.responsible_person_id;
+    if v_resp_org is distinct from new.org_id then
+      raise exception 'responsible_person_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
   return new;
 end;
 $$;
 comment on function mos._guard_work_lines() is
-  'Guard (DD-WAY-15): a Project/Process may only reference an Objective in its OWN org (42501). The FK checks existence only and FK lookups bypass RLS, so the tenancy half has to live here. SECURITY INVOKER.';
+  'The ONE guard on mos.work_lines (DD-WAY-15): the Objective, the business unit and the Accountable/Responsible people must all belong to the Project/Process''s OWN org (42501). Every one of the four is an existence-only FK and FK lookups bypass RLS, so the tenancy half has to live here. SECURITY INVOKER.';
 
 create trigger work_lines_guard
   before insert or update on mos.work_lines
   for each row execute function mos._guard_work_lines();
+
+-- ── mos.process_cadences ─────────────────────────────────────────────────────────────────────
+-- One column, same rule. The cadence is the Process's schedule, and mos.spawn_process_run looks it
+-- up by work_line_id to decide a period key — so a cadence attached across the seam would be
+-- describing another org's Process. Written as its own guard rather than folded anywhere, because
+-- the file's standing rule is exactly one guard function per table.
+create or replace function mos._guard_process_cadences()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  -- Null-guarded even though the column is NOT NULL, for the reason ops._guard_kitchen_log states at
+  -- length: a BEFORE ROW trigger runs before NOT NULL is checked, so an unguarded lookup would
+  -- diagnose a missing required column (23502) as a tenancy violation (42501) and pre-empt the more
+  -- fundamental rule. Every reference check added in this pass is written this way.
+  if new.work_line_id is not null and not exists (
+    select 1 from mos.work_lines w where w.id = new.work_line_id and w.org_id = new.org_id
+  ) then
+    raise exception 'work_line_id belongs to a different org' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+comment on function mos._guard_process_cadences() is
+  'The ONE guard on mos.process_cadences: the cadence''s Process must belong to its own org (42501). SECURITY INVOKER.';
+
+create trigger process_cadences_guard
+  before insert or update on mos.process_cadences
+  for each row execute function mos._guard_process_cadences();
+
+-- ── mos.process_task_defs ────────────────────────────────────────────────────────────────────
+-- Seven references, all existence-only, on a table with an admin/ops_lead write policy. Six of them
+-- are the job-function pair — a PIC and a supervisor, each expressible as a person, a role or a team
+-- — and they are read back by mos.spawn_process_run and mos.resolve_pending_task to decide who a
+-- generated Task is assigned to. mos._function_holders already pins its own resolution to an explicit
+-- p_org, so a crossed reference resolves no holder there; this is the other half of that same
+-- intent, applied where the reference is WRITTEN rather than where it is read, so the definition
+-- cannot hold a value the resolver will only ever ignore.
+--
+-- Written as one loop-free block rather than a clever generic check: seven named columns produce
+-- seven named errors, and a caller reading 'pic_team_id belongs to a different org' can act on it.
+create or replace function mos._guard_process_task_defs()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_org uuid;
+begin
+  -- Null-guarded like every other arm — see mos._guard_process_cadences for why a NOT NULL column
+  -- still gets one.
+  if new.work_line_id is not null and not exists (
+    select 1 from mos.work_lines w where w.id = new.work_line_id and w.org_id = new.org_id
+  ) then
+    raise exception 'work_line_id belongs to a different org' using errcode = '42501';
+  end if;
+
+  if new.pic_person_id is not null then
+    select p.org_id into v_org from shared.people p where p.id = new.pic_person_id;
+    if v_org is distinct from new.org_id then
+      raise exception 'pic_person_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+  if new.pic_role_id is not null then
+    select r.org_id into v_org from shared.roles r where r.id = new.pic_role_id;
+    if v_org is distinct from new.org_id then
+      raise exception 'pic_role_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+  if new.pic_team_id is not null then
+    select t.org_id into v_org from shared.teams t where t.id = new.pic_team_id;
+    if v_org is distinct from new.org_id then
+      raise exception 'pic_team_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
+  if new.supervisor_person_id is not null then
+    select p.org_id into v_org from shared.people p where p.id = new.supervisor_person_id;
+    if v_org is distinct from new.org_id then
+      raise exception 'supervisor_person_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+  if new.supervisor_role_id is not null then
+    select r.org_id into v_org from shared.roles r where r.id = new.supervisor_role_id;
+    if v_org is distinct from new.org_id then
+      raise exception 'supervisor_role_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+  if new.supervisor_team_id is not null then
+    select t.org_id into v_org from shared.teams t where t.id = new.supervisor_team_id;
+    if v_org is distinct from new.org_id then
+      raise exception 'supervisor_team_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+comment on function mos._guard_process_task_defs() is
+  'The ONE guard on mos.process_task_defs: the Process it belongs to, and each of the six job-function references (PIC and supervisor, as person / role / team), must belong to the definition''s own org (42501). SECURITY INVOKER.';
+
+create trigger process_task_defs_guard
+  before insert or update on mos.process_task_defs
+  for each row execute function mos._guard_process_task_defs();
 
 -- ── mos.tasks — ONE guard, four carried invariant sets ───────────────────────────────────────
 -- Merged from four separate trigger functions on the prior chains. The order of the sections below
@@ -564,7 +708,28 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
+declare
+  v_subject_org uuid;
+  v_creator_org uuid;
 begin
+  -- Same-org references. person_id is pinned to the session person by the INSERT policy, so the
+  -- check adds nothing there — but weekly_updates also has a service/seed write path with no policy
+  -- behind it, and created_by is pinned by nothing at all on any path. Both are existence-only FKs
+  -- into shared.people, and person_id in particular is the argument mos.can_read_weekly_update walks
+  -- the reporting line with, so it decides who reads the row.
+  if new.person_id is not null then
+    select p.org_id into v_subject_org from shared.people p where p.id = new.person_id;
+    if v_subject_org is distinct from new.org_id then
+      raise exception 'person_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+  if new.created_by is not null then
+    select p.org_id into v_creator_org from shared.people p where p.id = new.created_by;
+    if v_creator_org is distinct from new.org_id then
+      raise exception 'created_by belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
   -- Submit-lock: the summary freezes while submitted. Reopen (submitted -> draft) is explicitly let
   -- through, so the lock is a workflow step and not a trap.
   if tg_op = 'UPDATE'
@@ -588,7 +753,7 @@ begin
 end;
 $$;
 comment on function mos._guard_weekly_updates() is
-  'The ONE guard on mos.weekly_updates, merged from the submitted_at stamp and the summary submit-lock. Editing a submitted summary raises 42501; reopening to draft is allowed. submitted_at is owned server-side so the status CHECK always holds.';
+  'The ONE guard on mos.weekly_updates, merged from the submitted_at stamp and the summary submit-lock. person_id and created_by must be same-org (42501); editing a submitted summary raises 42501; reopening to draft is allowed. submitted_at is owned server-side so the status CHECK always holds.';
 
 create trigger weekly_updates_guard
   before insert or update on mos.weekly_updates
@@ -604,7 +769,44 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_team_org   uuid;
+  v_author_org uuid;
 begin
+  -- SAME-ORG REFERENCES, checked on INSERT as well as UPDATE — which is why this trigger is no
+  -- longer UPDATE-only. owning_team_id and author_id are existence-only FKs into org-scoped tables.
+  -- The INSERT policy pins the row's own org_id and pins author_id to the session person, and it
+  -- calls mos.can_post_signal_for_team(owning_team_id) — but that gate answers "may you post for
+  -- this Team", and its first arm is a capability that is true regardless of which Team was named,
+  -- so it is an authorization test and not a tenancy test. The two questions are different and the
+  -- second one belongs here, with the rest of this table's invariants. It matters more on this table
+  -- than on most: mos.can_read_signal joins the owning Team to decide who may read a Signal at all.
+  --
+  -- Compared against new.org_id, the idiom the sibling guards use, so the rule states the row's own
+  -- internal consistency and holds identically on the seed and service paths.
+  -- Both arms null-guarded although both columns are NOT NULL: a BEFORE ROW trigger runs before NOT
+  -- NULL is checked, so an unguarded lookup would report a tenancy violation for a column the caller
+  -- simply left out. Same idiom as ops._guard_kitchen_log.
+  if new.owning_team_id is not null then
+    select t.org_id into v_team_org from shared.teams t where t.id = new.owning_team_id;
+    if v_team_org is distinct from new.org_id then
+      raise exception 'owning_team_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+  if new.author_id is not null then
+    select p.org_id into v_author_org from shared.people p where p.id = new.author_id;
+    if v_author_org is distinct from new.org_id then
+      raise exception 'author_id belongs to a different org' using errcode = '42501';
+    end if;
+  end if;
+
+  -- Everything below reads OLD and is therefore UPDATE-only. Guarded explicitly rather than left to
+  -- the trigger definition, so the two halves cannot drift apart if the definition is ever widened
+  -- again: on INSERT, OLD is not merely empty, it is not a row at all.
+  if tg_op = 'INSERT' then
+    return new;
+  end if;
+
   if new.author_id is distinct from old.author_id
      or new.owning_team_id is distinct from old.owning_team_id
      or new.source is distinct from old.source
@@ -660,14 +862,16 @@ begin
 end;
 $$;
 comment on function mos._guard_signals() is
-  'Guard (ADR-0050 D5 + SECURITY HIGH-1): author/team/source/org/created_at immutable; content is author-only so a signal.retract holder may only retract; a retraction requires a reason; every content change appends a signal_revisions row. SECURITY DEFINER solely to write that revision table, which has no INSERT grant.';
+  'Guard (ADR-0050 D5 + SECURITY HIGH-1): owning_team_id and author_id must be same-org on INSERT and UPDATE (42501); author/team/source/org/created_at immutable; content is author-only so a signal.retract holder may only retract; a retraction requires a reason; every content change appends a signal_revisions row. SECURITY DEFINER solely to write that revision table, which has no INSERT grant.';
 -- A trigger function cannot usefully be invoked directly — Postgres refuses with "trigger functions
 -- can only be called as triggers" — but the house rule is belt-and-braces on every definer function
 -- with no per-case exemption to reason about. Triggers execute regardless of EXECUTE grants.
 revoke execute on function mos._guard_signals() from public, anon, authenticated;
 
+-- INSERT as well as UPDATE, so the reference checks apply where the columns are first set and not
+-- only where they are subsequently pinned.
 create trigger signals_guard
-  before update on mos.signals
+  before insert or update on mos.signals
   for each row execute function mos._guard_signals();
 
 -- ── mos.signal_mentions ──────────────────────────────────────────────────────────────────────
@@ -705,6 +909,35 @@ comment on function mos._guard_signal_mentions() is
 create trigger signal_mentions_guard
   before update on mos.signal_mentions
   for each row execute function mos._guard_signal_mentions();
+
+-- ── mos.signal_tasks ─────────────────────────────────────────────────────────────────────────
+-- The link row's INSERT policy pins its org_id, pins created_by to the session person, and puts
+-- signal_id behind the Signal read gate — three of its four columns. task_id is the one it does not
+-- reach, because a WITH CHECK cannot ask another table's org without re-opening a read, and it is an
+-- existence-only FK like every other. The link is rendered as a Signal's follow-up work, so a
+-- reference that crossed the seam would put a foreign task id on a Signal's card.
+create or replace function mos._guard_signal_tasks()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  -- Null-guarded so the NOT NULL column keeps its own error contract; see mos._guard_process_cadences.
+  if new.task_id is not null and not exists (
+    select 1 from mos.tasks t where t.id = new.task_id and t.org_id = new.org_id
+  ) then
+    raise exception 'task_id belongs to a different org' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+comment on function mos._guard_signal_tasks() is
+  'The ONE guard on mos.signal_tasks: the linked Task must belong to the link''s own org (42501). The INSERT policy already pins org_id and created_by and gates signal_id behind the Signal read gate; task_id is the reference a WITH CHECK cannot reach. SECURITY INVOKER.';
+
+create trigger signal_tasks_guard
+  before insert or update on mos.signal_tasks
+  for each row execute function mos._guard_signal_tasks();
 
 -- ── mos.comments ─────────────────────────────────────────────────────────────────────────────
 -- entity_id is a bare uuid with no FK, because a polymorphic reference cannot point at five tables.
@@ -820,6 +1053,35 @@ create trigger user_views_guard
   before update on mos.user_views
   for each row execute function mos._guard_user_views();
 
+-- ── mos.agent_runs ───────────────────────────────────────────────────────────────────────────
+-- The transcript is a two-link chain — thread -> run -> event — and both links are existence-only
+-- FKs. Every row in the chain is owner-pinned by its policies, so a crossed link discloses nothing
+-- on its own; it is guarded anyway because "the parent is in another org" is the same defect
+-- wherever it appears, and a chain whose links are only sometimes checked is the shape that made
+-- this sweep necessary in the first place.
+create or replace function mos._guard_agent_runs()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  -- Null-guarded so the NOT NULL column keeps its own error contract; see mos._guard_process_cadences.
+  if new.thread_id is not null and not exists (
+    select 1 from mos.agent_threads t where t.id = new.thread_id and t.org_id = new.org_id
+  ) then
+    raise exception 'thread_id belongs to a different org' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+comment on function mos._guard_agent_runs() is
+  'The ONE guard on mos.agent_runs: the parent thread must belong to the run''s own org (42501). SECURITY INVOKER.';
+
+create trigger agent_runs_guard
+  before insert or update on mos.agent_runs
+  for each row execute function mos._guard_agent_runs();
+
 -- ── mos.agent_events ─────────────────────────────────────────────────────────────────────────
 -- The transcript is append-only with exactly one exception: the owner rating their own assistant
 -- turn. Every other column drift is refused, and even the two feedback columns may only move on a
@@ -831,6 +1093,19 @@ security invoker
 set search_path = ''
 as $$
 begin
+  -- The second link of the chain above, checked on INSERT — which is where run_id is set, and which
+  -- is why this trigger is no longer UPDATE-only. On UPDATE the column-pin below refuses any change
+  -- to run_id outright, so re-checking it there would be checking a value that cannot have moved.
+  if tg_op = 'INSERT' then
+    -- Null-guarded so the NOT NULL column keeps its own error contract; see mos._guard_process_cadences.
+    if new.run_id is not null and not exists (
+      select 1 from mos.agent_runs r where r.id = new.run_id and r.org_id = new.org_id
+    ) then
+      raise exception 'run_id belongs to a different org' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
   if new.run_id            is distinct from old.run_id
      or new.org_id         is distinct from old.org_id
      or new.owner_id       is distinct from old.owner_id
@@ -858,10 +1133,10 @@ begin
 end;
 $$;
 comment on function mos._guard_agent_events() is
-  'Guard: agent_events is append-only except rating/downvote_reason on the owner''s own type=assistant row; every other column drift raises 42501.';
+  'Guard: the parent run must belong to the event''s own org on INSERT; thereafter agent_events is append-only except rating/downvote_reason on the owner''s own type=assistant row, and every other column drift raises 42501.';
 
 create trigger agent_events_guard
-  before update on mos.agent_events
+  before insert or update on mos.agent_events
   for each row execute function mos._guard_agent_events();
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
