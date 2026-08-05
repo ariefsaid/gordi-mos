@@ -78,6 +78,33 @@ join shared.business_units bu
  and bu.archived_at is null
 on conflict (org_id, code) do nothing;
 
+-- ── The six stream Teams — {GHQ, RRS, Radiant} x {kitchen, bar} (FR-005, OD-WAY-42, #231) ────
+-- A Team with branch_id + activity set IS a production stream: the enumerable stream catalog, the
+-- default-stream resolution (shared.default_stream) and — later — reviewer scoping all ride these
+-- rows. Repeated here for the same reason as the branch catalog above: the migration
+-- (20260806000001_shared_stream_teams.sql) seeds orgs that exist AT MIGRATION TIME, and on a fresh
+-- reset the Gordi org is created by this file, after migrations have run. Same dual-seed pattern —
+-- change one, mirror the other. ROASTERY IS DELIBERATELY ABSENT: it is a branch, never a stream
+-- (OD-WAY-42) — do not "complete" the grid with it.
+insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity)
+select '10000000-0000-0000-0000-000000000001', bu.id, t.name, t.code,
+       (select b.id from shared.branches b
+         where b.org_id = '10000000-0000-0000-0000-000000000001' and b.code = t.branch_code),
+       t.activity
+from (values
+  ('gordi_hq',    'kitchen', 'gordi_hq_kitchen',    'Gordi HQ Kitchen'),
+  ('gordi_hq',    'bar',     'gordi_hq_bar',        'Gordi HQ Bar'),
+  ('rumah_rames', 'kitchen', 'rumah_rames_kitchen', 'Rumah Rames Kitchen'),
+  ('rumah_rames', 'bar',     'rumah_rames_bar',     'Rumah Rames Bar'),
+  ('radiant',     'kitchen', 'radiant_kitchen',     'Radiant Kitchen'),
+  ('radiant',     'bar',     'radiant_bar',         'Radiant Bar')
+) as t(branch_code, activity, code, name)
+join shared.business_units bu
+  on bu.org_id = '10000000-0000-0000-0000-000000000001'
+ and bu.code = 'retail_ops'
+ and bu.archived_at is null
+on conflict (org_id, code) do nothing;
+
 -- ── Role tree (Jabatan) ──────────────────────────────────────────────────────────────────────
 -- One org-lead role with no reports_to, plus one lead role per unit reporting to it.
 insert into shared.roles (id, org_id, business_unit_id, name, reports_to_role_id) values

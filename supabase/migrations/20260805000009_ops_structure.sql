@@ -202,9 +202,10 @@ create trigger kitchen_plans_set_updated_at
 -- (FR-020/021). Submitted→Approved/Rejected is RLS + guard gated (...0010). batch_id is minted at
 -- approval (FR-050). The ERP-posting history is mirrored here for audit.
 --
--- THIS IS THE TABLE THE CASH CASE RUNS THROUGH (OD-WAY-27). There are FIVE distinct
--- (branch, activity) production streams and exactly ONE is captured today (DD-WAY-25 — the earlier
--- "six, two captured" counts an action type as a stream, and the ruling's own table gives it away).
+-- THIS IS THE TABLE THE CASH CASE RUNS THROUGH (OD-WAY-27). There are SIX distinct
+-- (branch, activity) production streams — {GHQ, RRS, Radiant} x {kitchen, bar} — and TWO are
+-- captured today (OD-WAY-42, which retracted DD-WAY-25's five/one recount; the count text here and
+-- on the activity comment below is re-issued for applied databases by 20260806000002).
 -- The other four reach the ERP on a paper form that a supervisor retypes; that transcription step is
 -- what blew up July's COGS. Every column below that carries the stream exists so those four can be
 -- captured typed, against a fixed item list, with no human retyping anything.
@@ -280,7 +281,7 @@ comment on table ops.kitchen_logs is
 comment on column ops.kitchen_logs.branch_id is
   'Origin half of the (branch, activity) production stream (OD-WAY-28) — whose books the raw comes from and the output is credited to. Links to the canonical branch catalog (OD-WAY-39). There is one physical kitchen; it is a constant and is not modelled.';
 comment on column ops.kitchen_logs.activity is
-  'Activity half of the production stream — kitchen or bar (OD-WAY-26). There are five distinct (branch, activity) streams and ONE is captured today; the other four reach the ERP by hand (DD-WAY-25).';
+  'Activity half of the production stream — kitchen or bar (OD-WAY-26). There are six distinct (branch, activity) streams — {GHQ, RRS, Radiant} x {kitchen, bar} — and two are captured today; the other four reach the ERP by hand (OD-WAY-42).';
 comment on column ops.kitchen_logs.action is
   'produce or transfer (DD-WAY-13). Replaces the three-literal action_type, which folded destination into action because Teable had one flat field. The ERP was always parameterised.';
 comment on column ops.kitchen_logs.destination_branch_id is

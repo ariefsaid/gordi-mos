@@ -22,8 +22,15 @@ const REPO_ROOT = join(__dirname, '..', '..')
 const MIGRATIONS = join(REPO_ROOT, 'supabase', 'migrations')
 const TESTS = join(REPO_ROOT, 'supabase', 'tests')
 
-/** The squashed baseline's single prefix (OD-WAY-35). Every migration carries it; nothing else may. */
+/** The squashed baseline's single prefix (OD-WAY-35). */
 const BASELINE_PREFIX = /^20260805\d{6}_/
+/**
+ * Additive migrations (the first being #231's stream substrate) are the baseline GROWING, which
+ * OD-WAY-35 expects. What AC-015 rules out is the PAST: a version from either pre-squash chain
+ * (all < 20260805…) reappearing. So the gate is a version floor, not a single-prefix pin.
+ */
+const VERSIONED = /^(\d{14})_/
+const BASELINE_FLOOR = '20260805000001'
 
 /** Domain order is the content of the ruling, not an alphabetical accident. */
 const DOMAINS = ['shared', 'mos', 'ops', 'integrations', 'reporting'] as const
@@ -34,8 +41,11 @@ const migrations = () =>
     .sort()
 
 describe('AC-015 — one domain-ordered migration set', () => {
-  it('every migration carries the baseline prefix, so no file from either prior chain survives', () => {
-    const strays = migrations().filter((f) => !BASELINE_PREFIX.test(f))
+  it('every migration is the baseline or later, so no file from either prior chain survives', () => {
+    const strays = migrations().filter((f) => {
+      const version = VERSIONED.exec(f)?.[1]
+      return !version || version < BASELINE_FLOOR
+    })
     expect(strays).toEqual([])
   })
 
@@ -44,16 +54,26 @@ describe('AC-015 — one domain-ordered migration set', () => {
     expect(nonSql).toEqual([])
   })
 
-  it('groups into the five domains in order, with no interleaving', () => {
-    const seen = migrations().map((f) => {
-      const domain = DOMAINS.find((d) => f.replace(BASELINE_PREFIX, '').startsWith(`${d}_`))
-      expect(domain, `${f} belongs to no domain`).toBeDefined()
-      return domain
-    })
+  it('the baseline groups into the five domains in order, with no interleaving', () => {
+    const seen = migrations()
+      .filter((f) => BASELINE_PREFIX.test(f))
+      .map((f) => {
+        const domain = DOMAINS.find((d) => f.replace(BASELINE_PREFIX, '').startsWith(`${d}_`))
+        expect(domain, `${f} belongs to no domain`).toBeDefined()
+        return domain
+      })
     // Collapse runs, then assert the sequence of runs IS the domain order. A domain appearing
     // twice collapses to two entries and fails, which is exactly the interleaving being ruled out.
     const runs = seen.filter((d, i) => d !== seen[i - 1])
     expect(runs).toEqual([...DOMAINS])
+  })
+
+  it('additive migrations still name their domain — no unclassifiable file rides in after the baseline', () => {
+    const additive = migrations().filter((f) => !BASELINE_PREFIX.test(f))
+    for (const f of additive) {
+      const domain = DOMAINS.find((d) => f.replace(VERSIONED, '').startsWith(`${d}_`))
+      expect(domain, `${f} belongs to no domain`).toBeDefined()
+    }
   })
 })
 

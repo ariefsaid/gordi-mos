@@ -16,7 +16,7 @@
 -- goes to, which is why branch_id points at the canonical catalog rather than at shared.sites.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(26);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -157,20 +157,28 @@ select throws_ok($$
   'a log cannot point its stream at another org''s branch — an existence-only FK is a cross-tenant reference unless something checks the org');
 
 -- ── The stream COUNT, as it is published to anyone inspecting the schema ─────────────────────
--- DD-WAY-25: there are FIVE distinct (branch, activity) pairs and ONE is captured, not "six, two
--- captured" — that count treats an action type as a stream, and every coverage argument leaning on
--- it was reading 33% where the truth is 20%. The behaviour here was always right (nothing seeds a
--- six-row catalog, deliberately), but the wrong count had shipped into a `comment on column`, which
--- is the copy a reader gets from \d+ or from any schema browser. Asserted as a class rather than by
--- pinning exact text, so rewording a comment is free and re-introducing the count is not.
+-- OD-WAY-42, retracting DD-WAY-25: there are SIX distinct (branch, activity) streams —
+-- {GHQ, RRS, Radiant} x {kitchen, bar} — and TWO are captured today. DD-WAY-25's five/one recount
+-- (which this assertion previously enforced, in the other direction) was itself the error, and the
+-- baseline shipped it into a `comment on column` — the copy a reader gets from \d+ or any schema
+-- browser. #231 restores the count in the source file and re-issues the comment for applied
+-- databases (20260806000002). Asserted as a class rather than by pinning exact text, so rewording
+-- a comment is free and re-introducing the retracted count is not.
 reset role;
 select is(
   (select count(*)::int from pg_description d
      join pg_class c on c.oid = d.objoid
      join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'ops' and d.description ~* '(six|6) (of the )?(distinct )?(production )?streams'),
+    where n.nspname = 'ops' and d.description ~* '(five|5) distinct'),
   0,
-  'DD-WAY-25: no comment in the ops catalog publishes a six-stream count — the number a schema reader sees agrees with the ruling');
+  'OD-WAY-42: no comment in the ops catalog publishes the retracted five-stream count — the number a schema reader sees agrees with the restored ruling');
+
+select ok(
+  (select col_description('ops.kitchen_logs'::regclass,
+            (select attnum from pg_attribute
+              where attrelid = 'ops.kitchen_logs'::regclass and attname = 'activity'))
+     ~* 'six distinct'),
+  'OD-WAY-42: the activity column PUBLISHES the six-stream count — the re-issued comment reached this database, not only the source file');
 
 select * from finish();
 rollback;
