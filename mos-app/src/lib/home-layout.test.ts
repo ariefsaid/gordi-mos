@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { resolveHomeLayout, setHomeLayout } from './home-layout'
 
-describe('home layout preference', () => {
+describe('home layout preference (OD-V4-9)', () => {
   beforeEach(() => { window.localStorage.clear() })
 
   it('AC-920: defaults to focused when nothing is stored', () => {

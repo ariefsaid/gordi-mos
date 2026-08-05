@@ -1,12 +1,7 @@
-// home-layout.ts — per-user Home arrangement.
-//
-// v1 store = localStorage: a preference with no cross-device claim attached to it, so a server
-// column buys nothing yet. Guarded against private-mode and quota throws — every path resolves to
-// a valid layout, so a storage failure can never stop Home from rendering.
-//
-// Ported with the Personal Profile surface (#199): the Profile page is where the choice is MADE.
-// The Home page is where it is READ, and that half lands with the Home port — this module is the
-// seam both sides meet at, which is why it lives in `lib/` rather than under either page.
+// home-layout.ts — per-user Home arrangement (OD-V4-9).
+// v1 store = localStorage, following the precedent set by the retired home-region-order module
+// (RATIFY-1): one-line swap to a Personal-Profile column later. Guarded against private-mode and
+// quota throws — always resolves to a valid layout so Home can never fail to render (NFR-922).
 
 export type HomeLayout = 'focused' | 'overview' | 'list'
 
