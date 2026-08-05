@@ -6,8 +6,14 @@
 // a11y: role=dialog aria-modal, aria-labelledby heading, focus trap (Cancel auto-focuses — never
 //   auto-focus the destructive action button), Esc → onCancel.
 
+// harden (#190, carried from v4): the Cancel label, the busy label and the fallback error copy were
+// hardcoded English literals. Because they were DEFAULTS, no call site had to opt in to the bug —
+// every confirm that did not pass a cancelLabel showed an English "Cancel" next to a translated
+// confirm button, on the dialog that gates destructive actions. Defaulting against the catalog fixes
+// all of them at the primitive.
 import { useState, useId, useRef, useEffect } from 'react'
 import { ErrorState } from '@/components/ui/state-kit'
+import { useT } from '@/i18n/use-t'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -17,6 +23,10 @@ export interface ConfirmDialogProps {
   body: string
   /** Action button label — e.g. "Reset password", "Disable", "Archive" */
   confirmLabel: string
+  /** Cancel button label. Defaults to the catalog's `common.cancel`. */
+  cancelLabel?: string
+  /** Label shown on the confirm button while `onConfirm` is pending. Defaults to `common.working`. */
+  busyLabel?: string
   /**
    * Button tone for the confirm button.
    * 'primary' = reversible action (reset, disable — following design-plan §4.7 amber convention).
@@ -35,10 +45,13 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
+  cancelLabel,
+  busyLabel,
   tone = 'primary',
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const titleId = useId()
@@ -98,7 +111,7 @@ export function ConfirmDialog({
     try {
       await onConfirm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.')
+      setError(err instanceof Error ? err.message : t('common.unexpectedError'))
       setBusy(false)
     }
     // On success the caller closes (setBusy(false) not needed; component unmounts)
@@ -153,7 +166,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             disabled={busy}
           >
-            Cancel
+            {cancelLabel ?? t('common.cancel')}
           </button>
           <button
             type="button"
@@ -161,7 +174,7 @@ export function ConfirmDialog({
             onClick={handleConfirm}
             disabled={busy}
           >
-            {busy ? 'Working…' : confirmLabel}
+            {busy ? (busyLabel ?? t('common.working')) : confirmLabel}
           </button>
         </div>
       </div>

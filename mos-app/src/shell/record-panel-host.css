@@ -1,0 +1,46 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   RecordPanelHost chrome — the ONE header bar every record tenant that asks for
+   host chrome renders (title zone · optional "Open full page" · ✕ Close). Values
+   are the SAME DESIGN.md tokens as the Task drawer's .dw-bar / .dw-iconbtn strip
+   (Rule 11 — reuse, no new visual language), so a Signal panel's chrome measures
+   identical to a Task's. The .drawer shell (width/border/shadow/scrim) lives in
+   styles/drawer.css, loaded globally.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.record-panel-chrome {
+  display: flex; align-items: center; gap: 6px; flex: none;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.record-panel-title { font-size: var(--font-size-label); color: var(--muted-foreground); min-width: 0; }
+.record-panel-spacer { flex: 1; }
+/* P1-2 (Luna-measured 32px): the coarse-pointer tighten-down pattern — the RESTING size defaults to
+ * the 44px touch floor everywhere (phone, tablet,
+ * any coarse/no-hover pointer), and only a genuine fine pointer (desktop mouse) tightens to the
+ * 32px control token. The previous rule was the inverse — 32px everywhere except one CSS-scoped
+ * mobile-sheet context (.drawer-modal.drawer-fullscreen), so any OTHER coarse-pointer host fell
+ * through to 32px unconditionally, which is the exact bug Luna measured.
+ * (#190: v4's version of this note cites `record-viewer.css` as where the pattern comes from. That
+ * file is not on this line — the record viewer is a later surface — so the reference is dropped
+ * rather than carried as a pointer into nothing.) */
+.record-panel-btn {
+  width: 44px; height: 44px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  background: transparent; border: 1px solid transparent;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--muted-foreground);
+}
+.record-panel-btn:hover { background: var(--accent); color: var(--foreground); }
+.record-panel-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* H3 (Luna floor): "Open full page" carries an explicit visible label (E7 grammar) — an icon-only
+   chrome control fails recognition on the panel's most consequential escalation. The labelled
+   variant grows to an auto-width pill; icon + text sit inline. */
+.record-panel-btn--labelled {
+  width: auto; min-width: 44px; gap: 6px; padding: 0 10px;
+  display: inline-flex; align-items: center;
+}
+.record-panel-btn__label { font-size: var(--font-size-label); font-weight: 500; white-space: nowrap; }
+
+@media (pointer: fine) {
+  .record-panel-btn { width: 32px; height: 32px; }
+  .record-panel-btn--labelled { width: auto; height: 32px; }
+}

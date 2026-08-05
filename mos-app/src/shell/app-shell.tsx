@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { Outlet } from 'react-router-dom'
+import { useState, useRef, useMemo, type ReactNode } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { Rail } from './rail'
 import { TopBar } from './top-bar'
 import { ContextRow } from './context-row'
@@ -13,13 +13,16 @@ import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
+import { OverlayHostProvider, OverlayHostSlot, type OverlayHistoryDriver } from './overlay-host'
+import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
+import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
+import { useT } from '@/i18n/use-t'
 
-// DEFERRED TO #190 (the overlay and record hosts). v4's AppShell also mounts the shared overlay
-// host (its react-router history driver + the `__mosOverlay` deep-link resolver), the Signal
-// composer host, and the Deputy/overlay coexistence hook. None of those modules exist on this
-// branch yet, so the chrome ports without them; #190 restores the `OverlayHostRoot` wrapper, the
-// single `<OverlayHostSlot owner="shell" />` grid child, `<SignalComposerHost>` and
-// `useDeputyOverlayCoexistence()`. Nothing in the chrome below depends on them.
+// STILL DEFERRED after #190: v4 also wraps the shell in `<SignalComposerHost>` and passes its
+// `open()` to the palette as `onShareSignal`. The composer host mounts `SignalComposer` and reads
+// the Signals mention rosters from the database — a Signals surface, and neither exists on this
+// line. It arrives with that surface, not with the hosts. The palette has no Share-Signal action to
+// wire to it either, so nothing here is currently offering a door that does not open.
 
 // v4 shell rebuild (Task 7 a11y): the skip link — the FIRST focusable element in the app, so a
 // keyboard/screen-reader user can bypass the header (and, on phone, any opened drawer) chrome and
@@ -71,13 +74,48 @@ function SkipLink() {
   )
 }
 
+/**
+ * Wires the shared overlay host to react-router (the route seam): the history driver reads the
+ * browser history index from `window.history.state.idx` and routes relative `go(delta)` through
+ * react-router's `navigate(delta)`. URL markers (`__mosOverlay`) are pushed/synced by the
+ * controller; a load carrying a marker is restored through the record deep-link resolver.
+ */
+function OverlayHostRoot({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
+  const t = useT()
+  const historyDriver = useMemo<OverlayHistoryDriver>(
+    () => ({
+      index: () => {
+        if (typeof window === 'undefined' || !window.history?.state) return null
+        const idx = (window.history.state as { idx?: unknown }).idx
+        return typeof idx === 'number' && Number.isInteger(idx) && idx >= 0 ? idx : null
+      },
+      go: (delta: number) => navigate(delta),
+    }),
+    [navigate],
+  )
+  // D-A1 (item 4): a reload / Back-Forward onto a URL carrying a persisted `__mosOverlay` route
+  // marker restores the record through the registry-backed resolver. Collections that keep the open
+  // record in their OWN `?record=` query restore through their page effect first — a child effect
+  // runs before this parent one, which then finds a session already open and no-ops. So this covers
+  // the route sessions whose id lives ONLY in the marker. `RECORD_KINDS` is empty until a record
+  // surface ports, which is why the resolver currently restores nothing (asserted, not assumed —
+  // record-deep-link-resolver.test.tsx).
+  const deepLinkResolver = useMemo(() => createRecordDeepLinkResolver(t, RECORD_KINDS), [t])
+  return (
+    <OverlayHostProvider historyDriver={historyDriver} deepLinkResolver={deepLinkResolver}>
+      {children}
+    </OverlayHostProvider>
+  )
+}
+
 function ShellContent() {
   const isNarrow = useIsNarrow()
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
   // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
   // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
-  // 1100px threshold `task-drawer` and `tasks-layout` already key their own regime off — v4 adds
-  // `record-panel-host` to that list, which lands with #190) rather than inventing a new query,
+  // 1100px threshold `task-drawer`, `tasks-layout` and `record-panel-host` already key their own
+  // regime off) rather than inventing a new query,
   // so the rail's compact boundary tracks the app's one documented "narrow vs split" breakpoint.
   const isSplit = useIsSplitWidth()
   const railCompact = !isNarrow && !isSplit
@@ -86,6 +124,12 @@ function ShellContent() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
+
+  // Lane B2 — reconcile the Deputy companion with any shell-owner overlay. Both consume the shell's
+  // right-edge surface track, so at most one may be open. Mounted here because ShellContent sits
+  // inside both AgentRuntimeProvider and OverlayHostProvider, so the hook can see both controllers.
+  // Collection-owner records live inside the page grid and are untouched by it.
+  useDeputyOverlayCoexistence()
 
   return (
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
@@ -162,6 +206,16 @@ function ShellContent() {
             moreOpen={drawerOpen}
           />
         )}
+
+        {/*
+          The single physical OverlayHostSlot owned by the shell. It is a direct child of the shell
+          grid so its presence and parentage are checkable. It renders no children (the shell UI is
+          already rendered as grid siblings); it only renders the RecordPanelHost when the active
+          overlay session's top frame has owner="shell". Collection pages mount their OWN slot with
+          their own owner, and the slot's owner filter is what keeps exactly one physical host on
+          screen. `display: contents` keeps the slot from becoming a grid item.
+        */}
+        <OverlayHostSlot owner="shell" />
       </div>
 
       {/* Mobile drawer — rendered outside the grid so it can be fixed/overlaid.
@@ -175,7 +229,7 @@ function ShellContent() {
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). v4 also
           passes `mode` and an `onShareSignal` that dispatches to the shared Signal composer host;
-          both wait on #190 (the composer host) and on the palette's own create-set. */}
+          those wait on the palette's own create-set and on the Signals surface respectively. */}
       <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,
@@ -191,13 +245,15 @@ export function AppShell() {
   // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
   // Flag-off skips the provider entirely so no assistant context/state mounts.
   //
-  // v4 additionally wraps this in `<SignalComposerHost>` and `<OverlayHostRoot>` — both land with
-  // #190. The nesting order they require is recorded there: OverlayHostProvider sits INSIDE
-  // SignalComposerHost/AgentRuntimeProvider so those providers are available to overlay content.
-  if (!SHOW_ASSISTANT) return <ShellContent />
-  return (
-    <AgentRuntimeProvider>
+  // OverlayHostProvider sits INSIDE AgentRuntimeProvider, not outside it: overlay content is
+  // ordinary app content and may reach for the runtime, and `useDeputyOverlayCoexistence` has to
+  // see both controllers from one child. (v4 nests it inside `SignalComposerHost` for the same
+  // reason; that host arrives with the Signals surface.)
+  const shellWithOverlay = (
+    <OverlayHostRoot>
       <ShellContent />
-    </AgentRuntimeProvider>
+    </OverlayHostRoot>
   )
+  if (!SHOW_ASSISTANT) return shellWithOverlay
+  return <AgentRuntimeProvider>{shellWithOverlay}</AgentRuntimeProvider>
 }

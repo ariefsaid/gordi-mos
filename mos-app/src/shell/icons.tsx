@@ -31,10 +31,8 @@ export function Chevron({ className, size = 14 }: { className?: string; size?: n
  * The ONE back-navigation glyph. A left chevron — `M15 18l-6-6 6-6`, stroke-2, round caps,
  * aria-hidden. The button that hosts it MUST carry an accessible name (aria-label).
  *
- * It has NO caller on this branch yet: it exists so the record panel and record page chrome have
- * a shared glyph to reach for instead of each defining their own, and both of those arrive with
- * the overlay and record hosts (#190). Until then this is a deliberately parked export, not dead
- * code someone forgot to delete.
+ * Its two callers are the record panel's internal Back and the record page's "Back to <collection>"
+ * link (#190) — one glyph for one meaning, rather than each chrome defining its own.
  */
 export function BackIcon({ className, size = 16 }: { className?: string; size?: number }) {
   return (

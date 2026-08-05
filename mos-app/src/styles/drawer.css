@@ -1,0 +1,174 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Shared drawer/overlay chrome — the modal-regime primitives every overlay
+   panel host (Task drawer, Signal composer, Signal record) shares: a
+   fixed-position root, a scrim, and the right-side sheet / full-screen
+   surface variants. Extracted from TasksWorkspace.css (PR-B) and loaded
+   globally (main.tsx) — TasksWorkspace.css only loads on /work/tasks routes,
+   so the Signal composer/record hosts (mounted at the shell root) never had
+   this CSS available at all (design-review step-4 CRITICAL-1: markup without
+   skin). Task-only extensions (.dw-*) stay in TasksWorkspace.css.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shared split track (list | record) ───────────────────────────────────────
+   The generic push/squash grid any RecordPanelHost tenant page (Signals archive,
+   …) uses so its list squashes and the non-modal <aside> record panel sits BESIDE
+   it at >=1100px — identical side/width to the Task drawer's split (spec FR-3).
+   Same drawer-width track as the Tasks .split grid — minmax(360px, 44%) (Rule 11 — one width).
+   Below 1100px the host renders its own modal overlay, so pages drop this class
+   and the list runs full-width underneath. */
+.record-split {
+  display: grid;
+  /* V3 overlay-host geometry (plan 2026-07-20-v3-overlay-host Task 4): the record
+     panel occupies a 40–45% desktop track (not 33vw), so the opened record has room
+     while the collection keeps enough context beside it (DESIGN.md experience-contract
+     Rule 8-desktop: rail + header + frame + collection + 40–45% panel, no clip).
+     Same minmax(360px, 44%) track is reused by TasksWorkspace .split (Rule 11 — one width). */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 44%);
+  align-items: start; gap: 12px;
+}
+
+/* ── Drawer surface (the card-styled pane — split-view pane OR modal sheet) ── */
+.drawer {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
+  box-shadow: var(--shadow-rest); /* OD-P3-11 resting lift */
+  overflow: hidden; min-width: 0;
+}
+
+/* ── Shell-mounted split panel (Luna audit B1) ───────────────────────────────
+   The shell OverlayHostSlot sits above the page Outlet (no page-level .record-split wrapper),
+   so a shell-owned non-modal panel (Bell quick-triage, future shell overlays) would otherwise
+   render as an unpositioned auto-width <aside>. This rule gives it the SAME right-anchored
+   desktop track as a collection .record-split panel — reusing minmax(360px, 44%) via the
+   clamp (Rule 11 — one width; no new token). It floats over the main content (z-drawer) so the
+   underlying page stays mounted and interactive. Below the split threshold RecordPanelHost
+   switches to its modal regime (.drawer-modal), so this rule is desktop-only. */
+@media (min-width: 1100px) {
+  .drawer-shell-split {
+    position: fixed;
+    /* TB-1 / OD-P4-9: the shell panel floats over MAIN content, but the top-bar is in normal
+       flow (no z-index) and would be covered by this fixed z-drawer panel from the top edge — incl.
+       the bell/deputy/⌘K cluster and the very bell that opened it. Anchoring below the header
+       leaves the whole chrome row reachable while the panel still overlays the page. */
+    top: var(--header-h);
+    right: 0;
+    bottom: 0;
+    width: min(44%, 480px);
+    min-width: 360px;
+    z-index: var(--z-drawer);
+    border-radius: 0;
+    border-top: 0; border-right: 0; border-bottom: 0;
+    box-shadow: var(--shadow-rest);
+    display: flex;
+    flex-direction: column;
+  }
+  .drawer-shell-split > * { flex: 0 0 auto; }
+  .drawer-shell-split > :last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
+}
+
+/* ── Shared companion surface (Deputy today; domain-neutral host grammar) ────────────
+   A companion is rendered by OverlayCompanionSlot through RecordPanelHost. At shell/desktop
+   widths it is non-modal; beside a record it contracts into the unused canvas rather than
+   covering the record. Below 920px RecordPanelHost selects its ordinary full-screen modal
+   regime, so phone gets the owner's allowed above-record presentation without local chrome. */
+@media (min-width: 920px) {
+  .drawer.overlay-companion-host {
+    position: fixed;
+    right: 0;
+    z-index: var(--z-drawer);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .drawer.overlay-companion-host--standalone {
+    /* TB-1 / OD-P4-9: same chrome-reachability contract as .drawer-shell-split — the standalone
+       companion (Deputy, no record open) anchors below the header so the top-bar cluster that
+       opened it stays reachable instead of being covered by this fixed z-drawer surface. */
+    top: var(--header-h);
+    bottom: 0;
+    width: min(var(--assistant-w), 100vw);
+    border-radius: 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    box-shadow: var(--shadow-strong);
+  }
+
+  .drawer.overlay-companion-host--with-record {
+    top: auto;
+    bottom: 16px;
+    height: min(520px, calc(100vh - var(--header-h) - 32px));
+    min-height: 320px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-strong);
+  }
+}
+
+@media (min-width: 920px) and (max-width: 1099.98px) {
+  .drawer.overlay-companion-host--with-record {
+    right: calc(min(45vw, 520px) + 12px);
+    width: min(var(--assistant-w), calc(55vw - var(--rail-w) - 24px));
+    min-width: 220px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .drawer.overlay-companion-host--with-record {
+    right: calc(max(360px, 44vw) + 12px);
+    width: min(var(--assistant-w), calc(56vw - var(--rail-w) - 24px));
+    min-width: 320px;
+  }
+}
+
+/* ── Modal regime (overlay 920–1100 + mobile <768, AC-110, design-plan §4/§5) ──
+   Below the split threshold the squashed table is too cramped to keep live, so
+   the drawer floats over it with a scrim (focus-trap + Esc handled by the host).
+   Scrim matches the existing .confirm-overlay elevation (consistent overlay token). */
+.drawer-modal-root { position: fixed; inset: 0; z-index: var(--z-drawer); }
+.drawer-scrim {
+  position: absolute; inset: 0; background: var(--scrim);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-scrim { animation: scrim-in var(--dur-med) ease; }
+  @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+}
+/* Right-side sheet (desktop / narrow-laptop band). */
+.drawer-modal.drawer-sheet {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  /* Intermediate-width (768–1099px) right sheet: ~45% of the viewport, capped at 520px
+     (plan Task 4 Step 3), and never narrower than 360px.
+     THE FLOOR IS LOAD-BEARING — it was lost once already. v4 writes this `min(45vw, 520px)`,
+     with no lower bound, and carrying that verbatim narrowed the sheet against what `dev` ships
+     (`clamp(360px, 50vw, 520px)`): at a 768px viewport it computes to 345.6px instead of 384px.
+     That is below the 360px minimum of the `minmax(360px, 44%)` split track this same file calls
+     the app's ONE record width four rules above — so the file contradicted itself, in the exact
+     768–1099px band where this rule is the one that applies. `clamp()` keeps v4's 45vw/520px
+     intent and restores the floor. `drawer.css.test.ts` derives the floor from `.record-split`
+     rather than repeating the literal, so the two cannot drift apart again silently.
+     `max-width: 100%` still wins below 360px, so the floor never overflows a narrow viewport. */
+  width: clamp(360px, 45vw, 520px); max-width: 100%; border-radius: 0;
+  border: 0; border-left: 1px solid var(--border);
+  box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
+  display: flex; flex-direction: column;
+}
+/* Full-screen surface (<768px mobile). */
+.drawer-modal.drawer-fullscreen {
+  position: absolute; inset: 0; width: auto; border-radius: 0; border: 0;
+  display: flex; flex-direction: column;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-modal.drawer-sheet { animation: sheet-in var(--dur-slow) ease; }
+  @keyframes sheet-in { from { transform: translateX(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+}
+/* Phone (<768px): the sheet variant collapses to a full-height opaque sheet too —
+   hosts that never toggle a dedicated fullscreen class (the Signal composer/record
+   drawers) still render as a full-height page-covering sheet instead of a half-width
+   column with the page bleeding through beside it (design-review step-4 IMPORTANT-4).
+   `.drawer`'s own solid --card background already makes the sheet opaque. */
+@media (max-width: 767px) {
+  .drawer-modal.drawer-sheet {
+    top: 0; right: 0; bottom: 0; left: 0; width: auto; border-left: 0;
+  }
+}

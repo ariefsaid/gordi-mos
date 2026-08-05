@@ -140,10 +140,10 @@ describe('AC-014: TopBar layout (OD-57)', () => {
 
   // Carried from v4's `top-bar-inbox-bell.test.tsx` phone case. On v4 the bell has two doors —
   // desktop quick-triage in the shared overlay host, phone the full route — and the whole of the
-  // desktop door depends on the host, which lands with #190. Until then the bell has ONE door on
-  // every viewport, and it is v4's own no-host fallback path. The rest of that file travels to
-  // #190 with the host it tests; this is the half that is live here, kept covered rather than
-  // dropped along with it.
+  // desktop door needs the Inbox triage SURFACE, which #190 did not port (it landed the host the
+  // door mounts into; `InboxTriageConnected` arrives with the Inbox surface). Until then ONE door on
+  // every viewport, and it is v4's own no-host fallback path. The rest of that file travels with
+  // the Inbox surface; this is the half that is live here, kept covered rather than dropped.
   it('the Inbox bell navigates to the /inbox route (the door that is live without the overlay host)', () => {
     renderTopBarWithLocation()
     expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks')

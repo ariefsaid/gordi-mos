@@ -120,12 +120,14 @@ function AssistantTopBarButton() {
 // live (Step 2, D-1). Uses the dedicated useUnreadCount hook (CQ#2) so the badge is backed by the
 // unread-only index, not the full list.
 //
-// DEFERRED TO #190: v4 gives this bell two doors. On desktop it quick-opens the SAME InboxTriage
-// surface as an ephemeral root in the shared overlay host (no URL mutation, focus returned to the
-// bell on close); on phone — and whenever no host is mounted — it falls back to the `/inbox` route.
-// The host and `InboxTriageConnected` both arrive with the overlay/record hosts, so until then the
-// bell has ONE door: the route, on every viewport. That is v4's own no-host fallback path, not a
-// new behaviour.
+// STILL ONE DOOR AFTER #190 — now waiting on the INBOX SURFACE, not on the hosts. v4 gives this
+// bell two doors: on desktop it quick-opens the same InboxTriage surface as an ephemeral root in the
+// shared overlay host (no URL mutation, focus returned to the bell on close); on phone — and
+// whenever no host is mounted — it falls back to the `/inbox` route. #190 landed the host and the
+// shell slot the desktop door needs, but the door's CONTENT is `InboxTriageConnected`, an Inbox
+// surface component that has not ported (this branch's `components/inbox/` holds InboxList alone).
+// Wiring the bell to open an empty panel would be worse than the route it opens today, which is
+// v4's own no-host fallback path. The Inbox surface ticket flips this.
 function NotificationBell() {
   const navigate = useNavigate()
   const t = useT()
