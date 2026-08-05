@@ -1,0 +1,30 @@
+/* ReportMissingItem — the DD-WAY-29 exit route (FR-012, AC-013). Quiet by design:
+   a ghost-button line under the item list, expanding to one field + one action. */
+.kl-missing {
+  margin: 8px 0 0;
+  padding: 4px 0;
+}
+.kl-missing-cta {
+  color: var(--muted-foreground);
+  font-size: var(--text-size-xs);
+  padding-inline: 8px;
+}
+.kl-missing-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 420px;
+}
+.kl-missing-form .mk-textinput { flex: 1 1 200px; }
+.kl-missing-send { min-height: 32px; }
+.kl-missing-done {
+  color: var(--muted-foreground);
+  font-size: var(--text-size-xs);
+}
+.kl-missing-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--destructive);
+  font-size: var(--text-size-xs);
+}

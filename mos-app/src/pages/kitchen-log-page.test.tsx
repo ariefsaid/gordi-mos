@@ -30,6 +30,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   }
 })
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+// The missing-item report (AC-013) files through the Daily Log data layer — mocked like the rest.
+vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
 import {
   listActiveWipItems,
   fetchPlanMap,
@@ -220,6 +222,16 @@ describe('Empty state — no WIP items (FR-011)', () => {
     })
     expect(screen.queryByText('✓')).not.toBeInTheDocument()
   })
+
+  // AC-013: the DD-WAY-29 gate can empty this list entirely (nothing confirmed yet) —
+  // the report route must be reachable from the empty state too.
+  it('AC-013: the missing-item report route is visible even when the gate empties the list', async () => {
+    mockListActiveWipItems.mockResolvedValue([])
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+    })
+  })
 })
 
 // ── error state ───────────────────────────────────────────────────────────────
@@ -260,6 +272,15 @@ describe('Populated state — WIP items loaded', () => {
     await waitFor(() => {
       expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
       expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    })
+  })
+
+  // AC-013 (FR-012): an item absent under the DD-WAY-29 gate must never read as a bug with
+  // no exit — the capture surface carries a visible route to report it missing.
+  it('AC-013: offers a visible route to report a missing item on the loaded surface', async () => {
+    await renderPage()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
     })
   })
 

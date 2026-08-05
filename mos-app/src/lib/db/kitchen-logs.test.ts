@@ -127,38 +127,64 @@ function assertNoServerStamps(inserts: unknown[]) {
 beforeEach(() => vi.clearAllMocks())
 
 // ── listActiveWipItems ────────────────────────────────────────────────────────
+// FR-011 / DD-WAY-29: the form's item source is the GATED read path — the
+// ops.capture_form_items view returns only confirmed item-units, so an unconfirmed
+// item never reaches this function at all. No flag is consulted client-side.
 describe('listActiveWipItems', () => {
-  const WIP_ROWS = [
-    { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-    { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+  const VIEW_ROWS = [
+    { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+    { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
   ]
 
-  it('queries wip_items with flag_active=true ordered by name', async () => {
+  it('reads the gated capture_form_items view ordered by name (DD-WAY-29)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema({ wip_items: [{ data: WIP_ROWS, error: null }] }, rec) as never,
+      makeSchema({ capture_form_items: [{ data: VIEW_ROWS, error: null }] }, rec) as never,
     )
 
     const result = await listActiveWipItems()
+    expect(rec.fromTables).toContain('capture_form_items')
     expect(result).toHaveLength(2)
-    expect(result[0].name).toBe('Ayam Bakar')
-    expect(rec.eqs).toContainEqual(['flag_active', true])
+    expect(result[0]).toEqual({ id: 'w1', name: 'Ayam Bakar', category: 'Main' })
     expect(rec.orders).toContainEqual(['name', { ascending: true }])
-    expect(rec.selects).toContain('id,name,category')
+    expect(rec.selects).toContain('wip_item_id,name,category')
+  })
+
+  it('collapses multiple confirmed units of one item to a single item row', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          capture_form_items: [
+            {
+              data: [
+                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+                { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const result = await listActiveWipItems()
+    expect(result.map(r => r.id)).toEqual(['w1', 'w2'])
   })
 
   it('throws on PostgREST error', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema({ wip_items: [{ data: null, error: { message: 'table not found' } }] }, rec) as never,
+      makeSchema({ capture_form_items: [{ data: null, error: { message: 'table not found' } }] }, rec) as never,
     )
     await expect(listActiveWipItems()).rejects.toThrow('listActiveWipItems failed')
   })
 
-  it('returns empty array when no active items', async () => {
+  it('returns empty array when nothing is confirmed', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema({ wip_items: [{ data: [], error: null }] }, rec) as never,
+      makeSchema({ capture_form_items: [{ data: [], error: null }] }, rec) as never,
     )
     const result = await listActiveWipItems()
     expect(result).toEqual([])
@@ -525,12 +551,12 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          // listActiveWipItems read
-          wip_items: [
+          // listActiveWipItems read — the gated view (DD-WAY-29)
+          capture_form_items: [
             {
               data: [
-                { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-                { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+                { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
               ],
               error: null,
             },
@@ -567,8 +593,8 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [
-            { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
+          capture_form_items: [
+            { data: [{ wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
           ],
           kitchen_stock_for_date: [{ data: [], error: null }],
         },
@@ -586,7 +612,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [{ data: [], error: null }],
+          capture_form_items: [{ data: [], error: null }],
           kitchen_stock_for_date: [{ data: [], error: null }],
         },
         rec,
@@ -601,7 +627,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [{ data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null }],
+          capture_form_items: [{ data: [{ wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null }],
           kitchen_stock_for_date: [{ data: null, error: { message: 'fn missing' } }],
         },
         rec,
@@ -623,8 +649,8 @@ describe('fetchKitchenStockAcrossStreams — one row per (active item × stream)
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [
-            { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
+          capture_form_items: [
+            { data: [{ wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
           ],
           kitchen_stock_for_date: [
             { data: [{ wip_item_id: 'w1', usable_qty: 12, available_qty: 8 }], error: null },

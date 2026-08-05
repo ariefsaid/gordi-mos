@@ -68,6 +68,7 @@ import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { HelpTip } from '@/components/ui/help-tip'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -442,6 +443,9 @@ export function KitchenLogPage() {
             title={t('kitchen.empty.noActiveItems.title')}
             copy={t('kitchen.log.empty.copy')}
           />
+          {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
+              the report route must be reachable from here too, not only under a full list. */}
+          {buId && <ReportMissingItem businessUnitId={buId} />}
         </div>
       </PageFamilyFrame>
     )
@@ -731,6 +735,20 @@ export function KitchenLogPage() {
             emptyLabel={t('kitchen.filter.noMatch')}
             caption={t('kitchen.log.caption')}
           />
+
+          {/* AC-013 / FR-012: the DD-WAY-29 gate removes unconfirmed items silently, so the
+              surface carries a visible route to report one missing — absence must never read
+              as a bug with no exit. Own type="button" controls only; never submits this form. */}
+          {buId && (
+            <ReportMissingItem
+              businessUnitId={buId}
+              streamLabel={
+                stream
+                  ? `${branchDisplayName(stream.branch)} / ${activityLabel(t, stream.activity)}`
+                  : undefined
+              }
+            />
+          )}
 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit */}
           <div className="kl-footer">
