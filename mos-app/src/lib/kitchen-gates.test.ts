@@ -51,9 +51,11 @@ describe('isStockConsuming', () => {
   })
 })
 
-describe('effectiveTarget — max(plan − stock, 0) on every movement (FR-022; bar-capture FR-014/AC-006)', () => {
-  // Bar-capture FR-014 (#233) superseded the earlier "production targets the raw plan"
-  // reading: the incumbent's idiom is "plan 10, 2 already on hand → make 8", on all streams.
+describe('effectiveTarget — production subtracts stock, transfers target their absolute plan (FR-022; bar-capture FR-014/AC-006)', () => {
+  // Bar-capture FR-014 (#233) scopes the stock subtraction to PRODUCTION only: the
+  // incumbent's idiom is "plan 10, 2 already on hand → make 8". A transfer plan is an
+  // absolute movement quantity — "move 10" means move 10, whatever is on hand; stock is
+  // what it draws from and FR-023's tersedia cap owns feasibility.
   it('AC-006: Production subtracts on-hand stock — plan 10, stok 2 → target 8', () => {
     expect(effectiveTarget(PRODUCE, { plan: 10, stok: 2 })).toBe(8)
   })
@@ -63,11 +65,11 @@ describe('effectiveTarget — max(plan − stock, 0) on every movement (FR-022; 
   it('Production clamps to 0 when stock already covers the plan', () => {
     expect(effectiveTarget(PRODUCE, { plan: 4, stok: 9 })).toBe(0)
   })
-  it('Transfer: target subtracts on-hand stock', () => {
-    expect(effectiveTarget(TRANSFER_RADIANT, { plan: 10, stok: 3 })).toBe(7)
+  it('FR-014: Transfer targets the ABSOLUTE plan — stock on hand is not subtracted', () => {
+    expect(effectiveTarget(TRANSFER_RADIANT, { plan: 10, stok: 3 })).toBe(10)
   })
-  it('Transfer: clamps to 0 when stock already covers the plan', () => {
-    expect(effectiveTarget(TRANSFER_RADIANT, { plan: 4, stok: 9 })).toBe(0)
+  it('Transfer: stock covering the plan does not zero the target — the plan still means "move this much"', () => {
+    expect(effectiveTarget(TRANSFER_RADIANT, { plan: 4, stok: 9 })).toBe(4)
   })
 })
 
@@ -86,12 +88,12 @@ describe('needsVarianceNote — note required when qty != effective target (FR-0
     expect(needsVarianceNote(line({ qty_porsi: 8, plan_qty: 10, stok: 2 }), PRODUCE)).toBe(false)
     expect(needsVarianceNote(line({ qty_porsi: 10, plan_qty: 10, stok: 2 }), PRODUCE)).toBe(true)
   })
-  it('FR-022: Transfer against EFFECTIVE target — qty == max(plan-stok,0) needs no note', () => {
-    // plan 10, stok 3 → effective 7; logging exactly 7 is on-target
-    expect(needsVarianceNote(line({ qty_porsi: 7, plan_qty: 10, stok: 3 }), TRANSFER_RADIANT)).toBe(false)
+  it('FR-014: an on-plan Transfer (qty == plan) with stock on hand needs NO note', () => {
+    // plan 10, stok 3 — the plan is absolute: moving exactly 10 is on-target
+    expect(needsVarianceNote(line({ qty_porsi: 10, plan_qty: 10, stok: 3 }), TRANSFER_RADIANT)).toBe(false)
   })
-  it('FR-022: Transfer logging the RAW plan (10) when effective is 7 needs a note', () => {
-    expect(needsVarianceNote(line({ qty_porsi: 10, plan_qty: 10, stok: 3 }), TRANSFER_RADIANT)).toBe(true)
+  it('FR-022: a Transfer off its plan (7 of 10) needs a note', () => {
+    expect(needsVarianceNote(line({ qty_porsi: 7, plan_qty: 10, stok: 3 }), TRANSFER_RADIANT)).toBe(true)
   })
   it('a staged line with qty 0 needs no note (not staged)', () => {
     expect(needsVarianceNote(line({ qty_porsi: 0, plan_qty: 12 }), PRODUCE)).toBe(false)

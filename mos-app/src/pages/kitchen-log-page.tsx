@@ -15,7 +15,7 @@
 // Planned/Off-plan grouping, client-side search + category filter, group collapse,
 // Discard (confirmed). No new fetch/RPC/table/persistence/ESB.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -46,7 +46,6 @@ import type {
 } from '@/lib/db/kitchen-logs.types'
 import {
   activityLabel,
-  branchDisplayName,
   deriveActionLabel,
   movementKey,
   movementsForStream,
@@ -182,6 +181,15 @@ export function KitchenLogPage() {
   // Derived KPIs (P-1) — pure useMemo over `lines`; no fetch/RPC/persistence.
   const kpis = useKitchenKpis(lines)
 
+  // Stale-response guard: every read bumps the generation, and only the LATEST
+  // generation's result may land. Without this, two rapid stream switches can resolve
+  // out of order and seed the form with stream A's plan/stock/actuals under stream B's
+  // label — and submit would then file those quantities to B's books, the exact
+  // wrong-books defect this spec exists to end, produced by the page itself. Shared by
+  // bootstrap and applyStream so a slow bootstrap can't clobber a later switch either
+  // (same shape as the stock page's guard).
+  const requestGen = useRef(0)
+
   // Online/offline detection (NFR-008)
   useEffect(() => {
     function handleOnline() { setIsOnline(true) }
@@ -205,6 +213,7 @@ export function KitchenLogPage() {
   // against a branch the person never chose (a wrong default is the defect class this spec
   // exists to end; a missing one costs one tap).
   const loadData = useCallback(async () => {
+    const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
     try {
       const [items, branchRows, streamPairs, defaultPair, bu] = await Promise.all([
@@ -232,6 +241,7 @@ export function KitchenLogPage() {
             fetchActualsMap(logDate, resolvedStream),
           ])
         : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
+      if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setWipItems(items)
       setBranches(branchRows)
       setStreamOptions(catalog)
@@ -244,6 +254,7 @@ export function KitchenLogPage() {
       setLines(buildLines(items, plan, stock, resolvedMovement))
       setStatus({ kind: 'ready' })
     } catch {
+      if (gen !== requestGen.current) return
       // Can't resolve items/streams/stock/BU — render an error state rather than stamping a
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
@@ -285,6 +296,7 @@ export function KitchenLogPage() {
   // them — a typed number belongs to the stream it was typed against, and silently re-filing
   // it under a different one is how a COGS series acquires rows nobody meant.
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
+    const gen = ++requestGen.current
     setStream(nextStream)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
@@ -294,16 +306,52 @@ export function KitchenLogPage() {
         fetchStockMap(logDate, nextStream),
         fetchActualsMap(logDate, nextStream),
       ])
+      if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setPlanMap(plan)
       setStockMap(stock)
       setActualsMap(actuals)
       setLines(buildLines(wipItems, plan, stock, PRODUCE))
       setStatus({ kind: 'ready' })
     } catch {
+      if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logDate, wipItems])
+
+  // The six-stream picker (FR-003/005) — ONE definition, rendered in the ready form AND
+  // while a switch's read is in flight: a slow stream's fetch must never unmount the
+  // control that lets the person leave that stream (default-not-wall; same shape as the
+  // stock page's fix). CANONICAL branch names here (OD-WAY-39), never the 'Bungur'
+  // display alias: 'Bungur' is the incumbent's label for the same-branch DESTINATION
+  // ("Transfer to Bungur") and stays in action/destination labeling only — a Rumah
+  // Rames barista picking their own stream must read the branch by its catalog name.
+  const streamPicker = (
+    <Select
+      className="kl-scope-stream"
+      aria-label={t('kitchen.log.stream.pickerAria')}
+      value={stream ? streamKey(stream.branch.id, stream.activity) : ''}
+      disabled={status.kind === 'submitting' || streamOptions.length === 0}
+      onChange={e => {
+        const next = streamOptions.find(
+          s => streamKey(s.branch.id, s.activity) === e.target.value,
+        )
+        if (next) void applyStream(next)
+      }}
+    >
+      {stream === null && (
+        <option value="" disabled>{t('kitchen.log.stream.choose')}</option>
+      )}
+      {streamOptions.map(s => (
+        <option
+          key={streamKey(s.branch.id, s.activity)}
+          value={streamKey(s.branch.id, s.activity)}
+        >
+          {s.branch.name} · {activityLabel(t, s.activity)}
+        </option>
+      ))}
+    </Select>
+  )
 
   function handleQtyChange(itemId: string, qty: number) {
     setLines(prev => {
@@ -427,11 +475,17 @@ export function KitchenLogPage() {
   }
 
   // ── Data loading state — offline indicator surfaced here too (#2, RI-2) ──────
+  // Once the stream catalog is loaded (i.e. this is a stream SWITCH, not bootstrap),
+  // the picker stays mounted above the shell: a slow stream's read must never take
+  // away the control that switches off it (FR-003 default-not-wall — stock-page shape).
   if (status.kind === 'loading') {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
+          {streamOptions.length > 0 && (
+            <div className="kl-scope kl-block">{streamPicker}</div>
+          )}
           <LoadingShell count={3} />
         </div>
       </PageFamilyFrame>
@@ -726,30 +780,7 @@ export function KitchenLogPage() {
                   of selects that offered the whole branch catalog — including the
                   roastery, which is a branch but never a stream. With no default (FR-002)
                   the placeholder holds the empty value until a stream is chosen. */}
-              <Select
-                className="kl-scope-stream"
-                aria-label={t('kitchen.log.stream.pickerAria')}
-                value={stream ? streamKey(stream.branch.id, stream.activity) : ''}
-                disabled={isSubmitting || streamOptions.length === 0}
-                onChange={e => {
-                  const next = streamOptions.find(
-                    s => streamKey(s.branch.id, s.activity) === e.target.value,
-                  )
-                  if (next) void applyStream(next)
-                }}
-              >
-                {stream === null && (
-                  <option value="" disabled>{t('kitchen.log.stream.choose')}</option>
-                )}
-                {streamOptions.map(s => (
-                  <option
-                    key={streamKey(s.branch.id, s.activity)}
-                    value={streamKey(s.branch.id, s.activity)}
-                  >
-                    {branchDisplayName(s.branch)} · {activityLabel(t, s.activity)}
-                  </option>
-                ))}
-              </Select>
+              {streamPicker}
               <MovementSeg
                 value={movement}
                 options={movementsForStream(branches)}
@@ -778,7 +809,7 @@ export function KitchenLogPage() {
               businessUnitId={buId}
               streamLabel={
                 stream
-                  ? `${branchDisplayName(stream.branch)} / ${activityLabel(t, stream.activity)}`
+                  ? `${stream.branch.name} / ${activityLabel(t, stream.activity)}`
                   : undefined
               }
             />

@@ -598,8 +598,9 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    // w1: plan 10, stok 3 → effective target 7; tersedia 9. Log 9 with a note (off-target
-    // 9 != 7 needs a note, but 9 <= tersedia so it's NOT rejected for availability).
+    // w1: transfer plan 10 (absolute — FR-014 scopes stock subtraction to production);
+    // tersedia 9. Log 9 with a note (off-plan 9 != 10 needs a note, but 9 <= tersedia
+    // so it's NOT rejected for availability).
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '9' } })
@@ -631,6 +632,12 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
   })
 
   it('AC-022: a Transfer of <= tersedia is allowed with no cap cue', async () => {
+    // Enough available for the full plan: transfer target = the ABSOLUTE plan (10,
+    // FR-014 — stock is never subtracted on transfers), tersedia 12 covers it.
+    mockFetchStockMap.mockResolvedValue({
+      w1: { stok: 3, tersedia: 12 },
+      w2: { stok: 0, tersedia: 0 },
+    })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -640,13 +647,13 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
     })
 
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // effective target = max(plan 10 − stok 3, 0) = 7 → log exactly 7 (on-target, no note, no cap)
+    // log exactly the plan (10) — on-target, no note, and 10 <= tersedia 12 → no cap
     await act(async () => {
-      fireEvent.change(qtyInput, { target: { value: '7' } })
+      fireEvent.change(qtyInput, { target: { value: '10' } })
       await Promise.resolve()
     })
 
-    expect((qtyInput as HTMLInputElement).value).toBe('7')
+    expect((qtyInput as HTMLInputElement).value).toBe('10')
     expect(screen.queryByText(/insufficient stock/i)).toBeNull()
     expect(screen.queryByText(/note required/i)).toBeNull()
   })
@@ -1358,11 +1365,15 @@ describe('FR-005: the picker offers exactly the six-stream catalog — the roast
     // Six streams — no placeholder (a default resolved), no roastery, no seventh.
     expect(options).toHaveLength(6)
     const labels = options.map(o => o.textContent)
-    for (const branchLabel of ['Gordi HQ', 'Radiant', 'Bungur']) {
+    // CANONICAL catalog names (OD-WAY-39) — never the 'Bungur' destination alias:
+    // a Rumah Rames barista picking their own stream reads 'Rumah Rames', not the
+    // incumbent's transfer-destination label.
+    for (const branchLabel of ['Gordi HQ', 'Radiant', 'Rumah Rames']) {
       for (const activity of ['Kitchen', 'Bar']) {
         expect(labels).toContain(`${branchLabel} · ${activity}`)
       }
     }
+    expect(labels.join(' ')).not.toMatch(/bungur/i)
     expect(within(picker).queryByRole('option', { name: /roastery/i })).toBeNull()
   })
 })
@@ -1460,5 +1471,54 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     await waitFor(() => {
       expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*9/)
     })
+  })
+})
+
+describe('stale-response race: an older stream fetch resolving LAST never lands under a newer stream', () => {
+  it('the newer switch owns the form — the stale response is discarded, and the picker stays mounted mid-switch', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Switch #1 → (Radiant, bar): its plan fetch HANGS — it will resolve last, stale.
+    let resolveStale!: (map: Record<string, Partial<Record<string, number>>>) => void
+    mockFetchPlanMap.mockImplementationOnce(
+      () => new Promise(res => { resolveStale = res }),
+    )
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    await act(async () => {
+      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
+      await Promise.resolve()
+    })
+
+    // While switch #1 is in flight the picker MUST stay mounted (FR-003 — a slow
+    // stream is never a dead end; getByRole throws here if the switch unmounts it).
+    const pickerDuringLoad = screen.getByRole('combobox', { name: /production stream/i })
+
+    // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
+    mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
+    await act(async () => {
+      fireEvent.change(pickerDuringLoad, {
+        target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') },
+      })
+      await Promise.resolve()
+    })
+    await waitFor(() => screen.getByText('Nasi Goreng'))
+    expect(
+      screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
+    ).toHaveAttribute('placeholder', '33')
+
+    // NOW the stale switch-#1 response arrives (w2 → 77). It must be discarded: without
+    // the request-generation guard it would re-seed the lines with Radiant-bar's plan
+    // under the Gordi-HQ label — and submit would file those rows to GHQ's books.
+    await act(async () => {
+      resolveStale({ w2: { [PRODUCE_KEY]: 77 } })
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue(
+      streamKey(BRANCH_GORDI_HQ.id, 'kitchen'),
+    )
+    expect(
+      screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
+    ).toHaveAttribute('placeholder', '33')
   })
 })
