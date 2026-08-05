@@ -7,21 +7,21 @@
 // NEW component (not lifted from the capture page): the capture surface is being
 // reworked on its own branch (#233), so this file is consumed only by the stock page
 // for now — consolidating the capture page onto it is a follow-up, noted in the PR.
-// Branch names go through branchDisplayName, so the central kitchen's stream reads
-// under the Rumah Rames display alias — never "HQ"/"Stok HQ" (FR-061, CONTEXT.md trap:
-// that label collides with the GHQ branch).
+// Branch names here are the CANONICAL catalog names (OD-WAY-39) — never "HQ"/"Stok HQ" for the
+// central kitchen (FR-061, CONTEXT.md trap: that label collides with the GHQ branch), and since
+// #238's owner ruling, never the 'Bungur' display alias either.
 //
-// UNRESOLVED, found by #238's authenticated render and left for the owner: this picker names
-// the stream a person is LOOKING AT under the 'Bungur' alias, and the capture page's stream
-// picker names the SAME stream by its canonical catalog name, in as many words refusing the
-// alias ("a Rumah Rames barista picking their own stream must read the branch by its catalog
-// name"). Both choices are deliberate and pinned by their own tests, and they contradict — one
-// stream reads under two names depending on the surface. Which name the branch carries is a
-// vocabulary decision, not a craft one, so #238 left both as they shipped rather than flip a
-// ratified assertion in passing.
+// THE RULE (CONTEXT.md, Production stream): a stream is named by its branch's canonical catalog
+// name everywhere it is named AS A STREAM; the 'Bungur' alias names a transfer DESTINATION and
+// the derived action label, which is where the incumbent used it and where parity lives.
+// This picker names the stream a person is LOOKING AT, so it takes the canonical name — the same
+// line the capture page's stream picker already held. #237 shipped the alias here and pinned it
+// with a test; #238's authenticated render found the two surfaces disagreeing about one stream,
+// and the ruling settled it in favour of the capture page. The test was inverted, not deleted:
+// it now pins BOTH halves, so the distinction is asserted rather than merely removed.
 
 import { Select } from '@/components/ui/select'
-import { activityLabel, branchDisplayName } from '@/lib/kitchen-action-label'
+import { activityLabel } from '@/lib/kitchen-action-label'
 import { PRODUCTION_ACTIVITIES } from '@/lib/db/kitchen-logs.types'
 import type { BranchOption, ProductionActivity, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useT } from '@/i18n/use-t'
@@ -59,7 +59,7 @@ export function StreamScopePicker({
         }}
       >
         {branches.map(branch => (
-          <option key={branch.id} value={branch.id}>{branchDisplayName(branch)}</option>
+          <option key={branch.id} value={branch.id}>{branch.name}</option>
         ))}
       </Select>
       <Select

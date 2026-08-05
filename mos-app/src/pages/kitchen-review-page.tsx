@@ -29,7 +29,7 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { activityLabel, branchDisplayName, movementKey, streamKey } from '@/lib/kitchen-action-label'
+import { activityLabel, movementKey, streamKey } from '@/lib/kitchen-action-label'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
@@ -762,14 +762,15 @@ export function KitchenReviewPage() {
           >
             <option value="all">{t('kitchen.review.allStreams')}</option>
             {streamCatalog.map(s => (
-              // UNRESOLVED, and left as it shipped (see stream-scope-picker's header): this
-              // filter names the stream under the 'Bungur' alias while the capture page's stream
-              // picker names the same stream by its canonical catalog name and explicitly refuses
-              // the alias. Two names for one stream, on the two surfaces most likely to be open
-              // side by side — found by #238's authenticated phone render, the first this chain
-              // has had. Which name the branch carries is the owner's call, not a passing fix.
+              // CANONICAL branch names (OD-WAY-39, and the #238 owner ruling now in CONTEXT.md):
+              // a stream is named by its branch's catalog name everywhere it is named AS A
+              // STREAM; the 'Bungur' alias names a transfer DESTINATION and the derived action
+              // label, never a stream. This filter used the alias until #238's authenticated
+              // render found one stream reading "Rumah Rames · Bar" on capture and "Bungur · Bar"
+              // here — two names for one stream, on the two surfaces most likely to be open side
+              // by side.
               <option key={streamKey(s.branch.id, s.activity)} value={streamKey(s.branch.id, s.activity)}>
-                {branchDisplayName(s.branch)} · {activityLabel(t, s.activity)}
+                {s.branch.name} · {activityLabel(t, s.activity)}
               </option>
             ))}
           </Select>
