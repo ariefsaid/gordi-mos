@@ -65,12 +65,12 @@ function viewer(accessRoles: string[]): AuthState {
 }
 
 const PROD_LOG: ReviewLogRow = {
-  id: 'log-prod', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-prod', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'w1', wip_item_name: 'Nasi Goreng', qty_porsi: 8, notes: 'kurang bahan',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
 }
 const XFER_LOG: ReviewLogRow = {
-  id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant',
+  id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: 'branch-radiant',
   wip_item_id: 'w2', wip_item_name: 'Cold Brew', qty_porsi: 42, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T13:02:00Z',
 }
@@ -287,17 +287,17 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
 // Submitted rows in the section. The per-row single-approve flow keeps its variance-note
 // gate (only bulk approves-all without per-row notes, mirroring the oracle).
 const PROD_ONPLAN_A: ReviewLogRow = {
-  id: 'log-a', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-a', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'wA', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:00:00Z',
 }
 const PROD_ONPLAN_B: ReviewLogRow = {
-  id: 'log-b', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-b', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'wB', wip_item_name: 'Sambal', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T08:05:00Z',
 }
 const PROD_OFFPLAN: ReviewLogRow = {
-  id: 'log-c', log_date: '2026-06-20', action_type: 'Production',
+  id: 'log-c', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   wip_item_id: 'wC', wip_item_name: 'Tahu', qty_porsi: 7, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:10:00Z',
 }

@@ -1,23 +1,34 @@
-// KitchenToolbar — the shared search-mini + category filter (OD-K-5 redesign §2.3).
+// KitchenToolbar — the shared scope + search-mini + category filter (OD-K-5 redesign §2.3).
 // Lifted from Log's .klt-toolbar so Plan + Stock (optionally Review) share it. Flat
 // utility surface (no --shadow-rest): --card bg, --border bottom, 10–12px pad.
-// search-mini (role="search") + optional category dropdown + optional children slot
-// (e.g. ActionTypeSeg on the Plan editor). Token-only (DESIGN.md).
+// Optional LEADING scope slot (ActionTypeSeg) + search-mini (role="search") + optional
+// category dropdown. Token-only (DESIGN.md).
+//
+// v4 (chrome merge): the slot is LEADING, not trailing. Café · Log and Café · Plan both
+// stacked ActionTypeSeg in a band of its own directly above this one — two bordered utility
+// strips saying "here is the chrome", costing a whole extra row of phone screen on the
+// surfaces whose entire job is reaching the list. They now share ONE band. The slot leads
+// because the scope control decides what every row in the list *means* (which action_type's
+// plan/made), so it outranks the filters — and leading it in the DOM keeps focus and
+// reading order agreeing with the visual order instead of buying that with `order: -1`.
 
 import type { ReactNode } from 'react'
 import { Select } from '@/components/ui/select'
+import { useT } from '@/i18n/use-t'
 import './kitchen-toolbar.css'
 
 interface KitchenToolbarProps {
   search: string
   onSearchChange: (s: string) => void
-  /** categories derived by the caller (['All', …unique sorted]); omit → no select */
+  /** categories derived by the caller (['All', …unique sorted]); omit → no select. The
+   *  sentinel value 'All' stays an untranslated internal value (comparisons key off it);
+   *  only its DISPLAYED option text is localized, below. */
   categories?: string[]
   category?: string
   onCategoryChange?: (c: string) => void
-  /** default "Find a dish" */
+  /** default: the shared "Find a dish" catalog string */
   searchPlaceholder?: string
-  /** optional trailing slot (e.g. ActionTypeSeg on the Plan editor) */
+  /** optional LEADING scope slot (ActionTypeSeg on the Log + Plan capture surfaces) */
   children?: ReactNode
   /** default "Filter" */
   ariaLabel?: string
@@ -29,18 +40,21 @@ export function KitchenToolbar({
   categories,
   category,
   onCategoryChange,
-  searchPlaceholder = 'Find a dish',
+  searchPlaceholder,
   children,
   ariaLabel = 'Filter',
 }: KitchenToolbarProps) {
+  const t = useT()
+  const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
   return (
     <div className="ktb" aria-label={ariaLabel}>
+      {children && <div className="ktb-children">{children}</div>}
       <div role="search" className="ktb-search-wrap">
         <input
           type="search"
           className="ktb-search"
-          placeholder={searchPlaceholder}
-          aria-label={searchPlaceholder}
+          placeholder={placeholder}
+          aria-label={placeholder}
           value={search}
           onChange={e => onSearchChange(e.target.value)}
         />
@@ -48,14 +62,15 @@ export function KitchenToolbar({
       {categories && onCategoryChange && (
         <Select
           className="ktb-category"
-          aria-label="Category"
+          aria-label={t('kitchen.toolbar.category.ariaLabel')}
           value={category}
           onChange={e => onCategoryChange(e.target.value)}
         >
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          {categories.map(c => (
+            <option key={c} value={c}>{c === 'All' ? t('kitchen.filter.all') : c}</option>
+          ))}
         </Select>
       )}
-      {children && <div className="ktb-children">{children}</div>}
     </div>
   )
 }

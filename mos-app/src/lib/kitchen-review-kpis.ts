@@ -1,21 +1,27 @@
 import { useMemo } from 'react'
 import type { KitchenKpiStripData } from '@/lib/kitchen-kpis'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import { movementKey } from '@/lib/kitchen-action-label'
 
+// The plan map is keyed by MOVEMENT, not by the derived label (DD-WAY-13). Keying it by the
+// label here would silently resolve every lookup to 0 — a plan-vs-logged column that always
+// reads "off-plan" and never says why.
 function planQtyFor(planMap: PlanMap, log: ReviewLogRow): number {
-  return planMap[log.wip_item_id]?.[log.action_type] ?? 0
+  return planMap[log.wip_item_id]?.[
+    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
+  ] ?? 0
 }
 
 export function computeReviewKpis(logs: ReviewLogRow[], planMap: PlanMap): KitchenKpiStripData {
   let onPlanCount = 0
   let offPlanCount = 0
   let transferWaiting = 0
-  const productionPending = logs.some(log => log.action_type === 'Production')
+  const productionPending = logs.some(log => log.action === 'produce')
 
   for (const log of logs) {
     if (log.qty_porsi === planQtyFor(planMap, log)) onPlanCount += 1
     else offPlanCount += 1
-    if (productionPending && log.action_type !== 'Production') transferWaiting += 1
+    if (productionPending && log.action === 'transfer') transferWaiting += 1
   }
 
   return {

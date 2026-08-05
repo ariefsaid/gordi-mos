@@ -4,17 +4,17 @@ import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const LOGS: ReviewLogRow[] = [
   {
-    id: 'r1', log_date: '2026-06-22', action_type: 'Production',
+    id: 'r1', log_date: '2026-06-22', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
     wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
     status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-22T08:00:00Z',
   },
   {
-    id: 'r2', log_date: '2026-06-22', action_type: 'Production',
+    id: 'r2', log_date: '2026-06-22', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
     wip_item_id: 'w2', wip_item_name: 'Sambal', qty_porsi: 7, notes: 'extra',
     status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-22T09:00:00Z',
   },
   {
-    id: 'r3', log_date: '2026-06-22', action_type: 'Transfer to Radiant',
+    id: 'r3', log_date: '2026-06-22', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: 'branch-radiant',
     wip_item_id: 'w3', wip_item_name: 'Cold Brew', qty_porsi: 10, notes: null,
     status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-22T10:00:00Z',
   },

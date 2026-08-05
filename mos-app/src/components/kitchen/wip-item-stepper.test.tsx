@@ -1,7 +1,17 @@
 // WipItemStepper tests — AC-020/021/022
+//
+// v4 (2026-07-27): the −/+ stepper was replaced by a single typed numeric field (production
+// is entered as a total, "mostly 10-20+", not incremented — see wip-item-stepper.tsx). These
+// tests were rewritten to the new interaction: the goals they protect are unchanged (a user
+// can enter the quantity they produced and is told when it diverges from plan), only the
+// STEPS changed — typing into the field instead of clicking −/+, and the variance-note gate
+// asserted on blur rather than on every keystroke.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { WipItemStepper } from './wip-item-stepper'
+import { needsVarianceNote, VARIANCE_NOTE_CUE } from '@/lib/kitchen-gates'
 import type { KitchenActionType, KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 
 const BASE_LINE: KitchenLogLine = {
@@ -23,6 +33,7 @@ function renderStepper(
     onQtyChange?: () => void
     onNotesChange?: () => void
     itemName?: string
+    dense?: boolean
   } = {},
 ) {
   return render(
@@ -32,6 +43,7 @@ function renderStepper(
       actionType={over.actionType ?? 'Production'}
       onQtyChange={over.onQtyChange ?? vi.fn()}
       onNotesChange={over.onNotesChange ?? vi.fn()}
+      dense={over.dense}
     />,
   )
 }
@@ -42,54 +54,86 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
   })
 
-  it('shows plan qty context', () => {
+  // v4: plan is no longer a separate caption — it is the qty field's greyed placeholder anchor.
+  it('shows the plan qty as the field placeholder (the greyed anchor), not as restated text', () => {
     renderStepper({ line: { plan_qty: 12 } })
-    expect(screen.getByText(/plan/i)).toBeInTheDocument()
-    expect(screen.getByText(/12/)).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '12')
   })
 
-  it('shows stok + tersedia context only for transfer actions', () => {
+  it('falls back to a "0" placeholder when there is no plan for this action_type', () => {
+    renderStepper({ line: { plan_qty: 0 } })
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '0')
+  })
+
+  // v4: `stok` is dropped from the stepper (both layouts already render Stock as their own
+  // column/field) — only `tersedia` (availability) remains, and only for stock-consuming actions.
+  it('shows avail (tersedia) context only for transfer actions (cafe-1: English session → English labels)', () => {
     renderStepper({ line: { stok: 3, tersedia: 9 }, actionType: 'Transfer to Radiant' })
-    expect(screen.getByText(/stok/i)).toBeInTheDocument()
-    expect(screen.getByText(/tersedia/i)).toBeInTheDocument()
+    expect(screen.getByText(/avail/i)).toBeInTheDocument()
+    expect(screen.getByText('9')).toBeInTheDocument()
   })
 
-  it('hides stok/tersedia for Production', () => {
+  it('hides avail context for Production', () => {
     renderStepper({ line: { stok: 3, tersedia: 9 }, actionType: 'Production' })
-    expect(screen.queryByText(/tersedia/i)).toBeNull()
+    expect(screen.queryByText(/avail/i)).toBeNull()
   })
 
-  it('calls onQtyChange(+1) when + button is clicked', () => {
-    const onQtyChange = vi.fn()
-    renderStepper({ line: { qty_porsi: 5 }, onQtyChange })
-    fireEvent.click(screen.getByRole('button', { name: /increase/i }))
-    expect(onQtyChange).toHaveBeenCalledWith(6)
-  })
-
-  it('calls onQtyChange(-1) when - button is clicked (min 0)', () => {
-    const onQtyChange = vi.fn()
-    renderStepper({ line: { qty_porsi: 5 }, onQtyChange })
-    fireEvent.click(screen.getByRole('button', { name: /decrease/i }))
-    expect(onQtyChange).toHaveBeenCalledWith(4)
-  })
-
-  it('does not decrement below 0', () => {
+  // v4: blank at rest — a blank field means "nothing entered yet" and must stay
+  // distinguishable from a deliberate zero (never coerced to the string "0").
+  it('is blank at rest (qty=0 renders an empty field, not "0")', () => {
     renderStepper({ line: { qty_porsi: 0 } })
-    expect(screen.getByRole('button', { name: /decrease/i })).toBeDisabled()
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveValue(null)
   })
 
-  it('AC-020/021: shows note field when error is set', () => {
+  it('renders the typed quantity once a value is staged', () => {
+    renderStepper({ line: { qty_porsi: 15 } })
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveValue(15)
+  })
+
+  it('allows direct numeric input in the qty field', () => {
+    const onQtyChange = vi.fn()
+    renderStepper({ onQtyChange })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity/i }), { target: { value: '15' } })
+    expect(onQtyChange).toHaveBeenCalledWith(15)
+  })
+
+  // v4: no decrement button to floor at 0 — the field itself rejects a negative typed value
+  // (the −/+ stepper's "does not decrement below 0" floor, ported to the typed control).
+  it('rejects a typed negative value — the qty never goes below 0', () => {
+    const onQtyChange = vi.fn()
+    renderStepper({ onQtyChange })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity/i }), { target: { value: '-5' } })
+    expect(onQtyChange).not.toHaveBeenCalled()
+  })
+
+  // v4: clearing the field back to blank reports 0 (an intentional "nothing staged"), not NaN.
+  it('clearing the field back to blank reports qty 0', () => {
+    const onQtyChange = vi.fn()
+    renderStepper({ line: { qty_porsi: 5 }, onQtyChange })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity/i }), { target: { value: '' } })
+    expect(onQtyChange).toHaveBeenCalledWith(0)
+  })
+
+  // v4: the note field + the invalid-border cue reveal on BLUR, never on every keystroke —
+  // typing "18" against a plan of 25 must not flag at the first digit.
+  it('AC-020/021: does NOT reveal the note field while still typing (before blur)', () => {
     renderStepper({ line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true } })
-    expect(screen.getByText(/catatan wajib/i)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /note/i })).toBeNull()
+  })
+
+  it('AC-020/021: reveals the note field on BLUR (cafe-1: rendered localized, not the raw ID gate constant)', () => {
+    renderStepper({ line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true } })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: /quantity/i }))
+    expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: /note/i })).toBeInTheDocument()
   })
 
-  it('AC-022: shows the transfer-availability cap cue when capError is set', () => {
+  it('AC-022: shows the transfer-availability cap cue when capError is set (cafe-1: localized)', () => {
     renderStepper({
       line: { qty_porsi: 9, tersedia: 9, capError: 'Stok kurang — produksi dulu', dirty: true },
       actionType: 'Transfer to Radiant',
     })
-    expect(screen.getByText(/stok kurang — produksi dulu/i)).toBeInTheDocument()
+    expect(screen.getByText(/insufficient stock — produce first/i)).toBeInTheDocument()
   })
 
   it('calls onNotesChange when note input changes', () => {
@@ -98,6 +142,7 @@ describe('WipItemStepper — AC-020/021/022', () => {
       line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true },
       onNotesChange,
     })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: /quantity/i }))
     fireEvent.change(screen.getByRole('textbox', { name: /note/i }), { target: { value: 'kurang bahan' } })
     expect(onNotesChange).toHaveBeenCalledWith('kurang bahan')
   })
@@ -107,21 +152,116 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.queryByRole('textbox', { name: /note/i })).toBeNull()
   })
 
-  it('+ and - buttons have accessible labels including item name', () => {
-    renderStepper()
-    expect(screen.getByRole('button', { name: /increase nasi goreng/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /decrease nasi goreng/i })).toBeInTheDocument()
+  // v4: the accessible name lives on the field itself (no separate +/− controls to label).
+  it('the qty field carries an accessible name including the item name', () => {
+    renderStepper({ itemName: 'Nasi Goreng' })
+    expect(screen.getByLabelText('Quantity produced for Nasi Goreng')).toBeInTheDocument()
   })
 
-  it('touch targets are >= 44px via data attribute', () => {
+  // v4: the touch-target floor now lives on the typed field (formerly the +/− buttons) —
+  // same `data-touch-target` proxy convention used elsewhere (DataTable cards, Button.css).
+  it('touch target floor: the qty field carries data-touch-target="true"', () => {
     renderStepper()
-    expect(screen.getByRole('button', { name: /increase/i })).toHaveAttribute('data-touch-target', 'true')
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('data-touch-target', 'true')
   })
 
-  it('allows direct numeric input in the qty field', () => {
-    const onQtyChange = vi.fn()
-    renderStepper({ onQtyChange })
-    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity/i }), { target: { value: '15' } })
-    expect(onQtyChange).toHaveBeenCalledWith(15)
+  // cafe-3: dense (desktop DataTable cell) drops the bordered/full-width card box;
+  // the default (phone card) keeps it.
+  it('cafe-3: dense=true drops the .kls-card bordered-box class, keeps content', () => {
+    renderStepper({ dense: true, itemName: 'Ayam Bakar' })
+    const card = screen.getByRole('spinbutton', { name: /quantity/i }).closest('.kls-card')
+    expect(card).toHaveClass('kls-dense')
+  })
+
+  it('cafe-3: dense omitted (phone card floor) keeps the bordered card box', () => {
+    renderStepper({ itemName: 'Ayam Bakar' })
+    const card = screen.getByRole('spinbutton', { name: /quantity/i }).closest('.kls-card')
+    expect(card).not.toHaveClass('kls-dense')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DD-18 regression guard — satisfying the required-note gate must not destroy the
+// field that satisfies it.
+//
+// Live-reproduced 2026-07-28 at 375×812: `showNote` was gated on `error !== ''`, and `error` is
+// the UNSATISFIED gate (the page stamps VARIANCE_NOTE_CUE only while `notes` is empty). So the
+// FIRST keystroke inside the textarea cleared `error`, `showNote` went false, and the textarea
+// unmounted mid-typing with focus dumped to <body>. Submit then unblocked on that one-character
+// note — the surface was shipping "b" as a variance explanation.
+//
+// The two halves are guarded TOGETHER on purpose: a test that only proved the field survives
+// typing would also pass on a version that re-nags on every keystroke, which is precisely the
+// behaviour DD-8 removed. Both must hold at once.
+//
+// Both use a stateful harness because the bug only exists in the PARENT CONTRACT: qty/notes are
+// controlled by the page, and the page's `gateLine` clears `error` the instant a note has any
+// content. The harness composes the app's OWN gate (needsVarianceNote + VARIANCE_NOTE_CUE from
+// lib/kitchen-gates) exactly as kitchen-log-page.tsx's gateLine does — it reproduces the
+// contract, it does not re-implement the rule.
+// ─────────────────────────────────────────────────────────────────────────────
+function StagedLineHarness({
+  planQty = 19,
+  actionType = 'Production' as KitchenActionType,
+}: { planQty?: number; actionType?: KitchenActionType }) {
+  const [line, setLine] = useState<KitchenLogLine>({ ...BASE_LINE, plan_qty: planQty })
+  // The page's gateLine (kitchen-log-page.tsx), same composition: an unstaged line has no gate,
+  // and the cue is stamped ONLY while the required note is still empty.
+  function gate(next: KitchenLogLine): KitchenLogLine {
+    if (next.qty_porsi <= 0) return { ...next, error: '', capError: '' }
+    return {
+      ...next,
+      error: needsVarianceNote(next, actionType) && !next.notes.trim() ? VARIANCE_NOTE_CUE : '',
+    }
+  }
+  return (
+    <WipItemStepper
+      itemName="Nasi Goreng"
+      line={line}
+      actionType={actionType}
+      onQtyChange={qty => setLine(prev => gate({ ...prev, qty_porsi: qty, dirty: qty > 0 }))}
+      onNotesChange={notes => setLine(prev => gate({ ...prev, notes }))}
+    />
+  )
+}
+
+describe('WipItemStepper — DD-18: the variance-note field survives being filled in', () => {
+  it('DD-18(a): a floor worker can write a whole variance note — the field stays mounted and keeps focus across every keystroke', async () => {
+    const user = userEvent.setup()
+    render(<StagedLineHarness planQty={19} />)
+
+    // The worker types what they actually produced (7 against a plan of 19) and moves on.
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(qty, { target: { value: '7' } })
+    fireEvent.blur(qty)
+
+    // The gate asks for an explanation, so they start writing it.
+    const note = screen.getByRole('textbox', { name: /note for nasi goreng/i })
+    await user.click(note)
+    await user.keyboard('bahan habis sejak pagi')
+
+    // The goal: the sentence they came to write is written. The field is the SAME element
+    // throughout (never remounted), still holds the caret, and holds the whole note — not the
+    // single character that survived the gate destroying its own control.
+    const stillThere = screen.getByRole('textbox', { name: /note for nasi goreng/i })
+    expect(stillThere).toBe(note)
+    expect(stillThere).toHaveValue('bahan habis sejak pagi')
+    expect(document.activeElement).toBe(note)
+  })
+
+  it('DD-18(b)/DD-8: typing an off-plan quantity does NOT reveal the note field before blur (the reveal stays blur-gated, never per keystroke)', () => {
+    render(<StagedLineHarness planQty={19} />)
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+
+    // Mid-entry — "1" on the way to "19" is already off-plan, and must not shove a mandatory
+    // textarea into the row while the number is still being typed.
+    fireEvent.change(qty, { target: { value: '1' } })
+    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
+    fireEvent.change(qty, { target: { value: '7' } })
+    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
+
+    // Only once the field is done does the gate ask for the note.
+    fireEvent.blur(qty)
+    expect(screen.getByRole('textbox', { name: /note for nasi goreng/i })).toBeInTheDocument()
   })
 })

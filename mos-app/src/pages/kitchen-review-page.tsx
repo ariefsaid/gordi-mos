@@ -12,8 +12,10 @@ import {
   approveKitchenLog,
   rejectKitchenLog,
   KitchenRpcError,
+  resolveDefaultCaptureStream,
 } from '@/lib/db/kitchen-logs'
 import type { ReviewLogRow, KitchenActionType, PlanMap } from '@/lib/db/kitchen-logs.types'
+import { movementKey } from '@/lib/kitchen-action-label'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
@@ -31,15 +33,23 @@ function wibToday(): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
 }
 
+// #196 note, for whoever ports this surface (#198): the queue still GROUPS by the derived
+// label string, which cannot enumerate the streams that have no rows yet. Grouping belongs
+// on the stored movement. What is fixed here is the part that would have been silently
+// wrong rather than merely incomplete — the transfer predicate and the plan lookup now read
+// the stored `(action, destination_branch_id)` pair (DD-WAY-13) instead of matching label
+// literals, which no longer exist in the database.
 const ACTION_ORDER: KitchenActionType[] = ['Production', 'Transfer to Radiant', 'Transfer to Bungur']
 
-function isTransfer(a: KitchenActionType): boolean {
-  return a === 'Transfer to Radiant' || a === 'Transfer to Bungur'
+function isTransfer(a: string): boolean {
+  return a !== 'Production'
 }
 
-/** plan qty for (date, item, action) — 0 when no plan row (off-plan). */
+/** plan qty for (date, item, movement) — 0 when no plan row (off-plan). */
 function planQtyFor(planMap: PlanMap, log: ReviewLogRow): number {
-  return planMap[log.wip_item_id]?.[log.action_type] ?? 0
+  return planMap[log.wip_item_id]?.[
+    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
+  ] ?? 0
 }
 
 /** Format an ISO timestamp to HH:MM (WIB, fixed +7 offset — NFR-007). */
@@ -291,9 +301,13 @@ export function KitchenReviewPage() {
   const fetchQueue = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
+      // The plan read is stream-scoped now (OD-WAY-28). This surface has no stream picker
+      // yet — #198 — so it reads the stream the capture surface opens on, and shows an
+      // empty plan baseline rather than a cross-stream sum if the catalog is empty.
+      const stream = await resolveDefaultCaptureStream()
       const [rows, plan, people] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
-        fetchPlanMap(logDate),
+        stream ? fetchPlanMap(logDate, stream) : Promise.resolve({} as PlanMap),
         getPeople(),
       ])
       setLogs(rows)
@@ -507,7 +521,7 @@ export function KitchenReviewPage() {
       key: 'decision',
       header: 'Decision',
       render: (log) => {
-        const gated = isTransfer(log.action_type) && productionPending
+        const gated = log.action === 'transfer' && productionPending
         return (
           <KitchenReviewDecision
             log={log}

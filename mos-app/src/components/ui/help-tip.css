@@ -1,0 +1,80 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   HelpTip — the shared "?" domain-term help disclosure (H10).
+
+   The glyph keeps the app's existing grammar (a 14x14 bordered circle, muted-
+   foreground) so nothing repaints; what changed (onboard, 2026-07-28) is that
+   it now opens a REAL panel instead of relying on the native `title` tooltip,
+   which touch input never triggers — see help-tip.tsx for the full reasoning.
+
+   Hit area padded to 44x44 on ALL pointers via an invisible ::before — the
+   visible glyph box stays 14x14 so nothing repaints larger.
+   inset:-16px (not -15px): box-sizing:border-box + the 1px border means the
+   ::before's containing block is the 12px PADDING box (14 - 2x1px border),
+   not the 14px border box — verified live (getComputedStyle): -15px only
+   reaches 42x42; -16px pads the clickable region to the full 44x44
+   (12 + 16 + 16) without shifting layout (no margin/padding change on the
+   real 14x14 box).
+   ════════════════════════════════════════════════════════════════════════════ */
+.help-tip-anchor {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.help-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  background: transparent;
+  font-family: inherit;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-micro);
+  line-height: 1;
+  cursor: help;
+  flex: none;
+}
+.help-tip::before {
+  content: '';
+  position: absolute;
+  inset: -16px;
+}
+.help-tip[aria-expanded='true'] {
+  border-color: var(--ring);
+  color: var(--foreground);
+}
+.help-tip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The panel is position:fixed and its top/left are measured in JS from the
+   button's rect, then clamped to the viewport — a CSS-only anchored popover
+   would hang off the right edge whenever the "?" sits in a right-aligned meta
+   slot on a 375px screen. Overlay elevation + card surface so it reads as a
+   layer above the page, matching the app's other transient surfaces. */
+.help-tip-panel {
+  position: fixed;
+  z-index: var(--z-popover, 60);
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--popover, var(--card));
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: var(--shadow-overlay);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+  text-align: start;
+  font-weight: 400;
+  /* Long Indonesian help copy must wrap, never widen the panel or clip. */
+  overflow-wrap: break-word;
+  white-space: normal;
+}

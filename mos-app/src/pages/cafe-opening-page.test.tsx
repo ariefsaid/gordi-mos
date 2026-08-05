@@ -45,6 +45,7 @@ function authedState(accessRoles: string[] = ['ops_lead']): AuthState {
     viewer: {
       person: {
         id: '40000000-0000-0000-0000-000000000001', org_id: 'org-1', user_id: 'auth-user-001',
+        must_change_password: false,
         full_name: 'Cahya Cafe', email: 'cahya@gordi.id', archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
