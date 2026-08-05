@@ -1,25 +1,22 @@
-// Cohesion-debt 2026-07-19, item #1 (Format unification): ONE canonical IDR
-// money formatter. id-ID grouping with DOTS ("Rp 1.000.000") — never the en-US
-// commas that the same app shipped in plan-budget-logic. Locks the canonical output.
-import { describe, expect, it } from 'vitest'
+// format/money tests — the ONE canonical IDR formatter (cohesion-debt 2026-07-19,
+// item #1). Oracle: id-ID grouping (DOTS), "Rp " prefix, whole rupiah, leading
+// minus on negatives.
+import { describe, it, expect } from 'vitest'
 import { formatIDR } from './money'
 
-describe('formatIDR — the one canonical rupiah formatter', () => {
-  it('groups thousands with DOTS (id-ID) and prefixes "Rp "', () => {
+describe('formatIDR (one canonical IDR string)', () => {
+  it('groups thousands with id-ID DOTS and prefixes Rp', () => {
+    expect(formatIDR(45000)).toBe('Rp 45.000')
+    expect(formatIDR(9000)).toBe('Rp 9.000')
     expect(formatIDR(1_000_000)).toBe('Rp 1.000.000')
-    expect(formatIDR(45_000)).toBe('Rp 45.000')
-    expect(formatIDR(1_284_500_000)).toBe('Rp 1.284.500.000')
   })
 
-  it('rounds to whole rupiah (no sen)', () => {
-    expect(formatIDR(1_234_567.5)).toBe('Rp 1.234.568')
+  it('rounds to whole rupiah — rupiah has no sen', () => {
+    expect(formatIDR(1234567.5)).toBe('Rp 1.234.568')
+    expect(formatIDR(0.4)).toBe('Rp 0')
   })
 
-  it('renders zero as "Rp 0"', () => {
-    expect(formatIDR(0)).toBe('Rp 0')
-  })
-
-  it('prefixes the minus sign for negatives ("-Rp …")', () => {
-    expect(formatIDR(-500_000)).toBe('-Rp 500.000')
+  it('carries a leading minus on negatives, never "Rp -…"', () => {
+    expect(formatIDR(-21000)).toBe('-Rp 21.000')
   })
 })
