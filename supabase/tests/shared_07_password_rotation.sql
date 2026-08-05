@@ -7,7 +7,7 @@
 -- actually changing.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(19);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -99,6 +99,60 @@ select ok(
      from pg_proc p join pg_roles r on r.oid = p.proowner
     where p.oid = 'shared._current_person_must_change_password()'::regprocedure),
   'the owner of _current_person_must_change_password() has BYPASSRLS — without it the policy cycle recurses');
+
+-- shared.current_org_id() reads a SECOND definer function on shared.people, and it inherits the whole
+-- of the paragraph above: same table, same FORCE, same cycle through people_select_org. The
+-- consequence if this attribute is ever absent is an AVAILABILITY one and not a disclosure one —
+-- policy evaluation recurses and every query on every table fails — which is exactly why it belongs
+-- in a test rather than in a comment. A deployment where it is false is down, not degraded.
+select ok(
+  (select r.rolbypassrls
+     from pg_proc p join pg_roles r on r.oid = p.proowner
+    where p.oid = 'shared._current_person_is_live()'::regprocedure),
+  'the owner of _current_person_is_live() has BYPASSRLS — the same deploy dependency, on the second definer function in the seam');
+
+-- Both, in one query over the seam rather than two named functions, so a THIRD definer helper added
+-- to shared.people later is covered the day it lands instead of the day someone remembers this file.
+select is(
+  (select count(*)::int
+     from pg_proc p
+     join pg_roles r on r.oid = p.proowner
+    where p.pronamespace = 'shared'::regnamespace
+      and p.prosecdef
+      and p.prosrc ilike '%shared.people%'
+      and not r.rolbypassrls),
+  0,
+  'EVERY definer function in `shared` that reads shared.people is owned by a BYPASSRLS role — asserted over the catalog, so a helper added later is covered without editing this test');
+
+-- ── The rotation screen stays reachable through both gates ───────────────────────────────────
+-- current_org_id() is closed for this caller — by the flag, and now also by anything the live-person
+-- check refuses. current_person_id() is deliberately NOT, because identity is not authorization, and
+-- people_select_self is keyed on it. That is the whole reason the set-password screen can render for
+-- somebody whose org seam is shut; without it the caller reaches the orphan screen with sign-out as
+-- the only action and no way to ever clear the flag.
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01","access_roles":["member"]}';
+select is(shared.current_org_id(), null,
+  'precondition: the flagged caller''s org seam is shut, so the assertion below is about a genuinely closed session');
+select is(
+  (select count(*)::int from shared.people where id = '00000000-0000-0000-0000-0000000000d1'),
+  1,
+  'a caller who must change their password STILL reads their own person row — people_select_self runs off current_person_id(), which no gate in this seam touches');
+select is((select count(*)::int from shared.roles), 0,
+  '...and reads nothing else, so the self row is a keyhole for the set-password screen and not a reopened seam');
+
+-- THE CONTROL, and it does two jobs. It proves the closure above is the ROTATION FLAG rather than
+-- anything else in the seam — clear the flag and the identical claim set resolves — and in doing so
+-- it proves that claim set satisfies every condition the live-person check applies: not archived,
+-- person in the claimed org, and still linked to the `sub` this token carries.
+reset role;
+update shared.people set must_change_password = false
+ where id = '00000000-0000-0000-0000-0000000000d1';
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01","access_roles":["member"]}';
+select is(shared.current_org_id(), '00000000-0000-0000-0000-0000000000a1'::uuid,
+  'clearing the flag reopens the SAME claim set — so the closure above was the rotation gate, and an ordinary signed-in session satisfies every directory condition the seam applies');
+reset role;
 
 select * from finish();
 rollback;

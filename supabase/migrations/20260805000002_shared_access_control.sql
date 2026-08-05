@@ -127,15 +127,34 @@ comment on function shared._current_person_must_change_password() is
 revoke execute on function shared._current_person_must_change_password() from public, anon;
 grant  execute on function shared._current_person_must_change_password() to authenticated;
 
--- ── Does the CALLER's person_id claim still resolve to a live directory row? ──────────────────
+-- ── Does the CALLER's claim set still describe a live directory row? ─────────────────────────
 -- Same shape, same reasons, same recursion break as the rotation check above: SECURITY DEFINER
--- because shared.people's own SELECT policy calls current_org_id(), which calls this.
+-- because shared.people's own SELECT policy calls current_org_id(), which calls this. That means it
+-- carries the SAME deployment dependency — the owner must hold BYPASSRLS or every policy evaluation
+-- recurses — and shared_07_password_rotation asserts the attribute for this function as well as for
+-- the rotation one, so neither claim rests on a comment.
 --
 -- Read the polarity carefully, because it is the opposite of the rotation check's. A session with NO
 -- person_id claim returns TRUE — "nothing to invalidate" — so anon and the service/seed connection
 -- behave exactly as they did, and current_org_id() keeps resolving from the org claim alone on paths
--- that never had a person. What returns FALSE is the specific case this exists for: a claim that
--- NAMES a person who does not resolve — archived, or gone from the directory entirely.
+-- that never had a person.
+--
+-- What it answers when a person IS named is the whole question, not a part of it: does this claim set
+-- still describe one live row? Three conditions, because a claim set is three separate assertions
+-- about the directory and any one of them can go stale on its own:
+--   * the person is not archived;
+--   * the person belongs to the org the token claims — the hook mints both from one row, so this is
+--     restating the hook's own invariant where it is CONSUMED rather than trusting it to hold;
+--   * the person is still THIS login's person. The hook resolves a person BY user_id, so that link
+--     is what the token's identity means; a privileged repair or reassignment that re-points it
+--     leaves the claim describing a row it no longer belongs to.
+--
+-- The `sub` arm is skipped when the claim is absent, which is the same service/seed exemption the
+-- guards below use and not a softening: a PostgREST-issued token always carries `sub`, so the arm
+-- always applies to the sessions it is about, and anyone able to set request.jwt.claims by hand is
+-- already on the trusted connection. Read through shared._claim_uuid rather than auth.uid() so a
+-- malformed claim fails closed to NULL here exactly as it does for org_id and person_id, instead of
+-- raising inside an RLS predicate — the reason _claim_uuid exists at all.
 create or replace function shared._current_person_is_live()
 returns boolean
 language sql
@@ -147,13 +166,19 @@ as $$
       or exists (select 1
                    from shared.people p
                   where p.id = shared._claim_uuid('person_id')
-                    and p.archived_at is null)
+                    and p.archived_at is null
+                    and p.org_id = shared._claim_uuid('org_id')
+                    and (shared._claim_uuid('sub') is null
+                         or p.user_id = shared._claim_uuid('sub')))
 $$;
 comment on function shared._current_person_is_live() is
-  'True unless the person_id claim names a directory row that is archived or absent. Read by '
+  'True unless the person_id claim names a directory row that is archived, absent, in a different '
+  'org than the token claims, or no longer linked to the token''s own login. Read by '
   'shared.current_org_id(). A session with no person_id claim is "live" — there is nothing to '
-  'invalidate — so anon and the service connection are unaffected. SECURITY DEFINER to break RLS '
-  'recursion via shared.people, exactly as _current_person_must_change_password does.';
+  'invalidate — so anon and the service connection are unaffected, and the login arm is skipped when '
+  'there is no `sub` claim (the service/seed connection). SECURITY DEFINER to break RLS recursion via '
+  'shared.people, exactly as _current_person_must_change_password does; both owners'' BYPASSRLS '
+  'attribute is asserted in shared_07_password_rotation.';
 revoke execute on function shared._current_person_is_live() from public, anon;
 grant  execute on function shared._current_person_is_live() to authenticated;
 
@@ -172,6 +197,11 @@ grant  execute on function shared._current_person_is_live() to authenticated;
 -- makes a directory change take effect on the next statement instead of at the next mint, which is
 -- the property the rotation gate was given for exactly this argument. Both conditions read the same
 -- one-row lookup on shared.people, so this costs the seam nothing it was not already paying.
+--
+-- Note the division of labour with current_person_id(), which stays ungated for the reason stated
+-- above it: identity is who you are, authorization is what you may do. That is what keeps
+-- people_select_self reachable, and therefore what keeps the set-password screen renderable for a
+-- caller whose org seam is closed — by the rotation flag or by anything added here.
 create or replace function shared.current_org_id()
 returns uuid
 language sql

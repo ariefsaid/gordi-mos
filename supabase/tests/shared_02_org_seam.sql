@@ -6,7 +6,7 @@
 -- raising (a raise inside an RLS predicate surfaces as a probeable 500).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(31);
 
 select shared._test_seed_directory();
 -- org A = ...0a01 with Unit-1/Unit-2, the role tree and people d1..d7
@@ -111,6 +111,11 @@ select cmp_ok((select count(*) from shared.roles), '>', 0::bigint,
 reset role;
 update shared.people set archived_at = now()
  where id = '00000000-0000-0000-0000-0000000000d7';
+-- d1 gets a real login, because two of the assertions below are about which login a person resolves
+-- to and an unlinked person would let them pass on "user_id is null" rather than on a mismatch.
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000aa01') on conflict (id) do nothing;
+update shared.people set user_id = '00000000-0000-0000-0000-00000000aa01'
+ where id = '00000000-0000-0000-0000-0000000000d1';
 set local role authenticated;
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7"}';
@@ -124,11 +129,36 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is(shared.current_org_id(), null,
   'a person_id claim that names nobody resolves to no org either');
 
--- THE CONTROL. Identical org claim, live person: the seam opens. Without this the three above would
--- also pass under a current_org_id() that had simply been broken to return NULL.
+-- A claim set is three assertions about the directory, not one, and the seam resolves only if all
+-- three still hold together. The two below are the pairing conditions: the person must belong to the
+-- org the token names, and must still be the person this login resolves to. Both restate, where the
+-- claims are CONSUMED, an invariant the hook holds where they are minted — and a claim set outlives
+-- the mint, so the consuming end is where it has to be checked.
+--
+-- Org A's own d1, but presented alongside org B's id. The hook mints both from one row and could
+-- never produce this pairing; what the seam must not do is take it on trust.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
+select is(shared.current_org_id(), null,
+  'a person_id and an org_id that name DIFFERENT rows resolve to no org — the pair has to agree, not merely each exist');
+
+-- Same person, same org, a `sub` that is not the login this person resolves to. d1 is linked to
+-- ...aa01 by the access-role fixture; ...aa09 is some other auth user.
+reset role;
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000aa09') on conflict (id) do nothing;
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa09"}';
+select is(shared.current_org_id(), null,
+  'a token whose `sub` is not the login this person resolves to gets no org — the person_id claim means "the person of THIS login", and the seam holds it to that');
+
+-- THE CONTROLS. Same three claims, all agreeing: the seam opens. Without these the five refusals
+-- above would also pass under a current_org_id() that had simply been broken to return NULL.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
 select is(shared.current_org_id(), '00000000-0000-0000-0000-0000000000a1'::uuid,
   'the SAME org claim with a LIVE person still resolves — the person is what closed it, not the org');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01"}';
+select is(shared.current_org_id(), '00000000-0000-0000-0000-0000000000a1'::uuid,
+  '...and so does the full claim set an ordinary sign-in actually carries, `sub` included — the login arm refuses a mismatch, not the presence of the claim');
 
 reset role;
 update shared.people set archived_at = null
