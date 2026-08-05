@@ -1,12 +1,11 @@
 import { NavLink } from 'react-router-dom'
 import { DESTINATIONS, UTILITY, isLive, modulesByBUForRoles, type Destination } from './destinations'
-import type { Section } from './sections'
+import { visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
 import type { RailCounts } from '@/lib/db/rail-counts'
 import { UserChip } from './user-chip'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import './rail-nav.css'
 
@@ -88,7 +87,7 @@ const itemBase = (isActive: boolean, compact = false) =>
 // (unread count) below — and follow the EXACT WorkChild pattern (DO-18(d)): the accessible NAME
 // is built on the link itself by joining the already-localized label + badge sentence, so AT
 // never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
-function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey }) {
+function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean }) {
   const t = useT()
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
@@ -100,6 +99,11 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey }: { d:
       end={to === '/'}
       onClick={onNavigate}
       aria-label={accessibleName}
+      // Rule 5: exactly one aria-current="page" in the rail. A parent that renders its own
+      // children is a LOCATION, never the page — the active child carries "page". Work sets this
+      // explicitly in its own branch; a module with children needs the same, or at /cafe/log both
+      // the Café parent (prefix match) and the Log child would claim "page".
+      aria-current={parentOfChildren ? 'location' : undefined}
       data-label={compact ? label : undefined}
       className={({ isActive }) => itemBase(isActive, compact)}
     >
@@ -259,7 +263,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
               // Work parent: aria-current="location" when any /work/* route is active
               // (Rule 5 — parent never carries "page"; the active child does). `to="/work"`
               // matches every /work/* descendant so the parent is "active" across all children.
-              const children = (d.children ?? []).filter((c) => !c.capability || can(accessRoles, c.capability))
+              const children = visibleSections(d.children ?? [], accessRoles)
               const workLabel = t(d.labelKey)
               return (
                 <div key={d.id}>
@@ -329,9 +333,26 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
           <div key={g.bu} className="mt-3">
             {!compact && <RailGroupLabel>{t(g.bu)}</RailGroupLabel>}
             <div className="flex flex-col gap-[2px] rail-item-list">
-              {g.items.map((m) => (
-                <DestLink key={m.id} d={m} onNavigate={onNavigate} compact={compact} />
-              ))}
+              {g.items.map((m) => {
+                // A module with children renders them the same way Work does — an always-expanded
+                // indented list — minus Work's E7 sub-section overlines, which are Work's own
+                // grammar. Café is the module that has them; the rest fall through to a single
+                // link exactly as before. Without this the module's `children` are dead data and
+                // its screens have no nav entry at all.
+                const kids = visibleSections(m.children ?? [], accessRoles)
+                return (
+                  <div key={m.id}>
+                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} />
+                    {kids.length > 0 && (
+                      <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list pl-3'}>
+                        {kids.map((c) => (
+                          <WorkChild key={c.path} section={c} onNavigate={onNavigate} compact={compact} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         ))}

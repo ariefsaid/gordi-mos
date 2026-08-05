@@ -136,7 +136,6 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/money/pricing', PricingPage, 'dev'],
   ['/money/follow-ups', FollowUpsPage, 'dev'],
   ['/inbox', InboxPage, 'dev'],
-  ['/cafe', SliceStubPage, 'stub'],
   ['/cafe/log', KitchenLogPage, 'dev'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],

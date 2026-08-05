@@ -9,12 +9,11 @@ import {
   primaryModuleForViewer,
   type Destination,
 } from './destinations'
-import type { Section } from './sections'
+import { visibleSections, type Section } from './sections'
 import { UserChip } from './user-chip'
 import { CloseIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
 import './mobile-drawer.css'
 
 interface MobileDrawerProps {
@@ -28,7 +27,7 @@ interface MobileDrawerProps {
 // filters them (rail-nav.tsx) — a capability-gated child (Projects & Processes, Objectives)
 // renders only for a viewer whose access roles grant it.
 function workChildren(d: Destination, accessRoles: string[]): Section[] {
-  return (d.children ?? []).filter((c) => !c.capability || can(accessRoles, c.capability))
+  return visibleSections(d.children ?? [], accessRoles)
 }
 
 // One row renderer shared by both Destination and Work-child (Section) rows — same visual
@@ -222,6 +221,26 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                 {g.items.map((m) => (
                   <li key={m.id}>
                     <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
+                    {/* A module's own screens, indented beneath it. This drawer is the phone's
+                        ONLY route to a module's sub-surfaces — the bottom bar gives a module one
+                        tab — so a module whose children are not drawn here has no phone nav at
+                        all. Café is the case that matters: five screens with live kitchen staff
+                        on them. Gated children (Review · Pushes) are filtered by the same helper
+                        the rail uses, against the same roles their route enforces. */}
+                    {visibleSections(m.children ?? [], accessRoles).length > 0 && (
+                      <ul className="flex flex-col gap-[2px] pl-6">
+                        {visibleSections(m.children ?? [], accessRoles).map((c) => (
+                          <li key={c.path}>
+                            <DrawerRow
+                              to={c.path}
+                              label={c.labelKey ? t(c.labelKey) : c.label}
+                              Icon={c.Icon}
+                              onNavigate={closeAndReturn}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>

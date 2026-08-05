@@ -1,7 +1,7 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
-import type { Section } from './sections'
+import { CAFE_SECTIONS, CAFE_MODULE_SECTIONS, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, EventsIcon, SignalsIcon, MoneyIcon,
@@ -38,7 +38,8 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Work's always-expanded switcher (4, flat); undefined for non-Work destinations */
+  /** Always-expanded sub-links rendered beneath the entry (Work's 4; Café's 5). Undefined for a
+   *  destination whose root IS the whole surface. */
   children?: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
    *  `readonly` so the shared role constants (REVENUE_VIEW_ROLES) can be assigned directly —
@@ -85,14 +86,16 @@ export const DESTINATIONS: Destination[] = [
     ],
   },
   {
-    // OD-V4-2 ("Signals everywhere", owner-ratified 2026-07-27, docs/v4-inheritance.md INC-2):
-    // the noun "Events" is retired from the UI. This root's rendered label is now "Signals" (the
-    // live company-wide feed) via dest.events/nav.events in messages.ts — the Work child at
-    // /work/signals is the archive of the same Signal records, labeled "Signals Archive" so the
-    // two rail entries are never visually identical. The `id: 'events'`, `labelKey: 'dest.events'`,
-    // `EventsIcon`, and the `/events` PATH are all left as legacy internal identifiers on purpose —
-    // renaming them is a route/deep-link/test-touching change out of this fix's scope. Only the
-    // rendered i18n string changed; do not confuse the legacy internal name with the shown label.
+    // This root renders as "Events". It previously carried a comment claiming OD-V4-2 ("Signals
+    // everywhere") had retired the noun and that `dest.events` / `nav.events` now resolve to
+    // "Signals", with the Work child relabelled "Signals Archive".
+    //
+    // Checked against the catalogue on BOTH lines: `dest.events` and `nav.events` are 'Events' /
+    // 'Acara' here AND on `v4-redesign` itself, and the Work child is 'Signals' / 'Sinyal', not
+    // 'Signals Archive'. So the comment was already wrong at its source — this is not a half-ported
+    // ruling, it is a rationale describing a relabelling nobody ever made. Corrected to match the
+    // code rather than carried across; whether OD-V4-2 still wants that relabelling is a question
+    // for the map, not something to infer from a stale comment.
     id: 'events',
     zone: 'workspace',
     labelKey: 'dest.events',
@@ -135,9 +138,19 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
   {
     bu: 'rail.retailOps',
     items: [
+      // Café carries its five working screens, not just its root. The port shipped this module
+      // with a single `/cafe` link while CAFE_SECTIONS held all six paths, correctly labelled and
+      // imported by nothing but a breadcrumb lookup — so Log, Plan, Stock, Review and Pushes, the
+      // one module with live kitchen staff on it, became reachable only by typing a URL.
+      //
+      // `children` (not just `links`) is what actually renders them: every nav surface draws ONE
+      // link per module at `primaryPath ?? links[0].path`, and the expanded child list is the
+      // mechanism Work already uses. Review and Pushes carry the same `ops_lead|admin` gate their
+      // ROUTE carries, so the rail never offers a link that bounces.
       { id: 'cafe', zone: 'modules', labelKey: 'dest.cafe', Icon: CafeIcon, primaryPath: '/cafe',
         workMatch: /caf[eé]|kitchen|\bbar\b|barista/i,
-        links: [{ path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon }] },
+        links: CAFE_SECTIONS,
+        children: CAFE_MODULE_SECTIONS },
       { id: 'ecommerce', zone: 'modules', labelKey: 'dest.ecommerce', Icon: EcommerceIcon, primaryPath: '/ecommerce',
         workMatch: /ecommerce/i, // NOT sales|crm — Sales is the b2b_sales BU (seed), no module yet (audit F6)
         links: [{ path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon }] },
@@ -193,20 +206,6 @@ export function modulesByBUForRoles(
  */
 export function primaryModuleForViewer(roleNames: string[], accessRoles: string[]): Destination | null {
   return modulesForRoles(roleNames, accessRoles)[0] ?? null
-}
-
-/**
- * SEC-1 route hygiene (FLAG-B / G2): whether the viewer should see cafe/kitchen work surfaces —
- * the Café rail entry (already scoped by the `cafe` module's `workMatch`) and Home's failed-checks
- * deep-link (which routes to `/cafe/log`). True for a viewer affiliated with the Café module by job
- * role (same honest ceiling as the rail's `workMatch`), OR ops_lead/admin who own the review queue
- * org-wide. Fail-closed: a finance/HR/etc. persona with no cafe affiliation gets no cafe deep-link.
- * ponytail: role-name affiliation, same ceiling as `modulesForRoles`; upgrade to a team-membership
- * check when the viewer payload carries team.business_unit (the deferred RequireTeamInBU seam).
- */
-export function viewerSeesCafe(roleNames: string[], accessRoles: string[]): boolean {
-  if (accessRoles.includes('ops_lead') || accessRoles.includes('admin')) return true
-  return modulesForRoles(roleNames, accessRoles).some((m) => m.id === 'cafe')
 }
 
 export const UTILITY: Destination[] = [

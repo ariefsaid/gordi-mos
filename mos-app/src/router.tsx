@@ -380,18 +380,27 @@ export const routeConfig: RouteObject[] = [
           { path: 'inbox', element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
 
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
-          // /cafe is v4's opening surface, which has no `dev` counterpart — hence the stub. It is
-          // deliberately NOT a redirect to /cafe/log: v4 rules the opening screen to be the
-          // destination's home, and a redirect planted here would have to be un-planted.
+          // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D) and has no `dev`
+          // counterpart. It was wired to the slice stub, which meant the rail's Café entry — the
+          // one module with live kitchen staff on it — landed a barista on "Not in this slice
+          // yet". AC-020 is explicit that an unported surface serves what `dev` serves, and
+          // `dev`'s Café home is the Log; that rule was applied to /work/signals and missed here.
+          //
+          // So the destination home forwards to the Log until the opening surface ports, at which
+          // point this one entry becomes the real page. A redirect rather than wiring KitchenLogPage
+          // at both paths, so the URL keeps saying which screen the viewer is actually on.
           {
             path: 'cafe',
-            element: withSuspense(<SliceStubPage jobKey="job.cafe" nameKey="dest.cafe" />),
-            handle: pageHandle('workspace'),
+            element: <RouteRedirect to="/cafe/log" />,
+            handle: redirectHandle('/cafe/log'),
           },
           { path: 'cafe/log', element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
           { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
-          { path: 'kitchen', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
+          // Names /cafe/log, not /cafe: /cafe forwards to the Log until the opening surface ports,
+          // and a redirect that lands on a redirect is two hops. When Café's opening page lands,
+          // this goes back to /cafe in the same PR that makes /cafe a page again.
+          { path: 'kitchen', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
           { path: 'kitchen/log', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
           { path: 'kitchen/plan', element: <RouteRedirect to="/cafe/plan" />, handle: redirectHandle('/cafe/plan') },
           {
