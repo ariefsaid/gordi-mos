@@ -458,7 +458,8 @@ export const messages = {
     'cafe.opening.notStartedMember': 'Not started yet — no one has started today’s opening.',
     'cafe.opening.start': "Start today's opening",
     'cafe.opening.viewTasks': 'View opening tasks',
-    'common.loadFailed': 'Couldn’t load ${what}. Check your connection and try again.',
+    // common.loadFailed: same key, same value, already added by the Money/Budget port above
+    // (line ~371) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Try again',
     'common.what.items': 'the dish list',
     'doc.cafeOps': 'Café Operations',
@@ -1289,7 +1290,8 @@ export const messages = {
     'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
-    'common.loadFailed': 'Gagal memuat ${what}. Periksa koneksi Anda lalu coba lagi.',
+    // common.loadFailed: same key, same value, already added by the Money/Budget port above
+    // (line ~1214) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Coba lagi',
     'common.what.items': 'daftar menu',
     'doc.cafeOps': 'Operasi Kafe',
