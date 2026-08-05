@@ -376,10 +376,14 @@ function PlanEditor() {
                   <option key={activity} value={activity}>{activityLabel(t, activity)}</option>
                 ))}
               </Select>
+              {/* Same destination picker as capture (FR-013), including the origin so the
+                  intra-branch entry reads the same here as it does on the log surface —
+                  a plan for a movement the capture form cannot name is a plan nobody fills. */}
               <MovementSeg
                 value={movement}
                 options={movementsForStream(branches)}
                 branches={branches}
+                origin={stream}
                 onChange={setMovement}
               />
             </div>

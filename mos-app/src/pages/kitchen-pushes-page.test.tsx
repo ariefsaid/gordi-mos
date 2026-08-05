@@ -429,3 +429,65 @@ describe('KitchenPushesPage — all status values render', () => {
     expect(screen.getByText('pending')).toBeInTheDocument()
   })
 })
+
+// ── FR-052 (#235): held is not pending ────────────────────────────────────────
+// An approved intra-branch movement — destination branch = origin branch — resolves to the
+// no-op arm: logged, approved, and no ERP document for it, now or ever (FR-050/053 — the
+// production master data has no per-activity locations to post to). The outbox still carries
+// the row, because one row per batch is what the double-post guard is built on, so this screen
+// is where the two outcomes have to be told apart.
+//
+// Read as a bare status that row says `pending`, and keeps saying it. Bar capture is what turns
+// that into a real problem: intra-branch movements used to be one carried case of the
+// incumbent's and are now capturable from every stream, so the lead's one question here — is
+// anything stuck? — collects a growing pile of wrong answers unless held has its own word.
+const HELD_ROW: EsbPushRow = {
+  id: 'push-5',
+  source_module: 'kitchen',
+  source_ref: 'TB-20260621-002',
+  endpoint: 'noop',
+  target_env: 'goo',
+  status: 'pending',
+  retry_count: 0,
+  last_error: null,
+  esb_doc_num: null,
+  created_at: '2026-06-21T01:00:00Z',
+  posted_at: null,
+}
+
+describe('KitchenPushesPage — held vs posted (FR-052)', () => {
+  it('FR-052: a held (intra-branch) row reads "held", not "pending"', async () => {
+    mockListPushes.mockResolvedValue([HELD_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('TB-20260621-002')
+
+    expect(screen.getByText('held')).toBeInTheDocument()
+    expect(screen.queryByText('pending')).toBeNull()
+  })
+
+  it('FR-052: held and posted are distinguishable in the same table', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW, HELD_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('TB-20260621-002')
+
+    // Both words present as text, not as tint alone (WCAG 1.4.1).
+    expect(screen.getByText('posted')).toBeInTheDocument()
+    expect(screen.getByText('held')).toBeInTheDocument()
+    // And the document column says which of the two HAS a document: the posted row's number,
+    // and for the held row a statement rather than an em dash, which reads as "not yet".
+    expect(screen.getByText('SMA-2026-0001')).toBeInTheDocument()
+    expect(screen.getByText(/no erp document/i)).toBeInTheDocument()
+  })
+
+  it('FR-052: a no-op row that genuinely FAILED still reads as failed', async () => {
+    // FAILED_ROW is endpoint 'noop' + status 'failed'. "Held" describes having nothing to post;
+    // it must never swallow a dispatch that went wrong, which is the one thing on this screen
+    // that actually wants a human.
+    mockListPushes.mockResolvedValue([FAILED_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('TB-20260621-001')
+
+    expect(screen.getByText('failed')).toBeInTheDocument()
+    expect(screen.queryByText('held')).toBeNull()
+  })
+})

@@ -33,6 +33,28 @@ import './kitchen-pushes-page.css'
 
 type StatusTagConfig = { color: 'green' | 'gray' | 'amber' | 'red'; label: string }
 
+/**
+ * HELD — the intra-branch arm, made visible (FR-050/052).
+ *
+ * `noop` is the endpoint an approved movement gets when its destination branch IS its origin
+ * branch: the movement is logged and approved, but the ERP already books that branch as
+ * holding the WIP, so there is no document for it and — per FR-053 — there never will be. The
+ * production master-data lookup found no per-activity locations, so no ERP counterpart exists
+ * to post to; the hold is the permanent model, not a queue that will drain later.
+ *
+ * Which is exactly why it needs its own word here. Read as a bare status, a held row says
+ * `pending` and keeps saying it, so the one thing a lead needs from this screen — is anything
+ * actually stuck? — is answered wrongly, and the more intra-branch movements the bar streams
+ * capture, the more convincing the wrong answer gets.
+ *
+ * A held row that genuinely failed keeps its failure: `failed`/`dead_letter` describe the
+ * dispatch attempt, and hiding one behind "held" would bury the only rows on this screen that
+ * do want a human.
+ */
+function isHeld(row: EsbPushRow): boolean {
+  return row.endpoint === 'noop' && row.status !== 'failed' && row.status !== 'dead_letter'
+}
+
 function statusConfig(status: EsbPushStatus): StatusTagConfig {
   switch (status) {
     case 'posted':    return { color: 'green',  label: 'posted' }
@@ -113,6 +135,11 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
       key: 'status',
       header: t('kitchen.pushes.col.status'),
       render: row => {
+        // FR-052: held is its own word, in the same column as posted — the distinction is in
+        // the text, not the tint alone (WCAG 1.4.1, and the tints here already carry env).
+        if (isHeld(row)) {
+          return <Tag color="sand" weight="medium">{t('kitchen.pushes.status.held')}</Tag>
+        }
         const cfg = statusConfig(row.status)
         return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
       },
@@ -140,9 +167,14 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
     {
       key: 'esb_doc_num',
       header: t('kitchen.pushes.col.esbDoc'),
+      // A posted row's proof is its document number. A held row's is that it has none and is
+      // not waiting for one — an em dash would read as "not yet", which is the misreading
+      // FR-053 exists to close.
       render: row => row.esb_doc_num
         ? <span className="mono">{row.esb_doc_num}</span>
-        : <span className="kpu-dash">—</span>,
+        : isHeld(row)
+          ? <span className="kpu-cell-muted">{t('kitchen.pushes.noErpDoc')}</span>
+          : <span className="kpu-dash">—</span>,
     },
     {
       key: 'created_at',

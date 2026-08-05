@@ -19,7 +19,7 @@
 -- Rumah Rames and Radiant but hardcodes them is not a model.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(20);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -105,6 +105,19 @@ select is(ops.esb_endpoint_for('transfer','00000000-0000-0000-0000-00000000bf02'
   'a transfer within one branch''s books posts nothing — because those books never recorded it leaving, not because it stayed in one place');
 select is(ops.esb_endpoint_for('transfer','00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-00000000bf01'), 'noop',
   'and the same holds for GORDI HQ, a branch the incumbent never had a case for — the rule is structural, not a hardcoded destination');
+
+-- FR-051 / OD-WAY-44 (#235): the dispatch-target rule compares BRANCHES and nothing else. Bar
+-- capture makes intra-branch movements capturable from both activity surfaces, which is exactly
+-- when somebody reaches for "…but a bar→kitchen transfer is different from a kitchen→bar one" and
+-- grows this function an activity argument. The values above cannot catch that — a widened
+-- signature keeps returning the same three strings for the same branch pairs — so the input list
+-- itself is pinned. Adding a destination-activity dimension goes red here, deliberately.
+select is(
+  (select pg_get_function_arguments(p.oid)
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'ops' and p.proname = 'esb_endpoint_for'),
+  'p_action text, p_branch_id uuid, p_destination_branch_id uuid',
+  'FR-051: the ERP endpoint is derived from the action and the two BRANCHES — no activity, and no destination-activity dimension added speculatively (OD-WAY-44)');
 
 select * from finish();
 rollback;

@@ -9,13 +9,18 @@ import { useT } from '@/i18n/use-t'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
-  fetchDefaultStream,
   listStreamPairs,
   streamCatalogFrom,
   approveKitchenLog,
   rejectKitchenLog,
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
+// The ONE person-scoped default-stream resolver (#234 consolidation). This page still
+// imported the twin that lived in kitchen-logs.ts until #272 deleted it — a merge race
+// between two siblings, repaired here so the branch typechecks. Same fact, shape-validated,
+// and it resolves against an already-loaded branch catalog, so it runs after that read
+// rather than inside the parallel batch.
+import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { activityLabel, branchDisplayName, movementKey, streamKey } from '@/lib/kitchen-action-label'
@@ -325,13 +330,13 @@ export function KitchenReviewPage() {
   const fetchQueue = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [rows, branchRows, people, pairs, ownStream] = await Promise.all([
+      const [rows, branchRows, people, pairs] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
         listActiveBranches(),
         getPeople(),
         listStreamPairs(),
-        fetchDefaultStream(),
       ])
+      const ownStream = await fetchDefaultStream(branchRows)
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
       // the queue (#247/#197) — not the single hardcoded stream the prior version read.
       const branchById = new Map(branchRows.map((b: BranchOption) => [b.id, b]))
@@ -347,7 +352,7 @@ export function KitchenReviewPage() {
           async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const,
         ),
       )
-      const ownKey = ownStream ? streamKey(ownStream.branch_id, ownStream.activity) : null
+      const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       setLogs(rows)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
