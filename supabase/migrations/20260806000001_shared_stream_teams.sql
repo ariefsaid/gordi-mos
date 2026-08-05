@@ -14,6 +14,7 @@
 --
 -- DOWN (reversal, in order):
 --   drop function shared.default_stream();
+--   drop function shared.seed_stream_teams();
 --   delete from shared.teams where branch_id is not null;   -- the six seeded stream teams per org
 --   alter table shared.teams
 --     drop constraint teams_branch_same_org_fkey,
@@ -63,9 +64,14 @@ comment on index shared.teams_stream_unique is
   'OD-WAY-42) is enumerable because a stream cannot have two live teams.';
 
 -- ── Seed: the six stream teams — {GHQ, RRS, Radiant} x {kitchen, bar} (FR-005, OD-WAY-42) ────
--- Idempotent, per existing org, mirroring the branch-catalog seed pattern (…0001): the migration
--- seeds orgs that exist at migration time; supabase/seed.sql re-seeds the dev org on a fresh reset
--- (the dual-seed pattern — change one, mirror the other).
+-- ONE seeder, named, called by this migration for orgs that exist at migration time and by
+-- supabase/seed.sql for the dev org a fresh reset creates afterwards — the dual-seed pattern the
+-- branch catalog uses, except deduplicated: both halves call this function, so the pair list has
+-- one home. Idempotent (ON CONFLICT DO NOTHING), and VALIDATING: ON CONFLICT alone would let an
+-- ordinary team already holding a reserved code silently swallow a stream team and ship a
+-- five-stream catalog — the exact silent-shortfall FR-005/AC-012a rule out. So after inserting,
+-- every expected pair must exist as a live stream team or the whole call raises and the
+-- migration/seed fails loudly. The pgTAP suite proves the raise fires (shared_11).
 --
 -- ROASTERY IS DELIBERATELY ABSENT and must stay so: it is a branch (its own books in the ERP) but
 -- carries NO production stream (OD-WAY-42) — nothing WIP-producing happens under a kitchen/bar
@@ -73,10 +79,19 @@ comment on index shared.teams_stream_unique is
 -- ERP movement can ever match.
 --
 -- The stream teams live under the Retail Ops BU (the cafe operation, ADR-0019), resolved by code.
--- An org without that BU (or without the branch catalog) seeds nothing here — pgTAP fixture orgs
--- are created inside rolled-back transactions and never see this loop.
-do $$
-declare o record;
+-- An org without that BU (or without the branch catalog) is not a seed target and is skipped —
+-- pgTAP fixture orgs are created inside rolled-back transactions and carry neither.
+--
+-- NOT an app RPC: plain invoker function run by the migration/seed connection; EXECUTE is revoked
+-- from app roles below (an authenticated session has no INSERT grant on teams anyway).
+create or replace function shared.seed_stream_teams()
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  o         record;
+  v_missing text;
 begin
   for o in select id as org_id from shared.orgs loop
     insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity)
@@ -94,14 +109,78 @@ begin
     join shared.business_units bu
       on bu.org_id = o.org_id and bu.code = 'retail_ops' and bu.archived_at is null
     on conflict (org_id, code) do nothing;
+
+    -- FR-005/AC-012a validation. Pair-existence, not row-count: what must hold is that each
+    -- expected (branch, activity) has a live stream team, whatever its code. The pair list is
+    -- restated rather than shared with the INSERT because the check must not trust the INSERT's
+    -- own view of what it tried — keep the two lists identical when editing.
+    select string_agg(e.branch_code || '/' || e.activity, ', '
+                      order by e.branch_code, e.activity)
+      into v_missing
+    from (
+      select s.branch_code, s.activity, b.id as branch_id
+      from (values
+        ('gordi_hq','kitchen'), ('gordi_hq','bar'),
+        ('rumah_rames','kitchen'), ('rumah_rames','bar'),
+        ('radiant','kitchen'), ('radiant','bar')
+      ) as s(branch_code, activity)
+      join shared.branches b
+        on b.org_id = o.org_id and b.code = s.branch_code and b.archived_at is null
+      where exists (select 1 from shared.business_units bu
+                     where bu.org_id = o.org_id and bu.code = 'retail_ops'
+                       and bu.archived_at is null)
+    ) e
+    where not exists (
+      select 1 from shared.teams t
+       where t.org_id = o.org_id
+         and t.branch_id = e.branch_id
+         and t.activity = e.activity
+         and t.archived_at is null);
+
+    if v_missing is not null then
+      raise exception 'stream-team seed shortfall for org %: missing % — a reserved team code is '
+        'already held by a non-stream team; rename it or archive it, the six-stream catalog must '
+        'be complete (FR-005/AC-012a, OD-WAY-42)', o.org_id, v_missing;
+    end if;
   end loop;
-end $$;
+end;
+$$;
+comment on function shared.seed_stream_teams() is
+  'Seeds the six stream teams — {GHQ, RRS, Radiant} x {kitchen, bar} — for every org carrying the '
+  'Retail Ops BU and the branch catalog, then VALIDATES that all six pairs exist live and raises '
+  'on any shortfall (FR-005/AC-012a): ON CONFLICT DO NOTHING alone would let a code collision ship '
+  'a thin catalog silently. Idempotent; called by the migration and by supabase/seed.sql (the '
+  'dual-seed pattern, deduplicated). Not an app RPC.';
+revoke execute on function shared.seed_stream_teams() from public, anon, authenticated;
+
+select shared.seed_stream_teams();
 
 -- ── Default-stream resolution (FR-001/002, AC-001) ───────────────────────────────────────────
 -- The capture surface opens on the stream of the caller's LIVE PRIMARY Team membership. One row
 -- when a live primary membership exists — with NULL halves when that team is not a stream team
 -- (FR-002: the surface must then require an explicit choice) — and no row when there is no live
 -- primary membership at all. Both empty shapes mean the same thing to the caller: no default.
+--
+-- "LIVE" IS DEFINED HERE, DELIBERATELY, AS: started (effective_from <= today) AND open-ended
+-- (effective_to IS NULL). This is a DECISION, not an accident, and the second half is the part a
+-- reviewer will want to relitigate: a membership with a FUTURE end date (leaving next week, still
+-- on the team today) resolves NO default. Why:
+--   * Determinism is structural, not disciplinary. The substrate's own one-live-primary invariant
+--     is the partial unique index team_memberships_one_primary, whose predicate is exactly
+--     `is_primary AND effective_to IS NULL`. Matching it means at most ONE candidate row can exist
+--     for any person, ever, by index — this function cannot return two streams. The window
+--     semantics (effective_to > today) would admit rows the index does not police: two overlapping
+--     future-ended primaries are insertable, and the resolver would need an arbitrary tie-break.
+--   * The failure modes are asymmetric. A missing default costs one tap on an explicit stream
+--     picker (FR-002/003 require that path to exist anyway). A WRONG default files production
+--     against the wrong branch's books — the exact defect class this whole spec exists to end.
+--     During a scheduled hand-over week, "pick your stream" is honest; a silently-held old default
+--     is not.
+--   * The future-start half is the same rule mirrored: a membership starting next month is not a
+--     default today, even though the index (which ignores effective_from) counts it as the one
+--     open-ended primary.
+-- pgTAP pins both boundary edges AND the index alignment (shared_11), so a later "simplification"
+-- of either predicate goes red rather than silently changing who defaults where.
 --
 -- SECURITY INVOKER: teams and team_memberships are org-readable under their own SELECT policies,
 -- so the caller resolves their own org's rows and nothing else, exactly like the ops read helpers
@@ -127,8 +206,12 @@ as $$
 $$;
 comment on function shared.default_stream() is
   'Default capture stream for the caller (FR-001, AC-001): the (branch_id, activity) of their live '
-  'primary Team membership. NULL halves when that team is not a stream team; no row when no live '
-  'primary membership exists — either way, no default and the surface requires an explicit choice '
-  '(FR-002). SECURITY INVOKER, org-scoped. An affordance only — never an RLS input (OD-WAY-49).';
+  'primary Team membership. LIVE = started (effective_from <= today) AND open-ended (effective_to '
+  'IS NULL) — deliberately the same predicate as the one-live-primary unique index, so at most one '
+  'candidate exists BY INDEX and the resolution is deterministic; a future-dated end (or start) '
+  'resolves no default rather than risking a wrong one (see the migration header). NULL halves '
+  'when the primary team is not a stream team; no row when no live primary membership exists — '
+  'either way the surface requires an explicit choice (FR-002). SECURITY INVOKER, org-scoped. An '
+  'affordance only — never an RLS input (OD-WAY-49).';
 
 grant execute on function shared.default_stream() to authenticated;

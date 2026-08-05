@@ -13,7 +13,7 @@
 -- never a stream: it books to its own company and has no production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(28);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -119,6 +119,37 @@ select is(
   0,
   'AC-012a: NO stream team references the roastery branch, in any org — roastery is in the branch catalog but carries no production stream (OD-WAY-42)');
 
+-- ── The seeder: one home for the pair list, idempotent, and FAIL-LOUD on a code collision ────
+-- Org G is a second seed-shaped org (Retail Ops BU + the branch catalog): calling the seeder again
+-- must six it up while leaving the already-seeded dev org exactly as it was (idempotence), and it
+-- gives the FR-003 catalog test below a second org to prove scoping against.
+insert into shared.orgs (id, name, slug)
+  values ('00000000-0000-0000-0000-0000000000f1','Stream Org G','stream-org-g');
+insert into shared.business_units (id, org_id, name, code) values
+  ('00000000-0000-0000-0000-0000000000f2','00000000-0000-0000-0000-0000000000f1','G Retail Ops','retail_ops');
+insert into shared.branches (org_id, code, name) values
+  ('00000000-0000-0000-0000-0000000000f1','gordi_hq','G Gordi HQ'),
+  ('00000000-0000-0000-0000-0000000000f1','rumah_rames','G Rumah Rames'),
+  ('00000000-0000-0000-0000-0000000000f1','radiant','G Radiant'),
+  ('00000000-0000-0000-0000-0000000000f1','roastery','G Roastery');
+
+select lives_ok(
+  $$ select shared.seed_stream_teams() $$,
+  'the seeder is idempotent — re-running it over an already-seeded org changes nothing and seeds the org that arrived later');
+
+select is(
+  (select count(*)::int from shared.teams t
+    where t.org_id = '00000000-0000-0000-0000-0000000000f1'
+      and t.branch_id is not null and t.archived_at is null),
+  6,
+  'AC-012a: a second seed-shaped org gets its OWN six stream teams — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
+
+select is(
+  (select count(*)::int from shared.teams t
+    where t.branch_id is not null and t.archived_at is null),
+  12,
+  'twelve live stream teams now exist ACROSS orgs — which is what makes the member-enumeration test below prove org scoping rather than pass vacuously');
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-001 — default-stream resolution from the live primary membership
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -128,7 +159,9 @@ insert into shared.people (id, org_id, full_name) values
   ('47000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Stream Primary Fixture'),
   ('47000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','NonStream Primary Fixture'),
   ('47000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','No Team Fixture'),
-  ('47000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','Secondary Only Fixture');
+  ('47000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','Secondary Only Fixture'),
+  ('47000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001','Future Start Fixture'),
+  ('47000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000001','Scheduled End Fixture');
 
 -- Person 1: live primary membership of the (RRS, bar) stream team.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
@@ -151,6 +184,24 @@ select '10000000-0000-0000-0000-000000000001','47000000-0000-0000-0000-000000000
  where t.org_id = '10000000-0000-0000-0000-000000000001'
    and t.code = 'gordi_hq_bar';
 
+-- Person 5: a primary membership that STARTS TOMORROW (open-ended, so it IS this person''s one
+-- index-counted primary — which is exactly why the resolver must check effective_from itself).
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
+select '10000000-0000-0000-0000-000000000001','47000000-0000-0000-0000-000000000005', t.id, true,
+       current_date + 1
+  from shared.teams t
+ where t.org_id = '10000000-0000-0000-0000-000000000001'
+   and t.code = 'gordi_hq_kitchen';
+
+-- Person 6: a primary membership with a SCHEDULED END next week — on the team today, but no longer
+-- the open-ended primary the substrate''s index polices.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to)
+select '10000000-0000-0000-0000-000000000001','47000000-0000-0000-0000-000000000006', t.id, true,
+       current_date - 30, current_date + 7
+  from shared.teams t
+ where t.org_id = '10000000-0000-0000-0000-000000000001'
+   and t.code = 'radiant_bar';
+
 set local role authenticated;
 set local request.jwt.claims =
   '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"47000000-0000-0000-0000-000000000001","access_roles":["member"]}';
@@ -164,12 +215,14 @@ select results_eq($$
   'AC-001: a live primary membership of the (RRS, bar) team resolves the default stream to (RRS, bar) — the Team IS the stream (FR-001, OD-WAY-49)');
 
 -- The member can enumerate the stream catalog: the default is an affordance and switching is free
--- (FR-003), which needs the six teams readable, not just the person''s own.
+-- (FR-003), which needs the six teams readable, not just the person''s own. Twelve live stream
+-- teams exist across orgs (asserted above), so this count proves RLS org-scoping of the catalog,
+-- not merely that six rows exist somewhere.
 select is(
   (select count(*)::int from shared.teams
     where branch_id is not null and archived_at is null),
   6,
-  'FR-003: a member reads all six stream teams of their org — the switcher''s catalog, default not wall');
+  'FR-003: a member enumerates exactly their OWN org''s six stream teams — org G''s six are invisible; the switcher''s catalog is org-scoped by RLS');
 
 set local request.jwt.claims =
   '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"47000000-0000-0000-0000-000000000002","access_roles":["member"]}';
@@ -206,6 +259,61 @@ select is_empty($$
   select branch_id, activity from shared.default_stream()
   $$,
   'AC-001: an ENDED primary membership resolves no default — the resolution reads the LIVE membership, not membership history');
+
+-- ── The liveness boundary, both edges, pinned (review blocker on #263) ───────────────────────
+-- The chosen rule: live = STARTED (effective_from <= today) AND OPEN-ENDED (effective_to IS NULL)
+-- — deliberately the same predicate as team_memberships_one_primary, so at most one candidate row
+-- exists BY INDEX and the resolution is deterministic without a tie-break. The cost, accepted on
+-- purpose: a scheduled future end drops the default early, and the person picks explicitly
+-- (FR-002/003) — a missing default costs a tap, a wrong default files production against the wrong
+-- branch''s books. See the migration header for the full argument.
+set local request.jwt.claims =
+  '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"47000000-0000-0000-0000-000000000005","access_roles":["member"]}';
+select is_empty($$
+  select branch_id, activity from shared.default_stream()
+  $$,
+  'AC-001 boundary: a primary membership STARTING TOMORROW resolves no default today — even though it is the person''s one open-ended primary, the resolver checks effective_from itself');
+
+set local request.jwt.claims =
+  '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"47000000-0000-0000-0000-000000000006","access_roles":["member"]}';
+select is_empty($$
+  select branch_id, activity from shared.default_stream()
+  $$,
+  'AC-001 boundary: a primary membership with a SCHEDULED END next week resolves no default — live means open-ended, matching the substrate''s own one-live-primary index (decision recorded on the function)');
+
+-- The determinism claim above rests on the index predicate staying what it is — pin it, so a
+-- future relaxation of the index is forced to revisit the resolver''s semantics with it.
+reset role;
+select ok(
+  (select indexdef from pg_indexes
+    where schemaname = 'shared' and indexname = 'team_memberships_one_primary')
+    ~* 'is_primary.*effective_to is null',
+  'the one-live-primary index predicate is exactly the resolver''s liveness rule (is_primary AND effective_to IS NULL) — at most one candidate row can exist, so the default is deterministic by construction');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The seed CANNOT ship thin — the shortfall raise proven able to fire (review blocker on #263)
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- ON CONFLICT (org_id, code) DO NOTHING means an ordinary team already holding a reserved code
+-- would silently swallow its stream team. The seeder validates pair-existence after inserting and
+-- raises on any shortfall. Org H is that collision: seed-shaped (Retail Ops BU + branches), but an
+-- ordinary NON-stream team already owns the code 'radiant_bar' — so the (radiant, bar) stream team
+-- cannot be created under its reserved code, and the call must fail loudly, not seed five.
+insert into shared.orgs (id, name, slug)
+  values ('00000000-0000-0000-0000-0000000000a9','Stream Org H','stream-org-h');
+insert into shared.business_units (id, org_id, name, code) values
+  ('00000000-0000-0000-0000-0000000000aa','00000000-0000-0000-0000-0000000000a9','H Retail Ops','retail_ops');
+insert into shared.branches (org_id, code, name) values
+  ('00000000-0000-0000-0000-0000000000a9','gordi_hq','H Gordi HQ'),
+  ('00000000-0000-0000-0000-0000000000a9','rumah_rames','H Rumah Rames'),
+  ('00000000-0000-0000-0000-0000000000a9','radiant','H Radiant');
+insert into shared.teams (org_id, business_unit_id, name, code)
+  values ('00000000-0000-0000-0000-0000000000a9','00000000-0000-0000-0000-0000000000aa',
+          'Ordinary Team Squatting a Reserved Code','radiant_bar');
+
+select throws_ok(
+  $$ select shared.seed_stream_teams() $$,
+  'P0001', null,
+  'AC-012a fail-loud: a reserved code held by a non-stream team makes the seeder RAISE — a five-stream catalog cannot ship silently (the check is proven able to fail)');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- OD-WAY-49 — the stream is a default, never a wall
