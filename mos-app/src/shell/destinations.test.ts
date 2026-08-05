@@ -5,7 +5,8 @@
  * FR-001..005, FR-020/021, AC-011/012 prep.
  */
 import { describe, it, expect } from 'vitest'
-import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerSeesCafe, type Destination } from './destinations'
+import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, type Destination } from './destinations'
+import { CAFE_SECTIONS, visibleSections } from './sections'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { routeConfig } from '@/router'
 import { allRoutes } from '@/test/route-table'
@@ -156,28 +157,51 @@ describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
   })
 })
 
-// viewerSeesCafe — SEC-1 route hygiene: who may see cafe/kitchen surfaces (rail entry + Home
-// failed-checks /cafe/log deep-link). Same honest role ceiling as the Café module's workMatch,
-// PLUS ops_lead/admin who own the review queue org-wide. Fail-closed for unaffiliated personas.
-describe('viewerSeesCafe (SEC-1 route hygiene, FLAG-B/G2)', () => {
-  it('true for a viewer whose job role name matches the Café module (kitchen / cafe / bar / barista)', () => {
-    expect(viewerSeesCafe(['Kitchen Lead'], ['member'])).toBe(true)
-    expect(viewerSeesCafe(['Cafe Ops Lead'], ['member'])).toBe(true)
-    expect(viewerSeesCafe(['Head Barista'], [])).toBe(true)
-    expect(viewerSeesCafe(['Bar Supervisor'], [])).toBe(true)
+// The Café module carries its five working screens as `children`, with Review + Pushes gated on
+// the SAME access roles their routes enforce. The port shipped this module with one link and left
+// CAFE_SECTIONS — all six paths, correctly labelled — imported by nothing but a breadcrumb lookup.
+describe('Café module — the five screens are in the nav, gated as their routes are', () => {
+  const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
+
+  it('carries all five working screens as children, derived from CAFE_SECTIONS', () => {
+    expect(cafe.children?.map((c) => c.path)).toEqual([
+      '/cafe/log',
+      '/cafe/plan',
+      '/cafe/stock',
+      '/cafe/review',
+      '/cafe/pushes',
+    ])
+    // Derived, not re-listed: CAFE_SECTIONS minus the module home. Re-listing is how the two drift.
+    expect(cafe.children).toEqual(CAFE_SECTIONS.filter((s) => s.path !== '/cafe'))
   })
 
-  it('true for ops_lead or admin regardless of job role (they own the review queue org-wide)', () => {
-    expect(viewerSeesCafe([], ['ops_lead'])).toBe(true)
-    expect(viewerSeesCafe([], ['admin'])).toBe(true)
-    expect(viewerSeesCafe(['Finance Lead'], ['admin'])).toBe(true)
+  it('a plain kitchen member sees Log, Plan and Stock — and not Review or Pushes', () => {
+    const visible = visibleSections(cafe.children ?? [], ['member']).map((c) => c.path)
+    expect(visible).toEqual(['/cafe/log', '/cafe/plan', '/cafe/stock'])
   })
 
-  it('false (fail-closed) for a non-cafe persona: finance/HR/roastery job role, no ops_lead/admin', () => {
-    expect(viewerSeesCafe(['Finance Lead'], ['finance'])).toBe(false)
-    expect(viewerSeesCafe(['HR Manager'], ['member'])).toBe(false)
-    expect(viewerSeesCafe(['Roastery Lead'], ['member'])).toBe(false)
-    expect(viewerSeesCafe([], [])).toBe(false)
+  it('ops_lead and admin also see Review and Pushes', () => {
+    for (const role of ['ops_lead', 'admin']) {
+      const visible = visibleSections(cafe.children ?? [], [role]).map((c) => c.path)
+      expect(visible, role).toEqual([
+        '/cafe/log',
+        '/cafe/plan',
+        '/cafe/stock',
+        '/cafe/review',
+        '/cafe/pushes',
+      ])
+    }
+  })
+
+  it("the nav gate on Review and Pushes is the same role list their route enforces", () => {
+    const routeGate = allRoutes(routeConfig).find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
+    )!
+    const routeRoles = [...(routeGate.element as React.ReactElement<{ anyOf: readonly string[] }>).props.anyOf].sort()
+    for (const path of ['/cafe/review', '/cafe/pushes']) {
+      const nav = cafe.children!.find((c) => c.path === path)!
+      expect([...(nav.anyOf ?? [])].sort(), path).toEqual(routeRoles)
+    }
   })
 })
 

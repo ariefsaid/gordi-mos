@@ -262,13 +262,20 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(pageLinks[0]).toHaveAccessibleName('Money')
   })
 
-  it('at /cafe/log, Café link page, exactly one page', () => {
+  // Updated to the STATED contract, not relaxed. Rule 5 is "the parent is a location, the active
+  // child is the page" — which is exactly what AC-807/808 assert two cases below for Work. This
+  // case previously put "page" on the Café parent because Café had no children to carry it: the
+  // module shipped with one link and its five screens were unreachable from the nav at all. Now
+  // that they render, Café follows the same rule Work does. Still "exactly one page" — the
+  // invariant is unchanged and the case is stronger, because it now pins WHICH element holds it.
+  it('at /cafe/log, the Log child carries page and the Café parent carries location, exactly one page', () => {
     setAuthAs(['admin'])
     renderRailNav('/cafe/log')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName('Café')
+    expect(pageLinks[0]).toHaveAccessibleName('Log')
+    expect(within(nav).getByRole('link', { name: 'Café' })).toHaveAttribute('aria-current', 'location')
   })
 
   it('at /admin/people, Admin Settings link page, exactly one page', () => {
