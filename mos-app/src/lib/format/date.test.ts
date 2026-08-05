@@ -4,7 +4,7 @@
 // — one date grammar, three implementations. This locks the canonical output and
 // the locale seam (a param, falling back to the non-React readPersistedLocale()).
 import { describe, expect, it } from 'vitest'
-import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime } from './date'
+import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime, dateLocaleTag } from './date'
 
 describe('formatWeekdayDayMonth — "Wed 12 Jun" from a YYYY-MM-DD date', () => {
   it('formats en (en-GB grammar) by default', () => {
@@ -22,6 +22,9 @@ describe('formatDayMonthYear — "12 Jun 2026" from an ISO timestamp', () => {
   it('formats en by default', () => {
     expect(formatDayMonthYear('2026-06-12T03:00:00Z')).toBe('12 Jun 2026')
   })
+  it('is locale-aware via the param (id)', () => {
+    expect(formatDayMonthYear('2026-06-12T03:00:00Z', 'id')).toBe('12 Jun 2026')
+  })
   it('returns the raw input for an unparseable date', () => {
     expect(formatDayMonthYear('nope')).toBe('nope')
   })
@@ -34,5 +37,12 @@ describe('formatWibDateTime — Asia/Jakarta wall clock with the WIB suffix', ()
   })
   it('accepts a Date instance', () => {
     expect(formatWibDateTime(new Date('2026-06-12T05:30:00Z'))).toBe('12 Jun 2026, 12:30 WIB')
+  })
+})
+
+describe('dateLocaleTag — the app Locale → BCP-47 seam', () => {
+  it('maps id to id-ID and en to en-GB', () => {
+    expect(dateLocaleTag('id')).toBe('id-ID')
+    expect(dateLocaleTag('en')).toBe('en-GB')
   })
 })

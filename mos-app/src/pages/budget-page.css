@@ -3,18 +3,20 @@
   margin-top: 24px;
 }
 .bp-h2 {
-  font-size: 16px;
+  /* typeset: was 16px off-ramp — these <h2>s are page-level section titles ("Budgeted COGS…",
+     "Capture a budget scenario", …), exactly DESIGN.md's `heading` role (20px/600). */
+  font-size: var(--font-size-heading);
   font-weight: 600;
   margin: 0 0 4px;
   color: var(--foreground);
 }
 .bp-muted {
   color: var(--muted-foreground);
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 .bp-help {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   margin: 0 0 12px;
   max-width: 720px;
 }
@@ -27,25 +29,28 @@
   margin-bottom: 6px;
 }
 .bp-total {
-  font-size: 22px;
+  /* typeset: was 22px — a stray near-duplicate of the app's one documented headline-figure
+     size. Now the --font-size-kpi-value token dashboard/kpi-tile.css's .kpi-tile-value also
+     carries (DESIGN.md: "KPI values reuse ~23px/600 for the headline number"). */
+  font-size: var(--font-size-kpi-value);
   font-weight: 600;
   margin: 4px 0 12px;
   color: var(--foreground);
 }
 .bp-incomplete {
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   font-weight: 400;
   color: var(--muted-foreground);
 }
 .bp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 .bp-table caption {
   text-align: left;
   caption-side: top;
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   margin-bottom: 6px;
 }
@@ -57,8 +62,8 @@
   vertical-align: top;
 }
 .bp-table thead th {
-  font-size: 11px;
-  font-weight: 400;
+  font-size: var(--font-size-overline);
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
@@ -72,7 +77,7 @@
 }
 .bp-ing-code {
   display: block;
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
   font-weight: 400;
 }
@@ -104,19 +109,27 @@
   letter-spacing: 0.06em;
   color: var(--muted-foreground);
 }
-.bp-input {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  background: var(--background);
-  color: var(--foreground);
-}
 .bp-saved {
   color: var(--success);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
 }
 .bp-error {
   color: var(--destructive);
-  font-size: 13px;
+  font-size: var(--font-size-mono);
+}
+
+/* r5 F-7 (census): the three semantic bp-tables (BOM × costs, cost lines,
+   scenarios) kept their desktop column set on phone and overflowed the page.
+   Sanctioned scroller path (DataTable card-reflow would re-port captions, row
+   headers, drill links, and testids — ballooning scope): each table sits in a
+   .bp-table-scroll wrapper that scrolls horizontally on phone; the page body
+   never scrolls sideways. */
+@media (max-width: 767px) {
+  .bp-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bp-table-scroll .bp-table {
+    min-width: max-content;
+  }
 }

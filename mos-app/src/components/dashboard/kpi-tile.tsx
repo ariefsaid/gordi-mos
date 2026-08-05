@@ -36,6 +36,10 @@ export interface KPITileProps {
   basis?: { label: string }
   /** FR-008/024: a DQ badge from bom_coverage_pct on GM/COGS tiles. */
   dq?: DqState
+  /** Composition-owned hook (grid placement, surface-local sizing). The tile never styles
+   *  itself from this — GRID PLACEMENT IS THE PAGE'S CONCERN, not the tile's, so a page that
+   *  needs one tile to span two tracks passes a class rather than the tile growing a `span` prop. */
+  className?: string
 }
 
 const DELTA_TONE: Record<KPITileDelta['tone'], PillTone> = {
@@ -55,10 +59,16 @@ export function KPITile({
   selected = false,
   basis,
   dq,
+  className: extraClassName,
 }: KPITileProps) {
   if (state === 'loading') {
     return (
-      <div className="kpi-tile" role="group" aria-label={label} aria-busy="true">
+      <div
+        className={`kpi-tile${extraClassName ? ` ${extraClassName}` : ''}`}
+        role="group"
+        aria-label={label}
+        aria-busy="true"
+      >
         <span className="kpi-tile-label">{label}</span>
         <Pill tone="skeleton" dot={false} className="kpi-tile-skeleton-value" style={{ width: '72px', height: '23px' }}>
           &nbsp;
@@ -93,7 +103,8 @@ export function KPITile({
     </>
   )
 
-  const className = `kpi-tile${selected ? ' kpi-tile--selected' : ''}`
+  const className =
+    `kpi-tile${selected ? ' kpi-tile--selected' : ''}${extraClassName ? ` ${extraClassName}` : ''}`
 
   // onClick present → a real <button> for filter-in-place (FR-016/AC-016).
   if (onClick) {

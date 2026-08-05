@@ -137,9 +137,13 @@ describe('assessCostStatus — AC-PB-006: fail-loud freshness + certification', 
 })
 
 describe('formatters', () => {
+  // Cohesion-debt 2026-07-19, item #1: formatIDR is now a re-export of the ONE canonical
+  // lib/format/money, which groups id-ID (DOTS). The en-US commas this used to pin were the
+  // outlier — every other IDR string in the app (formatIDRFull, the revenue columns) was
+  // already dotted, so the Plan family alone spoke a different number grammar.
   it('formatIDR prefixes Rp and groups thousands with no decimals', () => {
-    expect(formatIDR(45000)).toBe('Rp 45,000')
-    expect(formatIDR(1234567.5)).toBe('Rp 1,234,568') // rounds, no sen
+    expect(formatIDR(45000)).toBe('Rp 45.000')
+    expect(formatIDR(1234567.5)).toBe('Rp 1.234.568') // rounds, no sen
   })
   it('formatPct renders a 0..1 fraction as a whole-percent string, "—" for null', () => {
     expect(formatPct(0.423)).toBe('42%')
