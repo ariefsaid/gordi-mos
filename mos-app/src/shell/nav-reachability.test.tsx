@@ -121,12 +121,48 @@ function railLinks(p: Persona): string[] {
 }
 
 /**
+ * Put the harness on a 390px viewport for the duration of `fn`.
+ *
+ * `BottomTabBar` short-circuits to `null` above 920px (`useIsNarrow`), and jsdom's default
+ * matchMedia stub reports `matches: false` — so without this the bottom bar renders NOTHING and a
+ * "phone" measurement silently covers the drawer alone. The first draft of `phoneLinks` had
+ * exactly that bug, and its docstring claimed otherwise: the same "a claim not backed by what
+ * runs" defect this whole file exists to catch.
+ */
+function atPhoneWidth<T>(fn: () => T): T {
+  const real = window.matchMedia
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: /max-width/.test(query),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+  try {
+    return fn()
+  } finally {
+    Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: real })
+  }
+}
+
+/**
  * The links a PHONE viewer can reach: the bottom tab bar plus everything behind More.
  *
  * Read off `document.body` rather than the render container, so a drawer rendered through a portal
  * still counts — the point is what a viewer can see, not where React put it.
  */
 function phoneLinks(p: Persona): string[] {
+  return atPhoneWidth(() => phoneLinksAtWidth(p))
+}
+
+function phoneLinksAtWidth(p: Persona): string[] {
   setAuthAs(p.accessRoles, p.roleNames)
   const { unmount } = render(
     <ThemeProvider>
@@ -138,8 +174,14 @@ function phoneLinks(p: Persona): string[] {
       </I18nProvider>
     </ThemeProvider>,
   )
-  // The drawer must actually be open, or this silently measures the bottom bar alone.
+  // BOTH surfaces must have rendered, or this silently measures half a phone. The drawer is a
+  // dialog; the bottom bar is the tab-bar navigation that only exists below 920px.
   expect(screen.getByRole('dialog', { name: 'More' })).toBeInTheDocument()
+  expect(
+    document.body.querySelector('.bottom-tab-bar, nav[class*="bottom"]') ??
+      screen.getByRole('button', { name: /more/i }),
+    'the bottom tab bar did not render — the phone measurement is incomplete',
+  ).toBeTruthy()
   const links = hrefsIn(document.body)
   unmount()
   return [...new Set(links)]
@@ -272,6 +314,23 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
       expect(railLinks(persona('Café floor member'))).not.toContain('/admin/people')
     })
   })
+
+  // The generalisation of #242. The sweep above accepts "rail OR phone", so a surface that loses
+  // its phone entry but keeps its rail entry still passes it — which is exactly the shape of #242,
+  // and only the Café-specific cases above would have caught it. The drawer is designed to mirror
+  // the rail, so anything a viewer can reach on the desktop they must also reach on their phone.
+  // Below 920px there is no rail at all: a phone-only loss is a total loss for that viewer.
+  it.each(PERSONAS.map((p) => [p.name, p] as const))(
+    '%s reaches everything on a phone that they reach on the rail',
+    (_name, p) => {
+      const rail = railLinks(p)
+      const phone = new Set(phoneLinks(p))
+      // `/work` is the rail's Work PARENT (a location, not a surface); the drawer lists Work's
+      // children directly instead of repeating the parent.
+      const missing = [...new Set(rail)].filter((l) => l !== '/work' && !phone.has(l))
+      expect(missing, `reachable on the rail but not on a phone`).toEqual([])
+    },
+  )
 
   it('a rendered nav link never points at a path the route table does not serve', () => {
     // The mirror image: a rail entry that 404s is as broken as a surface with no rail entry.
