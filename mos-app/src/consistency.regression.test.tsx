@@ -45,6 +45,7 @@ import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
+import { PAGE_FAMILY_CONTRACTS } from './shell/page-families'
 
 const authedState: AuthState = {
   status: 'authenticated',
@@ -240,11 +241,36 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'components/catalog/catalog-manager.tsx',
   ]
 
+  // The invariant is that these pages get the CONTENT-variant head — not that they each
+  // spell `<PageHead variant="content">` themselves. Two sanctioned routes reach it:
+  //
+  //   1. a direct <PageHead variant="content">, and
+  //   2. <PageFamilyFrame family="workspace"|"management">, which renders PageHead with
+  //      `variant={PAGE_FAMILY_CONTRACTS[family].headVariant}` — 'content' for both.
+  //
+  // The original grep only knew route 1, so a page migrating to the shared frame failed a
+  // guard whose stated invariant it still satisfied. That is a test crediting a mechanism
+  // rather than the guarantee: it would have blocked every page-family migration in the
+  // port while the head each of them rendered was correct throughout.
+  //
+  // Route 2's premise is pinned by its own test below, so this cannot quietly become a
+  // rubber stamp if someone re-points a family at the prose head.
+  const CONTENT_HEAD = /<PageHead[\s\S]{0,160}variant="content"/
+  const CONTENT_FAMILY_FRAME = /<PageFamilyFrame[\s\S]{0,200}family="(workspace|management)"/
+
   for (const file of targets) {
-    it(`${file} renders PageHead variant="content"`, () => {
-      expect(readSrc(file)).toMatch(/<PageHead[\s\S]{0,160}variant="content"/)
+    it(`${file} renders the content-variant head (directly or via PageFamilyFrame)`, () => {
+      const src = readSrc(file)
+      expect(CONTENT_HEAD.test(src) || CONTENT_FAMILY_FRAME.test(src)).toBe(true)
     })
   }
+
+  it('the PageFamilyFrame route really does yield the content head (the premise above)', () => {
+    // If this flips, the second branch of the assertion above stops meaning what it says —
+    // and every page that migrated to the frame would be on the prose head unnoticed.
+    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
+    expect(PAGE_FAMILY_CONTRACTS.management.headVariant).toBe('content')
+  })
 })
 
 describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {
