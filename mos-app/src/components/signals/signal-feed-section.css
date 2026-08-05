@@ -3,7 +3,16 @@
    grammar (F1/F5) rather than a boxed-card title. The row anatomy itself (.home-signal-*) lives in
    signal-feed-rows.css, colocated with SignalFeedRows — the SAME component the Signals archive
    Feed presentation now renders too (rule:product-ban-inconsistent-components — one Signal, one
-   anatomy). Shares the --row-* rhythm tokens with the stream. */
+   anatomy). Shares the --row-* rhythm tokens with the stream.
+
+   #191 port note: this file originally landed ahead of its own component, as pure inert
+   presentation Home's placeholder (`HomeSignalsPending` in home-page.tsx) borrowed so the slot
+   would not visually jump once #193 wired the real feed in. #193 has now wired
+   `SignalFeedSection`, `signal-collection-adapter.tsx`, `signal-record-host.tsx`, et al., so the
+   selectors below are live for both Home's placeholder and the Signals archive Feed
+   presentation. `components/home/guard-home-layout.css.test.ts` +
+   `guard-do16-home-layout.css.test.ts` (both carried from v4) still assert these selectors exist
+   exactly once in the corpus as part of Home's "feed" primitive contract (AC-932). */
 .signal-feed-section {
   display: flex;
   flex-direction: column;

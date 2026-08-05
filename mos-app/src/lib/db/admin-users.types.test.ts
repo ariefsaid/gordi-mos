@@ -4,11 +4,14 @@
 // the human label, not 'ops_lead'.
 
 import { describe, it, expect } from 'vitest'
+import { messages } from '@/i18n/messages'
+import type { MessageKey } from '@/i18n/messages'
 import {
   ROLE_META,
   ASSIGNABLE_ROLES,
   roleLabel,
   roleDescription,
+  localizedRoleMeta,
 } from './admin-users.types'
 
 describe('ROLE_META', () => {
@@ -44,6 +47,45 @@ describe('ROLE_META', () => {
     expect(ROLE_META.supervisor.label).toBe('Supervisor')
     expect(ROLE_META.supervisor.description.length).toBeGreaterThan(0)
     expect(ROLE_META.supervisor.description.toLowerCase()).toContain('revenue')
+  })
+})
+
+// #201 — the surface renders roles through the catalog, so the catalog is what has to be
+// complete. ROLE_META is the slug registry; `admin.role.*` is the copy. If a role is added
+// to one and not the other the UI shows a bare slug (or, worse, a missing-key marker), so
+// the two are asserted to agree here rather than discovered on screen.
+describe('localizedRoleMeta — every assignable role has catalog copy in both locales', () => {
+  const t = (key: MessageKey) => messages.en[key] as string
+
+  it('resolves a label and a description for every assignable role', () => {
+    for (const slug of ASSIGNABLE_ROLES) {
+      const meta = localizedRoleMeta(slug, t)
+      expect(meta.label.length, `${slug} label`).toBeGreaterThan(0)
+      expect(meta.label, `${slug} label must not be a raw slug`).not.toBe(slug)
+      expect(meta.description.length, `${slug} description`).toBeGreaterThan(0)
+    }
+  })
+
+  it('both locales carry a non-empty label and description for every assignable role', () => {
+    for (const locale of ['en', 'id'] as const) {
+      for (const slug of ASSIGNABLE_ROLES) {
+        const catalog = messages[locale] as Record<string, string>
+        expect(catalog[`admin.role.${slug}`], `${locale}/${slug}`).toBeTruthy()
+        expect(catalog[`admin.role.${slug}.desc`], `${locale}/${slug}.desc`).toBeTruthy()
+      }
+    }
+  })
+
+  it('falls back to the raw slug for a role with no registry entry', () => {
+    expect(localizedRoleMeta('mystery_role', t)).toEqual({ label: 'mystery_role', description: '' })
+  })
+
+  it('AC-321: the localized supervisor description stays revenue-oriented', () => {
+    expect(localizedRoleMeta('supervisor', t).description.toLowerCase()).toContain('revenue')
+  })
+
+  it('AC-120: the localized manager description is not the derived-manager wording', () => {
+    expect(localizedRoleMeta('manager', t).description.toLowerCase()).not.toContain('derived')
   })
 })
 

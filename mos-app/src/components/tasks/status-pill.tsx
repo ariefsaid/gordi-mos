@@ -15,7 +15,21 @@ import './status-pill.css'
 
 export type { TaskStatus }
 
-type StatusPillProps = { status: TaskStatus; label?: string }
+type StatusPillProps = {
+  status: TaskStatus
+  label?: string
+  /**
+   * #191 (Home port) — Home's consequence-ranked stream renders StatusPill beside its own reason
+   * chip in the same row tail (stream-row.tsx), and some reason tones are amber too — a
+   * heavy-saturated "Open" pill next to them reads as a third warning tier instead of the neutral
+   * not-yet-started baseline it actually is (design-review F3; rule:product-color-state-vocab,
+   * rule:product-ban-heavy-inactive-color). 'neutral' swaps Open's amber for the DESIGN.md §5
+   * "Default/neutral badge" gray; In Progress/Blocked/Done are unaffected either way. Default
+   * 'flagged' is byte-identical to the pre-existing behavior, so every other StatusPill call site
+   * (Tasks, Admin, Follow-ups, Weekly, RecordField) is untouched.
+   */
+  openTreatment?: 'flagged' | 'neutral'
+}
 
 const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'In Progress': 'blue',
@@ -24,13 +38,15 @@ const STATUS_COLOR: Record<TaskStatus, TagColor> = {
   'Done': 'green',
 }
 
-export function StatusPill({ status, label }: StatusPillProps) {
+export function StatusPill({ status, label, openTreatment = 'flagged' }: StatusPillProps) {
+  const neutralOpen = status === 'Open' && openTreatment === 'neutral'
+  const color: TagColor = neutralOpen ? 'gray' : STATUS_COLOR[status]
   // NO aria-label: the visible text IS the accessible name. StatusTrigger renders
   // StatusPill inside a role=option / button, and an aria-label would override the
   // option's computed name, breaking status-change (AC-071/103/111).
   return (
     <Tag
-      color={STATUS_COLOR[status]}
+      color={color}
       weight="medium"
       className="status-pill"
       Icon={<span className="status-dot" aria-hidden="true" />}

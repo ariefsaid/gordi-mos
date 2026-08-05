@@ -10,9 +10,17 @@
 // here is re-authored: the types, value sets, alias map, status slugs, neutral query, key list,
 // parser and serializer are byte-for-byte v4's.
 //
-// #192 (Port Work — Tasks) lands the descriptor half and imports this module rather than
-// redeclaring it; `collection-view-spec.ts` and the framework's engine/query-state/collection
-// tests already import from here.
+// `collection-view-spec.ts` and the framework's engine/query-state/collection tests import
+// from here — this module is live on this line, not a leftover.
+//
+// CORRECTION: an earlier version of this header claimed #192 (Port Work — Tasks) lands the
+// descriptor half and imports this module rather than redeclaring it. That is not what #192
+// does: its `task-collection-adapter.tsx` redeclares TaskCollectionPresentation/Group/
+// UnsupportedGroup/Sort/Action/View verbatim rather than importing them from here — a second,
+// independent copy of the same contract (`components/tasks/task-collection-adapter.tsx`,
+// docs the gate flagged as issue #241's dead-duplicate cousin). Reconciling the two copies is
+// #192's port, not this one's; until then, this module stays load-bearing for the
+// RecordCollection framework's own tests and must not be deleted.
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type {
   CollectionQueryIssue,

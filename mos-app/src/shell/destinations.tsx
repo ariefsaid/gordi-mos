@@ -224,6 +224,30 @@ export function primaryModuleForViewer(roleNames: string[], accessRoles: string[
   )
 }
 
+/**
+ * #191 (Home port) — whether Home's failed-checks band (the viewer's rejected café production
+ * logs, routing to `/cafe/log`) is worth showing/querying for this viewer at all. `/cafe/log`
+ * carries no access-role gate and `kitchen_logs`' RLS is org-wide with no role check, so this is
+ * never an authorization boundary — RLS already is one (NFR-004) — only a curation choice: keep
+ * café rejects out of a Finance/HR viewer's personal stream.
+ *
+ * Reuses the Café module's OWN `workMatch` rather than a second copy of the regex, so there is one
+ * source of truth for "does this job-role name read as café-affiliated" — plus `ops_lead`/`admin`,
+ * who hold the Café review/pushes capability regardless of their job-role name.
+ *
+ * Known imprecision, not re-solved here: job-role-NAME matching is exactly the mechanism
+ * `OD-WAY-51` ruled out for the rail itself, because a real share of roles in use match no module
+ * regex (`allModules`'s docstring above). It is left in place here because there is no narrower
+ * *authorization* to gate on instead (the route and RLS are both org-wide) — deciding what SHOULD
+ * scope "café-affiliated" for a curation heuristic is a product call, filed as a design ticket on
+ * map #150 rather than guessed at in a routing helper.
+ */
+export function viewerSeesCafe(roleNames: string[], accessRoles: string[]): boolean {
+  if (accessRoles.includes('ops_lead') || accessRoles.includes('admin')) return true
+  const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')
+  return cafe?.workMatch != null && cafe.workMatch.test(roleNames.join(' '))
+}
+
 export const UTILITY: Destination[] = [
   {
     id: 'admin',
