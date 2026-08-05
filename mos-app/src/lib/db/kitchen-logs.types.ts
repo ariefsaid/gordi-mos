@@ -3,10 +3,45 @@
 // DB stamped: org_id, submitted_by (on insert), reviewed_by/reviewed_at (on approve).
 // The client NEVER sends org_id, submitted_by, reviewed_by — NFR-003.
 
-export type KitchenActionType =
-  | 'Production'
-  | 'Transfer to Bungur'
-  | 'Transfer to Radiant'
+// ── The (branch, activity) production stream (OD-WAY-28) ─────────────────────
+// Every log, plan and stock row is born inside a stream. There is ONE physical kitchen and
+// it is a constant, not a dimension; what varies is whose books the raw comes from and the
+// output goes to (the branch) and which activity produced it.
+
+/** The activity half of a production stream (`ops.kitchen_logs.activity`). */
+export type ProductionActivity = 'kitchen' | 'bar'
+
+/** The two activities, in display order. */
+export const PRODUCTION_ACTIVITIES: readonly ProductionActivity[] = ['kitchen', 'bar']
+
+/** A row of the canonical branch catalog (`shared.branches`, OD-WAY-39). */
+export interface BranchOption {
+  id: string
+  /** MOS's own stable snake_case identifier — deliberately NOT an ERP branch code. */
+  code: string
+  name: string
+}
+
+/** The origin half plus the activity: the stream a captured row belongs to. */
+export interface ProductionStream {
+  branch: BranchOption
+  activity: ProductionActivity
+}
+
+/** What happened, in the stored vocabulary (`ops.kitchen_logs.action`). */
+export type KitchenAction = 'produce' | 'transfer'
+
+/**
+ * A movement within a stream. `destinationBranchId` is null for a produce and required for
+ * a transfer — the same shape as the `kitchen_logs_destination_matches_action` CHECK. A
+ * transfer whose destination equals its origin is a within-books move: it still leaves the
+ * kitchen's hands (so it consumes stock) but the ERP already books that branch as holding
+ * it, so it has no ERP counterpart.
+ */
+export interface KitchenMovement {
+  action: KitchenAction
+  destinationBranchId: string | null
+}
 
 export type KitchenLogStatus = 'Submitted' | 'Approved' | 'Rejected'
 
@@ -36,17 +71,30 @@ export interface KitchenPlanRow {
   id: string
   org_id: string
   date: string // 'YYYY-MM-DD' WIB
+  /** origin half of the (branch, activity) stream — NOT NULL at the DB (OD-WAY-28) */
+  branch_id: string
+  activity: ProductionActivity
   wip_item_id: string
-  action_type: KitchenActionType
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  action: KitchenAction
+  /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
+  destination_branch_id: string | null
   qty_porsi: number
   notes: string | null
   plan_by: string | null
   updated_at: string
 }
 
-// Plan qty keyed by (wip_item_id, action_type) for fast lookup in the form.
-// Partial<Record<...>> so partial test fixtures type-check (most items won't have all 3 action types).
-export type PlanMap = Record<string, Partial<Record<KitchenActionType, number>>>
+/**
+ * A movement's stable lookup key — `'produce'` or `'transfer:<destination branch id>'`.
+ * Used to index the plan map, which the DB keys on (item, stream, action, destination).
+ * It is a client-side index only; nothing stores it.
+ */
+export type MovementKey = string
+
+// Plan qty keyed by (wip_item_id, movement key) for fast lookup in the form.
+// Partial so partial test fixtures type-check (most items won't have every movement).
+export type PlanMap = Record<string, Partial<Record<MovementKey, number>>>
 
 // ── ops.kitchen_stock availability (FR-022/023) ──────────────────────────────
 // Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved
@@ -77,13 +125,29 @@ export interface KitchenStockRow {
   tersedia: number
 }
 
+/**
+ * One Stock view row scoped to ONE (branch, activity) stream (#198, OD-WAY-28). "Stok
+ * HQ" means the central kitchen, which books to Rumah Rames — not Gordi HQ — so the
+ * stream is shown on every row rather than assumed. `fetchKitchenStockAcrossStreams`
+ * returns one of these per (active WIP item × active stream) pair.
+ */
+export interface KitchenStockStreamRow extends KitchenStockRow {
+  stream: ProductionStream
+}
+
 // ── ops.kitchen_logs (insert payload) ────────────────────────────────────────
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.
 export interface CreateKitchenLogInput {
   business_unit_id: string
   log_date: string // 'YYYY-MM-DD' WIB
-  action_type: KitchenActionType
+  /** origin half of the (branch, activity) stream — NOT NULL at the DB (AC-007) */
+  branch_id: string
+  activity: ProductionActivity
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  action: KitchenAction
+  /** null for produce, required for transfer (kitchen_logs_destination_matches_action) */
+  destination_branch_id: string | null
   wip_item_id: string
   qty_porsi: number // > 0 (client + DB CHECK)
   notes?: string | null
@@ -95,7 +159,10 @@ export interface KitchenLogRow {
   org_id: string
   business_unit_id: string
   log_date: string
-  action_type: KitchenActionType
+  branch_id: string
+  activity: ProductionActivity
+  action: KitchenAction
+  destination_branch_id: string | null
   wip_item_id: string
   qty_porsi: number
   notes: string | null
@@ -122,7 +189,24 @@ export interface KitchenLogRow {
 export interface ReviewLogRow {
   id: string
   log_date: string
-  action_type: KitchenActionType
+  /**
+   * The DERIVED action label, read from the database's own `ops.action_label` virtual
+   * column (DD-WAY-13). A plain string, not a three-literal union: the same derivation
+   * names the four streams that reach the ERP by hand today.
+   */
+  action_type: string
+  /** the stored movement (DD-WAY-13) — what the label above is derived FROM. Predicates
+   *  ("is this a transfer?") and plan lookups key off these, never off the label. */
+  action: KitchenAction
+  destination_branch_id: string | null
+  /**
+   * the (branch, activity) production stream this log belongs to (OD-WAY-28, #197). The
+   * plan baseline it is compared against must be read from THIS stream — a queue that can
+   * span more than one stream and looks up variance against a single hardcoded stream
+   * would silently compare a row to the wrong plan the moment a second stream is captured.
+   */
+  branch_id: string
+  activity: ProductionActivity
   wip_item_id: string
   /** WIP item display name (embedded from ops.wip_items). */
   wip_item_name: string
@@ -145,12 +229,15 @@ export interface ApproveResult {
 /** The forward "pesanan" horizon length in days (FR-035, [oracle] PESANAN_HORIZON_DAYS). */
 export const PESANAN_HORIZON_DAYS = 14
 
-// One editable plan cell in the S2 editor: the qty_porsi for an (item, action_type)
-// on the selected date. `id` is the existing ops.kitchen_plans row id when a plan
-// already exists for that key (drives the select-then-update upsert path), else null.
+// One editable plan cell in the S2 editor: the qty_porsi for an (item, movement) on the
+// selected date WITHIN one (branch, activity) stream (OD-WAY-28) — the stream is chosen
+// once for the whole editor session, not carried per cell (mirrors the capture surface).
+// `id` is the existing ops.kitchen_plans row id when a plan already exists for that key
+// (drives the select-then-update upsert path), else null.
 export interface PlanCell {
   wip_item_id: string
-  action_type: KitchenActionType
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  movement: KitchenMovement
   /** planned porsi (≥ 0 — note: kitchen_plans allows 0, unlike logs' > 0) */
   qty_porsi: number
   /** existing row id (null = no plan row yet for this key) */
@@ -163,13 +250,20 @@ export interface PlanCell {
 export interface UpsertKitchenPlanInput {
   log_date: string // 'YYYY-MM-DD' WIB → DB column `date`
   wip_item_id: string
-  action_type: KitchenActionType
+  /** origin half of the (branch, activity) stream this plan row belongs to (OD-WAY-28) */
+  branch_id: string
+  activity: ProductionActivity
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  action: KitchenAction
+  /** null for produce, required for transfer (kitchen_plans_destination_matches_action) */
+  destination_branch_id: string | null
   qty_porsi: number // ≥ 0
   notes?: string | null
 }
 
 // One row in the read-only pesanan (14-day forward horizon) view (FR-035, AC-024).
-// A flat display shape: date + item + action + planned qty. The WIP item name is
+// A flat display shape: date + item + movement + planned qty, scoped to ONE stream (the
+// query that produces this is stream-filtered — OD-WAY-28). The WIP item name is
 // embedded same-schema (ops.kitchen_plans → ops.wip_items); RLS scopes to the org.
 export interface PesananRow {
   log_date: string // 'YYYY-MM-DD' WIB
@@ -177,7 +271,8 @@ export interface PesananRow {
   wip_item_name: string
   /** optional category display label from ops.wip_items (read-only UI sugar). */
   category?: string | null
-  action_type: KitchenActionType
+  /** the movement (DD-WAY-13) — there is no stored action_type */
+  movement: KitchenMovement
   qty_porsi: number
 }
 

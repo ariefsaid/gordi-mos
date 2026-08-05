@@ -20,7 +20,7 @@ const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
 const people: PersonOption[] = [
   { id: PIC, full_name: 'Riri' },
-  { id: SUPERVISOR, full_name: 'Ibnu' },
+  { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
 ]
 const businessUnits: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 

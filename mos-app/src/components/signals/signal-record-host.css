@@ -1,0 +1,20 @@
+/* SignalRecordHost — the fetch+mutate wrapper mounted as the CONTENT of the shared
+   RecordPanelHost (spec record-panel-host.spec.md, FR-3). Chrome-free: the host owns the
+   ✕ Close / "Open full page" / modal regime; this owns only the follow-up/link inline
+   forms; the record itself is styled by signal-record.css. */
+.signal-record-host { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow-y: auto; }
+
+.signal-record-followup-form,
+.signal-record-link-form {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 12px 0 0; padding: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--secondary);
+}
+.signal-record-followup-form input {
+  display: block; width: 100%; height: 32px; padding: 0 10px; box-sizing: border-box;
+  border: 1px solid var(--input); border-radius: var(--radius-sm);
+  background: var(--background); font: inherit; font-size: var(--font-size-body-lg); color: var(--foreground);
+}
+.signal-record-followup-form input:focus-visible,
+.signal-record-link-form select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

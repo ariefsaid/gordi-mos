@@ -1,10 +1,9 @@
 /* ════════════════════════════════════════════════════════════════════════════
    Kitchen Plan editor + pesanan horizon (S2 / OD-K-5 redesign §4–§5).
-   Editor (ops_lead): variant="data" full-bleed; KPI strip + ActionTypeSeg + the
-   useIsDesktop() branch (KitchenPlanTable | KitchenPlanCards) — those components own
-   their own CSS (.kpt-/.kpc-/.pqcell-/.kps-). This file holds only the page chrome:
-   banners, the seg wrap, and the Pesanan read view (grouped by date) until §5 lifts
-   Pesanan into its own components.
+   Editor (ops_lead): variant="data" full-bleed; KPI strip + the (branch, activity)
+   stream + movement scope + the useIsDesktop() branch (PlanQtyCell | PlanQtyStepper) —
+   those components own their own CSS (.pqcell-/.kps-). This file holds only the page
+   chrome: banners, the scope wrap, and the Pesanan read view (grouped by date).
    Token-only (DESIGN.md) — no raw hex/spacing/shadow literals.
    member-read / lead-edit: the read view has NO editable affordance (absence = signal).
    ════════════════════════════════════════════════════════════════════════════ */
@@ -23,9 +22,36 @@
   border-radius: var(--radius-sm);
 }
 
-/* ── ActionTypeSeg wrap (the scope control — Production / Transfer) ── */
-.kp-seg-wrap {
-  margin: 12px 0 4px;
+.kp-meta-line {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+
+.kp-nothing-planned {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin: 4px 0 8px;
+}
+
+/* ── Scope block: the (branch, activity) stream + the movement (#197 — mirrors
+   kitchen-log-page.css .kl-scope) ── */
+.kp-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.kp-scope-branch,
+.kp-scope-activity { flex: 0 1 auto; min-width: 0; }
+@media (max-width: 390px) {
+  .kp-scope { width: 100%; }
+  .kp-scope-branch,
+  .kp-scope-activity { flex: 1 1 100%; min-height: 44px; }
 }
 
 /* ── Banners (offline / saved / error) ── */

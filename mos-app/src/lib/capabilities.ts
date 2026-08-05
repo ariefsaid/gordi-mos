@@ -1,15 +1,22 @@
 // Client capability derivation (ADR-0020 D4 — convenience only; RLS is the authority, FR-333).
-// Mirrors the shared.role_capabilities seed (supabase/migrations/20260805000006_mos_access_control,
-// as amended by later migrations below) for the v1 grants. Reuses auth.viewer.accessRoles (the JWT
-// access_roles claim — same source the DB reads).
+// Mirrors the shared.role_capabilities seed for the v1 grants. Reuses auth.viewer.accessRoles (the
+// JWT access_roles claim — same source the DB reads).
+//
+// The seed now lives in the squashed baseline, `supabase/migrations/20260805000006_mos_access_control.sql`
+// (the old 20260708000001 chain was discarded by Stage 1). The signal.* rows below are copied from
+// that file, role for role — grep `signal.create_for_team` there and the three blocks line up. This
+// map is a MIRROR, so it is only ever as true as the last person who checked it; the boundary is
+// RLS and `shared.can()` (ADR-0020 D4 / FR-333 / NFR-004), and a wrong entry here costs an affordance,
+// never an authorization.
+//
+// Ported from v4-redesign (#192, Tasks): `process.start` / `process.adopt` (ADR-0051 D8 — member
+// holds process.start per OD-REDESIGN-71iii, a Team-membership gate on the server keeps it scoped
+// to the member's own Team) and the ops_lead extension of `objective.manage` (OD-V4-1) already
+// exist in the squashed baseline's seed (20260805000006_mos_access_control.sql) — this mirror was
+// simply stale relative to it; #192 brought it current, so the rows below are no longer deferred.
+//
 // TODO(admin-editable-roles, ADR-0020 D2): replace this static map with an RPC
 // (shared.my_capabilities()) once grants become admin-editable. Until then the seed is static.
-// Ported from v4-redesign (#192, Tasks): the Signal capabilities (signal.create_for_team,
-// signal.mention_bu, signal.retract), process.start/process.adopt (ADR-0051 D8 — member holds
-// process.start per OD-REDESIGN-71iii, a Team-membership gate on the server keeps it scoped to the
-// member's own Team), and ops_lead -> objective.manage (OD-V4-1) all already exist in the squashed
-// baseline's shared.role_capabilities seed (20260805000006_mos_access_control.sql) — this mirror
-// was simply stale relative to it. RLS is still the authority; this table is affordance only.
 export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
     'objective.manage', 'workline.manage', 'followup.confirm',
@@ -21,6 +28,9 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
     'objective.manage', 'workline.manage',
     'signal.create_for_team', 'signal.mention_bu', 'signal.retract', 'process.start',
   ],
+  // process.start (ADR-0051 D8 / OD-REDESIGN-71(iii), supabase/migrations/20260805000006):
+  // the person who runs the floor starts the day. Safe client-side because
+  // mos.spawn_process_run ALSO requires membership of the owning Team.
   member: ['process.start'],
 }
 

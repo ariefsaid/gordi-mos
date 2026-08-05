@@ -1,10 +1,16 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   ActionTypeSeg — segmented control for kitchen action_type (S1 capture).
+   MovementSeg — the capture surface's movement scope control (S1 capture).
    role=tablist; on-state = background lift + shadow-rest. Token-only (DESIGN.md).
-   Fix #7: 44px touch floor per tab. Fix #1: viewport-safe (box-sizing, no overflow).
+   44px touch floor per tab; viewport-safe (box-sizing, no page overflow).
+
+   Unlike the three-literal control it replaces, the option count is derived from
+   the branch catalog and so is not fixed at three. The track therefore SCROLLS
+   horizontally instead of squeezing: a squeezed tab hits the ellipsis before it
+   hits the thumb, and "Transfer to Ra…" is exactly the ambiguity the derived
+   label exists to remove. Scrolling keeps every option full-width and reachable.
    ════════════════════════════════════════════════════════════════════════════ */
 
-.kseg {
+.kms {
   display: flex;
   gap: 4px;
   width: 100%;
@@ -13,51 +19,58 @@
   background: var(--secondary);
   border: 1px solid var(--border); /* the track reads as a control container */
   border-radius: var(--radius-sm);
-  padding: 3px;
+  padding: 2px;
+  /* Horizontal scroll rather than wrap: the strip stays one row tall whatever the
+     catalog length, and the page itself never scrolls sideways (NFR-001). */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
 }
 
-.kseg-tab {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 44px; /* touch target on phone (Fix #7) */
-  padding: 0 8px;
+.kms-tab {
+  flex: 0 0 auto;
+  min-height: 44px; /* touch target on phone */
+  padding: 0 12px;
   border-radius: calc(var(--radius-sm) - 2px);
   border: 1px solid transparent; /* reserve space so the active border doesn't shift layout */
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-mono);
   font-weight: 500;
   background: transparent;
   color: var(--muted-foreground);
   box-shadow: none;
-  transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+  transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease, color var(--dur-fast) ease;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   box-sizing: border-box;
+  scroll-snap-align: start;
 }
+
 /* inactive tabs signal they're clickable on hover (the missing affordance) */
-.kseg-tab:hover:not([aria-selected='true']):not(:disabled) {
+.kms-tab:hover:not([aria-selected='true']):not(:disabled) {
   background: color-mix(in srgb, var(--background) 60%, transparent);
   color: var(--foreground);
 }
-.kseg-tab:disabled { cursor: not-allowed; opacity: 0.5; }
-.kseg-tab[aria-selected='true'] {
+.kms-tab:disabled { cursor: not-allowed; opacity: 0.5; }
+.kms-tab[aria-selected='true'] {
   font-weight: 600;
   background: var(--background);
   color: var(--foreground);
   border-color: var(--border); /* the white pill gets a hairline so it lifts off the grey track */
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); /* selected lift */
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
   cursor: default;
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .kseg-tab { transition: none; }
+  .kms-tab { transition: none; }
 }
 
 /* Full label by default; short "→ Radiant" label on small phones. */
-.kseg-full { display: inline; }
-.kseg-short { display: none; }
+.kms-full { display: inline; }
+.kms-short { display: none; }
 @media (max-width: 400px) {
-  .kseg-full { display: none; }
-  .kseg-short { display: inline; }
+  .kms-full { display: none; }
+  .kms-short { display: inline; }
 }

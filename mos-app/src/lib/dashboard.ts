@@ -10,6 +10,7 @@
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { isoDaysBefore, trailingSum } from '@/lib/trailing-window'
+import { formatPercent } from '@/lib/format/percent'
 import {
   activityMap,
   channelMixLabel,
@@ -300,9 +301,9 @@ export function formatGrossMarginValue(amount: number | null): string {
   return amount == null ? '—' : formatIDRCompact(amount)
 }
 
-/** Formats a margin percentage for display (e.g. "42,3%"). */
+/** Formats a margin percentage for display (e.g. "42,3%"). Delegates to the ONE
+ * canonical locale-aware percent module (census g-money r5 F-2) — no hand-rolled
+ * comma swap. */
 export function formatMarginPct(pct: number | null): string {
-  if (pct == null) return '—'
-  const rounded = Math.round(pct * 1000) / 10
-  return `${rounded.toFixed(1).replace('.', ',')}%`
+  return formatPercent(pct, 1)
 }

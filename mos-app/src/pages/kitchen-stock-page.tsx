@@ -1,28 +1,34 @@
-// KitchenStockPage — /mos/kitchen/stock — S4 Stock view (read-only, auto-computed).
+// KitchenStockPage — /cafe/stock — S4 Stock view (read-only, auto-computed).
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S4.
 // A glance, not an edit surface: each active WIP item with its two cuts for the
-// selected date — stok (usable_qty, FR-060) and tersedia (available_qty, FR-061).
-// Proves (unit): FR-060/061 (two cuts per item), AC-032 (negative balances
-// preserved, never clamped). Access: any authenticated member may read (spec FR-060
-// is org-readable; RLS is the authority — no UI role gate). Date defaults to WIB
+// selected date — stok (usable_qty, FR-060) and tersedia (available_qty, FR-061) —
+// ACROSS EVERY (branch, activity) production stream (#198, OD-WAY-28). "Stok HQ" means
+// the central kitchen, which books to Rumah Rames — not Gordi HQ — so a stock view that
+// cannot say whose books a row is looking at is the shape of problem that hides a COGS
+// error. Rows are grouped by stream, each carrying its own stream label.
+// Proves (unit): FR-060/061 (two cuts per item), AC-032 (negative balances preserved),
+// #198 (every row's stream is shown). Access: any authenticated member may read (spec
+// FR-060 is org-readable; RLS is the authority — no UI role gate). Date defaults to WIB
 // today (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
-import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
-import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { useT } from '@/i18n/use-t'
+import { fetchKitchenStockAcrossStreams } from '@/lib/db/kitchen-logs'
+import { listActiveBranches } from '@/lib/db/branches'
+import type { BranchOption, KitchenStockStreamRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
+import { PRODUCTION_ACTIVITIES } from '@/lib/db/kitchen-logs.types'
+import { activityLabel, branchDisplayName, streamKey } from '@/lib/kitchen-action-label'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
-import { useT } from '@/i18n/use-t'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -38,8 +44,31 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
-function stockColumns(t: ReturnType<typeof useT>): DataTableColumn<KitchenStockRow>[] {
-  return [
+function streamLabel(t: ReturnType<typeof useT>, stream: ProductionStream): string {
+  return `${branchDisplayName(stream.branch)} · ${activityLabel(t, stream.activity)}`
+}
+
+export function KitchenStockPage() {
+  const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.stock') }))
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.stock')}`
+  const auth = useAuth()
+
+  const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
+  const [rows, setRows] = useState<KitchenStockStreamRow[]>([])
+  const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
+  const [retryKey, setRetryKey] = useState(0)
+  const isDesktop = useIsDesktop()
+  const [search, setSearch] = useState('')
+  // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`, across every stream.
+  const kpiData = useStockKpiStripData(rows)
+  const hasLoggedStockData = rows.some(row => row.stok !== 0 || row.tersedia !== 0)
+  const searchQuery = search.trim().toLowerCase()
+  const visibleRows = rows.filter(row => (
+    !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
+  ))
+
+  const stockColumns: DataTableColumn<KitchenStockStreamRow>[] = [
     {
       key: 'wip_item_name',
       header: t('kitchen.stock.col.dish'),
@@ -54,32 +83,34 @@ function stockColumns(t: ReturnType<typeof useT>): DataTableColumn<KitchenStockR
     { key: 'stok', header: t('kitchen.stock.col.stok'), numeric: true },
     { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
   ]
-}
 
-export function KitchenStockPage() {
-  useDocumentTitle('Kitchen Stock — Gordi MOS')
-  const t = useT()
-  const auth = useAuth()
-
-  const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  const [rows, setRows] = useState<KitchenStockRow[]>([])
-  const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
-  const [retryKey, setRetryKey] = useState(0)
-  // NEW presentational state (P-3): reflow branch + client-side search filter.
-  const isDesktop = useIsDesktop()
-  const [search, setSearch] = useState('')
-  // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over `rows`.
-  const kpiData = useStockKpiStripData(rows)
-  const hasLoggedStockData = rows.some(row => row.stok !== 0 || row.tersedia !== 0)
-  const searchQuery = search.trim().toLowerCase()
-  const visibleRows = rows.filter(row => (
-    !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
-  ))
+  // One group per (branch, activity) stream (#198) — "each row's stream is shown", and
+  // grouping keeps a viewer from ever comparing one stream's stok to another's plan by
+  // accident (the same class of mistake #247 fixed in the review queue).
+  const streamGroups: DataTableGroup<KitchenStockStreamRow>[] = useMemo(() => {
+    const byStream = new Map<string, { label: string; rows: KitchenStockStreamRow[] }>()
+    for (const row of visibleRows) {
+      const key = streamKey(row.stream.branch.id, row.stream.activity)
+      const entry = byStream.get(key)
+      if (entry) entry.rows.push(row)
+      else byStream.set(key, { label: streamLabel(t, row.stream), rows: [row] })
+    }
+    return Array.from(byStream.entries()).map(([key, { label, rows: groupRows }]) => ({
+      key,
+      label,
+      count: groupRows.length,
+      rows: groupRows,
+    }))
+  }, [visibleRows, t])
 
   const fetchStock = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const data = await fetchKitchenStock(asOf)
+      const branches: BranchOption[] = await listActiveBranches()
+      const streams: ProductionStream[] = branches.flatMap(branch =>
+        PRODUCTION_ACTIVITIES.map(activity => ({ branch, activity })),
+      )
+      const data = await fetchKitchenStockAcrossStreams(asOf, streams)
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
@@ -95,28 +126,31 @@ export function KitchenStockPage() {
 
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingState /></PageFrame>
+    return (
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
+    )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="ks-block ks-forbidden">
-          <p className="ks-forbidden-msg">You need to sign in to view kitchen stock.</p>
-          <Link to="/login" className="btn btn-primary">Sign in</Link>
+          <p className="ks-forbidden-msg">{t('kitchen.stock.signInMsg')}</p>
+          <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Kitchen · Stock"
-        count={load.kind === 'ready' ? rows.length : null}
-        meta={<span className="ks-date tabular">{asOf}</span>}
-      />
-
+    <PageFamilyFrame
+      family="workspace"
+      title={pageTitle}
+      jobSentence={t('job.cafe')}
+      meta={<span className="ks-date tabular">{asOf}</span>}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
+    >
       {/* Derived KPI strip (P-1, OQ-5 default ON) — only when populated */}
       {load.kind === 'ready' && rows.length > 0 && (
         <>
@@ -124,24 +158,24 @@ export function KitchenStockPage() {
           <DataProvenanceNote
             kind="live"
             show={!hasLoggedStockData}
-            note="No entries logged yet today"
+            note={t('kitchen.stock.noEntriesToday')}
           />
         </>
       )}
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't compute stock — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.stock') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
 
       {load.kind === 'ready' && rows.length === 0 && (
         <EmptyState
-          title="No stock to show"
-          copy={`No approved kitchen activity for ${asOf} yet.`}
+          title={t('kitchen.stock.empty.title')}
+          copy={t('kitchen.stock.empty.copy', { date: asOf })}
         />
       )}
 
@@ -150,27 +184,20 @@ export function KitchenStockPage() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Find a dish"
-            ariaLabel="Stock filters"
+            searchPlaceholder={t('kitchen.stock.searchPlaceholder')}
+            ariaLabel={t('kitchen.stock.toolbarAria')}
           />
           <DataTable
-            columns={stockColumns(t)}
+            columns={stockColumns}
             rows={visibleRows}
+            groups={streamGroups}
             isDesktop={isDesktop}
             state={visibleRows.length > 0 ? 'ready' : 'empty'}
-            emptyLabel="No items match your filter."
-            caption={`Kitchen stock — on-hand and available per dish for ${asOf}`}
+            emptyLabel={t('kitchen.filter.noMatch')}
+            caption={t('kitchen.stock.caption', { date: asOf })}
           />
         </div>
       )}
-    </PageFrame>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="ks-block">
-      <SkeletonRows count={3} />
-    </div>
+    </PageFamilyFrame>
   )
 }

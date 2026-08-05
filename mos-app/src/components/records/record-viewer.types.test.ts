@@ -26,8 +26,8 @@ const taskAdapter: RecordViewerAdapter = {
       label: 'Ownership',
       fields: [
         { key: 'businessUnit', label: 'Business Unit', control: 'select', value: 'bu-retail', displayValue: 'Retail Ops', editable: true },
-        { key: 'pic', label: 'Person in charge (PIC)', control: 'person', value: 'p-1', displayValue: 'Riri', editable: true },
-        { key: 'supervisor', label: 'Supervisor', control: 'person', value: 'p-2', displayValue: 'Ibnu', editable: true },
+        { key: 'pic', label: 'Person in charge (PIC)', control: 'person', value: 'p-1', displayValue: 'PIC One', editable: true },
+        { key: 'supervisor', label: 'Supervisor', control: 'person', value: 'p-2', displayValue: 'Supervisor One', editable: true },
         { key: 'team', label: 'Team', control: 'team', value: null, displayValue: 'Team not assigned yet (data migration)', editable: false, readOnlyReason: 'No team_id on this task yet' },
       ],
     },

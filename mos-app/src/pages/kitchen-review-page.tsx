@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
@@ -13,9 +13,11 @@ import {
   rejectKitchenLog,
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
-import type { ReviewLogRow, KitchenActionType, PlanMap } from '@/lib/db/kitchen-logs.types'
+import { listActiveBranches } from '@/lib/db/branches'
+import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import { movementKey, streamKey } from '@/lib/kitchen-action-label'
 import { getPeople } from '@/lib/db/directory'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
 import { Tag } from '@/components/ui/tag'
 import { DataTable } from '@/components/dashboard/data-table'
@@ -31,15 +33,23 @@ function wibToday(): string {
   return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
 }
 
-const ACTION_ORDER: KitchenActionType[] = ['Production', 'Transfer to Radiant', 'Transfer to Bungur']
-
-function isTransfer(a: KitchenActionType): boolean {
-  return a === 'Transfer to Radiant' || a === 'Transfer to Bungur'
+function isTransfer(a: string): boolean {
+  return a !== 'Production'
 }
 
-/** plan qty for (date, item, action) — 0 when no plan row (off-plan). */
-function planQtyFor(planMap: PlanMap, log: ReviewLogRow): number {
-  return planMap[log.wip_item_id]?.[log.action_type] ?? 0
+/**
+ * plan qty for (date, item, movement) within the row's OWN (branch, activity) stream — 0
+ * when no plan row (off-plan) or when that stream's plan was never fetched (no submitted
+ * logs for it). #247 / #197 fix: the prior version compared every row's plan baseline
+ * against ONE hardcoded stream — correct only by accident while exactly one stream is
+ * captured, and silently wrong the moment a second stream exists. The queue can span more
+ * than one stream; the plan a row is compared against must be the plan of ITS OWN stream.
+ */
+function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
+  const planMap = streamPlans.get(streamKey(log.branch_id, log.activity))
+  return planMap?.[log.wip_item_id]?.[
+    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
+  ] ?? 0
 }
 
 /** Format an ISO timestamp to HH:MM (WIB, fixed +7 offset — NFR-007). */
@@ -259,7 +269,9 @@ type LoadState =
   | { kind: 'ready' }
 
 export function KitchenReviewPage() {
-  useDocumentTitle('Kitchen Review — Gordi MOS')
+  const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.review') }))
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.review')}`
   const auth = useAuth()
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -267,18 +279,22 @@ export function KitchenReviewPage() {
 
   const [logDate] = useState(wibToday)
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
-  const [planMap, setPlanMap] = useState<PlanMap>({})
+  // Keyed by streamKey(branch_id, activity) — one PlanMap per DISTINCT stream present in
+  // the queue (#247/#197), not one flat map for the whole queue.
+  const [streamPlans, setStreamPlans] = useState<Map<string, PlanMap>>(new Map())
   const [peopleMap, setPeopleMap] = useState<Map<string, string>>(new Map())
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
 
   const [submittingId, setSubmittingId] = useState<string | null>(null)
-  const [bulkAction, setBulkAction] = useState<KitchenActionType | null>(null)
+  // Bulk-approve is scoped to one GROUP — the group's key is the derived label
+  // (`action_type`, a plain string, DD-WAY-13), not a fixed three-literal enum.
+  const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
-  const kpiData = useReviewKpis(logs, planMap)
+  const kpiData = useReviewKpis(logs, streamPlans)
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -291,13 +307,28 @@ export function KitchenReviewPage() {
   const fetchQueue = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [rows, plan, people] = await Promise.all([
+      const [rows, branchRows, people] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
-        fetchPlanMap(logDate),
+        listActiveBranches(),
         getPeople(),
       ])
+      // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
+      // the queue (#247/#197) — not the single hardcoded stream the prior version read.
+      const branchById = new Map(branchRows.map((b: BranchOption) => [b.id, b]))
+      const distinctStreams = new Map<string, ProductionStream>()
+      for (const row of rows) {
+        const key = streamKey(row.branch_id, row.activity)
+        if (distinctStreams.has(key)) continue
+        const branch = branchById.get(row.branch_id)
+        if (branch) distinctStreams.set(key, { branch, activity: row.activity })
+      }
+      const planEntries = await Promise.all(
+        Array.from(distinctStreams.entries()).map(
+          async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const,
+        ),
+      )
       setLogs(rows)
-      setPlanMap(plan)
+      setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
       setLoad({ kind: 'ready' })
     } catch {
@@ -314,6 +345,21 @@ export function KitchenReviewPage() {
     () => logs.some(l => l.action_type === 'Production'),
     [logs],
   )
+
+  // #247/#196 fix: the prior grouping walked a hardcoded 3-literal ACTION_ORDER
+  // (['Production', 'Transfer to Radiant', 'Transfer to Bungur']) — a log whose derived
+  // label named any OTHER destination branch matched none of the three and simply never
+  // appeared in any group, invisible to review though still Submitted. Groups are now the
+  // DISTINCT labels actually present, Production first (FR-042's gate), the rest in the
+  // order they first appear in the queue.
+  const groupOrder = useMemo(() => {
+    const seen: string[] = []
+    for (const log of logs) {
+      if (!seen.includes(log.action_type)) seen.push(log.action_type)
+    }
+    seen.sort((a, b) => (a === 'Production' ? -1 : b === 'Production' ? 1 : 0))
+    return seen
+  }, [logs])
 
   const removeRow = useCallback((id: string) => {
     setLogs(prev => prev.filter(l => l.id !== id))
@@ -350,14 +396,14 @@ export function KitchenReviewPage() {
   }
 
   const bulkEligible = useCallback(
-    (action: KitchenActionType): ReviewLogRow[] => {
+    (action: string): ReviewLogRow[] => {
       if (isTransfer(action) && productionPending) return []
       return logs.filter(l => l.action_type === action)
     },
     [logs, productionPending],
   )
 
-  async function handleBulkApprove(action: KitchenActionType) {
+  async function handleBulkApprove(action: string) {
     if (!isOnline) return
     const eligible = bulkEligible(action)
     if (eligible.length === 0) return
@@ -412,12 +458,13 @@ export function KitchenReviewPage() {
   }
 
   // ── ONE DataTable: one group per action_type (Production, Transfer to …),
-  //    preserving ACTION_ORDER + the productionPending gate. Each group's
-  //    headerActions carries its bulk "Approve all (N)" button + the gate message
-  //    (disabled/hidden exactly as the retired bespoke header — transfer gate
-  //    blocks it until Production approved; offline disables it). ───────────────
+  //    now the DISTINCT labels present (groupOrder above) rather than a fixed
+  //    3-literal list. Each group's headerActions carries its bulk "Approve all (N)"
+  //    button + the gate message (disabled/hidden exactly as the retired bespoke
+  //    header — transfer gate blocks it until Production approved; offline disables
+  //    it). ─────────────────────────────────────────────────────────────────────
   const bulkDisabled = !isOnline || submittingId !== null || bulkAction !== null
-  const tableGroups: DataTableGroup<ReviewLogRow>[] = ACTION_ORDER
+  const tableGroups: DataTableGroup<ReviewLogRow>[] = groupOrder
     .map(action => {
       const rows = logs.filter(l => l.action_type === action)
       const transferGated = isTransfer(action) && productionPending
@@ -452,7 +499,7 @@ export function KitchenReviewPage() {
       header: 'Item',
       cardLabel: '',
       render: (log) => {
-        const offPlan = log.qty_porsi !== planQtyFor(planMap, log)
+        const offPlan = log.qty_porsi !== planQtyFor(streamPlans, log)
         return (
           <>
             <span className="krow-name">{log.wip_item_name}</span>
@@ -472,7 +519,7 @@ export function KitchenReviewPage() {
       render: (log) => (
         <span className="krow-qty">
           <span className="krow-meta">plan</span>
-          <strong>{planQtyFor(planMap, log)}</strong>
+          <strong>{planQtyFor(streamPlans, log)}</strong>
           <span className="krow-meta">· logged</span>
           <strong>{log.qty_porsi}</strong>
         </span>
@@ -507,11 +554,11 @@ export function KitchenReviewPage() {
       key: 'decision',
       header: 'Decision',
       render: (log) => {
-        const gated = isTransfer(log.action_type) && productionPending
+        const gated = log.action === 'transfer' && productionPending
         return (
           <KitchenReviewDecision
             log={log}
-            planQty={planQtyFor(planMap, log)}
+            planQty={planQtyFor(streamPlans, log)}
             approveDisabled={gated || !isOnline}
             approveDisabledReason={gated ? 'Finish Production approvals first.' : ''}
             submitting={submittingId === log.id}
@@ -524,52 +571,52 @@ export function KitchenReviewPage() {
   ]
 
   if (auth.status === 'loading') {
-    return <PageFrame><LoadingState /></PageFrame>
+    return (
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
+    )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kr-block kr-forbidden">
-          <p className="kr-forbidden-msg">You need to sign in to review kitchen logs.</p>
-          <Link to="/login" className="btn btn-primary">Sign in</Link>
+          <p className="kr-forbidden-msg">{t('kitchen.review.signInMsg')}</p>
+          <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   if (!allowed) {
     return (
-      <PageFrame>
-        <PageHead variant="content" title="Kitchen · Review" count={null} />
-        <div className="kr-block kr-forbidden" role="region" aria-label="Access restricted">
-          <p className="kr-forbidden-title">Review is available to ops leads only.</p>
-          <p className="kr-forbidden-msg">
-            Ask an ops lead to review your submitted kitchen logs.
-          </p>
-          <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+        <div className="kr-block kr-forbidden" role="region" aria-label={t('kitchen.review.restrictedAria')}>
+          <p className="kr-forbidden-title">{t('kitchen.review.leadsOnly')}</p>
+          <p className="kr-forbidden-msg">{t('kitchen.review.leadsOnlyMsg')}</p>
+          <Link to="/cafe/log" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   const submittedCount = logs.length
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Kitchen · Review"
-        count={load.kind === 'ready' ? submittedCount : null}
-        meta={<span className="kr-date tabular">{logDate}</span>}
-      />
-
+    <PageFamilyFrame
+      family="workspace"
+      title={pageTitle}
+      jobSentence={t('job.cafe')}
+      meta={<span className="kr-date tabular">{logDate}</span>}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
+    >
       {load.kind === 'ready' && submittedCount > 0 && (
         <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
       )}
 
       {!isOnline && (
         <div role="alert" className="kr-banner kr-banner-offline kr-block">
-          You're offline — reviewing needs a connection. Reconnect to approve or reject.
+          {t('kitchen.review.offline')}
         </div>
       )}
 
@@ -585,11 +632,11 @@ export function KitchenReviewPage() {
         </div>
       )}
 
-      {load.kind === 'loading' && <LoadingState />}
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't load the queue — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.queue') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -597,16 +644,16 @@ export function KitchenReviewPage() {
       {load.kind === 'ready' && submittedCount === 0 && (
         <EmptyState
           variant="awaiting"
-          title="Nothing to review"
-          copy={`No submitted logs for ${logDate}.`}
-          note="Pull again to check for newly submitted kitchen logs."
+          title={t('kitchen.review.empty.title')}
+          copy={t('kitchen.review.empty.copy', { date: logDate })}
+          note={t('kitchen.review.empty.note')}
         >
           <button
             type="button"
             className="btn btn-outline"
             onClick={() => setRetryKey(k => k + 1)}
           >
-            Refresh
+            {t('kitchen.review.refresh')}
           </button>
         </EmptyState>
       )}
@@ -617,17 +664,9 @@ export function KitchenReviewPage() {
           rows={[]}
           groups={tableGroups}
           isDesktop={isDesktop}
-          caption="Submitted kitchen logs awaiting review"
+          caption={t('kitchen.review.caption')}
         />
       )}
-    </PageFrame>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kr-block">
-      <SkeletonRows count={3} />
-    </div>
+    </PageFamilyFrame>
   )
 }

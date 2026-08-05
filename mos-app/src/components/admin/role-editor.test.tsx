@@ -265,12 +265,29 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
-  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+  // The dialog must not dismiss out from under an in-flight write — a strayed Escape used to
+  // close it while a grant/revoke was still pending, leaving the viewer with no confirmation
+  // and no error if it failed.
+  it('does not dismiss while a role mutation is pending', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mockGrantRole.mockReturnValue(new Promise(() => {}))
+    renderEditor(OTHER_PERSON, { onClose })
+
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  // FIX B1 regression, re-homed (#201): the Single-Border Rule still binds, but the border is
+  // now ModalShell's — an inline `style.border` assertion would fail on correct code, so it
+  // asserts the canonical bordered surface instead of re-implementing the check.
+  it('FIX-B1: dialog card uses the canonical bordered modal surface (Single-Border Rule)', () => {
     renderEditor()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.style.border).toBeTruthy()
-    expect(dialog.style.border).not.toBe('')
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 
   // Defect 1 (design review, Important) — toast must never leak the raw role SLUG
@@ -303,16 +320,26 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(message).not.toMatch(/\bmanager\b/) // only the capitalized "Manager" label is allowed
   })
 
-  // Defect 2 (design review, Important, WCAG 1.4.10) — dialog must not clip on short viewports
-  it('DEFECT-2: the scrollable body region carries max-height + overflow-y-auto styling', () => {
+  // Defect 2 (design review, Important, WCAG 1.4.10) — dialog must not clip on short viewports.
+  // The height bound moved from an inline `max-h-[90vh]` to ModalShell's own surface rule, so
+  // the assertion follows it: the panel is the ModalShell surface's only child (which is what
+  // the `:has(> .role-editor-panel)` rule keys off — see modal-shell.css), and the middle
+  // region is still the one that scrolls, leaving the ✕ and Close outside it.
+  it('DEFECT-2: only the middle region scrolls, so the header ✕ and footer Close stay reachable', () => {
     // jsdom has no real layout engine, so this is a structural guard: it asserts the
     // scroll-container classes are present on the correct element, not actual clipping/scroll
     // behavior (which would need a real browser + viewport to observe).
     renderEditor()
     const body = screen.getByTestId('role-editor-scroll-body')
     expect(body.className).toContain('overflow-y-auto')
+    expect(body.className).toContain('flex-1')
+
     const dialog = screen.getByRole('dialog')
-    expect(dialog.className).toContain('max-h-[90vh]')
+    const panel = dialog.firstElementChild as HTMLElement
+    expect(panel).toHaveClass('role-editor-panel')
+    // The header ✕ and the footer Close both live OUTSIDE the scrolling region.
+    expect(body.contains(screen.getByRole('button', { name: /dismiss dialog/i }))).toBe(false)
+    expect(body.contains(screen.getByRole('button', { name: /^close$/i }))).toBe(false)
   })
 
   // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire

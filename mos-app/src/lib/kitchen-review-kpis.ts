@@ -1,21 +1,34 @@
 import { useMemo } from 'react'
 import type { KitchenKpiStripData } from '@/lib/kitchen-kpis'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import { movementKey, streamKey } from '@/lib/kitchen-action-label'
 
-function planQtyFor(planMap: PlanMap, log: ReviewLogRow): number {
-  return planMap[log.wip_item_id]?.[log.action_type] ?? 0
+// The plan map is keyed by MOVEMENT, not by the derived label (DD-WAY-13). Keying it by the
+// label here would silently resolve every lookup to 0 — a plan-vs-logged column that always
+// reads "off-plan" and never says why.
+//
+// #197/#198 fix: `streamPlans` is keyed by the row's OWN (branch, activity) stream
+// (streamKey), not a single flat PlanMap for the whole queue. A queue that can span more
+// than one stream and compares every row to ONE stream's plan silently mis-scores every
+// row from a different stream — this was the exact defect #196 flagged for whoever ported
+// this surface.
+function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
+  const planMap = streamPlans.get(streamKey(log.branch_id, log.activity))
+  return planMap?.[log.wip_item_id]?.[
+    movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
+  ] ?? 0
 }
 
-export function computeReviewKpis(logs: ReviewLogRow[], planMap: PlanMap): KitchenKpiStripData {
+export function computeReviewKpis(logs: ReviewLogRow[], streamPlans: Map<string, PlanMap>): KitchenKpiStripData {
   let onPlanCount = 0
   let offPlanCount = 0
   let transferWaiting = 0
-  const productionPending = logs.some(log => log.action_type === 'Production')
+  const productionPending = logs.some(log => log.action === 'produce')
 
   for (const log of logs) {
-    if (log.qty_porsi === planQtyFor(planMap, log)) onPlanCount += 1
+    if (log.qty_porsi === planQtyFor(streamPlans, log)) onPlanCount += 1
     else offPlanCount += 1
-    if (productionPending && log.action_type !== 'Production') transferWaiting += 1
+    if (productionPending && log.action === 'transfer') transferWaiting += 1
   }
 
   return {
@@ -55,6 +68,6 @@ export function computeReviewKpis(logs: ReviewLogRow[], planMap: PlanMap): Kitch
   }
 }
 
-export function useReviewKpis(logs: ReviewLogRow[], planMap: PlanMap): KitchenKpiStripData {
-  return useMemo(() => computeReviewKpis(logs, planMap), [logs, planMap])
+export function useReviewKpis(logs: ReviewLogRow[], streamPlans: Map<string, PlanMap>): KitchenKpiStripData {
+  return useMemo(() => computeReviewKpis(logs, streamPlans), [logs, streamPlans])
 }

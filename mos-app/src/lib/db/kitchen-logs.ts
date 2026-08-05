@@ -4,17 +4,22 @@
 // Snake_case column names consumed directly — no camelCase bridge.
 
 import { supabase } from '@/lib/supabase'
+import { movementKey } from '@/lib/kitchen-action-label'
+import { listActiveBranches } from './branches'
 import type {
+  BranchOption,
   WipItemOption,
-  KitchenPlanRow,
   PlanMap,
   StockMap,
   ItemStock,
   CreateKitchenLogInput,
-  KitchenActionType,
+  KitchenAction,
+  ProductionActivity,
+  ProductionStream,
   ReviewLogRow,
   ApproveResult,
   KitchenStockRow,
+  KitchenStockStreamRow,
 } from './kitchen-logs.types'
 
 const ops = () => supabase.schema('ops')
@@ -28,6 +33,38 @@ const shared = () => supabase.schema('shared')
  * 20260705000002_bu_taxonomy_remap migration which added shared.business_units.code).
  */
 export const KITCHEN_BU_CODE = 'retail_ops'
+
+// ── The production stream a Café surface opens on ─────────────────────────────
+
+/**
+ * The branch a Café surface opens on: the books the ONE physical kitchen's output is
+ * credited to today, which is the single (branch, activity) stream currently captured
+ * (DD-WAY-25). Beware the label trap while reading this — the incumbent's stock tab says
+ * "Stok HQ", where HQ means the CENTRAL KITCHEN, which books here and not to the branch
+ * whose ERP code is GHQ.
+ *
+ * It is a DEFAULT SELECTION, not a model constant: the stream is a real column on every
+ * row, a capture surface can move it, and an org without this branch falls back to the
+ * first row of its own catalog rather than refusing to open.
+ */
+export const DEFAULT_CAPTURE_BRANCH_CODE = 'rumah_rames'
+export const DEFAULT_CAPTURE_ACTIVITY: ProductionActivity = 'kitchen'
+
+/** Pick the opening stream out of an already-loaded catalog. Null when it is empty. */
+export function defaultStreamFrom(branches: readonly BranchOption[]): ProductionStream | null {
+  const branch =
+    branches.find(b => b.code === DEFAULT_CAPTURE_BRANCH_CODE) ?? branches[0] ?? null
+  return branch ? { branch, activity: DEFAULT_CAPTURE_ACTIVITY } : null
+}
+
+/**
+ * Resolve the opening stream against the live catalog. For surfaces that read one stream
+ * and do not let the viewer move it yet; a capture surface loads the catalog itself so it
+ * can offer the picker.
+ */
+export async function resolveDefaultCaptureStream(): Promise<ProductionStream | null> {
+  return defaultStreamFrom(await listActiveBranches())
+}
 
 // ── WIP items ────────────────────────────────────────────────────────────────
 
@@ -48,21 +85,37 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
 
 /**
- * Fetch kitchen plans for a given date (YYYY-MM-DD WIB).
- * Returns a PlanMap: { [wip_item_id]: { [action_type]: qty_porsi } }
- * so the form can look up plan qty per (item, action_type) in O(1).
+ * Fetch kitchen plans for a date, SCOPED TO ONE (branch, activity) production stream
+ * (OD-WAY-28). The date-only read this replaces silently summed every stream's plan into
+ * one number the moment more than one stream existed.
+ *
+ * Returns a PlanMap: { [wip_item_id]: { [movement key]: qty_porsi } }, so the form looks up
+ * the plan for the movement the capturer has selected in O(1). The key is derived from the
+ * stored `(action, destination_branch_id)` pair — there is no stored action_type.
  */
-export async function fetchPlanMap(logDate: string): Promise<PlanMap> {
+export async function fetchPlanMap(
+  logDate: string,
+  stream: ProductionStream,
+): Promise<PlanMap> {
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('wip_item_id,action_type,qty_porsi')
+    .select('wip_item_id,action,destination_branch_id,qty_porsi')
     .eq('log_date', logDate)
+    .eq('branch_id', stream.branch.id)
+    .eq('activity', stream.activity)
   if (error) throw new Error(`fetchPlanMap failed — ${error.message}`)
-  const rows = (data ?? []) as Pick<KitchenPlanRow, 'wip_item_id' | 'action_type' | 'qty_porsi'>[]
+  type PlanKeyRow = {
+    wip_item_id: string
+    action: KitchenAction
+    destination_branch_id: string | null
+    qty_porsi: number
+  }
   const map: PlanMap = {}
-  for (const row of rows) {
-    if (!map[row.wip_item_id]) map[row.wip_item_id] = {} as PlanMap[string]
-    map[row.wip_item_id][row.action_type as KitchenActionType] = row.qty_porsi
+  for (const row of (data ?? []) as PlanKeyRow[]) {
+    if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
+    map[row.wip_item_id][
+      movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
+    ] = row.qty_porsi
   }
   return map
 }
@@ -115,8 +168,15 @@ interface StockForDateRow {
  * `stock_available_for_date(p_date)` form did not exist and failed at runtime).
  * Returns one row per active WIP item; RLS scopes them to the caller's org.
  */
-async function fetchStockForDate(asOf: string): Promise<StockForDateRow[]> {
-  const { data, error } = await ops().rpc('kitchen_stock_for_date', { p_as_of: asOf })
+async function fetchStockForDate(
+  asOf: string,
+  stream: ProductionStream,
+): Promise<StockForDateRow[]> {
+  const { data, error } = await ops().rpc('kitchen_stock_for_date', {
+    p_as_of: asOf,
+    p_branch_id: stream.branch.id,
+    p_activity: stream.activity,
+  })
   if (error) throw new Error(`fetchStockMap failed — ${error.message}`)
   return (data ?? []) as StockForDateRow[]
 }
@@ -128,8 +188,11 @@ async function fetchStockForDate(asOf: string): Promise<StockForDateRow[]> {
  * `tersedia` (FR-023) is the transfer-availability the stepper caps against;
  * `stok` (FR-022) feeds the effective-target `max(plan − stok, 0)`.
  */
-export async function fetchStockMap(logDate: string): Promise<StockMap> {
-  const rows = await fetchStockForDate(logDate)
+export async function fetchStockMap(
+  logDate: string,
+  stream: ProductionStream,
+): Promise<StockMap> {
+  const rows = await fetchStockForDate(logDate, stream)
   const map: StockMap = {}
   for (const row of rows) {
     map[row.wip_item_id] = { stok: row.usable_qty, tersedia: row.available_qty } satisfies ItemStock
@@ -145,8 +208,14 @@ export async function fetchStockMap(logDate: string): Promise<StockMap> {
  * activity yet). Negative balances are preserved, never clamped (FR-061/AC-032).
  * Reuses `fetchStockForDate` + `listActiveWipItems` (DRY with the capture path).
  */
-export async function fetchKitchenStock(asOf: string): Promise<KitchenStockRow[]> {
-  const [items, stockRows] = await Promise.all([listActiveWipItems(), fetchStockForDate(asOf)])
+export async function fetchKitchenStock(
+  asOf: string,
+  stream: ProductionStream,
+): Promise<KitchenStockRow[]> {
+  const [items, stockRows] = await Promise.all([
+    listActiveWipItems(),
+    fetchStockForDate(asOf, stream),
+  ])
   const byItem = new Map(stockRows.map(r => [r.wip_item_id, r]))
   return items.map(item => {
     const s = byItem.get(item.id)
@@ -160,31 +229,74 @@ export async function fetchKitchenStock(asOf: string): Promise<KitchenStockRow[]
   })
 }
 
+/**
+ * Fetch the read-only Stock view's display rows ACROSS every given (branch, activity)
+ * stream (#198, OD-WAY-28): one row per (active WIP item × stream) pair, each carrying
+ * the stream it belongs to. "Stok HQ" means the central kitchen, which books to Rumah
+ * Rames — not Gordi HQ — so a stock view that cannot say WHOSE books a row is looking at
+ * is the shape of problem that hides a COGS error. Runs one `fetchKitchenStock` per
+ * stream in parallel; bounded by the branch catalog × 2 activities, both small.
+ */
+export async function fetchKitchenStockAcrossStreams(
+  asOf: string,
+  streams: readonly ProductionStream[],
+): Promise<KitchenStockStreamRow[]> {
+  const perStream = await Promise.all(
+    streams.map(async (stream): Promise<KitchenStockStreamRow[]> => {
+      const rows = await fetchKitchenStock(asOf, stream)
+      return rows.map(row => ({ ...row, stream }))
+    }),
+  )
+  return perStream.flat()
+}
+
 // ── Kitchen log insert ────────────────────────────────────────────────────────
 
 /**
- * Insert one kitchen log row.
- * Sends ONLY: business_unit_id, log_date, action_type, wip_item_id, qty_porsi, notes.
- * status defaults to 'Submitted' at DB. org_id + submitted_by are server-stamped.
- * Throws on PostgREST error. Returns the inserted row's id.
+ * Turn one capture line into the row shape `ops.kitchen_logs` actually holds, and refuse to
+ * build one that the table's own CHECKs would reject. Both refusals are client mirrors of a
+ * database constraint, never a substitute for it (DD-WAY-8 — RLS and CHECKs are the
+ * boundary):
+ *  - a row must name its (branch, activity) production stream (`branch_id`/`activity` are
+ *    NOT NULL, AC-007) — a log with no stream cannot be submitted;
+ *  - a produce carries no destination and a transfer must carry one
+ *    (`kitchen_logs_destination_matches_action`).
  */
-export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<string> {
-  // Validate client-side before hitting the DB (qty > 0)
-  if (input.qty_porsi <= 0) {
-    throw new Error('qty_porsi must be > 0')
+function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> {
+  if (input.qty_porsi <= 0) throw new Error('qty_porsi must be > 0')
+  if (!input.branch_id || !input.activity) {
+    throw new Error('a kitchen log must name its (branch, activity) production stream')
   }
-
-  const row: Record<string, unknown> = {
+  if (input.action === 'produce' && input.destination_branch_id !== null) {
+    throw new Error('a produce carries no destination branch')
+  }
+  if (input.action === 'transfer' && !input.destination_branch_id) {
+    throw new Error('a transfer must name a destination branch')
+  }
+  return {
     business_unit_id: input.business_unit_id,
     log_date: input.log_date,
-    action_type: input.action_type,
+    branch_id: input.branch_id,
+    activity: input.activity,
+    action: input.action,
+    destination_branch_id: input.destination_branch_id,
     wip_item_id: input.wip_item_id,
     qty_porsi: input.qty_porsi,
     notes: input.notes ?? null,
     // status NOT sent — DB defaults to 'Submitted'
+    // source NOT sent — DB defaults to 'mos'
     // org_id NOT sent — server-stamped by current_org_id()
     // submitted_by NOT sent — server-stamped by current_person_id()
   }
+}
+
+/**
+ * Insert one kitchen log row.
+ * Sends ONLY the capture payload above; status/source/org_id/submitted_by are server-stamped.
+ * Throws on PostgREST error. Returns the inserted row's id.
+ */
+export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<string> {
+  const row = toKitchenLogRow(input)
 
   const { data, error } = await ops()
     .from('kitchen_logs')
@@ -198,7 +310,7 @@ export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<st
 
 /**
  * Insert multiple kitchen log lines in one batch.
- * Each line must have qty_porsi > 0 (caller validates; this validates each too).
+ * Each line must have qty_porsi > 0 and a complete stream (caller validates; this does too).
  * Returns array of inserted ids.
  */
 export async function insertKitchenLogBatch(
@@ -206,18 +318,7 @@ export async function insertKitchenLogBatch(
 ): Promise<string[]> {
   if (inputs.length === 0) return []
 
-  const rows = inputs.map(input => {
-    if (input.qty_porsi <= 0) throw new Error('qty_porsi must be > 0')
-    return {
-      business_unit_id: input.business_unit_id,
-      log_date: input.log_date,
-      action_type: input.action_type,
-      wip_item_id: input.wip_item_id,
-      qty_porsi: input.qty_porsi,
-      notes: input.notes ?? null,
-      // status / org_id / submitted_by: server-stamped
-    }
-  })
+  const rows = inputs.map(toKitchenLogRow)
 
   const { data, error } = await ops()
     .from('kitchen_logs')
@@ -245,8 +346,14 @@ export class KitchenRpcError extends Error {
 // (ops.kitchen_logs → ops.wip_items is FK-embeddable; cross-schema submitter →
 // shared.people is NOT — PGRST200 — so the submitter NAME is resolved client-side
 // from the directory, mirroring tasks.ts).
+// `action_label` is the DERIVED label (DD-WAY-13): PostgREST exposes
+// `ops.action_label(ops.kitchen_logs)` as a virtual column, so every surface reads the same
+// derivation the database owns instead of re-deriving it — and no row stores a literal.
+// `branch_id,activity` (#197/#198): the row's OWN (branch, activity) stream (OD-WAY-28) —
+// added so the review queue can look up each row's plan baseline against ITS stream
+// rather than one hardcoded stream (the #247/#196 defect this port fixes).
 const REVIEW_SELECT =
-  'id,log_date,action_type,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+  'id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
 
 /**
  * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
@@ -260,14 +367,22 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     .select(REVIEW_SELECT)
     .eq('status', 'Submitted')
     .eq('log_date', logDate)
-    .order('action_type', { ascending: true })
+    // `action_label` is computed, so it cannot be ordered on. Ordering by the stored pair it
+    // derives from puts produce before transfers and groups transfers by destination —
+    // the same grouping the label ordering produced, from the columns that actually exist.
+    .order('action', { ascending: true })
+    .order('destination_branch_id', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: true })
   if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
 
   type RawRow = {
     id: string
     log_date: string
-    action_type: KitchenActionType
+    action: KitchenAction
+    destination_branch_id: string | null
+    branch_id: string
+    activity: ProductionActivity
+    action_label: string | null
     wip_item_id: string
     qty_porsi: number
     notes: string | null
@@ -284,7 +399,11 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     return {
       id: r.id,
       log_date: r.log_date,
-      action_type: r.action_type,
+      action_type: r.action_label ?? '',
+      action: r.action,
+      destination_branch_id: r.destination_branch_id,
+      branch_id: r.branch_id,
+      activity: r.activity,
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
       qty_porsi: r.qty_porsi,

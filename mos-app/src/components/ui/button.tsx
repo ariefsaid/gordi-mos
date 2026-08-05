@@ -17,9 +17,11 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
   // Ported for #192 (Tasks — collection-toolbar.tsx's disclosure trigger measures its own DOM
-  // node). React 19 passes `ref` to a plain function component as an ordinary prop — no
-  // `forwardRef` wrapper needed — but the prop must still be declared for the JSX types to admit
-  // `<Button ref={...} />` at a call site.
+  // node) and needed the same way by the Signals collection toolbar's disclosure and the Signal
+  // category/mention pickers: a popover trigger has to be measurable and re-focusable by the hook
+  // that owns its listbox. React 19 passes `ref` to a plain function component as an ordinary
+  // prop — no `forwardRef` wrapper needed — but the prop must still be declared for the JSX types
+  // to admit `<Button ref={...} />` at a call site.
   ref?: Ref<HTMLButtonElement>
 }
 

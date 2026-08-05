@@ -199,7 +199,9 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
     )
     const backLink = await screen.findByRole('link', { name: /back to log/i })
     // Link must resolve via the SPA router (basename applied) — not a full-reload raw anchor
-    expect(backLink).toHaveAttribute('href', '/mos/kitchen/log')
+    // Café's canonical Log route (#196 rename) — not the retired /kitchen/log, which
+    // only still resolves via a redirect hop.
+    expect(backLink).toHaveAttribute('href', '/mos/cafe/log')
   })
 })
 
@@ -240,7 +242,8 @@ describe('KitchenPushesPage — states', () => {
   it('error: shows error message + retry button', async () => {
     mockListPushes.mockRejectedValue(new Error('DB error'))
     render(<KitchenPushesPage />)
-    const errorMsg = await screen.findByText(/couldn't load pushes/i)
+    // `.` matches either the straight or curly apostrophe — the i18n catalog uses ’ (U+2019).
+    const errorMsg = await screen.findByText(/couldn.t load pushes/i)
     expect(errorMsg).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })

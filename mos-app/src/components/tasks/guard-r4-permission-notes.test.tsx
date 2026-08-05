@@ -30,8 +30,8 @@ const STRANGER = 'p-stranger'
 
 const people: PersonOption[] = [
   { id: PIC, full_name: 'Riri' },
-  { id: SUPERVISOR, full_name: 'Ibnu' },
-  { id: STRANGER, full_name: 'Ansori' },
+  { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
+  { id: STRANGER, full_name: 'Made Santika' },
 ]
 const businessUnits: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 
