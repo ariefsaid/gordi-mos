@@ -1,21 +1,21 @@
-import { useRef, useEffect } from 'react'
 import { Breadcrumb } from './breadcrumb'
-import { UserChip } from './user-chip'
 import { useIsNarrow } from './use-is-narrow'
-import { SHOW_ASSISTANT, SHOW_INBOX } from '@/config/features'
+import { useIsSplitWidth } from './use-is-split-width'
+import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 
 type TopBarProps = {
-  /** Whether the mobile drawer is currently open (used for aria-expanded on the hamburger). */
-  drawerOpen?: boolean
-  onOpenDrawer: () => void
   /** Opens the ⌘K command menu (wired in AppShell). */
   onOpenSearch?: () => void
-  /** Receives a function that focuses the hamburger; used by MobileDrawer to restore focus on close. */
-  onRegisterHamburgerFocus?: (focusFn: () => void) => void
+  /**
+   * @deprecated The header hamburger was removed (v4 shell rebuild) — the phone nav's sole
+   * opener is now the bottom-tab-bar's More button. Kept optional so existing call sites/tests
+   * compile unchanged; TopBar no longer reads it.
+   */
+  onOpenDrawer?: () => void
 }
 
 // Bell icon — 16px, stroke-2, aria-hidden (notification stub, ADR-0013 D1)
@@ -54,27 +54,8 @@ function SearchIcon() {
   )
 }
 
-// Hamburger icon — 18px, stroke-2, aria-hidden
-function HamburgerIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  )
-}
-
 // Deputy spark icon — 16px, stroke-2, aria-hidden (T28 desktop top-bar button)
-function DeputyIcon() {
+export function DeputyIcon() {
   return (
     <svg
       width={16}
@@ -100,7 +81,7 @@ function GordiLogoMark() {
     <div className="relative flex-none" style={{ width: 26, height: 26 }}>
       <div
         className="flex h-full w-full items-center justify-center rounded-sm bg-brand-navy font-bold text-primary-foreground"
-        style={{ fontSize: 15 }}
+        style={{ fontSize: 'var(--font-size-body-lg)' }}
       >
         G
       </div>
@@ -135,13 +116,26 @@ function AssistantTopBarButton() {
   )
 }
 
-// The notification bell (T16) — a live Inbox link with an unread badge (ADR-0019 D9). Rendered only
-// when SHOW_INBOX, so the fetch never fires while the feature is hidden. Uses the dedicated
-// useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
+// The notification bell (T16) — the Inbox door with an unread badge (ADR-0019 D9). Inbox is always
+// live (Step 2, D-1). Uses the dedicated useUnreadCount hook (CQ#2) so the badge is backed by the
+// unread-only index, not the full list.
+//
+// DEFERRED TO #190: v4 gives this bell two doors. On desktop it quick-opens the SAME InboxTriage
+// surface as an ephemeral root in the shared overlay host (no URL mutation, focus returned to the
+// bell on close); on phone — and whenever no host is mounted — it falls back to the `/inbox` route.
+// The host and `InboxTriageConnected` both arrive with the overlay/record hosts, so until then the
+// bell has ONE door: the route, on every viewport. That is v4's own no-host fallback path, not a
+// new behaviour.
 function NotificationBell() {
   const navigate = useNavigate()
+  const t = useT()
   const { unreadCount } = useUnreadCount()
-  const label = unreadCount > 0 ? `Inbox, ${unreadCount} unread` : 'Inbox'
+  const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
+
+  const openInbox = () => {
+    navigate('/inbox')
+  }
+
   return (
     <button
       type="button"
@@ -149,7 +143,7 @@ function NotificationBell() {
       title={label}
       className="tap-target-phone tap-target-phone--icon relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
       style={{ width: 32, height: 32 }}
-      onClick={() => navigate('/inbox')}
+      onClick={openInbox}
     >
       <BellIcon />
       {unreadCount > 0 ? (
@@ -176,49 +170,37 @@ function NotificationBell() {
 }
 
 // Global top bar (ADR-0013 D1).
-// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · user chip]
-// At <920px the leading hamburger appears and calls onOpenDrawer.
+// Layout left→right: [brand --rail-w] | [breadcrumb flex-1 min-w-0] | [spacer] | [search · bell · deputy]
+// The top-bar Create button was REMOVED app-wide (OD-REDESIGN-91 #16 / F1) — it enforces
+// experience-contract Rule 7 verbatim ("live in the ⌘K palette, not as header buttons").
+// Desktop creation is ⌘K + page-contextual CTAs; the phone keeps the bottom-tab + launcher.
+// The header hamburger was removed (v4 shell rebuild, Task 1) — the phone nav's sole opener is
+// the bottom-tab-bar's More button (aria-haspopup="dialog" + aria-expanded there).
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
-export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegisterHamburgerFocus }: TopBarProps) {
+export function TopBar({ onOpenSearch }: TopBarProps) {
+  const t = useT()
   const isNarrow = useIsNarrow()
-  const hamburgerRef = useRef<HTMLButtonElement>(null)
-
-  // Register focus-return function so the mobile drawer can refocus hamburger on close.
-  useEffect(() => {
-    onRegisterHamburgerFocus?.(() => hamburgerRef.current?.focus())
-  }, [onRegisterHamburgerFocus])
+  // OD-REDESIGN-84.2 (P1-1): the brand column's width must track the rail's own compact
+  // regime (920–1099.98px) so the divider still lands on the rail boundary; the wordmark
+  // text is dropped at that width too (72px only has room for the mark).
+  const isSplit = useIsSplitWidth()
+  const railCompact = !isNarrow && !isSplit
 
   return (
     <header
+      data-anatomy="header"
       className="bg-background border-b border-border flex items-stretch flex-none"
       style={{ height: 'var(--header-h)', gridArea: 'topbar' }}
     >
-      {/* Hamburger — shown only at <920px, before the brand column */}
-      {isNarrow && (
-        <div className="flex items-center px-2">
-          <button
-            ref={hamburgerRef}
-            type="button"
-            aria-label="Open navigation"
-            aria-expanded={drawerOpen}
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent flex-none"
-            style={{ width: 32, height: 32 }}
-            onClick={onOpenDrawer}
-          >
-            <HamburgerIcon />
-          </button>
-        </div>
-      )}
-
       {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1).
           At <920px the rail is gone (drawer-nav), so the brand shrinks to content width (no 224px reserve)
           and drops the divider — otherwise it forces horizontal overflow on phones. */}
       <div
-        className={`flex items-center gap-2 px-3 flex-none${isNarrow ? '' : ' border-r border-border'}`}
-        style={{ width: isNarrow ? 'auto' : 'var(--rail-w)' }}
+        className={`flex items-center gap-2 px-3 flex-none${isNarrow ? '' : ' border-r border-border'}${railCompact ? ' justify-center px-0' : ''}`}
+        style={{ width: isNarrow ? 'auto' : railCompact ? 'var(--rail-w-compact)' : 'var(--rail-w)' }}
       >
         <GordiLogoMark />
-        {!isNarrow && (
+        {!isNarrow && !railCompact && (
           <span
             className="truncate font-semibold text-foreground"
             title="Gordi MOS"
@@ -230,20 +212,19 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
       </div>
 
       {/* Breadcrumb track — min-w-0 so a long crumb ellipsizes and cannot shove the brand (AC-S02/S03).
-          Hidden at <920px: it's redundant with the page's own H1 there, and its min-content width
-          otherwise forces header overflow on phones. */}
-      {!isNarrow && (
-        <div className="flex items-center px-4 flex-1 min-w-0">
-          <nav aria-label="Breadcrumb">
-            <Breadcrumb />
-          </nav>
-        </div>
-      )}
+          v4 shell rebuild (Task 2): now ALSO rendered at <920px, in the space freed by deleting
+          the hamburger — it's the phone's only current-location signal once the page's own H1
+          scrolls out of view, and it lives in this fixed header row so it survives scrolling. */}
+      <div className={`flex items-center flex-1 min-w-0${isNarrow ? ' px-2' : ' px-4'}`}>
+        <nav aria-label="Breadcrumb">
+          <Breadcrumb />
+        </nav>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right cluster — search · bell · user chip */}
+      {/* Right cluster — search · bell · deputy */}
       <div className="flex items-center gap-2 px-3 flex-none">
         {/* ⌘K search trigger — opens the command menu (AC-K02). Below 920px it shrinks to an
             icon-only button (DESIGN.md Navigation·Mobile: "cmdk shrinks to an icon") so the header
@@ -251,7 +232,7 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         {isNarrow ? (
           <button
             type="button"
-            aria-label="Search"
+            aria-label={t('topBar.search')}
             className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-border bg-secondary text-muted-foreground hover:border-muted-foreground/50 flex-none"
             style={{ width: 32, height: 32 }}
             onClick={onOpenSearch}
@@ -261,14 +242,14 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
         ) : (
           <button
             type="button"
-            aria-label="Search"
+            aria-label={t('topBar.search')}
             className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
             style={{ height: 34, width: 200 }}
             onClick={onOpenSearch}
           >
             <SearchIcon />
-            <span className="flex-1 text-left" style={{ fontSize: 15 }}>
-              Search
+            <span className="flex-1 text-left" style={{ fontSize: 'var(--font-size-body-lg)' }}>
+              {t('topBar.searchPlaceholder')}
             </span>
             <kbd
               className="rounded-xs border border-border px-1 font-medium text-muted-foreground"
@@ -279,29 +260,15 @@ export function TopBar({ drawerOpen = false, onOpenDrawer, onOpenSearch, onRegis
           </button>
         )}
 
-        {/* Deputy launcher (T28) — neutral header icon on every viewport, next to the search
-            affordance (no floating orange FAB — DESIGN.md No-FAB Rule). Absent when SHOW_ASSISTANT=false. */}
+        {/* Inbox bell — always live (SHOW_INBOX retired, D-1). A live Inbox link + unread badge. */}
+        <NotificationBell />
+
+        {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).
+            Absent when SHOW_ASSISTANT=false. */}
         {SHOW_ASSISTANT && <AssistantTopBarButton />}
 
-        {/* Notification bell — a live Inbox link + unread badge when SHOW_INBOX (T16); the
-            disabled "coming soon" stub otherwise (AC-S07, ADR-0013 D1). */}
-        {SHOW_INBOX ? (
-          <NotificationBell />
-        ) : (
-          <button
-            type="button"
-            aria-label="Notifications"
-            title="Notifications — coming soon"
-            disabled
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm text-muted-foreground"
-            style={{ width: 32, height: 32 }}
-          >
-            <BellIcon />
-          </button>
-        )}
-
-        {/* User chip — avatar-only at <920px (FR-020); name/role show on wider viewports (AC-S08) */}
-        <UserChip variant="header" compact={isNarrow} />
+        {/* No top-bar Create button (OD-REDESIGN-91 #16 / F1) — desktop creation is ⌘K +
+            page CTAs; the phone launcher lives in the bottom tab bar. */}
       </div>
     </header>
   )

@@ -1,85 +1,86 @@
 /**
- * Unit tests for sectionForPath — covering both SECTIONS and KITCHEN_SECTIONS.
- * AC-KIT-006: kitchen paths resolve to a named section (non-empty breadcrumb).
+ * sections.test.ts — Redesign Step 2 (T5). CAFE_SECTIONS remap (Kitchen → Café,
+ * /cafe/* paths), events/money/signals/profile sections added, retired /updates
+ * + /ops entries dropped. ADMIN_SECTIONS kept. FR-027 prep.
  */
 import { describe, it, expect } from 'vitest'
-import { sectionForPath, KITCHEN_SECTIONS } from './sections'
+import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
 
-describe('sectionForPath — workspace sections', () => {
-  it('returns My Week for /', () => {
+describe('T5: SECTIONS — workspace fallback registry', () => {
+  it('home section resolves for /', () => {
     const s = sectionForPath('/')
     expect(s).not.toBeNull()
-    expect(s!.label).toBe('My Week')
+    expect(s!.label).toBe('Home')
   })
 
-  it('returns Tasks for /tasks', () => {
-    const s = sectionForPath('/tasks')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Tasks')
-  })
-
-  it('returns Tasks for /tasks/some-id (prefix match)', () => {
-    const s = sectionForPath('/tasks/abc-123')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Tasks')
-  })
-
-  it('returns null for an unknown path', () => {
-    expect(sectionForPath('/unknown-xyz')).toBeNull()
+  it('retired /updates and /ops entries are absent', () => {
+    expect(SECTIONS.some((s) => s.path === '/updates')).toBe(false)
+    expect(SECTIONS.some((s) => s.path === '/ops')).toBe(false)
+    expect(sectionForPath('/updates')).toBeNull()
+    expect(sectionForPath('/ops')).toBeNull()
   })
 })
 
-// AC-KIT-006: kitchen paths must resolve so the breadcrumb is non-empty.
-describe('AC-KIT-006: sectionForPath — kitchen sections', () => {
-  it('returns Log section for /kitchen/log', () => {
-    const s = sectionForPath('/kitchen/log')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Kitchen Log')
-    expect(s!.path).toBe('/kitchen/log')
+describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
+  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
+  // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
+  it('exports Opening + the 5 café sections in canonical order', () => {
+    expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
+      '/cafe',
+      '/cafe/log',
+      '/cafe/plan',
+      '/cafe/stock',
+      '/cafe/review',
+      '/cafe/pushes',
+    ])
   })
 
-  it('returns Plan section for /kitchen/plan', () => {
-    const s = sectionForPath('/kitchen/plan')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Plan')
-  })
-
-  it('returns Stock section for /kitchen/stock', () => {
-    const s = sectionForPath('/kitchen/stock')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Stock')
-  })
-
-  it('returns Review section for /kitchen/review', () => {
-    const s = sectionForPath('/kitchen/review')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Review')
-  })
-
-  it('returns Pushes section for /kitchen/pushes', () => {
-    const s = sectionForPath('/kitchen/pushes')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Pushes')
-  })
-
-  it('does NOT match /kitchen root (no trailing section)', () => {
-    // /kitchen itself has no section entry — sections are leaf paths
-    expect(sectionForPath('/kitchen')).toBeNull()
-  })
-})
-
-describe('KITCHEN_SECTIONS export', () => {
-  it('exports exactly 5 kitchen sections in the canonical order', () => {
-    expect(KITCHEN_SECTIONS).toHaveLength(5)
-    const labels = KITCHEN_SECTIONS.map((s) => s.label)
-    expect(labels).toEqual(['Kitchen Log', 'Plan', 'Stock', 'Review', 'Pushes'])
-  })
-
-  it('each section has a path, label, and Icon', () => {
-    KITCHEN_SECTIONS.forEach((s) => {
+  it('each section has a path, label, labelKey, and Icon', () => {
+    CAFE_SECTIONS.forEach((s) => {
       expect(s.path).toBeTruthy()
       expect(s.label).toBeTruthy()
+      expect(s.labelKey).toBeTruthy()
       expect(typeof s.Icon).toBe('function')
     })
+  })
+
+  it('sectionForPath resolves /cafe/log, /cafe/review, /cafe/pushes', () => {
+    expect(sectionForPath('/cafe/log')!.label).toBe('Log')
+    expect(sectionForPath('/cafe/review')!.label).toBe('Review')
+    expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
+  })
+
+  it('sectionForPath resolves /cafe/plan/anything by prefix (the specific leaf, not the /cafe root)', () => {
+    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
+  })
+
+  it('RATIFY-7D: sectionForPath resolves the exact /cafe path to Opening (not a sub-route)', () => {
+    expect(sectionForPath('/cafe')!.label).toBe('Opening')
+  })
+})
+
+describe('T5: ADMIN_SECTIONS — kept (People)', () => {
+  it('resolves /admin/people to People', () => {
+    expect(ADMIN_SECTIONS.some((s) => s.path === '/admin/people')).toBe(true)
+    expect(sectionForPath('/admin/people')!.label).toBe('People')
+  })
+})
+
+describe('T5: new destination sections resolve', () => {
+  it('sectionForPath resolves /events, /money, /profile, /work/signals', () => {
+    expect(sectionForPath('/events')!.label).toBe('Events')
+    expect(sectionForPath('/money')!.label).toBe('Money')
+    expect(sectionForPath('/profile')!.label).toBe('Personal Profile')
+    expect(sectionForPath('/work/signals')!.label).toBe('Signals')
+  })
+
+  it('sectionForPath resolves /money/detail by prefix', () => {
+    expect(sectionForPath('/money/detail')!.path).toBe('/money')
+  })
+})
+
+describe('T5: sectionForPath — fallbacks', () => {
+  it('returns null for a truly unknown path', () => {
+    expect(sectionForPath('/unknown-xyz')).toBeNull()
   })
 })

@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
-import { InboxIcon } from '@/shell/icons'
 import { useT } from '@/i18n/use-t'
 import { useNotifications } from '@/hooks/useNotifications'
 import { InboxList } from '@/components/inbox/InboxList'
@@ -27,11 +26,13 @@ export function InboxPage() {
 
   return (
     <PageFrame variant="data">
+      {/* No title glyph: the shared PageHead dropped its `icon` slot in the v4 chrome (#188).
+          Inconsistent per-surface title icons were the "several apps" tell — the breadcrumb and
+          the context row already name the surface. Consistent = none. */}
       <PageHead
         variant="content"
         title={t('inbox.title')}
         count={count}
-        icon={<InboxIcon />}
       />
       {loading ? (
         <div role="status" aria-label="Loading" aria-busy="true">

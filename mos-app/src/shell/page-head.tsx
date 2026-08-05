@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
+import type { PageFamily } from './page-families'
+import './page-head.css'
 
-type PageHeadProps = {
+export interface PageHeadProps {
   title: string
   subtitle?: string
+  jobSentence?: string
   /**
    * Count/meta slot that sits on the title's baseline, immediately after it
    * ("11 tasks · 2 blocked", "Tue 17 Jun · N log entries"). Folded in from the
@@ -33,33 +36,19 @@ type PageHeadProps = {
    */
   action?: ReactNode
   /**
-   * Content-variant only — the leading entity glyph (mockup `.ch-icon`). Defaults
-   * to the Tasks list glyph; decorative (aria-hidden).
+   * Content-variant only — a full-width row rendered BELOW the title row, inside the same
+   * `.content-header` block (`.ch-status-row`). For a head whose page state is part of the
+   * header itself rather than of the content beneath it (Home's day state: a rule-driven state
+   * line + a progress track, mockup `home-priority-2026-07-28` `.hdr-state`).
+   *
+   * A head carrying a status row is rendered `--compact`: the header's height budget is fixed
+   * (~70px), so the extra row is paid for by stepping the title down one rung. That coupling is
+   * deliberate — it is what stops the second row from turning the shared head into a taller block
+   * on the one surface that most needs a short one. WHICH rung, and why that one, is explained
+   * once beside the declaration itself: page-head.css `.content-header--compact .ch-title`.
    */
-  icon?: ReactNode
-}
-
-/** Default entity glyph for the content header — the list/records mark (mockup `☰`). */
-function ListGlyph() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  )
+  statusRow?: ReactNode
+  family?: PageFamily
 }
 
 /**
@@ -69,22 +58,38 @@ function ListGlyph() {
  * mockup `.content-header` chrome (icon + title + count pill + inline action).
  */
 export function PageHead({
-  title, subtitle, meta, maxWidth,
-  variant = 'prose', count, action, icon,
+  title, subtitle, jobSentence, meta, maxWidth,
+  variant = 'prose', count, action, statusRow, family,
 }: PageHeadProps) {
+  const v3ClassName = family ? ' page-head--v3' : ''
   if (variant === 'content') {
+    const compactClassName = statusRow ? ' content-header--compact' : ''
     return (
       <div
         data-testid="page-head"
-        className="content-header"
+        className={`content-header${v3ClassName}${compactClassName}`}
         style={maxWidth ? { maxWidth } : undefined}
       >
-        <span className="ch-icon" aria-hidden="true">{icon ?? <ListGlyph />}</span>
+        {/* Cohesion-debt 2026-07-19, item #5 (owner call: "proceed with all items"):
+            NO decorative surface-title glyph. The breadcrumb + job-sentence already
+            name the surface; inconsistent title icons (≡ on Tasks/Signals/Money, ✉
+            on Inbox, none on Home/Café) were the exact "several apps" tell.
+            Consistent = none. */}
         <h1 className="ch-title">{title}</h1>
         {count != null && <span className="ch-count tabular-nums">{count}</span>}
         {/* Overdue/blocked subtotals + clearable filter chips ride beside the pill */}
         {meta && <span className="ch-meta">{meta}</span>}
         {action && <span className="ch-action">{action}</span>}
+        {subtitle && <p className="ch-subtitle">{subtitle}</p>}
+        {/* A status row REPLACES the job sentence, it never stacks on top of it. Both are
+            full-width rows and the header's budget is one of them (~70px); and where a head has
+            a live status row, that row answers "what is this page for right now" better than the
+            static registry sentence, which on Home only ASKED the question ("What needs my
+            attention right now?"). ContextRow's suppression is keyed off the ROUTE registry, so
+            this does not resurrect a duplicate sentence in region 2 either — the sentence is
+            genuinely retired on such a head. Deliberate: see the Home day-header build note. */}
+        {jobSentence && !statusRow && <p className="page-head-job">{jobSentence}</p>}
+        {statusRow && <div className="ch-status-row">{statusRow}</div>}
       </div>
     )
   }
@@ -93,6 +98,7 @@ export function PageHead({
     <div
       data-testid="page-head"
       style={{ marginBottom: 16, ...(maxWidth ? { maxWidth } : {}) }}
+      className={family ? 'page-head--v3' : undefined}
     >
       <div className="flex items-baseline gap-3 flex-wrap">
         <h1
@@ -102,14 +108,19 @@ export function PageHead({
           {title}
         </h1>
         {/* Meta/count sits immediately after the title (Linear-style "Tasks · 11 tasks"),
-            NOT flung to the far edge — keeps the header anchored to the content. */}
-        {meta && <span>{meta}</span>}
+            NOT flung to the far edge — keeps the header anchored to the content.
+            Cohesion-debt 2026-07-19, item #5 (owner call): the title-adjacent slot
+            carries a count badge on some surfaces and a date on Café — both semantics
+            kept, but ONE muted-text token so the slot reads the same, never dark body
+            text competing with the title. */}
+        {meta && <span className="page-head-meta">{meta}</span>}
       </div>
       {subtitle && (
         <p className="text-muted-foreground mt-[6px]" style={{ fontSize: 14 }}>
           {subtitle}
         </p>
       )}
+      {jobSentence && <p className="page-head-job">{jobSentence}</p>}
     </div>
   )
 }

@@ -386,11 +386,12 @@ describe('RI-IXD-4: no bespoke button classes duplicating the shared hierarchy',
 })
 
 // ════════════════════════════════════════════════════════════════════════════
-// RI-IA-2: ONE breadcrumb — no in-page .tc-breadcrumb (the shell <Breadcrumb> in
-// shell/Header.tsx is the single wayfinding home and extends to the leaf; one ›
-// separator throughout). IA-2, PR-2.
+// RI-IA-2: ONE breadcrumb — no in-page .tc-breadcrumb (the shell <Breadcrumb> is the single
+// wayfinding home and extends to the leaf; one · separator throughout — the v4 redesign's Step 2
+// §9 changed › to ·, and the invariant this case guards is ONE separator glyph app-wide, not
+// which glyph it is).
 // ════════════════════════════════════════════════════════════════════════════
-describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, › separator)', () => {
+describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, · separator)', () => {
   it('no non-test source APPLIES a .tc-breadcrumb className', () => {
     const offenders: string[] = []
     for (const f of listNonTestSource(SRC)) {
@@ -407,8 +408,9 @@ describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, › separato
     expect(offenders).toEqual([])
   })
 
-  it('the shell <Breadcrumb> renders the › separator (single breadcrumb system)', () => {
-    expect(readSrc('shell/breadcrumb.tsx')).toMatch(/›/)
+  it('the shell <Breadcrumb> renders the · separator (single breadcrumb system)', () => {
+    expect(readSrc('shell/breadcrumb.tsx')).toMatch(/·/)
+    expect(readSrc('shell/breadcrumb.tsx')).not.toMatch(/›/)
   })
 })
 

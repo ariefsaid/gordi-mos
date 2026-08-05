@@ -3,17 +3,15 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ThemeProvider } from '@/theme/theme-provider'
 import { RailNav } from './rail-nav'
-import { DESTINATIONS } from './destinations'
 
-// RailNav now reads useAuth to role-filter the Kitchen group.
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
-// Default: authenticated plain member (no elevated access roles).
-// All existing tests rely on this default; kitchen-specific tests override as needed.
-function setAuthAs(accessRoles: string[] = []) {
+function setAuthAs(accessRoles: string[] = [], roleNames: string[] | string = 'Barista') {
+  const names = Array.isArray(roleNames) ? roleNames : [roleNames]
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -21,14 +19,14 @@ function setAuthAs(accessRoles: string[] = []) {
         id: '40000000-0000-0000-0000-000000000001',
         org_id: '10000000-0000-0000-0000-000000000001',
         user_id: 'auth-user-001',
-        full_name: 'Test User',
-        email: 'test@example.test',
-        must_change_password: false,
+        full_name: 'Cahya Cafe',
+        email: 'cahya@gordi.id',
         archived_at: null,
+        must_change_password: false,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [],
+      roles: names.map((n, i) => ({ id: `r${i}`, org_id: 'o1', business_unit_id: 'bu-cafe', name: n, reports_to_role_id: null, created_at: '', updated_at: '' })),
       isManager: false,
       accessRoles,
     },
@@ -36,417 +34,494 @@ function setAuthAs(accessRoles: string[] = []) {
   })
 }
 
-// Helper component to probe current location
 function LocationDisplay() {
   const location = useLocation()
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderRailNav(initialPath: string) {
+function renderRailNav(initialPath: string, props: { compact?: boolean } = {}) {
   return render(
-    <I18nProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route
-            path="*"
-            element={
-              <>
-                <RailNav />
-                <LocationDisplay />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
+    <ThemeProvider>
+      <I18nProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  <RailNav {...props} />
+                  <LocationDisplay />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </ThemeProvider>,
   )
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
-  setAuthAs([]) // plain member by default
+  setAuthAs([])
 })
 
-// Group labels are non-interactive <div>s; link text can coincidentally match a
-// label (e.g. the "Plan" kitchen link vs a would-be "Plan" destination group), so
-// group-label lookups scope to a div, distinct from getByRole('link', ...).
-function groupLabel(text: string) {
-  return screen.getByText(text, { selector: 'div' })
-}
-function queryGroupLabel(text: string) {
-  return screen.queryByText(text, { selector: 'div' })
-}
-
-// AC-RG01: rail regroup — DESTINATIONS is the single source of truth (plan §1.5/§4.2).
-describe('AC-RG01: Rail regroup — destination groups', () => {
-  it('renders the "Home" and "Work" destination group labels', () => {
-    renderRailNav('/tasks')
-    expect(groupLabel('Home')).toBeInTheDocument()
-    expect(groupLabel('Work')).toBeInTheDocument()
-  })
-
-  it('AC-RG01: Kitchen links appear under the "Operate" group label', () => {
-    renderRailNav('/kitchen/log')
-    expect(groupLabel('Operate')).toBeInTheDocument()
-    expect(groupLabel('Kitchen')).toBeInTheDocument()
+// AC-011: rail structure + order — F2 fix (grouped IA spine, OD-REDESIGN-1 + DESIGN.md
+// Navigation/Rail "Grouped items under Overline group labels"). The rail shows YOUR work, not
+// the org chart, but grouped under Overline section labels: "Destinations" over the workspace
+// zone, then one Overline per BU (Retail Ops / B2B Ops) over the viewer's role-matched module(s).
+// Supersedes OD-REDESIGN-68's flat/no-overline rendering — CLAUDE.md's owner-artifact-deviations
+// note records that treatment as an undetected deviation from the owner's actual artifact
+// (OD-68, 2026-07-18), not a ratified end-state.
+describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
+  it('AC-011: an org-wide admin sees Home · Work (4 children) · Events · Money · Inbox · Admin Settings · profile under a "Destinations" overline — with NO module blocks', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Kitchen Log' })).toBeInTheDocument()
-  })
-
-  it('AC-RG01: Tasks link appears under the "Work" group label', () => {
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const workLabel = groupLabel('Work')
-    // The Tasks link is the sibling immediately following the Work label's link group
+    // Grouped IA spine: the Destinations overline
+    expect(within(nav).getByText('Destinations')).toBeInTheDocument()
+    // Sketch destinations
+    expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
+    // Work's 4 always-expanded children — nested under Work, not top-level peers
+    expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
-    expect(workLabel).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Money' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
+    // No BU module group for an org-wide role (no BU affiliation → no group renders)
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    expect(within(nav).queryByText('B2B Ops')).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+    // Utility
+    expect(within(nav).getByRole('link', { name: /Admin Settings/ })).toBeInTheDocument()
   })
 
-  // Was pinned on the Cascade rail label until that link was cut (#179, OD-WAY-32). Re-pinned on
-  // Tasks, the ungated Work link every viewer sees — and a stronger check, because 'Tugas' differs
-  // from the English string, so a rail that skipped useT() would fail this.
-  it('AC-304: under locale=id, a Work rail label resolves through useT()', () => {
-    localStorage.setItem('mos.locale', 'id')
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Tugas' })).toBeInTheDocument()
-  })
-
-  it('AC-403: a member sees Home/Work/Operate/Inbox groups but NO Plan group (gated off)', () => {
-    renderRailNav('/tasks')
-    expect(groupLabel('Home')).toBeInTheDocument()
-    expect(groupLabel('Work')).toBeInTheDocument()
-    expect(groupLabel('Operate')).toBeInTheDocument()
-    expect(groupLabel('Inbox')).toBeInTheDocument()
-    // Plan is gated finance/admin — a member has no Plan children, so the whole group is hidden.
-    expect(queryGroupLabel('Plan')).toBeNull()
-  })
-
-  it('the Home link has href "/" and label "Home"', () => {
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
-  })
-
-  it('Task 3.9: renders the LocaleToggle in the rail footer', () => {
-    renderRailNav('/tasks')
-    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'English' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bahasa Indonesia' })).toBeInTheDocument()
-  })
-
-  it('has no badge-count elements', () => {
-    const { container } = renderRailNav('/tasks')
-    expect(container.querySelector('[data-badge]')).toBeNull()
-  })
-
-  it('Settings item has aria-disabled=true and coming-soon title', () => {
-    renderRailNav('/tasks')
-    const settings = screen.getByText('Settings').closest('[aria-disabled]')
-    expect(settings).toHaveAttribute('aria-disabled', 'true')
-    expect(settings).toHaveAttribute('title', 'Settings — coming soon')
-  })
-
-  it('clicking Settings does not navigate away from /tasks', async () => {
-    const user = userEvent.setup()
-    renderRailNav('/tasks')
-    const settings = screen.getByText('Settings')
-    await user.click(settings)
-    expect(screen.getByTestId('location').textContent).toBe('/tasks')
-  })
-})
-
-// AC-003: active nav per route
-describe('AC-003: Active nav per route', () => {
-  it('Tasks link has aria-current=page when at /tasks, others do not', () => {
-    renderRailNav('/tasks')
-    const links = screen.getAllByRole('link')
-    const activeLinks = links.filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(activeLinks).toHaveLength(1)
-    expect(activeLinks[0]).toHaveAccessibleName('Tasks')
-  })
-
-  it('Home link has aria-current=page when at /', () => {
+  it('AC-011b: a café-role viewer gets Café in the rail under a "Retail Ops" BU overline', () => {
+    setAuthAs([], 'Barista')
     renderRailNav('/')
-    const links = screen.getAllByRole('link')
-    const activeLinks = links.filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(activeLinks).toHaveLength(1)
-    expect(activeLinks[0]).toHaveAccessibleName('Home')
-  })
-})
-
-// FIX-5: Settings is reachable by AT — tabindex 0, aria-disabled, no-op on activation
-describe('FIX-5: Settings reachable by assistive technology', () => {
-  it('Settings element has tabIndex=0 so it is in tab order', () => {
-    renderRailNav('/tasks')
-    const settings = screen.getByText('Settings').closest('[aria-disabled]') as HTMLElement | null
-    expect(settings).toBeTruthy()
-    expect(settings!.tabIndex).toBe(0)
-  })
-
-  it('Settings element has aria-label or accessible name that includes "Settings" and "coming soon"', () => {
-    renderRailNav('/tasks')
-    const settings = screen.getByText('Settings').closest('[aria-disabled]') as HTMLElement | null
-    expect(settings).toBeTruthy()
-    // aria-label should mention "Settings — coming soon" for AT announcement
-    const ariaLabel = settings!.getAttribute('aria-label') ?? settings!.getAttribute('title') ?? ''
-    expect(ariaLabel.toLowerCase()).toMatch(/settings.*coming soon|coming soon.*settings/i)
-  })
-
-  it('pressing Enter on Settings does not navigate', async () => {
-    const user = userEvent.setup()
-    renderRailNav('/tasks')
-    const settings = screen.getByText('Settings').closest('[aria-disabled]') as HTMLElement
-    settings.focus()
-    await user.keyboard('{Enter}')
-    expect(screen.getByTestId('location').textContent).toBe('/tasks')
-  })
-})
-
-// AC-S05: rail is nav-only after the top-bar revamp — no switcher, no search, no user chip
-describe('AC-S05: rail is navigation-only', () => {
-  it('AC-S05: rail has destination groups + Settings only — no switcher/search/userchip', () => {
-    renderRailNav('/tasks')
-    // No workspace switcher button
-    expect(screen.queryByRole('button', { name: /Gordi MOS workspace/ })).toBeNull()
-    // No in-rail search button
-    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
-    // Destination group labels still present
-    expect(screen.getByText('Work')).toBeInTheDocument()
-    // Settings stub still present
-    expect(screen.getByText('Settings')).toBeInTheDocument()
-    // No user chip in the rail — the named button for the viewer should not exist
-    expect(screen.queryByRole('button', { name: /Cahya Cafe/ })).toBeNull()
-  })
-})
-
-// AC-D02 (RI-2): label/meta roles use the tertiary ramp (text-muted-foreground ≈4.6:1
-// on dark), never the failing --ds-font-color-light ramp (≈3.1:1, fails WCAG-AA).
-// ADR-0013 Decision 2. Destination group labels + inactive nav labels are meta roles;
-// they must carry text-muted-foreground.
-describe('AC-D02: rail label/meta roles use the muted-foreground (tertiary) ramp', () => {
-  it('AC-D02: a destination group label carries text-muted-foreground (not the light ramp)', () => {
-    renderRailNav('/tasks')
-    const label = screen.getByText('Work')
-    expect(label.className).toMatch(/text-muted-foreground/)
-    expect(label.className).not.toMatch(/text-light|font-color-light/)
-  })
-
-  it('AC-D02: an inactive nav label uses text-muted-foreground, not the light ramp', () => {
-    // At /tasks, "Home" is inactive → its link wrapper is muted-foreground.
-    renderRailNav('/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const home = within(nav).getByRole('link', { name: 'Home' })
-    expect(home.className).toMatch(/text-muted-foreground/)
-    expect(home.className).not.toMatch(/text-light|font-color-light/)
+    expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+    expect(within(nav).queryByText('B2B Ops')).toBeNull()
+  })
+
+  it('AC-011d (audit F6): the REAL dual-hat fixture — Cafe Ops Lead + Sales Lead gets Café ONLY (Sales is b2b_sales, not Ecommerce)', () => {
+    setAuthAs(['ops_lead'], ['Cafe Ops Lead', 'Sales Lead'])
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+  })
+
+  it('AC-011c: a roastery-role viewer gets Roastery under a "B2B Ops" BU overline, not Café', () => {
+    setAuthAs([], 'Roastery Lead')
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+  })
+
+  it('AC-004: single-item Work families render their child with NO sub-section overline, in E7 order', () => {
+    setAuthAs(['admin'])
+    const { container } = renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    // The 4 children are present and reachable.
+    expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
+    // Item 2 (impeccable ban-eyebrow-on-every-section): with today's IA each Work family governs
+    // exactly ONE child, so its decorative overline is suppressed — no eyebrow renders. (An overline
+    // that governs a single item is pure decoration; the grammar auto-returns when a family gains a
+    // second sibling — Process Runs, Standards, Follow-ups.)
+    for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
+      expect(within(nav).queryByText(label)).toBeNull()
+    }
+    // Children still render in E7 top-down order: Tasks → Projects → Objectives → Signals.
+    const precedes = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const links = ['Tasks', 'Projects & Processes', 'Objectives', 'Signals'].map(
+      (l) => within(nav).getByRole('link', { name: l }),
+    )
+    expect(precedes(links[0], links[1])).toBe(true)
+    expect(precedes(links[1], links[2])).toBe(true)
+    expect(precedes(links[2], links[3])).toBe(true)
+    expect(container).toBeTruthy()
+  })
+
+  it('AC-013: profile footer row is the identity chip — shows the viewer\'s full name, and Personal Profile is reachable as a separate utility link', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/tasks')
+    // Security fix (HIGH-1): the footer must show the viewer's NAME (not just "{site} {role}")
+    // so a stale/shared session is noticeable, and it must open the sign-out menu.
+    expect(screen.getByRole('button', { name: 'Cahya Cafe' })).toBeInTheDocument()
+    // /profile stays reachable — now as a normal Utility rail link (Rule 11: reuses DestLink).
+    expect(screen.getByRole('link', { name: /Personal Profile/i })).toHaveAttribute('href', '/profile')
+  })
+
+  it('AC-012: non-finance/admin → Money absent (not disabled, no stub)', () => {
+    setAuthAs([])
+    renderRailNav('/work/tasks')
+    expect(screen.queryByRole('link', { name: 'Money' })).toBeNull()
+  })
+
+  it('AC-012: non-admin → Admin Settings absent', () => {
+    setAuthAs(['finance'])
+    renderRailNav('/work/tasks')
+    expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
+  })
+
+  it('AC-012: finance sees Money but not Admin Settings', () => {
+    setAuthAs(['finance'])
+    renderRailNav('/money')
+    expect(screen.getByRole('link', { name: 'Money' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
+  })
+
+  // UPDATED, not relaxed. Objectives used to be expected absent here too. `OD-V4-1`
+  // (owner-ratified 2026-07-27) rules Objectives visible to everyone — the read is already open at
+  // the database, so the rail gate was hiding a screen RLS permits; the write gate is unchanged
+  // and lives in the page's mutations. Projects & Processes stays gated, so this case still proves
+  // a plain member is filtered out of the capability-gated child.
+  it('Work catalog children: Projects & Processes is absent for a plain member (capability-gated); Objectives is present (OD-V4-1)', () => {
+    setAuthAs([])
+    renderRailNav('/work/tasks')
+    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
+  })
+
+  it('admin sees Projects & Processes + Objectives (holds both capabilities)', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/tasks')
+    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects')
+    expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
+  })
+})
+
+// AC-009/010: exactly-one aria-current="page"; Work parent = "location".
+describe('AC-009: aria-current — Work parent location, child page (at /work/signals)', () => {
+  it('AC-009: at /work/signals, Work parent has aria-current=location, Signals child has page, no other rail link has page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/signals')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Signals')
+    const work = within(nav).getByRole('link', { name: 'Work' })
+    expect(work).toHaveAttribute('aria-current', 'location')
+  })
+
+  it('AC-010: at /work/tasks/:taskId, Tasks child page, Work parent location, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/tasks/abc-123')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Tasks')
+    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+  })
+
+  it('at /work/tasks, Tasks child page, Work parent location, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Tasks')
+    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+  })
+
+  it('at /, Home link page, exactly one page, Work parent no aria-current', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Home')
+    expect(within(nav).getByRole('link', { name: 'Work' }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('at /money, Money link page (finance viewer), exactly one page', () => {
+    setAuthAs(['finance'])
+    renderRailNav('/money')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Money')
+  })
+
+  it('at /cafe/log, Café link page, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/cafe/log')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Café')
+  })
+
+  it('at /admin/people, Admin Settings link page, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/admin/people')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName(/Admin Settings/)
+  })
+})
+
+// AC-1004 (events-stub, Step 10): Rule 5 still holds for /events now that it renders EventsPage,
+// not the generic SliceStubPage — the rail's aria-current resolution never depended on which
+// component the route mounts.
+describe('AC-1004: aria-current — at /events, the Events link is the sole "page"', () => {
+  it('AC-1004: at /events, Events link has aria-current=page and is the only one', () => {
+    renderRailNav('/events')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav)
+      .getAllByRole('link')
+      .filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(within(nav).getByRole('link', { name: 'Events' })).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+// Step 8 (catalog re-home) — AC-807/808: aria-current uniqueness locked explicitly at the two
+// re-homed catalog routes (previously only proven generically / at /work/signals + via e2e).
+describe('Step 8/AC-807/808: aria-current uniqueness at /work/projects and /work/objectives', () => {
+  it('AC-807: at /work/projects, Projects & Processes carries page, Work parent carries location, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/projects')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Projects & Processes')
+    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+  })
+
+  it('AC-808: at /work/objectives, Objectives carries page, Work parent carries location, exactly one page', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/objectives')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(pageLinks).toHaveLength(1)
+    expect(pageLinks[0]).toHaveAccessibleName('Objectives')
+    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
   })
 })
 
 // AC-015: every nav SVG is aria-hidden
 describe('AC-015: Nav icon semantics', () => {
   it('all SVGs inside the nav have aria-hidden=true', () => {
-    const { container } = renderRailNav('/tasks')
-    const svgs = container.querySelectorAll('svg')
+    setAuthAs(['admin'])
+    const { container } = renderRailNav('/work/tasks')
+    const svgs = container.querySelectorAll('nav svg')
     expect(svgs.length).toBeGreaterThan(0)
-    svgs.forEach((svg) => {
-      expect(svg).toHaveAttribute('aria-hidden', 'true')
+    svgs.forEach((svg) => expect(svg).toHaveAttribute('aria-hidden', 'true'))
+  })
+})
+
+// Security audit HIGH-1/LOW-1 (2026-07-17): the sign-out affordance must be MOUNTED in the
+// authenticated shell, not just exist as an unmounted component (user-chip.test.tsx rendered
+// UserChip directly and passed even though nothing mounted it). This proves it is reachable
+// AND invokable from the real rail footer.
+describe('AC-005/HIGH-1: sign-out affordance is mounted in the rail footer and invokable', () => {
+  it('clicking the identity chip opens a menu with a working Sign out item', async () => {
+    const user = userEvent.setup()
+    setAuthAs(['admin'])
+    const signOut = vi.fn()
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: '40000000-0000-0000-0000-000000000001',
+          org_id: '10000000-0000-0000-0000-000000000001',
+          user_id: 'auth-user-001',
+          full_name: 'Cahya Cafe',
+          email: 'cahya@gordi.id',
+          archived_at: null,
+          must_change_password: false,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
+        isManager: false,
+        accessRoles: ['admin'],
+      },
+      signOut,
     })
+    renderRailNav('/work/tasks')
+
+    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
+    const menuItem = screen.getByRole('menuitem', { name: /sign out/i })
+    expect(menuItem).toBeInTheDocument()
+    await user.click(menuItem)
+    expect(signOut).toHaveBeenCalledOnce()
   })
 })
 
-// ── Kitchen nav group (AC-KIT-001 … AC-KIT-004) — now under the "Operate" destination ──
-describe('AC-KIT-001: Kitchen links render under the Operate destination group', () => {
-  it('AC-KIT-001: "Operate" group heading is visible in the nav', () => {
-    renderRailNav('/kitchen/log')
-    expect(screen.getByText('Operate')).toBeInTheDocument()
-  })
-
-  it('AC-KIT-001: Operate group heading uses text-muted-foreground (same as other groups)', () => {
-    renderRailNav('/tasks')
-    const heading = screen.getByText('Operate')
-    expect(heading.className).toMatch(/text-muted-foreground/)
-  })
-
-  it('RI-IA-KITCHEN: Kitchen links are nested under a Kitchen subheading, not flat siblings of Daily Log', () => {
-    renderRailNav('/kitchen/log')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const labels = Array.from(nav.querySelectorAll('div, a'))
-      .map((el) => el.textContent?.trim())
-      .filter(Boolean)
-    expect(labels).toContain('Operate')
-    expect(labels).toContain('Daily Log')
-    expect(labels).toContain('Kitchen')
-    expect(labels.indexOf('Operate')).toBeLessThan(labels.indexOf('Daily Log'))
-    expect(labels.indexOf('Daily Log')).toBeLessThan(labels.indexOf('Kitchen'))
-    expect(labels.indexOf('Kitchen')).toBeLessThan(labels.indexOf('Kitchen Log'))
-  })
-
-  it('AC-KIT-001: Log link is active (aria-current=page) when at /kitchen/log', () => {
-    renderRailNav('/kitchen/log')
-    const links = screen.getAllByRole('link')
-    const active = links.filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(active).toHaveLength(1)
-    expect(active[0]).toHaveAccessibleName('Kitchen Log')
+// OD-70 (2026-07-18): language selection moved to /profile — the rail is navigation, not settings.
+describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
+  it('OD-70: the rail carries NO language toggle', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/')
+    expect(screen.queryByRole('group', { name: /language|bahasa/i })).toBeNull()
   })
 })
 
-describe('AC-KIT-002: plain member sees Log, Plan, Stock but NOT Review or Pushes', () => {
-  it('AC-KIT-002: Log, Plan, Stock links are present for a plain member', () => {
-    setAuthAs([])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Kitchen Log' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Plan' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
+// Rail count badges (E7 `.e7-count`) — Tasks (open count) + Signals (needs-attention count) from
+// ONE shell aggregate. Quiet rule: a count that is zero or unavailable shows NO badge. The badge is
+// aria-hidden (a redundant glance cue), so the link's accessible name is unchanged.
+import type { RailCounts } from '@/lib/db/rail-counts'
+function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null | undefined) {
+  return render(
+    <ThemeProvider>
+      <I18nProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="*" element={<RailNav counts={counts} />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    </ThemeProvider>,
+  )
+}
+
+describe('Rail count badges (Tasks · Signals)', () => {
+  it('renders the open-Tasks and attention-Signals counts as trailing badges', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
+    // DO-18(d): the badge label joins the accname, so match on the leading label.
+    const tasks = screen.getByRole('link', { name: /^Tasks/ })
+    const signals = screen.getByRole('link', { name: /^Signals/ })
+    expect(within(tasks).getByText('11')).toBeInTheDocument()
+    expect(within(signals).getByText('3')).toBeInTheDocument()
   })
 
-  it('AC-KIT-002: Review and Pushes links are NOT present for a plain member', () => {
-    setAuthAs([])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
-  })
-})
-
-describe('AC-KIT-003: ops_lead viewer sees all 5 Kitchen links', () => {
-  it('AC-KIT-003: ops_lead sees Log, Plan, Stock, Review, Pushes', () => {
-    setAuthAs(['ops_lead'])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Kitchen Log' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Plan' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Review' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Pushes' })).toBeInTheDocument()
-  })
-})
-
-describe('AC-KIT-004: admin viewer sees all 5 Kitchen links', () => {
-  it('AC-KIT-004: admin sees Log, Plan, Stock, Review, Pushes', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Kitchen Log' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Plan' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Review' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Pushes' })).toBeInTheDocument()
-  })
-})
-
-describe('AC-KIT-005: Kitchen group Kitchen links have correct hrefs', () => {
-  it('AC-KIT-005: Log href is /kitchen/log, Plan is /kitchen/plan, Stock is /kitchen/stock', () => {
-    setAuthAs([])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Kitchen Log' })).toHaveAttribute('href', '/kitchen/log')
-    expect(within(nav).getByRole('link', { name: 'Plan' })).toHaveAttribute('href', '/kitchen/plan')
-    expect(within(nav).getByRole('link', { name: 'Stock' })).toHaveAttribute('href', '/kitchen/stock')
+  it('shows a badge ONLY on Tasks and Signals — never on the other Work children', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
+    // Projects & Processes / Objectives carry no already-loaded source → no numeric badge.
+    expect(within(screen.getByRole('link', { name: 'Projects & Processes' })).queryByText(/\d/)).toBeNull()
+    expect(within(screen.getByRole('link', { name: 'Objectives' })).queryByText(/\d/)).toBeNull()
   })
 
-  it('AC-KIT-005: Review href is /kitchen/review, Pushes is /kitchen/pushes for ops_lead', () => {
-    setAuthAs(['ops_lead'])
-    renderRailNav('/tasks')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/kitchen/review')
-    expect(within(nav).getByRole('link', { name: 'Pushes' })).toHaveAttribute('href', '/kitchen/pushes')
-  })
-})
-
-// ── Admin group nav (AC-070 nav-absence arm) ──────────────────────────────────
-describe('AC-070: Admin nav group', () => {
-  it('AC-070: non-admin viewer does NOT see the Users nav entry (absent from DOM)', () => {
-    setAuthAs(['member'])
-    renderRailNav('/tasks')
-    expect(screen.queryByText('People')).not.toBeInTheDocument()
-    expect(screen.queryByText('Admin')).not.toBeInTheDocument()
+  it('omits a badge when its count is zero (E7 quiet rule)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 0, attentionSignals: 0 })
+    expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
+    expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
   })
 
-  it('AC-070: ops_lead without admin does NOT see the Users nav entry', () => {
-    setAuthAs(['ops_lead'])
-    renderRailNav('/tasks')
-    expect(screen.queryByText('People')).not.toBeInTheDocument()
+  it('omits all badges when counts are unavailable (null)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', null)
+    expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
+    expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
   })
 
-  it('AC-070b: admin viewer sees the Admin group and People nav entry', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/admin/people')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'People' })).toBeInTheDocument()
-    expect(screen.getByText('Admin')).toBeInTheDocument()
-  })
-
-  it('AC-070b: People link has href /admin/people', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/admin/people')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'People' })).toHaveAttribute('href', '/admin/people')
-  })
-
-  it('AC-070b: admin viewer — People link is active at /admin/people', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/admin/people')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const link = within(nav).getByRole('link', { name: 'People' })
-    expect(link).toHaveAttribute('aria-current', 'page')
+  // DO-18(d) (census-sweep R2 tasks FINDING5, a11y half — deliberate UX change): the badge was
+  // aria-hidden, so screen-reader users never got the count at all. It now carries an accessible
+  // name stating what the count counts; the link's accname includes it.
+  it('DO-18(d): the badge exposes an accessible name stating what the count counts', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNavWithCounts('/work/tasks', { openTasks: 7, attentionSignals: 3 })
+    const tasks = screen.getByRole('link', { name: /^Tasks/ })
+    const badge = within(tasks).getByText('7')
+    expect(badge.getAttribute('aria-hidden')).not.toBe('true')
+    expect(badge).toHaveAccessibleName('7 open tasks')
+    const signals = screen.getByRole('link', { name: /^Signals/ })
+    expect(within(signals).getByText('3')).toHaveAccessibleName('3 signals need attention')
   })
 })
 
-// ── Catalog = capability-gated Work rail links (FR-424, owner decision 2026-07-07) ──────────────
-// Supersedes FR-420: Objectives + Projects & Processes render UNDER Work for a viewer who holds the
-// matching capability (objective.manage / workline.manage). Still NO standalone "Catalog" group,
-// and they never appear for a viewer without the capability.
-describe('AC-404: Work catalog links are capability-gated (no standalone Catalog group)', () => {
-  it('AC-404: admin (objective.manage + workline.manage) sees BOTH catalog links under Work', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/work/objectives')
-    expect(queryGroupLabel('Catalog')).toBeNull()
-    expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
-    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects-processes')
-  })
-
-  it('AC-404: ops_lead (workline.manage only) sees Projects & Processes but NOT Objectives', () => {
-    setAuthAs(['ops_lead'])
-    renderRailNav('/tasks')
-    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects-processes')
-    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
-  })
-
-  it('AC-404: member (no capability) sees NEITHER catalog link', () => {
-    setAuthAs(['member'])
-    renderRailNav('/tasks')
-    expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
-  })
-})
-
-// ── Plan destination (nav-five-destinations FR-404) — Dashboard is now a Plan link, not drill-only ─
-describe('AC-402: Plan destination — finance sees Dashboard; member sees no Plan group', () => {
-  it('AC-402: finance sees a Plan group with a Dashboard link', () => {
-    setAuthAs(['finance'])
-    renderRailNav('/dashboard')
-    expect(groupLabel('Plan')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard')
-  })
-
-  it('AC-402: member sees NO Plan group and NO Dashboard link', () => {
-    setAuthAs(['member'])
-    renderRailNav('/tasks')
-    expect(queryGroupLabel('Plan')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
-  })
-})
-
-// ── Operate destination (nav-five-destinations FR-403) — Daily Log moved here from Work ─────
-describe('AC-401: Daily Log renders under the Operate group', () => {
-  it('AC-401: Daily Log link appears under Operate, not Work', () => {
-    renderRailNav('/ops')
+// OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon-only rail — icons stay, labels become
+// accessible-only, group overlines hide, count badges stay (repositioned/compact).
+describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
+  it('every destination + Work child link keeps its full accessible name (icon-only ≠ unreachable)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks', { compact: true })
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByRole('link', { name: 'Daily Log' })).toHaveAttribute('href', '/ops')
-    // And it is NOT under Work (Work has Tasks/Updates only).
-    const work = DESTINATIONS.find((d) => d.id === 'work')!
-    expect(work.links.some((l) => l.path === '/ops')).toBe(false)
+    for (const name of ['Home', 'Work', 'Tasks', 'Projects & Processes', 'Objectives', 'Signals', 'Events', 'Money', 'Inbox']) {
+      expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
+    }
+  })
+
+  it('hides the "Destinations" overline and every BU module overline', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/', { compact: true })
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByText('Destinations')).toBeNull()
+    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    // The Café link itself is still reachable — only the group eyebrow above it hides.
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+  })
+
+  it('visually hides each link label via sr-only (present in the DOM, not shown)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks', { compact: true })
+    const home = screen.getByRole('link', { name: 'Home' })
+    const label = within(home).getByText('Home')
+    expect(label.className).toMatch(/sr-only/)
+  })
+
+  it('a Work child renders its section icon in compact mode (none at full width, B2 unaffected)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    const { rerender } = renderRailNav('/work/tasks', { compact: false })
+    const tasksFull = screen.getByRole('link', { name: 'Tasks' })
+    expect(tasksFull.querySelector('svg')).toBeNull()
+
+    rerender(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <Routes>
+              <Route path="*" element={<RailNav compact />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    const tasksCompact = screen.getByRole('link', { name: 'Tasks' })
+    expect(tasksCompact.querySelector('svg')).not.toBeNull()
+  })
+
+  it('a positive count badge still renders (compact styling) with its accessible name (DO-18d)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <Routes>
+              <Route path="*" element={<RailNav compact counts={{ openTasks: 4, attentionSignals: 0 }} />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    const tasks = screen.getByRole('link', { name: /^Tasks/ })
+    const badge = within(tasks).getByText('4')
+    expect(badge).toHaveAccessibleName('4 open tasks')
+    expect(badge.className).toMatch(/rail-count-badge--compact/)
+  })
+
+  it('the account chip collapses to the avatar only (no visible name text)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks', { compact: true })
+    // The chip is still reachable by its accessible name...
+    const chip = screen.getByRole('button', { name: 'Cahya Cafe' })
+    expect(chip).toBeInTheDocument()
+    // ...but the visible name text node is gone (avatar-only).
+    expect(within(chip).queryByText('Cahya Cafe')).toBeNull()
   })
 })

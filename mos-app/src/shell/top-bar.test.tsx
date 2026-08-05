@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('../auth/use-auth')
@@ -9,23 +9,29 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 
-// Flag-staleness cleanup (nav-five-destinations): dev (ae7cffa) ungated SHOW_INBOX to true, so the
-// bell is now a live Inbox link, not the disabled "coming soon" stub. The 4 bell-stub tests below
-// encode the flag-OFF behavior (still-valid — hide-first posture, ADR-0019 D9). Mock SHOW_INBOX=false
-// LOCALLY so the flag-gating coverage is preserved (BDD rule). The non-bell tests don't assert on
-// the bell, so the blanket file-level mock is safe for them.
+// OD-REDESIGN-84.2 (P1-1): TopBar now also reads the split-width regime (the brand column's
+// width must track Rail's own compact boundary). Mocked + defaulted to "split" (wide) below so
+// every pre-existing test keeps rendering the full-width brand unless it opts into compact.
+vi.mock('./use-is-split-width')
+import { useIsSplitWidth } from './use-is-split-width'
+
+vi.mock('@/lib/db/notifications', () => ({
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue([]),
+}))
+
 vi.mock('../config/features', () => ({
   SHOW_WEEKLY_UPDATES: true,
   SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: true,
   SHOW_ASSISTANT: true,
-  SHOW_INBOX: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
 }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
+const mockUseIsSplitWidth = vi.mocked(useIsSplitWidth)
 
 import { TopBar } from './top-bar'
 
@@ -35,9 +41,9 @@ const viewer = {
     org_id: '10000000-0000-0000-0000-000000000001',
     user_id: 'auth-user-001',
     full_name: 'Cahya Cafe',
-    email: 'cahya@example.test',
-    must_change_password: false,
+    email: 'cahya@gordi.id',
     archived_at: null,
+    must_change_password: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
@@ -46,7 +52,7 @@ const viewer = {
   accessRoles: [],
 }
 
-function renderTopBar(path = '/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
+function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[path]}>
@@ -58,43 +64,116 @@ function renderTopBar(path = '/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi
   )
 }
 
+// Same render, plus a probe that reports the router's current pathname, so a test can assert the
+// bell actually moved the viewer rather than merely that it was clickable.
+function LocationProbe() {
+  const loc = useLocation()
+  return <span data-testid="loc">{loc.pathname}</span>
+}
+
+function renderTopBarWithLocation(path = '/work/tasks') {
+  return render(
+    <I18nProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <TopBar onOpenSearch={vi.fn()} />
+        <Routes>
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   mockUseAuth.mockReturnValue({ status: 'authenticated', viewer, signOut: vi.fn() })
   mockUseIsNarrow.mockReturnValue(false)
+  mockUseIsSplitWidth.mockReturnValue(true)
 })
 
-// AC-S01: top bar shows elements in the correct order
-describe('AC-S01: TopBar order — brand · breadcrumb · search · bell · user', () => {
-  it('AC-S01: top bar shows brand wordmark, breadcrumb nav, search trigger, bell, and user chip', () => {
+// AC-014: top bar layout — brand · breadcrumb · spacer · Search⌘K · Inbox · Deputy;
+// no universal-action buttons (Ask Deputy / Share Signal / Create Task) in the top bar.
+describe('AC-014: TopBar layout (OD-57)', () => {
+  it('AC-014: renders brand, breadcrumb, search trigger, inbox bell, and deputy launcher', () => {
     renderTopBar()
-    // Brand wordmark
     expect(screen.getByText('Gordi MOS')).toBeInTheDocument()
-    // Breadcrumb navigation landmark
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument()
-    // ⌘K search trigger
     expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
-    // Notification bell
-    expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument()
-    // User chip (the viewer's name as the accessible name)
-    expect(screen.getByRole('button', { name: viewer.person.full_name })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open deputy/i })).toBeInTheDocument()
+    expect(screen.queryByText('Cahya Cafe')).toBeNull()
+    expect(screen.queryByText('Barista')).toBeNull()
   })
 
-  it('AC-S01: elements appear in DOM order brand → breadcrumb → search → bell → user', () => {
+  it('AC-014: order left→right is brand → breadcrumb → search → inbox → deputy', () => {
     renderTopBar()
-    // DOCUMENT_POSITION_FOLLOWING (4) means the arg comes AFTER the node — assert each precedes the next.
     const brand = screen.getByText('Gordi MOS')
     const crumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
     const search = screen.getByRole('button', { name: /Search/i })
-    const bell = screen.getByRole('button', { name: 'Notifications' })
-    const user = screen.getByRole('button', { name: viewer.person.full_name })
+    const inbox = screen.getByRole('button', { name: 'Inbox' })
+    const deputy = screen.getByRole('button', { name: /Open deputy/i })
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     expect(precedes(brand, crumb)).toBe(true)
     expect(precedes(crumb, search)).toBe(true)
-    expect(precedes(search, bell)).toBe(true)
-    expect(precedes(bell, user)).toBe(true)
+    expect(precedes(search, inbox)).toBe(true)
+    expect(precedes(inbox, deputy)).toBe(true)
+  })
+
+  it('AC-014: contains NO button labelled Ask Deputy / Share Signal / Create Task (those live in ⌘K)', () => {
+    renderTopBar()
+    expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Share Signal' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create Task' })).toBeNull()
+  })
+
+  // The bell reads NO feature flag in the v4 chrome — Inbox is unconditionally live. SHOW_INBOX
+  // still exists on this branch and still gates the /inbox ROUTE; what changed is that the header
+  // control no longer consults it. This case would fail the moment a gate came back.
+  it('AC-014/FR-007: the NotificationBell always renders — never a disabled stub', () => {
+    renderTopBar()
+    const bell = screen.getByRole('button', { name: 'Inbox' })
+    expect(bell.hasAttribute('disabled')).toBe(false)
+    expect(bell.getAttribute('aria-disabled')).not.toBe('true')
+  })
+
+  // Carried from v4's `top-bar-inbox-bell.test.tsx` phone case. On v4 the bell has two doors —
+  // desktop quick-triage in the shared overlay host, phone the full route — and the whole of the
+  // desktop door depends on the host, which lands with #190. Until then the bell has ONE door on
+  // every viewport, and it is v4's own no-host fallback path. The rest of that file travels to
+  // #190 with the host it tests; this is the half that is live here, kept covered rather than
+  // dropped along with it.
+  it('the Inbox bell navigates to the /inbox route (the door that is live without the overlay host)', () => {
+    renderTopBarWithLocation()
+    expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks')
+    fireEvent.click(screen.getByRole('button', { name: 'Inbox' }))
+    expect(screen.getByTestId('loc')).toHaveTextContent('/inbox')
+  })
+
+  it('renders localized top-bar chrome for Indonesian', () => {
+    localStorage.setItem('mos.locale', 'id')
+    renderTopBar()
+    expect(screen.getByRole('button', { name: /Cari/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Kotak Masuk' })).toBeInTheDocument()
+  })
+})
+
+// OD-REDESIGN-91 #16 (F1) — the top-bar Create button is REMOVED app-wide (enforces
+// experience-contract Rule 7: creation lives in the ⌘K palette, not as a header button).
+// Desktop creation = ⌘K + page CTAs; the phone keeps its bottom-tab + launcher. This is a
+// deliberate UX change: the journey (no header Create control) changed, and the goal — one
+// solid primary per screen, creation via the palette — is asserted below.
+describe('OD-REDESIGN-91 #16: no top-bar Create button', () => {
+  it('renders NO Create button on desktop', () => {
+    renderTopBar()
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()
+  })
+
+  it('renders NO Create button at <920px either (the bottom-tab plus is the phone launcher)', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    renderTopBar()
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull()
   })
 })
 
@@ -102,111 +181,64 @@ describe('AC-S01: TopBar order — brand · breadcrumb · search · bell · user
 describe('AC-K02: Search trigger opens the command menu', () => {
   it('AC-K02: clicking the Search trigger calls onOpenSearch', () => {
     const onOpenSearch = vi.fn()
-    renderTopBar('/tasks', vi.fn(), onOpenSearch)
+    renderTopBar('/work/tasks', vi.fn(), onOpenSearch)
     fireEvent.click(screen.getByRole('button', { name: /Search/i }))
     expect(onOpenSearch).toHaveBeenCalledOnce()
   })
 })
 
-// AC-S07: notification bell is a disabled stub
-describe('AC-S07: Notification bell is a non-functional stub', () => {
-  it('AC-S07: notification bell is a disabled stub with accessible name', () => {
-    renderTopBar()
-    const bell = screen.getByRole('button', { name: 'Notifications' })
-    // Disabled — either disabled attribute or aria-disabled
-    const isDisabled = bell.hasAttribute('disabled') || bell.getAttribute('aria-disabled') === 'true'
-    expect(isDisabled).toBe(true)
-  })
-})
-
-// AC-S08: top bar is a <header> banner landmark; exactly one banner
+// AC-S08: top bar is a <header> banner landmark
 describe('AC-S08: TopBar is a banner landmark', () => {
   it('AC-S08: top bar renders as a <header> banner landmark', () => {
     renderTopBar()
     expect(screen.getByRole('banner')).toBeInTheDocument()
   })
-
-  it('AC-S08: user chip name ellipsizes — name element has truncate class', () => {
-    renderTopBar()
-    // The user name text node should exist and its container should have truncate
-    const nameEl = screen.getByText(viewer.person.full_name)
-    // The element itself or a parent carries truncate (checked via className)
-    const hasTruncate =
-      nameEl.classList.contains('truncate') ||
-      nameEl.closest('[class*="truncate"]') !== null
-    expect(hasTruncate).toBe(true)
-  })
 })
 
-// AC-S02/S03: brand column is fixed 236px with right divider; breadcrumb track is min-w-0
-describe('AC-S02/S03: Brand column is fixed and breadcrumb track is min-w-0', () => {
-  it('AC-S02: brand column has border-r class and width references --rail-w token (not a literal px)', () => {
+// AC-S02/S03: brand column token + breadcrumb min-w-0
+describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
+  it('AC-S02: brand column references --rail-w token and has border-r', () => {
     const { container } = renderTopBar()
-    // Brand column must use the --rail-w CSS variable so it stays aligned with the rail
     const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null
     expect(brandCol).not.toBeNull()
     expect(brandCol!.className).toMatch(/border-r/)
   })
 
-  it('AC-S03: breadcrumb track has min-w-0 class (long crumb cannot shove brand)', () => {
+  it('AC-S03: breadcrumb track has min-w-0 class', () => {
     const { container } = renderTopBar()
-    // The breadcrumb wrapper div carries min-w-0
-    const crumbTrack = container.querySelector('.min-w-0')
-    expect(crumbTrack).not.toBeNull()
+    expect(container.querySelector('.min-w-0')).not.toBeNull()
   })
 
-  it('AC-S03: current breadcrumb crumb ellipsizes — truncate + title attribute', () => {
-    renderTopBar('/tasks')
-    // The current crumb ("Tasks") must truncate and expose its full text via title.
-    const crumb = screen.getByText('Tasks')
-    const truncating = crumb.classList.contains('truncate') || crumb.closest('[class*="truncate"]') !== null
-    expect(truncating).toBe(true)
-    const titled = crumb.getAttribute('title') === 'Tasks' || crumb.closest('[title="Tasks"]') !== null
-    expect(titled).toBe(true)
+  // OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon rail — the brand column narrows to
+  // --rail-w-compact and drops the "Gordi MOS" wordmark (72px only fits the mark), keeping
+  // the divider aligned with the rail's own compact boundary.
+  it('P1-1: at the compact rail regime, the brand column narrows to --rail-w-compact and drops the wordmark', () => {
+    mockUseIsSplitWidth.mockReturnValue(false)
+    const { container } = renderTopBar()
+    const brandCol = container.querySelector('[style*="--rail-w-compact"]') as HTMLElement | null
+    expect(brandCol).not.toBeNull()
+    expect(screen.queryByText('Gordi MOS')).toBeNull()
   })
 })
 
-// AC-S06: hamburger at <920px
-describe('AC-S06: Hamburger button at narrow viewports', () => {
-  it('AC-S06: hamburger appears at <920px, carries the shared phone icon tap-target class, and opens the drawer', () => {
-    const onOpenDrawer = vi.fn()
+// AC-S06 REPLACED, not relaxed. The header hamburger is GONE in the v4 shell (its Task 1: the
+// bottom-tab More button is the drawer's sole opener, so there is only ever one opener to track
+// focus-return for — top-bar.tsx and app-shell.tsx both state it). The old pair of cases asserted
+// the opener existed on phone and not on desktop; the replacement asserts the actual contract, on
+// both viewports, and would fail the moment a header hamburger came back.
+describe('v4 shell Task 1: no header hamburger — the bottom-tab More button is the drawer opener', () => {
+  it('the header carries no navigation opener at <920px (the bottom tab bar owns it)', () => {
     mockUseIsNarrow.mockReturnValue(true)
-    renderTopBar('/tasks', onOpenDrawer)
-    const hamburger = screen.getByRole('button', { name: 'Open navigation' })
-    expect(hamburger).toBeInTheDocument()
-    expect(hamburger.className).toMatch(/tap-target-phone--icon/)
-    fireEvent.click(hamburger)
-    expect(onOpenDrawer).toHaveBeenCalledOnce()
+    renderTopBar('/work/tasks')
+    expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+    // The phone header still carries its real controls, so this is not an empty header.
+    expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
   })
 
-  it('AC-S06: hamburger is absent at ≥920px', () => {
+  it('the header carries no navigation opener at ≥920px either (the rail is the nav)', () => {
     mockUseIsNarrow.mockReturnValue(false)
     renderTopBar()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
-  })
-
-  it('AC-S06 a11y: hamburger has aria-expanded reflecting drawer state', () => {
-    mockUseIsNarrow.mockReturnValue(true)
-    // drawerOpen defaults to false in the helper render (TopBarProps.drawerOpen not passed)
-    renderTopBar()
-    const hamburger = screen.getByRole('button', { name: 'Open navigation' })
-    expect(hamburger).toHaveAttribute('aria-expanded', 'false')
-  })
-})
-
-// A11y: notification bell title attribute communicates intent when disabled
-describe('A11y: Notification bell title', () => {
-  it('notification bell disabled stub has a title communicating coming-soon intent', () => {
-    renderTopBar()
-    const bell = screen.getByRole('button', { name: 'Notifications' })
-    expect(bell).toHaveAttribute('title', 'Notifications — coming soon')
-  })
-
-  it('narrow top-bar icon controls use the shared phone tap-target utility class', () => {
-    mockUseIsNarrow.mockReturnValue(true)
-    renderTopBar()
-    expect(screen.getByRole('button', { name: 'Search' }).className).toMatch(/tap-target-phone--icon/)
-    expect(screen.getByRole('button', { name: 'Notifications' }).className).toMatch(/tap-target-phone--icon/)
-    expect(screen.getByRole('button', { name: viewer.person.full_name }).className).toMatch(/tap-target-phone--icon/)
   })
 })

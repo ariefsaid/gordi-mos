@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 vi.mock('../auth/use-auth')
@@ -19,9 +19,9 @@ const baseViewer = {
     org_id: '10000000-0000-0000-0000-000000000001',
     user_id: 'auth-user-001',
     full_name: 'Dina Pratiwi',
-    email: 'dina@example.test',
-    must_change_password: false,
+    email: 'dina@gordi.id',
     archived_at: null,
+    must_change_password: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
@@ -122,6 +122,43 @@ describe('AC-005: UserChip and sign-out menu', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(chip).toHaveFocus()
+  })
+
+  // Convention audit 2026-07-18 — the ONE popover contract (useMenuPopover):
+  it('closes on outside mousedown (was: stuck-open overlay)', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('WAI-ARIA menu keys: focus enters the menu on open; ArrowDown moves between items', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    render(<UserChip />)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    // ALL menu items — Sign out (menuitem) AND Light/Dark/System (menuitemradio). The first
+    // version queried menuitem only and congratulated a one-item loop (second-pass audit F5).
+    const items = [...screen.getAllByRole('menuitem'), ...screen.getAllByRole('menuitemradio')]
+    expect(items.length).toBeGreaterThanOrEqual(4)
+    await waitFor(() => expect(items).toContain(document.activeElement))
+    const first = document.activeElement
+    fireEvent.keyDown(document, { key: 'ArrowDown' })
+    expect(items).toContain(document.activeElement)
+    expect(document.activeElement).not.toBe(first)
+    fireEvent.keyDown(document, { key: 'End' })
+    expect(items).toContain(document.activeElement)
   })
 
   it('clicking Sign out calls signOut once', async () => {
