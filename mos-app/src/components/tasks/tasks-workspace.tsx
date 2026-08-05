@@ -1,703 +1,563 @@
 import './TasksWorkspace.css'
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  useReactTable,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  createColumnHelper,
-} from '@tanstack/react-table'
-import type { SortingState, FilterFn } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
-import { listTasks } from '@/lib/db/tasks'
-import type { TaskListFilters } from '@/lib/db/tasks'
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
-import { getBusinessUnits } from '@/lib/db/directory'
-import { getPeople } from '@/lib/db/directory'
-import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import { isOverdue } from '@/lib/due-status'
-import { raciMember, raciOwner } from '@/lib/raci-member'
-import type { OwnerCellRaciMember } from './owner-cell'
-import { TaskRow } from './task-row'
-// OFF-TRACK-FIRST status order (In Progress → Blocked → Open → Done) — shared with My Week.
-import { STATUS_ORDER } from './task-formatters'
-import { useTasksKeyboard } from './use-tasks-keyboard'
-import { useTasksViewPref } from './use-tasks-view-pref'
-import { useCascadeCatalogs } from './use-cascade-catalogs'
-import { GroupHeaderRow } from './group-header-row'
-import { PageHead } from '@/shell/page-head'
+import { can } from '@/lib/capabilities'
+import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { HelpTip } from '@/components/ui/help-tip'
+import type { PageFamilyState } from '@/shell/page-families'
+import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
+import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
+import { useT } from '@/i18n/use-t'
+import { useDueRuns } from '@/components/processes/use-due-runs'
+import { DueRunsList } from '@/components/processes/due-runs-list'
+import { SHOW_FOLLOWUPS } from '@/config/features'
+import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 import { TasksToolbar } from './tasks-toolbar'
-import { TasksTableBody } from './tasks-table-body'
-import type { FlatRow } from './tasks-table-body'
-import type { RenderGroup } from './tasks-grouping'
-import type { WorkloadSummary } from './workload-caption'
+import {
+  TASK_COLLECTION_NEUTRAL_QUERY,
+  taskCollectionDescriptor,
+} from './task-collection-adapter'
+import type {
+  TaskCollectionQuery,
+  TaskCollectionSort,
+  TaskCollectionView,
+} from './task-collection-adapter'
+import {
+  TaskCollectionRuntimeProvider,
+  type TaskCollectionRuntime,
+} from './task-collection-presentation'
+import type { TaskStatus } from '@/lib/db/tasks.types'
+import { updateTaskFields } from '@/lib/db/tasks'
+import { TaskOverlayContent } from './task-drawer'
+import { AskDeputyAction } from '@/components/records/ask-deputy-action'
+import type { OverlayEntry } from '@/shell/overlay-host'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type Segment = 'mine' | 'raci' | 'all'
-type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
-type SortDir = 'ascending' | 'descending'
+// D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
+// seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
+// createRecordRouteAdapter so no third door grammar is invented. The panel toggles ?record=<id> on
+// the collection path (/work/tasks); the canonical full page keeps its own path (/work/tasks/:id).
+const taskRouteAdapter = createRecordRouteAdapter({
+  collectionPath: '/work/tasks',
+  panelParam: 'record',
+  pagePath: (id) => `/work/tasks/${id}`,
+})
 
-export type TasksTableStats = { total: number; blocked: number; overdue: number } | null
+// §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
+type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
+const EMPTY_ACCESS_ROLES: readonly string[] = []
+const EMPTY_RECORDS: never[] = []
+const EMPTY_STATUS_OVERRIDES = new Map<string, TaskStatus>()
+
+type LegacySavedView = {
+  view: TasksSavedViewChip | 'all' | 'unknown'
+  activeChip: TasksSavedViewChip | null
+  segment: 'mine' | 'all'
+  overdueOnly: boolean
+  reserved: 'followups' | null
+  search: string
+}
+
+export type TasksTableStats = { total: number; open: number; blocked: number; overdue: number } | null
 
 export type TasksTableProps = {
-  /** Currently-open task (split-view) — gets aria-current + the selected style. */
+  /** Legacy test/embedding bridge. Production TasksLayout now derives this from the typed URL query. */
+  savedView?: LegacySavedView
+  onSavedViewChange?: (next: TasksSavedViewChip | 'all') => void
   selectedId?: string | null
-  /** Whether a drawer is open beside the table (split-view). */
   drawerOpen?: boolean
-  /** Whether the open drawer is expanded to full width (table hidden). */
-  expanded?: boolean
-  /** Whether the viewport is in the ≥1100px live split (false → modal overlay/mobile,
-   *  where the drawer floats over a full-width table — so the table must NOT squash). */
   splitLayout?: boolean
-  /** Optimistic per-row overrides fed by the open drawer (AC-103). */
   statusOverrides?: Map<string, TaskStatus>
-  /** C2/I3: bump this to force a list refetch (after create/archive in the drawer). */
   refreshKey?: number
-  /** AC-109: toggle the per-user-global expand pref (keyboard `e`). */
-  onToggleExpand?: () => void
-  /** The drawer slot (the router <Outlet>); rendered inside the .split grid. */
   drawerSlot?: ReactNode
+  /** Collection callback to sync optimistic row changes back into the table. */
+  onTaskChanged?: (task: import('@/lib/db/tasks.types').TaskListRow) => void
+  /** Collection callback to refetch after an archive. */
+  onTaskArchived?: (id: string) => void
 }
 
-
-// The RenderGroup shape (group label/key/rows/overdue/prefill) lives in
-// ./tasks-grouping so the orchestrator + body agree on it.
-
-const columnHelper = createColumnHelper<TaskListRow>()
-
-/** Sort-direction indicator (IXD-1/2/3: distinct from the shared dropdown Chevron —
- *  a shafted arrow, never the bare chevron that means "dropdown"). Rendered only on
- *  the active-sort column. */
-function SortArrow({ dir }: { dir: SortDir }) {
-  return (
-    <svg className="sort-aff" width="10" height="10" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {dir === 'ascending' ? (
-        <><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>
-      ) : (
-        <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>
-      )}
-    </svg>
-  )
+function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskCollectionQuery | undefined {
+  if (!savedView) return undefined
+  const view: TaskCollectionView = savedView.view === 'mine'
+    ? 'my-work'
+    : savedView.view === 'overdue'
+      ? 'overdue'
+      : savedView.view === 'followups'
+        ? 'followups'
+        : 'all'
+  return {
+    ...TASK_COLLECTION_NEUTRAL_QUERY,
+    view,
+    overdueOnly: savedView.overdueOnly,
+  }
 }
 
-/**
- * The Tasks workspace assembly (page title + toolbar + grouped dense table /
- * mobile grouped cards + all states + the split-view drawer slot). Built on a
- * single client-side @tanstack/react-table instance for filtering + sorting
- * (NFR-120); grouping (incl. empty groups), the keyboard cursor, optimistic
- * status sync, and virtualization are layered on top. (Formerly TasksTable.)
- */
-export function TasksWorkspace({ selectedId, drawerOpen = false, expanded = false, splitLayout = true, statusOverrides, refreshKey = 0, onToggleExpand, drawerSlot }: TasksTableProps) {
-  // Condense only in the live ≥1100px split. In the overlay/mobile regime the
-  // drawer floats over a full-width table, so the table keeps all columns.
-  const condensed = drawerOpen && !expanded && splitLayout
-  const isDesktop = useIsDesktop()
+function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
+  if (view === 'my-work') return 'mine'
+  if (view === 'overdue') return 'overdue'
+  if (view === 'followups') return 'followups'
+  return 'all'
+}
+
+function viewLabel(view: TaskCollectionView, t: ReturnType<typeof useT>): string {
+  switch (view) {
+    case 'my-work': return t('tasks.saved.mine')
+    case 'overdue': return t('tasks.saved.overdue')
+    case 'followups': return t('tasks.saved.followups')
+    default: return t('tasks.saved.all')
+  }
+}
+
+export function TasksWorkspace({
+  selectedId = null,
+  drawerOpen = false,
+  splitLayout = true,
+  statusOverrides,
+  refreshKey = 0,
+  savedView,
+  onSavedViewChange,
+  drawerSlot,
+  onTaskChanged,
+  onTaskArchived,
+}: TasksTableProps) {
+  const t = useT()
   const navigate = useNavigate()
+  const location = useLocation()
+  const host = useOverlayHost()
   const auth = useAuth()
+  const isDesktop = useIsDesktop()
+  // DO-17 (census-sweep R2 tasks FINDING2): the global Action Launcher FAB exists whenever the
+  // rail is collapsed (<920, useIsNarrow) — so the header create door hides on isNarrow, not
+  // !isDesktop (<768), or the 768–919 band shows BOTH doors.
+  const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
+  // Block 2(b) (Luna 390 audit): on phone, collapse the View & filters config behind ONE
+  // disclosure so the first task card is visible above the fold. Desktop renders it inline.
+  const captureFirstMobile = !isDesktop
+  const currentSearch = location.search
+  const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
 
-  // ── Persistence (FR-125) ──────────────────────────────────────────────────
-  const { groupBy, setGroupBy, isCollapsed, toggleCollapsed, collapsedGroups } = useTasksViewPref()
+  const controller = useRecordCollection({
+    descriptor: taskCollectionDescriptor,
+    urlMode: 'synced',
+    initialQuery,
+    viewerId,
+    accessRoles,
+  })
+  const { state } = controller
+  // The engine keeps presentation separate from query for compatibility checks; expose the
+  // canonical layout in the domain query consumed by the toolbar/runtime without writing a second
+  // query owner.
+  const query = useMemo(() => ({ ...state.query, layout: state.presentation }), [state.presentation, state.query])
+  const dataContext = state.data?.context
+  const projection = state.projection
+  const records = projection?.visibleRecords ?? EMPTY_RECORDS
+  const runtimeStatusOverrides = statusOverrides ?? EMPTY_STATUS_OVERRIDES
 
-  // ── Filters ────────────────────────────────────────────────────────────────
-  const [businessUnitId, setBusinessUnitId] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
-  const [includeArchived, setIncludeArchived] = useState(false)
-  const [segment, setSegment] = useState<Segment>('mine')
-  const [personFilter, setPersonFilter] = useState<string>('')
-  const [searchText, setSearchText] = useState<string>('')
-  // Transient overdue-only filter (AC-128 / FR-126) — clicking "N overdue" sets this;
-  // cleared via the chip ✕ or the Clear filters button.
-  const [overdueOnly, setOverdueOnly] = useState(false)
+  const refreshStarted = useRef(false)
+  useEffect(() => {
+    if (!refreshStarted.current) {
+      refreshStarted.current = true
+      return
+    }
+    controller.retry()
+    // refreshKey is the explicit host-owned create/archive channel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
-  // ── Sort (UI state; mapped onto the TanStack sorting state below) ──────────
-  const [sortCol, setSortCol] = useState<SortCol>('due')
-  const [sortDir, setSortDir] = useState<SortDir>('ascending')
+  const setQuery = useCallback((patch: Partial<TaskCollectionQuery>) => {
+    controller.setQuery({ ...controller.state.query, ...patch })
+  }, [controller])
 
-  // ── Row selection (PR-2 AC-T02/T07) — presentational scaffolding only.
-  //    A local selected set; NO bulk action ships this PR. The select-all header
-  //    checkbox exposes aria-checked="mixed" when the selection is partial.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
-  const toggleSelected = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
+  const handleViewChange = useCallback((view: TaskCollectionView) => {
+    setQuery({
+      view,
+      overdueOnly: view === 'overdue' ? true : view === 'all' ? false : controller.state.query.overdueOnly,
     })
-  }, [])
+    onSavedViewChange?.(legacyViewFor(view))
+  }, [controller.state.query.overdueOnly, onSavedViewChange, setQuery])
 
-  // ── Data ─────────────────────────────────────────────────────────────────
-  const [allTasks, setAllTasks] = useState<TaskListRow[]>([])
-  const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
-  const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const retry = useCallback(() => controller.retry(), [controller])
+  const dueRuns = useDueRuns(retry)
 
-  // Fix-7: cascade catalog load is mount-once via useCascadeCatalogs — never
-  // refetched on filter changes (the prior inline loads in load() re-triggered on
-  // every BU/status/includeArchived change — a performance regression).
-  const { workLines: workLinesDirectory, objectiveMap, workLineMap } =
-    useCascadeCatalogs()
+  // D-A1 (item 4): the open Task id lives in the URL as ?record=<id> (addressable/shareable). The
+  // collection owns its own query params; the record param rides alongside them, and the shared
+  // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
+  // archive seam exactly (signals-archive-page.tsx).
+  const [params, setParams] = useSearchParams()
+  const recordId = taskRouteAdapter.readPanelId(location)
+  const hadTaskSession = useRef(false)
+  const suppressNextOpen = useRef(false)
+  // The record id we last opened a host session for. If the session later closes while ?record=
+  // still lingers in the URL (a browser Back / ✕ / Escape pops the marker one render before the
+  // query is dropped), this ref tells the open effect "the user closed THIS record — do not
+  // resurrect it" so Back truly closes the drawer instead of re-opening it (I2, no dead-end).
+  const openedRecordRef = useRef<string | null>(null)
 
-  const now = useMemo(() => new Date(), [allTasks]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
+  // collection's query (view/filter/sort) survives the jump onto the canonical page.
+  const pageSearch = useCallback(() => {
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    const s = next.toString()
+    return s ? `?${s}` : ''
+  }, [params])
 
-  const buMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const bu of busDirectory) m.set(bu.id, bu.name)
-    return m
-  }, [busDirectory])
+  // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
+  // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
+  const onOpenTask = useCallback((taskId: string) => {
+    const next = new URLSearchParams(params)
+    next.set('record', taskId)
+    setParams(next)
+  }, [params, setParams])
 
-  const personMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const p of peopleDirectory) m.set(p.id, p.full_name)
-    return m
-  }, [peopleDirectory])
-
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    const filters: TaskListFilters = {
-      ...(businessUnitId ? { businessUnitId } : {}),
-      ...(statusFilter ? { status: statusFilter as TaskStatus } : {}),
-      includeArchived,
+  const taskEntry = useMemo<OverlayEntry | null>(() => {
+    if (!recordId) return null
+    const pageTo = { pathname: `/work/tasks/${recordId}`, search: pageSearch() }
+    // Record-scoped "Ask Deputy" seed: the loaded row carries the task title, so the composer opens
+    // with "About Task: <title>". Falls back to the generic record noun if the row isn't loaded.
+    const taskTitle = controller.state.data?.records.find((r) => r.id === recordId)?.title?.trim()
+    const entry: OverlayEntry = {
+      key: `task:${recordId}`,
+      owner: 'tasks' as const,
+      tenant: 'record' as const,
+      label: t('tasks.detail.title'),
+      title: t('tasks.detail.title'),
+      actions: (
+        <AskDeputyAction
+          draft={t('assistant.askAbout.task', { title: taskTitle || t('tasks.detail.title') })}
+        />
+      ),
+      pageTo,
+      pageState: { taskSurface: 'page' },
+      content: null,
     }
-    let cancelled = false
-    // Critical load: tasks + directory (BUs, people). The table's loading gate hangs off
-    // ONLY these — never the cascade catalogs (those are mount-once via useCascadeCatalogs).
-    Promise.all([
-      listTasks(filters),
-      getBusinessUnits(),
-      getPeople(),
-    ])
-      .then(([rows, bus, people]) => {
-        if (!cancelled) {
-          setAllTasks(rows)
-          setBusDirectory(bus)
-          setPeopleDirectory(people)
-          setLoading(false)
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) { console.error('[TasksWorkspace] load failed:', err); setError('load-failed'); setLoading(false) }
-      })
-    return () => { cancelled = true }
-  }, [businessUnitId, statusFilter, includeArchived])
-
-  // C2/I3: refetch on filter changes AND whenever the host bumps refreshKey
-  // (create/archive in the drawer). refreshKey is intentionally an extra dep.
-  useEffect(() => { const cancel = load(); return cancel }, [load, refreshKey])
-
-  // ── Apply optimistic status overrides from the open drawer ────────────────
-  const tasksWithOverrides = useMemo(() => {
-    if (!statusOverrides || statusOverrides.size === 0) return allTasks
-    return allTasks.map(t => statusOverrides.has(t.id) ? { ...t, status: statusOverrides.get(t.id)! } : t)
-  }, [allTasks, statusOverrides])
-
-  // ── Person-overrides-segment (FR-124 / AC-126) ───────────────────────────
-  // When a Person filter is set, the Mine/RACI/All segment is inert — the Person
-  // filter drives the ownership scope. The segment is re-enabled when cleared.
-  const segmentDisabled = personFilter !== ''
-
-  // ── TanStack instance: the single client-side engine (NFR-120) ────────────
-  // Owns filtering (ownership scope / search / overdue) + sorting (default Due-asc).
-  // The grouping (incl. empty-group injection) is built from the engine's filtered
-  // + sorted rows below (outside the row model, per the empty-group requirement).
-  const columns = useMemo(() => [
-    columnHelper.accessor('title', { id: 'task', sortingFn: (a, b) => a.original.title.localeCompare(b.original.title) }),
-    columnHelper.accessor('status', { id: 'status', sortingFn: (a, b) => a.original.status.localeCompare(b.original.status) }),
-    columnHelper.accessor('responsible_person_id', { id: 'owner' }),
-    columnHelper.accessor('due_date', {
-      id: 'due',
-      sortingFn: (a, b) => {
-        const ad = a.original.due_date, bd = b.original.due_date
-        if (!ad && !bd) return 0
-        if (!ad) return 1
-        if (!bd) return -1
-        return ad < bd ? -1 : ad > bd ? 1 : 0
-      },
-    }),
-    columnHelper.accessor('last_activity_at', {
-      id: 'activity',
-      sortingFn: (a, b) => b.original.last_activity_at.localeCompare(a.original.last_activity_at),
-    }),
-  ], [])
-
-  // Owner sort needs the personMap — handled via a manual sort layer after the
-  // engine for the 'owner' column (engine sorts by id otherwise). Kept simple:
-  // the engine's sorted rows are re-sorted only when sorting by owner name.
-  const sortingState: SortingState = useMemo(
-    () => [{ id: sortCol, desc: sortDir === 'descending' }],
-    [sortCol, sortDir],
-  )
-
-  // The composite filter state is carried as the engine's globalFilter value.
-  const globalFilter = useMemo(
-    () => ({ search: searchText, overdueOnly, segment, personFilter }),
-    [searchText, overdueOnly, segment, personFilter],
-  )
-
-  // Single composite global filter: ownership scope + search + transient overdue-only.
-  const globalFilterFn: FilterFn<TaskListRow> = useCallback((row, _id, value) => {
-    const t = row.original
-    const { search, overdueOnly: od, segment: seg, personFilter: pf } =
-      value as { search: string; overdueOnly: boolean; segment: Segment; personFilter: string }
-    // Ownership scope (Person overrides the Mine/RACI/All segment, FR-124)
-    if (pf) { if (!raciMember(t, pf)) return false }
-    else if (seg === 'mine' && viewerId && !raciOwner(t, viewerId)) return false
-    else if (seg === 'raci' && viewerId && !raciMember(t, viewerId)) return false
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
-    if (od && !isOverdue(t, now)) return false
-    return true
-  }, [now, viewerId])
-
-  const table = useReactTable({
-    data: tasksWithOverrides,
-    columns,
-    state: { sorting: sortingState, globalFilter },
-    globalFilterFn,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    enableSortingRemoval: false,
-    getRowId: (t) => t.id,
-  })
-
-  // The engine's filtered + sorted leaf rows (global Due-asc by default).
-  const engineRows = table.getRowModel().rows
-  const sortedTasks = useMemo<TaskListRow[]>(() => {
-    let rows = engineRows.map(r => r.original)
-    // Owner-name sort isn't expressible by id alone — re-sort by display name.
-    if (sortCol === 'owner') {
-      rows = [...rows].sort((a, b) => {
-        const an = personMap.get(a.responsible_person_id) ?? ''
-        const bn = personMap.get(b.responsible_person_id) ?? ''
-        const cmp = an.localeCompare(bn)
-        return sortDir === 'ascending' ? cmp : -cmp
-      })
-    }
-    return rows
-    // engineRows identity changes whenever the engine recomputes
-  }, [engineRows, sortCol, sortDir, personMap])
-
-  function handleSort(col: SortCol) {
-    if (sortCol === col) setSortDir(d => d === 'ascending' ? 'descending' : 'ascending')
-    else { setSortCol(col); setSortDir('ascending') }
-  }
-
-
-  // ── RACI disclosure data per task (for the OwnerCell +N tooltip, AC-130) ──
-  const buildOthers = useCallback((task: TaskListRow): OwnerCellRaciMember[] => {
-    const r = task.responsible_person_id
-    const out: OwnerCellRaciMember[] = []
-    const seen = new Set<string>()
-    if (task.accountable_person_id !== r && !seen.has(task.accountable_person_id)) {
-      seen.add(task.accountable_person_id)
-      out.push({ role: 'A', name: personMap.get(task.accountable_person_id) ?? '—' })
-    }
-    for (const id of task.consulted_person_ids) {
-      if (id !== r && !seen.has(id)) { seen.add(id); out.push({ role: 'C', name: personMap.get(id) ?? '—' }) }
-    }
-    for (const id of task.informed_person_ids) {
-      if (id !== r && !seen.has(id)) { seen.add(id); out.push({ role: 'I', name: personMap.get(id) ?? '—' }) }
-    }
-    return out
-  }, [personMap])
-
-  // ── Grouping (FR-122/123, AC-123/124) ────────────────────────────────────
-  // Build the ordered group list from the engine's filtered + sorted rows.
-  // Empty groups (Owner/BU with zero rows) are injected from the full directory
-  // (Status uses the fixed 4-status set) so all groups always show (OD-P3-6).
-  const groups = useMemo<RenderGroup[]>(() => {
-    // Flat default (mockup): one implicit group, NO header row — rendered as a plain
-    // leaf list (the flatRows builder below skips the header for groupBy === 'none').
-    if (groupBy === 'none') {
-      const overdue = sortedTasks.filter(t => isOverdue(t, now)).length
-      return [{ key: '__flat__', label: '', rows: sortedTasks, overdue, prefillParam: '' }]
-    }
-    const byKey = new Map<string, TaskListRow[]>()
-    const keyFor = (t: TaskListRow): string =>
-      groupBy === 'status' ? t.status
-        : groupBy === 'owner' ? t.responsible_person_id
-          : groupBy === 'workline' ? (t.work_line_id ?? '__no_workline__')
-            : t.business_unit_id
-    for (const t of sortedTasks) {
-      const k = keyFor(t)
-      const arr = byKey.get(k)
-      if (arr) arr.push(t); else byKey.set(k, [t])
-    }
-    const mk = (key: string, label: string, prefillParam: string, workLineType?: 'project' | 'process' | null): RenderGroup => {
-      const rows = byKey.get(key) ?? []
-      const overdue = rows.filter(t => isOverdue(t, now)).length
-      return { key, label, rows, overdue, prefillParam, workLineType }
-    }
-    if (groupBy === 'status') {
-      // FR-123 (refined): Status groups open a plain /tasks/new (no ?status= pre-fill)
-      // because CreateSurface has no status field — the task always opens as "Open".
-      // Owner→?r=<personId> and BU→?bu=<buId> ARE read and applied by CreateSurface.
-      return STATUS_ORDER.map(s => mk(s, s, ''))
-    }
-    if (groupBy === 'owner') {
-      return peopleDirectory.map(p => mk(p.id, p.full_name, `r=${p.id}`))
-    }
-    if (groupBy === 'workline') {
-      // FR-232: group by work_line_id; null → trailing "No work-line" group.
-      // Named groups appear in work-line alphabetical order (from workLinesDirectory),
-      // then the null group always trails (clear separation of "assigned" vs "unassigned").
-      // RI-2 fix: when a person filter is active, suppress zero-count work-line groups
-      // (empty groups contradict the per-person caption and clutter the one-question read).
-      // Empty-group injection stays for the other dimensions / no-person-filter (layout stability).
-      const filterZeroWhenPerson = personFilter !== ''
-      const named = workLinesDirectory
-        .map(wl => mk(wl.id, wl.name, '', wl.type))
-        .filter(g => !filterZeroWhenPerson || g.rows.length > 0)
-      const noGroup = mk('__no_workline__', 'No work-line', '', null)
-      // Also suppress the "No work-line" group when person-filtered and it has no rows
-      const groups: typeof named = [...named]
-      if (!filterZeroWhenPerson || noGroup.rows.length > 0) groups.push(noGroup)
-      return groups
-    }
-    // bu
-    return busDirectory.map(b => mk(b.id, b.name, `bu=${b.id}`))
-  }, [sortedTasks, groupBy, now, peopleDirectory, busDirectory, workLinesDirectory, personFilter])
-
-  // ── Flat visible-row model (headers + expanded-group leaf rows) ───────────
-  // Drives rendering, the leaf-row keyboard cursor, and virtualization windowing.
-  // FlatRow shape lives in ./tasks-table-body (shared with the body renderer).
-  const { flatRows, leafTasks } = useMemo(() => {
-    const flat: FlatRow[] = []
-    const leaves: TaskListRow[] = []
-    // Flat default (mockup): emit leaf rows only — no group-header rows, no collapse.
-    const flatList = groupBy === 'none'
-    for (const g of groups) {
-      if (!flatList) {
-        flat.push({ kind: 'header', group: g })
-        if (isCollapsed(g.key)) continue
-      }
-      for (const t of g.rows) {
-        flat.push({ kind: 'leaf', task: t, leafIndex: leaves.length })
-        leaves.push(t)
-      }
-    }
-    return { flatRows: flat, leafTasks: leaves }
-    // collapsedGroups identity changes drive recompute (isCollapsed reads it)
-  }, [groups, groupBy, isCollapsed, collapsedGroups]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Select-all derived state (PR-2 AC-T07): aria-checked="mixed" when partial,
-  // true only when every visible leaf row is selected. Empty table -> unchecked.
-  const someChecked = selectedIds.size > 0 && leafTasks.some(t => selectedIds.has(t.id))
-  const allChecked = leafTasks.length > 0 && leafTasks.every(t => selectedIds.has(t.id))
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds(prev =>
-      leafTasks.length > 0 && leafTasks.every(t => prev.has(t.id))
-        ? new Set()
-        : new Set(leafTasks.map(t => t.id)),
-    )
-  }, [leafTasks])
-
-  // Active-filter detection (for no-results-after-filter vs empty-no-tasks)
-  const hasActiveFilter = businessUnitId !== '' || statusFilter !== '' || personFilter !== ''
-    || searchText !== '' || overdueOnly || includeArchived
-
-  function clearFilters() {
-    setBusinessUnitId('')
-    setStatusFilter('')
-    setPersonFilter('')
-    setSearchText('')
-    setOverdueOnly(false)
-    setIncludeArchived(false)
-  }
-
-  // ── Keyboard layer (AC-109, OBS-121) ───────────────────────────────────────
-  // The cursor moves over LEAF rows only (group-header rows are not cursor
-  // targets) — cursor index maps onto leafTasks[i].
-  const { cursor, setCursor } = useTasksKeyboard({
-    rowCount: leafTasks.length,
-    enabled: isDesktop, // mobile uses the card list + native links, not row cursor
-    onOpen: i => { const t = leafTasks[i]; if (t) navigate(`/tasks/${t.id}`) },
-    onClose: () => { if (drawerOpen) navigate('/tasks') },
-    onNew: () => navigate('/tasks/new'),
-    onExpand: () => { if (drawerOpen) onToggleExpand?.() },
-  })
-
-  // Keep the cursor synced to the open/selected leaf row so j/k continues from there.
-  useEffect(() => {
-    if (!selectedId) return
-    const idx = leafTasks.findIndex(t => t.id === selectedId)
-    if (idx >= 0 && idx !== cursor) setCursor(idx)
-  }, [selectedId, leafTasks, cursor, setCursor])
-
-  // Scroll the cursor row into view as j/k moves it (windowing-safe).
-  const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
-  useEffect(() => {
-    cursorRowRef.current?.scrollIntoView?.({ block: 'nearest' })
-  }, [cursor])
-
-  // ── Virtualization (AC-131, NFR-120) ───────────────────────────────────────
-  // Window the desktop body at 50+ LEAF rows. The window spans the flat visible
-  // row list (headers + leaves) so headers and leaves window together. The
-  // <thead> (with aria-sort) stays outside the window; the j/k cursor uses
-  // scrollToIndex on the flat-row position to keep the windowed row mounted.
-  const VIRTUALIZE_THRESHOLD = 50
-  const ROW_HEIGHT = 50 // OD-P3-6: dense DB-view body row (not the 54px default)
-  const virtualize = isDesktop && leafTasks.length >= VIRTUALIZE_THRESHOLD
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const rowVirtualizer = useVirtualizer({
-    count: virtualize ? flatRows.length : 0,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 8,
-    initialRect: { width: 0, height: 600 },
-  })
-
-  // Map the leaf cursor onto its flat-row position so windowing keeps it mounted.
-  const cursorFlatIndex = useMemo(() => {
-    if (cursor < 0) return -1
-    return flatRows.findIndex(r => r.kind === 'leaf' && r.leafIndex === cursor)
-  }, [cursor, flatRows])
-  useEffect(() => {
-    if (virtualize && cursorFlatIndex >= 0) rowVirtualizer.scrollToIndex(cursorFlatIndex, { align: 'auto' })
-  }, [cursorFlatIndex, virtualize, rowVirtualizer])
-
-  // ── Stats → host ──────────────────────────────────────────────────────────
-  const stats = useMemo<TasksTableStats>(() => {
-    if (error) return null
-    const blocked = leafTasks.filter(t => t.status === 'Blocked').length
-    const overdue = leafTasks.filter(t => isOverdue(t, now)).length
-    return { total: leafTasks.length, blocked, overdue }
-  }, [leafTasks, now, error])
-
-  // ── FR-236: Workload summary caption ─────────────────────────────────────
-  // Shown when groupBy === 'workline' AND a single person is filtered.
-  // Counts distinct project vs process work-lines among visible open tasks.
-  const workloadSummary = useMemo<WorkloadSummary | null>(() => {
-    if (groupBy !== 'workline' || !personFilter) return null
-    const person = peopleDirectory.find(p => p.id === personFilter)
-    if (!person) return null
-    const firstName = person.full_name.split(' ')[0] ?? person.full_name
-    const isSelf = personFilter === viewerId
-    // Build a local type map from workLinesDirectory (avoids an extra useMemo dep)
-    const typeMap = new Map<string, 'project' | 'process'>()
-    for (const wl of workLinesDirectory) typeMap.set(wl.id, wl.type)
-    // Count distinct project / process work-line ids among OPEN, NON-ARCHIVED visible tasks.
-    // RI-4: also count tasks with no work_line_id (unassigned) for the reconciliation clause.
-    const projectIds = new Set<string>()
-    const dailyIds = new Set<string>()
-    let unassignedCount = 0
-    for (const t of leafTasks) {
-      if (t.status === 'Done') continue           // exclude Done tasks
-      if (t.archived_at != null) continue         // RI-4: exclude archived tasks
-      if (!t.work_line_id) {
-        unassignedCount++                         // RI-4: open unclassified task
-        continue
-      }
-      const wlType = typeMap.get(t.work_line_id)
-      if (wlType === 'project') projectIds.add(t.work_line_id)
-      else if (wlType === 'process') dailyIds.add(t.work_line_id)
-    }
-    return { isSelf, firstName, projectCount: projectIds.size, dailyCount: dailyIds.size, unassignedCount }
-  }, [groupBy, personFilter, peopleDirectory, leafTasks, workLinesDirectory, viewerId])
-
-  const splitClass = `split${drawerOpen ? (expanded ? ' expanded' : '') : ' nodrawer'}`
-
-  // ── Empty copy ─────────────────────────────────────────────────────────────
-  function emptyTitle(): string {
-    if (includeArchived) return 'No archived tasks.'
-    if (segment === 'mine') return 'No tasks assigned to you'
-    if (segment === 'raci') return 'No tasks you are involved in'
-    return 'No tasks yet'
-  }
-  function emptyCopy(): string {
-    if (includeArchived) return 'Archived tasks would appear here.'
-    if (segment === 'mine') return 'When a task names you as R or A it shows up here. Create one or switch to "All".'
-    if (segment === 'raci') return 'When a task names you as R, A, C, or I it shows up here.'
-    return 'No tasks match your current filters.'
-  }
-
-  // "+ Add task" pre-fill: navigate to the create surface seeding the grouped
-  // dimension (Owner → R, BU → bu, Status → status) — AC-125, FR-123.
-  const openAddTask = useCallback((prefillParam: string) => {
-    navigate(`/tasks/new?${prefillParam}`)
-  }, [navigate])
-
-  // ── Row renderer (shared by the plain + virtualized bodies) ────────────────
-  function renderRow(task: TaskListRow, leafIndex: number) {
-    return (
-      <TaskRow
-        key={task.id}
-        task={task}
-        now={now}
-        condensed={condensed}
-        isSelected={selectedId === task.id}
-        isCursor={cursor === leafIndex}
-        leafIndex={leafIndex}
-        cursorRowRef={cursor === leafIndex ? cursorRowRef : undefined}
-        buName={buMap.get(task.business_unit_id) ?? ''}
-        ownerName={personMap.get(task.responsible_person_id) ?? ''}
-        others={buildOthers(task)}
-        onOpen={(id) => navigate(`/tasks/${id}`)}
-        checked={selectedIds.has(task.id)}
-        onCheck={() => toggleSelected(task.id)}
-        workLineName={task.work_line_id ? (workLineMap.get(task.work_line_id) ?? '') : ''}
-        objectiveName={task.objective_id ? (objectiveMap.get(task.objective_id) ?? '') : ''}
+    entry.content = (
+      <TaskOverlayContent
+        taskId={recordId}
+        onClose={() => { void host.close() }}
+        onOpenPage={() => { void host.openPage(pageTo, entry.pageState) }}
+        onTaskChanged={onTaskChanged}
+        onTaskArchived={onTaskArchived}
+        onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
       />
     )
-  }
+    return entry
+  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, t])
 
-  function renderGroupHeader(group: RenderGroup) {
-    return (
-      <GroupHeaderRow
-        key={`grp-${group.key}`}
-        label={group.label}
-        count={group.rows.length}
-        overdue={group.overdue}
-        collapsed={isCollapsed(group.key)}
-        // condensed = 6 cols (cb + task + status + owner + due + menu)
-        // non-condensed = 10 cols (+ work-line + objective + bu + activity)
-        colSpan={condensed ? 6 : 10}
-        prefill={group.prefillParam}
-        controlsId={`grp-rows-${group.key}`}
-        workLineType={group.workLineType}
-        onToggle={() => toggleCollapsed(group.key)}
-        onAddTask={() => openAddTask(group.prefillParam)}
-        onOverdueFilter={() => setOverdueOnly(true)}
-      />
-    )
-  }
+  // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
+  // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
+  useEffect(() => {
+    if (!taskEntry) {
+      openedRecordRef.current = null
+      suppressNextOpen.current = false
+      return
+    }
+    if (suppressNextOpen.current) return
+    const active = host.session?.frames.at(-1)?.entry
+    if (active?.key === taskEntry.key) return
+    // A genuine browser Back / ✕ / Escape pops the marker one render before the clear effect drops
+    // ?record=: the session is gone but recordId still lingers. If we ALREADY had a stably-open
+    // session for this record (hadTaskSession), the user closed it — let the clear effect finish
+    // and do NOT resurrect it, so Back truly closes the drawer (I2, no dead-end). The guard is
+    // scoped to hadTaskSession so it does not swallow the legitimate re-open after the initial
+    // hard-load/refresh POP (MemoryRouter/boot reports the first navigation as POP, which closes
+    // the just-opened session before its marker lands) — that restore path must still re-open.
+    if (!active && openedRecordRef.current === recordId && hadTaskSession.current) return
+    const hasTaskSession = host.session?.frames.some((frame) => frame.entry.owner === 'tasks')
+    openedRecordRef.current = recordId
+    // DO-18: `onOpenTask` already PUSHed the record's ?record= URL entry, so the host stamps its
+    // depth-0 marker onto that SAME entry (replaceMarker) rather than pushing a duplicate. One
+    // history step per open means an explicit ✕/Escape close's single -1 pop lands on the clean
+    // collection URL — not a lingering ?record= entry that the open effect would resurrect. A
+    // hard-load/refresh restore also stamps onto the already-present ?record= entry (no extra step).
+    void (hasTaskSession ? host.replaceRoot(taskEntry) : host.openRoot(taskEntry, 'route', true))
+  }, [host, taskEntry, recordId])
 
-  function colSort(col: SortCol): 'ascending' | 'descending' | 'none' {
-    return sortCol === col ? sortDir : 'none'
-  }
-  function sortIndicator(col: SortCol): ReactNode {
-    if (sortCol !== col) return null
-    return <SortArrow dir={sortDir} />
-  }
+  // When the host session closes (explicit close, or a browser POP the host owns), drop the
+  // ?record= query without adding a second history step. The ref stops the open effect from
+  // clearing its own freshly-set record. Mirrors signals-archive-page.tsx.
+  const taskSessionActive = host.session?.frames.some((frame) => frame.entry.owner === 'tasks') ?? false
+  useEffect(() => {
+    if (taskSessionActive) {
+      hadTaskSession.current = true
+      return
+    }
+    if (!hadTaskSession.current || !recordId) return
+    if (suppressNextOpen.current) return
+    hadTaskSession.current = false
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    setParams(next, { replace: true })
+  }, [params, recordId, setParams, taskSessionActive])
+  // Inline title edit (E7 collection promise) — persists through the SAME updateTaskFields path the
+  // record editor uses (task-surface handleUpdateField). Rejects (no viewer, or a failed write) so
+  // TaskRow's useInlineCommit rolls the row back optimistically. The edited title lives in the row's
+  // own draft; the status-only onTaskChanged override channel is untouched (title is not part of it).
+  const onEditTitle = useCallback(async (taskId: string, title: string) => {
+    if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
+    await updateTaskFields(taskId, { title }, viewerId)
+  }, [viewerId])
+  const onCloseDrawer = useCallback(() => {
+    if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
+      void host.close()
+      return
+    }
+    if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
+  }, [currentSearch, drawerOpen, host, navigate])
+  const onNewTask = useCallback(() => {
+    navigate({ pathname: '/work/tasks/new', search: currentSearch })
+  }, [currentSearch, navigate])
+  const onAddTask = useCallback((prefillParam: string) => {
+    const params = new URLSearchParams(currentSearch)
+    if (prefillParam) {
+      const prefill = new URLSearchParams(prefillParam)
+      prefill.forEach((value, key) => params.set(key, value))
+    }
+    const search = params.toString()
+    navigate({ pathname: '/work/tasks/new', search: search ? `?${search}` : '' })
+  }, [currentSearch, navigate])
+  // H3 fix (owner review r2 gap — "Clear filters" didn't persist past reload): the shared
+  // RecordCollection engine's URL sync (useRecordCollection's effect, via
+  // lib/record-collection/query-state.ts writeCollectionQuery) infers which URL keys a query
+  // "owns" by re-serializing the NEUTRAL query and diffing its keys — but serializeTaskQuery
+  // (task-collection-adapter.tsx) deliberately OMITS every field that already equals its neutral
+  // value (clean canonical URLs: `if (query.q) p.set('q', …)` etc.), so serializing the neutral
+  // query itself always yields an EMPTY key set. A key that was populated and is now cleared back
+  // to neutral therefore never appears in the inferred "keys to delete" set — the visible state
+  // clears correctly (state.query is right, the table re-renders empty-filtered), but the stale
+  // `?q=…`/`&bu=…`/etc param is never removed from the URL, so a reload re-parses it and restores
+  // the filters the user just cleared. Rather than widen the shared engine's diffing for every
+  // RecordCollection consumer in this pass, strip the exact Task filter URL keys locally.
+  const onClearFilters = useCallback(() => {
+    const nextView = query.view === 'overdue' ? 'all' : query.view
+    setQuery({
+      q: '', businessUnitId: null, status: null, picId: null, supervisorId: null, personId: null,
+      overdueOnly: false, includeArchived: false, view: nextView,
+    })
+    const next = new URLSearchParams(params)
+    for (const key of ['q', 'bu', 'status', 'pic', 'supervisor', 'person', 'overdue', 'archived']) {
+      next.delete(key)
+    }
+    if (nextView === 'all') next.delete('view')
+    setParams(next, { replace: true })
+  }, [params, query.view, setParams, setQuery])
+  const onSort = useCallback((sort: TaskCollectionSort) => {
+    const direction = query.sort === sort
+      ? query.direction === 'ascending' ? 'descending' : 'ascending'
+      : 'ascending'
+    setQuery({ sort, direction })
+  }, [query.direction, query.sort, setQuery])
 
-  // + New task lives in the content-header (mockup `.ch-action`) only when the table
-  // is populated — empty / no-results states own their own create CTA, so every
-  // state has exactly one create link.
-  const showNewTask = !drawerOpen && !loading && !error && leafTasks.length > 0
+  const recordsForStats = useMemo(
+    () => records.map((record) => ({ ...record, status: runtimeStatusOverrides.get(record.id) ?? record.status })),
+    [records, runtimeStatusOverrides],
+  )
+  const stats: TasksTableStats = state.status === 'error' || state.status === 'loading'
+    ? null
+    : {
+        total: recordsForStats.length,
+        // OD-REDESIGN-91 #17: "open" mirrors the rail badge's open-count definition
+        // (lib/db/rail-counts: not archived AND not Done) so the head and the rail agree.
+        open: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null).length,
+        blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
+        overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
+      }
+  const hasRows = projection !== null && projection.visibleRecords.length > 0
+  // Census R2 DO-6 (follow-ups F1/F2): on the Follow-ups view the loaded records are TASKS, so any
+  // count derived from `stats` mislabels tasks as follow-up scope ("11 items in your scope" above a
+  // coming-soon body). While the view is the reserved placeholder the toolbar also drops every
+  // row-operating control (search / View & filters / Table-Card) — dead controls above a
+  // placeholder teach people the surface is broken. When SHOW_FOLLOWUPS lands, the live queue
+  // (FollowUpQueueEmbed) owns its own count; `stats.total` stays wrong for this view either way.
+  const followupsView = query.view === 'followups'
+  const reservedFollowups = followupsView && !SHOW_FOLLOWUPS
+  // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
+  // the single create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one
+  // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
+  // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
+  // 768–919 band must never show both doors.
+  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups' && !isNarrow
+  const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
+  const emptyTitle = query.includeArchived
+    ? t('tasks.empty.archivedTitle')
+    : query.view === 'my-work'
+      ? t('tasks.empty.mineTitle')
+      : t('tasks.empty.noTasksTitle')
+  const emptyCopy = query.includeArchived
+    ? t('tasks.empty.archivedCopy')
+    : query.view === 'my-work'
+      ? t('tasks.empty.mineCopy')
+      : t('tasks.empty.noTasksCopy')
+
+  const personOptions = dataContext?.people ?? []
+  const buOptions = dataContext?.businessUnits ?? []
+  const tasksToolbar = (
+    <TasksToolbar
+      query={query}
+      onQueryChange={setQuery}
+      onViewChange={handleViewChange}
+      overdueCount={stats?.overdue ?? 0}
+      onOverdueFilter={() => setQuery({ overdueOnly: true })}
+      onClearOverdue={() => setQuery({ overdueOnly: false })}
+      buOptions={buOptions}
+      personOptions={personOptions}
+      onPresentationChange={(next) => { controller.switchPresentation(next) }}
+      dueRuns={dueRuns}
+      reserved={reservedFollowups}
+      savedViews={{
+        label: t('tasks.savedViews'),
+        selectedId: state.savedViews.items.find((item) => item.id === query.savedViewId)?.id ?? null,
+        operation: state.savedViews.operation,
+        items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
+        onLoad: () => { void controller.loadSavedViews() },
+        onApply: async (id) => { await controller.applySavedView(id) },
+        onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
+      }}
+    />
+  )
+
+  const runtime: TaskCollectionRuntime = useMemo(() => ({
+    selectedId: host.session?.frames.at(-1)?.entry.owner === 'tasks'
+      ? host.session.frames.at(-1)?.entry.key.replace(/^task:/, '') ?? selectedId
+      : selectedId,
+    drawerOpen: drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks',
+    splitLayout,
+    isDesktop,
+    recordSearch: currentSearch,
+    statusOverrides: runtimeStatusOverrides,
+    onOpenTask,
+    onEditTitle,
+    onCloseDrawer,
+    onNewTask,
+    onAddTask,
+    onRetry: retry,
+    onClearFilters,
+    onSort,
+    onOverdueFilter: () => setQuery({ overdueOnly: true }),
+      onClearOverdue: () => setQuery({ overdueOnly: false }),
+    createHref: { pathname: '/work/tasks/new', search: currentSearch },
+    dueRuns,
+    followups: query.view === 'followups',
+    followupsEnabled: SHOW_FOLLOWUPS,
+    canResolvePending: can(accessRoles, 'process.start'),
+  }), [
+    accessRoles, currentSearch, drawerOpen, dueRuns, host.session, isDesktop, onAddTask,
+    onCloseDrawer, onEditTitle, onNewTask, onOpenTask, onClearFilters, onSort,
+    query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
+  ])
+
+  // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
+  // disclosure (whose whole content is now just those chips) would be a door hiding the only
+  // way out — render the chips directly instead.
+  const controls = captureFirstMobile && !reservedFollowups ? (
+      <ViewOptionsDisclosure
+      open={mobileOptionsOpen}
+      onToggle={() => setMobileOptionsOpen((open) => !open)}
+      label={t('tasks.viewAndFilters')}
+      summary={viewLabel(query.view, t)}
+      panelId="mobile-task-options-panel"
+      className="mobile-task-options"
+      triggerClassName="mobile-task-options-trigger"
+      summaryClassName="mobile-task-options-summary"
+      chevronClassName="mobile-task-options-chevron"
+      panelClassName="mobile-task-options-panel"
+    >
+      {tasksToolbar}
+    </ViewOptionsDisclosure>
+  ) : tasksToolbar
 
   return (
-    <>
-      <PageHead
-        variant="content"
-        title="Tasks"
-        count={stats === null ? null : stats.total}
-        action={
-          showNewTask ? (
-            <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
-          ) : undefined
-        }
-        meta={
-          <>
-            {/* Blocked + clickable "N overdue" subtotals (AC-128 / FR-126). The task
-                count itself rides the count pill; this slot carries the off-track meta. */}
-            <span data-testid="tasks-count-line" className="ch-submeta tabular-nums">
-              {stats === null ? '—' : (
-                <>
-                  {stats.blocked > 0 && (
-                    <>{stats.blocked} blocked</>
-                  )}
-                  {/* Zero-overdue: omit entirely (AC-133). Non-zero: render as click-to-filter button */}
-                  {stats.overdue > 0 && (
-                    <>
-                      {stats.blocked > 0 && ' · '}
-                      <button
-                        type="button"
-                        className="overdue-filter-btn"
-                        aria-label={`Filter to ${stats.overdue} overdue tasks`}
-                        onClick={() => setOverdueOnly(true)}
-                      >
-                        {stats.overdue} overdue
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
-            </span>
-            {/* Overdue-only active chip (AC-128 — clearable transient filter) */}
-            {overdueOnly && (
-              <button
-                type="button"
-                className="overdue-chip"
-                aria-label="Clear overdue filter"
-                onClick={() => setOverdueOnly(false)}
-              >
-                Overdue only ✕
-              </button>
-            )}
-          </>
-        }
-      />
-
-      <div className={splitClass}>
-        <section className={`assembly${condensed ? ' condensed' : ''}`} aria-label="Tasks">
-          <TasksToolbar
-            groupBy={groupBy}
-            setGroupBy={setGroupBy}
-            businessUnitId={businessUnitId}
-            setBusinessUnitId={setBusinessUnitId}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            personFilter={personFilter}
-            setPersonFilter={setPersonFilter}
-            segment={segment}
-            setSegment={setSegment}
-            segmentDisabled={segmentDisabled}
-            searchText={searchText}
-            setSearchText={setSearchText}
-            includeArchived={includeArchived}
-            setIncludeArchived={setIncludeArchived}
-            buOptions={busDirectory}
-            personOptions={peopleDirectory}
-          />
-
-          <TasksTableBody
-            loading={loading}
-            error={error}
-            leafTasks={leafTasks}
-            hasActiveFilter={hasActiveFilter}
-            condensed={condensed}
-            isDesktop={isDesktop}
-            onRetry={load}
-            onClearFilters={clearFilters}
-            emptyTitle={emptyTitle()}
-            emptyCopy={emptyCopy()}
-            sortCol={sortCol}
-            onSort={handleSort}
-            ariaSort={colSort}
-            sortIndicator={sortIndicator}
-            allChecked={allChecked}
-            someChecked={someChecked}
-            onToggleSelectAll={toggleSelectAll}
-            flatRows={flatRows}
-            virtualize={virtualize}
-            scrollRef={scrollRef}
-            rowVirtualizer={rowVirtualizer}
-            renderRow={renderRow}
-            renderGroupHeader={renderGroupHeader}
-            groups={groups}
-            now={now}
-            buMap={buMap}
-            personMap={personMap}
-            isCollapsed={isCollapsed}
-            toggleCollapsed={toggleCollapsed}
-            openAddTask={openAddTask}
-            setOverdueOnly={setOverdueOnly}
-            buildOthers={buildOthers}
-            workLineMap={workLineMap}
-            objectiveMap={objectiveMap}
-            workloadSummary={workloadSummary}
-          />
+    <PageFamilyFrame
+      family="workspace"
+      title={t('tasks.title')}
+      jobSentence={t('job.tasks')}
+      state={frameState}
+      action={showNewTask ? (
+        <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
+      ) : undefined}
+      meta={
+        // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
+        // "9 open · 11 total" (the rail badge already carries the open-count; the head now
+        // agrees). ONE muted meta sentence in the E7 grammar, a single font size (the body
+        // token), every number followed by its noun (the naked-numbers guard). Live counts;
+        // "—" while loading/error or on the Follow-ups placeholder view (AC-M2).
+        // onboard (2026-07-28): PIC vs Supervisor and what a saved view IS are the two things
+        // new leads reliably ask about this surface; neither was explained anywhere in the app.
+        // The tip is a SIBLING of the count line, never inside it — nesting it made the "?"
+        // glyph part of `tasks-count-line`'s textContent, so the meta read "? 2 open · 3 total".
+        // Tailwind utilities, not a new class: `.ch-meta-line`'s own rule is a descendant
+        // selector (`.content-header .ch-meta-line`), so it survives this extra wrapper, and
+        // the shell stylesheet that owns it stays untouched.
+        <span className="flex items-center gap-2">
+          <HelpTip label={t('tasks.help')} />
+          <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
+          {stats === null || followupsView
+            ? '—'
+            : [
+                t('tasks.meta.openCount', { count: stats.open }),
+                t('tasks.meta.totalCount', { count: stats.total }),
+              ].join(' · ')}
+          </span>
+        </span>
+      }
+    >
+      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
+        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+          <TaskCollectionRuntimeProvider value={runtime}>
+            <RecordCollectionSurface
+              controller={controller}
+              resultHeader={{
+                collectionLabel: t('tasks.title'),
+                viewLabel: viewLabel(query.view, t),
+                // DO-6: the Follow-ups view never shows the task-count — null renders the honest
+                // "—" placeholder instead of mislabeling tasks as follow-up scope.
+                count: stats === null || followupsView ? null : stats.total,
+              }}
+              controls={controls}
+              empty={{
+                title: emptyTitle,
+                copy: emptyCopy,
+                create: query.view === 'followups' && SHOW_FOLLOWUPS
+                  ? <FollowUpQueueEmbed />
+                  : <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>,
+              }}
+              filteredEmpty={{
+                title: t('tasks.empty.filteredTitle'),
+                copy: t('tasks.empty.filteredCopy'),
+                clear: onClearFilters,
+                create: <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>,
+              }}
+              error={{ message: t('tasks.error.load'), retry }}
+              loadingLabel={t('tasks.loading')}
+            />
+            {/* The due-runs list renders AFTER the surface (table stays first content) and, unlike
+                the presentation, on EVERY state — a capable viewer with due work but zero tasks yet
+                must still be able to expand and start a run. */}
+            <DueRunsList
+              due={dueRuns.due}
+              expanded={dueRuns.expanded}
+              startingKey={dueRuns.startingKey}
+              startError={dueRuns.startError}
+              onStart={dueRuns.handleStart}
+            />
+          </TaskCollectionRuntimeProvider>
         </section>
         {drawerOpen && drawerSlot}
+        {/* One physical host grammar for Task records. The collection owns ?record= query state;
+            OverlayHostSlot owns panel geometry, focus, Back, Escape, and canonical promotion. The
+            ?record= query is dropped by the session-tracking effect above whenever the host session
+            closes (explicit close or a browser POP), so no onClose override is needed here. */}
+        <OverlayHostSlot owner="tasks" />
       </div>
-    </>
+    </PageFamilyFrame>
   )
 }

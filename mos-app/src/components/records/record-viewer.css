@@ -1,0 +1,464 @@
+/* RecordViewer + RecordField styles (V3 record-document redesign).
+ * A record READS AS A CALM DOCUMENT (the E7 anatomy): one identity block, then quiet
+ * label-left / value-right rows whose values are prose, entity chips, or a status pill.
+ * Editing is value-first — the value is an activation target that swaps in the existing
+ * control. Interactive targets meet the 44px keyboard/touch floor (NFR-V3-006); the phone
+ * regime is a full-width stack with no horizontal overflow. Tokens are the adopted set. */
+
+/* ── Record kv type scale (owner-eyes item 17) ─────────────────────────────────────────────
+   The kv block uses EXACTLY three sizes, declared once here so no accidental size can creep in:
+   ONE label size (also the section overline), ONE value size (plain text · entity chip · status
+   pill all share it), and the label column width (item 4 — a calm ~148px, not a spreadsheet slab).
+   typeset: wired to the ramp's own `label`/`control` tokens (the "future token swap" this
+   comment was already asking for) — same rendered values (12px / 13.5px), no longer a
+   parallel local scale that happens to match by coincidence. */
+.record-viewer {
+  --rec-kv-label-size: var(--font-size-label);
+  --rec-kv-value-size: var(--font-size-control);
+  --rec-kv-label-w: 148px;
+}
+
+/* ── Field: a label-left / value-right document row (E7 kv anatomy) ──────────────────────── */
+.record-field {
+  display: grid;
+  grid-template-columns: var(--rec-kv-label-w, 148px) minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+.record-field__label {
+  padding-top: 11px;
+  font-size: var(--rec-kv-label-size, 12px);
+  font-weight: 600;
+  color: var(--muted-foreground);
+  line-height: 1.3;
+}
+
+.record-field__value-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The value activation target — quiet by default, a pencil + soft tint on hover/focus-visible.
+   The −9px inline-start margin (owner-eyes item 16) cancels the button's own left inset (1px border
+   + 8px padding) so the editable value's TEXT lands on the SAME vertical line as a read-only value
+   (which has no button), instead of sitting 9px further right — one value-column line for every row,
+   and a consistent 16px label→value gap. The hover/focus box outdents into the (empty) column gap. */
+.record-field__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: start;
+  max-width: 100%;
+  min-height: 44px;
+  margin: 0 0 0 -9px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  font: inherit;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.record-field__edit:hover {
+  background: var(--muted);
+  border-color: var(--border);
+}
+
+.record-field__edit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Desktop fine-pointer density — the E7 kv rhythm (~34-40px per row). The 44px min-height on the
+   RESTING value activation target is a TOUCH floor (pointer:coarse ergonomics), not an NFR-V3-006
+   requirement: NFR-V3-006 guards the EDIT-mode controls (.record-field__control / the shared
+   select / .record-field__retry), which keep their 44px floor unconditionally. A fine pointer
+   (desktop mouse) needs no 44px resting target, so editable rows tighten to E7's rhythm — the
+   editable rows were 52px pitch (44px target + 2px border + 6px gap), past E7's ~40px. Touch/phone
+   (pointer:coarse) keep the 44px resting target. Label + read-only value paddings shift with the
+   target so label↔value stay baseline-aligned. */
+@media (pointer: fine) {
+  .record-field__edit {
+    min-height: 32px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .record-field__label {
+    padding-top: 7px;
+  }
+
+  .record-field--readonly .record-field__value {
+    padding-top: 6px;
+    /* DO-23(a): fine-pointer tier matches the editable 32px target + 2px border. */
+    min-height: 34px;
+  }
+}
+
+.record-field__edit-affordance {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+
+.record-field__edit:hover .record-field__edit-affordance,
+.record-field__edit:focus-visible .record-field__edit-affordance {
+  opacity: 1;
+}
+
+/* Value renderings: prose · entity chip · status pill — all ONE size (item 17). */
+.record-field__value {
+  min-width: 0;
+  font-size: var(--rec-kv-value-size, 13.5px);
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.record-field--readonly .record-field__value {
+  padding-top: 9px;
+  /* DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — the read-only
+     value floors at the SAME pitch as the editable activation target (44px + 2px border), so a
+     read-only viewer (e.g. Kitchen persona) sees the same document cadence as an editor. */
+  min-height: 46px;
+}
+
+/* F4 fix: an unpopulated relation row (the Task's Project/Process or Objective, both real
+ * assignment controls — J07's "optional parent/source links") reads as quiet provenance
+ * instead of competing on equal visual footing with populated fields. Same layout, same
+ * edit affordance — only the placeholder em dash goes muted. Scoped to the Task record's
+ * own relation keys so no other record kind's fields are touched. */
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='projectProcess'][data-empty='true'] .record-field__value,
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='objective'][data-empty='true'] .record-field__value {
+  color: var(--muted-foreground);
+}
+
+/* Entity chip. −9px inline-start margin (item 16) cancels the chip's own left inset (1px border +
+   8px padding) so the chip's TEXT aligns on the value-column line with plain-text and pill values;
+   font-size matches the one value size (item 17), not a smaller accidental step. */
+.record-field__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: -9px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  font-size: var(--rec-kv-value-size, 13.5px);
+  color: var(--foreground);
+}
+
+/* Status pill. −9px inline-start margin (item 16) cancels the pill's 9px left padding so its TEXT
+   aligns on the value-column line; font-size matches the one value size (item 17). */
+.record-field__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  margin-inline-start: -9px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: var(--rec-kv-value-size, 13.5px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.record-field__pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  flex: none;
+}
+
+.record-field__pill[data-status='Open'] { color: var(--warning-foreground); }
+.record-field__pill[data-status='In Progress'] { color: var(--status-open-text); }
+.record-field__pill[data-status='Blocked'] { color: var(--status-lost-text); }
+.record-field__pill[data-status='Done'] { color: var(--status-won-text); }
+
+/* Read-only provenance note (E7's "· Inherited from parent work" register). */
+.record-field__reason {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+/* ── Field: edit mode — the existing controls (unchanged 44px floor / NFR-V3-006) ───────── */
+.record-field__control {
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+}
+
+.record-field__control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.record-field__control[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.record-field__control--textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+/* The shared Select primitive owns its chrome; raise its field to the 44px floor
+ * inside a record field (NFR-V3-006). */
+.record-field__select-wrap {
+  min-width: 0;
+  width: 100%;
+}
+
+.record-field__select .mk-select__field {
+  min-height: 44px;
+}
+
+/* F2 fix: same 44px-floor override as the Select primitive above, for the DateField
+ * primitive's date control (record-field.tsx's 'date' control branch). */
+.record-field__date {
+  width: 100%;
+}
+
+.record-field__date .mk-date__box {
+  min-height: 44px;
+}
+
+/* Reserve feedback height only once there is feedback to show (saving/saved/error) — an
+ * unconditional reserve here was inflating EVERY editable row by 18px at rest (record row
+ * pitch 64px → a ~70px F2 gap once the section's 6px row gap is added), well past the 44px
+ * touch floor the row actually needs. Idle rows (":empty", no status children) collapse to 0
+ * so the document reads at E7's tight kv rhythm; the moment a save starts/settles the div
+ * gains a child and reclaims its height, so there is still no jump mid-edit. */
+.record-field__feedback:empty {
+  min-height: 0;
+}
+
+.record-field__feedback {
+  min-height: 18px;
+}
+
+.record-field__status {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+.record-field__status--ok {
+  color: var(--primary);
+}
+
+.record-field__error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-label);
+  /* I4: error TEXT at small size uses the AA-darkened red, never base --destructive
+     (3.82:1 on cream at 12px — the axe finding from the record-field stories). */
+  color: var(--field-error-text);
+}
+
+.record-field__retry {
+  min-height: 44px;
+}
+
+/* ── RecordViewer shell ─────────────────────────────────────────────────────────────────── */
+.record-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  background: var(--card);
+}
+
+/* ── Page-mode document measure — the ONE shared record-page grammar (Task + Signal) ─────────
+   A record opened as its OWN PAGE (mode="page") reads as a centered DOCUMENT at a comfortable
+   reading measure, NOT stretched to the viewport. This lives on the shared RecordViewer so BOTH
+   the Task record page and the Signal record page inherit the SAME measure from one seam —
+   neither surface may re-derive it per-tenant (the width fix that landed on Task but not Signal
+   was exactly that kind of one-surface drift; guard-record-page-measure.css.test.ts now pins both).
+   Panel/drawer mode (the in-list split) fills its host instead, so this is scoped to --page.
+   The 820px column cap is the E7 renderRecordPage measure; prose VALUES additionally cap at a
+   ~72ch reading length so a long description never runs the full column width (impeccable
+   line-length rule). Task's own .record-doc CARD (border/shadow/radius) stays surface-specific —
+   only the shared MEASURE lives here. */
+.record-viewer--page {
+  max-width: 820px;
+  margin-inline: auto;
+}
+
+.record-viewer--page .record-field__value {
+  max-width: 72ch;
+}
+
+/* E7 record anatomy: one identity block, then quiet typed sections. The live Task and Signal
+ * tenants may differ in fields/content, but never in the title/type/section rhythm. */
+.record-viewer__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.record-viewer__eyebrow,
+.record-viewer__type {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.record-viewer__title {
+  margin: 2px 0 0;
+  color: var(--foreground);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.record-viewer__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Section header: a quiet overline (item 4) — uppercase, muted, NO full-width gray band fill,
+   sized to the one label size (item 17). */
+.record-viewer__section-title {
+  margin: 0;
+  font-size: var(--rec-kv-label-size, 12px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Document rows stack vertically (the row itself is the label/value grid). */
+.record-viewer__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.record-viewer__relations,
+.record-viewer__activity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record-viewer__relation {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.record-viewer__activity-item {
+  font-size: var(--font-size-mono);
+  color: var(--foreground);
+}
+
+.record-viewer__activity-detail {
+  color: var(--muted-foreground);
+}
+
+.record-viewer__activity-time {
+  margin-left: 6px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+.record-viewer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.record-viewer__section[data-viewer-region='actions'] {
+  border-bottom: 0;
+}
+
+.record-viewer__actions .btn {
+  min-height: 44px;
+}
+
+.record-viewer__permission-note {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+/* The quiet inline-edit hint (E7 table footnote parity, adapted to our record fields' value-first
+   grammar). Small, muted, one line; shown only when the record is editable. */
+.record-viewer__edit-hint {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 767.98px) {
+  .record-viewer__identity,
+  .record-viewer__section {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  /* Phone: the label/value row stacks to a single column. */
+  .record-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .record-field__label {
+    padding-top: 0;
+  }
+
+  .record-field--readonly .record-field__value {
+    padding-top: 0;
+  }
+
+  /* The value-column alignment outdents (item 16) exist only to line values up against a fixed
+     LABEL column. Phone stacks label-over-value in one column, so there is no such column line —
+     drop the outdents or the value text would jut left of its own label. */
+  .record-field__edit,
+  .record-field__chip,
+  .record-field__pill {
+    margin-inline-start: 0;
+  }
+}

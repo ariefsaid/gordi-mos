@@ -38,6 +38,17 @@ beforeEach(() => {
   vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true })
 })
 
+describe('PricingPage — head (r5 F-9)', () => {
+  it('r5 F-9: the head speaks the Pricing-specific job sentence — never the shared job.money', async () => {
+    vi.mocked(listBudgets).mockResolvedValue([])
+    renderPage()
+    await screen.findByText(/no budgets captured yet/i)
+    const head = screen.getByTestId('page-head')
+    expect(head.textContent).toContain('Check a candidate price against certified costs before it ships.')
+    expect(head.textContent).not.toContain('Trust the financial figures')
+  })
+})
+
 describe('PricingPage — states', () => {
   it('loading: shows a busy skeleton', () => {
     vi.mocked(listBudgets).mockReturnValue(new Promise(() => {}))
@@ -81,8 +92,10 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     await screen.findByText(/budget scenario/i)
     fireEvent.change(screen.getByLabelText(/candidate price \(rp\)/i), { target: { value: '30000' } })
     // margin = 30000 - 9000 = 21000; margin% = 70%
+    // Cohesion-debt 2026-07-19, item #1: money renders id-ID DOTS (Rp 21.000) via
+    // the one canonical formatIDR (lib/format/money) — no more en-US commas.
     await waitFor(() => {
-      expect(screen.getByTestId('pricing-result')).toHaveTextContent('Rp 21,000')
+      expect(screen.getByTestId('pricing-result')).toHaveTextContent('Rp 21.000')
       expect(screen.getByTestId('pricing-result')).toHaveTextContent('70%')
     })
   })
@@ -96,9 +109,16 @@ describe('PricingPage — AC-PB-005: read-only margin check', () => {
     expect(screen.queryByRole('button', { name: /save|set price|publish/i })).not.toBeInTheDocument()
   })
 
+  it('uses the shared E7 text-field primitive for the candidate price', async () => {
+    renderPage()
+    const input = await screen.findByLabelText(/candidate price \(rp\)/i)
+    expect(input).toHaveClass('mk-textinput__field')
+    expect(input.closest('.mk-textinput')).toHaveClass('mk-textinput--full')
+  })
+
   it('shows the budgeted COGS + basis as-of the LINKED budget (the certified number)', async () => {
     renderPage()
-    expect(await screen.findByText(/Rp 9,000/)).toBeInTheDocument()
+    expect(await screen.findByText(/Rp 9.000/)).toBeInTheDocument()
     expect(screen.getByText(/basis as of/i)).toBeInTheDocument()
   })
 })
@@ -110,7 +130,7 @@ describe('PricingPage — AC-PB-006: fail-loud freshness warning', () => {
   // a day and no assertion could tell. A fail-loud warning that fires on everything is not fail-loud.
   it('AC-PB-006: renders NO freshness warning when the basis is fresh and certified', async () => {
     renderPage()
-    await screen.findByText(/Rp 9,000/)
+    await screen.findByText(/Rp 9.000/)
     expect(screen.queryByTestId('pricing-freshness-warning')).not.toBeInTheDocument()
   })
 

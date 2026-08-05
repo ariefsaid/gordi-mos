@@ -1,0 +1,44 @@
+/* DueRunsTrigger + DueRunsList (design fix wave item 1) — a thin due-occurrence disclosure over the
+   DS tokens (DESIGN.md). The trigger is a compact toggle rendered inline in the Tasks toolbar
+   (F5 design fix, 2026-07-22 — no separate row/band of its own); the list only renders on demand,
+   AFTER the Tasks table, so it never floods/buries the table (design-review step-6 CRITICAL). */
+.due-runs-trigger {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 10px;
+  border: 1px solid var(--input); border-radius: var(--radius-sm);
+  background: var(--background); color: var(--foreground);
+  font: inherit; font-size: var(--font-size-body); font-weight: 600; cursor: pointer;
+}
+.due-runs-trigger:hover { background: var(--accent); }
+.due-runs-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.due-runs-chev { color: var(--muted-foreground); transition: transform var(--dur-med) ease; }
+/* IXD-1: the ONE shared Chevron, rotated −90° when collapsed (down = expanded) — mirrors the
+   group-header caret convention (group-header-row.tsx). */
+.due-runs-chev-collapsed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .due-runs-chev { transition: none; }
+}
+
+.due-runs-panel {
+  padding: 12px; border-top: 1px solid var(--border);
+}
+.due-runs-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+}
+.due-runs-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.due-runs-row:last-child { border-bottom: none; }
+.due-runs-row-labels { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.due-runs-row-process { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-runs-row-team { font-size: var(--font-size-mono); color: var(--muted-foreground); }
+
+/* Design fix wave item 5 — the composed "Start · <process name>" button label clamps a long
+   process name instead of growing the row unbounded. */
+.due-runs-start-btn { max-width: 220px; flex: none; }
+.due-runs-start-label {
+  display: inline-block; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

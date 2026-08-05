@@ -10,16 +10,16 @@
 // keyboard-cursor scroll element stay co-located here so the windowing seam is
 // not split across files. Extracted from TasksWorkspace (conventions §1).
 import type { ReactNode, Ref } from 'react'
+import type { To } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
-import { RowCheckbox } from './row-checkbox'
 import type { RenderGroup } from './tasks-grouping'
-import type { OwnerCellRaciMember } from './owner-cell'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
+import { useT } from '@/i18n/use-t'
 
 type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
 
@@ -30,25 +30,18 @@ export type FlatRow =
   | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
-function SkeletonRow({ condensed }: { condensed: boolean }) {
+// Wave 2c: matches the 6-column priority row (Task + Status + PIC + Supervisor
+// + Due + menu). Both desktop modes share the priority column set.
+function SkeletonRow() {
   return (
     <tr>
-      {/* leading checkbox col (empty - hover-reveal is irrelevant while loading) */}
-      <td className="sk-cell td-cb" />
       <td className="sk-cell"><div className="sk" style={{ width: '42%' }} /></td>
       <td className="sk-cell"><div className="sk pill" /></td>
       <td className="sk-cell"><div className="sk av" /></td>
-      {!condensed && (
-        <td className="sk-cell"><div className="sk" style={{ width: 60 }} /></td>
-      )}
+      <td className="sk-cell"><div className="sk" style={{ width: 60 }} /></td>
       <td className="sk-cell" style={{ textAlign: 'right' }}>
         <div className="sk" style={{ width: 56, marginLeft: 'auto' }} />
       </td>
-      {!condensed && (
-        <td className="sk-cell" style={{ textAlign: 'right' }}>
-          <div className="sk" style={{ width: 28, marginLeft: 'auto' }} />
-        </td>
-      )}
       {/* trailing row-menu col (empty) */}
       <td className="sk-cell td-menu" />
     </tr>
@@ -62,7 +55,6 @@ export type TasksTableBodyProps = {
   /** Leaf (non-header) rows currently visible — drives empty/populated branching. */
   leafTasks: TaskListRow[]
   hasActiveFilter: boolean
-  condensed: boolean
   isDesktop: boolean
   /** Retry the failed load (error state). */
   onRetry: () => void
@@ -79,9 +71,6 @@ export type TasksTableBodyProps = {
   ariaSort: (col: SortCol) => 'ascending' | 'descending' | 'none'
   /** The inline sort-direction affordance for the active column (else null). */
   sortIndicator: (col: SortCol) => ReactNode
-  allChecked: boolean
-  someChecked: boolean
-  onToggleSelectAll: () => void
 
   // ── Body row windowing + rendering ────────────────────────────────────────
   flatRows: FlatRow[]
@@ -90,9 +79,12 @@ export type TasksTableBodyProps = {
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>
   renderRow: (task: TaskListRow, leafIndex: number) => ReactNode
   renderGroupHeader: (group: RenderGroup) => ReactNode
+  /** Shared RecordViewer opener for mobile cards. */
+  onOpenTask: (taskId: string) => void
 
   // ── Mobile grouped cards ──────────────────────────────────────────────────
   groups: RenderGroup[]
+  recordSearch: string
   now: Date
   buMap: Map<string, string>
   personMap: Map<string, string>
@@ -100,37 +92,45 @@ export type TasksTableBodyProps = {
   toggleCollapsed: (key: string) => void
   openAddTask: (prefillParam: string) => void
   setOverdueOnly: (next: boolean) => void
-  buildOthers: (task: TaskListRow) => OwnerCellRaciMember[]
   /** FR-234: resolved work-line names (id → name). */
   workLineMap: Map<string, string>
   /** FR-234: resolved objective names (id → name). */
   objectiveMap: Map<string, string>
   /** FR-236: workload summary for the caption (workline groupBy + single person). */
   workloadSummary: WorkloadSummary | null
+  createHref: To
+  /** Design fix wave item 3 — threaded through to MobileGroupedCards' occurrence-group assign
+   * affordance (Rule 9 parity with desktop's GroupHeaderRow). Undefined when the viewer cannot
+   * resolve pending items. */
+  onAssignPending?: (runId: string) => void
+  /** Design fix wave item 4 — threaded through to MobileGroupedCards' "via <role name>"
+   * generated-ownership line. */
+  provenanceByTaskDefId?: Map<string, string>
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
+  const t = useT()
   const {
-    loading, error, leafTasks, hasActiveFilter, condensed, isDesktop,
+    loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
     sortCol, onSort, ariaSort, sortIndicator,
-    allChecked, someChecked, onToggleSelectAll,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
-    groups, now, buMap, personMap, isCollapsed, toggleCollapsed,
-    openAddTask, setOverdueOnly, buildOthers,
-    workLineMap, objectiveMap, workloadSummary,
+    onOpenTask,
+    groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
+    openAddTask, setOverdueOnly,
+    workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
   } = props
 
   if (loading) {
     return (
-      <div aria-busy="true" aria-label="Loading tasks">
-        <span className="sr-only" role="status">Loading tasks</span>
+      <div aria-busy="true" aria-label={t('tasks.loading')}>
+        <span className="sr-only" role="status">{t('tasks.loading')}</span>
         {isDesktop ? (
-          <table className="tasks-table" aria-label="Loading tasks">
+          <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.loading')}>
             <tbody>
-              <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
-              <SkeletonRow condensed={condensed} /><SkeletonRow condensed={condensed} />
-              <SkeletonRow condensed={condensed} />
+              <SkeletonRow /><SkeletonRow />
+              <SkeletonRow /><SkeletonRow />
+              <SkeletonRow />
             </tbody>
           </table>
         ) : (
@@ -145,15 +145,15 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   }
 
   if (error) {
-    return <ErrorState message="Couldn't load tasks" onRetry={onRetry} />
+    return <ErrorState message={t('tasks.error.load')} onRetry={onRetry} />
   }
 
   if (leafTasks.length === 0 && hasActiveFilter) {
     // No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3)
     return (
-      <EmptyState title="No tasks match these filters" copy="Clear filters to see all tasks.">
-        <button type="button" className="btn btn-outline" onClick={onClearFilters}>Clear filters</button>
-        <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+      <EmptyState title={t('tasks.empty.filteredTitle')} copy={t('tasks.empty.filteredCopy')}>
+        <button type="button" className="btn btn-outline" onClick={onClearFilters}>{t('tasks.empty.clearFilters')}</button>
+        <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
       </EmptyState>
     )
   }
@@ -162,7 +162,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
-        <Link to="/tasks/new" className="btn btn-primary">+ New task</Link>
+        <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
       </EmptyState>
     )
   }
@@ -171,6 +171,8 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     return (
       <MobileGroupedCards
         groups={groups}
+        recordSearch={recordSearch}
+        onOpenTask={onOpenTask}
         now={now}
         buMap={buMap}
         personMap={personMap}
@@ -178,9 +180,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         toggleCollapsed={toggleCollapsed}
         openAddTask={openAddTask}
         setOverdueOnly={setOverdueOnly}
-        buildOthers={buildOthers}
         workLineMap={workLineMap}
         objectiveMap={objectiveMap}
+        onAssignPending={onAssignPending}
+        provenanceByTaskDefId={provenanceByTaskDefId}
       />
     )
   }
@@ -191,61 +194,48 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
       {captionEl}
-      <table className="tasks-table" aria-label="Tasks">
+      <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.title')}>
         <thead>
           <tr>
-            {/* PR-2 AC-T07 — select-all checkbox header. aria-checked="mixed" when partial. */}
-            <th scope="col" className="th-cell th-cb">
-              <RowCheckbox
-                checked={allChecked}
-                indeterminate={someChecked && !allChecked}
-                onChange={onToggleSelectAll}
-                label="Select all tasks"
-              />
+            <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('task')}>
+                {t('tasks.label.task')}{sortIndicator('task')}
+              </button>
             </th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('task')} onClick={() => onSort('task')}>
-              Task{sortIndicator('task')}
+            <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('status')}>
+                {t('tasks.filter.status')}{sortIndicator('status')}
+              </button>
             </th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('status')} onClick={() => onSort('status')}>
-              Status{sortIndicator('status')}
+            <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`} aria-sort={ariaSort('owner')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('owner')}>
+                {t('tasks.pic')}{sortIndicator('owner')}
+              </button>
             </th>
-            <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('owner')} onClick={() => onSort('owner')}>
-              Owner (R){sortIndicator('owner')}
+            <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
+            {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
+                inside the first paint. Project/Process, Objective, Team, Source, Activity
+                moved to the drawer (OD-62). */}
+            <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
+              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
+                {t('tasks.dueLabel')}{sortIndicator('due')}
+              </button>
             </th>
-            {/* FR-234: Work-line + Objective columns — shown in non-condensed view */}
-            {!condensed && (
-              <th scope="col" className="th-cell">Project/Process</th>
-            )}
-            {!condensed && (
-              <th scope="col" className="th-cell">Objective</th>
-            )}
-            {!condensed && (
-              <th scope="col" className="th-cell">Business unit</th>
-            )}
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`}
-              aria-sort={ariaSort('due')} onClick={() => onSort('due')}>
-              Due{sortIndicator('due')}
-            </th>
-            {!condensed && (
-              <th scope="col" className={`th-cell th-sortable${sortCol === 'activity' ? ' th-sorted' : ''}`}
-                aria-sort={ariaSort('activity')} onClick={() => onSort('activity')}>
-                Last activity{sortIndicator('activity')}
-              </th>
-            )}
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
-            <th scope="col" className="th-cell th-menu" aria-label="Row actions" />
+            <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />
           </tr>
         </thead>
         {virtualize ? (
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            // condensed = 6 cols (cb + task + status + owner + due + menu)
-            // non-condensed = 10 cols (+ work-line + objective + bu + activity)
-            const colSpan = condensed ? 6 : 10
+            // Wave 2c: both desktop modes share the 6-column priority set
+            // (Task + Status + PIC + Supervisor + Due + menu).
+            const colSpan = 6
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (
@@ -270,6 +260,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           </tbody>
         )}
       </table>
+      {/* Quiet E7-style inline-edit hint (matches the F2 activation the row wires). Sits under the
+          table, muted, so the affordance is discoverable without shouting. */}
+      <p className="tasks-inline-edit-hint">{t('tasks.inlineEdit.hint')}</p>
     </div>
   )
 }

@@ -7,9 +7,13 @@ describe('can', () => {
     expect(can(['admin'], 'workline.manage')).toBe(true)
   })
 
-  it('grants ops_lead only workline.manage', () => {
+  // OD-V4-1 (supabase/migrations/20260805000006_mos_access_control.sql): ops_lead's
+  // shared.role_capabilities seed already grants objective.manage — write at lead level, not
+  // admin-only. This client mirror was stale relative to that DB-authoritative seed; the old
+  // "ops_lead only workline.manage" assertion pinned the STALE mirror, not the shipped contract.
+  it('grants ops_lead workline.manage and objective.manage (OD-V4-1)', () => {
     expect(can(['ops_lead'], 'workline.manage')).toBe(true)
-    expect(can(['ops_lead'], 'objective.manage')).toBe(false)
+    expect(can(['ops_lead'], 'objective.manage')).toBe(true)
   })
 
   it('denies member capabilities by default', () => {
@@ -25,6 +29,21 @@ describe('can', () => {
   it('uses union semantics across multiple roles', () => {
     expect(can(['ops_lead', 'admin'], 'objective.manage')).toBe(true)
     expect(can(['ops_lead', 'admin'], 'workline.manage')).toBe(true)
+  })
+
+  // Ported for #192 (Tasks): the due-runs banner gates "Start" on process.start. The seed
+  // (20260805000006_mos_access_control.sql) grants it to member/ops_lead/admin — member's grant is
+  // deliberately broad here (OD-REDESIGN-71iii); the server's can_start_process_for_team() pairs it
+  // with a Team-membership check, so a member can only start their OWN team's run. process.adopt
+  // stays admin-only.
+  it('grants process.start to member/ops_lead/admin, process.adopt to admin only', () => {
+    expect(can(['member'], 'process.start')).toBe(true)
+    expect(can(['ops_lead'], 'process.start')).toBe(true)
+    expect(can(['admin'], 'process.start')).toBe(true)
+    expect(can(['finance'], 'process.start')).toBe(false)
+    expect(can(['admin'], 'process.adopt')).toBe(true)
+    expect(can(['ops_lead'], 'process.adopt')).toBe(false)
+    expect(can(['member'], 'process.adopt')).toBe(false)
   })
 })
 

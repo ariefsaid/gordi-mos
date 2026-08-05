@@ -30,6 +30,11 @@
   --status-open-text:   color(display-p3 0.1001 0.0765 0.4201); /* hsl(221 75% 38%) */
   --status-won-text:    color(display-p3 0.0704 0.1496 0.0619); /* hsl(142 64% 30%) */
   --status-lost-text:   color(display-p3 0.2796 0.1396 0.0158); /* hsl(0 72% 45%)   */
+  /* Ported for #192 (Tasks): I4 field-error text — the alias TaskSurface/RecordViewer reference.
+     Defined once (not per-theme): var() re-resolves --status-lost-text live per element, so a
+     .dark subtree that overrides --status-lost-text below still resolves the right red through
+     this indirection without redefining --field-error-text itself. */
+  --field-error-text:   var(--status-lost-text);
   --status-violet-text: color(display-p3 0.1372 0.0724 0.4282); /* hsl(262 60% 42%) */
   /* SYS-4 (v4): the theme-aware "blue text on a blue tint" pair — the active rail pill (The One
      Blue on --ds-color-blue3). In LIGHT this is the mid-blue --ds-color-blue verbatim (the tint is
@@ -242,6 +247,11 @@
   --input:                 var(--border-strong);
   --ring:                  var(--ds-color-blue);
   --violet:                var(--ds-color-violet);
+  /* Ported for #192 (Tasks) — shared LIST-ROW rhythm (v4 cohesion-debt 2026-07-19, item #4):
+     ONE divider colour for every record-collection row (Tasks table today; Signals' feed rows
+     share it when #193 ports), referenced by collection-grammar.css / record-collection.css /
+     TasksWorkspace.css. */
+  --row-divider:           color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 @layer base {

@@ -14,6 +14,8 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
+vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
+vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
   const mod = await importOriginal<typeof import('react-router-dom')>()
@@ -22,6 +24,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 import { createTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 // Re-homed from the deleted TaskCreate host onto the LIVE create surface (TaskSurface
 // create mode, width="full" — identical to what the host rendered). AC-080 (prefills) +
 // AC-081 (validation) now run against the real component.
@@ -30,13 +34,15 @@ import { TaskSurface } from '@/components/tasks/task-surface'
 const mockCreateTask = vi.mocked(createTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListObjectives = vi.mocked(listObjectives)
+const mockListWorkLines = vi.mocked(listWorkLines)
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 const VIEWER_ID = 'viewer-person-id'
 
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Cahya Cafe',
-  email: 'cahya@example.test', must_change_password: false, archived_at: null,
+  email: 'cahya@gordi.id', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 // Primary-role BU = bu-1 (earliest assigned role on bu-1)
@@ -76,65 +82,90 @@ beforeEach(() => {
   vi.resetAllMocks()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  mockListObjectives.mockResolvedValue([])
+  mockListWorkLines.mockResolvedValue([])
   mockCreateTask.mockResolvedValue('new-task-id')
   mockNavigate.mockReset()
 })
 
 // ── AC-080: prefills on open ───────────────────────────────────────────────
 describe('AC-080 — create form prefills', () => {
-  it('R and A pre-fill to creator; BU defaults to primary-role BU, all editable', async () => {
+  it('PIC pre-fills to the creator, Supervisor starts empty (required), Team defaults to primary-role Team — all editable', async () => {
     renderCreate()
 
     await waitFor(() => {
-      // BU defaults to the creator's primary-role BU (bu-1 = "Cafe Operations")
-      const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
-      expect(buSelect.value).toBe('bu-1')
+      // Team defaults to the creator's primary-role BU (bu-1 = "Cafe Operations")
+      const teamSelect = screen.getByLabelText(/^team$/i) as HTMLSelectElement
+      expect(teamSelect.value).toBe('bu-1')
     })
 
-    // R and A selects are present and pre-filled to creator
-    const rSelect = screen.getByLabelText(/^responsible \(r\)/i) as HTMLSelectElement
-    expect(rSelect.value).toBe(VIEWER_ID)
+    // PIC pre-fills to the creator.
+    const picSelect = screen.getByLabelText(/^pic$/i) as HTMLSelectElement
+    expect(picSelect.value).toBe(VIEWER_ID)
 
-    const aSelect = screen.getByLabelText(/^accountable \(a\)/i) as HTMLSelectElement
-    expect(aSelect.value).toBe(VIEWER_ID)
+    // Supervisor starts EMPTY — a deliberate v4 product decision (OD-REDESIGN-3/14/41,
+    // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct
+    // accountable roles, and auto-collapsing Supervisor to the creator/PIC defeats that model.
+    // CONTEXT.md's real resolution order (PIC's manager, etc.) needs a directory lookup this
+    // surface doesn't have, so Supervisor is a required, explicit choice instead of a guess.
+    const supervisorSelect = screen.getByLabelText(/^supervisor$/i) as HTMLSelectElement
+    expect(supervisorSelect.value).toBe('')
 
-    // BU field is editable (not disabled)
-    const buSelect = screen.getByLabelText(/business unit/i)
-    expect(buSelect).not.toBeDisabled()
+    // Team field is editable (not disabled)
+    const teamSelect = screen.getByLabelText(/^team$/i)
+    expect(teamSelect).not.toBeDisabled()
 
-    // R and A fields are also not disabled
-    expect(rSelect).not.toBeDisabled()
-    expect(aSelect).not.toBeDisabled()
+    // PIC and Supervisor fields are also not disabled
+    expect(picSelect).not.toBeDisabled()
+    expect(supervisorSelect).not.toBeDisabled()
   })
 
-  it('AC-080 — R and A are changeable; chosen ids reach createTask', async () => {
+  it('AC-080 — PIC and Supervisor are changeable; chosen ids reach createTask', async () => {
     renderCreate()
 
     // Wait for directory to load
-    await waitFor(() => screen.getByLabelText(/^responsible \(r\)/i))
+    await waitFor(() => screen.getByLabelText(/^pic$/i))
 
-    // Change R to "Other Person"
-    const rSelect = screen.getByLabelText(/^responsible \(r\)/i) as HTMLSelectElement
-    fireEvent.change(rSelect, { target: { value: 'other-id' } })
-    expect(rSelect.value).toBe('other-id')
+    // Change PIC to "Other Person"
+    const picSelect = screen.getByLabelText(/^pic$/i) as HTMLSelectElement
+    fireEvent.change(picSelect, { target: { value: 'other-id' } })
+    expect(picSelect.value).toBe('other-id')
 
-    // Change A to "Other Person" as well (A may equal R — no constraint)
-    const aSelect = screen.getByLabelText(/^accountable \(a\)/i) as HTMLSelectElement
-    fireEvent.change(aSelect, { target: { value: 'other-id' } })
-    expect(aSelect.value).toBe('other-id')
+    // Change Supervisor to "Other Person" as well (may equal PIC — no constraint)
+    const supervisorSelect = screen.getByLabelText(/^supervisor$/i) as HTMLSelectElement
+    fireEvent.change(supervisorSelect, { target: { value: 'other-id' } })
+    expect(supervisorSelect.value).toBe('other-id')
 
     // Submit the form with title filled
-    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with changed R/A' } })
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with changed PIC/Supervisor' } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
 
     await waitFor(() => {
       expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Task with changed R/A',
+        title: 'Task with changed PIC/Supervisor',
         responsiblePersonId: 'other-id',
         accountablePersonId: 'other-id',
         createdBy: VIEWER_ID,
       }))
     })
+  })
+})
+
+// ── F17 (OD-91 #29): optional context pickers behind one "+ Add context" reveal ──
+describe('F17 — create-task context reveal', () => {
+  it('the Objective/Project pickers stay hidden behind "+ Add context"; the reveal shows them', async () => {
+    mockListObjectives.mockResolvedValue([
+      { id: 'obj-1', name: 'Grow retail revenue' } as never,
+    ])
+    renderCreate()
+    // The reveal appears once a context lookup arrives; the Objective picker is NOT shown yet.
+    const reveal = await screen.findByRole('button', { name: /add context/i })
+    expect(screen.queryByLabelText(/objective/i)).not.toBeInTheDocument()
+    // Opening the reveal shows the optional pickers…
+    fireEvent.click(reveal)
+    expect(await screen.findByLabelText(/objective/i)).toBeInTheDocument()
+    // …and the reveal button itself is gone (it stays open once opened).
+    expect(screen.queryByRole('button', { name: /add context/i })).not.toBeInTheDocument()
   })
 })
 
@@ -154,8 +185,26 @@ describe('AC-081 — create form validation', () => {
     expect(mockCreateTask).not.toHaveBeenCalled()
   })
 
-  it('blocks submit when BU is cleared; shows field-level message', async () => {
-    // Use a state with NO roles (so primaryRoleBU = '') to ensure BU starts empty
+  // AUTHORED HERE (#192, DD-WAY-21): v4 made Supervisor a required field (task-surface.tsx
+  // accountablePersonId comment, OD-REDESIGN-3/14/41 — see AC-080) but shipped no test proving
+  // the submit-blocking half of that contract, only the "starts empty" half. Title and Team both
+  // have this coverage already; Supervisor didn't.
+  it('blocks submit when Supervisor is left empty; shows field-level message; createTask NOT called', async () => {
+    renderCreate()
+    await waitFor(() => screen.getByLabelText(/title/i))
+
+    // Title and Team are both satisfied (BU pre-fills); only Supervisor is missing.
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task missing supervisor' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/supervisor is required/i)).toBeTruthy()
+    })
+    expect(mockCreateTask).not.toHaveBeenCalled()
+  })
+
+  it('blocks submit when Team is cleared; shows field-level message', async () => {
+    // Use a state with NO roles (so primaryRoleBU = '') to ensure Team starts empty
     const noRoleState: AuthState = {
       status: 'authenticated',
       viewer: {
@@ -167,24 +216,26 @@ describe('AC-081 — create form validation', () => {
       signOut: async () => {},
     }
     renderCreate(noRoleState)
-    await waitFor(() => screen.getByLabelText(/business unit/i))
+    await waitFor(() => screen.getByLabelText(/^team$/i))
 
-    // Fill title only; BU left empty (no default with no roles)
+    // Fill title only; Team left empty (no default with no roles)
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'My task' } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/business unit is required/i)).toBeTruthy()
+      expect(screen.getByText(/team is required/i)).toBeTruthy()
     })
     expect(mockCreateTask).not.toHaveBeenCalled()
   })
 
-  it('on valid submit: calls createTask with correct payload and navigates to detail', async () => {
+  it('GAP-6 (OD-91 #11): on valid submit, createTask is called and it returns to the collection with the new row highlighted', async () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
 
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'New Task Alpha' } })
-    // BU already pre-filled to bu-1
+    // BU already pre-filled to bu-1. Supervisor starts empty and is required (see AC-080) —
+    // a valid submit needs it explicitly chosen.
+    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
 
     await waitFor(() => {
@@ -195,7 +246,8 @@ describe('AC-081 — create form validation', () => {
         accountablePersonId: VIEWER_ID,
         createdBy: VIEWER_ID,
       }))
-      expect(mockNavigate).toHaveBeenCalledWith('/tasks/new-task-id')
+      // GAP-6: after-create returns to the collection with ?highlight=<new id> (not the drawer).
+      expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/work/tasks', search: '?highlight=new-task-id' })
     })
   })
 })
