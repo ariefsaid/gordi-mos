@@ -55,7 +55,7 @@ export const SECTIONS: Section[] = [
 /**
  * Café Module sections — Opening (Step 7, RATIFY-7D — the "Start today's opening" home at the
  * exact /cafe path) + 5 screens re-homed from /kitchen/* to /cafe/* (OD-15). Role visibility
- * (Review + Pushes: ops_lead/admin only) is enforced in the rail; all 6 are in this list for
+ * (Review: ops_lead/admin/supervisor · Pushes: ops_lead/admin) is enforced in the rail; all 6 are in this list for
  * breadcrumb resolution regardless of role. Every label flows through the i18n catalog (FR-440)
  * via its labelKey. sectionForPath resolves the exact /cafe path to Opening (not the generic
  * SECTIONS "Café" root entry — CAFE_SECTIONS is scanned first) and picks the most specific
@@ -66,9 +66,12 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: CafeIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: CafeIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: CafeIcon },
-  // `anyOf` matches the ROUTE gate on these two exactly (router.tsx: RequireAccessRole
-  // ops_lead|admin). Same list in both places or the rail offers a link that bounces.
-  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: CafeIcon, anyOf: ['ops_lead', 'admin'] },
+  // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
+  // branches). Same list in both places or the rail offers a link that bounces — or, as #236
+  // shipped it, withholds a link to a surface the person is entitled to.
+  // Review admits the stream supervisor (#236's FR-040 reviewer, wired through by #238);
+  // Pushes is the dispatch surface and stays ops_lead/admin.
+  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: CafeIcon, anyOf: ['ops_lead', 'admin', 'supervisor'] },
   { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: CafeIcon, anyOf: ['ops_lead', 'admin'] },
 ]
 

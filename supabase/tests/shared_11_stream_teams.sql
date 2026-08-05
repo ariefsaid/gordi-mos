@@ -13,7 +13,7 @@
 -- never a stream: it books to its own company and has no production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(29);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -318,20 +318,42 @@ select throws_ok(
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- OD-WAY-49 — the stream is a default, never a wall
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- Originally: the whole slice touches NO policy. Since #236 (FR-040, OD-WAY-48) ONE policy may:
--- the kitchen-log REVIEWER arm consults the row's stream through ops.is_stream_reviewer, which is
--- exactly where the spec puts it — "stream appears in the reviewer predicate only, never in
--- member read/write policies". So the assertion names that one sanctioned policy and still fails
--- the moment the stream leaks into ANY other predicate — a member wall still cannot ship here.
--- (ops_12 proves the member arms of the sanctioned policy are byte-identical to the baseline.)
+-- Originally: the whole slice touches NO policy. Since #236 (FR-040, OD-WAY-48) some policies may:
+-- the spec's rule is "stream appears in the REVIEWER predicate only, never in member read/write
+-- policies". Two assertions enforce that, and the second is the one that carries the meaning:
+--
+--   (1) the ALLOWLIST — which policies name a stream column at all. Named one by one, so a stream
+--       leaking into an unreviewed predicate fails here rather than being absorbed silently.
+--   (2) the RULE — every policy on that list reaches the stream THROUGH ops.is_stream_reviewer or
+--       ops.can_review_stream. That is what makes a new entry principled instead of a rubber
+--       stamp: a policy could join the list only by gating on the reviewer predicate, and a member
+--       wall — `branch_id = <the caller's stream>` — would fail (2) even if somebody added it to (1).
+--
+-- #238 (FR-031) adds the two ops.stream_completeness WRITE policies: a stream's completeness is
+-- confirmed by that stream's supervisor/lead, which is ops.can_review_stream, the same predicate
+-- FR-040 defines and this slice reuses rather than re-derives. Its SELECT policy is deliberately
+-- absent from the list — reading which streams are confirmed is org-wide (OD-WAY-49's posture:
+-- org-wide read, scoped write).
+-- (ops_12 proves the member arms of the kitchen-log policy are byte-identical to the baseline;
+-- ops_14 proves the completeness policies refuse every unauthorised writer.)
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
    where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
   $$, $$ values
-    ('ops.kitchen_logs :: kitchen_logs_update_own_or_reviewer')
+    ('ops.kitchen_logs :: kitchen_logs_update_own_or_reviewer'),
+    ('ops.stream_completeness :: stream_completeness_insert_stream_lead'),
+    ('ops.stream_completeness :: stream_completeness_update_stream_lead')
   $$,
-  'OD-WAY-49: the ONLY policy referencing a stream column is the #236 reviewer arm on kitchen logs — the stream is a capture default, never a member authorization dimension');
+  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm and the #238 completeness write arms — the stream is a capture default, never a member authorization dimension');
+
+select is(
+  (select coalesce(array_agg(schemaname || '.' || policyname order by policyname), '{}')
+     from pg_policies
+    where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
+      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream)'),
+  '{}'::text[],
+  'OD-WAY-49: ...and every one of them reaches the stream through the REVIEWER predicate — no policy compares a stream column to the caller''s own, which is what a member wall would look like');
 
 -- The two substrate tables keep exactly the policy surface they had before this slice: one
 -- org-scoped SELECT each, nothing added, nothing re-authored.

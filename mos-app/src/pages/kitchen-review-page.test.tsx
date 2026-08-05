@@ -59,6 +59,15 @@ import { getPeople } from '@/lib/db/directory'
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
+// #238 (FR-031): the per-stream completeness confirmation is read on every queue load, so it
+// must be mocked here for the same reason listActiveBranches is — un-mocked it hits Supabase and
+// the whole page lands in the error state.
+vi.mock('@/lib/db/stream-completeness', () => ({
+  listStreamCompleteness: vi.fn(),
+  confirmStreamComplete: vi.fn(),
+}))
+import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
+
 import { KitchenReviewPage } from './kitchen-review-page'
 import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
@@ -71,6 +80,8 @@ const mockApprove = vi.mocked(approveKitchenLog)
 const mockReject = vi.mocked(rejectKitchenLog)
 const mockGetPeople = vi.mocked(getPeople)
 const mockBranches = vi.mocked(listActiveBranches)
+const mockCompleteness = vi.mocked(listStreamCompleteness)
+const mockConfirmComplete = vi.mocked(confirmStreamComplete)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -132,6 +143,8 @@ beforeEach(() => {
     { id: 'p1', full_name: 'Budi Santoso' },
     { id: 'p2', full_name: 'Eka' },
   ])
+  // #238: no stream has been confirmed complete unless a test says so.
+  mockCompleteness.mockResolvedValue([])
 })
 
 describe('KitchenReviewPage — role gate (FR-003/044)', () => {
@@ -559,5 +572,102 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
     } finally {
       onLineSpy.mockRestore()
     }
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// #238 — FR-031: the per-stream completeness confirmation, as an AFFORDANCE.
+//
+// The contract this file owns is what RENDERS: which stream it speaks for, what
+// it says in each state, and who is offered the control. Who may actually WRITE
+// one is the server's (ops.can_review_stream) and is owned by pgTAP ops_14 —
+// nothing here is a permission proof, only a display-honesty one.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', () => {
+  const OWN_STREAM = `${BRANCH_ID}|kitchen`
+
+  it('FR-031: an unconfirmed stream reads as a plain gap — no warning, and the lead is offered the control', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
+    expect(group).toHaveTextContent(/item list not confirmed complete yet/i)
+    expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeEnabled()
+    // It gates nothing: the queue's own decision controls are untouched by an unconfirmed list.
+    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+  })
+
+  it('FR-031: a confirmed stream names WHO confirmed it and WHEN, and the control becomes a re-confirmation', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockCompleteness.mockResolvedValue([
+      { branch_id: BRANCH_ID, activity: 'kitchen', confirmed_by: 'p1', confirmed_at: '2026-08-11T02:30:00Z' },
+    ])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
+    // 02:30Z is 09:30 WIB the SAME day — the date shown is the stream's local one.
+    expect(group).toHaveTextContent(/Item list confirmed complete · Budi Santoso · 2026-08-11/)
+    expect(screen.getByRole('button', { name: /confirm again/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
+  })
+
+  it('FR-031: the confirmation names the stream in view — the click sends that stream and nothing else', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockConfirmComplete.mockResolvedValue({
+      branch_id: BRANCH_ID, activity: 'kitchen', confirmed_by: 'p2', confirmed_at: '2026-08-12T01:00:00Z',
+    })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm the item list is complete/i }))
+    await waitFor(() => expect(mockConfirmComplete).toHaveBeenCalledWith(BRANCH_ID, 'kitchen'))
+    // The recorded fact replaces the gap in place — no queue refetch, because it gates nothing.
+    expect(await screen.findByText(/item list confirmed complete for this stream/i)).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /item list completeness/i }))
+      .toHaveTextContent(/· Eka · 2026-08-12/)
+    expect(mockList).toHaveBeenCalledTimes(1)
+  })
+
+  it("FR-031: a supervisor sees ANOTHER stream's completeness state but is offered no control over it", async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    // Move the filter off their own stream, onto (Radiant, bar).
+    fireEvent.change(screen.getByRole('combobox', { name: /filter the queue by stream/i }), {
+      target: { value: `${RADIANT_ID}|bar` },
+    })
+    await screen.findByText('Es Kopi')
+
+    // Read is org-wide on purpose — a gap that only its own lead can see is the tribal
+    // knowledge FR-031 exists to end.
+    expect(screen.getByRole('group', { name: /item list completeness for this stream/i }))
+      .toHaveTextContent(/item list not confirmed complete yet/i)
+    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
+  })
+
+  it('FR-031: with the filter on all streams there is no single list to vouch for, so nothing renders', async () => {
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))   // opens cross-stream by default
+    mockList.mockResolvedValue([PROD_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
+    // ...and it comes back the moment one stream is named (so the absence above is the
+    // filter's doing, not a block that never renders at all).
+    fireEvent.change(screen.getByRole('combobox', { name: /filter the queue by stream/i }), {
+      target: { value: OWN_STREAM },
+    })
+    expect(await screen.findByRole('group', { name: /item list completeness/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeInTheDocument()
   })
 })

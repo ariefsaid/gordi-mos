@@ -193,14 +193,31 @@ describe('Café module — the five screens are in the nav, gated as their route
     }
   })
 
-  it("the nav gate on Review and Pushes is the same role list their route enforces", () => {
-    const routeGate = allRoutes(routeConfig).find(
-      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
-    )!
-    const routeRoles = [...(routeGate.element as React.ReactElement<{ anyOf: readonly string[] }>).props.anyOf].sort()
-    for (const path of ['/cafe/review', '/cafe/pushes']) {
-      const nav = cafe.children!.find((c) => c.path === path)!
-      expect([...(nav.anyOf ?? [])].sort(), path).toEqual(routeRoles)
+  // #236 (FR-040) made the stream SUPERVISOR a reviewer — on the server and in the page — and
+  // #238's cross-stack journey found that neither this rail nor the route had been told, so the
+  // one person the slice exists for saw no link and was bounced off the URL. Pushes is untouched:
+  // it is the dispatch surface, and opening review per stream opened nothing about posting.
+  it('a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
+    const visible = visibleSections(cafe.children ?? [], ['supervisor']).map((c) => c.path)
+    expect(visible).toEqual(['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review'])
+  })
+
+  it("each gated nav entry carries the same role list as the route gate that OWNS it", () => {
+    // Per-path, not per-pair: Review and Pushes now sit behind different gates, and an invariant
+    // that assumed one shared gate would have had to be weakened to admit that. This form is
+    // stronger — it would catch either link drifting from its own route.
+    for (const [navPath, routePath] of [
+      ['/cafe/review', 'cafe/review'],
+      ['/cafe/pushes', 'cafe/pushes'],
+    ] as const) {
+      const routeGate = allRoutes(routeConfig).find(
+        (r) => Array.isArray(r.children) && r.children.some((c) => c.path === routePath),
+      )!
+      const routeRoles = [
+        ...(routeGate.element as React.ReactElement<{ anyOf: readonly string[] }>).props.anyOf,
+      ].sort()
+      const nav = cafe.children!.find((c) => c.path === navPath)!
+      expect([...(nav.anyOf ?? [])].sort(), navPath).toEqual(routeRoles)
     }
   })
 })

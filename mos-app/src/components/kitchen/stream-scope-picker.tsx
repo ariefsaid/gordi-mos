@@ -10,6 +10,15 @@
 // Branch names go through branchDisplayName, so the central kitchen's stream reads
 // under the Rumah Rames display alias — never "HQ"/"Stok HQ" (FR-061, CONTEXT.md trap:
 // that label collides with the GHQ branch).
+//
+// UNRESOLVED, found by #238's authenticated render and left for the owner: this picker names
+// the stream a person is LOOKING AT under the 'Bungur' alias, and the capture page's stream
+// picker names the SAME stream by its canonical catalog name, in as many words refusing the
+// alias ("a Rumah Rames barista picking their own stream must read the branch by its catalog
+// name"). Both choices are deliberate and pinned by their own tests, and they contradict — one
+// stream reads under two names depending on the surface. Which name the branch carries is a
+// vocabulary decision, not a craft one, so #238 left both as they shipped rather than flip a
+// ratified assertion in passing.
 
 import { Select } from '@/components/ui/select'
 import { activityLabel, branchDisplayName } from '@/lib/kitchen-action-label'

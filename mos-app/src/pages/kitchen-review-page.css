@@ -208,9 +208,42 @@
 .kr-filter {
   display: flex;
   justify-content: flex-end;
+  /* #238: the filter row now carries a second child (the completeness block). It WRAPS rather
+     than compressing — at 380px the select and the confirmation stack instead of squeezing the
+     select below its own label width. */
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 .kr-filter-select {
   max-width: 260px;
+}
+
+/* ── #238 (FR-031): per-stream completeness confirmation ──────────────────────
+   Deliberately QUIET. This states a tracked fact and gates nothing, so it must not
+   read as a warning or an error when a stream is unconfirmed — an unconfirmed
+   stream is a normal, visible state, not a fault. Confirmed picks up the success
+   token the approval notice uses; unconfirmed stays muted body text. */
+.kr-complete {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.kr-complete-state {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.kr-complete-yes {
+  color: var(--status-won-text);
+}
+.kr-complete-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  white-space: nowrap;
 }
 .krow-othersstream {
   color: var(--muted-foreground);

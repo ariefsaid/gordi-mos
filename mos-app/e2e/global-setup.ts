@@ -21,7 +21,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { ORPHAN, RECOVERY_VIEWER, ADMIN, MEMBER } from './fixtures/users'
+import { ORPHAN, RECOVERY_VIEWER, ADMIN, MEMBER, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -225,6 +225,55 @@ export default async function globalSetup() {
     `UPDATE shared.people SET user_id = '${memberData.user.id}' WHERE id = '${MEMBER.personId}'`,
   )
   console.log(`[global-setup] created + linked MEMBER user → dedicated person ${MEMBER.personId} (member, no role)`)
+
+  // ── 3d. AC-014 (#238) — the bar-capture journey's two stream personas ─────────────────────────
+  // A member and a supervisor whose LIVE PRIMARY Team is the (Rumah Rames, bar) stream Team. That
+  // membership is the whole point: it is what makes the capture surface open on that stream by
+  // default (FR-001, shared.default_stream) and what makes the supervisor that stream's reviewer
+  // (FR-040, ops.is_stream_reviewer). No dev persona has a stream Team as its primary, so these
+  // two are dedicated e2e people — same isolation as ADMIN/MEMBER above, never a dev persona.
+  //
+  // The stream Team is resolved by BRANCH CODE: shared.seed_stream_teams() generates its ids, so
+  // hardcoding one would break on any reseed. The membership insert carries ON CONFLICT DO NOTHING
+  // against the one-live-primary partial unique index, which is what makes re-running idempotent.
+  for (const p of [BAR_MEMBER, BAR_SUPERVISOR]) {
+    await execSql(
+      SUPABASE_URL,
+      SERVICE_ROLE_KEY,
+      `INSERT INTO shared.people (id, org_id, full_name, email)
+       VALUES ('${p.personId}', '${ORG}', '${p.displayName}', '${p.email}')
+       ON CONFLICT (id) DO NOTHING;
+       INSERT INTO shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
+       SELECT '${ORG}', '${p.personId}', t.id, true, current_date - 30
+         FROM shared.teams t
+         JOIN shared.branches b ON b.id = t.branch_id
+        WHERE t.org_id = '${ORG}' AND b.code = '${BAR_STREAM.branchCode}'
+          AND t.activity = '${BAR_STREAM.activity}' AND t.archived_at IS NULL
+       ON CONFLICT DO NOTHING`,
+    )
+  }
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.person_access_roles (org_id, person_id, access_role) VALUES
+       ('${ORG}', '${BAR_MEMBER.personId}', 'member'),
+       ('${ORG}', '${BAR_SUPERVISOR.personId}', 'member'),
+       ('${ORG}', '${BAR_SUPERVISOR.personId}', 'supervisor')
+     ON CONFLICT (person_id, access_role) DO NOTHING`,
+  )
+  for (const p of [BAR_MEMBER, BAR_SUPERVISOR]) {
+    await deleteUserByEmail(adminClient, p.email)
+    const { data: barData, error: barErr } = await adminClient.auth.admin.createUser({
+      email: p.email, password: p.password, email_confirm: true,
+    })
+    if (barErr) throw new Error(`[global-setup] createUser ${p.email} failed: ${barErr.message}`)
+    await execSql(
+      SUPABASE_URL,
+      SERVICE_ROLE_KEY,
+      `UPDATE shared.people SET user_id = '${barData.user.id}' WHERE id = '${p.personId}'`,
+    )
+  }
+  console.log('[global-setup] created + linked the AC-014 bar stream personas (member + supervisor)')
 
   // ── 3c. Clean slate for the AC-020 cascade-catalog journey (idempotent; postgres bypasses no-delete) ─
   await execSql(

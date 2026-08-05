@@ -405,18 +405,36 @@ export const routeConfig: RouteObject[] = [
             element: <RouteRedirect to="/cafe/stock" />,
             handle: redirectHandle('/cafe/stock'),
           },
+          // REVIEW admits the stream supervisor as well (#236 FR-040, wired through by #238).
+          // #236 opened this surface to stream supervisors on the server (ops.can_review_stream)
+          // and in the page (which renders a supervisor's own-stream decision controls and an
+          // ops-lead marker on everyone else's) — but this route gate still named ops_lead/admin
+          // only, so the person the slice was built for could never reach it. Caught by AC-014's
+          // cross-stack journey, which is exactly the join no unit or policy test can see.
+          //
+          // The page keeps its own forbidden panel for anyone past this gate without standing,
+          // and NFR-002 still holds: which rows a supervisor may DECIDE is the server's, never
+          // this route's. A route gate decides what is worth showing; it authorises nothing.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: 'cafe/review', element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
-              { path: 'cafe/pushes', element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',
                 element: <RouteRedirect to="/cafe/review" />,
                 handle: redirectHandle('/cafe/review'),
               },
+            ],
+          },
+          // PUSHES stays ops_lead/admin: it is the dispatch/outbox surface, not a review queue —
+          // #236 opened review per stream, and nothing about that opened posting state.
+          {
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            handle: infrastructureHandle('capability'),
+            children: [
+              { path: 'cafe/pushes', element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
               {
                 path: 'kitchen/pushes',
                 element: <RouteRedirect to="/cafe/pushes" />,
