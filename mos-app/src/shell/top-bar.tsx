@@ -6,6 +6,8 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
+import { useOptionalOverlayHost } from './overlay-host'
+import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 
 type TopBarProps = {
   /** Opens the ⌘K command menu (wired in AppShell). */
@@ -117,25 +119,36 @@ function AssistantTopBarButton() {
 }
 
 // The notification bell (T16) — the Inbox door with an unread badge (ADR-0019 D9). Inbox is always
-// live (Step 2, D-1). Uses the dedicated useUnreadCount hook (CQ#2) so the badge is backed by the
-// unread-only index, not the full list.
-//
-// STILL ONE DOOR AFTER #190 — now waiting on the INBOX SURFACE, not on the hosts. v4 gives this
-// bell two doors: on desktop it quick-opens the same InboxTriage surface as an ephemeral root in the
-// shared overlay host (no URL mutation, focus returned to the bell on close); on phone — and
-// whenever no host is mounted — it falls back to the `/inbox` route. #190 landed the host and the
-// shell slot the desktop door needs, but the door's CONTENT is `InboxTriageConnected`, an Inbox
-// surface component that has not ported (this branch's `components/inbox/` holds InboxList alone).
-// Wiring the bell to open an empty panel would be worse than the route it opens today, which is
-// v4's own no-host fallback path. The Inbox surface ticket flips this.
+// live (Step 2, D-1). Two honest doors (Issue 7): on desktop it quick-opens the SAME InboxTriage
+// surface as an ephemeral root in the shared overlay host (no URL mutation), so a manager triages in
+// context and the host returns focus to the bell on close; on phone (and whenever no host is mounted,
+// e.g. isolated tests) it falls back to the full `/inbox` route. Uses the dedicated useUnreadCount
+// hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
 function NotificationBell() {
   const navigate = useNavigate()
   const t = useT()
+  const isNarrow = useIsNarrow()
+  const host = useOptionalOverlayHost()
   const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
 
   const openInbox = () => {
-    navigate('/inbox')
+    // Phone → full route; desktop with a mounted host → ephemeral quick triage in context.
+    if (isNarrow || !host) {
+      navigate('/inbox')
+      return
+    }
+    void host.openRoot(
+      {
+        key: 'inbox-quick',
+        owner: 'shell',
+        tenant: 'quick',
+        label: t('inbox.quickTitle'),
+        title: t('inbox.quickTitle'),
+        content: <InboxTriageConnected mode="quick" />,
+      },
+      'ephemeral',
+    )
   }
 
   return (
