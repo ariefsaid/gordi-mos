@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { WipItemStepper } from './wip-item-stepper'
 import { needsVarianceNote, VARIANCE_NOTE_CUE } from '@/lib/kitchen-gates'
-import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import type { ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 
 // v4 drove this component with the three label literals. They are derived, not stored
 // (DD-WAY-13), so the component takes the MOVEMENT instead — the thing that actually
@@ -24,6 +24,7 @@ const TRANSFER_RADIANT: KitchenMovement = {
 
 const BASE_LINE: KitchenLogLine = {
   wip_item_id: 'w1',
+  item_unit_id: 'u-porsi',
   qty_porsi: 0,
   notes: '',
   plan_qty: 10,
@@ -34,6 +35,12 @@ const BASE_LINE: KitchenLogLine = {
   capError: '',
 }
 
+// The offered units (#234): the reader delivers the default first, then transferable
+// alternates (FR-032 filtering happens THERE — this component only renders what it is
+// handed, asserted in kitchen-logs.test.ts).
+const UNIT_PORSI: ItemUnitOption = { id: 'u-porsi', name: 'porsi', is_default: true }
+const UNIT_BOTOL: ItemUnitOption = { id: 'u-botol', name: 'botol', is_default: false }
+
 function renderStepper(
   over: {
     line?: Partial<KitchenLogLine>
@@ -43,6 +50,8 @@ function renderStepper(
     itemName?: string
     dense?: boolean
     alreadyLogged?: number
+    unitOptions?: ItemUnitOption[]
+    onUnitChange?: (id: string) => void
   } = {},
 ) {
   return render(
@@ -54,6 +63,8 @@ function renderStepper(
       onNotesChange={over.onNotesChange ?? vi.fn()}
       dense={over.dense}
       alreadyLogged={over.alreadyLogged}
+      unitOptions={over.unitOptions}
+      onUnitChange={over.onUnitChange}
     />,
   )
 }
@@ -61,6 +72,88 @@ function renderStepper(
 // #233 / FR-014, AC-006: the running "already logged N" — today's recorded actuals for
 // this item + movement on the selected stream, shown beside the row. Comes from the
 // DATABASE (submitted rows), never from the typed-but-unsaved quantity (DD-7's line).
+// #234 / FR-020/021, AC-005: the fixed unit + the deliberate "change unit" affordance.
+// The row shows its bound unit as MASTER DATA (text, not an input) on the common path;
+// only an item with MORE than one offered unit gets the small change-unit button, and
+// choosing an alternate re-binds the line via onUnitChange (the id IS the ERP coordinate,
+// FR-022). Offerability filtering (FR-032/AC-015) is the READER's, owned in
+// kitchen-logs.test.ts — this component renders exactly what it is handed.
+describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC-005)', () => {
+  it('AC-005: an item with two offered units renders the change-unit affordance', () => {
+    renderStepper({ unitOptions: [UNIT_PORSI, UNIT_BOTOL], onUnitChange: vi.fn() })
+    expect(
+      screen.getByRole('button', { name: /change unit for nasi goreng/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('AC-005: an item with exactly ONE offered unit renders NO affordance — the unit is fixed text', () => {
+    renderStepper({ unitOptions: [UNIT_PORSI], onUnitChange: vi.fn() })
+    expect(
+      screen.queryByRole('button', { name: /change unit/i }),
+    ).not.toBeInTheDocument()
+    // the fixed unit still names itself beside the qty (FR-020) — text, never a control
+    expect(screen.getByText('porsi')).toBeInTheDocument()
+  })
+
+  it('FR-021: the picker is BEHIND the click — no unit selector exists until the affordance is pressed', async () => {
+    const user = userEvent.setup()
+    renderStepper({ unitOptions: [UNIT_PORSI, UNIT_BOTOL], onUnitChange: vi.fn() })
+    expect(
+      screen.queryByRole('combobox', { name: /unit for nasi goreng/i }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /change unit for nasi goreng/i }))
+    expect(
+      screen.getByRole('combobox', { name: /unit for nasi goreng/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('AC-005: selecting the alternate re-binds the line (onUnitChange gets the item-unit id) and the picker closes', async () => {
+    const user = userEvent.setup()
+    const onUnitChange = vi.fn()
+    renderStepper({ unitOptions: [UNIT_PORSI, UNIT_BOTOL], onUnitChange })
+    await user.click(screen.getByRole('button', { name: /change unit for nasi goreng/i }))
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: /unit for nasi goreng/i }),
+      'u-botol',
+    )
+    expect(onUnitChange).toHaveBeenCalledWith('u-botol')
+    expect(
+      screen.queryByRole('combobox', { name: /unit for nasi goreng/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('FR-020: a line bound to the alternate wears THAT unit as its label', () => {
+    renderStepper({
+      unitOptions: [UNIT_PORSI, UNIT_BOTOL],
+      onUnitChange: vi.fn(),
+      line: { item_unit_id: 'u-botol' },
+    })
+    expect(
+      screen.getByRole('button', { name: /change unit for nasi goreng/i }),
+    ).toHaveTextContent('botol')
+  })
+
+  it('a null/stale binding falls back to the item\'s OWN default unit — never the hardcoded porsi label', () => {
+    // 'pack' deliberately differs from the translated fallback so a regression to the
+    // hardcoded string cannot pass this test.
+    const UNIT_PACK: ItemUnitOption = { id: 'u-pack', name: 'pack', is_default: true }
+    renderStepper({
+      unitOptions: [UNIT_PACK, UNIT_BOTOL],
+      onUnitChange: vi.fn(),
+      line: { item_unit_id: null },
+    })
+    expect(
+      screen.getByRole('button', { name: /change unit for nasi goreng/i }),
+    ).toHaveTextContent('pack')
+  })
+
+  it('hosts that predate unit wiring keep the incumbent fixed label — no affordance, porsi text', () => {
+    renderStepper()
+    expect(screen.queryByRole('button', { name: /change unit/i })).not.toBeInTheDocument()
+    expect(screen.getByText('porsi')).toBeInTheDocument()
+  })
+})
+
 describe('WipItemStepper — already-logged actuals (FR-014, AC-006)', () => {
   it('renders "logged N" when something has been logged today', () => {
     renderStepper({ alreadyLogged: 4 })

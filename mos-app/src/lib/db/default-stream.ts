@@ -5,8 +5,10 @@
 // no row when no live primary membership exists. Both empty shapes mean the same thing
 // here: no default (FR-002 — the surface must then choose explicitly).
 //
-// Kept OUT of kitchen-logs.ts deliberately: the capture surface (#233) owns that file's
-// item readers right now, and this resolver has no reason to share a module with them.
+// THE one person-scoped resolver (#234 consolidation): the capture page and the stock
+// page both read it from here. A twin briefly lived in kitchen-logs.ts (#266's raw
+// StreamPair shape, no payload validation); this shape-validated one won and the twin
+// was deleted — two resolvers for the same fact is how they drift.
 
 import { supabase } from '@/lib/supabase'
 import type { BranchOption, ProductionActivity, ProductionStream } from './kitchen-logs.types'

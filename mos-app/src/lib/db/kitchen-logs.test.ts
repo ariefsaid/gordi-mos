@@ -20,11 +20,9 @@ import {
   listActiveWipItems,
   listCaptureFormItems,
   fetchActualsMap,
-  fetchDefaultStream,
   fetchPlanMap,
   fetchStockMap,
   fetchKitchenStock,
-  fetchKitchenStockAcrossStreams,
   listStreamPairs,
   resolveKitchenBuId,
   streamCatalogFrom,
@@ -196,10 +194,21 @@ describe('listActiveWipItems — the ungated stock/plan read', () => {
   })
 })
 
-describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-29)', () => {
+describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-29, FR-032)', () => {
+  // One row per confirmed (item, unit), the view's shape after #234.
+  const unitRow = (
+    wip_item_id: string,
+    name: string,
+    item_unit_id: string,
+    unit_name: string,
+    is_default: boolean,
+    is_transferable = true,
+    category: string | null = 'Main',
+  ) => ({ wip_item_id, name, category, item_unit_id, unit_name, is_default, is_transferable })
+
   const VIEW_ROWS = [
-    { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-    { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+    unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true),
+    unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
   ]
 
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
@@ -212,12 +221,19 @@ describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-2
     expect(rec.fromTables).toContain('capture_form_items')
     expect(rec.fromTables).not.toContain('wip_items')
     expect(result).toHaveLength(2)
-    expect(result[0]).toEqual({ id: 'w1', name: 'Ayam Bakar', category: 'Main' })
+    expect(result[0]).toEqual({
+      id: 'w1',
+      name: 'Ayam Bakar',
+      category: 'Main',
+      units: [{ id: 'u1', name: 'porsi', is_default: true }],
+    })
     expect(rec.orders).toContainEqual(['name', { ascending: true }])
-    expect(rec.selects).toContain('wip_item_id,name,category')
+    expect(rec.selects).toContain(
+      'wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable',
+    )
   })
 
-  it('collapses multiple confirmed units of one item to a single item row', async () => {
+  it('folds multiple confirmed units of one item into ONE item carrying its offered units, default first (FR-020/021)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -225,9 +241,11 @@ describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-2
           capture_form_items: [
             {
               data: [
-                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-                { wip_item_id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-                { wip_item_id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+                // name-ordered as the view returns them — the default is NOT first here,
+                // proving the reader reorders rather than trusting row order
+                unitRow('w1', 'Ayam Bakar', 'u1b', 'botol', false),
+                unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true),
+                unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
               ],
               error: null,
             },
@@ -238,6 +256,66 @@ describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-2
     )
     const result = await listCaptureFormItems()
     expect(result.map(r => r.id)).toEqual(['w1', 'w2'])
+    expect(result[0].units).toEqual([
+      { id: 'u1', name: 'porsi', is_default: true },
+      { id: 'u1b', name: 'botol', is_default: false },
+    ])
+  })
+
+  it('AC-015 / FR-032: a NON-TRANSFERABLE alternate is never offered — dropped by the reader, whatever the view returns', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          capture_form_items: [
+            {
+              data: [
+                unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true),
+                unitRow('w1', 'Ayam Bakar', 'u1b', 'botol', false, true),
+                unitRow('w1', 'Ayam Bakar', 'u1k', 'karton', false, false), // never offered
+              ],
+              error: null,
+            },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const result = await listCaptureFormItems()
+    expect(result[0].units.map(u => u.id)).toEqual(['u1', 'u1b'])
+  })
+
+  it('FR-032: a non-transferable DEFAULT still renders — the fixed unit is master data, only ALTERNATES are offers', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          capture_form_items: [
+            { data: [unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true, false)], error: null },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    const result = await listCaptureFormItems()
+    expect(result).toHaveLength(1)
+    expect(result[0].units).toEqual([{ id: 'u1', name: 'porsi', is_default: true }])
+  })
+
+  it('an item whose confirmed rows yield NO offerable unit is absent — a row that cannot name its unit cannot be captured', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          capture_form_items: [
+            // no default in the view (unconfirmed), only a non-transferable alternate
+            { data: [unitRow('w1', 'Ayam Bakar', 'u1k', 'karton', false, false)], error: null },
+          ],
+        },
+        rec,
+      ) as never,
+    )
+    expect(await listCaptureFormItems()).toEqual([])
   })
 
   it('throws on PostgREST error', async () => {
@@ -352,11 +430,39 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     expect(payload.wip_item_id).toBe(WIP_ID)
     expect(payload.qty_porsi).toBe(8)
     expect(payload.notes).toBe('test note')
+    // #234 / FR-020: no unit entered on the common path → an explicit null, which the DB
+    // binds to the item's DEFAULT unit server-side.
+    expect(payload.item_unit_id).toBeNull()
 
     // MUST NOT send server-stamped fields (NFR-003)
     assertNoServerStamps([payload])
     // should not send the old (wrong) 'date' key
     expect(payload).not.toHaveProperty('date')
+  })
+
+  it('FR-021/022 (#234): an explicit item-unit binding rides the payload — the change-unit path', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { kitchen_logs: [{ data: { id: 'log-003' }, error: null }] },
+        rec,
+      ) as never,
+    )
+
+    await insertKitchenLog({
+      business_unit_id: BU_ID,
+      log_date: '2026-06-20',
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
+      wip_item_id: WIP_ID,
+      item_unit_id: 'u-botol',
+      qty_porsi: 2,
+    })
+
+    const payload = rec.inserts[0] as Record<string, unknown>
+    expect(payload.item_unit_id).toBe('u-botol')
   })
 
   it('AC-020: rejects when qty_porsi = 0', async () => {
@@ -705,45 +811,6 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
   })
 })
 
-// ── fetchKitchenStockAcrossStreams — the #198 multi-stream Stock view ──────────
-describe('fetchKitchenStockAcrossStreams — one row per (active item × stream), stream shown (#198)', () => {
-  const OTHER_STREAM: ProductionStream = {
-    branch: { id: RADIANT_ID, code: 'radiant', name: 'Radiant' },
-    activity: 'kitchen',
-  }
-
-  it('fetches every given stream and tags each returned row with its own stream', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          wip_items: [
-            { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
-          ],
-          kitchen_stock_for_date: [
-            { data: [{ wip_item_id: 'w1', usable_qty: 12, available_qty: 8 }], error: null },
-            { data: [{ wip_item_id: 'w1', usable_qty: 0, available_qty: 0 }], error: null },
-          ],
-        },
-        rec,
-      ) as never,
-    )
-
-    const rows = await fetchKitchenStockAcrossStreams('2026-06-20', [STREAM, OTHER_STREAM])
-    expect(rows).toHaveLength(2) // 1 item × 2 streams
-    expect(rows.find(r => r.stream.branch.id === BRANCH_ID)).toMatchObject({
-      wip_item_id: 'w1', stok: 12, tersedia: 8, stream: STREAM,
-    })
-    expect(rows.find(r => r.stream.branch.id === RADIANT_ID)).toMatchObject({
-      wip_item_id: 'w1', stok: 0, tersedia: 0, stream: OTHER_STREAM,
-    })
-  })
-
-  it('returns [] for an empty stream list', async () => {
-    expect(await fetchKitchenStockAcrossStreams('2026-06-20', [])).toEqual([])
-  })
-})
-
 // ── listSubmittedKitchenLogs — review queue read (FR-040, AC-040/090) ──────────
 describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () => {
   const SUBMITTED_ROWS = [
@@ -966,52 +1033,9 @@ describe('rejectKitchenLog — guarded UPDATE to Rejected with a required note (
   })
 })
 
-// ── #233 stream context: default stream, six-stream catalog, already-logged ──
-
-describe('fetchDefaultStream — the person’s own stream via shared.default_stream() (FR-001/002)', () => {
-  it('FR-001: resolves the (branch_id, activity) pair of the live primary stream Team', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        { default_stream: [{ data: [{ branch_id: BRANCH_ID, activity: 'kitchen' }], error: null }] },
-        rec,
-      ) as never,
-    )
-    const pair = await fetchDefaultStream()
-    expect(pair).toEqual({ branch_id: BRANCH_ID, activity: 'kitchen' })
-    expect(rec.rpcCalls).toContainEqual(['default_stream', undefined])
-  })
-
-  it('FR-002: no live primary membership (no row) → null, never a guessed branch', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ default_stream: [{ data: [], error: null }] }, rec) as never,
-    )
-    expect(await fetchDefaultStream()).toBeNull()
-  })
-
-  it('FR-002: a primary Team that is NOT a stream team (null halves) → null', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        { default_stream: [{ data: [{ branch_id: null, activity: null }], error: null }] },
-        rec,
-      ) as never,
-    )
-    expect(await fetchDefaultStream()).toBeNull()
-  })
-
-  it('throws on error', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        { default_stream: [{ data: null, error: { message: 'boom' } }] },
-        rec,
-      ) as never,
-    )
-    await expect(fetchDefaultStream()).rejects.toThrow('fetchDefaultStream failed')
-  })
-})
+// ── #233 stream context: six-stream catalog, already-logged ──────────────────
+// (The person's own default-stream resolver lives in default-stream.ts — the ONE
+// shape-validated reader after the #234 consolidation — and is tested there.)
 
 describe('listStreamPairs + streamCatalogFrom — the six-stream catalog (FR-005)', () => {
   it('reads the LIVE stream Teams’ pairs from shared.teams (branch set, not archived)', async () => {

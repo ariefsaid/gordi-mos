@@ -77,6 +77,31 @@ export interface WipItemOption {
   category: string | null
 }
 
+// ── Item units on the capture form (#234, FR-020/021/032) ────────────────────
+
+/**
+ * One OFFERED unit of a capture-form item, read from ops.capture_form_items. `id` is the
+ * ops.item_units row — the ERP coordinate identity (FR-022): binding a capture row to a
+ * unit means binding it to this id, never to a name string.
+ */
+export interface ItemUnitOption {
+  id: string
+  /** display label beside the qty input ('porsi', 'botol', …) — display only (FR-022). */
+  name: string
+  /** the item's fixed default unit (FR-020) — shown as master data, first in the list. */
+  is_default: boolean
+}
+
+/**
+ * A capture-form item with its offered units: the confirmed default first, then confirmed
+ * TRANSFERABLE alternates (FR-032/AC-015 — a non-transferable synced variant is never
+ * offered). `units.length > 1` is what earns a row the "change unit" affordance (FR-021,
+ * AC-005); exactly one means the unit renders as fixed text and nothing else.
+ */
+export interface CaptureFormItem extends WipItemOption {
+  units: ItemUnitOption[]
+}
+
 // ── ops.kitchen_plans (plan qty per date/item/action) ────────────────────────
 export interface KitchenPlanRow {
   id: string
@@ -141,16 +166,6 @@ export interface KitchenStockRow {
   tersedia: number
 }
 
-/**
- * One Stock view row scoped to ONE (branch, activity) stream (#198, OD-WAY-28). "Stok
- * HQ" means the central kitchen, which books to Rumah Rames — not Gordi HQ — so the
- * stream is shown on every row rather than assumed. `fetchKitchenStockAcrossStreams`
- * returns one of these per (active WIP item × active stream) pair.
- */
-export interface KitchenStockStreamRow extends KitchenStockRow {
-  stream: ProductionStream
-}
-
 // ── ops.kitchen_logs (insert payload) ────────────────────────────────────────
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.
@@ -165,6 +180,12 @@ export interface CreateKitchenLogInput {
   /** null for produce, required for transfer (kitchen_logs_destination_matches_action) */
   destination_branch_id: string | null
   wip_item_id: string
+  /**
+   * the item-unit the quantity was captured in (#234, FR-022). null → the server binds the
+   * item's DEFAULT unit (FR-020 — the common path enters no unit); an explicit id is the
+   * "change unit" path (FR-021) and must reference a unit of this wip item.
+   */
+  item_unit_id?: string | null
   qty_porsi: number // > 0 (client + DB CHECK)
   notes?: string | null
 }
@@ -295,6 +316,12 @@ export interface PesananRow {
 // ── Per-line form state (one stepper row per WIP item) ───────────────────────
 export interface KitchenLogLine {
   wip_item_id: string
+  /**
+   * the item-unit this line is bound to (#234, FR-021/022) — the item's default at rest,
+   * re-bound when an alternate is chosen via "change unit". null only for an item whose
+   * offered-unit list is somehow empty (never for view-sourced items).
+   */
+  item_unit_id: string | null
   qty_porsi: number
   notes: string
   /** plan qty for the current action_type (0 if no plan row) */

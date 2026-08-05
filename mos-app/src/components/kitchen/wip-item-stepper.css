@@ -167,3 +167,33 @@
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
+
+/* ── The deliberate "change unit" affordance (#234, FR-021/AC-005) ─────────────
+   A BUTTON wearing the quiet unit label plus a small chevron: recognisable as
+   pressable (hairline border, chevron), but visually the same weight as the fixed
+   text so the common path never reads it as a step. Renders ONLY when the item has
+   more than one offered unit. Phone (<768px): the whole hit area meets the 44px
+   touch floor even though the glyphs stay label-sized. Desktop dense sizes to the
+   32px control height like every other control in the row. */
+.kls-unit-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 44px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.kls-unit-change:disabled { cursor: default; opacity: 0.6; }
+.kls-unit-change svg { flex: 0 0 auto; }
+
+/* The opened picker (one per row at most, closed again on selection/blur). The shared
+   Select already renders the 32px box; this only keeps it from stretching the row. */
+.kls-unit-select { flex: 0 0 auto; }
+
+@media (min-width: 768px) {
+  .kls-dense .kls-unit-change { min-height: 32px; }
+}

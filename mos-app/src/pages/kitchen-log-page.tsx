@@ -25,7 +25,6 @@ import { useT, type Translate } from '@/i18n/use-t'
 import {
   listCaptureFormItems,
   fetchActualsMap,
-  fetchDefaultStream,
   fetchPlanMap,
   fetchStockMap,
   listStreamPairs,
@@ -33,16 +32,17 @@ import {
   insertKitchenLogBatch,
   streamCatalogFrom,
 } from '@/lib/db/kitchen-logs'
+import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
 import type {
   ActualsMap,
   BranchOption,
+  CaptureFormItem,
   KitchenLogLine,
   KitchenMovement,
   PlanMap,
   ProductionStream,
   StockMap,
-  WipItemOption,
 } from '@/lib/db/kitchen-logs.types'
 import {
   activityLabel,
@@ -82,8 +82,13 @@ function wibToday(): string {
 }
 
 // Build fresh per-item line state from loaded items + plan + stock for one movement.
+// Every line opens bound to its item's DEFAULT unit (units[0] — the reader puts the
+// default first): the common path enters no unit, yet every staged line knows which
+// item-unit its quantity means (FR-020/022). A rebuild (movement/stream switch, discard,
+// submit) deliberately resets any "change unit" re-binding along with the quantities —
+// a bound alternate belongs to the entry it was chosen for.
 function buildLines(
-  items: WipItemOption[],
+  items: CaptureFormItem[],
   planMap: PlanMap,
   stockMap: StockMap,
   movement: KitchenMovement,
@@ -93,6 +98,7 @@ function buildLines(
     const stock = stockMap[item.id]
     lines[item.id] = {
       wip_item_id: item.id,
+      item_unit_id: item.units[0]?.id ?? null,
       qty_porsi: 0,
       notes: '',
       plan_qty: planMap[item.id]?.[movementKey(movement)] ?? 0,
@@ -161,7 +167,7 @@ export function KitchenLogPage() {
   const [stream, setStream] = useState<ProductionStream | null>(null)
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
-  const [wipItems, setWipItems] = useState<WipItemOption[]>([])
+  const [wipItems, setWipItems] = useState<CaptureFormItem[]>([])
   const [planMap, setPlanMap] = useState<PlanMap>({})
   const [stockMap, setStockMap] = useState<StockMap>({})
   const [actualsMap, setActualsMap] = useState<ActualsMap>({})
@@ -216,21 +222,25 @@ export function KitchenLogPage() {
     const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
     try {
-      const [items, branchRows, streamPairs, defaultPair, bu] = await Promise.all([
+      const [items, branchRows, streamPairs, bu] = await Promise.all([
         // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
         // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
         listCaptureFormItems(),
         listActiveBranches(),
         listStreamPairs(),
-        fetchDefaultStream(),
         resolveKitchenBuId(),
       ])
       const catalog = streamCatalogFrom(streamPairs, branchRows)
-      // The default must BE a catalog stream — a stale pair pointing outside the live
-      // six-stream catalog resolves to "choose", never to a guess (FR-002).
-      const resolvedStream = defaultPair
+      // The person's own default (FR-001) — the ONE shape-validated resolver
+      // (default-stream.ts, #234 consolidation). It needs the branch catalog, so it runs
+      // after the parallel batch. The default must then BE a catalog stream — a stale
+      // pair pointing outside the live six-stream catalog resolves to "choose", never to
+      // a guess (FR-002).
+      const defaultStream = await fetchDefaultStream(branchRows)
+      const resolvedStream = defaultStream
         ? catalog.find(
-            s => s.branch.id === defaultPair.branch_id && s.activity === defaultPair.activity,
+            s =>
+              s.branch.id === defaultStream.branch.id && s.activity === defaultStream.activity,
           ) ?? null
         : null
       const resolvedMovement = PRODUCE
@@ -372,6 +382,17 @@ export function KitchenLogPage() {
     })
   }
 
+  // The "change unit" path (#234, FR-021/022): re-bind the line to the chosen item-unit.
+  // The id comes from the item's OFFERED units only (the stepper renders nothing else),
+  // and the binding rides the line into the submit payload — the ERP coordinate is the
+  // unit, so this is the whole selection, no qty conversion, no second field.
+  function handleUnitChange(itemId: string, itemUnitId: string) {
+    setLines(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], item_unit_id: itemUnitId },
+    }))
+  }
+
   // Discard all staged entries (consequential — confirmed). Opens the shared centered
   // dialog (DESIGN.md Overlays: "destructive confirmation is one centered blocking
   // dialog") rather than window.confirm, which is unstyled and not app-consistent.
@@ -438,6 +459,9 @@ export function KitchenLogPage() {
           action: movement.action,
           destination_branch_id: movement.destinationBranchId,
           wip_item_id: line.wip_item_id,
+          // the line's bound item-unit (#234, FR-022) — the default unless "change unit"
+          // re-bound it; the DB re-binds a null to the default server-side (FR-020).
+          item_unit_id: line.item_unit_id,
           qty_porsi: line.qty_porsi,
           notes: line.notes.trim() || null,
           // status / source / org_id / submitted_by NOT sent — server-stamped (NFR-003)
@@ -562,8 +586,8 @@ export function KitchenLogPage() {
   // then the Planned/Off-plan split fed to the DataTable `groups` prop. Group
   // collapse is INTERNAL to the DataTable (no page-level state). Token-only.
   const q = search.trim().toLowerCase()
-  const matchSearch = (it: WipItemOption) => !q || it.name.toLowerCase().includes(q)
-  const matchCat = (it: WipItemOption) => category === 'All' || (it.category ?? '') === category
+  const matchSearch = (it: CaptureFormItem) => !q || it.name.toLowerCase().includes(q)
+  const matchCat = (it: CaptureFormItem) => category === 'All' || (it.category ?? '') === category
   const visibleItems = wipItems.filter(it => matchSearch(it) && matchCat(it))
   const plannedLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) > 0)
   const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
@@ -572,7 +596,7 @@ export function KitchenLogPage() {
     ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean))).sort(),
   ]
 
-  const columns: DataTableColumn<WipItemOption>[] = [
+  const columns: DataTableColumn<CaptureFormItem>[] = [
     {
       key: 'dish',
       header: t('kitchen.log.col.dish'),
@@ -615,6 +639,8 @@ export function KitchenLogPage() {
           alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
           onQtyChange={qty => handleQtyChange(item.id, qty)}
           onNotesChange={note => handleNotesChange(item.id, note)}
+          unitOptions={item.units}
+          onUnitChange={unitId => handleUnitChange(item.id, unitId)}
           disabled={isSubmitting}
           hideName
           dense={isDesktop}
@@ -651,7 +677,7 @@ export function KitchenLogPage() {
    * status on one muted line beneath. Same data, same controls, ~76px instead of ~200px.
    * Touch targets stay ≥44px (.kls-qty is unchanged).
    */
-  const renderLogCard = (item: WipItemOption) => {
+  const renderLogCard = (item: CaptureFormItem) => {
     const line = lines[item.id]
     if (!line) return null
     const status = kitchenStatus({
@@ -670,6 +696,8 @@ export function KitchenLogPage() {
             alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
             onQtyChange={qty => handleQtyChange(item.id, qty)}
             onNotesChange={note => handleNotesChange(item.id, note)}
+            unitOptions={item.units}
+            onUnitChange={unitId => handleUnitChange(item.id, unitId)}
             disabled={isSubmitting}
             hideName
             dense
@@ -698,7 +726,7 @@ export function KitchenLogPage() {
     )
   }
 
-  const groups: DataTableGroup<WipItemOption>[] = [
+  const groups: DataTableGroup<CaptureFormItem>[] = [
     { key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines },
     { key: 'offplan', label: t('kitchen.log.group.offplan'), hint: t('kitchen.log.group.offplan.hint'), count: offPlanLines.length, rows: offPlanLines },
   ]
