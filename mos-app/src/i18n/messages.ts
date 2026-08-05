@@ -184,6 +184,20 @@ export const messages = {
     // The one loading announcement — LoadingShell's default label, and therefore what every
     // code-split route says while its chunk is in flight (router.tsx).
     'common.loading': 'Loading…',
+    'common.cancel': 'Cancel',
+    'common.working': 'Working…',
+    'common.unexpectedError': 'Something went wrong. Try again.',
+    // The record overlay/page chrome (#190) — the ONE set of control labels every record kind
+    // renders, whether it opened as a panel beside a collection or as a canonical page.
+    'record.openFullPage': 'Open full page',
+    'record.close': 'Close',
+    'record.back': 'Back',
+    'record.backToCollection': 'Back to ${collection}',
+    // The route leave guard's stay/discard prompt. "Stay" is the safe answer and the one Esc
+    // picks — the discard path is never reachable by a stray keystroke.
+    'leaveGuard.title': 'Leave without saving?',
+    'leaveGuard.stay': 'Stay on this page',
+    'leaveGuard.discard': 'Discard and leave',
     // The placeholder-route copy (slice-stub-page.tsx). A real route whose surface has not been
     // built yet — distinct from a 404, which is a path that will never exist.
     'stub.notInSlice': 'Not in this slice yet',
@@ -416,6 +430,16 @@ export const messages = {
     'actionLauncher.open': 'Buka aksi',
     'breadcrumb.detail': 'Detail',
     'common.loading': 'Memuat…',
+    'common.cancel': 'Batal',
+    'common.working': 'Memproses…',
+    'common.unexpectedError': 'Terjadi kesalahan. Coba lagi.',
+    'record.openFullPage': 'Buka halaman penuh',
+    'record.close': 'Tutup',
+    'record.back': 'Kembali',
+    'record.backToCollection': 'Kembali ke ${collection}',
+    'leaveGuard.title': 'Keluar tanpa menyimpan?',
+    'leaveGuard.stay': 'Tetap di halaman ini',
+    'leaveGuard.discard': 'Buang dan keluar',
     'stub.notInSlice': 'Belum ada di slice ini',
     'stub.comingLater': '${name} hadir di tahap build berikutnya.',
     'dest.admin': 'Pengaturan Admin',
