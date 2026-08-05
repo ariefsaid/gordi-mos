@@ -30,11 +30,14 @@ select is(
   15,
   'AC-004: all fifteen baseline migrations are recorded as applied');
 
+-- Additive migrations (20260806… onward, starting with #231's stream substrate) are the baseline
+-- GROWING, which OD-WAY-35 expects; what it rules out is the PAST — a pre-squash version from
+-- either prior chain reappearing in the ledger. So the guard is a floor, not an exact set.
 select is(
   (select count(*)::int from supabase_migrations.schema_migrations
-    where version not like '20260805%'),
+    where version < '20260805'),
   0,
-  'AC-015: and NOTHING else is — no file from either prior chain survives in the applied ledger');
+  'AC-015: no pre-baseline version is applied — no file from either prior chain survives in the applied ledger');
 
 -- Order is asserted as the sequence of domains rather than of filenames, so renaming a file is free
 -- and moving one between domains is not.
