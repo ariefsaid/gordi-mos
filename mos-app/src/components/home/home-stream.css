@@ -1,0 +1,276 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Home row & band grammar — the SHARED texture every Home arrangement renders
+   through `RegionRows` (home-focused / home-overview / home-list), and the
+   Signals feed mirrors. Chromeless: quiet band dividers + the shared list-row
+   rhythm tokens provide the texture — never a boxed section shell. Token-only
+   (DESIGN.md + the shared --row-* rhythm set).
+
+   Named for the single-column `HomeStream` it was extracted from; that component
+   was retired with the three-arrangement Home (OD-V4-9) and its own chrome
+   (`.home-stream`, `.stream-heading`, `.stream-band-empty`) went with it. What
+   survives here is the row/band vocabulary, which has exactly one definition.
+   ════════════════════════════════════════════════════════════════════════════ */
+.stream-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-6, 24px);
+  min-width: 0;
+}
+
+/* ── Region band = a headed group of rows (never a boxed section) ─────────────
+   The 1px `border` hairline is the group's EDGE. Without it the label floated in the
+   column with the same 24px of air above it as any other gap, and four regions read as
+   one undifferentiated list ("i dont like the header on the current wall of text" —
+   owner, 2026-07-28). The space is deliberately asymmetric: 24px (`.stream-group` gap)
+   above the rule, 12px between rule and label, 6px from label to its own rows — the
+   grouping cue is the asymmetry, not a bigger font. Matches the signed mockup's
+   `#c .band` (docs/design-mockups/home-priority-2026-07-28). ── */
+.stream-band {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--ds-spacing-3, 12px);
+}
+
+.stream-band-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+/* The region's name — a GROUP HEADER, not an overline divider. It was a muted 12px
+   uppercase overline, which carried no more weight than the 15px/600 row titles beneath
+   it, so nothing marked where one region ended and the next began.
+
+   Size is NOT what separates it: at `body-lg`/600 the label is the exact same rung and
+   weight as the `.stream-row-title` it heads, and the same `foreground`. That tie is
+   deliberate — a bigger label would tie Home's own `h1` instead (`subheading`/18px), the
+   inversion guard-home-head-rank.css.test.ts exists to catch, and the signed mockup ranks
+   them (`.hdr-title` 18px vs `#c .band-label` `--fs-xs` ≈ 15.6px, of which `body-lg`/15px
+   is our nearest token). The four channels that actually do the separating are: the
+   DISPLAY face (rows are body face), SENTENCE case (not the old uppercase overline), the
+   1px hairline above the band, and the asymmetric space around it (24px above the rule,
+   12px rule→label, 6px label→rows). guard-list-band-separation.css.test.ts pins them.
+
+   NO decorative hue: amber / red / blue already mean overdue / blocked / in-progress on
+   these very rows, and a header colour that collides with the status vocabulary is worse
+   than the wall of text it was meant to fix. */
+.stream-band-label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.stream-band-link {
+  flex: none;
+  font-size: var(--font-size-mono);
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.stream-band-link:hover { text-decoration: underline; }
+.stream-band-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+
+.stream-band-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* "N more" — the remainder a distilled region does NOT render. Deliberately quieter than
+   `.stream-band-link`: it is a fact about the region, not a second destination competing with
+   the band's own drill link. Same 4px row gutter so it hangs off the list, not the tile edge. */
+.stream-band-more {
+  display: block;
+  margin: 0;
+  padding: 6px 4px 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+/* The remainder is now the region's way through (Nielsen #3). It stays QUIET — the same muted
+   caption rung as the fact it replaced, not a second `.stream-band-link` competing with the
+   region's own full-scope drill link — and earns its interaction states instead. */
+.stream-band-more--link {
+  text-decoration: none;
+}
+.stream-band-more--link:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+.stream-band-more--link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* ── Uniform record row ─────────────────────────────────────────────────────── */
+.stream-row + .stream-row {
+  border-top: 1px solid var(--row-divider);
+}
+
+.stream-row-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--row-min-h, 50px);
+  padding: var(--row-pad-y, 10px) 4px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+.stream-row-link:hover,
+.stream-row-link:focus-visible {
+  background: var(--secondary);
+}
+.stream-row-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.stream-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stream-row-title {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+  /* DO-16(c) (census home F5): 2-line clamp instead of single-line nowrap — the Urgent
+     Signal's identity truncated to uselessness at 768/1024. Two lines keep the row
+     rhythm bounded while the title stays legible. (≤480 already wraps fully via the
+     phone column reflow below.) */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* Decision-context subline: PIC name · owning Team/BU · due date. */
+.stream-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--font-size-mono);
+  color: var(--muted-foreground);
+  min-width: 0;
+}
+/* The person is their NAME (owner, 2026-07-28) — the 20px initials disc that used to lead this
+   line is gone. The name carries the weight the disc used to: 600 in `foreground` against the
+   muted rest of the meta line, so the subline still has a left anchor and does not read as one
+   flat run of grey. Same treatment as the mockup's `.row-meta .name`. */
+.stream-row-pic-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; color: var(--foreground);
+}
+.stream-row-seg { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.stream-row-sep { color: var(--muted-foreground); }
+.stream-row-tail-seg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Trailing tail: the reason chip (why this is ranked here) then the status pill. */
+.stream-row-tail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Reason chip — the ranking-legibility cue. Flat, borderless, tinted by tone
+   (mirrors the Pill tint recipe but one ramp step smaller so the status pill stays
+   the primary state cue). Radius is the 8px CONTROL radius and the size is the 11px
+   overline rung: the former 6px/11.5px pair sat outside both documented scales
+   (DESIGN.md § Shapes, § Typography hierarchy). ── */
+.stream-reason {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stream-reason--urgent    { background: color-mix(in srgb, var(--destructive) 16%, transparent); color: var(--status-lost-text); }
+.stream-reason--attention { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
+.stream-reason--overdue { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
+.stream-reason--due     { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); }
+.stream-reason--blocked { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
+.stream-reason--check   { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
+.stream-reason--mention { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
+
+/* Row status as text (DESIGN.md § Row status as text, v4): where the reason is true of
+   EVERY row in the band at rest, the tone semantics stay and the FILL is dropped — a
+   column of filled pills marks everything and therefore marks nothing, and it out-shouts
+   the row titles it exists to rank. Label size / 500, per the documented pattern. Placed
+   after the tone rules so it strips their fill while keeping their colour. */
+.stream-reason--flat {
+  height: auto;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+
+/* All-caught-up affirmation (compact, left-aligned — same StateKit primitive; overrides only its
+   centering/sizing). Deliberately UNSCOPED: RegionRows renders the same all-clear inside every
+   arrangement's region body, and a per-arrangement copy would be a second, drifting definition of
+   one treatment. */
+.empty-state.stream-all-clear {
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 0;
+  padding: 4px;
+}
+.stream-all-clear .empty-state-frame {
+  flex-direction: row;
+  align-items: center;
+  text-align: left;
+  gap: 10px;
+  width: auto;
+}
+.stream-all-clear .empty-state-icon { width: 28px; height: 28px; flex: none; }
+.stream-all-clear .empty-state-glyph { font-size: var(--font-size-mono); }
+.stream-all-clear .empty-title { font-size: var(--font-size-body-lg); }
+
+/* Phone (Luna P0-1(b), ≤390 measured): the row becomes a single column — the metadata
+   subline AND the attention tail (reason chip + status pill) stack BENEATH the primary
+   title instead of competing for a fixed trailing column. This gives the title the full
+   row width (≥240px, was 152–169px) and lets it WRAP instead of ellipsis-truncating with
+   horizontal scroll (impeccable ban-text-overflow). Applied across the phone range so the
+   ≤390 fix isn't a lone island above a still-squeezed 391–480. */
+@media (max-width: 480px) {
+  .stream-row-link {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .stream-row-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    /* Phone keeps the FULL wrap (Luna P0-1(b)) — undo the ≥481 2-line clamp (DO-16(c)). */
+    display: block;
+    -webkit-line-clamp: none;
+    line-clamp: none;
+  }
+  .stream-row-tail {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+}

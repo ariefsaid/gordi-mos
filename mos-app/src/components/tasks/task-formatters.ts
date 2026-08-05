@@ -1,4 +1,6 @@
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { Locale } from '@/i18n/messages'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 // OFF-TRACK-FIRST status order (OD-P3-6 / signed mockup): In Progress → Blocked → Open → Done.
 // Shared by the tasks workspace + the My Week mini-table so the two never drift.
@@ -26,11 +28,13 @@ export function formatAge(isoDate: string, now: Date): string {
   return `${days}d`
 }
 
-/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun". */
-export function formatDate(d: string): string {
-  const [y, m, day] = d.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, day))
-  return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun".
+ * #191 (Home port): delegates to the shared locale-aware date module rather than a hardcoded
+ * en-GB `toLocaleDateString` — Home's attention rows (`home-attention.ts`) need the viewer's
+ * locale on this same formatter every other call site here already used unlocalized. Every
+ * existing caller passes no `locale`, so the default reproduces the prior en-GB output exactly. */
+export function formatDate(d: string, locale: Locale = 'en'): string {
+  return formatWeekdayDayMonth(d, locale)
 }
 
 /** Collect unique persons (A + C + I) that are NOT the responsible person; returns count. */
