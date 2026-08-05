@@ -46,7 +46,6 @@ import { UpdatesPage } from './pages/updates-page'
 import { OpsPage } from './pages/ops-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
-import { PAGE_FAMILY_CONTRACTS } from './shell/page-families'
 
 const authedState: AuthState = {
   status: 'authenticated',
