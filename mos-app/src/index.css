@@ -275,4 +275,14 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+
+  /* The ONE scrim utility — background only, so each overlay keeps its own positioning
+     (fixed inset-0 for a page-covering scrim, absolute inset-0 inside a fixed overlay root).
+     Pairs with --z-drawer/--z-modal. The mobile drawer applies it; without the utility the
+     drawer's overlay renders fully transparent and the content behind it is never dimmed. */
+  .scrim { background: var(--scrim); }
 }
+
+/* PageHead prose-variant title-adjacent meta — one muted-text token so the count-badge /
+   date slot reads the same across surfaces, never dark body text competing with the title. */
+.page-head-meta { color: var(--muted-foreground); }
