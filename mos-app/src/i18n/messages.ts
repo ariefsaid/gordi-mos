@@ -371,7 +371,7 @@ export const messages = {
     // Copy carried verbatim from v4's catalog, both locales. Also the shared record-viewer and
     // collection-toolbar strings the Signals archive is the first surface here to render.
     'common.clearFilters': 'Clear filters',
-    'common.docTitle': '${page} — Gordi MOS',
+    // 'common.docTitle' already declared above (#191 Home port) — not re-added here.
     'common.resultCount': '${count} items in your scope',
     'common.save': 'Save',
     'common.saveCurrentView': 'Save current view',
@@ -447,7 +447,7 @@ export const messages = {
     'signals.feed.searchLabel': 'Search signals',
     'signals.feed.searchPlaceholder': 'Search signals',
     'signals.feed.seeMore': 'See ${count} more →',
-    'signals.feed.title': 'Signals',
+    // 'signals.feed.title' already declared above (#191 Home port) — not re-added here.
     'signals.mention.buDisabledReason': "You don't have permission to mention a Business Unit.",
     'signals.mention.group.bu': 'BU',
     'signals.mention.group.person': 'Person',
@@ -961,7 +961,7 @@ export const messages = {
     // Copy carried verbatim from v4's catalog, both locales. Also the shared record-viewer and
     // collection-toolbar strings the Signals archive is the first surface here to render.
     'common.clearFilters': 'Hapus filter',
-    'common.docTitle': '${page} — Gordi MOS',
+    // 'common.docTitle' already declared above (#191 Home port) — not re-added here.
     'common.resultCount': '${count} item dalam cakupan Anda',
     'common.save': 'Simpan',
     'common.saveCurrentView': 'Simpan tampilan saat ini',
@@ -1037,7 +1037,7 @@ export const messages = {
     'signals.feed.searchLabel': 'Cari sinyal',
     'signals.feed.searchPlaceholder': 'Cari sinyal',
     'signals.feed.seeMore': 'Lihat ${count} lagi →',
-    'signals.feed.title': 'Sinyal',
+    // 'signals.feed.title' already declared above (#191 Home port) — not re-added here.
     'signals.mention.buDisabledReason': 'Anda tidak memiliki izin untuk menyebut Unit Bisnis.',
     'signals.mention.group.bu': 'BU',
     'signals.mention.group.person': 'Orang',
