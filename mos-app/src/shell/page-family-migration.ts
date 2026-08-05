@@ -44,4 +44,27 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     sourceFile: 'src/pages/profile-page.tsx',
     symbol: 'ProfilePage',
   },
+  // Ecommerce + Roastery (#199). These two have no page of their own and are not getting one here
+  // — their depth and order is an open ranking question, so they stay on `SliceStubPage`. They
+  // still belong in this registry, because `SliceStubPage` renders a `PageFamilyFrame` too, and
+  // the entry is a claim about the FRAME rather than about how finished the surface is. Without
+  // them ContextRow prints the job sentence a second time above a page that already carries it —
+  // measured, not reasoned: two matches on `/ecommerce` before these entries existed.
+  //
+  // `/cafe` and `/work/signals/:signalId` are on the same stub and have the same duplicate today.
+  // They are deliberately NOT registered here: those routes belong to the Café and Signals ports,
+  // which replace the stub with a real page, and silently fixing them from this PR would hand
+  // those tickets a registry entry naming a component they had not written yet.
+  {
+    path: '/ecommerce',
+    family: 'workspace',
+    sourceFile: 'src/pages/slice-stub-page.tsx',
+    symbol: 'SliceStubPage',
+  },
+  {
+    path: '/roastery',
+    family: 'workspace',
+    sourceFile: 'src/pages/slice-stub-page.tsx',
+    symbol: 'SliceStubPage',
+  },
 ]
