@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
+import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import type { Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
@@ -19,7 +20,7 @@ import {
  *
  * Work owns exactly 4 always-expanded children (Signals · Tasks · Projects &
  * Processes · Objectives) with 0 family headings (Rule 3 caps). Money is
- * anyOf-gated (finance/admin); Admin is anyOf-gated (admin) — absent, not
+ * anyOf-gated on REVENUE_VIEW_ROLES; Admin is anyOf-gated (admin) — absent, not
  * disabled, when unauthorized (Rule 9 parity, SALVAGE #8). `isLive` and
  * `destinationForPath` resolve across all three zones so the breadcrumb and
  * aria-current logic see one owner per route.
@@ -39,8 +40,10 @@ export interface Destination {
   links: Section[]
   /** Work's always-expanded switcher (4, flat); undefined for non-Work destinations */
   children?: Section[]
-  /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied) */
-  anyOf?: string[]
+  /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
+   *  `readonly` so the shared role constants (REVENUE_VIEW_ROLES) can be assigned directly —
+   *  narrowing this to `string[]` is what forced a re-typed literal here in the first place. */
+  anyOf?: readonly string[]
   /** primary route a bottom-tab / Work-parent taps (defaults to links[0].path) */
   primaryPath?: string
   zone: DestinationZone
@@ -102,7 +105,19 @@ export const DESTINATIONS: Destination[] = [
     zone: 'workspace',
     labelKey: 'dest.money',
     Icon: MoneyIcon,
-    anyOf: ['finance', 'admin'],
+    // Money is the successor of `dev`'s Plan destination, and it inherits Plan's gate rather than
+    // v4's narrower one. `dev` grants a financial VIEW tier to manager (ADR-0050 D8, AC-128) and a
+    // revenue-only VIEW tier to supervisor (ADR-0051, AC-327) — owner-locked visibility that exists
+    // on this line and nowhere else. v4-redesign predates both and gates all of Money on
+    // finance|admin; carrying that literal across takes Money out of the rail AND the phone drawer
+    // for two whole tiers while the ROUTE still admits them, leaving the surface reachable only by
+    // typing a URL.
+    //
+    // The CONSTANT, not a re-typed literal: `/money`'s route gate reads the same one (router.tsx),
+    // so rail and route cannot drift apart — `destinations.test.ts` asserts that identity. Planning
+    // (budget/pricing) is a different question and stays finance|admin at the route: a VIEW tier is
+    // not a planning tier (FR-112, FR-315).
+    anyOf: REVENUE_VIEW_ROLES,
     primaryPath: '/money',
     links: [{ path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon }],
   },

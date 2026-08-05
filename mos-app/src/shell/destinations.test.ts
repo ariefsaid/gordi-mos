@@ -6,6 +6,9 @@
  */
 import { describe, it, expect } from 'vitest'
 import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerSeesCafe, type Destination } from './destinations'
+import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
+import { routeConfig } from '@/router'
+import { allRoutes } from '@/test/route-table'
 
 describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () => {
   it('exports exactly the five workspace ids in order: home, work, events, money, inbox', () => {
@@ -52,13 +55,45 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     expect(objectives.capability).toBeUndefined()
   })
 
-  it('AC-012: Money is anyOf finance/admin and isLive false for a plain member', () => {
+  it('AC-012: Money is anyOf REVENUE_VIEW_ROLES and isLive false for a plain member', () => {
     const money = DESTINATIONS.find((d) => d.id === 'money')!
-    expect(money.anyOf).toEqual(['finance', 'admin'])
+    // Two distinct claims, deliberately not one. `toBe` against the constant alone is a tautology —
+    // it passes even if someone edits the constant, which is exactly the drift these cases exist to
+    // catch. So: the POLICY is pinned with a literal, and the fact that the rail CONSUMES the same
+    // constant the /money route gate reads is pinned separately.
+    expect(money.anyOf).toEqual(['finance', 'admin', 'manager', 'supervisor']) // the POLICY
+    expect(money.anyOf).toBe(REVENUE_VIEW_ROLES) // consumes the CONSTANT
     expect(isLive(money, [])).toBe(false)
     expect(isLive(money, ['member'])).toBe(false)
     expect(isLive(money, ['finance'])).toBe(true)
     expect(isLive(money, ['admin'])).toBe(true)
+  })
+
+  // AC-128 / AC-327 carried across from `dev`'s Plan destination, which Money succeeds. They are
+  // separate cases rather than two more lines in AC-012 because each pins one owner ruling on its
+  // own: folding them in would let a future edit drop a tier without any case named after it going
+  // red. The port narrowed this gate to the literal ['finance','admin'] and deleted both cases —
+  // an assertion bent to the app on shipped, owner-locked visibility.
+  it('AC-128: manager admits to the Money destination (financial VIEW visibility, ADR-0050 D8)', () => {
+    const money = DESTINATIONS.find((d) => d.id === 'money')!
+    expect(isLive(money, ['manager'])).toBe(true)
+  })
+
+  it('AC-327: supervisor admits to the Money destination (revenue-only VIEW visibility, ADR-0051)', () => {
+    const money = DESTINATIONS.find((d) => d.id === 'money')!
+    expect(isLive(money, ['supervisor'])).toBe(true)
+  })
+
+  // The rail and the route must admit the same set, or Money is reachable by URL and invisible in
+  // the nav (or the reverse — a rail entry that bounces). Both read the same constant; this asserts
+  // the identity rather than trusting the two comments to stay in step.
+  it('the Money rail gate and the /money route gate admit exactly the same roles', () => {
+    const money = DESTINATIONS.find((d) => d.id === 'money')!
+    const routeGate = allRoutes(routeConfig).find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
+    )!
+    const routeAnyOf = (routeGate.element as React.ReactElement<{ anyOf: readonly string[] }>).props.anyOf
+    expect(money.anyOf).toBe(routeAnyOf)
   })
 
   it('events + inbox are always live (no anyOf gate)', () => {
