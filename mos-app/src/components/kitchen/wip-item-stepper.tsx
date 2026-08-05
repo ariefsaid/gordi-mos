@@ -14,9 +14,10 @@
 // pointer surface, not a touch target.
 
 import { useState } from 'react'
-import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import type { ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
+import { Select } from '@/components/ui/select'
 import './wip-item-stepper.css'
 
 interface WipItemStepperProps {
@@ -38,6 +39,16 @@ interface WipItemStepperProps {
   /** today's already-logged qty for this (item, movement) on the SELECTED stream — the
    *  running "already logged N" idiom (FR-014, AC-006). 0/omitted → nothing renders. */
   alreadyLogged?: number
+  /**
+   * The item's OFFERED units (#234, FR-020/021): the confirmed default first, then
+   * confirmed transferable alternates — already filtered by the reader (FR-032/AC-015),
+   * this component never re-derives offerability. Exactly one (or omitted — hosts that
+   * predate unit wiring) → the unit renders as FIXED text and no affordance exists
+   * (AC-005); more than one → the quiet "change unit" affordance appears.
+   */
+  unitOptions?: readonly ItemUnitOption[]
+  /** re-bind the line to another offered item-unit (the "change unit" path, FR-021/022). */
+  onUnitChange?: (itemUnitId: string) => void
 }
 
 export function WipItemStepper({
@@ -50,6 +61,8 @@ export function WipItemStepper({
   hideName = false,
   dense = false,
   alreadyLogged = 0,
+  unitOptions,
+  onUnitChange,
 }: WipItemStepperProps) {
   const t = useT()
   // v4: `stok` is no longer read here — both layouts already render Stock as a column/field.
@@ -63,6 +76,11 @@ export function WipItemStepper({
   // reading* still updates live — that is the per-menu feedback the owner asked for; it is the
   // mandatory-prose interruption that waits until the field is done.
   const [blurred, setBlurred] = useState(false)
+  // The "change unit" picker is CLOSED at rest and opens only on the affordance's own
+  // click (FR-021 — the uncommon case is deliberate, never the default path). It closes
+  // again on selection or blur: the resting row always reads as fixed text + one small
+  // control, whatever happened before.
+  const [unitPickerOpen, setUnitPickerOpen] = useState(false)
   // The REVEAL is gated on blur (DD-8). What it must NOT be gated on is `error` staying
   // set: `error` is the *unsatisfied* note gate — kitchen-gates stamps VARIANCE_NOTE_CUE
   // only while `notes` is empty — so `error !== '' && …` made the textarea unmount on the
@@ -86,6 +104,16 @@ export function WipItemStepper({
     ? t('kitchen.log.stepper.noteCue')
     : error
   const capCueText = capError === TRANSFER_SHORT_CUE ? t('kitchen.log.stepper.capCue') : capError
+
+  // ── The fixed unit + the deliberate "change unit" affordance (#234) ─────────
+  // FR-020: the unit beside the qty is MASTER DATA — the line's bound unit (the item's
+  // default at rest), never an input. The label falls back to the incumbent 'porsi' for
+  // hosts that have not wired units. FR-021/AC-005: only an item with MORE than one
+  // offered unit earns the affordance; with exactly one there is nothing to change and
+  // nothing renders but the text.
+  const boundUnit = unitOptions?.find(u => u.id === line.item_unit_id)
+  const unitLabel = boundUnit?.name ?? t('kitchen.unit.porsi')
+  const offersUnitChange = (unitOptions?.length ?? 0) > 1 && onUnitChange !== undefined
 
   function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value
@@ -124,7 +152,54 @@ export function WipItemStepper({
           onChange={handleQtyInput}
           onBlur={() => setBlurred(true)}
         />
-        <span className="kls-unit">{t('kitchen.unit.porsi')}</span>
+        {/* FR-020/021 (#234): the unit is fixed text on the common path. An item with
+            alternates gets a SMALL button wearing the same quiet label plus a change
+            glyph — one deliberate click opens the picker, selection closes it. An item
+            with one unit renders the bare text and NO button (AC-005): nothing to
+            change, nothing to mis-tap. */}
+        {!offersUnitChange && <span className="kls-unit">{unitLabel}</span>}
+        {offersUnitChange && !unitPickerOpen && (
+          <button
+            type="button"
+            className="kls-unit kls-unit-change"
+            aria-label={t('kitchen.log.unit.changeAria', { dish: itemName })}
+            disabled={disabled}
+            onClick={() => setUnitPickerOpen(true)}
+          >
+            {unitLabel}
+            <svg
+              aria-hidden="true"
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+        )}
+        {offersUnitChange && unitPickerOpen && (
+          <Select
+            className="kls-unit-select"
+            aria-label={t('kitchen.log.unit.selectAria', { dish: itemName })}
+            value={line.item_unit_id ?? ''}
+            disabled={disabled}
+            autoFocus
+            onChange={e => {
+              onUnitChange?.(e.target.value)
+              setUnitPickerOpen(false)
+            }}
+            onBlur={() => setUnitPickerOpen(false)}
+          >
+            {unitOptions?.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </Select>
+        )}
       </div>
 
       {/* plan · stok · tersedia context (FR-022/023 basis).

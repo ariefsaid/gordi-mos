@@ -32,28 +32,35 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(),
-    fetchDefaultStream: vi.fn(),
     listStreamPairs: vi.fn(),
     resolveKitchenBuId: vi.fn(),
     insertKitchenLogBatch: vi.fn(),
   }
 })
+// The person's own default stream — the ONE shape-validated resolver (default-stream.ts,
+// #234 consolidation), shared with the stock page.
+vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 // The missing-item report (AC-013) files through the Daily Log data layer — mocked like the rest.
 vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
 import {
   listCaptureFormItems,
   fetchActualsMap,
-  fetchDefaultStream,
   fetchPlanMap,
   fetchStockMap,
   listStreamPairs,
   resolveKitchenBuId,
   insertKitchenLogBatch,
 } from '@/lib/db/kitchen-logs'
+import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
 import { streamKey } from '@/lib/kitchen-action-label'
-import type { BranchOption, StreamPair, WipItemOption } from '@/lib/db/kitchen-logs.types'
+import type {
+  BranchOption,
+  CaptureFormItem,
+  ProductionStream,
+  StreamPair,
+} from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListCaptureFormItems = vi.mocked(listCaptureFormItems)
@@ -87,8 +94,9 @@ const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTE
 const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
   b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
 )
-// The person's own default stream (FR-001) — what shared.default_stream() resolves.
-const DEFAULT_STREAM_PAIR: StreamPair = { branch_id: BRANCH_RUMAH_RAMES.id, activity: 'kitchen' }
+// The person's own default stream (FR-001) — what the default-stream.ts resolver returns
+// (already resolved against the branch catalog).
+const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen' }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
 
@@ -126,9 +134,22 @@ const VIEWER_MEMBER: AuthState = {
 // The Kitchen-and-Bar BU id resolved BY NAME (#3) — NOT viewer.roles[0].business_unit_id.
 const BU_ID = '30000000-0000-0000-0000-0000000000kb'
 
-const WIP_ITEMS: WipItemOption[] = [
-  { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-  { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+// Capture-form items with their OFFERED units (#234): w1 carries a transferable alternate
+// (→ the change-unit affordance renders, AC-005), w2 has only its default (→ fixed text,
+// no affordance). The reader already filtered non-transferable alternates (AC-015 —
+// asserted in kitchen-logs.test.ts), so nothing non-offerable appears here.
+const WIP_ITEMS: CaptureFormItem[] = [
+  {
+    id: 'w1', name: 'Ayam Bakar', category: 'Main',
+    units: [
+      { id: 'u1-porsi', name: 'porsi', is_default: true },
+      { id: 'u1-botol', name: 'botol', is_default: false },
+    ],
+  },
+  {
+    id: 'w2', name: 'Nasi Goreng', category: 'Main',
+    units: [{ id: 'u2-porsi', name: 'porsi', is_default: true }],
+  },
 ]
 
 const PLAN_MAP = {
@@ -167,7 +188,7 @@ beforeEach(() => {
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
-  mockFetchDefaultStream.mockResolvedValue(DEFAULT_STREAM_PAIR)
+  mockFetchDefaultStream.mockResolvedValue(DEFAULT_STREAM)
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
   mockFetchActualsMap.mockResolvedValue({})
@@ -695,6 +716,9 @@ describe('AC-030: successful submit (increment semantics)', () => {
     expect(line).not.toHaveProperty('action_type')
     expect(line.wip_item_id).toBe('w2')
     expect(line.qty_porsi).toBe(12)
+    // #234 / FR-020: nothing was changed, so the row is bound to the item's DEFAULT unit —
+    // the common path entered no unit, yet the payload names its coordinate.
+    expect(line.item_unit_id).toBe('u2-porsi')
     expect(line.business_unit_id).toBe(BU_ID)
     // CRITICAL: must NOT send server-stamped fields
     expect(line).not.toHaveProperty('status')
@@ -720,6 +744,49 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toBeInTheDocument()
     })
+  })
+})
+
+// ── #234 / FR-021/022: the change-unit path binds the submitted row ────────────
+describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', () => {
+  it('choosing the alternate on a two-unit item submits THAT item-unit id; the one-unit item shows no affordance', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // AC-005 at the surface: w1 (two offered units) carries the affordance, w2 does not.
+    expect(screen.getByRole('button', { name: /change unit for ayam bakar/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /change unit for nasi goreng/i })).toBeNull()
+
+    // The deliberate extra click, then the alternate.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /unit for ayam bakar/i }), {
+        target: { value: 'u1-botol' },
+      })
+      await Promise.resolve()
+    })
+
+    // w1: plan 20, stok 3 → effective target 17; log 17 (on-target, no note gate).
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '17' } })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0])
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    // FR-022: the row is bound to the ALTERNATE's item-unit id — the ERP coordinate IS the
+    // unit; no separate unit field, no qty conversion.
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ wip_item_id: 'w1', qty_porsi: 17, item_unit_id: 'u1-botol' }),
+    ])
   })
 })
 
@@ -917,10 +984,10 @@ function setDesktopMatchMedia(desktop: boolean) {
 }
 
 // extra item with NO plan → exercises the Off-plan group
-const WIP_ITEMS_WITH_OFFPLAN: WipItemOption[] = [
-  { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-  { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
-  { id: 'w3', name: 'Sambal Matah', category: 'Side' }, // off-plan for Production
+const WIP_ITEMS_WITH_OFFPLAN: CaptureFormItem[] = [
+  ...WIP_ITEMS,
+  // off-plan for Production
+  { id: 'w3', name: 'Sambal Matah', category: 'Side', units: [{ id: 'u3-porsi', name: 'porsi', is_default: true }] },
 ]
 
 // task 10a — the derived plan figures render in the page-head meta line.
@@ -1086,8 +1153,8 @@ describe('OD-K-5: category filter narrows rows', () => {
   it('choosing a category shows only that category\'s dishes', async () => {
     setDesktopMatchMedia(true)
     mockListCaptureFormItems.mockResolvedValue([
-      { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-      { id: 'w2', name: 'Nasi Goreng', category: 'Rice' },
+      { id: 'w1', name: 'Ayam Bakar', category: 'Main', units: [{ id: 'u1-porsi', name: 'porsi', is_default: true }] },
+      { id: 'w2', name: 'Nasi Goreng', category: 'Rice', units: [{ id: 'u2-porsi', name: 'porsi', is_default: true }] },
     ])
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -1254,7 +1321,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 
 describe("AC-002 / FR-001: the capture surface opens on the person's own stream and stays switchable", () => {
   it('AC-002: pre-selects the shared.default_stream() pair — not a hardcoded branch', async () => {
-    mockFetchDefaultStream.mockResolvedValue({ branch_id: BRANCH_RADIANT.id, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1380,7 +1447,7 @@ describe('FR-005: the picker offers exactly the six-stream catalog — the roast
 
 describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed unit, no unit input", () => {
   it("a bar stream's form carries one qty input per item + fixed unit label — no raw-material field, no unit input", async () => {
-    mockFetchDefaultStream.mockResolvedValue({ branch_id: BRANCH_GORDI_HQ.id, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_GORDI_HQ, activity: 'bar' })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 

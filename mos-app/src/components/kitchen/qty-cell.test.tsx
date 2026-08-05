@@ -11,6 +11,7 @@ import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
 function line(over: Partial<KitchenLogLine> = {}): KitchenLogLine {
   return {
     wip_item_id: 'w1',
+    item_unit_id: 'u-porsi',
     qty_porsi: 0,
     notes: '',
     plan_qty: 20,

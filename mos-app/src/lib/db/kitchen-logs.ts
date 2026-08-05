@@ -9,6 +9,8 @@ import { listActiveBranches } from './branches'
 import type {
   ActualsMap,
   BranchOption,
+  CaptureFormItem,
+  ItemUnitOption,
   WipItemOption,
   PlanMap,
   StockMap,
@@ -20,7 +22,6 @@ import type {
   ReviewLogRow,
   ApproveResult,
   KitchenStockRow,
-  KitchenStockStreamRow,
   StreamPair,
 } from './kitchen-logs.types'
 import { PRODUCTION_ACTIVITIES } from './kitchen-logs.types'
@@ -66,29 +67,13 @@ export function defaultStreamFrom(branches: readonly BranchOption[]): Production
  * can offer the picker.
  *
  * NOT the capture surface's default any more (#233): capture opens on the person's OWN
- * stream via `fetchDefaultStream()` (FR-001) and falls back to an explicit choice, never
- * to a hardcoded branch (FR-002). This stays for the read-only surfaces that have not
- * grown a person-scoped default yet (plan editor).
+ * stream via `fetchDefaultStream` in `default-stream.ts` (FR-001) — the ONE person-scoped
+ * resolver (#234 consolidation) — and falls back to an explicit choice, never to a
+ * hardcoded branch (FR-002). This stays for the read-only surfaces that have not grown a
+ * person-scoped default yet (plan editor).
  */
 export async function resolveDefaultCaptureStream(): Promise<ProductionStream | null> {
   return defaultStreamFrom(await listActiveBranches())
-}
-
-/**
- * The person's own default capture stream (FR-001, AC-001): the (branch_id, activity) of
- * their live primary Team membership, resolved by `shared.default_stream()` — the
- * substrate seeded by the stream-teams migration (OD-WAY-49: their Team IS their stream).
- * Null when the person has no live primary membership, or their primary Team is not a
- * stream team — either way the capture surface must require an explicit stream choice
- * before capture (FR-002). A DEFAULT, never a wall (FR-003/OD-WAY-31): the picker always
- * offers every stream.
- */
-export async function fetchDefaultStream(): Promise<StreamPair | null> {
-  const { data, error } = await shared().rpc('default_stream')
-  if (error) throw new Error(`fetchDefaultStream failed — ${error.message}`)
-  const row = ((data ?? []) as { branch_id: string | null; activity: string | null }[])[0]
-  if (!row?.branch_id || !row.activity) return null
-  return { branch_id: row.branch_id, activity: row.activity as ProductionActivity }
 }
 
 /**
@@ -158,23 +143,48 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
  * ERP coordinates are CONFIRMED come back, so an unconfirmed item is absent — not disabled,
  * not warned. The gate is the query, never a flag consulted at render time (NFR-004).
  *
- * The view returns one row per confirmed (item, unit); the form's item list is items, so
- * rows collapse to distinct items here. Unit display is a later slice (FR-020/021).
+ * The view returns one row per confirmed (item, unit); rows fold into items carrying their
+ * OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
+ * then transferable alternates. A non-transferable ALTERNATE is dropped here (FR-032,
+ * AC-015: never offered); the default is kept whatever its flag, because the fixed unit is
+ * master data, not an offer. An item whose confirmed rows yield no offerable unit at all
+ * (non-transferable alternates only, no default) is absent — a row that cannot name its
+ * unit cannot be captured.
  */
-export async function listCaptureFormItems(): Promise<WipItemOption[]> {
+export async function listCaptureFormItems(): Promise<CaptureFormItem[]> {
   const { data, error } = await ops()
     .from('capture_form_items')
-    .select('wip_item_id,name,category')
+    .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
     .order('name', { ascending: true })
+    .order('unit_name', { ascending: true })
   if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
-  const seen = new Set<string>()
-  const items: WipItemOption[] = []
-  for (const row of (data ?? []) as { wip_item_id: string; name: string; category: string | null }[]) {
-    if (seen.has(row.wip_item_id)) continue
-    seen.add(row.wip_item_id)
-    items.push({ id: row.wip_item_id, name: row.name, category: row.category })
+  type ViewRow = {
+    wip_item_id: string
+    name: string
+    category: string | null
+    item_unit_id: string
+    unit_name: string
+    is_default: boolean
+    is_transferable: boolean
   }
-  return items
+  const byItem = new Map<string, CaptureFormItem>()
+  for (const row of (data ?? []) as ViewRow[]) {
+    if (!row.is_default && !row.is_transferable) continue // FR-032/AC-015: never offered
+    let item = byItem.get(row.wip_item_id)
+    if (!item) {
+      item = { id: row.wip_item_id, name: row.name, category: row.category, units: [] }
+      byItem.set(row.wip_item_id, item)
+    }
+    const unit: ItemUnitOption = {
+      id: row.item_unit_id,
+      name: row.unit_name,
+      is_default: row.is_default,
+    }
+    // Default first (FR-020 — it IS the row's fixed unit); alternates keep name order.
+    if (unit.is_default) item.units.unshift(unit)
+    else item.units.push(unit)
+  }
+  return [...byItem.values()]
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
@@ -358,27 +368,6 @@ export async function fetchKitchenStock(
   })
 }
 
-/**
- * Fetch the read-only Stock view's display rows ACROSS every given (branch, activity)
- * stream (#198, OD-WAY-28): one row per (active WIP item × stream) pair, each carrying
- * the stream it belongs to. "Stok HQ" means the central kitchen, which books to Rumah
- * Rames — not Gordi HQ — so a stock view that cannot say WHOSE books a row is looking at
- * is the shape of problem that hides a COGS error. Runs one `fetchKitchenStock` per
- * stream in parallel; bounded by the branch catalog × 2 activities, both small.
- */
-export async function fetchKitchenStockAcrossStreams(
-  asOf: string,
-  streams: readonly ProductionStream[],
-): Promise<KitchenStockStreamRow[]> {
-  const perStream = await Promise.all(
-    streams.map(async (stream): Promise<KitchenStockStreamRow[]> => {
-      const rows = await fetchKitchenStock(asOf, stream)
-      return rows.map(row => ({ ...row, stream }))
-    }),
-  )
-  return perStream.flat()
-}
-
 // ── Kitchen log insert ────────────────────────────────────────────────────────
 
 /**
@@ -410,6 +399,9 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
     action: input.action,
     destination_branch_id: input.destination_branch_id,
     wip_item_id: input.wip_item_id,
+    // The bound item-unit (#234, FR-021/022). null → the DB binds the item's DEFAULT unit
+    // server-side (FR-020) — the common path never entered a unit, but the row carries one.
+    item_unit_id: input.item_unit_id ?? null,
     qty_porsi: input.qty_porsi,
     notes: input.notes ?? null,
     // status NOT sent — DB defaults to 'Submitted'
