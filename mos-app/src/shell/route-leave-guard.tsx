@@ -23,13 +23,13 @@
 import { useCallback, useContext, useEffect, useState } from 'react'
 import { UNSAFE_DataRouterContext, useBlocker, type BlockerFunction } from 'react-router-dom'
 //
-// PORT NOTE (#190): v4 imports `@/components/ui/confirm-dialog` — the same primitive promoted to a
-// shared path and re-skinned on `ModalShell`. Neither the move nor `ModalShell` is on this line, and
-// both belong to the surfaces that consume them, so this guard composes the ConfirmDialog exactly
-// where it already lives. What it did need — localizable Cancel/busy labels defaulting against the
-// catalog — is v4's own harden fix (defect 2 above) and landed on that component with this PR.
+// PORT NOTE (#190 → #201): #190 left the ConfirmDialog at its admin path and said the promotion
+// "belongs to the surfaces that consume them". Admin People (#201) is the first such surface, so the
+// promotion happened there: `@/components/ui/confirm-dialog`, re-skinned on `ModalShell`. This guard
+// now imports the shared path directly. The localizable Cancel/busy labels defaulting against the
+// catalog (defect 2 above) came with #190 and are unchanged.
 import { useT } from '@/i18n/use-t'
-import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export interface RouteLeaveGuardProps {
   /** True while the page holds unsaved work that a navigation would discard. */
