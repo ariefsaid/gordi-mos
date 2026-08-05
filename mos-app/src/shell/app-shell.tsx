@@ -114,8 +114,8 @@ function ShellContent() {
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
   // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
   // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
-  // 1100px threshold `task-drawer` and `tasks-layout` already key their own regime off — v4 adds
-  // `record-panel-host` to that list, which lands with #190) rather than inventing a new query,
+  // 1100px threshold `task-drawer`, `tasks-layout` and `record-panel-host` already key their own
+  // regime off) rather than inventing a new query,
   // so the rail's compact boundary tracks the app's one documented "narrow vs split" breakpoint.
   const isSplit = useIsSplitWidth()
   const railCompact = !isNarrow && !isSplit
@@ -229,7 +229,7 @@ function ShellContent() {
 
       {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). v4 also
           passes `mode` and an `onShareSignal` that dispatches to the shared Signal composer host;
-          both wait on #190 (the composer host) and on the palette's own create-set. */}
+          those wait on the palette's own create-set and on the Signals surface respectively. */}
       <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,

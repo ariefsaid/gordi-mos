@@ -208,9 +208,11 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
   })
 
-  // DEFERRED TO #190: v4's `AC-428` case here proves the palette's Share Signal action opens the
-  // shell-mounted SignalComposerHost. Both the action and the host land with the overlay/record
-  // hosts, so the case travels with them rather than being weakened to fit this branch.
+  // STILL DEFERRED after #190 — now waiting on the SIGNALS SURFACE. v4's `AC-428` case here proves
+  // the palette's Share Signal action opens the shell-mounted SignalComposerHost. That host mounts
+  // `SignalComposer` and reads the Signals mention rosters from the database, neither of which is on
+  // this branch, and the palette has no Share-Signal action to fire either. The case travels with
+  // that surface rather than being weakened to fit this branch.
 })
 
 // Plan §4.4 (AC-T01/T03): phone chrome gains a tabbar grid row + BottomTabBar.
