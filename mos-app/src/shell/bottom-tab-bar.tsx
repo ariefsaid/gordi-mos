@@ -69,10 +69,14 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   // reads identically everywhere it's shown. Fetched once per shell mount; no polling.
   const { unreadCount } = useUnreadCount()
 
-  // OD-REDESIGN-68: the module tab is the viewer's own work, not a hardcoded Café for
-  // everyone. A barista sees Café, a roaster sees Roastery; an org-wide role sees no
-  // module slot (the rail's rule, applied to the phone bottom-nav). Module routes stay
-  // reachable via ⌘K / direct URL — this scopes the NAV, not authorization.
+  // The third slot leads with the viewer's own work: a barista's phone opens on Café, a roaster's
+  // on Roastery, and a viewer whose job role matches no module gets no promoted slot. This is
+  // EMPHASIS only (OD-WAY-51) — every module the viewer's routes admit is listed in the More
+  // drawer regardless, so nothing is hidden by not being promoted.
+  //
+  // The line here used to say "module routes stay reachable via ⌘K / direct URL". That was false:
+  // the palette held seven hardcoded entries, none of them Café. It is deleted rather than
+  // replaced — under OD-WAY-51 no justification is needed, because nothing is being hidden.
   const moduleDest = viewer ? primaryModuleForViewer(viewer.roles.map((r) => r.name), viewer.accessRoles) : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {

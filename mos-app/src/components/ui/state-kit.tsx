@@ -6,6 +6,7 @@
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
 import { useId, type ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
 import { Button } from './button'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
@@ -29,7 +30,7 @@ export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }
   )
 }
 
-export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting'
+export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
 
 export interface EmptyStateProps {
   title: ReactNode
@@ -37,6 +38,14 @@ export interface EmptyStateProps {
   note?: ReactNode
   variant?: EmptyStateVariant
   icon?: ReactNode
+  /**
+   * Heading level for the title. Defaults to 3, which is what every call site on this branch
+   * already renders — the prop exists so a surface whose EmptyState sits directly under the page
+   * h1 can pass 2 and not skip a level. (v4 raised the DEFAULT to 2; that changes the outline of
+   * ~20 existing call sites and belongs to the PR that ports those surfaces, not to the route
+   * table.)
+   */
+  headingLevel?: 2 | 3 | 4 | 5 | 6
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
@@ -47,10 +56,12 @@ function defaultEmptyGlyph(variant: EmptyStateVariant) {
     case 'next-step':
       return '+'
     case 'awaiting':
-      return '↻'
+      return '↻' // a real data source exists and will fill this
+    case 'blank':
+      return '—' // empty BY DESIGN: no source, nothing pending — never ✓ (false success) nor ↻ (false pending)
     case 'quiet':
     default:
-      return '✓'
+      return '✓' // an EARNED all-clear ("you're all caught up") — not a generic empty
   }
 }
 
@@ -60,10 +71,12 @@ export function EmptyState({
   note,
   variant = 'quiet',
   icon,
+  headingLevel = 3,
   children,
   className,
 }: EmptyStateProps) {
   const titleId = useId()
+  const Heading = `h${headingLevel}` as const
 
   return (
     <div
@@ -78,7 +91,7 @@ export function EmptyState({
           <span className="empty-state-glyph">{icon ?? defaultEmptyGlyph(variant)}</span>
         </div>
         <div className="empty-state-body">
-          <h3 id={titleId} className="empty-title">{title}</h3>
+          <Heading id={titleId} className="empty-title">{title}</Heading>
           {copy && <p className="empty-copy">{copy}</p>}
           {note && <p className="empty-note">{note}</p>}
         </div>
@@ -106,6 +119,39 @@ export function SkeletonRows({ count = 3, className, row }: SkeletonRowsProps) {
           </div>
         ),
       )}
+    </div>
+  )
+}
+
+export interface LoadingShellProps {
+  /** Number of skeleton rows to render. */
+  count?: number
+  /** Override the status announcement (defaults to the shared `common.loading`). */
+  label?: string
+  className?: string
+  /** Custom row renderer, forwarded to SkeletonRows for pane-specific shapes. */
+  row?: (i: number) => ReactNode
+}
+
+/**
+ * LoadingShell — THE one loading grammar. A single busy status region (`role=status` +
+ * `aria-busy` + one localized label) wrapping the shared SkeletonRows, so a route whose code is
+ * still in flight announces itself once, the same way, everywhere.
+ *
+ * It is the sanctioned Suspense fallback for every code-split route (router.tsx, NFR-012/AC-019).
+ * SkeletonRows alone is `aria-hidden`, so a bare skeleton fallback would leave a screen reader
+ * with silence while a chunk downloads.
+ */
+export function LoadingShell({ count = 3, label, className, row }: LoadingShellProps) {
+  const t = useT()
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label ?? t('common.loading')}
+      className={`loading-shell${className ? ` ${className}` : ''}`}
+    >
+      <SkeletonRows count={count} row={row} />
     </div>
   )
 }

@@ -131,7 +131,7 @@ test.describe('AC-025: Dashboard — phone layout (390px)', () => {
   test('AC-025: KPI values, global toolbar, tab switch, and detail cards are visible without horizontal scroll or overlap', async ({ page }) => {
     await mockDashboardReporting(page)
     await loginAs(page, ADMIN.email, ADMIN.password)
-    await page.goto('dashboard')
+    await page.goto('money')
 
     // Populated layout rendered (this label only exists in the ready state — doubles
     // as the data-loaded readiness wait; the empty state must NOT have triggered).
@@ -192,7 +192,7 @@ test.describe('AC-026: Dashboard — desktop layout (≥1280px)', () => {
   test('AC-026: KPI rows + chart + table are visible above/near the fold; numeric columns are tabular', async ({ page }) => {
     await mockDashboardReporting(page)
     await loginAs(page, ADMIN.email, ADMIN.password)
-    await page.goto('dashboard')
+    await page.goto('money')
 
     // Populated layout rendered.
     await expect(page.getByText(/trailing 7-day revenue/i)).toBeVisible()

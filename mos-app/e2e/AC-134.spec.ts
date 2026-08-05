@@ -160,7 +160,7 @@ test.afterAll(async () => {
 test.beforeEach(async ({ page }) => {
   // Log in as Director (MANAGER = Dewi Director) — Director persona per the AC.
   await loginAs(page, MANAGER.email, MANAGER.password)
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   // Switch to "All" so Dewi sees the full seeded dataset (not just her R/A tasks).
   await page.getByRole('tab', { name: 'All' }).click()

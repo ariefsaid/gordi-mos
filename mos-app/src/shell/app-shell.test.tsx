@@ -13,8 +13,8 @@ vi.mock('@/lib/db/directory', () => ({
 // The TopBar NotificationBell fires useUnreadCount → countUnread on mount. Mock it so that async
 // read resolves cleanly instead of racing the test teardown. The bell is unconditional in the v4
 // chrome — it reads no feature flag at all — so this mock is needed on every run, not only when a
-// flag happens to be on. (SHOW_INBOX still exists on this branch and still gates the /inbox ROUTE;
-// it no longer gates the bell.)
+// flag happens to be on. (SHOW_INBOX is fully retired as of #189 — it gated the /inbox route,
+// which was its last reader; nothing conditions the Inbox any more.)
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
   listNotifications: vi.fn().mockResolvedValue([]),

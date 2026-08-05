@@ -5,16 +5,15 @@ import {
   DESTINATIONS,
   UTILITY,
   isLive,
-  modulesByBUForRoles,
+  modulesByBU,
   primaryModuleForViewer,
   type Destination,
 } from './destinations'
-import type { Section } from './sections'
+import { visibleSections, type Section } from './sections'
 import { UserChip } from './user-chip'
 import { CloseIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
 import './mobile-drawer.css'
 
 interface MobileDrawerProps {
@@ -28,7 +27,7 @@ interface MobileDrawerProps {
 // filters them (rail-nav.tsx) — a capability-gated child (Projects & Processes, Objectives)
 // renders only for a viewer whose access roles grant it.
 function workChildren(d: Destination, accessRoles: string[]): Section[] {
-  return (d.children ?? []).filter((c) => !c.capability || can(accessRoles, c.capability))
+  return visibleSections(d.children ?? [], accessRoles)
 }
 
 // One row renderer shared by both Destination and Work-child (Section) rows — same visual
@@ -68,7 +67,7 @@ function DrawerGroupLabel({ children }: { children: string }) {
 /**
  * MobileDrawer — v4 shell rebuild (Task 4). The real two-zone nav drawer, derived from the SAME
  * destinations.tsx registry the desktop rail reads (no second hand-maintained list): workspace
- * roots (+ Work's 4 always-expanded children) · Modules grouped by BU (modulesByBUForRoles,
+ * roots (+ Work's 4 always-expanded children) · Modules grouped by BU (modulesByBU,
  * viewer-scoped) · Utility. The viewer's promoted module is already a bottom-tab, so it's
  * excluded from the Modules zone here — it lives on exactly one nav surface. Links carry no
  * aria-current (the bottom-tab-bar / breadcrumb leaf own that; Rule 5 — see breadcrumb.tsx).
@@ -135,8 +134,26 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
   const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
   const promotedModule = primaryModuleForViewer(roleNames, accessRoles)
-  const moduleGroups = modulesByBUForRoles(roleNames, accessRoles)
-    .map((g) => ({ bu: g.bu, items: g.items.filter((m) => m.id !== promotedModule?.id) }))
+  // Zone 2 keeps every viewer-scoped module. The promoted one contributes only its CHILDREN — its
+  // own row is already the bottom bar's module tab, so repeating it here would be the duplicate
+  // the "exactly one surface owns the module" rule exists to prevent.
+  //
+  // It used to be dropped whole, children included (#242). Below 920px there is no rail, and the
+  // bottom bar renders one link per module with no children — so for every viewer who HAS a
+  // module (Café is always the promoted one for kitchen staff) that module's sub-screens had no
+  // nav entry on a phone at all. Café's five screens are the ones kitchen staff use daily, on
+  // their primary device.
+  const moduleGroups = modulesByBU(accessRoles)
+    .map((g) => ({
+      bu: g.bu,
+      items: g.items
+        .map((m) => ({
+          module: m,
+          showParent: m.id !== promotedModule?.id,
+          children: visibleSections(m.children ?? [], accessRoles),
+        }))
+        .filter((i) => i.showParent || i.children.length > 0),
+    }))
     .filter((g) => g.items.length > 0)
   const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
 
@@ -219,9 +236,31 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             <div key={g.bu}>
               <DrawerGroupLabel>{t(g.bu)}</DrawerGroupLabel>
               <ul className="flex flex-col gap-[2px]">
-                {g.items.map((m) => (
+                {g.items.map(({ module: m, showParent, children }) => (
                   <li key={m.id}>
-                    <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
+                    {showParent && (
+                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
+                    )}
+                    {/* A module's own screens. This drawer is the phone's ONLY route to them —
+                        the bottom bar gives a module one tab and no children — so a module whose
+                        children are not drawn here has no phone nav at all. Gated children
+                        (Review · Pushes) are filtered by the same helper the rail uses, against
+                        the same roles their route enforces. Indented under a parent row; flush
+                        when the parent is the bottom tab and only the children render here. */}
+                    {children.length > 0 && (
+                      <ul className={`flex flex-col gap-[2px] ${showParent ? 'pl-6' : ''}`}>
+                        {children.map((c) => (
+                          <li key={c.path}>
+                            <DrawerRow
+                              to={c.path}
+                              label={c.labelKey ? t(c.labelKey) : c.label}
+                              Icon={c.Icon}
+                              onNavigate={closeAndReturn}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -14,10 +14,9 @@ export const SHOW_USER_VIEWS = true
 // Flip true (local/staging only) to enable the deputy for a rollout cohort.
 export const SHOW_ASSISTANT = true
 
-// ADR-0019 D9 / ADR-0044 — the Inbox destination (notifications). Hide-first: the /inbox route, the
-// nav destination, and the bell badge all short-circuit when false. Flip true once notification
-// producers (@mentions, automations) are wired for a rollout cohort.
-export const SHOW_INBOX = true
+// ADR-0019 D9 / ADR-0044 — the Inbox destination (notifications). RETIRED: Inbox is
+// unconditionally live. #188 made the rail entry, the bottom tab and the header bell
+// unconditional; #189 did the same for the /inbox route, which was the flag's last reader.
 
 // Issue E — Home stacked-union cockpit (docs/specs/home-stacked-union.spec.md). Hide-first: when
 // false, the `/` route renders Home v1 (HomePage) unchanged; when true, it renders the stacked-union

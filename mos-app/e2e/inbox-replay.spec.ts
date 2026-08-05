@@ -1,13 +1,13 @@
 // P3a Phase H / T32 — curated live cross-stack journey for Inbox + replay.
 //
 // Live-gated on purpose: this exercises the real agent-chat edge function + model tool choice, so
-// it only runs when the owner has enabled SHOW_ASSISTANT/SHOW_INBOX and explicitly opted into the
+// it only runs when the owner has enabled SHOW_ASSISTANT and explicitly opted into the
 // model-backed e2e with MOS_P3A_LIVE_E2E=1.
 
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
-import { SHOW_ASSISTANT, SHOW_INBOX } from '../src/config/features'
+import { SHOW_ASSISTANT } from '../src/config/features'
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -21,7 +21,8 @@ async function unreadCount(page: Page): Promise<number> {
 
 test.beforeEach(() => {
   test.skip(!SHOW_ASSISTANT, 'Assistant is flag-hidden (config/features.ts SHOW_ASSISTANT)')
-  test.skip(!SHOW_INBOX, 'Inbox is flag-hidden (config/features.ts SHOW_INBOX)')
+  // SHOW_INBOX is retired (#188/#189) — Inbox is unconditionally live, so there is no flag
+  // left to skip on.
   test.skip(
     process.env.MOS_P3A_LIVE_E2E !== '1',
     'P3a Inbox replay e2e is live-model gated; set MOS_P3A_LIVE_E2E=1 after model secrets are configured',

@@ -147,7 +147,7 @@ test(
   await loginAs(page, MANAGER.email, MANAGER.password)
 
   // ── 2. Navigate to /mos/tasks ────────────────────────────────────────────────
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
   // ── 3. Scope = "All" ─────────────────────────────────────────────────────────

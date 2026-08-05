@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
-import type { Section } from './sections'
+import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
+import { CAFE_SECTIONS, CAFE_MODULE_SECTIONS, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, EventsIcon, SignalsIcon, MoneyIcon,
@@ -19,7 +20,7 @@ import {
  *
  * Work owns exactly 4 always-expanded children (Signals · Tasks · Projects &
  * Processes · Objectives) with 0 family headings (Rule 3 caps). Money is
- * anyOf-gated (finance/admin); Admin is anyOf-gated (admin) — absent, not
+ * anyOf-gated on REVENUE_VIEW_ROLES; Admin is anyOf-gated (admin) — absent, not
  * disabled, when unauthorized (Rule 9 parity, SALVAGE #8). `isLive` and
  * `destinationForPath` resolve across all three zones so the breadcrumb and
  * aria-current logic see one owner per route.
@@ -37,10 +38,13 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Work's always-expanded switcher (4, flat); undefined for non-Work destinations */
+  /** Always-expanded sub-links rendered beneath the entry (Work's 4; Café's 5). Undefined for a
+   *  destination whose root IS the whole surface. */
   children?: Section[]
-  /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied) */
-  anyOf?: string[]
+  /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
+   *  `readonly` so the shared role constants (REVENUE_VIEW_ROLES) can be assigned directly —
+   *  narrowing this to `string[]` is what forced a re-typed literal here in the first place. */
+  anyOf?: readonly string[]
   /** primary route a bottom-tab / Work-parent taps (defaults to links[0].path) */
   primaryPath?: string
   zone: DestinationZone
@@ -82,14 +86,16 @@ export const DESTINATIONS: Destination[] = [
     ],
   },
   {
-    // OD-V4-2 ("Signals everywhere", owner-ratified 2026-07-27, docs/v4-inheritance.md INC-2):
-    // the noun "Events" is retired from the UI. This root's rendered label is now "Signals" (the
-    // live company-wide feed) via dest.events/nav.events in messages.ts — the Work child at
-    // /work/signals is the archive of the same Signal records, labeled "Signals Archive" so the
-    // two rail entries are never visually identical. The `id: 'events'`, `labelKey: 'dest.events'`,
-    // `EventsIcon`, and the `/events` PATH are all left as legacy internal identifiers on purpose —
-    // renaming them is a route/deep-link/test-touching change out of this fix's scope. Only the
-    // rendered i18n string changed; do not confuse the legacy internal name with the shown label.
+    // This root renders as "Events". It previously carried a comment claiming OD-V4-2 ("Signals
+    // everywhere") had retired the noun and that `dest.events` / `nav.events` now resolve to
+    // "Signals", with the Work child relabelled "Signals Archive".
+    //
+    // Checked against the catalogue on BOTH lines: `dest.events` and `nav.events` are 'Events' /
+    // 'Acara' here AND on `v4-redesign` itself, and the Work child is 'Signals' / 'Sinyal', not
+    // 'Signals Archive'. So the comment was already wrong at its source — this is not a half-ported
+    // ruling, it is a rationale describing a relabelling nobody ever made. Corrected to match the
+    // code rather than carried across; whether OD-V4-2 still wants that relabelling is a question
+    // for the map, not something to infer from a stale comment.
     id: 'events',
     zone: 'workspace',
     labelKey: 'dest.events',
@@ -102,7 +108,19 @@ export const DESTINATIONS: Destination[] = [
     zone: 'workspace',
     labelKey: 'dest.money',
     Icon: MoneyIcon,
-    anyOf: ['finance', 'admin'],
+    // Money is the successor of `dev`'s Plan destination, and it inherits Plan's gate rather than
+    // v4's narrower one. `dev` grants a financial VIEW tier to manager (ADR-0050 D8, AC-128) and a
+    // revenue-only VIEW tier to supervisor (ADR-0051, AC-327) — owner-locked visibility that exists
+    // on this line and nowhere else. v4-redesign predates both and gates all of Money on
+    // finance|admin; carrying that literal across takes Money out of the rail AND the phone drawer
+    // for two whole tiers while the ROUTE still admits them, leaving the surface reachable only by
+    // typing a URL.
+    //
+    // The CONSTANT, not a re-typed literal: `/money`'s route gate reads the same one (router.tsx),
+    // so rail and route cannot drift apart — `destinations.test.ts` asserts that identity. Planning
+    // (budget/pricing) is a different question and stays finance|admin at the route: a VIEW tier is
+    // not a planning tier (FR-112, FR-315).
+    anyOf: REVENUE_VIEW_ROLES,
     primaryPath: '/money',
     links: [{ path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon }],
   },
@@ -120,9 +138,19 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
   {
     bu: 'rail.retailOps',
     items: [
+      // Café carries its five working screens, not just its root. The port shipped this module
+      // with a single `/cafe` link while CAFE_SECTIONS held all six paths, correctly labelled and
+      // imported by nothing but a breadcrumb lookup — so Log, Plan, Stock, Review and Pushes, the
+      // one module with live kitchen staff on it, became reachable only by typing a URL.
+      //
+      // `children` (not just `links`) is what actually renders them: every nav surface draws ONE
+      // link per module at `primaryPath ?? links[0].path`, and the expanded child list is the
+      // mechanism Work already uses. Review and Pushes carry the same `ops_lead|admin` gate their
+      // ROUTE carries, so the rail never offers a link that bounces.
       { id: 'cafe', zone: 'modules', labelKey: 'dest.cafe', Icon: CafeIcon, primaryPath: '/cafe',
         workMatch: /caf[eé]|kitchen|\bbar\b|barista/i,
-        links: [{ path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon }] },
+        links: CAFE_SECTIONS,
+        children: CAFE_MODULE_SECTIONS },
       { id: 'ecommerce', zone: 'modules', labelKey: 'dest.ecommerce', Icon: EcommerceIcon, primaryPath: '/ecommerce',
         workMatch: /ecommerce/i, // NOT sales|crm — Sales is the b2b_sales BU (seed), no module yet (audit F6)
         links: [{ path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon }] },
@@ -139,59 +167,61 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
 ]
 
 /**
- * OD-REDESIGN-68 (owner sketch 2026-07-14, confirmed 2026-07-18): the rail shows YOUR work,
- * not the org chart. The owner's frame sketch has no module blocks — for org-wide roles
- * (Managing Director, admin, finance) the rail is exactly the sketch: Home · Work(4) · Signals ·
- * Money · Inbox + utility. A module renders only for a viewer whose JOB ROLE belongs to that
- * BU (the e7 Ayu pattern: a barista sees Café, flat, no BU heading). Everyone still reaches
- * module routes via ⌘K / Home links / direct URL — this scopes the RAIL, not authorization.
- * ponytail: name-keyword affiliation (role name → BU), same ceiling as RATIFY-7F name-based
- * resolution; upgrade to team.business_unit when the viewer payload carries it.
+ * OD-WAY-51 (owner ruling): **navigation mirrors what the route admits.** If a route admits a
+ * viewer, that viewer gets a rendered way in, at every viewport. The navigation is never narrower
+ * than the authorization.
+ *
+ * So a module renders for whoever its ROUTE admits — `isLive` resolves the destination's own
+ * access-role gate and nothing else. `workMatch` survives, but ONLY as emphasis: which module gets
+ * promoted to the phone's bottom-tab slot and which one the context row names. It no longer
+ * decides whether a link exists.
+ *
+ * What it used to do, and why the ruling exists: OD-REDESIGN-68 scoped modules to the viewer's own
+ * work by matching their JOB-ROLE NAME against a regex. A substantial share of the roles actually
+ * in use match none of those regexes, so Café's Log, Plan and Stock had no entry on any surface
+ * for those viewers while the route admitted every authenticated viewer. (The roster itself is
+ * deliberately untracked — see the public-repo rule in CLAUDE.md — so it is not enumerated here.)
+ * Two comments justified the scoping by claiming "everyone
+ * still reaches module routes via ⌘K"; the palette held seven hardcoded entries, none of them
+ * Café. The justification was false, and it is gone rather than replaced.
+ *
+ * The ruling accepts the consequence: a Finance viewer now sees Café in their nav and may find it
+ * clutter. If a surface's audience really should be narrower, the fix is to narrow the ROUTE —
+ * never to hide the link while leaving the route open.
  */
-export function modulesForRoles(roleNames: string[], accessRoles: string[]): Destination[] {
-  return modulesByBUForRoles(roleNames, accessRoles).flatMap((g) => g.items)
+export function allModules(accessRoles: string[]): Destination[] {
+  return modulesByBU(accessRoles).flatMap((g) => g.items)
 }
 
 /**
- * Same viewer-scoped module filter as `modulesForRoles`, grouped by the owning BU
- * (OD-REDESIGN-1: "Modules grouped by Business Unit"; DESIGN.md Navigation/Rail: "Grouped
- * items under Overline group labels"). Only groups with >=1 live, role-matched item are
- * returned — the desktop rail (F2 fix) renders one Overline per group; mobile surfaces
- * (bottom-tab-bar, mobile-drawer) keep using the flat `modulesForRoles` and are unaffected.
+ * Every module the viewer's ROUTES admit, grouped by the owning BU (OD-REDESIGN-1: "Modules
+ * grouped by Business Unit"). Groups with no admitted item are dropped so the rail never renders
+ * an empty overline.
+ *
+ * Takes access roles only. It used to take job-role NAMES too and filter on `workMatch`;
+ * OD-WAY-51 removed that — see `allModules` above.
  */
-export function modulesByBUForRoles(
-  roleNames: string[],
-  accessRoles: string[],
-): { bu: MessageKey; items: Destination[] }[] {
-  const joined = roleNames.join(' ')
+export function modulesByBU(accessRoles: string[]): { bu: MessageKey; items: Destination[] }[] {
   return MODULES.map((g) => ({
     bu: g.bu,
-    items: g.items.filter((m) => isLive(m, accessRoles) && m.workMatch != null && m.workMatch.test(joined)),
+    items: g.items.filter((m) => isLive(m, accessRoles)),
   })).filter((g) => g.items.length > 0)
 }
 
 /**
- * OD-REDESIGN-68: the single module promoted to the phone bottom-nav's role-scoped slot
- * (and thus excluded from the More menu) — the viewer's FIRST affiliated module, or null
- * for an org-wide role that has no module. Shared by the bottom tab bar + the More drawer
- * so exactly one surface owns the module (never both). Any additional modules stay in More.
+ * The module promoted to the phone bottom-nav's third slot — EMPHASIS, not visibility
+ * (OD-WAY-51). `workMatch` still picks it: a barista's phone leads with Café, a roaster's with
+ * Roastery. A viewer whose job-role name matches no module simply gets no promoted slot, and
+ * reaches every module they are admitted to through the More drawer, which lists them all.
+ *
+ * Returns null rather than falling back to an arbitrary module: promoting one nobody asked for
+ * would be a guess presented as a preference.
  */
 export function primaryModuleForViewer(roleNames: string[], accessRoles: string[]): Destination | null {
-  return modulesForRoles(roleNames, accessRoles)[0] ?? null
-}
-
-/**
- * SEC-1 route hygiene (FLAG-B / G2): whether the viewer should see cafe/kitchen work surfaces —
- * the Café rail entry (already scoped by the `cafe` module's `workMatch`) and Home's failed-checks
- * deep-link (which routes to `/cafe/log`). True for a viewer affiliated with the Café module by job
- * role (same honest ceiling as the rail's `workMatch`), OR ops_lead/admin who own the review queue
- * org-wide. Fail-closed: a finance/HR/etc. persona with no cafe affiliation gets no cafe deep-link.
- * ponytail: role-name affiliation, same ceiling as `modulesForRoles`; upgrade to a team-membership
- * check when the viewer payload carries team.business_unit (the deferred RequireTeamInBU seam).
- */
-export function viewerSeesCafe(roleNames: string[], accessRoles: string[]): boolean {
-  if (accessRoles.includes('ops_lead') || accessRoles.includes('admin')) return true
-  return modulesForRoles(roleNames, accessRoles).some((m) => m.id === 'cafe')
+  const joined = roleNames.join(' ')
+  return (
+    allModules(accessRoles).find((m) => m.workMatch != null && m.workMatch.test(joined)) ?? null
+  )
 }
 
 export const UTILITY: Destination[] = [

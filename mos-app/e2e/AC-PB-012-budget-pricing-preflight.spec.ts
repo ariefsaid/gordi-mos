@@ -15,7 +15,7 @@ test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
 
     await loginAs(page, ADMIN.email, ADMIN.password)
 
-    await page.goto('plan/budget')
+    await page.goto('money/budget')
     await expect(page.getByRole('heading', { name: /budget creation/i })).toBeVisible()
 
     await page.getByLabel('Menu item').selectOption('MENU-CROISS')
@@ -28,7 +28,7 @@ test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
     await expect(page.getByText(/saved scenario/i)).toBeVisible()
     await expect(page.getByRole('row', { name: new RegExp(label) })).toBeVisible()
 
-    await page.goto('plan/pricing')
+    await page.goto('money/pricing')
     await expect(page.getByRole('heading', { name: /pricing pre-flight/i })).toBeVisible()
     const budgetValue = await page.getByLabel('Budget scenario').evaluate((select, scenarioLabel) => {
       const options = Array.from((select as HTMLSelectElement).options)

@@ -39,7 +39,7 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
   await expect(page.getByRole('button', { name: `Rename ${RENAMED}` })).toHaveCount(0)
 
   // ── Goal: the archived objective is gone from the task-form Objective picker ─
-  await page.goto('tasks/new')
+  await page.goto('work/tasks/new')
   const objectivePicker = page.getByRole('combobox', { name: 'Objective' })
   await expect(objectivePicker).toBeVisible()
   await expect(objectivePicker.getByRole('option', { name: RENAMED })).toHaveCount(0)

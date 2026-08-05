@@ -70,8 +70,8 @@ export async function writeWeeklyUpdate(
   summary: string,
   lineLabelText: string,
 ): Promise<void> {
-  await page.goto('updates')
-  await page.waitForURL(/\/updates$/, { timeout: 15_000 })
+  await page.goto('work/signals')
+  await page.waitForURL(/\/work\/signals$/, { timeout: 15_000 })
 
   // Wait for the write pane section to be visible first (can be in loading skeleton state)
   const writePaneSection = page.locator('section[aria-label="My weekly update"]')

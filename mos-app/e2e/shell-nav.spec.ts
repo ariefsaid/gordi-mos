@@ -1,29 +1,31 @@
-// AC-001: Cross-section navigation journey (shell-level, P1-4)
-// Given a provisioned signed-in viewer on Home,
-// When they navigate via the rail to Tasks, then Updates, then Ops, and finally reload on /updates,
-// Then at each section: URL, document.title, breadcrumb, aria-current nav item, and surface-rendered signal
-// all match, and the reload lands back on Updates with all three signals intact (FR-002/003/005/008/010/011).
+// AC-001: cross-section navigation journey (shell-level).
+// Given a provisioned signed-in viewer on Home, When they navigate via the rail through Work's
+// surfaces, Then at each one the URL, document.title and the aria-current rail entry agree, the
+// surface itself renders, and a reload lands back on the same surface with all three intact.
+//
+// SUCCESSOR (#189) to the version parked by the app-shell chrome port (#188). That one walked the
+// rail to /tasks, /updates and /ops — none of which is a rail entry any more: Tasks moved to
+// /work/tasks, Weekly Updates is superseded by Signals at /work/signals, and the Daily Log is not
+// in the ported IA at all. It could not be rewritten in #188 because the ported destinations did
+// not resolve until the route table landed; they do now, so the journey is live again rather than
+// fixme'd.
+//
+// The breadcrumb assertions the old version carried are deliberately NOT reproduced: #188 changed
+// the breadcrumb grammar (leaf ownership, separator) and its own suite owns those invariants. This
+// journey asserts what it is for — that the rail, the URL, the title and the surface stay in
+// agreement across a navigation and a reload.
 //
 // Extended: AC-013 e2e — MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8).
 
 import { test, expect } from '@playwright/test'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { loginAs } from './helpers/login'
-// Weekly Updates + Daily Log are flag-hidden for the first rollout (src/config/features.ts).
-// The nav legs below are gated on the same flags so this journey covers only the visible
-// sections while hidden, and the full journey returns automatically when a flag is flipped on.
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '../src/config/features'
+// Weekly Updates is flag-hidden for the first rollout (src/config/features.ts). The Signals
+// destination itself is unconditional (#189), but the surface currently behind it is dev's weekly
+// update page, so the leg that asserts that surface's own content stays gated on the same flag.
+import { SHOW_WEEKLY_UPDATES } from '../src/config/features'
 
-// PARKED by the app-shell chrome port (#188), with a reason and a successor. This journey walks
-// the rail to /tasks, /updates and /ops. The ported rail no longer carries any of those entries —
-// Tasks moved to /work/tasks, and Weekly Updates and the Daily Log are not in the v4 IA at all —
-// so every leg after Home now looks for links that are gone.
-//
-// Not rewritten here because the destinations it would walk do not resolve until the route table
-// lands (#189); the successor journey belongs in that PR, alongside AC-022's 390px shell walk.
-// e2e does not gate a PR onto `dev` (integration.yml runs verify + the pgTAP fast lane there),
-// so this is parked debt with an owner rather than a hidden gate failure.
-test.fixme('AC-001: shell cross-section navigation and reload', async ({ page }) => {
+test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Pre-login: static HTML title is present on the login page ---
   await page.goto('login')
   await expect(page).toHaveURL(/\/login/)
@@ -32,65 +34,46 @@ test.fixme('AC-001: shell cross-section navigation and reload', async ({ page })
   // --- Setup: sign in and land on Home ---
   await loginAs(page, VIEWER.email, VIEWER.password)
 
-  // Home: URL, title, breadcrumb, aria-current, empty state
+  const nav = page.getByRole('navigation', { name: 'Primary' })
+
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
   await expect(page).toHaveURL(/\/$|\/mos\/?$/)
-  // Use toHaveTitle for auto-retry (document.title is set by a React effect, not sync with URL)
+  // toHaveTitle auto-retries — document.title is set by a React effect, not synchronously with the URL.
   await expect(page).toHaveTitle('Home — Gordi MOS')
-  // Breadcrumb "Gordi MOS" prefix — scoped to banner to avoid collision with rail logo
-  await expect(page.getByRole('banner').getByText('Gordi MOS')).toBeVisible()
-  // Breadcrumb section part
-  await expect(page.locator('header b:text("Home")')).toBeVisible()
-  // Rail active item
-  const homeNavLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Home' })
-  await expect(homeNavLink).toHaveAttribute('aria-current', 'page')
+  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
 
-  // --- Navigate to Tasks ---
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' }).click()
-  await expect(page).toHaveURL(/\/tasks$/, { timeout: 5_000 })
+  // --- Work → Tasks ---
+  await nav.getByRole('link', { name: 'Tasks' }).first().click()
+  await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
   await expect(page).toHaveTitle('Tasks — Gordi MOS')
-  await expect(page.locator('header b:text("Tasks")')).toBeVisible()
-  const tasksLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Tasks' })
-  await expect(tasksLink).toHaveAttribute('aria-current', 'page')
-  // The ownership-filter tablist is always present in the TasksPage toolbar,
-  // regardless of data (populated, empty, loading) — proves the real Tasks surface rendered.
+  // The ownership-filter tablist is always present in the Tasks toolbar regardless of data
+  // (populated, empty, loading) — it proves the real Tasks surface rendered, not just the route.
   await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 
-  // --- Navigate to Weekly Updates (flag-gated — hidden for the first rollout) ---
+  // --- Work → Objectives (ungated read, OD-V4-1: every authenticated viewer reaches it) ---
+  await nav.getByRole('link', { name: 'Objectives' }).click()
+  await expect(page).toHaveURL(/\/work\/objectives$/, { timeout: 5_000 })
+  await expect(nav.getByRole('link', { name: 'Objectives' })).toHaveAttribute('aria-current', 'page')
+
+  // --- Work → Signals ---
+  await nav.getByRole('link', { name: 'Signals' }).first().click()
+  await expect(page).toHaveURL(/\/work\/signals$/, { timeout: 5_000 })
   if (SHOW_WEEKLY_UPDATES) {
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' }).click()
-    await expect(page).toHaveURL(/\/updates$/, { timeout: 5_000 })
+    // Until the Signals archive ports (#19x), this destination serves dev's weekly update
+    // surface — FR-018: an unported surface renders what dev has, it does not 404.
     await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
-    await expect(page.locator('header b:text("Weekly Updates")')).toBeVisible()
-    const updatesLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Weekly Updates' })
-    await expect(updatesLink).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
   }
 
-  // --- Navigate to the Daily Log (flag-gated — hidden for the first rollout) ---
-  if (SHOW_DAILY_LOG) {
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Daily Log' }).click()
-    await expect(page).toHaveURL(/\/ops$/, { timeout: 5_000 })
-    await expect(page).toHaveTitle('Daily Log — Gordi MOS')
-    await expect(page.locator('header b:text("Daily Log")')).toBeVisible()
-    const opsLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Daily Log' })
-    await expect(opsLink).toHaveAttribute('aria-current', 'page')
-    await expect(page.getByRole('heading', { name: 'Daily Log' })).toBeVisible({ timeout: 5_000 })
-  }
-
-  // --- Deep-link reload (FR-008) — reload on Weekly Updates if shown, else on Tasks ---
-  const reloadName = SHOW_WEEKLY_UPDATES ? 'Weekly Updates' : 'Tasks'
-  const reloadPath = SHOW_WEEKLY_UPDATES ? /\/updates$/ : /\/tasks$/
-  const reloadTitle = SHOW_WEEKLY_UPDATES ? 'Weekly Updates — Gordi MOS' : 'Tasks — Gordi MOS'
-  await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: reloadName }).click()
-  await expect(page).toHaveURL(reloadPath, { timeout: 5_000 })
+  // --- Deep-link reload (FR-008) ---
   await page.reload()
-  await expect(page).toHaveURL(reloadPath, { timeout: 5_000 })
-  await expect(page).toHaveTitle(reloadTitle)
-  await expect(page.locator(`header b:text("${reloadName}")`)).toBeVisible()
-  await expect(
-    page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: reloadName }),
-  ).toHaveAttribute('aria-current', 'page')
+  await expect(page).toHaveURL(/\/work\/signals$/, { timeout: 5_000 })
+  await expect(nav.getByRole('link', { name: 'Signals' }).first()).toHaveAttribute('aria-current', 'page')
+
+  // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---
+  await page.goto('tasks?view=mine')
+  await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/, { timeout: 5_000 })
+  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
 })
 
 // AC-013 e2e: MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8)

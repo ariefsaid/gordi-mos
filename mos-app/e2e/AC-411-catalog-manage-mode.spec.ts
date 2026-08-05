@@ -18,8 +18,9 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   test('admin: Work → Objectives → /work/objectives with down-trace', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
-    // Work → Objectives (phone opens the drawer for secondary nav). The link is
-    // capability-gated on objective.manage, which ADMIN holds.
+    // Work → Objectives (phone opens the drawer for secondary nav). The link is no longer
+    // capability-gated: OD-V4-1 opened the READ to every authenticated viewer (#188 rail, #189
+    // route). ADMIN is used here for the down-trace fixtures, not for admission.
     await page.getByRole('button', { name: /open navigation/i }).click()
     await page.getByRole('dialog').getByRole('link', { name: 'Objectives' }).click()
     await expect(page).toHaveURL(/\/work\/objectives$/)

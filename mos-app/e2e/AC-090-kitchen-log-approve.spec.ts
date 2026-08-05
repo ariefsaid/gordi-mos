@@ -105,8 +105,8 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     // ── ACT 1: member (Cahya) logs Nasi Putih Production = 50 ────────────────
     // plan=50 => qty=50 is exactly on-plan => no variance note required (FR-022)
     await loginAs(page, VIEWER.email, VIEWER.password)
-    await page.goto('kitchen/log')
-    await page.waitForURL(/\/kitchen\/log$/, { timeout: 15_000 })
+    await page.goto('cafe/log')
+    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
 
     await expect(
       page.getByRole('table', { name: /kitchen production log/i }),
@@ -137,8 +137,8 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
 
     // ── ACT 2: admin (Dewi) opens the Review queue ─────────────────────────
     await loginAs(page, MANAGER.email, MANAGER.password)
-    await page.goto('kitchen/review')
-    await page.waitForURL(/\/kitchen\/review$/, { timeout: 10_000 })
+    await page.goto('cafe/review')
+    await page.waitForURL(/\/cafe\/review$/, { timeout: 10_000 })
 
     // The review queue was ported onto the shared DataTable (OD-W4): its <table> caption is now
     // "Submitted kitchen logs awaiting review" (the bespoke "Production submitted logs" table
