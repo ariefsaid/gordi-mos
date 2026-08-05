@@ -5,7 +5,7 @@ import {
   DESTINATIONS,
   UTILITY,
   isLive,
-  modulesByBUForRoles,
+  modulesByBU,
   primaryModuleForViewer,
   type Destination,
 } from './destinations'
@@ -67,7 +67,7 @@ function DrawerGroupLabel({ children }: { children: string }) {
 /**
  * MobileDrawer — v4 shell rebuild (Task 4). The real two-zone nav drawer, derived from the SAME
  * destinations.tsx registry the desktop rail reads (no second hand-maintained list): workspace
- * roots (+ Work's 4 always-expanded children) · Modules grouped by BU (modulesByBUForRoles,
+ * roots (+ Work's 4 always-expanded children) · Modules grouped by BU (modulesByBU,
  * viewer-scoped) · Utility. The viewer's promoted module is already a bottom-tab, so it's
  * excluded from the Modules zone here — it lives on exactly one nav surface. Links carry no
  * aria-current (the bottom-tab-bar / breadcrumb leaf own that; Rule 5 — see breadcrumb.tsx).
@@ -143,7 +143,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   // module (Café is always the promoted one for kitchen staff) that module's sub-screens had no
   // nav entry on a phone at all. Café's five screens are the ones kitchen staff use daily, on
   // their primary device.
-  const moduleGroups = modulesByBUForRoles(roleNames, accessRoles)
+  const moduleGroups = modulesByBU(accessRoles)
     .map((g) => ({
       bu: g.bu,
       items: g.items

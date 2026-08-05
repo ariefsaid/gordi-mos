@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath, modulesForRoles, primaryModuleForViewer } from './destinations'
+import { destinationForPath, allModules, primaryModuleForViewer } from './destinations'
 import { useBreadcrumbTitle } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
@@ -58,7 +58,7 @@ export function Breadcrumb() {
     leafCarriesCurrent =
       destination.zone === 'modules' &&
       viewer != null &&
-      !modulesForRoles(viewer.roles.map((r) => r.name), viewer.accessRoles).some((m) => m.id === destination.id)
+      !allModules(viewer.accessRoles).some((m) => m.id === destination.id)
   }
 
   const destLabel = t(destination.labelKey)

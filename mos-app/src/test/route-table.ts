@@ -14,6 +14,7 @@ import { LoadingShell } from '@/components/ui/state-kit'
 import { RequireCapability } from '@/auth/require-capability'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { AdminRoute } from '@/auth/admin-route'
+import { can } from '@/lib/capabilities'
 
 /** Every route entry in the table, flattened depth-first (pathless layout routes included). */
 export function allRoutes(routes: RouteObject[] = routeConfig): RouteObject[] {
@@ -171,6 +172,34 @@ export function gatesOnPath(path: string): string[] {
     }
     if (el.type === AdminRoute) return ['admin']
     return []
+  })
+}
+
+/**
+ * Does the ROUTE admit a viewer holding these access roles? (OD-WAY-51.)
+ *
+ * Evaluates the same three gates `gatesOnPath` enumerates, with the same logic the gate
+ * components themselves use — `can()` for a capability gate, membership for an access-role gate,
+ * `admin` for the admin gate. `ProtectedRoute` is not consulted: every path here is behind it, so
+ * it can never distinguish two authenticated viewers.
+ *
+ * This is what lets the nav guard derive what SHOULD be rendered from the route table, instead of
+ * from a hand-picked list of personas that can only ever confirm what someone already thought of.
+ */
+export function routeAdmits(path: string, accessRoles: readonly string[]): boolean {
+  const matches = matchRoutes(routeConfig, pathnameOf(path)) ?? []
+  return matches.every(({ route }) => {
+    const el = route.element
+    if (!isValidElement(el)) return true
+    if (el.type === RequireCapability) {
+      return can(accessRoles, (el.props as { capability: string }).capability)
+    }
+    if (el.type === RequireAccessRole) {
+      const { anyOf } = el.props as { anyOf: readonly string[] }
+      return anyOf.some((r) => accessRoles.includes(r))
+    }
+    if (el.type === AdminRoute) return accessRoles.includes('admin')
+    return true
   })
 }
 

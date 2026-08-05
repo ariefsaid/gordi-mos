@@ -57,15 +57,30 @@ beforeEach(() => {
 })
 
 describe('AC-021: More menu lists every authorized non-primary destination (admin)', () => {
-  it('an org-wide admin sees Events, Admin Settings, Profile — and NO module links (OD-REDESIGN-68: More is not the org chart)', () => {
+  // Was "…and NO module links (OD-REDESIGN-68: More is not the org chart)". OD-WAY-51 (owner
+  // ruling) replaces that model: navigation mirrors what the ROUTE admits, and the module routes
+  // are ungated. The drawer is the phone's only route to a module's screens, so hiding them here
+  // is precisely what left kitchen staff with no phone nav (#242).
+  it('an org-wide admin sees Events, Admin Settings, Profile — and the module links their routes admit', () => {
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(screen.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/events')
     expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
     expect(screen.getByRole('link', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
-    expect(screen.queryByRole('link', { name: /Ecommerce/ })).toBeNull()
-    expect(screen.queryByRole('link', { name: /Roastery/ })).toBeNull()
+    expect(screen.getByRole('link', { name: /Ecommerce/ })).toHaveAttribute('href', '/ecommerce')
+    expect(screen.getByRole('link', { name: /Roastery/ })).toHaveAttribute('href', '/roastery')
+    // Café's screens, which are the reason the drawer matters on a phone.
+    expect(screen.getByRole('link', { name: /^Log$/ })).toHaveAttribute('href', '/cafe/log')
+    expect(screen.getByRole('link', { name: /^Review$/ })).toHaveAttribute('href', '/cafe/review')
+  })
+
+  it('a plain member sees Café\'s ungated screens but not Review or Pushes', () => {
+    // The gate that should still exist, on the surface where it is easiest to lose.
+    renderDrawer({ accessRoles: ['member'] })
+    expect(screen.getByRole('link', { name: /^Log$/ })).toHaveAttribute('href', '/cafe/log')
+    expect(screen.queryByRole('link', { name: /^Review$/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })
 
   it('admin also sees Money (finance/admin)', () => {

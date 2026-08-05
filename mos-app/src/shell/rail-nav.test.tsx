@@ -75,7 +75,12 @@ beforeEach(() => {
 // note records that treatment as an undetected deviation from the owner's actual artifact
 // (OD-68, 2026-07-18), not a ratified end-state.
 describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
-  it('AC-011: an org-wide admin sees Home · Work (4 children) · Events · Money · Inbox · Admin Settings · profile under a "Destinations" overline — with NO module blocks', () => {
+  // OD-WAY-51 (owner ruling) replaces OD-REDESIGN-68's job-role-name scoping: navigation mirrors
+  // what the ROUTE admits. The module routes are ungated, so every authenticated viewer — including
+  // an org-wide admin — now sees the module blocks. The ruling accepts that consequence explicitly:
+  // if a surface's audience should be narrower, the ROUTE is what gets narrowed, never the link.
+  // Updated to the stated contract; the grouping and ordering assertions are untouched.
+  it('AC-011: an org-wide admin sees Home · Work (4 children) · Events · Money · Inbox · the module blocks · Admin Settings', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
@@ -92,44 +97,58 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Money' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
-    // No BU module group for an org-wide role (no BU affiliation → no group renders)
-    expect(within(nav).queryByText('Retail Ops')).toBeNull()
-    expect(within(nav).queryByText('B2B Ops')).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+    // OD-WAY-51: the module routes admit this viewer, so their links render — under their BU
+    // overlines, which is the part of the old contract that survives.
+    expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
+    expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
     // Utility
     expect(within(nav).getByRole('link', { name: /Admin Settings/ })).toBeInTheDocument()
   })
 
-  it('AC-011b: a café-role viewer gets Café in the rail under a "Retail Ops" BU overline', () => {
+  it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus its five screens', () => {
     setAuthAs([], 'Barista')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
-    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
-    expect(within(nav).queryByText('B2B Ops')).toBeNull()
+    // The module's own screens, which is what a barista actually opens the rail for.
+    expect(within(nav).getByRole('link', { name: 'Log' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
+    // …and NOT the ops_lead/admin ones: OD-WAY-51 widened nav to the route, it did not drop gates.
+    expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
+    // OD-WAY-51: the other modules' routes admit this viewer too, so they render.
+    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
   })
 
-  it('AC-011d (audit F6): the REAL dual-hat fixture — Cafe Ops Lead + Sales Lead gets Café ONLY (Sales is b2b_sales, not Ecommerce)', () => {
+  it('AC-011d: an ops_lead sees every module, and Café\'s gated screens as well', () => {
+    // Was "gets Café ONLY" — job-role affiliation deciding visibility, which OD-WAY-51 retired.
+    // What the ruling makes assertable instead is the gate that IS real: ops_lead holds the
+    // Review/Pushes access role, so those two render for them and not for a plain member.
     setAuthAs(['ops_lead'], ['Cafe Ops Lead', 'Sales Lead'])
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
-    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
+    expect(within(nav).getByRole('link', { name: 'Review' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Pushes' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
   })
 
-  it('AC-011c: a roastery-role viewer gets Roastery under a "B2B Ops" BU overline, not Café', () => {
+  it('AC-011c: a roastery-role viewer gets Roastery under a "B2B Ops" BU overline', () => {
     setAuthAs([], 'Roastery Lead')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
-    expect(within(nav).queryByRole('link', { name: 'Café' })).toBeNull()
-    expect(within(nav).queryByText('Retail Ops')).toBeNull()
+    // OD-WAY-51: Café's routes admit them too, so Café is there as well — the BU overlines still
+    // tell them which is theirs. This case used to assert Café was ABSENT.
+    expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
   })
 
   it('AC-004: single-item Work families render their child with NO sub-section overline, in E7 order', () => {
