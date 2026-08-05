@@ -1,0 +1,145 @@
+/* Signal archive TABLE presentation (Issue 6). Rides on the generic DataTable (.dt-*) chrome; these
+   rules only skin the Signal-specific cells: the message link, the retracted tombstone, the attention
+   pill, and the retracted row state. E7 tokens only. */
+
+.signal-collection-presentation { min-width: 0; }
+
+/* Domain-specific anatomy inside the shared full-width collection table. Fixed layout prevents a
+   short archive from collapsing into a 60%-wide visual island; these proportions keep the message
+   primary while leaving stable scanning columns for provenance and attention. */
+.signal-collection-table th:nth-child(1),
+.signal-collection-table td:nth-child(1) { width: 50%; }
+.signal-collection-table th:nth-child(2),
+.signal-collection-table td:nth-child(2) { width: 16%; }
+.signal-collection-table th:nth-child(3),
+.signal-collection-table td:nth-child(3) { width: 19%; } /* Occurred — full "20 Jul 2026, 21:40" never clips */
+.signal-collection-table th:nth-child(4),
+.signal-collection-table td:nth-child(4) { width: 15%; }
+
+/* Intermediate widths: keep Team and the full WIB timestamp whole — the message cell is the
+   flexible one (it already carries its own subline and ellipsis). */
+@media (max-width: 1120px) {
+  .signal-collection-table th:nth-child(1),
+  .signal-collection-table td:nth-child(1) { width: 43%; }
+  .signal-collection-table th:nth-child(2),
+  .signal-collection-table td:nth-child(2) { width: 18%; }
+  .signal-collection-table th:nth-child(3),
+  .signal-collection-table td:nth-child(3) { width: 24%; }
+}
+.signal-collection-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* H6 (Luna floor): the title cell (a DIV inside the td) opts OUT of the table's blanket
+   `white-space: nowrap` so its message can wrap; every OTHER column stays single-line (Team /
+   Occurred / Attention never grow). */
+.signal-collection-table .signal-table-title-cell { white-space: normal; }
+.signal-table-message {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  /* H6: 2-line clamp (SAME vocabulary as the condensed Task title) instead of a single-line ellipsis
+     that clipped mid-word at 1280 — the identity/decision column must never starve to meaninglessness. */
+  white-space: normal;
+  cursor: pointer;
+}
+.signal-table-title-cell {
+  min-width: 0;
+}
+/* H6 (Luna floor): win the cascade over the shared `.signal-collection-presentation
+   .signal-table-message` grammar rule (0,2,0) so the 2-line clamp actually WRAPS — a bare
+   `.signal-table-message` (0,1,0) lost, leaving the title a hard nowrap clip. This rule (0,3,0)
+   keeps `white-space: normal` + the -webkit-box clamp authoritative. */
+.signal-collection-table .signal-table-title-cell .signal-table-message {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+}
+.signal-table-message-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.signal-table-message:hover {
+  text-decoration: underline;
+}
+.signal-table-message:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.signal-table-tombstone {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.signal-table-reason {
+  color: var(--muted-foreground);
+}
+
+.signal-table-attention {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.signal-table-attention--fyi {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+.signal-table-attention--needs-attention {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+.signal-table-attention--urgent {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+/* DESIGN.md §Status and Signal semantics: attention is warning/amber, never destructive/red.
+   Urgent = top attention tier, escalated with the leading amber dot (§569 marker). */
+.signal-table-attention--urgent::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
+  border-radius: var(--radius-pill); background: var(--warning);
+}
+
+.signal-table-row--retracted {
+  color: var(--muted-foreground);
+}
+
+/* Operations-event attention row treatment (DESIGN.md §Operations event tokens). F3 (OD-91 #18):
+   the warning/7% fill + 2px warning left rule is URGENT ONLY — the top attention tier that says
+   "act now". Needs attention keeps its amber pill on a calm row (no fill), so the fill escalates
+   Urgent above it. The stripe is always paired with the fill + the amber pill text (never
+   color-alone, WCAG 1.4.1). The rule is an inset box-shadow on the leading cell so it survives
+   `border-collapse: collapse` and does not shift cell content; the quiet grey hover wash still
+   layers over the fill, and the rule persists through it. */
+.signal-collection-table tbody tr.signal-table-row--urgent td {
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+}
+.signal-collection-table tbody tr.signal-table-row--urgent td:first-child {
+  box-shadow: inset 2px 0 0 0 var(--warning);
+}
