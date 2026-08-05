@@ -17,16 +17,19 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { CollectionToolbar } from './collection-toolbar'
 
-// #192 (Tasks) scope note: v4's version of this file ALSO enumerates the guard onto
-// `pages/kitchen-review-page.tsx` (census DEFECT-2 — the Café Review queue previously rendered a
-// solid-blue Approve on EVERY row). That enumeration is dropped here: kitchen-review-page.tsx on
-// `dev` still has the old all-primary rendering (v4's fix is a 264-line rewrite of that page, not
-// a one-line class change), and fixing it is Café/Kitchen surface work — #196, not this PR
-// (docs/specs/v4-port.spec.md "Staging and merge shape" — surface-by-surface, one PR per surface).
-// Flagged on wayfinder map #150 for #196 to pick up; not filed as a public GitHub issue (the defect
-// describes exactly where the app over-emphasizes a bulk-destructive-adjacent action, which is the
-// kind of detail CLAUDE.md's public-repo banner asks to keep out of the tracker until fixed).
-// The toolbar-scoped coverage below (Tasks' own CollectionToolbar) is unaffected and stays.
+// PORT NOTE (#193): v4's version of this file carries a SECOND describe that renders
+// `KitchenReviewPage` and enumerates the same law onto the Café review queue (census DEFECT-2 —
+// the Café Review queue previously rendered a solid-blue Approve on EVERY row). That enumeration
+// is dropped here: kitchen-review-page.tsx on `dev` still has the old all-primary rendering (v4's
+// fix is a rewrite of that page, not a one-line class change), and its v4 fixtures already
+// disagree with this line's schema (`action_type` was retired by the squash — see #247).
+// Enumerating a law onto a surface nobody has ported yet would assert against `dev`'s Café page,
+// not v4's, so the enumeration travels with #197 (Café plan-and-review — the review queue's
+// owner; #196 is opening-and-production-log only). Flagged on wayfinder map #150; not filed as a
+// public GitHub issue (the defect describes exactly where the app over-emphasizes a
+// bulk-destructive-adjacent action, which is the kind of detail CLAUDE.md's public-repo banner
+// asks to keep out of the tracker until fixed). The law's own guard — the shared
+// CollectionToolbar, which this PR does port — is below, unchanged.
 
 function stubDesktopMatchMedia() {
   Object.defineProperty(window, 'matchMedia', {
@@ -61,7 +64,7 @@ function renderToolbar() {
         }]}
         savedViews={{
           label: 'Saved views', selectedId: null, operation: 'idle',
-          items: [{ id: 'v1', name: 'Riri weekly' }],
+          items: [{ id: 'v1', name: 'My weekly' }],
           onApply: () => {}, onSave: vi.fn(async () => {}),
         }}
       />

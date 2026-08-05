@@ -1,0 +1,10 @@
+/* SignalsArchivePage — route-level layout only. The collection's visual grammar (list rows,
+   table rows, toolbar, attention pills) is owned by the shared RecordCollection/DataTable
+   primitives and the Signal presentation components (signal-table-presentation.css,
+   signal-feed-rows.css) — this file carries no row/list styling of its own (distill pass,
+   v4 redesign: the pre-Issue-6 archive-row rules that used to live here were dead — the page
+   stopped rendering that markup when it became a thin RecordCollection consumer). */
+
+/* The list column of the split (list | record). min-width:0 lets it squash cleanly beside the
+   record panel at >=1100px (the .record-split grid track lives in styles/drawer.css). */
+.signals-archive-main { min-width: 0; }

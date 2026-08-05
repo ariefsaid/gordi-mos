@@ -11,7 +11,7 @@ import {
   taskCollectionQuery,
   type TaskCollectionPresentation,
   type TaskCollectionQuery,
-} from '@/components/tasks/task-collection-adapter'
+} from '@/components/tasks/task-collection-query'
 
 const INBOX_INITIAL = {
   query: { layout: 'queue' as const, view: 'all' as const, sort: 'unread' as const, savedViewId: null },

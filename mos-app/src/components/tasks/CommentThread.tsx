@@ -16,9 +16,12 @@ export type CommentThreadProps = {
   canPost: boolean
   onPost: (body: string) => Promise<void> | void
   /**
-   * How the "Comments" section heading renders. 'visible' (default) keeps the card heading —
-   * signals and any standalone use are unchanged. 'srOnly' hides it visually (kept for AT) so the
-   * task record feed can collapse orphan headings (owner-eyes items 5/6).
+   * How the "Comments" section heading renders. 'visible' (default) keeps the card heading, so
+   * every existing call site is unchanged. 'srOnly' hides it visually while keeping it for
+   * assistive tech — used both by the task record feed to collapse orphan headings (owner-eyes
+   * items 5/6) and by the Signal record, which already titles this area "Discussion" in its own
+   * region heading, so a second visible "Comments" heading inside it would be a duplicate the
+   * sighted reader has to skip and the outline has to carry. Ported from v4 with #193.
    */
   heading?: 'visible' | 'srOnly'
   /**

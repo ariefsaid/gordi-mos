@@ -1,0 +1,252 @@
+/* SignalFeedRows — the ONE Signal row anatomy (owner redirect 2026-07-22: Signals render as ROWS
+   in the same record-row grammar as the ranked stream, NOT fat cards). Shared by both consumers —
+   the Home ambient tail (SignalFeedSection) AND the Signals archive Feed presentation
+   (SignalFeedPresentation) — so a Signal has exactly one visual anatomy across the app
+   (rule:product-ban-inconsistent-components). Colocated with its component per this codebase's
+   convention (each component owns its own .css). */
+
+.home-signal-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  /* The row anatomy adapts to the SPACE THE FEED HAS, not the window it sits in. Both consumers
+     render the same rows at wildly different widths in the SAME viewport — the Home ambient tail is
+     a ~300px sidebar column at 1440, the /work/signals archive Feed is ~1140px — so a viewport
+     media query is the wrong instrument (it left the 300px tail horizontal at 1440: a 96px title
+     that wrapped AND ellipsised, with the meta separators stranded on their own lines). The
+     container is the honest trigger; see the @container block at the foot of this file. */
+  container: signal-feed / inline-size;
+}
+
+/* Feed toolbar — search field + create button (owner, 2026-07-28).
+   The former single full-width rounded row read as search and behaved as a composer;
+   shape sets expectation, so the two jobs now have their own controls. */
+.home-signal-tools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.home-signal-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px; /* coarse-pointer tap floor, same as the row it replaces */
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+}
+.home-signal-search::placeholder { color: var(--muted-foreground); }
+.home-signal-search:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+  border-color: var(--ring);
+}
+/* "+ Signal" is a door in an AMBIENT tail, not the page's action. Painted in the one action blue it
+   was the loudest thing on Home — the eye landed on it before the overdue work above. It now wears
+   the shared secondary weight from the ONE button hierarchy (`.btn .btn-outline`, ui/Button.css):
+   no local fill, no local border, no re-implemented hover/focus. This rule carries only what the
+   toolbar geometry needs — the 44px coarse-pointer floor shared with the search field beside it.
+   Scoped to the toolbar so it beats `.btn`'s 32px height regardless of stylesheet order. */
+.home-signal-tools .home-signal-add {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 44px;
+}
+
+/* Quiet composer action row. */
+.home-signal-share-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px; /* P1-4: the "Share a Signal" row meets the 44px coarse-pointer tap floor */
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+  cursor: pointer;
+}
+.home-signal-share-row:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+  border-style: solid;
+}
+.home-signal-share-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.home-signal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-signal-row + .home-signal-row {
+  border-top: 1px solid var(--row-divider);
+}
+
+.home-signal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: var(--row-min-h, 50px);
+  padding: var(--row-pad-y, 10px) 4px;
+  min-width: 0;
+}
+
+.home-signal-main {
+  /* Positioned so the open-signal button's stretched hit-target (::after) is measured against the
+     whole main column, not just the 22px title line — P1-4 (c). */
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Body = the row title, one truncated line — the clickable record affordance. */
+.home-signal-body {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  min-width: 0;
+}
+/* A FEED is for reading: the Signal body renders in FULL, wrapping as many lines as it takes
+   (signed mockup `.feed-text`). It carried a 2-line clamp, which truncated the prose this column
+   exists to carry mid-sentence.
+   `white-space: normal` is what actually fixed H8(a), and it stays: the prior `nowrap` let a long
+   single-line Signal set the span's min-content width to ~680px, which on the stacked phone row
+   (flex-direction: column) blew past the 375px main → ~700px of horizontal scroll (measured). The
+   clamp merely rode along with that fix and was never what prevented the overflow.
+   The clamp remains correct — and remains — on the TASK row (home-stream.css .stream-row-title),
+   where the title is an identifier to recognise, not prose to read. */
+.home-signal-body-text {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* P1-4 (c): the visible title line is only ~22px tall, well under the 44px tap floor. Expand the
+   real hit area to cover the whole record row (title + meta subline ≈ 50px) with a transparent
+   overlay — no visual bloat, and bounded to .home-signal-main so the tail's attention pill and
+   category control stay independently clickable. The vertical -3px reach stays inside the row's own
+   10px padding, so adjacent rows never steal each other's taps. Not applied to the static
+   (non-clickable) variant. */
+.home-signal-body:not(.home-signal-body--static)::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
+}
+.home-signal-body:hover .home-signal-body-text { text-decoration: underline; }
+.home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+.home-signal-body--static { cursor: default; }
+.home-signal-body--static:hover .home-signal-body-text { text-decoration: none; }
+
+.home-signal-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: var(--font-size-mono);
+  color: var(--muted-foreground);
+  min-width: 0;
+}
+/* A "·" is punctuation, never a wrap unit. As a direct child of the wrapping meta row each
+   separator could break onto a line of its own — measured at 300px: two bare dots, each alone on
+   its line. Every separator now travels inside one non-breaking group with the label it
+   introduces, so the meta can only ever wrap BETWEEN facts, never before a dot. */
+.home-signal-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden; /* an unusually long Team name clips, never overflows the feed column */
+}
+/* The author is their NAME (owner, 2026-07-28) — the 20px initials disc that used to lead this
+   line is gone, giving the 300px Home tail back 28px of measure. The name takes the weight the
+   disc used to carry (600 in `foreground` against the muted rest of the line) so the subline keeps
+   a left anchor instead of reading as one flat run of grey. Matches `.stream-row-pic-name`, the
+   same fact on the ranked-stream row. */
+.home-signal-who-name {
+  font-weight: 600; color: var(--foreground);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.home-signal-sep { color: var(--muted-foreground); }
+.home-signal-when { white-space: nowrap; }
+
+.home-signal-tail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Attention pill — mirrors the archive's tint recipe (token-only), never re-invented hues. */
+.home-signal-attention {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.home-signal-attention--urgent,
+.home-signal-attention--needs-attention {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+.home-signal-attention--urgent::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
+  border-radius: var(--radius-pill); background: var(--warning);
+}
+.home-signal-attention--fyi {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+/* ── Archive Feed variant: the Operations-event attention row treatment ──────────────────────
+   DESIGN.md §Operations event tokens + F3 (OD-91 #18): the warning/7% fill + 2px warning left rule
+   is URGENT ONLY — the "act now" top tier, the one owner-approved side-stripe exception (state-
+   bearing, minimal, always paired with the fill + the amber attention pill text, never color-alone,
+   WCAG 1.4.1). Needs attention keeps its amber pill on a calm (unfilled) row so the fill escalates
+   Urgent above it. Scoped to `--archive`, so the Home ambient tail is untouched. Every archive row
+   reserves a 2px transparent left rule so all rows stay left-aligned; Urgent fills that reserve. */
+.home-signal-feed--archive .home-signal-row {
+  border-left: 2px solid transparent;
+}
+.home-signal-feed--archive .home-signal-row--urgent {
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  border-left-color: var(--warning);
+}
+
+.home-signal-row--retracted { padding: var(--row-pad-y, 10px) 4px; }
+.home-signal-tombstone { margin: 0; font-size: var(--font-size-mono); color: var(--muted-foreground); font-style: italic; }
+
+@container signal-feed (max-width: 480px) {
+  /* DO-14 (signals F-3), re-levelled to the container: whenever the FEED is narrow — the phone at
+     any layout, and the ~300px Home ambient tail at every desktop width — the fixed-width tail
+     (attention pill + category control) squeezes the title column (flex:1) to a few words, which
+     is identity starvation. Stack the row so the title + meta take the full column and the tail
+     drops beneath them. The archive Feed (~1140px) stays above the threshold and is untouched. */
+  .home-signal-row { flex-direction: column; gap: 6px; }
+  .home-signal-tail { align-self: flex-start; }
+}

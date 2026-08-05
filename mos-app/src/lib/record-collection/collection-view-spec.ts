@@ -10,7 +10,7 @@ import type {
   TaskCollectionPresentation,
   TaskCollectionQuery,
   TaskCollectionSort,
-} from '@/components/tasks/task-collection-adapter'
+} from '@/components/tasks/task-collection-query'
 import type {
   SignalCollectionGroup,
   SignalCollectionPresentation,

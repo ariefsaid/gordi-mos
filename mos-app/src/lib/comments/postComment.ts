@@ -1,7 +1,10 @@
 import { buildPersonMentionIndex, extractMentions, type MentionPerson, type PersonMentionIndex } from './mentions'
 import { supabase } from '@/lib/supabase'
 
-export type CommentEntityType = 'task' | 'weekly_update' | 'daily_log' | 'follow_up'
+// Mirrors the CHECK on `mos.comments.entity_type` exactly. `'signal'` is in that CHECK on the
+// squashed baseline (mos_structure) and the comment SELECT policy already special-cases it via
+// `mos.can_read_signal`, so this union was simply narrower than its own table until Signals ported.
+export type CommentEntityType = 'task' | 'weekly_update' | 'daily_log' | 'follow_up' | 'signal'
 
 type QueryResult<T> = PromiseLike<{ data: T | null; error: { message?: string } | null }>
 
