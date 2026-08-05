@@ -416,15 +416,16 @@ describe('RI-IA-2: no in-page .tc-breadcrumb (one shell breadcrumb, · separator
 
 // ════════════════════════════════════════════════════════════════════════════
 // RI-IXD-5: ONE Select shell — bounded-choice dropdowns use the shared
-// <Select> primitive. The only raw native selects left are the Tasks DB-view
-// chip overlays plus deferred task detail/create inline cases documented in
-// docs/reviews/feat-ui-coherence.md.
+// <Select> primitive.
+//
+// Tightened by #192 (Tasks port): the two Tasks exceptions and record-details-panel.tsx (deleted
+// by the port) all moved to the shared `useListboxPopover` / `<Select>` pattern on v4, so the
+// invariant now holds with no Tasks carve-out. An allowlist entry pointing at a deleted file is
+// silently vacuous either way (`allowedRawSelectFiles.has()` on a path `listNonTestSource` never
+// yields), but leaving it would misdescribe the current exception set to the next reader.
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-IXD-5: no raw select outside documented Tasks exceptions', () => {
   const allowedRawSelectFiles = new Set([
-    'components/tasks/tasks-toolbar.tsx',
-    'components/tasks/task-surface.tsx',
-    'components/tasks/record-details-panel.tsx',
     'components/ui/select.tsx',
   ])
 

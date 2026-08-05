@@ -46,6 +46,13 @@ export interface EmptyStateProps {
    * table.)
    */
   headingLevel?: 2 | 3 | 4 | 5 | 6
+  /**
+   * Ported for #192 (Tasks): drop the `region` landmark + its labelling when this EmptyState sits
+   * inside an already-labelled landmark — RecordViewer's empty body is already inside the record
+   * panel/page's own labelled region, so a nested region here would be a redundant landmark a
+   * screen-reader user has to tab past. Default false keeps every existing call site's semantics.
+   */
+  nested?: boolean
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
@@ -72,6 +79,7 @@ export function EmptyState({
   variant = 'quiet',
   icon,
   headingLevel = 3,
+  nested = false,
   children,
   className,
 }: EmptyStateProps) {
@@ -80,8 +88,8 @@ export function EmptyState({
 
   return (
     <div
-      role="region"
-      aria-labelledby={titleId}
+      role={nested ? undefined : 'region'}
+      aria-labelledby={nested ? undefined : titleId}
       data-testid="empty-state"
       data-empty-variant={variant}
       className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}

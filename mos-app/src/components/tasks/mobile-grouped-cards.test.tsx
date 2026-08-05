@@ -2,7 +2,7 @@
  * MobileGroupedCards — unit tests (Fix 2, PR-3 review fix-up).
  * Verifies the extracted mobile group-header+card list component shares the same
  * semantics as desktop GroupHeaderRow: caret/aria-expanded, label/count,
- * overdue-gating, and the "+ Add task" wiring.
+ * overdue-gating, and the "+ Create task" wiring.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -26,6 +26,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 const BASE_PROPS: MobileGroupedCardsProps = {
+  recordSearch: '',
   groups: [
     {
       key: 'Open',
@@ -49,7 +50,6 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   toggleCollapsed: () => {},
   openAddTask: () => {},
   setOverdueOnly: () => {},
-  buildOthers: () => [],
   workLineMap: new Map<string, string>(),
   objectiveMap: new Map<string, string>(),
 }
@@ -122,15 +122,23 @@ describe('MobileGroupedCards', () => {
     expect(setOverdueOnly).toHaveBeenCalledWith(true)
   })
 
-  it('+ Add task button fires openAddTask with the group prefillParam', () => {
+  it('+ Create task button fires openAddTask with the group prefillParam', () => {
     const openAddTask = vi.fn()
     const groups = [
       { key: 'p1', label: 'Arief Said', rows: [], overdue: 0, prefillParam: 'r=person-1' },
     ]
     renderCards({ groups, openAddTask })
-    const addBtn = screen.getByRole('button', { name: /add task to arief said/i })
+    const addBtn = screen.getByRole('button', { name: /create task in arief said/i })
     fireEvent.click(addBtn)
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
+  })
+
+  // DO-18(c) (census-sweep R2 tasks FINDING4): the card's recency meta names WHAT the
+  // timestamp means — "Updated" (last_activity_at) — never the ambiguous "Activity Nd".
+  it('DO-18(c): the recency meta is labeled "Updated", not "Activity"', () => {
+    renderCards()
+    expect(screen.getAllByText('Updated').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Activity')).toBeNull()
   })
 
   it('role="list" on the container and role="listitem" on each card wrapper (a11y)', () => {
@@ -143,5 +151,100 @@ describe('MobileGroupedCards', () => {
     renderCards()
     const cards = document.querySelectorAll('[data-testid="task-card"]')
     expect(cards.length).toBe(2)
+    expect(cards[0]).toHaveClass('collection-grammar-card')
+    expect(cards[0].querySelector('.collection-grammar-title')).toHaveTextContent('Task A')
+    expect(cards[0].querySelector('.collection-grammar-card-details')).toBeInTheDocument()
+  })
+
+  // Design fix wave item 3 (Rule 9 — occurrence group parity, phone width). Desktop's
+  // GroupHeaderRow renders the process_run_rollup summary + a capability-gated "N to assign"
+  // affordance for occurrence groups; the phone card list previously fell back to the plain
+  // count/overdue grammar with no rollup and no way to resolve a pending step — this closes
+  // that gap using the SAME handler contract (onAssignPending(runId)) the desktop path gets.
+  describe('occurrence group parity (item 3)', () => {
+    const OCC_GROUP = {
+      key: 'run-1',
+      label: 'Café Opening · 17 Jul 2026',
+      rows: [makeTask({ id: 'gen-1', title: 'Open the café' })],
+      overdue: 0,
+      prefillParam: '',
+      occurrenceRollup: { total: 2, done: 1, overdue: 0, pendingUnresolved: 1 },
+    }
+
+    // Design fix wave item 6 (MINOR — "1 to assign" stutter): no onAssignPending handler here
+    // (the viewer cannot act) — neutral "N unassigned" wording, never actionable-sounding text
+    // with nothing to click (mirrors GroupHeaderRow).
+    it('renders the roll-up summary (not the plain count) for an occurrence group, "N unassigned" with no assign handler', () => {
+      renderCards({ groups: [OCC_GROUP] })
+      expect(screen.getByText('1/2 done · 0 overdue · 1 unassigned')).toBeInTheDocument()
+    })
+
+    it('renders the "N to assign" affordance when pendingUnresolved > 0 and a handler is given, firing it with the run id', () => {
+      const onAssignPending = vi.fn()
+      renderCards({ groups: [OCC_GROUP], onAssignPending })
+      const assignBtn = screen.getByRole('button', { name: '1 to assign' })
+      fireEvent.click(assignBtn)
+      expect(onAssignPending).toHaveBeenCalledWith('run-1')
+    })
+
+    it('item 6: drops the pending clause from the summary when the "N to assign" button ALSO renders (no stutter)', () => {
+      renderCards({ groups: [OCC_GROUP], onAssignPending: vi.fn() })
+      expect(screen.getByText('1/2 done · 0 overdue')).toBeInTheDocument()
+      expect(screen.queryByText('1 to assign', { selector: '.mgc-count' })).not.toBeInTheDocument()
+    })
+
+    it('never renders the assign affordance when no handler is given (viewer cannot resolve)', () => {
+      renderCards({ groups: [OCC_GROUP] })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('never renders the assign affordance when pendingUnresolved is 0, even with a handler', () => {
+      const zeroGroup = { ...OCC_GROUP, occurrenceRollup: { ...OCC_GROUP.occurrenceRollup, pendingUnresolved: 0 } }
+      renderCards({ groups: [zeroGroup], onAssignPending: vi.fn() })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('a non-occurrence group is unaffected (plain count grammar, no assign affordance)', () => {
+      renderCards({ onAssignPending: vi.fn() }) // BASE_PROPS groups carry no occurrenceRollup
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role>" line
+    // on the phone card, same data source (provenanceByTaskDefId) as the desktop TaskRow.
+    it('renders "via <role name>" on the card when the task carries a resolvable generated_from_task_def_id', () => {
+      const group = {
+        ...OCC_GROUP,
+        rows: [makeTask({ id: 'gen-1', title: 'Open the café', generated_from_task_def_id: 'def-1' })],
+      }
+      renderCards({
+        groups: [group],
+        provenanceByTaskDefId: new Map([['def-1', 'Cafe Ops Lead']]),
+      })
+      expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument()
+    })
+
+    it('renders no provenance line when the task\'s def has no resolvable role name', () => {
+      const group = {
+        ...OCC_GROUP,
+        rows: [makeTask({ id: 'gen-1', title: 'Open the café', generated_from_task_def_id: 'def-2' })],
+      }
+      renderCards({ groups: [group], provenanceByTaskDefId: new Map() })
+      expect(screen.queryByText(/^via /)).not.toBeInTheDocument()
+    })
+  })
+
+  it('task-card open link preserves ?view=overdue', () => {
+    renderCards({
+      recordSearch: '?view=overdue',
+      groups: [{
+        key: '__flat__',
+        label: 'Tasks',
+        rows: [makeTask({ id: 'task-9', title: 'Overdue card task' })],
+        overdue: 0,
+        prefillParam: '',
+      }],
+    })
+    const cardLink = screen.getByRole('link', { name: /overdue card task/i })
+    expect(cardLink.getAttribute('href')).toBe('/work/tasks/task-9?view=overdue')
   })
 })

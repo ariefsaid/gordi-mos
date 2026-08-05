@@ -1,0 +1,150 @@
+/* E7-tokenized selection/status chrome for the generic RecordCollection surface.
+   No table/card visual system lives here — presentations own their own row rendering. */
+.record-collection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.record-collection-body {
+  min-width: 0;
+}
+
+/* E7 result-card anatomy (owner score gate, 2026-07-22): the result header and whatever follows
+   it (table / loading / error / empty state) share ONE card frame — no gap between them, so the
+   header reads as the frame's first row rather than a floating band. The toolbar above keeps the
+   normal 12px `.record-collection` gap; only header→content is flush. */
+.record-collection-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+/* One collection-surface treatment across typed presentations. Domains still
+   own their row anatomy (Task decision columns, Signal feed/table), but the
+   page-level object is the same E7 card: border, radius, resting lift, and
+   overflow. This is the visual counterpart to the shared engine/toolbar. */
+.record-collection-view {
+  /* E7's collection rhythm is 52px. Keep the older generic list token scoped out of
+     unrelated legacy tables while every RecordCollection presentation shares this value. */
+  --row-min-h: 52px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+
+.record-collection-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: var(--font-size-body);
+}
+
+/* One live collection-table skin. Tasks keeps its decision columns and Signals keeps its
+   archive columns, while both consume the same header/body measure, typography, padding,
+   and divider. The shared class is applied by both renderers rather than inferred from a
+   page-specific descendant selector (OD-REDESIGN-72/79). */
+.record-collection-view .record-collection-table thead th {
+  height: 38px;
+  padding: 0 12px;
+  line-height: 1.3;
+}
+
+.record-collection-view .record-collection-table tbody tr:not(.dt-group-row) {
+  height: var(--row-min-h);
+}
+
+.record-collection-view .record-collection-table tbody td {
+  height: var(--row-min-h);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--row-divider);
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.record-collection-readonly {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-mono); /* typeset: was 0.8125rem (13px) literal — same value, now the token */
+}
+
+.record-collection-selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.record-collection-clear {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.record-collection-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Shared E7 result-header (OD-REDESIGN-72/79, E7-floor reframe 2026-07-22): one quiet status
+   line opening every collection result card — "<view> · <collection>" left, the result count
+   right. Tasks and Signals pass the same three fields so each reads as one family. DESIGN.md
+   tokens only. */
+.record-collection-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+/* P1 fix (craft-floor Type: "run the real copy at every breakpoint and fix what
+   overflows"): this was `inline-flex` with three independent child spans (view / sep /
+   collection), each its own flex item — `text-overflow: ellipsis` never applies to a flex
+   container's children (only to a single run of text in a block/inline box), so at narrow
+   widths the label hard-clipped mid-word with no ellipsis ever rendering (measured: id
+   "Semua · Arsip Sinyal" scrollWidth 130 vs clientWidth 86 at 320px). Dropping the flex
+   display lets the three spans flow as ordinary inline text — the separator span already
+   carries its own literal " · " padding in the markup, so spacing is unchanged — and
+   ordinary inline text wraps at word boundaries instead of clipping. `flex: 1 1 auto` +
+   `min-width: 0` (as a flex ITEM of `.record-collection-result`) is what lets the label
+   shrink to the space the count badge yields, and what content remains simply wraps to a
+   second line rather than being cut. */
+.record-collection-result__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.record-collection-result__view {
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+.record-collection-result__sep {
+  color: var(--muted-foreground);
+}
+.record-collection-result__collection {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-mono);
+}
+.record-collection-result__count {
+  margin-left: auto;
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-mono);
+}

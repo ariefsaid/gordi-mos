@@ -24,6 +24,13 @@ export interface TaskRow {
   created_by: string
   created_at: string
   updated_at: string
+  // Step 6 (ADR-0051 D10, occurrence-as-tasks): occurrence provenance. Optional/nullable —
+  // ALL pre-Step-6 tasks and every hand-created task carry neither column (ad-hoc Tasks stay
+  // ad-hoc, FR-611). Populated only on a Task materialized by mos.spawn_process_run /
+  // mos.resolve_pending_task. Kept optional (not just nullable) so this row shape stays
+  // structurally satisfiable by any pre-existing TaskListRow literal without a cast.
+  process_run_id?: string | null
+  generated_from_task_def_id?: string | null
 }
 export interface ChecklistItemRow {
   id: string

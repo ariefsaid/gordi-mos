@@ -66,7 +66,7 @@ const VIEWER_ID = 'viewer-person-id'
 
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Cahya Cafe',
-  email: 'cahya@example.test', must_change_password: false, archived_at: null,
+  email: 'cahya@gordi.id', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -134,6 +134,12 @@ function renderCreate() {
   )
 }
 
+// F17 (OD-91 #29): the optional Project/Process + Objective pickers live behind the "+ Add context"
+// reveal on create — open it before asserting on those selects.
+async function revealCreateContext() {
+  fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
+}
+
 function renderView(taskOverrides: Partial<TaskListRow> = {}) {
   const task = makeTask(taskOverrides)
   mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -146,6 +152,15 @@ function renderView(taskOverrides: Partial<TaskListRow> = {}) {
   )
 }
 
+// Value-first record grammar: Project/Process + Objective render their VALUE first and swap in
+// their <select> only when the row is activated. Click the field's edit affordance first.
+async function activateFieldByKey(key: string) {
+  const btn = await waitFor(
+    () => document.querySelector(`[data-field-key="${key}"] [data-field-edit]`) as HTMLElement,
+  )
+  fireEvent.click(btn)
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // CREATE FORM
 // ═══════════════════════════════════════════════════════════════════════
@@ -155,6 +170,7 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     renderCreate()
     // The form is usable before lookups arrive (non-blocking); wait for the form title
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    await revealCreateContext()
     // Work-line options load asynchronously — wait for them
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     expect(wlSelect).toBeInTheDocument()
@@ -168,6 +184,7 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
   it('FR-242: shows an Objective select with "— None —" as the first option', async () => {
     renderCreate()
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
+    await revealCreateContext()
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     expect(objSelect).toBeInTheDocument()
     const options = Array.from(objSelect.querySelectorAll('option')).map(o => o.textContent)
@@ -176,13 +193,13 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     expect(options).toContain('Launch autumn menu')
   })
 
-  it('FR-250: the create form is usable (shows BU/R/A) before Work-line/Objective lookups resolve', async () => {
+  it('FR-250: the create form is usable (shows Team/PIC/Supervisor) before Work-line/Objective lookups resolve', async () => {
     // Make lookups never resolve — form should still be functional (non-blocking)
     mockListObjectives.mockReturnValue(new Promise(() => {}))
     mockListWorkLines.mockReturnValue(new Promise(() => {}))
     renderCreate()
-    // BU select should be available as soon as the blocking directory loads
-    await waitFor(() => screen.getByLabelText(/business unit/i))
+    // Team select should be available as soon as the blocking directory loads
+    await waitFor(() => screen.getByLabelText(/team/i))
     expect(screen.getByRole('button', { name: /create task/i })).toBeInTheDocument()
   })
 })
@@ -194,6 +211,7 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     // Fill required fields
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with work line' } })
     // Select a work-line
+    await revealCreateContext()
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-1' } })
     // Submit
@@ -209,6 +227,7 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with objective' } })
+    await revealCreateContext()
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: 'obj-2' } })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
@@ -226,6 +245,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No work line task' } })
     // Do not change work-line — leave at "— None —"
+    await revealCreateContext()
     await screen.findByRole('combobox', { name: /project\/process/i }) // wait for it to render
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
@@ -239,6 +259,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No objective task' } })
+    await revealCreateContext()
     await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
@@ -256,6 +277,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
   it('FR-245: changing the Work-line select calls updateTaskFields with { work_line_id }', async () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('projectProcess')
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.change(wlSelect, { target: { value: 'wl-2' } })
     await waitFor(() => {
@@ -270,6 +292,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
   it('FR-246: clearing Work-line (back to "— None —") calls updateTaskFields with { work_line_id: null }', async () => {
     renderView({ work_line_id: 'wl-1' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('projectProcess')
     const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
     // Clear it
     fireEvent.change(wlSelect, { target: { value: '' } })
@@ -287,6 +310,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   it('FR-247: changing the Objective select calls updateTaskFields with { objective_id }', async () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('objective')
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: 'obj-1' } })
     await waitFor(() => {
@@ -301,6 +325,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   it('FR-248: clearing Objective calls updateTaskFields with { objective_id: null }', async () => {
     renderView({ objective_id: 'obj-2' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    await activateFieldByKey('objective')
     const objSelect = await screen.findByRole('combobox', { name: /objective/i })
     fireEvent.change(objSelect, { target: { value: '' } })
     await waitFor(() => {
@@ -327,10 +352,13 @@ describe('FR-249 — detail panel shows "—" when both fields are null (read-on
       </AuthContext.Provider>,
     )
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // With lookups loaded but no id set, read-only path shows "—" for each field
-    // Also Due date is null so there's at least one "—" from that
+    // FR-249: null fields render an explicit null-indicator (not blank). Work-line and Objective
+    // render "—"; Due renders the more informative "No due date" (task-record-adapter.tsx:185
+    // sets displayValue: task.due_date ?? 'No due date'). Both satisfy the FR-249 goal — a null
+    // field is visibly marked, not empty.
     const dashes = screen.getAllByText('—')
-    // At minimum: work-line "—", objective "—", due date "—" = 3
-    expect(dashes.length).toBeGreaterThanOrEqual(3)
+    // Work-line "—" + Objective "—" (Due uses "No due date" instead of "—")
+    expect(dashes.length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('No due date')).toBeInTheDocument()
   })
 })

@@ -1,4 +1,6 @@
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { Locale } from '@/i18n/messages'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 // OFF-TRACK-FIRST status order (OD-P3-6 / signed mockup): In Progress → Blocked → Open → Done.
 // Shared by the tasks workspace + the My Week mini-table so the two never drift.
@@ -26,14 +28,25 @@ export function formatAge(isoDate: string, now: Date): string {
   return `${days}d`
 }
 
-/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun". */
-export function formatDate(d: string): string {
-  const [y, m, day] = d.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, day))
-  return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+/** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun".
+ * Delegates to the canonical locale-aware date module (cohesion-debt 2026-07-19, item #1). */
+export function formatDate(d: string, locale: Locale = 'en'): string {
+  return formatWeekdayDayMonth(d, locale)
 }
 
-/** Collect unique persons (A + C + I) that are NOT the responsible person; returns count. */
+/** Resolve the human-facing provenance label for a Task row or record. */
+export function taskSourceLabel(workLineName: string, objectiveName: string, adHocLabel: string): string {
+  return workLineName || objectiveName || adHocLabel
+}
+
+/**
+ * Retained for Home's My-Tasks card (`components/weekly/my-tasks-card.tsx`) — that surface is
+ * NOT ported by #192 (it belongs to #191, the Home port, not yet started) and still uses the RACI
+ * vocabulary v4's Tasks components moved past (PIC/Supervisor). v4 dropped this export entirely
+ * because v4 has no My-Tasks card in this shape; deleting it here would break a live `dev` screen
+ * outside this PR's scope, so it stays until #191 either ports Home onto the new vocabulary or
+ * retires the card.
+ */
 export function otherRaciCount(task: TaskListRow): number {
   const r = task.responsible_person_id
   const seen = new Set<string>()

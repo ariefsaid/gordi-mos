@@ -1,0 +1,325 @@
+/* Shared Tasks / Signals collection grammar.
+   Domain renderers keep their typed fields; this file owns the reusable title/meta, table
+   measure, sort direction, group-header, and phone-card rhythm. It intentionally does not
+   replace either renderer or the RecordCollection surface/toolbar internals. */
+
+.collection-grammar-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: var(--font-size-body);
+}
+
+.record-collection-view .collection-grammar-table thead th {
+  height: 38px;
+  padding: 0 12px;
+  line-height: 1.3;
+}
+
+.record-collection-view .collection-grammar-table tbody td {
+  height: var(--row-min-h, 52px);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--row-divider);
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.collection-grammar-title-cell {
+  min-width: 0;
+}
+
+.collection-grammar-title {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-grammar-meta {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inline title-edit input (E7 inline-cell primitive: one commit contract — Enter/blur save,
+   Esc discard). Sits in the identity cell in place of the title link while editing. The accent
+   focus ring mirrors E7's `.inline-cell.editing` box-shadow, kept on DESIGN tokens. */
+.task-title-edit {
+  display: block;
+}
+
+.task-title-input {
+  width: 100%;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.task-title-input:focus,
+.task-title-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.task-title-input[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+/* ── PIC cell (avatar + name) — the shared row anatomy behind PicCell (pic-cell.tsx),
+   consumed by the Tasks workspace table/mobile cards AND, as of the table-parity fix
+   (F4, 2026-07-22), the Home "My tasks" mini-table. PicCell itself carries no CSS import
+   (it is a plain, page-agnostic component), so its `.owner`/`.ownav`/`.own-name` classes
+   must resolve wherever a Task row can render — this is the one shared definition. Kept
+   byte-identical to the historical TasksWorkspace.css rule (harmless duplicate cascade
+   there; not edited, so the Tasks surface's own file/tests are untouched by this fix). */
+.owner { display: flex; align-items: center; gap: 8px; }
+.ownav {
+  width: 26px; height: 26px; border-radius: var(--radius-pill);
+  /* blue12→blue9 gradient + inverted text clears WCAG-AA in both themes (see TasksWorkspace.css
+     history) — a solid --accent fill measured only ~3.67:1. */
+  background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+  /* typeset: was 10.5px off-ramp; kept byte-identical to TasksWorkspace.css's .ownav per this
+     file's own header comment — both now use micro (10px), matching .person-av elsewhere. */
+  color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: var(--font-size-micro); font-weight: 700; flex: none;
+}
+.own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.owner-name-stack { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
+.owner-name-stack .own-name { line-height: 1.2; }
+.owner-provenance {
+  font-size: var(--font-size-overline); color: var(--muted-foreground); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.collection-grammar-sort-indicator {
+  display: inline-block;
+  margin-left: 5px;
+  color: var(--primary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.collection-grammar-sort-button:focus-visible,
+.signal-collection-presentation .dt-sort-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+
+/* DataTable owns the Signal header DOM, so its domain wrapper supplies the same
+   inline arrow treatment as the Task header's shared direction span. */
+.signal-collection-presentation .dt-table th[aria-sort] .dt-sort-button::after {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  margin-left: 5px;
+  border: 0;
+  color: var(--primary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.signal-collection-presentation .dt-table th[aria-sort='none'] .dt-sort-button::after {
+  content: '';
+}
+
+.signal-collection-presentation .dt-table th[aria-sort='ascending'] .dt-sort-button::after {
+  content: '↑';
+}
+
+.signal-collection-presentation .dt-table th[aria-sort='descending'] .dt-sort-button::after {
+  content: '↓';
+}
+
+/* One group-header rhythm. Domain-only controls (Task overdue/create and any future Signal
+   action) remain optional additions after this shared label/count spine. */
+.collection-grammar-group-bar,
+.signal-collection-presentation .dt-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  background: transparent;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+
+.collection-grammar-group-toggle,
+.signal-collection-presentation .dt-group-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.collection-grammar-group-toggle:hover,
+.signal-collection-presentation .dt-group-toggle:hover {
+  color: var(--foreground);
+}
+
+.collection-grammar-group-label,
+.signal-collection-presentation .dt-group-label {
+  color: var(--brand-navy-text);
+  font-size: var(--font-size-body);
+  font-weight: 700;
+}
+
+.collection-grammar-group-count,
+.signal-collection-presentation .dt-group-count {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.record-collection-view .gbar.collection-grammar-group-bar .collection-grammar-group-toggle,
+.record-collection-view .gbar.collection-grammar-group-bar .collection-grammar-group-label,
+.record-collection-view .gbar.collection-grammar-group-bar .collection-grammar-group-count {
+  /* Beat the legacy task selectors while keeping the legacy hooks for existing consumers. */
+  box-sizing: border-box;
+}
+
+.collection-grammar-mobile-group,
+.signal-collection-presentation .dt-cards-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 4px;
+}
+
+.collection-grammar-card,
+.signal-collection-presentation .dt-card {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+.collection-grammar-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-rest);
+}
+
+/* H8(c) (Luna floor): the phone Signals result is E7's ONE calm surface, not a stack of raised
+   cards. Flatten the shared DataTable card mode for Signals — drop each card's border / radius /
+   resting shadow and the inter-card gap, and separate rows with a single hairline — so the archive
+   reads as one continuous result surface inside the outer result-card frame (the SAME flat-row
+   grammar the Feed layout + the Home ambient tail already use). Scoped to the signal presentation,
+   so dashboard DataTables (where a card stack is intended) are untouched. */
+.signal-collection-presentation .dt-cards { gap: 0; }
+.signal-collection-presentation .dt-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.signal-collection-presentation .dt-card + .dt-card {
+  border-top: 1px solid var(--row-divider);
+}
+/* H6 (Luna floor): the phone card title identity clamps to 2 lines like every other Signal title
+   surface — the DataTable card mode otherwise re-forced a single nowrap line, clipping the message
+   mid-word. Card-scoped so it beats the card title's own display/white-space. */
+.signal-collection-presentation .dt-card .signal-table-message {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
+}
+
+.collection-grammar-card .collection-grammar-card-body,
+.signal-collection-presentation .dt-card {
+  padding: 14px;
+}
+
+.collection-grammar-card .collection-grammar-title,
+.signal-collection-presentation .dt-card-title,
+.signal-collection-presentation .signal-table-message {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.collection-grammar-card-details,
+.signal-collection-presentation .dt-card-detail {
+  gap: 6px 12px;
+}
+
+/* OD-REDESIGN-22 (D-C1): a failed inline rename surfaces a VISIBLE error + Retry in the row
+   (not a sr-only-only rollback). Mirrors the RecordField error/retry treatment. */
+.task-row-save-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: var(--font-size-label);
+  /* I4: small error TEXT uses the AA-darkened red; the retry button border/label keep --destructive (larger/bolder). */
+  color: var(--field-error-text);
+}
+
+.task-row-retry {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--destructive);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Shared j/k row cursor (GAP-9 / OD-REDESIGN-91 #14) ──────────────────────────────────────
+   Promoted out of the Tasks-only `.task-row.kfocus` rule so EVERY collection-grammar table
+   inherits ONE cursor treatment (a 2px primary top/bottom inset rule that reads as "the row the
+   keyboard is on"). Signals and any future engine table light up identically via the shared
+   useCollectionKeyboard hook + a `kfocus` class on the cursor <tr>. */
+.collection-grammar-table tbody tr.kfocus td { box-shadow: inset 0 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+.collection-grammar-table tbody tr.kfocus td:first-child { box-shadow: inset 2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+.collection-grammar-table tbody tr.kfocus td:last-child { box-shadow: inset -2px 2px 0 var(--primary), inset 0 -2px 0 var(--primary); }
+
+/* ── After-create highlight (GAP-6 / OD-REDESIGN-91 #11) ─────────────────────────────────────
+   The row a create just landed in returns highlighted with a brief accent that fades back to the
+   resting row — the "one rule app-wide" after-create feedback. Tokens only (--primary at low
+   alpha), a single ~1.8s ease-out that ends at transparent so the class may safely linger. */
+@keyframes collection-row-just-created {
+  0%   { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+  100% { background: transparent; }
+}
+.task-row.row-just-created td,
+.collection-grammar-table tbody tr.row-just-created td {
+  animation: collection-row-just-created 1800ms ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-row.row-just-created td,
+  .collection-grammar-table tbody tr.row-just-created td { animation: none; }
+}

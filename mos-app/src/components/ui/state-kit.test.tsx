@@ -73,6 +73,23 @@ describe('EmptyState', () => {
     render(<EmptyState title="Raised" headingLevel={2} />)
     expect(screen.getByRole('heading', { level: 2, name: 'Raised' })).toBeInTheDocument()
   })
+
+  // Ported for #192 (Tasks): RecordViewer's empty body (record-viewer.tsx) sits inside the
+  // record panel/page's own already-labelled landmark — a nested `region` here would be a
+  // redundant landmark a screen-reader user has to tab past to reach the same content twice.
+  it('drops the region landmark and its labelling when nested', () => {
+    render(<EmptyState variant="blank" title="No fields yet" nested />)
+    const emptyState = screen.getByTestId('empty-state')
+    expect(emptyState).not.toHaveAttribute('role')
+    expect(emptyState).not.toHaveAttribute('aria-labelledby')
+    // The title itself still renders — only the landmark wrapper is dropped.
+    expect(screen.getByRole('heading', { name: 'No fields yet' })).toBeInTheDocument()
+  })
+
+  it('keeps the region landmark by default (nested omitted)', () => {
+    render(<EmptyState variant="blank" title="Still a landmark" />)
+    expect(screen.getByRole('region', { name: 'Still a landmark' })).toBeInTheDocument()
+  })
 })
 
 describe('LoadingShell — the one loading grammar', () => {
