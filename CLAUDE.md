@@ -96,6 +96,12 @@ Edit skills **only** in `.claude/skill-overrides/<name>/`. `.claude/skills/` is 
 gitignored — edits there are destroyed by the next `scripts/vendor-skills.sh`.
 See `docs/agents/skills.md`.
 
+### Review roster
+
+**Three lenses review every change, always: `spec`, `code-quality`, `security`.** A loop step, not a
+CI check — CI gates what a machine can decide, never who reviewed. Your own read is never one of the
+three. See `docs/agents/review.md`.
+
 ### Delegating to pi (GLM / luna)
 
 Background the dispatch and wait for the notification — **never poll, and never kill on an empty
