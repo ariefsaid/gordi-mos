@@ -90,13 +90,14 @@ if [ -f /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md ]; the
 fi
 
 # --- Project overrides (OVERLAY, not replace) ---
-# Our upgraded files (committed, git-tracked, de-branded, OURS: implement, to-spec, code-review, tdd)
+# Our upgraded files (committed, git-tracked, de-branded, OURS: implement, to-spec, code-review, tdd, handoff)
 # are OVERLAID on top of the pristine vendored skill — our SKILL.md wins while upstream SIBLINGS
 # (tests.md, mocking.md, agents/…) are KEPT. Before overlaying, snapshot the pristine upstream to
 # .claude/skill-original/<name>/ (gitignored) so `diff skill-original/<s>/SKILL.md
 # skill-overrides/<s>/SKILL.md` shows exactly our delta and a re-vendor reveals upstream drift.
-# See the "Skill ownership — where to edit a skill" table in CLAUDE.md (written 2026-08-06; this
-# comment previously cited a table that did not exist, which is why agents kept editing skills/).
+# See the "### Skills" section in CLAUDE.md and docs/agents/skills.md (written 2026-08-06; this
+# comment previously cited a "skill-ownership table" that did not exist, which is why agents kept
+# editing the generated skills/ directory).
 OVERRIDES="$ROOT/.claude/skill-overrides"
 ORIGINAL="$ROOT/.claude/skill-original"
 if [ -d "$OVERRIDES" ]; then
@@ -114,6 +115,6 @@ fi
 
 echo
 echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling agent-browser + mattpocock full eng+prod set"
-echo "Project overrides applied from .claude/skill-overrides/ (implement to-spec code-review tdd)."
+echo "Project overrides applied from .claude/skill-overrides/ (implement to-spec code-review tdd handoff)."
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"
