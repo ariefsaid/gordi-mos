@@ -889,6 +889,23 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // vanishing. Standalone (no host) the leave runs directly, unchanged.
   const requestClose = () => (onRequestLeave ? onRequestLeave(closeToCollection) : closeToCollection())
 
+  // Issue 300: a first click on Cancel must ALWAYS cancel. With a focused dirty field, the
+  // browser's click sequence is pointerdown → blur → pointerup → click — and the blur-triggered
+  // validation (validate*OnBlur above) inserts an error line ABOVE the action row, moving Cancel
+  // out from under the pointer between down and up, so no click event ever reaches the button.
+  // Firing on POINTERDOWN runs the cancel before the blur relayout can move anything. The click
+  // handler serves ONLY keyboard/AT activation, recognized statelessly by detail === 0 (Enter/
+  // Space synthesize a click with no pointer sequence) — a pointer press's own click (detail ≥ 1)
+  // is ignored so one press can never cancel twice, and there is no suppression state to go stale
+  // when a dirty-guard dialog swallows the pointerup.
+  const handleCancelPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return
+    requestClose()
+  }
+  const handleCancelClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (e.detail === 0) requestClose()
+  }
+
   const closeBtn = (
     <button
       type="button"
@@ -915,7 +932,14 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   const actionButtons = (
     <>
-      <button type="button" className="btn btn-outline" onClick={requestClose}>{t('tasks.cancel')}</button>
+      <button
+        type="button"
+        className="btn btn-outline"
+        onPointerDown={handleCancelPointerDown}
+        onClick={handleCancelClick}
+      >
+        {t('tasks.cancel')}
+      </button>
       <button
         type="submit"
         className="btn btn-primary"

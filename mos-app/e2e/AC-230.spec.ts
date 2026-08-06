@@ -153,7 +153,9 @@ test(
   // ── 3. Scope = "All" ─────────────────────────────────────────────────────────
   // MANAGER's "Mine" segment shows only her R/A tasks. "All" broadens scope so
   // the Person filter alone drives ownership (FR-124 / AC-126).
-  await page.getByRole('tab', { name: 'All' }).click()
+  // STALE→fixed (#284's repair, mirrored): the saved-view chips are BUTTONS inside the
+  // role="group" "Tasks saved views" (tasks-toolbar.tsx) — a 'tab' role never existed here.
+  await page.getByRole('button', { name: 'All', exact: true }).click()
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
   await page.locator('#group-by-filter').selectOption('workline')

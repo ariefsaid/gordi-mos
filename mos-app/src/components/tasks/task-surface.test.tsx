@@ -618,6 +618,52 @@ describe('TaskSurface — create mode', () => {
     expect(aSelect).not.toBeDisabled()
   })
 
+  // #300: with focus in a dirty required field, a real browser click on Cancel runs
+  // pointerdown → blur → pointerup/click — and the blur-triggered validation inserts an error
+  // line ABOVE the inline action row, moving Cancel out from under the pointer, so the click
+  // event never reaches the button. The fix fires the cancel on POINTERDOWN (before the blur
+  // relayout). This test replays that exact sequence — pointerdown then blur, and deliberately
+  // NO click, because in the buggy layout no click ever lands on the button — and asserts the
+  // cancel still happened. Fails on the old onClick-only wiring.
+  // ("issue 300" not "#300" in the title: the design-token lint bans #-hex-shaped string literals.)
+  it('issue 300: first pointer-press on Cancel cancels even when blur validation relayouts mid-click', async () => {
+    renderSurfaceRoute('/work/tasks/new?view=mine')
+    const title = await screen.findByLabelText(/title/i)
+    // Focused + dirty + invalid: typed then cleared, so the imminent blur inserts "Title is required".
+    fireEvent.focus(title)
+    fireEvent.change(title, { target: { value: 'draft' } })
+    fireEvent.change(title, { target: { value: '' } })
+    const cancel = screen.getByRole('button', { name: /cancel/i })
+    // jsdom has no PointerEvent constructor, and RTL's fireEvent.pointerDown falls back to a bare
+    // Event carrying NO `button` — which the handler's primary-button guard rightly rejects. A
+    // MouseEvent typed 'pointerdown' carries button=0, matching what a real primary press sends.
+    fireEvent(cancel, new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }))
+    fireEvent.blur(title)
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
+    expect(mockCreateTask).not.toHaveBeenCalled()
+  })
+
+  it('issue 300: keyboard activation of Cancel (click with detail 0, no pointer sequence) still cancels', async () => {
+    renderSurfaceRoute('/work/tasks/new?view=mine')
+    const cancel = await screen.findByRole('button', { name: /cancel/i })
+    // Enter/Space synthesize a click with detail 0 and no preceding pointerdown — the keyboard path.
+    fireEvent.click(cancel)
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
+  })
+
+  it('issue 300: a pointer click (detail ≥ 1) without its pointerdown landing on Cancel does not cancel', async () => {
+    // The click that FOLLOWS a pointer press is ignored (its pointerdown already ran the cancel) —
+    // so a press that starts elsewhere and releases over Cancel must not cancel, and one press can
+    // never cancel twice. Deleting the detail check in handleCancelClick turns this red.
+    renderSurfaceRoute('/work/tasks/new?view=mine')
+    const cancel = await screen.findByRole('button', { name: /cancel/i })
+    fireEvent.click(cancel, { detail: 1 })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks/new?view=mine')
+  })
+
   it('AC-081 (TaskSurface create): empty Title blocks submit with a field error', async () => {
     renderCreate()
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))

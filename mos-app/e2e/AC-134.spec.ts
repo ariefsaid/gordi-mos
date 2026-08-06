@@ -163,7 +163,9 @@ test.beforeEach(async ({ page }) => {
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
   // Switch to "All" so Dewi sees the full seeded dataset (not just her R/A tasks).
-  await page.getByRole('tab', { name: 'All' }).click()
+  // STALE→fixed (#284's repair, mirrored): the saved-view chips are BUTTONS inside the
+  // role="group" "Tasks saved views" (tasks-toolbar.tsx) — a 'tab' role never existed here.
+  await page.getByRole('button', { name: 'All', exact: true }).click()
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
   await page.locator('#group-by-filter').selectOption('status')
