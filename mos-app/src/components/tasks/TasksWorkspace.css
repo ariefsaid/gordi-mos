@@ -365,6 +365,14 @@ tr:focus-within .row-menu { visibility: visible; }
   font-weight: 600; font-size: var(--font-size-body-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   display: block; color: var(--foreground); min-width: 0;
 }
+/* The task row's title span carries BOTH `.task-name` (body-lg, 15px — this file) and
+   `.collection-grammar-title` (body, 14px — components/collection-grammar.css). Two single-class
+   rules on one element: identical specificity, so the winner is decided by whichever stylesheet
+   the module graph happens to import last. It resolved to 15px on the v4 line and 14px here, from
+   the same two files byte-for-byte — an order accident, not a decision.
+   Pinned explicitly so it stops depending on import order. 15px is the intended value: body-lg is
+   DESIGN.md's "record titles, primary row text", and the row's own `.own-name` sibling runs it. */
+.collection-grammar-title.task-name { font-size: var(--font-size-body-lg); }
 .task-name-archived { font-weight: 500; color: var(--muted-foreground); }
 .archived-tag {
   display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: var(--radius-xs);
@@ -476,7 +484,12 @@ tr:focus-within .row-menu { visibility: visible; }
    single pair (~200px), so the card fits any phone regardless of ancestor sizing; long
    values ellipsis rather than blow out. */
 @media (max-width: 599.98px) {
-  .task-card-meta { flex-direction: column; align-items: flex-start; gap: 4px; }
+  /* Combined selector for the same reason as `.collection-grammar-title.task-name` above: this
+     <dl> also carries `.collection-grammar-card-details`, whose `gap: 6px 12px` is a single-class
+     rule with no media query. A media query adds no specificity, so whichever stylesheet imports
+     last wins — and the tighter phone gap this rule exists to set was being silently overridden. */
+  .task-card-meta,
+  .task-card-meta.collection-grammar-card-details { flex-direction: column; align-items: flex-start; gap: 4px; }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
   .task-card-meta dd {
     min-width: 0;

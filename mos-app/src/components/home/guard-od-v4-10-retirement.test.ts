@@ -9,13 +9,16 @@
  * dead-affordance class the audits flagged (anchor A4), and they are invisible to every behavioural
  * test precisely because nothing renders them.
  *
- * #191 port note: v4's copy of this guard carried a third assertion pinning
- * `src/styles/segmented-track.css` — a shared-CSS extraction between the retired toggle and
- * `dashboard/cut-toggle.css` that happened on the v4 line. That extraction was never ported to
- * `dev` (`dev`'s `cut-toggle.css` has no such shared file to keep); asserting it here would be
- * asserting a fact about the dashboard module this PR does not touch, not a fact about Home's
- * port. Dropped rather than carried uninspected — the two token-scan assertions below are
- * unaffected and are what actually proves this port didn't reintroduce the retired toggle.
+ * Scope note (deliberate, not a blanket grep): `src/styles/segmented-track.css` is correctly KEPT.
+ * The retired toggle was one of two consumers; `dashboard/cut-toggle.css` is still live, so the
+ * shared pixel grammar stays and only the toggle's own selectors went. The assertions below pin
+ * BOTH directions — the retired surface is gone AND the kept surface is intact — because a cleanup
+ * that deletes a file with a live consumer is the same defect wearing the other face.
+ *
+ * #191 port note, now stale and corrected: this guard's third assertion was dropped on the grounds
+ * that "that extraction was never ported to `dev`". True when written; false since #280 ported
+ * `segmented-track.css` and `cut-toggle.css`. The assertion is carried again below — a reason for
+ * skipping a check outlives the condition that justified it, which is how a guard quietly narrows.
  *
  * Prose is exempt: comments are stripped before scanning. The retirement is DOCUMENTED in several
  * files (home-layout.ts cites the precedent), and a guard that forbade explaining itself would be
@@ -89,5 +92,18 @@ describe('AC-933: the OD-V4-10 region-order toggle leaves no trace in the shippe
     const surviving = RETIRED_FILES.filter((f) => existsSync(join(SRC, '..', f)))
     expect(surviving, 'an unimported module is still a corpse the next reader has to step over')
       .toEqual([])
+  })
+
+  // The other direction: the shared `seg` grammar had TWO consumers and only one of them retired.
+  // Restored in #280 alongside the file itself — a cleanup that deletes a file with a live consumer
+  // is the same defect as leaving a dead one behind, just wearing the other face.
+  it('AC-933: the shared segmented-track grammar is KEPT — its live consumer still has its pixels', () => {
+    const track = join(SRC, 'styles', 'segmented-track.css')
+    expect(existsSync(track), 'cut-toggle.css still imports this; deleting it is the mirror defect')
+      .toBe(true)
+    const cutToggle = readFileSync(join(SRC, 'components', 'dashboard', 'cut-toggle.css'), 'utf8')
+    expect(cutToggle).toMatch(/@import\s+['"][^'"]*segmented-track\.css['"]/)
+    // …and what it keeps is the SHARED grammar only: none of the retired consumer's own selectors.
+    expect(stripComments(readFileSync(track, 'utf8'))).not.toMatch(/home-order/)
   })
 })

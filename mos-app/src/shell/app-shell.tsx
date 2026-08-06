@@ -14,15 +14,17 @@ import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { OverlayHostProvider, OverlayHostSlot, type OverlayHistoryDriver } from './overlay-host'
+import { SignalComposerHost } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { useT } from '@/i18n/use-t'
 
-// STILL DEFERRED after #190: v4 also wraps the shell in `<SignalComposerHost>` and passes its
-// `open()` to the palette as `onShareSignal`. The composer host mounts `SignalComposer` and reads
-// the Signals mention rosters from the database — a Signals surface, and neither exists on this
-// line. It arrives with that surface, not with the hosts. The palette has no Share-Signal action to
-// wire to it either, so nothing here is currently offering a door that does not open.
+// Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
+// `SignalComposerHost` mounts `SignalComposer` and reads the mention rosters; `SignalsArchivePage`
+// calls `useSignalComposer()`, which THROWS when the provider is absent. #193 built both the
+// surface and this host and mounted neither, so routing the archive without this crashed the page
+// into the error boundary — caught by rendering it, not by the suite, because the page's own test
+// supplies the provider itself.
 
 // v4 shell rebuild (Task 7 a11y): the skip link — the FIRST focusable element in the app, so a
 // keyboard/screen-reader user can bypass the header (and, on phone, any opened drawer) chrome and
@@ -247,12 +249,15 @@ export function AppShell() {
   //
   // OverlayHostProvider sits INSIDE AgentRuntimeProvider, not outside it: overlay content is
   // ordinary app content and may reach for the runtime, and `useDeputyOverlayCoexistence` has to
-  // see both controllers from one child. (v4 nests it inside `SignalComposerHost` for the same
-  // reason; that host arrives with the Signals surface.)
+  // see both controllers from one child. `SignalComposerHost` wraps the overlay root, matching
+  // v4's nesting: the composer is a shell-level modal that must survive route changes, and route
+  // content beneath it calls `useSignalComposer()`.
   const shellWithOverlay = (
-    <OverlayHostRoot>
-      <ShellContent />
-    </OverlayHostRoot>
+    <SignalComposerHost>
+      <OverlayHostRoot>
+        <ShellContent />
+      </OverlayHostRoot>
+    </SignalComposerHost>
   )
   if (!SHOW_ASSISTANT) return shellWithOverlay
   return <AgentRuntimeProvider>{shellWithOverlay}</AgentRuntimeProvider>

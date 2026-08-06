@@ -1,12 +1,24 @@
 /* Tag — mos-design-kit display/Tag.jsx. Soft tinted pill from the 30-color palette.
-   No dot (use the Icon slot if you need a marker). padding 2px 8px, radius pill,
-   xs font. weight regular (default) | medium. */
+   No dot (use the Icon slot if you need a marker). padding 2px 8px, xs font.
+   weight regular (default) | medium.
+   H4 fix (design audit, 2026-07-28): radius was --radius-pill (999px) — DESIGN.md
+   §Shapes/§Geometry is explicit that 999px is reserved for circular marks (dots,
+   count badges, basis chip) and status pills are the 8px rounded-rect
+   (OD-REDESIGN-91 #30/E1; the shared <Pill> — Pill.css — already carries this).
+   Tag renders as a live 999px capsule on every call site (task type tags, catalog
+   type tags, admin role tags, kitchen-push status/env tags, and — via StatusPill,
+   components/tasks/status-pill.tsx — the task status pill itself), none of which
+   are circular marks, so it was the actual offending "pill" instance the shared
+   <Pill> fix never reached. Brought to --radius-sm (8px) to match. */
 .mk-tag {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: var(--radius-pill);
-  font-size: var(--font-size-xs, 12px); font-weight: 400; line-height: 1.4;
+  padding: 2px var(--tag-inline-pad); border-radius: var(--radius-sm);
+  font-size: var(--font-size-label); font-weight: 400; line-height: 1.4;
   white-space: nowrap; vertical-align: middle;
   /* color/background set inline via the color prop → --ds-tag-{background,text}-{color} */
 }
 .mk-tag--medium { font-weight: 600; }
 .mk-tag__icon { display: inline-flex; width: 14px; height: 14px; flex-shrink: 0; }
+/* Alignment affordance (kv/label columns) — pull the tag flush so its text sits at the
+   column x instead of being inset by --tag-inline-pad. Documented in index.css. */
+.mk-tag--flush { margin-inline-start: calc(-1 * var(--tag-inline-pad)); }

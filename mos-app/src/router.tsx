@@ -62,7 +62,15 @@ function withSuspense(element: ReactNode) {
 
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
 const TaskDrawer = lazyPage(() => import('./components/tasks/task-drawer').then((m) => ({ default: m.TaskDrawer })))
-const UpdatesPage = lazyPage(() => import('./pages/updates-page').then((m) => ({ default: m.UpdatesPage })))
+// Signals replaces Weekly Updates (v4): `/updates` redirects here and `UpdatesPage` is routed
+// nowhere, so it is not imported. The page file stays — the weekly-update tables and the My Week
+// panel still exist — but it has no route, exactly as in v4's table.
+const SignalsArchivePage = lazyPage(() =>
+  import('./pages/signals-archive-page').then((m) => ({ default: m.SignalsArchivePage })),
+)
+const SignalRecordPage = lazyPage(() =>
+  import('./pages/signals-archive-page').then((m) => ({ default: m.SignalRecordPage })),
+)
 const FollowUpsPage = lazyPage(() => import('./pages/follow-ups-page').then((m) => ({ default: m.FollowUpsPage })))
 const ObjectivesPage = lazyPage(() => import('./pages/objectives-page').then((m) => ({ default: m.ObjectivesPage })))
 const ProjectsProcessesPage = lazyPage(() =>
@@ -90,6 +98,8 @@ const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ d
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
+const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
+const EventsPage = lazyPage(() => import('./pages/events-page').then((m) => ({ default: m.EventsPage })))
 const NotFoundPage = lazyPage(() => import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage })))
 const RecoveryPage = lazyPage(() => import('./pages/recovery-page').then((m) => ({ default: m.RecoveryPage })))
 const UiGallery = lazyPage(() => import('./pages/ui-gallery').then((m) => ({ default: m.UiGallery })))
@@ -206,24 +216,22 @@ export const routeConfig: RouteObject[] = [
             ],
           },
           // Signals is v4's replacement for Weekly Updates — v4's own map redirects /updates
-          // here. The Signals archive itself has not been ported, so this serves `dev`'s
-          // UpdatesPage (FR-018) and the surface ticket flips this one element.
-          // SHOW_WEEKLY_UPDATES no longer gates it: Signals is a permanent entry in the ported
-          // rail, and a rail entry that redirects home is worse than no rail entry.
+          // here, and routes this path at SignalsArchivePage with no UpdatesPage anywhere in its
+          // table. #193 ported the surface but never flipped these two elements, so the archive
+          // sat fully built and unreachable while the route kept serving UpdatesPage (#267).
+          //
+          // `signals-archive-page.test.tsx` mounts its own <Route> and so passed throughout —
+          // which is why nothing caught it. The guard that does resolve through THIS table is the
+          // AC-020 wiring ledger in `router-lazy.test.tsx`, and it had `UpdatesPage` written into
+          // it, so it agreed with the bug. Both rows are corrected there.
           {
             path: 'work/signals',
-            element: withSuspense(<UpdatesPage />),
+            element: withSuspense(<SignalsArchivePage />),
             handle: pageHandle('workspace'),
           },
           {
             path: 'work/signals/:signalId',
-            element: withSuspense(
-              <SliceStubPage
-                jobKey="job.signals"
-                nameKey="nav.work.signals"
-                family="focused-record"
-              />,
-            ),
+            element: withSuspense(<SignalRecordPage />),
             handle: pageHandle('focused-record'),
           },
           // OD-V4-1: Objectives are visible to everyone, so there is NO read gate here. The
@@ -309,7 +317,10 @@ export const routeConfig: RouteObject[] = [
           // ── Events ──────────────────────────────────────────────────────────────────────
           {
             path: 'events',
-            element: withSuspense(<SliceStubPage jobKey="job.events" nameKey="dest.events" />),
+            // EventsPage, not the stub: the stub says "not in this slice yet", which is a claim
+            // about build order. Events is waiting on a ruling (#158), not on build order, and
+            // its own page says the honest version of that. Built for #199, never routed (#269).
+            element: withSuspense(<EventsPage />),
             handle: pageHandle('workspace'),
           },
 
@@ -476,11 +487,17 @@ export const routeConfig: RouteObject[] = [
             element: withSuspense(<SliceStubPage jobKey="job.roastery" nameKey="dest.roastery" />),
             handle: pageHandle('workspace'),
           },
+          // #199 ported ProfilePage but left this route on the stub, and the migration registry
+          // has named `ProfilePage` as this path's frame component the whole time — so the
+          // registry was describing a page the table did not serve (#269).
+          //
+          // Load-bearing, not cosmetic: the locale control lives on this page and `LocaleToggle`
+          // was deleted from the shell in the same change. With the route on the stub there is no
+          // mounted language control anywhere in the app, so the Indonesian catalog is complete
+          // and unreachable. Serving the real page is what restores it.
           {
             path: 'profile',
-            element: withSuspense(
-              <SliceStubPage jobKey="job.profile" nameKey="dest.profile" family="management" />,
-            ),
+            element: withSuspense(<ProfilePage />),
             handle: pageHandle('management'),
           },
 
