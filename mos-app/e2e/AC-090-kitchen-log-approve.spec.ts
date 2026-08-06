@@ -46,6 +46,14 @@ const NASI_PUTIH_ID = 'a1100000-0000-0000-0000-000000000001'
 const PLAN_BY       = '40000000-0000-0000-0000-000000000002'
 const PLAN_QTY      = 50
 
+// OD-WAY-28: `action_type` is retired as a stored column (CONTEXT.md). A plan now belongs to an
+// explicit (branch, activity) production stream + a movement (produce/transfer). Rumah Rames ·
+// kitchen is the stream this fixture targets — it is the same stream supabase/seed.sql plans Nasi
+// Putih against ("the Rumah Rames kitchen stream, which is the one the incumbent captures").
+const STREAM_BRANCH_ID = '25000000-0000-0000-0000-000000000002' // Rumah Rames (shared.branches)
+const STREAM_ACTIVITY  = 'kitchen'
+const STREAM_LABEL     = 'Rumah Rames · Kitchen' // rendered "{branch.name} · {activityLabel}"
+
 function wibToday(): string {
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
   const shifted = new Date(Date.now() + WIB_OFFSET_MS)
@@ -76,10 +84,15 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
   const today = wibToday()
 
   test.beforeAll(async () => {
+    // STALE fixture, not just a stale assertion: `action_type` no longer exists on
+    // ops.kitchen_plans (OD-WAY-28 replaced it with branch_id/activity/action, and its unique key
+    // grew to match — see supabase/migrations/20260805000009_ops_structure.sql). This insert used
+    // to raise "column action_type does not exist" before the test body even ran.
     const sql = 'INSERT INTO ops.kitchen_plans'
-      + ' (org_id, log_date, wip_item_id, action_type, qty_porsi, plan_by)'
-      + ' VALUES (' + "'" + ORG + "'" + ', ' + "'" + today + "'" + ', ' + "'" + NASI_PUTIH_ID + "'" + ', ' + "'Production'" + ', ' + PLAN_QTY + ', ' + "'" + PLAN_BY + "'" + ')'
-      + ' ON CONFLICT (org_id, log_date, wip_item_id, action_type)'
+      + ' (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, plan_by)'
+      + ' VALUES (' + "'" + ORG + "'" + ', ' + "'" + today + "'" + ', ' + "'" + NASI_PUTIH_ID + "'" + ', '
+      + "'" + STREAM_BRANCH_ID + "'" + ', ' + "'" + STREAM_ACTIVITY + "'" + ", 'produce', " + PLAN_QTY + ', ' + "'" + PLAN_BY + "'" + ')'
+      + ' ON CONFLICT (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id)'
       + ' DO UPDATE SET qty_porsi = ' + PLAN_QTY + ', plan_by = ' + "'" + PLAN_BY + "'"
     await execSql(sql)
     console.log('[AC-090] plan upserted for ' + today)
@@ -108,14 +121,30 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     await page.goto('cafe/log')
     await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
 
+    // STALE: the table's caption (its accessible name) is now "Café production log — …"
+    // (t('kitchen.log.caption'), kitchen-log-page.tsx) — "kitchen" never appears in the string.
     await expect(
-      page.getByRole('table', { name: /kitchen production log/i }),
+      page.getByRole('table', { name: /café production log/i }),
     ).toBeVisible({ timeout: 15_000 })
 
-    const nasiRow = page.getByRole('row', { name: /Nasi Putih/i })
-    await expect(nasiRow).toBeVisible({ timeout: 5_000 })
+    // STALE fixture + real journey step (not just a locator fix): v4 scoped capture to an explicit
+    // (branch, activity) production stream (OD-WAY-28, CONTEXT.md's six-stream model). The default
+    // resolves from the viewer's live primary Team — and per fixtures/users.ts, "every dev
+    // persona's primary Team is org structure, not a (branch, activity)", so VIEWER (Cahya) opens
+    // on the explicit "Choose stream…" state (FR-001/002: a missing default is never guessed).
+    // Select the same Rumah Rames/kitchen stream the fixture above planned Nasi Putih against.
+    const streamPicker = page.getByRole('combobox', { name: /production stream/i })
+    await expect(streamPicker).toBeVisible({ timeout: 10_000 })
+    await streamPicker.selectOption({ label: STREAM_LABEL })
 
-    const qtyInput = nasiRow.getByRole('spinbutton', { name: /Quantity for Nasi Putih/i })
+    // Selecting the stream re-fetches its plan/stock (kitchen-log-page.tsx applyStream) and swaps
+    // the table for a loading skeleton in between — give the round-trip room before the row query.
+    const nasiRow = page.getByRole('row', { name: /Nasi Putih/i })
+    await expect(nasiRow).toBeVisible({ timeout: 10_000 })
+
+    // STALE: the aria-label gained "produced" (kitchen.qty.producedAria, wip-item-stepper.tsx) —
+    // the component itself is WipItemStepper now, not the QtyCell the old label pattern matched.
+    const qtyInput = nasiRow.getByRole('spinbutton', { name: /Quantity produced for Nasi Putih/i })
     await qtyInput.click()
     await qtyInput.fill('50')
     await page.keyboard.press('Tab')

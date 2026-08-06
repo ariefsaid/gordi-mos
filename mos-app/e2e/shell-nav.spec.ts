@@ -36,7 +36,10 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   const nav = page.getByRole('navigation', { name: 'Primary' })
 
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  // STALE (v4): Home's h1 is a time-dependent greeting ("Good afternoon, <name>" — see
+  // src/i18n/messages.ts home.greeting.*), so no fixed heading name can match it. The stable
+  // anchor is the document title below, set unconditionally by
+  // useDocumentTitle('Home — Gordi MOS') in src/pages/stacked-union-home.tsx.
   await expect(page).toHaveURL(/\/$|\/mos\/?$/)
   // toHaveTitle auto-retries — document.title is set by a React effect, not synchronously with the URL.
   await expect(page).toHaveTitle('Home — Gordi MOS')
@@ -46,9 +49,14 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await nav.getByRole('link', { name: 'Tasks' }).first().click()
   await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
   await expect(page).toHaveTitle('Tasks — Gordi MOS')
-  // The ownership-filter tablist is always present in the Tasks toolbar regardless of data
-  // (populated, empty, loading) — it proves the real Tasks surface rendered, not just the route.
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  // STALE (v4): the ownership filter (All/My work/Overdue/AR Follow-ups) is a role="group"
+  // chip strip, not a tablist — the tablist role belongs to the separate Table/Card
+  // presentation switch (src/components/ui/view-tabs.tsx). Its accessible name comes from
+  // views.label = t('tasks.savedViews') = "Tasks saved views" (src/components/tasks/tasks-toolbar.tsx),
+  // set unconditionally on the group in src/components/record-collection/collection-toolbar.tsx.
+  // It is always present in the Tasks toolbar regardless of data (populated, empty, loading) —
+  // it proves the real Tasks surface rendered, not just the route.
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 
   // --- Work → Objectives (ungated read, OD-V4-1: every authenticated viewer reaches it) ---
   await nav.getByRole('link', { name: 'Objectives' }).click()
@@ -73,7 +81,8 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---
   await page.goto('tasks?view=mine')
   await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/, { timeout: 5_000 })
-  await expect(page.getByRole('tablist', { name: 'Ownership filter' })).toBeVisible()
+  // STALE (v4): same fix as above — role="group", name "Tasks saved views".
+  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 })
 
 // AC-013 e2e: MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8)
@@ -81,9 +90,13 @@ test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page
   // The team module IS the weekly-update review surface — flag-hidden for the first rollout
   // (src/config/features.ts). Skip while hidden; auto-restores when SHOW_WEEKLY_UPDATES flips on.
   test.skip(!SHOW_WEEKLY_UPDATES, 'Weekly Updates (team module) is flag-hidden (config/features.ts)')
+  // The two Home landings below use the document title for the same reason as AC-001 above: the h1
+  // is a time-dependent greeting. Fixed here even though this test currently skips — a stale
+  // locator parked behind a flag is a trap that springs the moment the flag flips, which is how
+  // this suite accumulated 19 failures nobody could see.
   // ── MANAGER: signs in → Home should show "Your team" overline ──
   await loginAs(page, MANAGER.email, MANAGER.password)
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
+  await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
   // The team-module overline is a <p> element starting with "Your team —"
   await expect(page.locator('p').filter({ hasText: /^Your team —/ })).toBeVisible({ timeout: 5_000 })
 

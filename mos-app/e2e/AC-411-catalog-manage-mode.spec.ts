@@ -21,7 +21,13 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     // Work → Objectives (phone opens the drawer for secondary nav). The link is no longer
     // capability-gated: OD-V4-1 opened the READ to every authenticated viewer (#188 rail, #189
     // route). ADMIN is used here for the down-trace fixtures, not for admission.
-    await page.getByRole('button', { name: /open navigation/i }).click()
+    //
+    // STALE: the v4 shell has no header hamburger. Task 1 (top-bar.test.tsx, "v4 shell Task 1: no
+    // header hamburger") made the bottom-tab bar's "More" button (aria-label t('nav.more'),
+    // bottom-tab-bar.tsx) the drawer's SOLE opener — "Open navigation" does not exist on any
+    // viewport. The drawer it opens is still `role="dialog"` (mobile-drawer.tsx), so only the
+    // opener locator changes.
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: /more/i }).click()
     await page.getByRole('dialog').getByRole('link', { name: 'Objectives' }).click()
     await expect(page).toHaveURL(/\/work\/objectives$/)
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()

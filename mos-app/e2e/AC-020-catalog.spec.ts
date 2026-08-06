@@ -21,8 +21,12 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
   await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
   // ── Add ────────────────────────────────────────────────────────────────────
+  // STALE: the create CTA's label is `catalog.objectives.add` = "Create objective"
+  // (src/i18n/messages.ts:902), not the generic "Add" this spec asserted — confirmed live in
+  // the /work/objectives button inventory (role-inventory.json, dewi persona). objectives-page.tsx
+  // renders it via `{adding ? t('catalog.objectives.adding') : t('catalog.objectives.add')}`.
   await page.getByRole('textbox', { name: 'Name' }).fill(NAME)
-  await page.getByRole('button', { name: 'Add' }).click()
+  await page.getByRole('button', { name: 'Create objective' }).click()
   await expect(page.getByRole('button', { name: `Rename ${NAME}` })).toBeVisible()
 
   // ── Rename ───────────────────────────────────────────────────────────────────

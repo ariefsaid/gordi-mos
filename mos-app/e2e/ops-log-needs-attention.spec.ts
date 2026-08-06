@@ -1,7 +1,22 @@
-// AC-091: needs-attention entry → My Week ops strip amber; archive → leaves feed + strip clears
-// Natural journey: viewer adds an entry with "Needs attention" on → goes to My Week and sees the
-// ops strip turn amber → archives the entry from /ops → it leaves the default feed → strip clears.
-// Asserts the GOAL: needs-attention signal propagates to the ops strip and archive removes it.
+// AC-091: needs-attention entry gets amber treatment in the Daily Log feed; archive removes it.
+//
+// STALE (v4 Home retirement): the original journey continued past /ops into "My Week" to check a
+// `<section aria-label="Today on the Daily Log">` amber strip. That surface was MyWeekPanel/OpsStrip
+// (src/components/weekly/my-week-panel.tsx), part of the Home v1 KPI-row composition. Home v1 was
+// retired by #191 (src/config/features.ts, the SHOW_FOLLOWUPS comment): "the `/` index route now
+// always renders the ported (v4) HomePage" — the region/attention design, not MyWeekPanel. Confirmed
+// by source: MyWeekPanel is reachable only from the DEV-only `/__home-stacked` preview
+// (src/pages/stacked-union-home.tsx, unrouted for real viewers) — `/` renders src/pages/home-page.tsx,
+// which has no "Daily Log" text and no ops-strip anywhere. There is no v4 equivalent this signal
+// propagates to; the strip concept did not move, it was cut with Home v1. DESIGN.md ¶"Ops Log
+// tokens" still documents the amber-strip token, but nothing live renders it — a doc that wants its
+// own follow-up, not a reason to assert against dead markup.
+//
+// What remains real and provable: the /ops feed's own amber row treatment (data-attn) and archive
+// removing/restoring the entry from the default feed — both still live on the current Daily Log
+// page (ops-page.tsx) and asserted below. The My Week propagation half of the original AC is
+// retired along with its surface; if Home ever grows a needs-attention signal again, it needs a new
+// assertion pointed at wherever that lands, not a resurrection of this locator.
 
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
@@ -47,7 +62,7 @@ test.beforeEach(async () => {
   await admin.schema('ops').from('log_entries').delete().eq('org_id', ORG_ID)
 })
 
-test('AC-091: needs-attention entry → strip amber → archive → leaves feed and strip clears', async ({ page }) => {
+test('AC-091: needs-attention entry gets amber row treatment → archive removes it from the default feed', async ({ page }) => {
   // ── 1. Login and create a needs-attention entry ────────────────────────────
   await loginAs(page, VIEWER.email, VIEWER.password)
 
@@ -93,23 +108,9 @@ test('AC-091: needs-attention entry → strip amber → archive → leaves feed 
   const attnRow = page.locator('[data-attn="true"]', { hasText: entryTitle })
   await expect(attnRow).toBeVisible()
 
-  // ── 4. Navigate to My Week → ops strip should be amber ──────────────────────
-  await page.goto('')  // root = My Week
-  await page.waitForURL(/\/$|\/mos\/?$/)
-
-  // Strip shows amber pill with "today" count and "needs attention" sentence
-  const opsStrip = page.getByRole('region', { name: 'Today on the Daily Log' })
-  await expect(opsStrip).toBeVisible({ timeout: 8_000 })
-
-  // The amber pill has data-ops-attn="true"
-  const amberPill = opsStrip.locator('[data-ops-attn="true"]')
-  await expect(amberPill).toBeVisible({ timeout: 8_000 })
-
-  // Sentence says "something needs attention"
-  await expect(opsStrip.getByText(/something needs attention/i)).toBeVisible({ timeout: 5_000 })
-
-  // Link says "See what needs attention →"
-  await expect(opsStrip.getByRole('link', { name: /See what needs attention/i })).toBeVisible()
+  // ── 4. [REMOVED] My Week ops-strip check — see file header. The strip's home,
+  // MyWeekPanel/OpsStrip, is retired along with Home v1 (#191); `/` renders v4 HomePage, which has
+  // no "Today on the Daily Log" region to assert against.
 
   // ── 5. Go back to /ops and archive the entry ──────────────────────────────
   await page.goto('ops')
@@ -136,14 +137,5 @@ test('AC-091: needs-attention entry → strip amber → archive → leaves feed 
   await toggle.uncheck()
   await expect(page.getByText(entryTitle)).not.toBeVisible({ timeout: 5_000 })
 
-  // ── 8. Navigate to My Week → strip amber should have cleared ──────────────
-  await page.goto('')
-  await page.waitForURL(/\/$|\/mos\/?$/)
-
-  const opsStripAfter = page.getByRole('region', { name: 'Today on the Daily Log' })
-  await expect(opsStripAfter).toBeVisible({ timeout: 8_000 })
-
-  // No amber pill (data-ops-attn should be absent/undefined)
-  const amberPillAfter = opsStripAfter.locator('[data-ops-attn="true"]')
-  await expect(amberPillAfter).not.toBeVisible({ timeout: 5_000 })
+  // ── 8. [REMOVED] My Week ops-strip clear check — same retirement as step 4 above.
 })
