@@ -1,15 +1,25 @@
 name: review-gate
 
-# Enforces the rule `/code-review` step 6 states and has never been able to check: a change is not
-# merged on its author's own read. Evidence is a `<!-- review-gate -->` block in a PR comment —
-# public, timestamped, and readable by CI, which is the point. The closed #240 looked for a ledger
-# under the gitignored `docs/`, where only the author could ever see it.
+# Checks that the whole review ROSTER reported on a change: spec, code-quality and security each
+# recorded a verdict against the head commit. Evidence is a `<!-- review-gate -->` block in a PR
+# comment — public, timestamped, and readable by CI, which is the point. The closed #240 looked for
+# a ledger under the gitignored `docs/`, where only the author could ever see it.
 #
-# WHY NOT BRANCH PROTECTION. GitHub's "required approving reviews" is the natural home for this and
-# cannot work here: the repo has ONE collaborator, and GitHub does not let a PR author approve their
-# own pull request. Requiring one approval would make every PR unmergeable. Reviews here come from
-# agents (luna, GLM, sub-agents), which have no GitHub identity to approve with — so the verdict has
-# to be recorded as text, and this is what reads it.
+# WHAT IT DELIBERATELY DOES NOT CHECK: who wrote the review. The first version compared the comment
+# author's GitHub login against the PR author's, which on a one-collaborator repo can never differ —
+# unsatisfiable by construction, and it never once refused a real review (#311). A login proves
+# which token posted, never that anyone read the diff.
+#
+# So independence lives where it can actually be produced: role separation between three reviewers
+# with different briefs and different failure modes. CI checks the part it can observe — that every
+# lens reported, freshly. Whether the reviews were any good is judged by a human reading them, and
+# the merge itself is a human checkpoint. See docs/agents/review.md.
+#
+# WHY NOT BRANCH PROTECTION. GitHub's "required approving reviews" is the natural home for the
+# who-reviewed-it question and cannot work here for the same reason: one collaborator, and GitHub
+# does not let a PR author approve their own pull request, so requiring an approval would make every
+# PR unmergeable. Reviews here come from agents, which have no GitHub identity to approve with — so
+# the verdict is recorded as text, and this reads it.
 #
 # COST. One job, ~20s, on three events: PR opened, each push, each new comment. The comment trigger
 # is not optional — a review lands after the PR is opened, so without it the only way to go green
