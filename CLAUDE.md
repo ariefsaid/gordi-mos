@@ -53,6 +53,11 @@ reference data + money follow-ups. Ships at `https://ops.gordi.id/mos`.
 `npm run dev` · `npm run build` · `npm run typecheck` · `npm run lint -- --max-warnings=0` ·
 `npm test` (Vitest) · `npx playwright test` (e2e) · `supabase test db` (pgTAP).
 
+`./scripts/setup-hooks.sh` installs the tracked git hooks (pre-commit + pre-push); `npm install`
+in `mos-app/` also runs it via `prepare`. Before any PR: `bash scripts/pre-pr-verify.sh` — it runs
+CI's verify lane locally and stamps the passing commit; a Claude hook refuses PR creation without
+a current stamp. Every guard ships with a `scripts/*.test.sh` self-test, run by CI on change.
+
 ## Bar to merge
 - `npm run typecheck` zero errors; ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
