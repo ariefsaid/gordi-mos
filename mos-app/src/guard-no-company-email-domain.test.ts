@@ -33,6 +33,14 @@ const NEEDLE = `@${COMPANY_DOMAIN}`
  * generic "you@" placeholder pattern a login field shows regardless of who is looking at it.
  * Paths are relative to `mos-app/`.
  */
+// The ONE string that may legitimately carry the company domain: the login form's placeholder,
+// which shows staff the address shape to type. It names no person, so it is not an enumeration.
+//
+// Allowed as a STRING, not as a file. Review demonstrated the earlier file-wide allowance by
+// planting a real-looking personal address one line below the sanctioned placeholder — the
+// guard passed. An excused file is unwatched forever, which is the opposite of what a guard is for.
+const SANCTIONED_LITERAL = 'you@' + COMPANY_DOMAIN
+
 const ALLOWLIST = new Set([
   join('src', 'pages', 'login-page.tsx'), // the real login screen's own email-field placeholder
   join('src', 'pages', 'ui-gallery.tsx'), // DEV-only design-kit gallery, mirrors the same placeholder
@@ -57,8 +65,11 @@ describe(`GUARD #262: no source or test file resolves to a live address at the c
     const offenders: string[] = []
     for (const file of files) {
       const rel = relative(ROOT, file)
-      if (ALLOWLIST.has(rel)) continue
-      if (readFileSync(file, 'utf-8').includes(NEEDLE)) offenders.push(rel)
+      let content = readFileSync(file, 'utf-8')
+      // Strip only the sanctioned literal, then search what remains — so a real address sitting
+      // beside it in the same file is still caught.
+      if (ALLOWLIST.has(rel)) content = content.split(SANCTIONED_LITERAL).join('')
+      if (content.includes(NEEDLE)) offenders.push(rel)
     }
 
     expect(
