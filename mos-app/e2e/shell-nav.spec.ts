@@ -58,12 +58,12 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Work → Signals ---
   await nav.getByRole('link', { name: 'Signals' }).first().click()
   await expect(page).toHaveURL(/\/work\/signals$/, { timeout: 5_000 })
-  if (SHOW_WEEKLY_UPDATES) {
-    // Until the Signals archive ports (#19x), this destination serves dev's weekly update
-    // surface — FR-018: an unported surface renders what dev has, it does not 404.
-    await expect(page).toHaveTitle('Weekly Updates — Gordi MOS')
-    await expect(page.getByRole('region', { name: /my weekly update/i })).toBeVisible({ timeout: 8_000 })
-  }
+  // The Signals archive has now ported (#267) and this destination serves it, so the
+  // "until it ports, this shows dev's weekly-update surface" arm above is retired — it would
+  // now assert the title of a page this route no longer serves. Playwright runs only on
+  // main-targeted PRs, so this had no chance to fail on the PR that changed the route.
+  await expect(page).toHaveTitle('Signals — Gordi MOS')
+  await expect(page.getByRole('heading', { name: 'Signals', level: 1 })).toBeVisible({ timeout: 8_000 })
 
   // --- Deep-link reload (FR-008) ---
   await page.reload()

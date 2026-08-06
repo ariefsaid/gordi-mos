@@ -2,7 +2,17 @@
 // (owner-directed 2026-06-17). Each flag gates EVERYTHING for its section: the rail nav
 // entry, the route (redirects to My Week when off), and any My Week surfaces that reference
 // it. Flip a flag to `true` to fully restore the section — no other change needed.
-export const SHOW_WEEKLY_UPDATES = true
+// OFF because there is no Weekly Updates surface to show. The v4 port pointed `/work/signals` at
+// the Signals archive (#267) — matching v4, whose route table has no Updates page and redirects
+// `/updates` to Signals — so `updates-page.tsx`, and with it BOTH the author write pane and the
+// manager review pane, is now unrouted. A flag claiming the section is shown, while nothing
+// renders it, is the dead-affordance shape: it kept three e2e specs live against a surface the
+// app no longer serves, and they only run on main-targeted PRs, so nothing could catch it.
+//
+// This is a truthful description of today, NOT the decision about whether weekly updates return.
+// That is open in #281. If they come back they need a route of their own — not `/work/signals` —
+// and this flips with it.
+export const SHOW_WEEKLY_UPDATES = false
 export const SHOW_DAILY_LOG = true
 
 // ADR-0018 P1 — view-composition substrate (user views). Hide-first (ADR-0017 D6): the dev harness
