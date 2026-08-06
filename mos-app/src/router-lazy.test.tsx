@@ -24,7 +24,9 @@ import { HomePage } from './pages/home-page'
 import { LoginPage } from './pages/login-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
-import { UpdatesPage } from './pages/updates-page'
+import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
+import { ProfilePage } from './pages/profile-page'
+import { EventsPage } from './pages/events-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
@@ -122,14 +124,18 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/tasks', TasksLayout, 'dev'],
   ['/work/tasks/new', TaskDrawer, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
-  // Signals supersedes Weekly Updates (v4 redirects /updates here). Until the Signals archive
-  // ports, the destination serves dev's Updates surface rather than a not-found.
-  ['/work/signals', UpdatesPage, 'dev'],
-  ['/work/signals/:signalId', SliceStubPage, 'stub'],
+  // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
+  // Updates surface). #193 ported the archive but never flipped these two rows, so this ledger
+  // asserted the defect as the expected answer for the whole port — the row said `UpdatesPage`
+  // and the route obliged. Flipped with the router in #267.
+  ['/work/signals', SignalsArchivePage, 'v4'],
+  ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   ['/work/follow-ups/:id', FollowUpsPage, 'dev'],
-  ['/events', SliceStubPage, 'stub'],
+  // Built by #199, routed by #269. EventsPage rather than the stub because the two say different
+  // things: the stub claims build order, Events is waiting on a ruling (#158).
+  ['/events', EventsPage, 'dev'],
   ['/money', DashboardPage, 'dev'],
   ['/money/detail', DashboardPage, 'dev'],
   ['/money/budget', BudgetPage, 'dev'],
@@ -149,7 +155,10 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/ops/:id/edit', OpsAddForm, 'dev'],
   ['/ecommerce', SliceStubPage, 'stub'],
   ['/roastery', SliceStubPage, 'stub'],
-  ['/profile', SliceStubPage, 'stub'],
+  // ProfilePage was built by #199 and the migration registry named it as this path's frame
+  // component throughout — while this row asserted the stub. Routed in #269; it carries the only
+  // locale control in the app, so the stub left the Indonesian catalog unreachable.
+  ['/profile', ProfilePage, 'v4'],
   ['/admin/people', AdminUsersPage, 'dev'],
   ['/recovery', RecoveryPage, 'dev'],
 ]
