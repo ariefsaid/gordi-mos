@@ -9,9 +9,14 @@
         "displayName": "The One Blue",
         "canonical": "oklch(0.546 0.2153 262.8719)",
         "tonalRamp": [
-          "oklch(0.20 0.09 262.87)", "oklch(0.29 0.13 262.87)", "oklch(0.38 0.17 262.87)",
-          "oklch(0.47 0.20 262.87)", "oklch(0.546 0.2153 262.87)", "oklch(0.66 0.17 262.87)",
-          "oklch(0.80 0.10 262.87)", "oklch(0.94 0.03 262.87)"
+          "oklch(0.20 0.09 262.87)",
+          "oklch(0.29 0.13 262.87)",
+          "oklch(0.38 0.17 262.87)",
+          "oklch(0.47 0.20 262.87)",
+          "oklch(0.546 0.2153 262.87)",
+          "oklch(0.66 0.17 262.87)",
+          "oklch(0.80 0.10 262.87)",
+          "oklch(0.94 0.03 262.87)"
         ]
       },
       "background": {
@@ -19,9 +24,14 @@
         "displayName": "Warm White Canvas",
         "canonical": "oklch(0.994 0.002 85.0)",
         "tonalRamp": [
-          "oklch(0.20 0.002 85)", "oklch(0.31 0.002 85)", "oklch(0.43 0.002 85)",
-          "oklch(0.55 0.002 85)", "oklch(0.67 0.002 85)", "oklch(0.80 0.002 85)",
-          "oklch(0.92 0.002 85)", "oklch(0.994 0.002 85)"
+          "oklch(0.20 0.002 85)",
+          "oklch(0.31 0.002 85)",
+          "oklch(0.43 0.002 85)",
+          "oklch(0.55 0.002 85)",
+          "oklch(0.67 0.002 85)",
+          "oklch(0.80 0.002 85)",
+          "oklch(0.92 0.002 85)",
+          "oklch(0.994 0.002 85)"
         ]
       },
       "foreground": {
@@ -29,9 +39,14 @@
         "displayName": "Warm Near-Black",
         "canonical": "oklch(0.145 0.004 30.0)",
         "tonalRamp": [
-          "oklch(0.145 0.004 30)", "oklch(0.25 0.004 30)", "oklch(0.36 0.004 30)",
-          "oklch(0.47 0.006 30)", "oklch(0.58 0.006 30)", "oklch(0.70 0.005 30)",
-          "oklch(0.84 0.004 30)", "oklch(0.95 0.003 30)"
+          "oklch(0.145 0.004 30)",
+          "oklch(0.25 0.004 30)",
+          "oklch(0.36 0.004 30)",
+          "oklch(0.47 0.006 30)",
+          "oklch(0.58 0.006 30)",
+          "oklch(0.70 0.005 30)",
+          "oklch(0.84 0.004 30)",
+          "oklch(0.95 0.003 30)"
         ]
       },
       "muted-foreground": {
@@ -39,9 +54,14 @@
         "displayName": "Quiet Label Grey",
         "canonical": "oklch(0.388 0.012 30.0)",
         "tonalRamp": [
-          "oklch(0.16 0.012 30)", "oklch(0.27 0.012 30)", "oklch(0.388 0.012 30)",
-          "oklch(0.50 0.012 30)", "oklch(0.62 0.010 30)", "oklch(0.74 0.008 30)",
-          "oklch(0.86 0.005 30)", "oklch(0.96 0.003 30)"
+          "oklch(0.16 0.012 30)",
+          "oklch(0.27 0.012 30)",
+          "oklch(0.388 0.012 30)",
+          "oklch(0.50 0.012 30)",
+          "oklch(0.62 0.010 30)",
+          "oklch(0.74 0.008 30)",
+          "oklch(0.86 0.005 30)",
+          "oklch(0.96 0.003 30)"
         ]
       },
       "border": {
@@ -49,9 +69,14 @@
         "displayName": "The Single Border",
         "canonical": "oklch(0.922 0.004 38.0)",
         "tonalRamp": [
-          "oklch(0.22 0.004 38)", "oklch(0.34 0.004 38)", "oklch(0.46 0.004 38)",
-          "oklch(0.58 0.004 38)", "oklch(0.70 0.004 38)", "oklch(0.82 0.004 38)",
-          "oklch(0.922 0.004 38)", "oklch(0.97 0.003 38)"
+          "oklch(0.22 0.004 38)",
+          "oklch(0.34 0.004 38)",
+          "oklch(0.46 0.004 38)",
+          "oklch(0.58 0.004 38)",
+          "oklch(0.70 0.004 38)",
+          "oklch(0.82 0.004 38)",
+          "oklch(0.922 0.004 38)",
+          "oklch(0.97 0.003 38)"
         ]
       },
       "destructive": {
@@ -59,9 +84,14 @@
         "displayName": "Signal Red",
         "canonical": "oklch(0.6368 0.2078 25.3259)",
         "tonalRamp": [
-          "oklch(0.24 0.09 25.33)", "oklch(0.34 0.13 25.33)", "oklch(0.44 0.17 25.33)",
-          "oklch(0.54 0.20 25.33)", "oklch(0.6368 0.2078 25.33)", "oklch(0.74 0.16 25.33)",
-          "oklch(0.86 0.09 25.33)", "oklch(0.95 0.03 25.33)"
+          "oklch(0.24 0.09 25.33)",
+          "oklch(0.34 0.13 25.33)",
+          "oklch(0.44 0.17 25.33)",
+          "oklch(0.54 0.20 25.33)",
+          "oklch(0.6368 0.2078 25.33)",
+          "oklch(0.74 0.16 25.33)",
+          "oklch(0.86 0.09 25.33)",
+          "oklch(0.95 0.03 25.33)"
         ]
       },
       "warning": {
@@ -69,9 +99,14 @@
         "displayName": "Aging Amber",
         "canonical": "oklch(0.8334 0.1641 83.8666)",
         "tonalRamp": [
-          "oklch(0.30 0.07 83.87)", "oklch(0.42 0.10 83.87)", "oklch(0.53 0.13 83.87)",
-          "oklch(0.64 0.15 83.87)", "oklch(0.74 0.16 83.87)", "oklch(0.8334 0.1641 83.87)",
-          "oklch(0.91 0.10 83.87)", "oklch(0.97 0.04 83.87)"
+          "oklch(0.30 0.07 83.87)",
+          "oklch(0.42 0.10 83.87)",
+          "oklch(0.53 0.13 83.87)",
+          "oklch(0.64 0.15 83.87)",
+          "oklch(0.74 0.16 83.87)",
+          "oklch(0.8334 0.1641 83.87)",
+          "oklch(0.91 0.10 83.87)",
+          "oklch(0.97 0.04 83.87)"
         ]
       },
       "success": {
@@ -79,9 +114,14 @@
         "displayName": "Settled Green",
         "canonical": "oklch(0.7205 0.192 149.4926)",
         "tonalRamp": [
-          "oklch(0.26 0.08 149.49)", "oklch(0.37 0.11 149.49)", "oklch(0.47 0.14 149.49)",
-          "oklch(0.57 0.17 149.49)", "oklch(0.66 0.19 149.49)", "oklch(0.7205 0.192 149.49)",
-          "oklch(0.86 0.11 149.49)", "oklch(0.95 0.04 149.49)"
+          "oklch(0.26 0.08 149.49)",
+          "oklch(0.37 0.11 149.49)",
+          "oklch(0.47 0.14 149.49)",
+          "oklch(0.57 0.17 149.49)",
+          "oklch(0.66 0.19 149.49)",
+          "oklch(0.7205 0.192 149.49)",
+          "oklch(0.86 0.11 149.49)",
+          "oklch(0.95 0.04 149.49)"
         ]
       },
       "brand-navy": {
@@ -89,9 +129,14 @@
         "displayName": "Structural Navy",
         "canonical": "oklch(0.3154 0.0639 260.7289)",
         "tonalRamp": [
-          "oklch(0.18 0.04 260.73)", "oklch(0.3154 0.0639 260.73)", "oklch(0.42 0.08 260.73)",
-          "oklch(0.53 0.09 260.73)", "oklch(0.64 0.08 260.73)", "oklch(0.76 0.06 260.73)",
-          "oklch(0.87 0.03 260.73)", "oklch(0.96 0.01 260.73)"
+          "oklch(0.18 0.04 260.73)",
+          "oklch(0.3154 0.0639 260.73)",
+          "oklch(0.42 0.08 260.73)",
+          "oklch(0.53 0.09 260.73)",
+          "oklch(0.64 0.08 260.73)",
+          "oklch(0.76 0.06 260.73)",
+          "oklch(0.87 0.03 260.73)",
+          "oklch(0.96 0.01 260.73)"
         ]
       },
       "brand-orange": {
@@ -99,9 +144,14 @@
         "displayName": "Brand Sprinkle Orange",
         "canonical": "oklch(0.619 0.1833 39.9351)",
         "tonalRamp": [
-          "oklch(0.24 0.08 39.94)", "oklch(0.34 0.12 39.94)", "oklch(0.44 0.15 39.94)",
-          "oklch(0.53 0.17 39.94)", "oklch(0.619 0.1833 39.94)", "oklch(0.74 0.14 39.94)",
-          "oklch(0.86 0.08 39.94)", "oklch(0.95 0.03 39.94)"
+          "oklch(0.24 0.08 39.94)",
+          "oklch(0.34 0.12 39.94)",
+          "oklch(0.44 0.15 39.94)",
+          "oklch(0.53 0.17 39.94)",
+          "oklch(0.619 0.1833 39.94)",
+          "oklch(0.74 0.14 39.94)",
+          "oklch(0.86 0.08 39.94)",
+          "oklch(0.95 0.03 39.94)"
         ]
       },
       "violet": {
@@ -109,54 +159,164 @@
         "displayName": "Categorical Violet",
         "canonical": "oklch(0.5424 0.2454 293.016)",
         "tonalRamp": [
-          "oklch(0.20 0.10 293.02)", "oklch(0.29 0.15 293.02)", "oklch(0.38 0.19 293.02)",
-          "oklch(0.46 0.22 293.02)", "oklch(0.5424 0.2454 293.02)", "oklch(0.68 0.19 293.02)",
-          "oklch(0.82 0.11 293.02)", "oklch(0.94 0.04 293.02)"
+          "oklch(0.20 0.10 293.02)",
+          "oklch(0.29 0.15 293.02)",
+          "oklch(0.38 0.19 293.02)",
+          "oklch(0.46 0.22 293.02)",
+          "oklch(0.5424 0.2454 293.02)",
+          "oklch(0.68 0.19 293.02)",
+          "oklch(0.82 0.11 293.02)",
+          "oklch(0.94 0.04 293.02)"
         ]
       }
     },
     "typographyMeta": {
-      "page-title": { "displayName": "Page Title", "purpose": "One per page, in .page-head. Plus Jakarta Sans 600/24px. The display scale STOPS here — OD-V4-8 deferred minting any step above it." },
-      "heading": { "displayName": "Heading", "purpose": "Section and card headings." },
-      "subheading": { "displayName": "Subheading", "purpose": "18px display. Reserved for a title that must OUTRANK the content beneath it: sub-section headers inside detail panels, empty-state titles, and a COMPACT page h1 (Home's day header steps page-title 24px -> subheading 18px to pay for its second full-width row — one rung down the same ladder, not a new size). A header that merely GROUPS PEERS does not qualify — that is body-lg. OD-V4-8 ratified the body rungs and the 24px display ceiling but never named this rung; recorded 2026-07-29." },
-      "body-lg": { "displayName": "Emphasised Body", "purpose": "Record titles, primary row text, the v4 capture-row dish name, the Signal row title, summary-rule values, Home tile NAMES (.home-tile-name), and the v4 GROUP HEADERS (.stream-band-label, .signal-feed-label) — which sit at the same rung as the row titles they head and separate on display face + sentence case + full foreground + a hairline edge + asymmetric space, never on size. The 15/14 pair with body is a ratified rung (OD-REDESIGN-91 B4), not drift." },
-      "body": { "displayName": "Body", "purpose": "Base body, table cells, meta. Equals the html base size." },
-      "control": { "displayName": "Control", "purpose": "Buttons, inputs, selects, tabs — controls run 13.5px. NOTE: .btn base is 13.5px/600 but .btn-ghost deliberately steps to weight 500 (the quietest rank in the hierarchy)." },
-      "label": { "displayName": "Label", "purpose": "Pill and field labels, dense metadata, the v4 summary-rule labels, Home tile COUNTS (.home-tile-count) and row status text. Home tile NAMES are body-lg, not this rung — at 12px inside 15px/600 rows the tile's own name was the quietest thing in the tile." },
-      "overline": { "displayName": "Overline", "purpose": "Counts, column headers, captions, the v4 stream reason chip." },
-      "mono": { "displayName": "Mono", "purpose": "SF Mono. Machine IDs and codes only — never a costume for 'technical'. The 13px NUMBER is also borrowed for sizing dense meta lines and segmented-track labels, which keep the DM Sans face (font-family: inherit)." }
+      "page-title": {
+        "displayName": "Page Title",
+        "purpose": "One per page, in .page-head. Plus Jakarta Sans 600/24px. The display scale STOPS here — OD-V4-8 deferred minting any step above it."
+      },
+      "heading": {
+        "displayName": "Heading",
+        "purpose": "Section and card headings."
+      },
+      "subheading": {
+        "displayName": "Subheading",
+        "purpose": "18px display. Reserved for a title that must OUTRANK the content beneath it: sub-section headers inside detail panels, empty-state titles, and a COMPACT page h1 (Home's day header steps page-title 24px -> subheading 18px to pay for its second full-width row — one rung down the same ladder, not a new size). A header that merely GROUPS PEERS does not qualify — that is body-lg. OD-V4-8 ratified the body rungs and the 24px display ceiling but never named this rung; recorded 2026-07-29."
+      },
+      "body-lg": {
+        "displayName": "Emphasised Body",
+        "purpose": "Record titles, primary row text, the v4 capture-row dish name, the Signal row title, summary-rule values, Home tile NAMES (.home-tile-name), and the v4 GROUP HEADERS (.stream-band-label, .signal-feed-label) — which sit at the same rung as the row titles they head and separate on display face + sentence case + full foreground + a hairline edge + asymmetric space, never on size. The 15/14 pair with body is a ratified rung (OD-REDESIGN-91 B4), not drift."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base body, table cells, meta. Equals the html base size."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Buttons, inputs, selects, tabs — controls run 13.5px. NOTE: .btn base is 13.5px/600 but .btn-ghost deliberately steps to weight 500 (the quietest rank in the hierarchy)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Pill and field labels, dense metadata, the v4 summary-rule labels, Home tile COUNTS (.home-tile-count) and row status text. Home tile NAMES are body-lg, not this rung — at 12px inside 15px/600 rows the tile's own name was the quietest thing in the tile."
+      },
+      "overline": {
+        "displayName": "Overline",
+        "purpose": "Counts, column headers, captions, the v4 stream reason chip."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "SF Mono. Machine IDs and codes only — never a costume for 'technical'. The 13px NUMBER is also borrowed for sizing dense meta lines and segmented-track labels, which keep the DM Sans face (font-family: inherit)."
+      }
     },
     "shadows": [
-      { "name": "rest", "value": "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)", "purpose": "The one resting lift. Cards, KPI tiles, kanban cards and Home bento tiles ONLY — co-signs the 1px border, never replaces it (OD-P3-11). Flat utility surfaces (toolbars, rows, strips, the v4 summary rule, the v4 List band, the v4 progress track) get none." },
-      { "name": "state-lift", "value": "0 2px 10px hsl(240 6% 10% / 0.06)", "purpose": "Card or KPI tile on hover — deepens from rest." },
-      { "name": "kanban-hover", "value": "0 4px 14px hsl(240 6% 10% / 0.10)", "purpose": "Draggable kanban card on hover; lifts more because it is grabbable." },
-      { "name": "brand-button", "value": "0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)", "purpose": "Faint brand-tinted lift under the primary button." }
+      {
+        "name": "rest",
+        "value": "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)",
+        "purpose": "The one resting lift. Cards, KPI tiles, kanban cards and Home bento tiles ONLY — co-signs the 1px border, never replaces it (OD-P3-11). Flat utility surfaces (toolbars, rows, strips, the v4 summary rule, the v4 List band, the v4 progress track) get none."
+      },
+      {
+        "name": "state-lift",
+        "value": "0 2px 10px hsl(240 6% 10% / 0.06)",
+        "purpose": "Card or KPI tile on hover — deepens from rest."
+      },
+      {
+        "name": "kanban-hover",
+        "value": "0 4px 14px hsl(240 6% 10% / 0.10)",
+        "purpose": "Draggable kanban card on hover; lifts more because it is grabbable."
+      },
+      {
+        "name": "brand-button",
+        "value": "0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)",
+        "purpose": "Faint brand-tinted lift under the primary button."
+      }
     ],
     "motion": [
-      { "name": "state-transition", "value": "background 0.2s, border-color 0.2s, box-shadow 0.2s", "purpose": "Default control state easing. Motion here is a response to state, never decoration." }
+      {
+        "name": "state-transition",
+        "value": "background 0.2s, border-color 0.2s, box-shadow 0.2s",
+        "purpose": "Default control state easing. Motion here is a response to state, never decoration."
+      }
     ],
     "measures": [
-      { "name": "readable-column", "value": "1180px", "purpose": "The DEFAULT content measure (shell/page-families.css .page-frame__content). One column of prose-width content: records, forms, management surfaces, settings. Never widen a single-column page." },
-      { "name": "wide-operating-surface", "value": "1760px", "purpose": "v4 (2026-07-29): the measure for a surface whose composition is genuinely two-dimensional — a master/detail split, or a work column beside a standing aside — where the readable cap leaves a DEAD GUTTER rather than a margin. TWO instances, deliberately the same number so their right edges land in the same place: Tasks master/detail (TasksWorkspace.css .split, 'kill the dead right void') and Home (home-layouts.css, scoped .page-frame--v3 .page-frame__content:has(.home-frame) — owner: 'why is the container for home got cut mid screen horizontally?'). A wide surface OPTS IN via :has() scoping and never widens the shared rule; a third instance must name the second dimension it composes and the void the readable cap leaves." },
-      { "name": "form-measure", "value": "560px", "purpose": "A setting/profile card of short labelled fields (Identity, Language) — a form column, deliberately narrow. Declared as FORM_MEASURE in pages/profile-page.tsx; reused by the Café opening surface rather than minting a second value. This is an OUTER measure." },
-      { "name": "picker-measure", "value": "720px content / 754px outer", "purpose": "A three-up wireframe chooser (the Home layout picker). 720px is the CONTENT measure the signed mockup drew it at on a bare div (#profile .setting), so the card host adds its chrome back on top: 720 + 2 x (16px padding + 1px border) = 754px outer, which is what ships. Taking a mockup's content measure as an outer measure silently narrows the content by 34px. At FORM_MEASURE the picker's cards measured 167px and the wireframes stopped being readable. Widening one host must not drag the other out — these are PER-CARD measures, never a page-level cap." }
+      {
+        "name": "readable-column",
+        "value": "1180px",
+        "purpose": "The DEFAULT content measure (shell/page-families.css .page-frame__content). One column of prose-width content: records, forms, management surfaces, settings. Never widen a single-column page."
+      },
+      {
+        "name": "wide-operating-surface",
+        "value": "1760px",
+        "purpose": "v4 (2026-07-29): the measure for a surface whose composition is genuinely two-dimensional — a master/detail split, or a work column beside a standing aside — where the readable cap leaves a DEAD GUTTER rather than a margin. TWO instances, deliberately the same number so their right edges land in the same place: Tasks master/detail (TasksWorkspace.css .split, 'kill the dead right void') and Home (home-layouts.css, scoped .page-frame--v3 .page-frame__content:has(.home-frame) — owner: 'why is the container for home got cut mid screen horizontally?'). A wide surface OPTS IN via :has() scoping and never widens the shared rule; a third instance must name the second dimension it composes and the void the readable cap leaves."
+      },
+      {
+        "name": "form-measure",
+        "value": "560px",
+        "purpose": "A setting/profile card of short labelled fields (Identity, Language) — a form column, deliberately narrow. Declared as FORM_MEASURE in pages/profile-page.tsx; reused by the Café opening surface rather than minting a second value. This is an OUTER measure."
+      },
+      {
+        "name": "picker-measure",
+        "value": "720px content / 754px outer",
+        "purpose": "A three-up wireframe chooser (the Home layout picker). 720px is the CONTENT measure the signed mockup drew it at on a bare div (#profile .setting), so the card host adds its chrome back on top: 720 + 2 x (16px padding + 1px border) = 754px outer, which is what ships. Taking a mockup's content measure as an outer measure silently narrows the content by 34px. At FORM_MEASURE the picker's cards measured 167px and the wireframes stopped being readable. Widening one host must not drag the other out — these are PER-CARD measures, never a page-level cap."
+      }
     ],
     "breakpoints": [
-      { "name": "home-bento-stack", "value": "620px", "purpose": "v4: the Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (OD-V4-7 constraint 4). Measured on the Home frame (@container home), NOT the viewport." },
-      { "name": "phone-toolbar", "value": "639px", "purpose": "v4: below this the Café toolbar keeps search + category on one line instead of wrapping." },
-      { "name": "table-reflow", "value": "768px", "purpose": "DataTable switches between the desktop <table> and phone cards (OD-W4-4). Exactly one branch renders. The Home layout picker's 3-up thumbnail grid also drops to one column here — and stays 3-up all the way up: there is deliberately NO intermediate 2-up step. Measured: above this branch the picker's available content width never falls below 720px, and the narrowest point is the branch ITSELF (768px viewport, rail already collapsed, 24px frame gutters). It is not monotonic — the 920px icon-rail regime gives 800px and the 1100px full-rail regime 820px, both wider. At the 720px floor the card's inner width is 720 - 2 x (16px padding + 1px border) = 686px, so each thumbnail measures (686 - 2 x 12px gap) / 3 = ~221px, comfortably above the ~200px at which the CSS wireframes stop reading as diagrams. A 2-up branch would be a breakpoint with no measurement behind it." },
-      { "name": "rail-collapse", "value": "920px", "purpose": "BELOW it the desktop rail is gone entirely and a hamburger appears; cmdk shrinks to an icon; user name/role hide. Distinct from table-reflow — do not conflate the two. AT OR ABOVE it the rail returns, but at 72px — see rail-compact." },
-      { "name": "home-single-column", "value": "940px", "purpose": "v4: the Home work/feed split collapses — the Signals column stops being an aside and stacks under the work region (gap 32px to 24px), and the bento drops 6 columns to 4 (OD-V4-7). Measured on the Home frame (@container home), NOT the viewport." },
-      { "name": "rail-compact", "value": "1100px", "purpose": "Between rail-collapse and this, the rail is ICON-ONLY at 72px (--rail-w-compact; OD-REDESIGN-84.2 / P1-1, the 920-1099.98px regime): the item keeps its icon, the label moves to .sr-only (still its accessible name) and a CSS-only tooltip surfaces it on hover/:focus-visible via attr(data-label); the top-bar brand column narrows to match and drops the wordmark so the divider stays on the rail boundary. At or above 1100px the full 232px rail returns. THIS REGIME IS WHY available content width is non-monotonic in the viewport across 768-1280." },
-      { "name": "desktop", "value": "1280px", "purpose": "The full desktop contract: rail + header + frame + a 40-45% record panel, without clipping." }
+      {
+        "name": "home-bento-stack",
+        "value": "620px",
+        "purpose": "v4: the Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (OD-V4-7 constraint 4). Measured on the Home frame (@container home), NOT the viewport."
+      },
+      {
+        "name": "phone-toolbar",
+        "value": "639px",
+        "purpose": "v4: below this the Café toolbar keeps search + category on one line instead of wrapping."
+      },
+      {
+        "name": "table-reflow",
+        "value": "768px",
+        "purpose": "DataTable switches between the desktop <table> and phone cards (OD-W4-4). Exactly one branch renders. The Home layout picker's 3-up thumbnail grid also drops to one column here — and stays 3-up all the way up: there is deliberately NO intermediate 2-up step. Measured: above this branch the picker's available content width never falls below 720px, and the narrowest point is the branch ITSELF (768px viewport, rail already collapsed, 24px frame gutters). It is not monotonic — the 920px icon-rail regime gives 800px and the 1100px full-rail regime 820px, both wider. At the 720px floor the card's inner width is 720 - 2 x (16px padding + 1px border) = 686px, so each thumbnail measures (686 - 2 x 12px gap) / 3 = ~221px, comfortably above the ~200px at which the CSS wireframes stop reading as diagrams. A 2-up branch would be a breakpoint with no measurement behind it."
+      },
+      {
+        "name": "rail-collapse",
+        "value": "920px",
+        "purpose": "BELOW it the desktop rail is gone entirely and a hamburger appears; cmdk shrinks to an icon; user name/role hide. Distinct from table-reflow — do not conflate the two. AT OR ABOVE it the rail returns, but at 72px — see rail-compact."
+      },
+      {
+        "name": "home-single-column",
+        "value": "940px",
+        "purpose": "v4: the Home work/feed split collapses — the Signals column stops being an aside and stacks under the work region (gap 32px to 24px), and the bento drops 6 columns to 4 (OD-V4-7). Measured on the Home frame (@container home), NOT the viewport."
+      },
+      {
+        "name": "rail-compact",
+        "value": "1100px",
+        "purpose": "Between rail-collapse and this, the rail is ICON-ONLY at 72px (--rail-w-compact; OD-REDESIGN-84.2 / P1-1, the 920-1099.98px regime): the item keeps its icon, the label moves to .sr-only (still its accessible name) and a CSS-only tooltip surfaces it on hover/:focus-visible via attr(data-label); the top-bar brand column narrows to match and drops the wordmark so the divider stays on the rail boundary. At or above 1100px the full 232px rail returns. THIS REGIME IS WHY available content width is non-monotonic in the viewport across 768-1280."
+      },
+      {
+        "name": "desktop",
+        "value": "1280px",
+        "purpose": "The full desktop contract: rail + header + frame + a 40-45% record panel, without clipping."
+      }
     ],
     "containers": [
-      { "name": "signal-feed", "value": "480px", "purpose": "v4: the Signal row branches on its OWN width, not the viewport — the same anatomy renders in Home's ~300px ambient tail and the archive Feed's ~1140px column at the same 1440px viewport, so a viewport media query measures the wrong thing — it left the 300px tail horizontal with a ~96px title that both wrapped and ellipsised. Declared as `container: signal-feed / inline-size`; below 480px the row stacks so the title takes the full column and the tail drops beneath it." },
-      { "name": "home", "value": "940px / 620px", "purpose": "v4: declared `container: home / inline-size` on .home-frame (the Home page-content WRAPPER — a container query styles a container's DESCENDANTS, so .home-layout cannot be its own). Both Home branches read it instead of the window. Measured before the fix: the Overview work column ran 812px @1440 -> 488px @1100 -> 572px @1024, i.e. WIDER at the narrower window, because the 232px rail collapses at 920 independently of the viewport. At 1100 the bento was still holding 6 columns of 64.66px, squeezing row titles to 99px and wrapping meta to 3 lines. The thresholds are unchanged; only what they measure is. Diagnostic: if the quantity a breakpoint controls is not monotonic in the trigger, the trigger is the wrong quantity." }
+      {
+        "name": "signal-feed",
+        "value": "480px",
+        "purpose": "v4: the Signal row branches on its OWN width, not the viewport — the same anatomy renders in Home's ~300px ambient tail and the archive Feed's ~1140px column at the same 1440px viewport, so a viewport media query measures the wrong thing — it left the 300px tail horizontal with a ~96px title that both wrapped and ellipsised. Declared as `container: signal-feed / inline-size`; below 480px the row stacks so the title takes the full column and the tail drops beneath it."
+      },
+      {
+        "name": "home",
+        "value": "940px / 620px",
+        "purpose": "v4: declared `container: home / inline-size` on .home-frame (the Home page-content WRAPPER — a container query styles a container's DESCENDANTS, so .home-layout cannot be its own). Both Home branches read it instead of the window. Measured before the fix: the Overview work column ran 812px @1440 -> 488px @1100 -> 572px @1024, i.e. WIDER at the narrower window, because the 232px rail collapses at 920 independently of the viewport. At 1100 the bento was still holding 6 columns of 64.66px, squeezing row titles to 99px and wrapping meta to 3 lines. The thresholds are unchanged; only what they measure is. Diagnostic: if the quantity a breakpoint controls is not monotonic in the trigger, the trigger is the wrong quantity."
+      }
     ],
     "knownGaps": [
-      { "name": "no-spacing-token-set", "detail": "There is NO adopted semantic spacing token set. --space-* / --sp-* do not exist (zero declarations, zero uses). DESIGN.md's frontmatter `spacing:` block (xs/sm/md/base/lg/xl) has no runtime counterpart under those names. The platform layer DOES ship --ds-spacing-0..32 (+ -0_5, -1_5) on a 4px multiplicator in styles/tokens/theme-light.css / theme-dark.css, but it is effectively unadopted — a handful of declarations in two files (home-stream.css, signal-feed-section.css), all written with a raw-px fallback e.g. var(--ds-spacing-6, 24px). Everywhere else components write ON-SCALE RAW PX. Three half-systems, none authoritative. Binding rule until an owner decision closes it: any spacing value must land on the 4/8/12/16/20/24/32/48 scale, however it is written; do not mint a third vocabulary at a call site, and do not treat the scattered --ds-spacing-* uses as an adopted standard to spread." },
-      { "name": "disabled-field-styling", "detail": "Disabled FIELD styling is still unratified in general (the Select component ratified its own: secondary bg + muted-foreground text + not-allowed cursor). Buttons DO have it shipped in ui/Button.css (opacity .5, not-allowed, no shadow, no background-image, saturate .35)." }
+      {
+        "name": "no-spacing-token-set",
+        "detail": "There is NO adopted semantic spacing token set. --space-* / --sp-* do not exist (zero declarations, zero uses). DESIGN.md's frontmatter `spacing:` block (xs/sm/md/base/lg/xl) has no runtime counterpart under those names. The platform layer DOES ship --ds-spacing-0..32 (+ -0_5, -1_5) on a 4px multiplicator in styles/tokens/theme-light.css / theme-dark.css, but it is effectively unadopted — a handful of declarations in two files (home-stream.css, signal-feed-section.css), all written with a raw-px fallback e.g. var(--ds-spacing-6, 24px). Everywhere else components write ON-SCALE RAW PX. Three half-systems, none authoritative. Binding rule until an owner decision closes it: any spacing value must land on the 4/8/12/16/20/24/32/48 scale, however it is written; do not mint a third vocabulary at a call site, and do not treat the scattered --ds-spacing-* uses as an adopted standard to spread."
+      },
+      {
+        "name": "disabled-field-styling",
+        "detail": "Disabled FIELD styling is still unratified in general (the Select component ratified its own: secondary bg + muted-foreground text + not-allowed cursor). Buttons DO have it shipped in ui/Button.css (opacity .5, not-allowed, no shadow, no background-image, saturate .35)."
+      }
     ]
   },
   "components": [
@@ -260,7 +420,7 @@
       "name": "Segmented Track",
       "kind": "custom",
       "refersTo": "segmented-track",
-      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and Home's order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css, pulled in by CSS @import rather than re-authored; as of 2026-07-29 there is exactly ONE importer (dashboard/cut-toggle.css). NOTE (v4): the radiogroup consumer was the Home region-order toggle, RETIRED by OD-V4-10 — the component and its Personal-profile setting are gone, and the .home-order-seg / .home-order-seg-opt selectors still in the shared file are REMOVAL DEBT, not a live pattern. The shape stays documented because it is the correct contract if a persistent segmented setting returns. Geometry, live-measured: a 32px track with 3px inset padding, so each option renders at 26px (NOT the 28px previously stated). Label size borrows the mono token's 13px NUMBER for sizing only — the face stays DM Sans via font-family: inherit.",
+      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and Home's order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css, pulled in by CSS @import rather than re-authored; as of 2026-07-29 there is exactly ONE importer (dashboard/cut-toggle.css). NOTE (v4): the radiogroup consumer was the Home region-order toggle, RETIRED by OD-V4-10 — the component and its Personal-profile setting are gone, and the .home-order-seg / .home-order-seg-opt selectors still in the shared file are REMOVAL DEBT, not a live pattern. The shape stays documented because it is the correct contract if a persistent segmented setting returns. Geometry, live-measured: a 32px track with 3px inset padding, so each option renders at 26px (NOT the 28px previously stated). Label size borrows the mono token's 13px NUMBER for sizing only — the face stays DM Sans via font-family: inherit.  ⚠️ RECONCILED 2026-08-06 against dev's DESIGN.md, which is ahead of the v4 copy this file was ported from. (1) The .home-order-seg / .home-order-seg-opt selectors are GONE — no removal debt remains; guard-od-v4-10-retirement.test.ts scans src/ to keep them gone, so do not go hunting for them. (2) There are TWO live consumers and only ONE importer: dashboard/cut-toggle.css imports the shared file, while dashboard/window-selector.css re-authors the same grammar pixel-for-pixel with no @import and renders directly beside it on Money's toolbar. Folding it in is open debt — issue #283. The rule 'every consumer imports it' is the intent, not the current state.",
       "html": "<div class=\"ds-seg\" role=\"tablist\"><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"true\">Branch</button><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"false\">Activity</button></div>",
       "css": ".ds-seg { display: inline-flex; gap: 4px; height: 32px; padding: 3px; background: var(--secondary); border-radius: 8px; box-sizing: border-box; } .ds-seg-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 12px; border: none; border-radius: calc(8px - 2px); background: transparent; color: var(--muted-foreground); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; } .ds-seg-opt[aria-selected='true'] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); cursor: default; } @media (max-width: 767.98px) { .ds-seg, .ds-seg-opt { height: auto; min-height: 44px; } }"
     },
@@ -271,6 +431,12 @@
       "description": "v4 (2026-07-29). A profile/setting card is sized by WHAT IT HOSTS, and there are two hosts. FORM_MEASURE (560px, outer) for short labelled fields — a form column, deliberately narrow. PICKER_MEASURE for a three-up wireframe chooser: 720px is the CONTENT measure the signed mockup drew it at on a bare div, so the host adds its chrome back on top — 720 + 2 x (16px padding + 1px border) = 754px OUTER, which is what ships. Taking a mockup's content measure as an outer measure silently narrows the content by 34px. At FORM_MEASURE the picker's cards measured 167px and the wireframes stopped being readable, which is the entire point of a diagram-based chooser. Widening one host must not drag the other out with it — these are per-card measures, never a page-level cap. Pinned by pages/profile-page.test.tsx FR-920.",
       "html": "<section class=\"ds-setting ds-setting--picker\"><h2>Home layout</h2><p class=\"ds-setting-help\">Choose how your Home page arranges its regions.</p></section>",
       "css": ".ds-setting { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); max-width: 560px; } .ds-setting--picker { max-width: 754px; } .ds-setting-help { color: var(--muted-foreground); font-size: 12px; margin: 0 0 12px; max-width: 52ch; }"
+    },
+    {
+      "name": "Empty State",
+      "kind": "custom",
+      "refersTo": "empty-state",
+      "description": "Four sanctioned archetypes, matching EmptyStateVariant in components/ui/state-kit.tsx. quiet — calm nothing-to-do; icon + title + one-line reason, NO cta (e.g. /inbox caught up). next-step — one direct action resolves it; icon + title + explanation + ONE action. awaiting — refills from submissions or a sync-fed source; adds a muted retry/status line + one refresh action. blank — empty BY DESIGN (a placeholder route, an unbuilt slice); deliberately the quietest, with no accent tint, so it never reads as an earned all-clear or as pending work. Rule: one route, one empty frame, one action maximum; the archetypes vary only the message and whether the single action slot is filled. Spacing, type, icon treatment and body measure stay shared, and no new empty-state colours, fonts or chrome are minted. ADDED 2026-08-06 — absent from the v4 copy this file was ported from; `blank` postdates v4 (CardHead.css records it)."
     }
   ],
   "narrative": {
@@ -286,20 +452,76 @@
       "Two content measures: 1180px readable column, 1760px wide operating surface"
     ],
     "rules": [
-      { "name": "The One Blue Rule", "body": "Every interactive affordance uses the one primary blue, kept under ~10% of any screen. The primary-button sheen is the same blue, not a second action colour.", "section": "colors" },
-      { "name": "The Single-Border Rule", "body": "border equals input. One border value defines all structure.", "section": "colors" },
-      { "name": "The Tabular-Numbers Rule", "body": "Every figure that can change or be compared is tabular-nums. DM Sans tnum is a verified no-op in its fontsource build, so the .tabular utility is scoped to Inter Variable; proportional body text stays DM Sans.", "section": "typography" },
-      { "name": "The Two-Role Scale Rule", "body": "The scale has exactly two roles and they do not meet: display runs 24/20/18px in Plus Jakarta Sans, body runs 15/14/13.5/12/11px in DM Sans. The display scale STOPS at 24px — no step above page-title exists and OD-V4-8 deferred minting one, so emphasis above the page title comes from position, weight and air, never a new primitive. Inside the body role the 15/14 pair (body-lg / body) is a deliberate rung (OD-REDESIGN-91 B4): a linter flagging it as a flat type hierarchy is reading a two-role scale as one ramp. Known non-defect.", "section": "typography" },
-      { "name": "The 18px Rung Rule", "body": "OD-V4-8 ratified the body rungs (15/14/13.5/12/11) and the 24px display ceiling but never named the 18px subheading rung, which two shipped Home decisions turn on. (1) A COMPACT PAGE H1 steps to subheading (18px) — one rung below page-title, not three: where a head carries a second full-width row, the block's ~70px budget is paid for by stepping down the SAME declared ladder. It landed first at body-lg, which put the page's own h1 BELOW the group headers inside it. (2) A GROUP HEADER sits at body-lg (15px), the SAME rung as the record-row titles it heads, and separates on four other channels: the display face, sentence case, full foreground, a 1px border hairline edge above, and asymmetric space. Size is deliberately not one of the channels — at 18px the label ties Home's own h1 and the two read as peers. Therefore subheading stays RESERVED for a title that must OUTRANK the content beneath it (detail-panel sub-sections, empty-state titles, the compact page h1); a header that merely groups peers does not qualify. Neither carries a decorative hue — amber/red/blue are the row status vocabulary. Recorded 2026-07-29; pinned by guard-list-band-separation.css.test.ts and guard-home-head-rank.css.test.ts.", "section": "typography" },
-      { "name": "The Two-Measure Rule", "body": "There are TWO content measures and which one a page gets is decided by what kind of surface it is, not by who authored it. 1180px is the READABLE SINGLE COLUMN and the default (page-families.css) — records, forms, management surfaces, settings. 1760px is the WIDE OPERATING SURFACE measure, for a surface whose composition is genuinely two-dimensional (a master/detail split, or a work column beside a standing aside) where the readable cap leaves a DEAD GUTTER rather than a margin. It is a rule with TWO instances, deliberately the same number so their right edges land in the same place: Tasks master/detail (TasksWorkspace.css .split) and Home (home-layouts.css, :has(.home-frame)-scoped). A wide surface OPTS IN by specificity and never widens the shared rule; a third instance must name the second dimension it composes and the void the readable cap leaves at a real window width. Never widen a single-column page (v4, 2026-07-29).", "section": "layout" },
-      { "name": "The Soft-Elevation Rule", "body": "Cards, KPI tiles and kanban cards carry exactly one subtle resting shadow in addition to their 1px border. Every other surface stays flat at rest. Never stack resting shadows; never exceed ~0.06 total alpha (OD-P3-11).", "section": "elevation" },
-      { "name": "The Restrained-Gradient Rule", "body": "Only the two ratified navy-tinted whispers: the primary-button sheen and the home/digest surface wash. Never purple (OD-P3-12).", "section": "colors" },
-      { "name": "The Container-Query Rule", "body": "A component that renders at different widths inside the same viewport adapts to the space it has, not the window. The Signal row renders in Home's ~300px ambient tail AND the /work/signals archive Feed's ~1140px column at the same 1440px viewport, so a viewport media query measures the wrong thing — it left the 300px tail horizontal with a ~96px title that both wrapped and ellipsised. Home is the second case and shows the failure mode: its branches keyed off the window while the 232px rail collapses at 920 and narrows to 72px between 920 and 1100 INDEPENDENTLY of it, so the space the arrangements actually had was non-monotonic in the viewport (work column 812px @1440, 488px @1100, 572px @1024). Declare a container and branch with @container. Reach for @media only when the thing that actually varies is the viewport. Diagnostic: if the quantity a breakpoint controls is not monotonic in the trigger, the trigger is the wrong quantity (v4).", "section": "layout" },
-      { "name": "The Full-Row Packing Rule", "body": "Tile weights exist so consecutive tiles pack to exactly the grid's column count at every desktop band — never so a tile is left with a hole beside it. There are exactly two weights and they sum to the track: wide spans 4, narrow spans 2, giving 4+2 then 2+4 at six columns and 4 | 2+2 | 4 at four. Adding a third weight is not a styling choice; it breaks the packing invariant at one band or the other (v4, OD-V4-7).", "section": "components" },
-      { "name": "The Surface-Job Rule", "body": "Pick the metric treatment from the surface's job: the summary rule where the user came to act, KPI tiles where they came to read. A capture surface never opens with a row of tiles (v4).", "section": "components" },
-      { "name": "The No-Restated-Value Rule", "body": "Never repeat a value under a control that the row or card already renders as its own column or field (v4).", "section": "components" },
-      { "name": "The One-Definition Rule", "body": "A CSS class name is global regardless of which component file declares it, so exactly one file may define any given selector. A second, differently-valued definition of the same class elsewhere in the app is not a harmless local override — it silently wins or loses the cascade by import order, not intent (extract, 2026-07-28: found live on four separate classes — .sr-only in four page/component files, and a dead .btn-ghost that was shadowing the canonical Button ghost variant app-wide, measured on Home at 15px instead of the canonical 13.5px). Shared visual grammar used by more than one component belongs in one file the consumers @import, not re-authored per surface. Corollary (2026-07-28): a class the shared PRIMITIVE applies belongs with that primitive, not with whichever page authored it first — .dt-card--compact lived in a route-code-split page stylesheet and silently fell back to 14px on the three other pages that render it.", "section": "components" },
-      { "name": "The Off-Scale Boundary", "body": "The 4/8/12/16/20/24/32/48 geometry scale governs FIXED dimensions — padding, gaps, heights, radii, anything that lands as a rendered edge. A flex-basis or a max-width on a FLEXIBLE track is neither: it is the bracket inside which the flex algorithm picks the width, and the rendered width is essentially never either number. That is the whole reason the v4 progress track's `flex: 1 1 90px; max-width: 200px` is sanctioned while its `height: 4px` had to be on-scale. This is a narrow exemption, not a general escape hatch: if the number lands as an edge the reader can see, it is on the scale (v4, 2026-07-29).", "section": "layout" }
+      {
+        "name": "The One Blue Rule",
+        "body": "Every interactive affordance uses the one primary blue, kept under ~10% of any screen. The primary-button sheen is the same blue, not a second action colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Single-Border Rule",
+        "body": "border equals input. One border value defines all structure.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular-Numbers Rule",
+        "body": "Every figure that can change or be compared is tabular-nums. DM Sans tnum is a verified no-op in its fontsource build, so the .tabular utility is scoped to Inter Variable; proportional body text stays DM Sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two-Role Scale Rule",
+        "body": "The scale has exactly two roles and they do not meet: display runs 24/20/18px in Plus Jakarta Sans, body runs 15/14/13.5/12/11px in DM Sans. The display scale STOPS at 24px — no step above page-title exists and OD-V4-8 deferred minting one, so emphasis above the page title comes from position, weight and air, never a new primitive. Inside the body role the 15/14 pair (body-lg / body) is a deliberate rung (OD-REDESIGN-91 B4): a linter flagging it as a flat type hierarchy is reading a two-role scale as one ramp. Known non-defect.",
+        "section": "typography"
+      },
+      {
+        "name": "The 18px Rung Rule",
+        "body": "OD-V4-8 ratified the body rungs (15/14/13.5/12/11) and the 24px display ceiling but never named the 18px subheading rung, which two shipped Home decisions turn on. (1) A COMPACT PAGE H1 steps to subheading (18px) — one rung below page-title, not three: where a head carries a second full-width row, the block's ~70px budget is paid for by stepping down the SAME declared ladder. It landed first at body-lg, which put the page's own h1 BELOW the group headers inside it. (2) A GROUP HEADER sits at body-lg (15px), the SAME rung as the record-row titles it heads, and separates on four other channels: the display face, sentence case, full foreground, a 1px border hairline edge above, and asymmetric space. Size is deliberately not one of the channels — at 18px the label ties Home's own h1 and the two read as peers. Therefore subheading stays RESERVED for a title that must OUTRANK the content beneath it (detail-panel sub-sections, empty-state titles, the compact page h1); a header that merely groups peers does not qualify. Neither carries a decorative hue — amber/red/blue are the row status vocabulary. Recorded 2026-07-29; pinned by guard-list-band-separation.css.test.ts and guard-home-head-rank.css.test.ts.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two-Measure Rule",
+        "body": "There are TWO content measures and which one a page gets is decided by what kind of surface it is, not by who authored it. 1180px is the READABLE SINGLE COLUMN and the default (page-families.css) — records, forms, management surfaces, settings. 1760px is the WIDE OPERATING SURFACE measure, for a surface whose composition is genuinely two-dimensional (a master/detail split, or a work column beside a standing aside) where the readable cap leaves a DEAD GUTTER rather than a margin. It is a rule with TWO instances, deliberately the same number so their right edges land in the same place: Tasks master/detail (TasksWorkspace.css .split) and Home (home-layouts.css, :has(.home-frame)-scoped). A wide surface OPTS IN by specificity and never widens the shared rule; a third instance must name the second dimension it composes and the void the readable cap leaves at a real window width. Never widen a single-column page (v4, 2026-07-29).",
+        "section": "layout"
+      },
+      {
+        "name": "The Soft-Elevation Rule",
+        "body": "Cards, KPI tiles and kanban cards carry exactly one subtle resting shadow in addition to their 1px border. Every other surface stays flat at rest. Never stack resting shadows; never exceed ~0.06 total alpha (OD-P3-11).",
+        "section": "elevation"
+      },
+      {
+        "name": "The Restrained-Gradient Rule",
+        "body": "Only the two ratified navy-tinted whispers: the primary-button sheen and the home/digest surface wash. Never purple (OD-P3-12).",
+        "section": "colors"
+      },
+      {
+        "name": "The Container-Query Rule",
+        "body": "A component that renders at different widths inside the same viewport adapts to the space it has, not the window. The Signal row renders in Home's ~300px ambient tail AND the /work/signals archive Feed's ~1140px column at the same 1440px viewport, so a viewport media query measures the wrong thing — it left the 300px tail horizontal with a ~96px title that both wrapped and ellipsised. Home is the second case and shows the failure mode: its branches keyed off the window while the 232px rail collapses at 920 and narrows to 72px between 920 and 1100 INDEPENDENTLY of it, so the space the arrangements actually had was non-monotonic in the viewport (work column 812px @1440, 488px @1100, 572px @1024). Declare a container and branch with @container. Reach for @media only when the thing that actually varies is the viewport. Diagnostic: if the quantity a breakpoint controls is not monotonic in the trigger, the trigger is the wrong quantity (v4).",
+        "section": "layout"
+      },
+      {
+        "name": "The Full-Row Packing Rule",
+        "body": "Tile weights exist so consecutive tiles pack to exactly the grid's column count at every desktop band — never so a tile is left with a hole beside it. There are exactly two weights and they sum to the track: wide spans 4, narrow spans 2, giving 4+2 then 2+4 at six columns and 4 | 2+2 | 4 at four. Adding a third weight is not a styling choice; it breaks the packing invariant at one band or the other (v4, OD-V4-7).",
+        "section": "components"
+      },
+      {
+        "name": "The Surface-Job Rule",
+        "body": "Pick the metric treatment from the surface's job: the summary rule where the user came to act, KPI tiles where they came to read. A capture surface never opens with a row of tiles (v4).",
+        "section": "components"
+      },
+      {
+        "name": "The No-Restated-Value Rule",
+        "body": "Never repeat a value under a control that the row or card already renders as its own column or field (v4).",
+        "section": "components"
+      },
+      {
+        "name": "The One-Definition Rule",
+        "body": "A CSS class name is global regardless of which component file declares it, so exactly one file may define any given selector. A second, differently-valued definition of the same class elsewhere in the app is not a harmless local override — it silently wins or loses the cascade by import order, not intent (extract, 2026-07-28: found live on four separate classes — .sr-only in four page/component files, and a dead .btn-ghost that was shadowing the canonical Button ghost variant app-wide, measured on Home at 15px instead of the canonical 13.5px). Shared visual grammar used by more than one component belongs in one file the consumers @import, not re-authored per surface. Corollary (2026-07-28): a class the shared PRIMITIVE applies belongs with that primitive, not with whichever page authored it first — .dt-card--compact lived in a route-code-split page stylesheet and silently fell back to 14px on the three other pages that render it.",
+        "section": "components"
+      },
+      {
+        "name": "The Off-Scale Boundary",
+        "body": "The 4/8/12/16/20/24/32/48 geometry scale governs FIXED dimensions — padding, gaps, heights, radii, anything that lands as a rendered edge. A flex-basis or a max-width on a FLEXIBLE track is neither: it is the bracket inside which the flex algorithm picks the width, and the rendered width is essentially never either number. That is the whole reason the v4 progress track's `flex: 1 1 90px; max-width: 200px` is sanctioned while its `height: 4px` had to be on-scale. This is a narrow exemption, not a general escape hatch: if the number lands as an edge the reader can see, it is on the scale (v4, 2026-07-29).",
+        "section": "layout"
+      }
     ],
     "dos": [
       "Do drive every interactive affordance with the one primary blue, and keep it under ~10% of any screen.",

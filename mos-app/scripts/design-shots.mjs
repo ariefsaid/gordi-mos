@@ -3,7 +3,7 @@
 //
 // WHY THIS EXISTS: the sandbox this repo is normally built in has no Docker, so it cannot boot the
 // local Supabase stack and therefore cannot render the LOGGED-IN app for a design-reviewer agent to
-// look at (see scripts/cloud-agent-bootstrap.sh). GitHub Actions CAN boot the stack (same containers
+// look at. GitHub Actions CAN boot the stack (same containers
 // as .github/workflows/integration.yml), so this script is meant to run there, driven by
 // .github/workflows/design-shots.yml (workflow_dispatch), and its output published for a reviewer to
 // pull down and look at.
@@ -43,8 +43,9 @@ const ROUTES = (process.env.ROUTES ||
   // as stubs), and a default that named only v4's routes would silently skip them — the same
   // 'a port decomposed by surface loses everything that has no route' defect one level up
   // (DD-WAY-30). The Director persona (dewi.dev, admin) sees every gated route below.
-  '/,/work/tasks,/work/signals,/work/objectives,/money,/inbox,' +
-    '/cafe/log,/cafe/plan,/cafe/stock,/cafe/review,/cafe/pushes,' +
+  '/,/work/tasks,/work/signals,/work/objectives,/work/projects,/inbox,/events,/profile,' +
+    '/money,/money/detail,/money/budget,/money/pricing,' +
+    '/cafe,/cafe/log,/cafe/plan,/cafe/stock,/cafe/review,/cafe/pushes,' +
     '/ops,/ecommerce,/roastery,/admin/people')
   .split(',')
   .map((r) => r.trim())
@@ -153,6 +154,19 @@ async function captureRoute(context, route, viewport) {
     await page.waitForLoadState('networkidle', { timeout: 30_000 })
     // Sane settle: let in-flight transitions/animations/lazy content finish painting.
     await page.waitForTimeout(500)
+
+    // Assert we are still ON the requested route. Without this a bounced gate (an unmet capability,
+    // a flag-off surface redirecting to '/') files a Home screenshot under the route's name and the
+    // run exits 0 — a silent skip, which is the same defect class this harness exists to catch.
+    // Trailing query is fine: collection routes canonicalise ?layout= into the URL by design.
+    const landed = new URL(page.url()).pathname.replace(/\/$/, '')
+    const wanted = joinUrl(BASE_URL, route) && new URL(joinUrl(BASE_URL, route)).pathname.replace(/\/$/, '')
+    if (landed !== wanted) {
+      throw new Error(
+        `route ${route} bounced to ${landed} (expected ${wanted}) — capturing this would file the ` +
+          `wrong surface under the right name. Check the persona's capabilities and any feature flag.`,
+      )
+    }
 
     const slug = routeSlug(route)
     const file = path.join(OUT_DIR, `${slug}-${viewport.width}.png`)
