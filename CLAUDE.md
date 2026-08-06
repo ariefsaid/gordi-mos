@@ -98,9 +98,9 @@ See `docs/agents/skills.md`.
 
 ### Review roster
 
-**Three lenses review every change, always: `spec`, `code-quality`, `security`.** Each records its
-verdict as a PR comment; `scripts/review-gate.sh` refuses if a lens is missing or stale. Your own
-read is never one of the three. See `docs/agents/review.md`.
+**Three lenses review every change, always: `spec`, `code-quality`, `security`.** A loop step, not a
+CI check — CI gates what a machine can decide, never who reviewed. Your own read is never one of the
+three. See `docs/agents/review.md`.
 
 ### Delegating to pi (GLM / luna)
 
