@@ -50,29 +50,65 @@ else
   repo_arg=()
   [[ -n "$repo" ]] && repo_arg=(--repo "$repo")
   # One call: author, head sha, body, and all comment bodies.
-  payload=$(gh pr view "$pr" "${repo_arg[@]}" \
-    --json author,headRefOid,body,comments \
-    --jq '{author: .author.login, head: .headRefOid, bodies: ([.body] + [.comments[].body])}')
+  # `${arr[@]}` on an empty array is an unbound-variable error under `set -u` in bash 3.2, which is
+  # what macOS ships and where this is run by hand.
+  if [[ -n "$repo" ]]; then
+    payload=$(gh pr view "$pr" --repo "$repo" --json author,headRefOid,body,comments \
+      --jq '{author: .author.login, authorName: .author.name, head: .headRefOid, bodies: ([.body] + [.comments[].body])}')
+  else
+    payload=$(gh pr view "$pr" --json author,headRefOid,body,comments \
+      --jq '{author: .author.login, authorName: .author.name, head: .headRefOid, bodies: ([.body] + [.comments[].body])}')
+  fi
 fi
 
 author=$(printf '%s' "$payload" | jq -r '.author // ""')
+author_name=$(printf '%s' "$payload" | jq -r '.authorName // ""')
 head=$(printf '%s' "$payload" | jq -r '.head // ""')
 [[ -n "$head" ]] || fail "could not determine the PR head commit"
+# Fail CLOSED when the author cannot be determined (a ghost/deleted account yields null). Otherwise
+# the self-review check below silently does nothing, which is the one check that must never skip.
+[[ -n "$author" || -n "$author_name" ]] || fail "could not determine the PR author — refusing rather than skipping the self-review check"
 
 # ── Extract every review record, newest last (comments arrive in chronological order) ──────────
 # A record is the marker followed by its three fields. Anything malformed is ignored here and then
 # reported as "no valid record" — a half-written record must never read as an approval.
-records=$(printf '%s' "$payload" | jq -r '.bodies[]? // empty' | awk '
-  /<!-- *review-gate *-->/ { inrec=1; rev=""; ver=""; com=""; next }
-  inrec && /^[[:space:]]*Reviewer:/  { sub(/^[[:space:]]*Reviewer:[[:space:]]*/,  ""); rev=$0; next }
-  inrec && /^[[:space:]]*Verdict:/   { sub(/^[[:space:]]*Verdict:[[:space:]]*/,   ""); ver=$0; next }
-  inrec && /^[[:space:]]*Commit:/    { sub(/^[[:space:]]*Commit:[[:space:]]*/,    ""); com=$0
-                                       if (rev != "" && ver != "") print rev "\t" ver "\t" com
-                                       inrec=0; next }
-  inrec && /^[[:space:]]*$/ { next }
+#
+# Three properties this parser must have, each learned from a real bypass found in review:
+#
+#  1. A record inside a ``` fence is DOCUMENTATION, not a review. This PR's own body contained the
+#     format example, and the gate read it as an approval — it refused only because the example's
+#     sha happened to be stale. Fenced regions are skipped entirely.
+#  2. A record must be CONTAINED IN ONE BODY and its three fields CONSECUTIVE. Without that, a
+#     marker in one comment plus fields in another assemble into an approval nobody wrote.
+#  3. A malformed record must FAIL, not vanish. Dropping it silently meant a reviewer who typed
+#     `Commmit:` had their DO NOT MERGE discarded and an older MERGE stood.
+#
+# Bodies are separated by a sentinel so state resets per body.
+records=$(printf '%s' "$payload" | jq -r '.bodies[]? // empty | . + "\n===REVIEW-GATE-BODY-END==="' | awk '
+  function flush(  n) {
+    if (!inrec) return
+    n = (rev != "") + (ver != "") + (com != "")
+    if (n == 3) print rev "\t" ver "\t" com
+    else print "===MALFORMED===\t-\t-"   # incomplete block — refuse, never ignore
+    inrec = 0; rev = ""; ver = ""; com = ""
+  }
+  /^===REVIEW-GATE-BODY-END===$/      { flush(); fence = 0; next }
+  /^[[:space:]]*(```|~~~)/            { fence = !fence; next }
+  fence                               { next }
+  # The marker must stand ALONE on its line. Found live on the PR for this gate: the body explained
+  # the format with an inline mention, which opened a record that could never complete, so the gate
+  # refused its own documentation. Writing about the gate must not trip it.
+  /^[[:space:]]*<!-- *review-gate *-->[[:space:]]*$/ { flush(); inrec = 1; rev = ""; ver = ""; com = ""; next }
+  !inrec                              { next }
+  /^[[:space:]]*Reviewer:/  { sub(/^[[:space:]]*Reviewer:[[:space:]]*/, ""); rev = $0; next }
+  /^[[:space:]]*Verdict:/   { sub(/^[[:space:]]*Verdict:[[:space:]]*/,  ""); ver = $0; next }
+  /^[[:space:]]*Commit:/    { sub(/^[[:space:]]*Commit:[[:space:]]*/,   ""); com = $0; flush(); next }
+  # Any other line ends the block. The three fields must be consecutive, so prose cannot bridge a
+  # marker to fields written elsewhere in the same comment.
+  { flush() }
 ')
 
-[[ -n "$records" ]] || fail "no review record found on PR — add a <!-- review-gate --> block naming the reviewer, the verdict and the commit reviewed"
+[[ -n "$records" ]] || fail "no review record found on PR — add a <!-- review-gate --> block naming the reviewer, the verdict and the commit reviewed (a block inside a code fence is an example, not a review)"
 
 # The newest record wins, so a re-review after changes can clear an earlier block.
 last=$(printf '%s\n' "$records" | tail -1)
@@ -80,16 +116,23 @@ reviewer=$(printf '%s' "$last" | cut -f1 | tr -d '\r' | sed 's/[[:space:]]*$//')
 verdict=$(printf  '%s' "$last" | cut -f2 | tr -d '\r' | sed 's/[[:space:]]*$//')
 commit=$(printf   '%s' "$last" | cut -f3 | tr -d '\r' | sed 's/[[:space:]]*$//')
 
+[[ "$reviewer" != "===MALFORMED===" ]] || fail "the newest review record is incomplete — it needs Reviewer, Verdict and Commit on consecutive lines. Refusing rather than falling back to an older record"
 [[ -n "$reviewer" ]] || fail "the newest review record names no reviewer"
 
 # ── Refuse: self-review. The whole point. ──────────────────────────────────────────────────────
-# Compared case-insensitively, and also against the bare login inside a longer identity string, so
-# "asaid via pi" cannot slip past as a different person.
+# Matched case-insensitively and as a substring, so "asaid via pi" cannot pass as a third party.
+#
+# Both the login AND the display name are checked. The review that found this put it plainly: the
+# login here is `ariefsaid` while the name on every commit is `asaid`, so a gate comparing only the
+# login let the single most natural thing to type walk straight through.
 shopt -s nocasematch
-if [[ -n "$author" && ( "$reviewer" == "$author" || "$reviewer" == *"$author"* ) ]]; then
-  shopt -u nocasematch
-  fail "the reviewer ($reviewer) is the PR author ($author) — a self-review does not gate a merge"
-fi
+for ident in "$author" "$author_name"; do
+  [[ -n "$ident" ]] || continue
+  if [[ "$reviewer" == "$ident" || "$reviewer" == *"$ident"* ]]; then
+    shopt -u nocasematch
+    fail "the reviewer ($reviewer) is the PR author ($ident) — a self-review does not gate a merge"
+  fi
+done
 
 # ── Refuse: an explicit block, or an unrecognised verdict ──────────────────────────────────────
 case "$verdict" in
