@@ -19,7 +19,7 @@ const baseViewer = {
     org_id: '10000000-0000-0000-0000-000000000001',
     user_id: 'auth-user-001',
     full_name: 'Dina Pratiwi',
-    email: 'dina@gordi.id',
+    email: 'dina@example.test',
     archived_at: null,
     must_change_password: false,
     created_at: '2026-01-01T00:00:00Z',

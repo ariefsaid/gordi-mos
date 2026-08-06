@@ -77,7 +77,7 @@ export function MyTasksCard({ viewerId, now }: MyTasksCardProps) {
         meta="Where you're Responsible or Accountable · off track first"
         action={
           <Link
-            to="/tasks"
+            to="/work/tasks"
             className="font-semibold text-primary no-underline"
             style={{ fontSize: 15 }}
           >
@@ -189,7 +189,7 @@ function MiniTaskRow({ task, now, personMap }: MiniTaskRowProps) {
       <td className="mini-td">
         {/* AC-W01/W06: Chip-link, truncate + title (no-bleed) */}
         <Link
-          to={`/tasks/${task.id}`}
+          to={`/work/tasks/${task.id}`}
           className="mini-name-chip truncate"
           title={task.title}
         >
@@ -249,7 +249,7 @@ function MobileTaskCard({ task, now, personMap }: MiniTaskRowProps) {
 
   return (
     <article className="mini-mobile-card">
-      <Link to={`/tasks/${task.id}`} className="mini-name-chip" title={task.title}>
+      <Link to={`/work/tasks/${task.id}`} className="mini-name-chip" title={task.title}>
         {task.title}
       </Link>
       <div className="mini-mobile-grid">

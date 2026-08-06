@@ -34,7 +34,7 @@ function setAuth(accessRoles: string[] = []) {
     viewer: {
       person: {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Cahya Cafe',
-        email: 'cahya@gordi.id', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+        email: 'cahya@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
       roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
@@ -198,7 +198,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
       viewer: {
         person: {
           id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Dewi Director',
-          email: 'dewi@gordi.id', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+          email: 'dewi@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
         },
         roles: [{ id: 'r0', org_id: 'o1', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: true,
@@ -231,7 +231,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
       viewer: {
         person: {
           id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Kirana Kitchen',
-          email: 'kirana@gordi.id', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+          email: 'kirana@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
         },
         roles: [{ id: 'r5', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Kitchen Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
@@ -251,7 +251,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
       viewer: {
         person: {
           id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Sari Sales',
-          email: 'sari@gordi.id', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
+          email: 'sari@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '',
         },
         roles: [{ id: 'r4', org_id: 'o1', business_unit_id: 'bu-b2b-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,

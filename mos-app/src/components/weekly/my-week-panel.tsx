@@ -347,9 +347,9 @@ function WeeklyUpdateStrip({
         {sentence}
       </span>
 
-      {/* Trailing link (always /updates) */}
+      {/* Trailing link (always /work/signals — Signals is v4's replacement for Weekly Updates) */}
       <Link
-        to="/updates"
+        to="/work/signals"
         className="font-semibold text-primary no-underline flex-none w-full sm:w-auto"
         style={{ fontSize: 15 }}
         aria-label={linkLabel.replace(' →', '')}

@@ -65,7 +65,7 @@ import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@gordi.id', must_change_password: false, archived_at: null,
+  email: 'arief@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const role: RolesRow = {
