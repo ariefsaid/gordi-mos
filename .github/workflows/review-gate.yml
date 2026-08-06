@@ -1,28 +1,36 @@
 name: review-gate
 
-# Enforces the rule `/code-review` step 6 has always stated and never been able to check: a change
-# is not merged on its author's own read. The evidence is a `<!-- review-gate -->` block in a PR
-# comment — public, timestamped, and readable by CI, which is the whole reason it lives there rather
-# than in a ledger under the gitignored `docs/` (the closed PR #240's approach, where the evidence
-# only ever existed on the author's laptop).
+# Enforces the rule `/code-review` step 6 states and has never been able to check: a change is not
+# merged on its author's own read. Evidence is a `<!-- review-gate -->` block in a PR comment —
+# public, timestamped, and readable by CI, which is the point. The closed #240 looked for a ledger
+# under the gitignored `docs/`, where only the author could ever see it.
 #
-# `pull_request_target` rather than `pull_request`: the gate must run with permission to read the
-# PR's comments, and it must not be defined by the very branch it is gating. It checks out NOTHING
-# from the PR head and runs only this repository's own script from the base branch, so an untrusted
-# head cannot rewrite its own gate.
+# WHY NOT BRANCH PROTECTION. GitHub's "required approving reviews" is the natural home for this and
+# cannot work here: the repo has ONE collaborator, and GitHub does not let a PR author approve their
+# own pull request. Requiring one approval would make every PR unmergeable. Reviews here come from
+# agents (luna, GLM, sub-agents), which have no GitHub identity to approve with — so the verdict has
+# to be recorded as text, and this is what reads it.
+#
+# COST. One job, ~20s, on three events: PR opened, each push, each new comment. The comment trigger
+# is not optional — a review lands after the PR is opened, so without it the only way to go green
+# would be to push another commit, which is backwards. `edited`/`deleted` are deliberately NOT
+# watched: they roughly double the runs to re-check a case `synchronize` already covers.
 
 on:
   pull_request_target:
     branches: [dev, main]
-    types: [opened, reopened, synchronize, edited]
-  # A review lands as a comment AFTER the PR is opened, so the gate has to re-run on comments too —
-  # otherwise the only way to go green is to push another commit, which is exactly backwards.
+    types: [opened, reopened, synchronize]
   issue_comment:
-    types: [created, edited, deleted]
+    types: [created]
 
 permissions:
   contents: read
   pull-requests: read
+
+concurrency:
+  # A push plus a comment in quick succession should settle on one answer, not race.
+  group: review-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
 
 jobs:
   reviewed-by-someone-else:
@@ -30,26 +38,32 @@ jobs:
     if: github.event_name != 'issue_comment' || github.event.issue.pull_request
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the gate from the BASE branch, never the PR head
-        uses: actions/checkout@v4
+      # The gate comes from the BASE branch, never the PR head: a branch must not be able to rewrite
+      # the control that judges it. Nothing from the head is checked out or executed.
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
           persist-credentials: false
 
+      # A control nobody has watched refuse is a belief. This runs only when the gate itself is
+      # under change — `scripts/` is on verify.yml's INERT allowlist, so a scripts-only PR skips
+      # verify entirely and this would otherwise be the one thing never tested.
+      - name: Prove the gate can still refuse
+        if: github.event_name != 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          changed=$(gh pr diff "$PR" --repo "${{ github.repository }}" --name-only || true)
+          case "$changed" in
+            *scripts/review-gate*|*review-gate.yml*)
+              echo "the gate is under change — running its refusal suite"
+              bash scripts/review-gate.test.sh ;;
+            *) echo "gate unchanged; skipping its self-test" ;;
+          esac
+
       - name: Require a review by someone other than the author
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
-        run: bash scripts/review-gate.sh "$PR" "$GITHUB_REPOSITORY"
-
-  # The gate's own tests. A control nobody has watched refuse is a belief, so this runs the refusal
-  # suite on every change to the script — if the self-review check stops biting, this goes red here
-  # rather than silently letting the next self-merge through.
-  gate-can-refuse:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - run: bash scripts/review-gate.test.sh
+        run: bash scripts/review-gate.sh "$PR" "${{ github.repository }}"
