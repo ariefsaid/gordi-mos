@@ -85,6 +85,12 @@ See `docs/agents/triage-labels.md`.
 Single-context: `CONTEXT.md` (this repo) + `docs/adr/` (the local docs repo).
 See `docs/agents/domain.md`.
 
+### Skills
+
+Edit skills **only** in `.claude/skill-overrides/<name>/`. `.claude/skills/` is vendored and
+gitignored — edits there are destroyed by the next `scripts/vendor-skills.sh`.
+See `docs/agents/skills.md`.
+
 ## Read before you start
 `CONTEXT.md` (domain glossary, in this repo) · then the local `docs/` repo: `docs/README.md`,
 `docs/gotchas.md` (scar tissue — read this one), `docs/decisions.md`, `docs/environments.md`.
