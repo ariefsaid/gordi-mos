@@ -1,35 +1,27 @@
 #!/usr/bin/env bash
 # review-gate — every reviewer on the roster recorded a verdict against THIS commit.
 #
-# ── WHAT CHANGED, AND WHY ─────────────────────────────────────────────────────────────────────
+# ── WHY THE ROSTER AND NOT THE REVIEWER'S IDENTITY ────────────────────────────────────────────
 #
-# The previous version required the review comment's GitHub author to differ from the PR author.
-# That check was unsatisfiable here and always would have been: this repo has ONE collaborator, so
-# every PR author and every comment author are the same account. Its own workflow header had
-# already reasoned its way to that fact — branch protection was rejected because "the repo has one
-# collaborator" — and then the script reimposed the identical constraint by another route. It never
-# refused a real review, because it never got the chance: the workflow was not registered on the
-# default branch and had zero runs (#311).
+# The previous version required the comment's GitHub author to differ from the PR author. That is
+# unsatisfiable here: one collaborator, so every PR and every comment carry the same account. Asking
+# CI to adjudicate independence was the error — a login proves which token posted a comment, never
+# that anyone read the diff.
 #
-# The deeper error was asking CI to adjudicate something CI cannot observe. A GitHub login proves
-# which token posted a comment, never that anyone read the diff. On a repo where the author holds
-# every token, it does not even prove that much.
+# Independence comes from role separation instead: three lenses with different briefs and different
+# failure modes, each blind where the others look. The checkable residue is whether all three
+# actually reported, against this commit. That catches the failure that kept happening — one review
+# runs, comes back clean, and the change ships as "reviewed" while an axis went unread.
 #
-# So identity is gone, and the ROSTER takes its place. Independence here comes from role
-# separation — three reviewers with different briefs, different lenses, different failure modes —
-# not from account separation. That is a property of how the review was run, and the checkable
-# residue is: did all three lenses actually report, against this commit?
+# ── WHAT THIS CANNOT DO — read this before trusting a green check ─────────────────────────────
 #
-# The real failure mode this catches is the one that kept happening: one review runs, comes back
-# clean, and the change ships as "reviewed". A missing lens is silent. This makes it loud.
+# It cannot tell a careful review from a rubber stamp, and it cannot prove a distinct agent produced
+# any record: the lens name is typed, not attested. Anyone who can comment can write three records.
+# It is deliberately not trying to stop that, because nothing available here could. What it proves
+# is narrow and worth having: three named lenses each recorded an explicit verdict, publicly,
+# timestamped, pinned to the commit under review, going stale the moment anything is pushed.
 #
-# ── WHAT THIS STILL CANNOT DO ─────────────────────────────────────────────────────────────────
-#
-# It cannot tell a careful review from a rubber stamp, and it cannot prove a human or a distinct
-# agent produced any record — the lens name is typed, not attested. It is deliberately not trying
-# to. What it proves is narrow and worth having: three named lenses each recorded an explicit
-# verdict, publicly, timestamped, pinned to the commit under review, and going stale the moment
-# anything is pushed. Whether the reviews were any good is judged by a human reading them.
+# Full rationale, the lenses and how to record a verdict: docs/agents/review.md.
 #
 # ── THE RECORD — the whole body of a comment, nothing else ────────────────────────────────────
 #
@@ -50,7 +42,8 @@
 # Usage:
 #   scripts/review-gate.sh <pr-number> [repo]
 #   REVIEW_GATE_FIXTURE=<file> scripts/review-gate.sh
-#     fixture: {"head":"sha","comments":[{"login":"who","body":"..."}]}
+#     fixture: {"head":"sha","comments":[{"body":"..."}]}
+#     No login field: the comment author is deliberately not read. See above.
 
 set -Eeuo pipefail
 
@@ -70,10 +63,10 @@ else
   # so the two calls are spelled out rather than built from an array.
   if [[ -n "$repo" ]]; then
     payload=$(gh pr view "$pr" --repo "$repo" --json headRefOid,comments \
-      --jq '{head: .headRefOid, comments: [.comments[] | {login: .author.login, body: .body}]}')
+      --jq '{head: .headRefOid, comments: [.comments[] | {body: .body}]}')
   else
     payload=$(gh pr view "$pr" --json headRefOid,comments \
-      --jq '{head: .headRefOid, comments: [.comments[] | {login: .author.login, body: .body}]}')
+      --jq '{head: .headRefOid, comments: [.comments[] | {body: .body}]}')
   fi
 fi
 
@@ -130,3 +123,7 @@ for lens in $ROSTER; do
   printf 'review-gate: %-12s %s\n' "$lens" "${rec%%$'\t'*}"
 done
 printf 'review-gate: PASS — all roster lenses reviewed %s\n' "${head:0:7}"
+# Printed on every pass, in the CI log, where the person about to merge will see it. The limitation
+# is documented at length elsewhere; a limitation only in the docs is one nobody reads at the moment
+# it matters. This check attests that records exist, never that the reviews behind them were real.
+printf 'review-gate: this attests three verdicts were RECORDED, not that they were independent or careful — a human still reads the reviews (docs/agents/review.md)\n'

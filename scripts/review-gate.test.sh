@@ -32,20 +32,16 @@ check() {
 
 HEAD=1506ce9abcdef1234567890
 rec() { printf '<!-- review-gate -->\nReviewer: %s\nVerdict: %s\nCommit: %s' "$1" "$2" "$3"; }
-# alternating login body login body ... -> fixture json
+# alternating <ignored-label> body ... -> fixture json. The label is NOT a login: the gate
+# does not read comment authors. It stays only so multi-record fixtures are readable.
 fx() {
   python3 -c '
 import json,sys
 head=sys.argv[1]
 r=sys.argv[2:]
 print(json.dumps({"head":head,
-  "comments":[{"login":r[i],"body":r[i+1]} for i in range(0,len(r),2)]}))
+  "comments":[{"body":r[i+1]} for i in range(0,len(r),2)]}))
 ' "$HEAD" "$@"
-}
-# the three records a complete review leaves, at $1 (default: the head sha)
-full() {
-  local c="${1:-1506ce9}"
-  printf '%s\0%s\0%s' "$(rec spec MERGE "$c")" "$(rec code-quality MERGE "$c")" "$(rec security MERGE "$c")"
 }
 fx_full() { fx a "$(rec spec "${1:-MERGE}" "${4:-1506ce9}")" b "$(rec code-quality "${2:-MERGE}" "${4:-1506ce9}")" c "$(rec security "${3:-MERGE}" "${4:-1506ce9}")"; }
 
