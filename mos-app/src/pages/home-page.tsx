@@ -171,11 +171,14 @@ export function HomePage() {
     if (!personId || failedChecksInFlightRef.current) return
     // A viewer the /cafe/log route does NOT admit gets no band at all — an empty ready state, never
     // a deep-link that would bounce them. RLS still owns row visibility.
-    if (!seesCafe) { setFailedChecks([]); setFailedChecksState('ready'); return }
+    // Two independent questions, deliberately answered separately: `seesCafe` (route admission,
+    // OD-WAY-51) decides whether the band appears at all; `personId` scopes what is IN it. Reading
+    // the ruling as answering both would put other people's rejects in this viewer's count.
+    if (!seesCafe || !personId) { setFailedChecks([]); setFailedChecksState('ready'); return }
     failedChecksInFlightRef.current = true
     const token = ++failedChecksTokenRef.current
     setFailedChecksState('loading')
-    loadFailedChecksForViewer()
+    loadFailedChecksForViewer(personId)
       .then(items => {
         if (!isMountedRef.current || failedChecksTokenRef.current !== token) return
         setFailedChecks(items)
