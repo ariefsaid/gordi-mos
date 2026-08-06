@@ -48,19 +48,13 @@ jobs:
       # A control nobody has watched refuse is a belief. This runs only when the gate itself is
       # under change — `scripts/` is on verify.yml's INERT allowlist, so a scripts-only PR skips
       # verify entirely and this would otherwise be the one thing never tested.
-      - name: Prove the gate can still refuse
-        if: github.event_name != 'issue_comment'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ github.event.pull_request.number }}
+      - name: Prove the in-force gate can still refuse
         run: |
-          changed=$(gh pr diff "$PR" --repo "${{ github.repository }}" --name-only || true)
-          case "$changed" in
-            *scripts/review-gate*|*review-gate.yml*)
-              echo "the gate is under change — running its refusal suite"
-              bash scripts/review-gate.test.sh ;;
-            *) echo "gate unchanged; skipping its self-test" ;;
-          esac
+          # Runs the BASE branch's copy of both script and suite — deliberately. This proves the
+          # gate currently in force still refuses; it does NOT validate a PR's proposed changes to
+          # the gate, which is what review of that PR is for. Said plainly because the previous
+          # wording implied the opposite.
+          bash scripts/review-gate.test.sh
 
       - name: Require a review by someone other than the author
         env:
