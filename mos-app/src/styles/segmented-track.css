@@ -6,20 +6,29 @@
    extract (2026-07-28): consolidated `seg` track pixel grammar here after finding
    it re-authored in multiple places with identical pixel values.
 
-   SOLE CONSUMER: `dashboard/cut-toggle.css` (`CutToggle` — the view switcher, e.g.
-   Money's Branch/Activity tabs; a `role="tablist"` with roving tabindex). The second
-   consumer this file was extracted for, Home's `.home-order-seg` order toggle, was
-   retired with the order preference (OD-V4-10) and its selectors were deleted
-   2026-07-29 — a co-tenant that no longer exists made the shared rules look
-   load-bearing to the next reader. The file stays shared because a second `seg`
-   consumer arriving must inherit these pixels rather than re-author them; a new one
-   layers only its own state selector on top (`[aria-selected='true']` here,
-   `.is-active` for a radiogroup-shaped control), so the values cannot drift apart.
+   ONLY IMPORTER: `dashboard/cut-toggle.css` (`CutToggle` — the view switcher, e.g.
+   Money's Branch/Activity tabs; a `role="tablist"` with roving tabindex).
+
+   NOT the only consumer. `dashboard/window-selector.css` re-authors this entire
+   grammar pixel-for-pixel under its own class family — same 32px track, same
+   `--secondary`, same 3px padding / 4px gap, same inner corner, same lift — and does
+   NOT import this file. It is live, and it renders directly beside CutToggle on
+   Money's toolbar (the `7d / 30d / 60d / Custom` window control), which is precisely
+   the adjacency this extraction existed to prevent. Folding it onto this file is open
+   debt; until then the two can drift apart silently, so change both or neither.
+
+   The other consumer this file was extracted for, Home's `.home-order-seg` order
+   toggle, was retired with the order preference (OD-V4-10) and its selectors were
+   deleted 2026-07-29 — `guard-od-v4-10-retirement.test.ts` scans `src/` to keep them
+   gone. The file stays shared because a new `seg` consumer must inherit these pixels
+   rather than re-author them; it layers only its own state selector on top
+   (`[aria-selected='true']` here, `.is-active` for a radiogroup-shaped control), so
+   the values cannot drift apart.
 
    Lives in src/styles/ (the drawer.css precedent), NOT src/components/ui/: the
    `ui/` kit directory is policed by kit-vocab.test.ts's stricter EXACT-token-only
    radius vocabulary (no calc() composition permitted there), while this file's
-   inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius) - 2px)`
+   inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)`
    nested-radius idiom ("Nested radii compose so inner corners sit inside outer
    ones") that consuming components already carry unchanged in this consolidation
    — a shared PATTERN, not a kit PRIMITIVE.
