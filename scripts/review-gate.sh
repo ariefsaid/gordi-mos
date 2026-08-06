@@ -88,9 +88,17 @@ rest=${record#*$'\t'}
 verdict=${rest%%$'\t'*}
 commit=${rest#*$'\t'}
 
-# The reviewer is a GitHub login from the API, so this is an exact comparison — not a substring
+# The reviewer is a GitHub login from the API, so this is a direct comparison — not a substring
 # guess at a typed string, which is what the look-alike bypasses defeated.
-[[ "$reviewer" != "$author" ]] || fail "the only review record was written by the PR author ($author) — a self-review does not gate a merge"
+#
+# Two guards that are unreachable through GitHub today but cost one word each, and the one check
+# that must never silently skip is this one:
+#   - an empty login would sail past a bare inequality
+#   - GitHub logins live in a CASE-INSENSITIVE namespace, so `Author` and `author` are one account
+[[ -n "$reviewer" ]] || fail "the review record has no author — refusing rather than skipping the self-review check"
+if [[ "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$author" | tr '[:upper:]' '[:lower:]')" ]]; then
+  fail "the only review record was written by the PR author ($author) — a self-review does not gate a merge"
+fi
 
 case "$verdict" in
   "MERGE"|"MERGE WITH CHANGES") ;;

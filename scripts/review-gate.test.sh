@@ -66,6 +66,9 @@ check "author cannot self-approve after a block" refuse "written by the PR autho
 # is no longer a typed string that only resembles someone.
 check "look-alike login is a real other account" pass "reviewed by ariefsald" "$(fx ariefsald "$(rec MERGE 1506ce9)")"
 
+check "empty reviewer login"        refuse "no author"              "$(fx '' "$(rec MERGE 1506ce9)")"
+check "author in different case"    refuse "written by the PR author" "$(fx Ariefsaid "$(rec MERGE 1506ce9)")"
+
 echo "passes:"
 check "a clean approval"            pass "PASS"                     "$(fx luna "$(rec MERGE 1506ce9)")"
 check "merge with changes"          pass "MERGE WITH CHANGES"       "$(fx luna "$(rec 'MERGE WITH CHANGES' 1506ce9)")"

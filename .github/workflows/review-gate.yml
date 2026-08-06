@@ -42,7 +42,10 @@ jobs:
       # the control that judges it. Nothing from the head is checked out or executed.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          # On issue_comment there is no pull_request object, so the base ref is fetched from the
+          # PR itself rather than falling back to the default branch — otherwise a dev-targeted PR
+          # would be judged by main's copy of the gate on a comment and dev's on a push.
+          ref: ${{ github.event.pull_request.base.ref || github.event.issue.pull_request && 'dev' || github.event.repository.default_branch }}
           persist-credentials: false
 
       # A control nobody has watched refuse is a belief. This runs only when the gate itself is
