@@ -2,12 +2,16 @@
    FreshnessLabel — "as of {timestamp}" chip (design-plan §2.4, D11).
    Inline, flat text — no surface/border/shadow. Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
+/* The label wraps between words — at phone width "as of {timestamp}" and the
+   no-snapshot copy are both longer than the viewport, and nowrap here clipped
+   them at the right edge (#277). The timestamp keeps nowrap so a value never
+   splits across lines. */
 .freshness-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--muted-foreground);
-  white-space: nowrap;
 }
 .freshness-label-ts {
   color: var(--muted-foreground);
+  white-space: nowrap;
 }
