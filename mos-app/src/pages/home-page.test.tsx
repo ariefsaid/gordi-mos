@@ -11,13 +11,8 @@
 // region-level loading/error surfacing (DIV-G5 — a failed/still-loading read must never render as
 // an indistinguishable empty region) and the "My open tasks · N ->" drill-through link.
 //
-// #191 port note: this file is carried from `v4-redesign`'s `home-page.test.tsx` with ONE
-// substantive change — the Signals-feed assertions (v4's "FR-928" describe block, which asserted
-// live Signal content loaded through `useRecordCollection` + `lib/db/signals`) are replaced by a
-// single block asserting the honest placeholder Home ships instead. That infrastructure
-// (record-collection engine, the Signals record surface, `signal-composer-host`) is `dev`'s #193,
-// not #191's — see the note atop `home-page.tsx`. Every other assertion in this file is unchanged
-// in substance from the v4 suite.
+// The Signals-feed block (v4's "FR-928") asserts live Signal content again (#245): the port's
+// placeholder stood only while Signals had no surface on this line, and #193 landed one.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
@@ -69,9 +64,47 @@ vi.mock('../lib/db/notifications', () => ({
 import { listNotifications } from '@/lib/db/notifications'
 const mockListNotifications = vi.mocked(listNotifications)
 
-vi.mock('../lib/db/home-attention-data', () => ({ loadFailedChecksForViewer: vi.fn() }))
-import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
+vi.mock('../lib/db/home-attention-data', () => ({
+  loadFailedChecksForViewer: vi.fn(),
+  CAFE_LOG_ROUTE: '/cafe/log',
+}))
+import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
+
+// The shared admission authority (#246) — the test asks it the same question Home asks, so the
+// expectation tracks the route, never a hand-copied role list.
+import { viewerAdmittedToRoute } from '@/shell/destinations'
+
+// Signals (#245). PARTIAL mock: `SignalFeedRows` calls `orderSignalsForFeed` from this same module,
+// and a whole-module stub would replace the real ordering with undefined — the feed's ranking must
+// stay the production one, only the two READS are controlled here.
+vi.mock('../lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  listReadableSignals: vi.fn(),
+  listAllTeams: vi.fn(),
+}))
+import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import type { SignalRow } from '@/lib/db/signals.types'
+const mockListSignals = vi.mocked(listReadableSignals)
+const mockListAllTeams = vi.mocked(listAllTeams)
+
+// Home mounts inside AppShell's SignalComposerHost in the app; these page tests render HomePage
+// alone, so the composer door is stubbed to the one thing the feed asks of it.
+vi.mock('../shell/signal-composer-host', () => ({
+  useSignalComposer: () => ({ open: vi.fn(), close: vi.fn(), isOpen: false, postCount: 0 }),
+}))
+
+function signalRow(overrides: Partial<SignalRow> = {}): SignalRow {
+  return {
+    id: 's-1', author_id: 'author-1', owning_team_id: 'team-1',
+    occurred_at: '2026-08-05T02:00:00Z',
+    body: 'Grinder is jamming on the second hopper',
+    attention: 'FYI', category: 'Equipment/facility', source: 'human',
+    retracted_at: null, retract_reason: null, edited_at: null,
+    created_at: '2026-08-05T02:00:00Z',
+    ...overrides,
+  }
+}
 
 import { HomePage } from './home-page'
 
@@ -99,8 +132,9 @@ const memberViewer: AuthState = {
   ...financeViewer,
   viewer: { ...financeViewer.viewer, accessRoles: [] },
 }
-// A cafe-affiliated viewer: a plain member whose JOB ROLE name matches the Café module workMatch —
-// the honest ceiling gating the failed-checks (/cafe/log) band (SEC-1 route hygiene).
+// A viewer whose JOB ROLE name reads as café work. Kept as a persona, no longer as a gate: since
+// #246 the job-role name decides nothing on Home (OD-WAY-51) — it is here precisely so the tests
+// can prove that it makes no difference.
 const cafeViewer: AuthState = {
   ...financeViewer,
   viewer: {
@@ -151,6 +185,8 @@ beforeEach(() => {
   mockGetPeople.mockResolvedValue([])
   mockListNotifications.mockResolvedValue([])
   mockLoadFailedChecks.mockResolvedValue([])
+  mockListSignals.mockResolvedValue([])
+  mockListAllTeams.mockResolvedValue([])
 })
 
 describe('AC-H01/OD-17: Home never renders the revenue/margin KPI tiles nor calls the finance DAL', () => {
@@ -174,27 +210,75 @@ describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () 
   })
 })
 
-describe('SEC-1 route hygiene (FLAG-B/G2) — the failed-checks /cafe/log band is gated to cafe viewers', () => {
-  it('a cafe-affiliated viewer sees their failed checks (the DAL is queried, the item renders on its tab)', async () => {
-    mockLoadFailedChecks.mockResolvedValue([
-      { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: '/cafe/log' },
-    ])
-    await renderHome(cafeViewer)
-    await screen.findByRole('tablist')
-    expect(mockLoadFailedChecks).toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
-    expect(await screen.findByText('Production · 2026-07-20')).toBeInTheDocument()
-  })
+// #246 / OD-WAY-51 — the failed-checks band links to /cafe/log, so Home shows it exactly where
+// THAT ROUTE admits the viewer. The assertion below is the RULE, evaluated against the shared
+// admission authority per persona, not a transcript of today's output: if `/cafe/log` later gains
+// a route gate, both the app and this test follow it without an edit. The previous form asserted
+// "a Kitchen Lead sees it, a finance viewer doesn't", which re-encoded the job-role-NAME regex the
+// ruling removed — measured against the real roster, that regex left 5 of 10 job roles matching no
+// module at all, so viewers the route fully admitted were shown nothing.
+describe('Issue 246 / OD-WAY-51: Home\'s failed-checks band agrees with what /cafe/log admits', () => {
+  const failedCheck = { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: CAFE_LOG_ROUTE }
 
-  it('a non-cafe finance viewer never queries café logs nor gets a /cafe/log deep-link', async () => {
-    mockLoadFailedChecks.mockResolvedValue([
-      { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: '/cafe/log' },
-    ])
-    await renderHome(financeViewer)
-    await screen.findByRole('tablist')
-    expect(mockLoadFailedChecks).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
-    expect(screen.queryByText('Production · 2026-07-20')).toBeNull()
+  // Personas chosen to span the space the regex used to split: a job-role name that matched it, a
+  // viewer with NO job role at all (the 5-of-10 case), and access-role tiers above and below.
+  const personas: [string, AuthState][] = [
+    ['a viewer with a café-sounding job role', cafeViewer],
+    ['a finance viewer with no job role', financeViewer],
+    ['a plain member with no job role', memberViewer],
+    ['an ops lead', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['ops_lead'] } }],
+  ]
+
+  const accessRolesOf = (auth: AuthState) => (auth.status === 'authenticated' ? auth.viewer.accessRoles : [])
+
+  for (const [label, viewer] of personas) {
+    it(`${label}: the band is present iff the route admits them`, async () => {
+      const admitted = viewerAdmittedToRoute(CAFE_LOG_ROUTE, accessRolesOf(viewer))
+      mockLoadFailedChecks.mockResolvedValue([failedCheck])
+      await renderHome(viewer)
+      await screen.findByRole('tablist')
+
+      expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(admitted)
+      await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
+      expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(admitted)
+    })
+  }
+
+  it('the job-role NAME plays no part: same access roles, opposite job-role names, same band', async () => {
+    // The regex's whole mechanism was the role NAME string. Two viewers who differ only there must
+    // now be indistinguishable to Home — this is the assertion `viewerSeesCafe` could not pass.
+    const withRole = (name: string): AuthState => ({
+      ...memberViewer,
+      viewer: {
+        ...memberViewer.viewer,
+        roles: [{
+          id: '30000000-0000-0000-0000-000000000002',
+          org_id: '10000000-0000-0000-0000-000000000001',
+          business_unit_id: '20000000-0000-0000-0000-000000000014',
+          name,
+          reports_to_role_id: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        }],
+      },
+    })
+    const seen: boolean[] = []
+    for (const name of ['Barista', 'People & Culture Officer']) {
+      vi.clearAllMocks()
+      mockListTasks.mockResolvedValue([])
+      mockGetBUs.mockResolvedValue([])
+      mockGetPeople.mockResolvedValue([])
+      mockListNotifications.mockResolvedValue([])
+      mockLoadFailedChecks.mockResolvedValue([failedCheck])
+      mockListSignals.mockResolvedValue([])
+      mockListAllTeams.mockResolvedValue([])
+      const { unmount } = await renderHome(withRole(name))
+      await screen.findByRole('tablist')
+      await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
+      seen.push(screen.queryByText('Production · 2026-07-20') != null)
+      unmount()
+    }
+    expect(seen[0]).toBe(seen[1])
   })
 })
 
@@ -222,14 +306,64 @@ describe('OD-REDESIGN-82: Home is chromeless — no card-shell chrome on the lay
   })
 })
 
-// #191 port note (replaces v4's "FR-928" block): the live Signals feed (record-collection +
-// lib/db/signals + the Signals record surface) is #193's port, not #191's — see the note atop
-// home-page.tsx. Home states that plainly instead of a broken fetch or a silently empty region.
-describe('Port scope (#191): the Signals column states it is not available yet, pending #193', () => {
-  it('renders a labelled Signals region with a pending message, and never calls a Signals DAL', async () => {
+// #245 (restores v4's "FR-928" block): the Signals column is the live feed. It shipped as an
+// honest "not available yet" placeholder while Signals had no surface on this line; #193 landed
+// the DAL and /work/signals, so Home reads real Signals and the placeholder is gone.
+describe('Issue 245 / FR-928: the Signals column renders real Signals, with an honest failure state', () => {
+  it('renders the viewer\'s readable Signals in the column, with the author and Team resolved', async () => {
+    mockListSignals.mockResolvedValue([signalRow()])
+    mockListAllTeams.mockResolvedValue([
+      { id: 'team-1', name: 'Bar Kemang', business_unit_id: 'bu-cafe', site_id: null, is_primary: false },
+    ])
+    mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Riri Barista' }])
+
     await renderHome(memberViewer)
     const feed = await screen.findByRole('region', { name: 'Signals' })
-    expect(within(feed).getByText(/isn.t available/i)).toBeInTheDocument()
+    expect(within(feed).getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument()
+    await waitFor(() => expect(within(feed).getByText('Riri Barista')).toBeInTheDocument())
+    expect(within(feed).getByText('Bar Kemang')).toBeInTheDocument()
+    // The placeholder is retired, not merely hidden behind data.
+    expect(screen.queryByText(/isn.t available/i)).toBeNull()
+  })
+
+  it('DIV-G5: a failed Signals read shows the error + a working Retry — never "No Signals yet"', async () => {
+    mockListSignals.mockRejectedValue(new Error('offline'))
+    await renderHome(memberViewer)
+    const feed = await screen.findByRole('region', { name: 'Signals' })
+    expect(within(feed).getByText(/couldn't load signals/i)).toBeInTheDocument()
+    expect(within(feed).queryByText(/no signals yet/i)).toBeNull()
+
+    mockListSignals.mockResolvedValue([signalRow()])
+    const callsBefore = mockListSignals.mock.calls.length
+    await act(async () => {
+      within(feed).getByRole('button', { name: /retry/i }).click()
+      await Promise.resolve(); await Promise.resolve()
+    })
+    expect(mockListSignals.mock.calls.length).toBe(callsBefore + 1)
+    await waitFor(() =>
+      expect(screen.getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument())
+  })
+
+  it('states no Signals count anywhere — a number beside an unfinished read would be a guess (DIV-G5)', async () => {
+    // The header tally is built from the four REGION counts only; Signals is a column, not a
+    // region, so wiring it must not have invented a fifth number for it to sum.
+    let resolveSignals!: (rows: SignalRow[]) => void
+    mockListSignals.mockReturnValue(new Promise((resolve) => { resolveSignals = resolve }))
+    mockListTasks.mockResolvedValue([])
+    await renderHome(memberViewer)
+    await screen.findByRole('tablist')
+
+    // Tasks/mentions/failed-checks all resolved, so the header states its tally while Signals is
+    // still in flight — proof the feed contributes no count that could be wrong.
+    expect(await screen.findByText('0 handled · 0 left')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /signals/i })).toBeNull()
+
+    await act(async () => {
+      resolveSignals([])
+      await Promise.resolve(); await Promise.resolve()
+    })
+    const feed = await screen.findByRole('region', { name: 'Signals' })
+    expect(within(feed).getByText(/no signals yet/i)).toBeInTheDocument()
   })
 })
 

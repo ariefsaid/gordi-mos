@@ -8,7 +8,6 @@ import { SHOW_FOLLOWUPS } from '@/config/features'
 import { can } from '@/lib/capabilities'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
 import { TaskSurface } from '@/components/tasks/task-surface'
-import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { NotificationRow } from '@/lib/db/notifications'
 import type {
   NotificationTargetRef,
@@ -47,37 +46,20 @@ const CANONICAL_ROUTE: Partial<Record<NotificationTargetType, (id: string) => To
 }
 
 /**
- * DEV-TASKSURFACE GAP (cite in review, ticket on map #150 before merge — OD-WAY-41): v4's
- * `TaskSurface` grew a `showPanelUtility` prop specifically so a host-embedded record renders
- * chrome-free (the host owns ✕ / Open-full-page / Back). That prop lands with Tasks' own port
- * (#192) — `dev`'s current `TaskSurface` has no such switch; at `width="drawer"` it ALWAYS renders
- * its own `TaskDrawerHeader`, own close button included. Suppressing that header entirely is
- * Tasks-surface work, out of #195's scope. The honest interim: wire that header's own close button
- * to the SAME overlay-host close the panel chrome uses, so both controls agree (never a dead
- * button, never two different closes) — a harmless doubled affordance, not a broken one. Delete
- * this wrapper once #192 lands.
- */
-function InboxTaskRecordContent({ taskId }: { taskId: string }) {
-  const host = useOptionalOverlayHost()
-  return (
-    <TaskSurface
-      taskId={taskId}
-      mode="view"
-      width="drawer"
-      onClose={() => { void host?.close('explicit-close') }}
-    />
-  )
-}
-
-/**
  * The shared, actionable record host mounted as the overlay entry's content, keyed by target type.
  * Both bodies self-fetch by id, so the Inbox reuses the exact record renderer the collections use —
- * never a bespoke summary (D-A4). See `InboxTaskRecordContent` above for the one interim exception
- * to "chrome-free" this port must accept until Tasks (#192) lands its own suppression switch.
+ * never a bespoke summary (D-A4).
+ *
+ * Both bodies are chrome-free: `RecordPanelHost` owns ✕ / Open-full-page / Back for every record
+ * kind, at every width, so exactly one control on each axis exists. `showPanelUtility={false}` is
+ * what buys that for a Task (#243) — the same switch `task-drawer.tsx` and `tasks-layout.tsx`
+ * already pass. Tasks' own port (#192) landed the prop; before it, this door wrapped `TaskSurface`
+ * to at least point its second, unsuppressable close at the same host close. That wrapper is gone
+ * with the doubled button: dismissal has one owner, and it is the panel chrome.
  */
 const RECORD_CONTENT: Partial<Record<NotificationTargetType, (id: string) => ReactNode>> = {
   signal: (id) => <SignalRecordHost signalId={id} mode="panel" />,
-  task: (id) => <InboxTaskRecordContent taskId={id} />,
+  task: (id) => <TaskSurface taskId={id} mode="view" width="drawer" showPanelUtility={false} />,
 }
 
 const TYPE_LABEL_KEY: Record<NotificationTargetType, MessageKey> = {

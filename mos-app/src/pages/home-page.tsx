@@ -11,26 +11,32 @@
 // Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
 // the needs-you region via the attention bands.
 //
-// #191 port note — the Signals feed column is NOT wired here. v4's HomePage renders it through
-// `SignalFeedSection`, which is built on the record-collection engine + the full Signals record
-// surface (composer, category picker, mention picker, record host) — none of which exist on `dev`
-// yet; that whole stack is Signals' own port, #193, not Home's. Pulling it into this PR would mean
-// porting #193 inside #191, which breaks the one-surface-per-PR staging this effort runs on
-// (`DD-WAY-7`). Home ships with an honest "not available yet" placeholder in the Signals column
-// instead of a silently-broken feed or a deleted region — tracked as a design/scope ticket on map
-// #150 (`OD-WAY-41`) before this PR merges; wiring the real feed is a follow-up once #193 lands.
-import { useState, useEffect, useMemo, useCallback, useRef, useId } from 'react'
+// The Signals column is the real feed (#245). It shipped as a "not available yet" placeholder
+// during the port, when Signals had no surface on this line; #193 landed the DAL, the record
+// surface and `/work/signals`, so the placeholder is gone and `SignalFeedSection` renders live
+// rows. HomePage owns the ONE Signals read, as it owns every other read on this page — the
+// section is presentational (FR-V3-013: no second Signal loader).
+//
+// Home passes EVERY readable Signal, not only the FYI tail v4 passed. v4 split them because its
+// attention-worthy Signals led the ranked stream as their own band; this line's region model has
+// four regions and none of them is Signals, so filtering to FYI here would drop Urgent and
+// Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
+// floats those tiers to the top, so the ranking survives the difference. Should a Signals
+// attention band ever join `buildHomeRegions`, this becomes the FYI tail again.
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { viewerSeesCafe } from '@/shell/destinations'
+import { viewerAdmittedToRoute } from '@/shell/destinations'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listNotifications } from '@/lib/db/notifications'
 import type { NotificationRow } from '@/lib/db/notifications'
-import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
+import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
+import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
@@ -46,6 +52,7 @@ import {
 import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
+import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HelpTip } from '@/components/ui/help-tip'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
@@ -54,22 +61,7 @@ type FetchState = 'loading' | 'ready' | 'error'
 
 const MY_WORK_CAP = 7
 
-// The Signals column placeholder (#191 port note above). Same landmark shape the real
-// `SignalFeedSection` uses — a chromeless `<section>` named "Signals" — so the layout arrangements
-// (which treat `feed` as an opaque slot) and the surrounding chrome guards need no special case for
-// "the feed isn't wired yet". States the gap rather than hiding it (never a silent empty region).
-function HomeSignalsPending() {
-  const t = useT()
-  const titleId = useId()
-  return (
-    <section className="signal-feed-section" aria-labelledby={titleId}>
-      <div className="signal-feed-head">
-        <h2 id={titleId} className="signal-feed-label">{t('signals.feed.title')}</h2>
-      </div>
-      <p className="home-signals-pending">{t('home.signals.pending')}</p>
-    </section>
-  )
-}
+const NO_NAMES: ReadonlyMap<string, string> = new Map()
 
 export function HomePage() {
   const t = useT()
@@ -83,10 +75,14 @@ export function HomePage() {
     return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
-  // SEC-1 route hygiene (FLAG-B / G2): the failed-checks band routes to /cafe/log, so surface it only
-  // to cafe-affiliated / ops_lead / admin viewers — the same honest role ceiling as the Café rail entry.
+  // The failed-checks band routes to /cafe/log, so Home shows it exactly where that ROUTE admits the
+  // viewer — the same authority the rail uses (`OD-WAY-51`: navigation mirrors what the route
+  // admits). Home is the one instance the nav guard structurally cannot cover, because it is not
+  // nav. This replaces `viewerSeesCafe`, which decided by regex over job-role NAME strings — the
+  // mechanism OD-WAY-51 removed after measuring that 5 of 10 real job roles matched no module at
+  // all, leaving viewers the route fully admitted with no signal.
   const seesCafe = useMemo(
-    () => viewerSeesCafe((viewer?.roles ?? []).map(r => r.name), viewer?.accessRoles ?? []),
+    () => viewerAdmittedToRoute(CAFE_LOG_ROUTE, viewer?.accessRoles ?? []),
     [viewer])
 
   // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
@@ -173,13 +169,16 @@ export function HomePage() {
 
   const loadFailedChecks = useCallback(() => {
     if (!personId || failedChecksInFlightRef.current) return
-    // Non-cafe viewers (finance/HR/…) get no failed-checks band at all — an empty ready state, never a
-    // /cafe/log deep-link they cannot act on (SEC-1 route hygiene). RLS still owns row visibility.
-    if (!seesCafe) { setFailedChecks([]); setFailedChecksState('ready'); return }
+    // A viewer the /cafe/log route does NOT admit gets no band at all — an empty ready state, never
+    // a deep-link that would bounce them. RLS still owns row visibility.
+    // Two independent questions, deliberately answered separately: `seesCafe` (route admission,
+    // OD-WAY-51) decides whether the band appears at all; `personId` scopes what is IN it. Reading
+    // the ruling as answering both would put other people's rejects in this viewer's count.
+    if (!seesCafe || !personId) { setFailedChecks([]); setFailedChecksState('ready'); return }
     failedChecksInFlightRef.current = true
     const token = ++failedChecksTokenRef.current
     setFailedChecksState('loading')
-    loadFailedChecksForViewer()
+    loadFailedChecksForViewer(personId)
       .then(items => {
         if (!isMountedRef.current || failedChecksTokenRef.current !== token) return
         setFailedChecks(items)
@@ -199,6 +198,45 @@ export function HomePage() {
     failedChecksInFlightRef.current = false
     loadFailedChecks()
   }, [loadFailedChecks])
+
+  // ── Signals (the ambient feed column, #245) ─────────────────────────────────
+  // The ONE Signals read on this page; `SignalFeedSection` is presentational and receives the rows,
+  // the resolved names and a reload. Same in-flight/token/retry shape as every other loader here,
+  // so a stale response from a superseded viewer can never win. Team names ride along in the SAME
+  // load: they decorate the rows the load returns, so splitting them into a second effect would let
+  // rows paint with a name the page could still fail to fetch.
+  const [signals, setSignals] = useState<SignalRow[]>([])
+  const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
+  const [signalsState, setSignalsState] = useState<FetchState>('loading')
+  const signalsInFlightRef = useRef(false)
+  const signalsTokenRef = useRef(0)
+
+  const loadSignals = useCallback(() => {
+    if (!personId || signalsInFlightRef.current) return
+    signalsInFlightRef.current = true
+    const token = ++signalsTokenRef.current
+    setSignalsState('loading')
+    Promise.all([listReadableSignals(), listAllTeams()])
+      .then(([rows, teams]) => {
+        if (!isMountedRef.current || signalsTokenRef.current !== token) return
+        setSignals(rows)
+        setTeamNames(new Map(teams.map(team => [team.id, team.name])))
+        setSignalsState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || signalsTokenRef.current !== token) return
+        setSignalsState('error')
+      })
+      .finally(() => {
+        if (signalsTokenRef.current === token) signalsInFlightRef.current = false
+      })
+  }, [personId])
+
+  useEffect(() => {
+    signalsTokenRef.current += 1
+    signalsInFlightRef.current = false
+    loadSignals()
+  }, [loadSignals])
 
   // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the app already
   // uses. Best-effort ENRICHMENT only: decorates task rows with the PIC (Responsible) + owning-BU
@@ -348,7 +386,21 @@ export function HomePage() {
           Overview or List. All three render the SAME regions + the SAME feed slot; only the
           arrangement differs (NFR-924). */}
       <div className="home-frame">{(() => {
-        const feed = <HomeSignalsPending />
+        // The feed states no count of its own — nothing beside it can read as a confident 0 while
+        // the read is still out (the same rule the region counts follow, DIV-G5). `error` routes to
+        // the section's ErrorState + Retry, so a failed load never reads as "No Signals yet".
+        // Author names come from the shared best-effort directory: a missing name leaves a row
+        // undecorated, it never blocks or errors the feed.
+        const feed = (
+          <SignalFeedSection
+            signals={signals}
+            authorNamesById={directory.people ?? NO_NAMES}
+            teamNamesById={teamNames}
+            loading={signalsState === 'loading'}
+            error={signalsState === 'error'}
+            onReload={loadSignals}
+          />
+        )
         if (layout === 'overview') return <HomeOverview regions={regions} feed={feed} />
         if (layout === 'list') return <HomeList regions={regions} feed={feed} />
         return <HomeFocused regions={regions} feed={feed} />

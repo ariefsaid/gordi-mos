@@ -1,7 +1,7 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
-import { CAFE_SECTIONS, CAFE_MODULE_SECTIONS, type Section } from './sections'
+import { CAFE_SECTIONS, CAFE_MODULE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, EventsIcon, SignalsIcon, MoneyIcon,
@@ -225,27 +225,34 @@ export function primaryModuleForViewer(roleNames: string[], accessRoles: string[
 }
 
 /**
- * #191 (Home port) — whether Home's failed-checks band (the viewer's rejected café production
- * logs, routing to `/cafe/log`) is worth showing/querying for this viewer at all. `/cafe/log`
- * carries no access-role gate and `kitchen_logs`' RLS is org-wide with no role check, so this is
- * never an authorization boundary — RLS already is one (NFR-004) — only a curation choice: keep
- * café rejects out of a Finance/HR viewer's personal stream.
+ * Whether the viewer is admitted to `path` — the ONE route-admission question, answered by the
+ * SAME authority the rail uses and nothing else: the owning destination's `anyOf` gate (`isLive`)
+ * plus the section's own `anyOf`/`capability` gate (`visibleSections`), which are kept identical to
+ * the router's `RequireAccessRole` / `RequireCapability` branches.
  *
- * Reuses the Café module's OWN `workMatch` rather than a second copy of the regex, so there is one
- * source of truth for "does this job-role name read as café-affiliated" — plus `ops_lead`/`admin`,
- * who hold the Café review/pushes capability regardless of their job-role name.
+ * This exists for the one decision the rail structurally cannot make, because it is not navigation:
+ * Home's failed-checks band, which links to `/cafe/log`. `OD-WAY-51` (owner, 2026-08-05) ruled that
+ * **navigation mirrors what the route admits** and removed job-role-NAME regex matching as a
+ * visibility model — measured against the real roster, `workMatch` left 5 of 10 job roles matching
+ * no module at all, so viewers the route fully admitted were shown nothing. `viewerSeesCafe`
+ * (#191) had reintroduced that same regex in this new spot; it is gone, and Home now asks the
+ * question the rail asks. `workMatch` survives only as EMPHASIS (`primaryModuleForViewer`).
  *
- * Known imprecision, not re-solved here: job-role-NAME matching is exactly the mechanism
- * `OD-WAY-51` ruled out for the rail itself, because a real share of roles in use match no module
- * regex (`allModules`'s docstring above). It is left in place here because there is no narrower
- * *authorization* to gate on instead (the route and RLS are both org-wide) — deciding what SHOULD
- * scope "café-affiliated" for a curation heuristic is a product call, filed as a design ticket on
- * map #150 rather than guessed at in a routing helper.
+ * A path with no owning destination is NOT admitted — an unknown route is a fail-closed answer,
+ * not a permissive one.
+ *
+ * The ruling's consequence is accepted here as it is on the rail: `/cafe/log` carries no
+ * access-role gate and `ops.kitchen_logs` is org-readable by policy, so every authenticated viewer
+ * is admitted and every viewer's Home carries the band — empty when there is nothing rejected. If
+ * that audience should be narrower, the fix is to narrow the ROUTE, never to hide the surface while
+ * leaving the route open.
  */
-export function viewerSeesCafe(roleNames: string[], accessRoles: string[]): boolean {
-  if (accessRoles.includes('ops_lead') || accessRoles.includes('admin')) return true
-  const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')
-  return cafe?.workMatch != null && cafe.workMatch.test(roleNames.join(' '))
+export function viewerAdmittedToRoute(path: string, accessRoles: string[]): boolean {
+  const destination = destinationForPath(path)
+  if (!destination || !isLive(destination, accessRoles)) return false
+  const section = sectionForPath(path)
+  // No section entry means the destination's own gate is the whole answer (e.g. `/`).
+  return section == null || visibleSections([section], accessRoles).length === 1
 }
 
 export const UTILITY: Destination[] = [
