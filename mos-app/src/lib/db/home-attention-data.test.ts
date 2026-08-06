@@ -57,6 +57,8 @@ function freshRec(): Recorder {
 
 beforeEach(() => vi.clearAllMocks())
 
+const VIEWER = '40000000-0000-0000-0000-000000000001'
+
 describe('AC-507: loadFailedChecksForViewer — rejected kitchen_logs, RLS-readable set', () => {
   it("(a)(b)(c): filters status='Rejected', never sends org_id, maps to AttentionItems routed to /cafe/log", async () => {
     const rec = freshRec()
@@ -73,7 +75,7 @@ describe('AC-507: loadFailedChecksForViewer — rejected kitchen_logs, RLS-reada
       ) as never,
     )
 
-    const result = await loadFailedChecksForViewer()
+    const result = await loadFailedChecksForViewer(VIEWER)
 
     expect(rec.eqs).toContainEqual(['status', 'Rejected'])
     expect(rec.eqs.some(([col]) => col === 'org_id')).toBe(false)
@@ -90,15 +92,35 @@ describe('AC-507: loadFailedChecksForViewer — rejected kitchen_logs, RLS-reada
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ data: null, error: null }, rec) as never)
 
-    const result = await loadFailedChecksForViewer()
+    const result = await loadFailedChecksForViewer(VIEWER)
 
     expect(result).toEqual([])
+  })
+
+  // The band is gated by route admission (OD-WAY-51) but its CONTENT is a personal stream, and the
+  // RLS policy behind kitchen_logs is org-wide. Without this filter a Finance viewer's "N left"
+  // counts every barista's rejected log. The ruling governs doors, not whose rows a stream shows.
+  it('scopes to the viewer — an org-wide read would put other people\'s rejects in a personal count', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ data: [], error: null }, rec) as never)
+
+    await loadFailedChecksForViewer(VIEWER)
+
+    expect(rec.eqs).toContainEqual(['submitted_by', VIEWER])
+  })
+
+  it('returns [] without querying at all when the viewer is unknown', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ data: [], error: null }, rec) as never)
+
+    expect(await loadFailedChecksForViewer('')).toEqual([])
+    expect(rec.eqs).toEqual([])
   })
 
   it('(e): throws on a real error', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ data: null, error: { message: 'x' } }, rec) as never)
 
-    await expect(loadFailedChecksForViewer()).rejects.toThrow('loadFailedChecksForViewer failed')
+    await expect(loadFailedChecksForViewer(VIEWER)).rejects.toThrow('loadFailedChecksForViewer failed')
   })
 })
