@@ -40,7 +40,7 @@ jobs:
     steps:
       # The gate comes from the BASE branch, never the PR head: a branch must not be able to rewrite
       # the control that judges it. Nothing from the head is checked out or executed.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # On issue_comment there is no pull_request object, so the base ref is fetched from the
           # PR itself rather than falling back to the default branch — otherwise a dev-targeted PR
