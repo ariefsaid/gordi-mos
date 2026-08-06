@@ -165,9 +165,11 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
     expect(screen.getByRole('option', { name: /Create Task/i })).toBeInTheDocument()
     // Stable order: Ask Deputy, Share Signal, Create Task
     const labels = screen.getAllByRole('option').map((o) => o.textContent ?? '')
-    // Case-INSENSITIVE, like the queries above: the en label is "Create task", so a
-    // case-sensitive /Create Task/ silently returns -1 and the ordering assertion passes
-    // vacuously against a missing row. (Carried over broken from v4; fixed here.)
+    // Case-INSENSITIVE, like the queries above: the en label is "Create task", so v4's
+    // case-sensitive /Create Task/ returned -1 and its ordering assertion FAILED loudly —
+    // `expected 1 to be less than -1`. (Verified against the ported component during review;
+    // an earlier version of this comment claimed it passed vacuously, which is wrong.)
+    // The two floor assertions below are the real guard: they stop this ever going vacuous.
     const ask = labels.findIndex((l) => /Ask Deputy/i.test(l))
     const share = labels.findIndex((l) => /Share Signal/i.test(l))
     const task = labels.findIndex((l) => /Create task/i.test(l))
