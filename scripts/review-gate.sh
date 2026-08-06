@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
-# review-gate — enforce that a change was reviewed by someone other than its author.
+# review-gate — require a review RECORD, public and against the current commit.
+#
+# ⚠️ WHAT THIS CANNOT DO, stated first because the name suggests otherwise.
+# It cannot establish that the reviewer was independent. In this repo the author spawns every
+# reviewer — they are all agents — so the author can ask one to emit a favourable record. A
+# cross-family review (gpt-5.6-luna, 2026-08-06) put it plainly: the control "manufactures more
+# rigor than it proves", and recommended deleting it unless it is reframed as exactly what it is.
+# This is that reframing. The independence of a review is established by a HUMAN reading the
+# verdict, not by this script.
+#
+# What it DOES establish, which the previous state of affairs did not:
+#   - a review exists, in public, on the PR — not in a gitignored file on one laptop
+#   - it names the commit it covered, so a stale approval cannot gate new code
+#   - it carries an explicit verdict, so DO NOT MERGE can actually block
+#   - the recorded identity is not the author's login or display name, and is a plausible identity
+#     rather than punctuation, whitespace or a look-alike — a typo and slip check, NOT a security
+#     boundary
 #
 # WHY THIS EXISTS, AND WHY THE PREVIOUS ATTEMPT DID NOT WORK
 #
@@ -92,9 +108,25 @@ records=$(printf '%s' "$payload" | jq -r '.bodies[]? // empty | . + "\n===REVIEW
     else print "===MALFORMED===\t-\t-"   # incomplete block — refuse, never ignore
     inrec = 0; rev = ""; ver = ""; com = ""
   }
-  /^===REVIEW-GATE-BODY-END===$/      { flush(); fence = 0; next }
-  /^[[:space:]]*(```|~~~)/            { fence = !fence; next }
+  /^===REVIEW-GATE-BODY-END===$/      { flush(); fence = 0; fencelen = 0; html = 0; next }
+  # Fences are matched by RUN LENGTH, per CommonMark: a fence closes only on a marker at least as
+  # long as the one that opened it. A boolean toggle let a ```` outer fence containing a ``` example
+  # expose that example as a live record — demonstrated in review.
+  /^[[:space:]]*(```+|~~~+)/ {
+    line = $0; sub(/^[[:space:]]*/, "", line)
+    ch = substr(line, 1, 1); n = 0
+    while (substr(line, n + 1, 1) == ch) n++
+    if (!fence)              { fence = 1; fencechar = ch; fencelen = n }
+    else if (ch == fencechar && n >= fencelen) { fence = 0; fencelen = 0 }
+    next
+  }
   fence                               { next }
+  # A record buried in a multi-line HTML comment is hidden from every human reading the PR, so it is
+  # not visible review evidence. The marker is itself a complete one-line comment, so only OTHER
+  # `<!--` openers start a hidden region.
+  /^[[:space:]]*<!--/ && !/^[[:space:]]*<!-- *review-gate *-->[[:space:]]*$/ && !/-->/ { html = 1; next }
+  html && /-->/                       { html = 0; next }
+  html                                { next }
   # The marker must stand ALONE on its line. Found live on the PR for this gate: the body explained
   # the format with an inline mention, which opened a record that could never complete, so the gate
   # refused its own documentation. Writing about the gate must not trip it.
@@ -118,6 +150,17 @@ commit=$(printf   '%s' "$last" | cut -f3 | tr -d '\r' | sed 's/[[:space:]]*$//')
 
 [[ "$reviewer" != "===MALFORMED===" ]] || fail "the newest review record is incomplete — it needs Reviewer, Verdict and Commit on consecutive lines. Refusing rather than falling back to an older record"
 [[ -n "$reviewer" ]] || fail "the newest review record names no reviewer"
+
+# ── Refuse: an identity that is not an identity ────────────────────────────────────────────────
+# Review demonstrated three ways to satisfy a bare non-empty check without naming anybody:
+# `Reviewer: !!!`, a single zero-width space, and `аsaid` whose first letter is Cyrillic U+0430 —
+# which a human reads as the author while a bytewise comparison does not. So the reviewer must be
+# plain ASCII (no look-alikes to normalise) and carry at least two alphanumerics.
+if LC_ALL=C printf '%s' "$reviewer" | LC_ALL=C grep -q '[^ -~]'; then
+  fail "the reviewer name contains non-ASCII characters — refused because a look-alike letter reads as one identity to a person and another to a comparison. Use a plain ASCII login or model name"
+fi
+ascii_count=$(printf '%s' "$reviewer" | tr -cd '[:alnum:]' | wc -c | tr -d ' ')
+[[ "$ascii_count" -ge 2 ]] || fail "the reviewer name '$reviewer' is not an identity — it needs at least two alphanumeric characters"
 
 # ── Refuse: self-review. The whole point. ──────────────────────────────────────────────────────
 # Matched case-insensitively and as a substring, so "asaid via pi" cannot pass as a third party.

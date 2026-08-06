@@ -88,6 +88,19 @@ check "prose mention + real record"  pass   "PASS"                   "$(payload 
 # A near-miss that must still PASS — the check is a substring match, so guard against over-refusal.
 check "reviewer merely resembles"    pass "PASS"                         "$(payload '' "$(rec 'not-a-said' MERGE 1506ce9)")"
 
+# ── Bypasses demonstrated by the cross-family review (gpt-5.6-luna), each closed ───────────────
+# 7. A ```` outer fence containing a ``` example: a boolean toggle re-opened, exposing the example.
+check "nested fence, 4 then 3"       refuse "no review record found" "$(payload "$(printf '````\n```\n%s```\n````\n' "$(rec luna MERGE 1506ce9)")")"
+# 8. A record buried in a multi-line HTML comment is invisible to every human reading the PR.
+check "record inside an HTML block"  refuse "no review record found" "$(payload "$(printf '<!--\n%s-->\n' "$(rec luna MERGE 1506ce9)")")"
+check "record inside details block"  refuse "no review record found" "$(payload "$(printf '<details><summary>x</summary>\n<!--\n%s-->\n</details>\n' "$(rec luna MERGE 1506ce9)")")"
+# 9-11. An identity that is not an identity: punctuation, a zero-width space, and a Cyrillic
+#       look-alike that a person reads as the author while a bytewise compare does not.
+check "punctuation-only reviewer"    refuse "not an identity"        "$(payload '' "$(rec '!!!' MERGE 1506ce9)")"
+check "zero-width reviewer"          refuse "non-ASCII"              "$(payload '' "$(rec '​' MERGE 1506ce9)")"
+check "cyrillic look-alike author"   refuse "non-ASCII"              "$(payload '' "$(rec 'аsaid' MERGE 1506ce9)")"
+check "single-letter reviewer"       refuse "not an identity"        "$(payload '' "$(rec 'x' MERGE 1506ce9)")"
+
 echo "review-gate passes:"
 check "clean approval in a comment" pass "PASS"                          "$(payload '' "$(rec luna MERGE 1506ce9)")"
 check "approval in the PR body"     pass "PASS"                          "$(payload "$(rec luna MERGE 1506ce9)")"
