@@ -1,161 +1,279 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
+import { searchSignalsByBody } from '@/lib/db/signals'
+import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
+import { SHOW_FOLLOWUPS } from '@/config/features'
+import { useAuth } from '@/auth/use-auth'
+import { can, canViewRevenue } from '@/lib/capabilities'
+import {
+  HomeIcon, WorkIcon, SignalsIcon, TasksIcon, WorkLineIcon, ObjectiveIcon,
+  EventsIcon, MoneyIcon, InboxIcon, CafeIcon,
+} from '@/shell/icons'
+import { DeputyIcon } from '@/shell/top-bar'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
+import { useT } from '@/i18n/use-t'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
+import type { CommandMenuMode } from './use-command-menu'
 import './command-menu.css'
 
 export type CommandMenuProps = {
   open: boolean
   onClose: () => void
+  /** Opens the Signal composer (`useSignalComposer().open()`, passed down by app-shell so the
+   * palette stays a pure presentational consumer — AC-428/FR-417: never a route navigation). */
+  onShareSignal: () => void
+  /**
+   * Opener mode (OD-REDESIGN-91 #15 / GAP-10, per OD-46). 'search' (default) — the full palette
+   * (Recent · Actions · Navigate). 'launcher' — the phone `+` reduced create-set: the default
+   * (empty-query) view is the universal Actions only, NOT the full palette. Typing escalates to
+   * the shared record search in BOTH modes (OD-46 "More opens the full authorized object palette").
+   */
+  mode?: CommandMenuMode
 }
 
-// A flat, activatable item. Records carry the task ref so activation can record Recent.
+// A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
+// 'navigate' (goes to `to`), 'record' (a Task row → pushRecent + navigate canonical).
+// `run` extends the existing activate() so universal actions (Ask Deputy / Share
+// Signal) that are not pure navigations can dispatch (D-PLN-7). `gated` hides an
+// item (Money navigate) when the viewer is unauthorized.
 type CommandItem = {
   id: string
   label: string
-  glyph: string
-  action: boolean
-  to: string
+  /** SVG icon from the app icon system (parity A1 — the palette is one monochrome set, never emoji) */
+  Icon: React.ComponentType
+  kind: 'action' | 'navigate' | 'record'
+  to?: string
+  run?: () => void
   meta?: string
+  gated?: boolean
   record?: { id: string; title: string }
 }
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
 
+// OD-REDESIGN-91 #4/B2: the palette searches ALL record kinds now — Tasks + Signals +
+// AR Follow-ups — so a hit carries its kind (drives the row icon, route, and kind label).
+type RecordKind = 'task' | 'signal' | 'follow-up'
+type RecordHit = { id: string; title: string; kind: RecordKind }
+
 type RecordsState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'ready'; rows: { id: string; title: string }[] }
+  | { status: 'ready'; rows: RecordHit[] }
   | { status: 'error' }
 
-const QUICK_ACTIONS: CommandItem[] = [
-  { id: 'qa-new-task', label: 'New task', glyph: '＋', action: true, to: '/tasks/new', meta: '⌘N' },
-  { id: 'qa-weekly', label: 'Write weekly update', glyph: '✎', action: true, to: '/updates' },
-  { id: 'qa-log', label: 'Add Daily Log entry', glyph: '▤', action: true, to: '/ops/new' },
-]
-
-const NAVIGATE: CommandItem[] = [
-  { id: 'nav-my-week', label: 'My Week', glyph: '◫', action: false, to: '/' },
-  { id: 'nav-tasks', label: 'Tasks', glyph: '☰', action: false, to: '/tasks' },
-  { id: 'nav-updates', label: 'Weekly updates', glyph: '✎', action: false, to: '/updates' },
-  { id: 'nav-log', label: 'Daily Log', glyph: '▤', action: false, to: '/ops' },
-]
-
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
+// Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
+// Ask Deputy opens the AssistantPanel; Share Signal calls onShareSignal (opens the shared Signal
+// composer host — never a route navigation, AC-428/FR-417); Create Task navigates /work/tasks/new.
 function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
 }
 
-// ⌘K command palette (ADR-0013 D4). One overlay, every routine MOS job a keystroke away:
-// jump to a record, run a quick action, or navigate. Default = Recent + Quick actions +
-// Navigate; typing filters Navigate/Actions and async-loads matching Records.
-// a11y: role=dialog + aria-modal + focus trap + Esc (returns focus to the trigger).
-// The input is a combobox; the body is a listbox; the active option is tracked via
-// aria-activedescendant while focus STAYS in the input (↑↓/Home/End move, ↵ activates).
-export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Element | null {
+// Signals have no title — their body is the identity. Collapse to the first non-empty line so a
+// multi-line body renders as one clean, CSS-truncated palette row (OD-REDESIGN-91 #4/B2).
+function firstLine(body: string): string {
+  const line = body.split('\n').map((s) => s.trim()).find((s) => s.length > 0)
+  return line ?? body.trim()
+}
+
+// Per-kind row config for the widened Records group (OD-REDESIGN-91 #4/B2): the icon, the
+// canonical record route (mirrors record-deep-link-resolver's pageTo paths), and the muted kind
+// label. AR Follow-ups borrow the Money glyph — they are the finance/AR settlement record.
+const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; basePath: string; kindLabelKey: 'commandMenu.kind.task' | 'commandMenu.kind.signal' | 'commandMenu.kind.followUp' }> = {
+  task: { Icon: TasksIcon, basePath: '/work/tasks', kindLabelKey: 'commandMenu.kind.task' },
+  signal: { Icon: SignalsIcon, basePath: '/work/signals', kindLabelKey: 'commandMenu.kind.signal' },
+  'follow-up': { Icon: MoneyIcon, basePath: '/work/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
+}
+
+// ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
+// presentation); contents = universal actions + Navigate + Recent + async record
+// search. a11y: role=dialog + aria-modal + focus trap + Esc (returns focus) — all
+// owned by ModalShell, the single interaction owner for centered dialogs.
+export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
+  const auth = useAuth()
+  const t = useT()
+  const { openPanel } = useAgentRuntime()
+  // OD-REDESIGN-91 #41 (G5): the ⌘K keyboard hints (footer + the esc chip) are meaningless on a
+  // touch device — hide them on a coarse pointer so a phone launcher shows no un-pressable keys.
+  const isCoarse = useIsCoarsePointer()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [records, setRecords] = useState<RecordsState>({ status: 'idle' })
 
-  const panelRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const invokerRef = useRef<HTMLElement | null>(null)
+  const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  // DELIBERATE DIVERGENCE FROM v4: v4 gated this entry on finance|admin. On this line the /money
+  // route and the rail entry are both gated on REVENUE_VIEW_ROLES (ADR-0051 D4 — manager holds the
+  // financial VIEW tier, supervisor the revenue-only one), so v4's narrower gate would hide from
+  // the palette a destination the rail offers and the router admits. One gate, read through the
+  // same helper destinations.tsx and the router read.
+  const moneyAuthorized = canViewRevenue(accessRoles)
+  // Step 8 (catalog re-home, FR-802/803): the Work manage-mode screens are capability-gated
+  // (90%-employee-first) and were only reachable from the desktop rail. Mirrors the existing
+  // Signals entry below — a Work child reachable via ⌘K, not the phone More menu.
+  const projectsAuthorized = can(accessRoles, 'workline.manage')
 
   const trimmed = query.trim()
   const isSearching = trimmed.length > 0
 
+  // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
+  const universalActions = useMemo<CommandItem[]>(
+    () => [
+      { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
+      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
+      { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks/new' },
+    ],
+    [openPanel, onShareSignal, t],
+  )
+
+  const navigateItems = useMemo<CommandItem[]>(() => {
+    const items: CommandItem[] = [
+      { id: 'n-home', label: t('dest.home'), Icon: HomeIcon, kind: 'navigate', to: '/' },
+      { id: 'n-work', label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: '/work/tasks' },
+      { id: 'n-signals', label: t('nav.signals'), Icon: SignalsIcon, kind: 'navigate', to: '/work/signals' },
+    ]
+    if (projectsAuthorized) {
+      items.push({ id: 'n-projects', label: t('nav.work.projects'), Icon: WorkLineIcon, kind: 'navigate', to: '/work/projects' })
+    }
+    // OD-V4-1 (owner-ratified 2026-07-27): Objectives are visible to everyone — this NAVIGATE
+    // command carries no capability gate, mirroring the destinations.tsx rail and the router
+    // (mos.objectives SELECT RLS has no role check). Write stays gated inside the page.
+    items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
+    items.push(
+      { id: 'n-events', label: t('dest.events'), Icon: EventsIcon, kind: 'navigate', to: '/events' },
+      { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
+      { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
+      { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },
+    )
+    return items
+  }, [t, projectsAuthorized])
+
+  const visibleNavigate = useMemo(
+    () => navigateItems.filter((i) => !i.gated || moneyAuthorized),
+    [navigateItems, moneyAuthorized],
+  )
+
+  // CMDK-1: the palette is kept mounted across close→reopen (its host toggles `open`, it does
+  // not unmount), so query/active/records would otherwise persist — a reopen landed mid-search
+  // on a stale query with the default Recent/Actions/Navigate view unreachable. Reset the session
+  // state whenever it closes, so the next open always starts from the default view.
+  useEffect(() => {
+    if (open) return
+    setQuery('')
+    setActive(0)
+    setRecords({ status: 'idle' })
+  }, [open])
+
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
+  // OD-REDESIGN-91 #4/B2: one debounced fan-out across every readable record kind — Tasks +
+  // Signals always; AR Follow-ups only when SHOW_FOLLOWUPS is lit (the settlement bridge ships
+  // dark). RLS is the read authority for each. Any one search failing fails the group (the
+  // existing "Couldn't search records" affordance); Navigate/Actions still filter client-side.
   useEffect(() => {
     if (!open) return
     if (!isSearching) { setRecords({ status: 'idle' }); return }
     setRecords({ status: 'loading' })
     let cancelled = false
-    const t = setTimeout(() => {
-      searchTasksByTitle(trimmed)
-        .then((rows) => { if (!cancelled) setRecords({ status: 'ready', rows }) })
+    const timer = setTimeout(() => {
+      Promise.all([
+        searchTasksByTitle(trimmed).then((rows) =>
+          rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
+        ),
+        searchSignalsByBody(trimmed).then((rows) =>
+          rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
+        ),
+        SHOW_FOLLOWUPS
+          ? searchFollowUpsByCounterparty(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.counterparty, kind: 'follow-up' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
+      ])
+        .then(([tasks, signals, followUps]) => {
+          if (!cancelled) setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps] })
+        })
         .catch(() => { if (!cancelled) setRecords({ status: 'error' }) })
     }, 150)
-    return () => { cancelled = true; clearTimeout(t) }
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [open, trimmed, isSearching])
 
   // ── Group model ──────────────────────────────────────────────────────────────
   const groups = useMemo<ItemGroup[]>(() => {
     const out: ItemGroup[] = []
     if (!isSearching) {
+      // OD-REDESIGN-91 #15 / GAP-10 (per OD-46): the phone `+` launcher opens the REDUCED
+      // create-set — the universal Actions only, NOT the full palette. No Recent, no Navigate.
+      // (Typing still escalates to the shared search below — OD-46's "More opens the full palette".)
+      if (mode === 'launcher') {
+        out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: universalActions })
+        return out
+      }
       const recent = readRecentTasks().map<CommandItem>((r) => ({
-        id: `recent-${r.id}`, label: r.title, glyph: '⊞', action: false,
-        to: `/tasks/${r.id}`, record: { id: r.id, title: r.title },
+        id: `recent-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
+        to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
-      if (recent.length) out.push({ key: 'recent', label: 'Recent', items: recent })
-      out.push({ key: 'actions', label: 'Quick actions', items: QUICK_ACTIONS })
-      out.push({ key: 'navigate', label: 'Navigate', items: NAVIGATE })
+      if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
+      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: universalActions })
+      out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: visibleNavigate })
       return out
     }
-    const actions = QUICK_ACTIONS.filter((i) => matches(i.label, trimmed))
+    const actions = universalActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
-    const recordItems = recordRows.map<CommandItem>((r) => ({
-      id: `record-${r.id}`, label: r.title, glyph: '⊞', action: false,
-      to: `/tasks/${r.id}`, record: { id: r.id, title: r.title },
-    }))
+    const recordItems = recordRows.map<CommandItem>((r) => {
+      const cfg = RECORD_KIND_CONFIG[r.kind]
+      return {
+        // Namespace the id by kind — a Task and a Signal can share a uuid across tables.
+        id: `record-${r.kind}-${r.id}`,
+        label: r.title,
+        Icon: cfg.Icon,
+        kind: 'record',
+        to: `${cfg.basePath}/${r.id}`,
+        // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
+        meta: t(cfg.kindLabelKey),
+        // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
+        record: r.kind === 'task' ? { id: r.id, title: r.title } : undefined,
+      }
+    })
     if (records.status === 'ready' && recordItems.length) {
-      out.push({ key: 'records', label: 'Records', items: recordItems })
+      out.push({ key: 'records', label: t('commandMenu.group.records'), items: recordItems })
     }
-    const nav = NAVIGATE.filter((i) => matches(i.label, trimmed))
-    if (nav.length) out.push({ key: 'navigate', label: 'Navigate', items: nav })
-    if (actions.length) out.push({ key: 'actions', label: 'Quick actions', items: actions })
+    const nav = visibleNavigate.filter((i) => matches(i.label, trimmed))
+    if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: nav })
+    if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actions })
     return out
-  }, [isSearching, trimmed, records])
+  }, [isSearching, trimmed, records, universalActions, visibleNavigate, t, mode])
 
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  const activeId = flatItems[active]?.id
 
-  // Keep the active index in range whenever the item set changes.
   useEffect(() => { setActive(0) }, [trimmed])
   useEffect(() => {
     if (active > flatItems.length - 1) setActive(flatItems.length ? flatItems.length - 1 : 0)
   }, [flatItems.length, active])
 
-  // ── Focus on open + return focus on close ────────────────────────────────────
   useEffect(() => {
-    if (!open) return
-    invokerRef.current = (document.activeElement as HTMLElement) ?? null
-    inputRef.current?.focus()
-    return () => { invokerRef.current?.focus?.() }
-  }, [open])
-
-  // ── Focus trap (Tab cycles within the panel) ─────────────────────────────────
-  useEffect(() => {
-    if (!open) return
-    const panel = panelRef.current
-    if (!panel) return
-    function onTrap(e: KeyboardEvent) {
-      if (e.key !== 'Tab') return
-      const focusable = Array.from(panel!.querySelectorAll<HTMLElement>(FOCUSABLE))
-        .filter((el) => el.offsetParent !== null || el === document.activeElement)
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-    }
-    panel.addEventListener('keydown', onTrap)
-    return () => panel.removeEventListener('keydown', onTrap)
-  }, [open])
+    if (!open || !activeId) return
+    optionRefs.current[activeId]?.scrollIntoView?.({ block: 'nearest' })
+  }, [activeId, open])
 
   if (!open) return null
 
   function activate(item: CommandItem | undefined) {
     if (!item) return
     if (item.record) pushRecentTask(item.record)
-    navigate(item.to)
+    if (item.run) item.run()
+    else if (item.to) navigate(item.to)
     onClose()
   }
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     switch (e.key) {
       case 'Escape': e.preventDefault(); onClose(); break
-      case 'ArrowDown': e.preventDefault(); setActive((i) => Math.min(i + 1, flatItems.length - 1)); break
+      case 'ArrowDown': e.preventDefault(); setActive((i) => flatItems.length ? Math.max(0, Math.min(i + 1, flatItems.length - 1)) : 0); break
       case 'ArrowUp': e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); break
       case 'Home': e.preventDefault(); setActive(0); break
       case 'End': e.preventDefault(); setActive(Math.max(flatItems.length - 1, 0)); break
@@ -164,86 +282,101 @@ export function CommandMenu({ open, onClose }: CommandMenuProps): React.JSX.Elem
     }
   }
 
-  const activeId = flatItems[active]?.id
-
   return (
-    <div className="cm-root">
-      <div className="cm-scrim" aria-hidden="true" onClick={onClose} />
-      <div
-        ref={panelRef}
-        className="cm-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command menu"
-      >
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      ariaLabel={t('commandMenu.title')}
+      closeOnBackdrop
+      closeOnEscape
+      surface="centered"
+      phoneMode="centered"
+    >
+      <div className="cm-panel">
         <div className="cm-input">
           <span className="cm-input-icon" aria-hidden="true">⌕</span>
           <input
-            ref={inputRef}
             type="text"
             role="combobox"
             aria-expanded="true"
             aria-controls="cm-list"
             aria-activedescendant={activeId}
-            aria-label="Search tasks or run a command"
-            placeholder="Search tasks, or type a command…"
+            aria-label={t('commandMenu.inputLabel')}
+            placeholder={t('commandMenu.inputPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
           />
-          <kbd className="cm-foot-key">esc</kbd>
+          {/* #41 (G5): the esc key chip hides on a coarse pointer (no keyboard to press it). */}
+          {!isCoarse && <kbd className="cm-foot-key">esc</kbd>}
         </div>
 
-        <ul className="cm-body" id="cm-list" role="listbox" aria-label="Command results">
-          {isSearching && records.status === 'error' && (
-            <li className="cm-records-error">Couldn&apos;t search records.</li>
-          )}
-          {isSearching && records.status === 'loading' && (
-            <li className="cm-item" data-testid="cm-records-skeleton" aria-hidden="true">
-              <span className="cm-item-glyph">⊞</span>
-              <span className="cm-skeleton" />
-            </li>
-          )}
-          {isSearching && flatItems.length === 0 && records.status !== 'loading' && (
-            <li className="cm-empty">No matches for “{trimmed}”.</li>
-          )}
-
-          {groups.map((group) => (
-            <li key={group.key}>
-              <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
-              <ul role="presentation" className="cm-group-list">
-                {group.items.map((item) => {
-                  const isActive = item.id === activeId
-                  return (
-                    <li
-                      key={item.id}
-                      id={item.id}
-                      role="option"
-                      aria-selected={isActive}
-                      className={`cm-item${item.action ? ' action' : ''}${isActive ? ' active' : ''}`}
-                      onClick={() => activate(item)}
-                      onMouseMove={() => {
-                        const idx = flatItems.findIndex((f) => f.id === item.id)
-                        if (idx >= 0) setActive(idx)
-                      }}
-                    >
-                      <span className="cm-item-glyph" aria-hidden="true">{item.glyph}</span>
-                      <span className="cm-item-label truncate" title={item.label}>{item.label}</span>
-                      {item.meta && <span className="cm-item-meta">{item.meta}</span>}
-                    </li>
-                  )
-                })}
-              </ul>
-            </li>
-          ))}
-        </ul>
-
-        <div className="cm-foot" aria-hidden="true">
-          <span><span className="cm-foot-key">↑↓</span> navigate</span>
-          <span><span className="cm-foot-key">↵</span> open</span>
-          <span><span className="cm-foot-key">esc</span> close</span>
+        <div className="cm-body">
+          <div
+            className="cm-group-list"
+            id="cm-list"
+            role="listbox"
+            aria-label={t('commandMenu.resultsLabel')}
+            aria-busy={records.status === 'loading' ? 'true' : undefined}
+            tabIndex={-1}
+          >
+            {isSearching && records.status === 'error' && (
+              <div className="cm-records-error" role="option" aria-selected="false" aria-disabled="true">
+                {t('commandMenu.error.searchRecords')}
+              </div>
+            )}
+            {isSearching && records.status === 'loading' && (
+              <div className="cm-item" data-testid="cm-records-skeleton" role="option" aria-selected="false" aria-disabled="true">
+                <span className="cm-item-glyph" aria-hidden="true"><TasksIcon /></span>
+                <span className="cm-skeleton" />
+                <span className="sr-only">{t('commandMenu.status.searchingRecords')}</span>
+              </div>
+            )}
+            {flatItems.length > 0 ? groups.map((group) => (
+              <div key={group.key} role="group" aria-label={group.label}>
+                <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
+                <div className="cm-group-list">
+                  {group.items.map((item) => {
+                    const isActive = item.id === activeId
+                    return (
+                      <div
+                        key={item.id}
+                        id={item.id}
+                        ref={(element) => { optionRefs.current[item.id] = element }}
+                        role="option"
+                        aria-selected={isActive}
+                        className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
+                        onClick={() => activate(item)}
+                        onMouseMove={() => {
+                          const idx = flatItems.findIndex((f) => f.id === item.id)
+                          if (idx >= 0) setActive(idx)
+                        }}
+                      >
+                        <span className="cm-item-glyph" aria-hidden="true"><item.Icon /></span>
+                        <span className="cm-item-label truncate" title={item.label}>{item.label}</span>
+                        {item.meta && <span className="cm-item-meta">{item.meta}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )) : isSearching && records.status !== 'loading' && (
+              <div className="cm-empty" role="option" aria-selected="false" aria-disabled="true" aria-live="polite">
+                {t('commandMenu.empty.noMatches', { query: trimmed })}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* #41 (G5): the whole keyboard-hint footer hides on a coarse pointer — un-pressable keys. */}
+        {!isCoarse && (
+          <div className="cm-foot" aria-hidden="true">
+            <span><span className="cm-foot-key">↑↓</span> {t('commandMenu.footer.navigate')}</span>
+            <span><span className="cm-foot-key">↵</span> {t('commandMenu.footer.open')}</span>
+            <span><span className="cm-foot-key">esc</span> {t('commandMenu.footer.close')}</span>
+          </div>
+        )}
       </div>
-    </div>
+    </ModalShell>
   )
 }

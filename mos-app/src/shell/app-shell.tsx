@@ -14,7 +14,7 @@ import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 import { OverlayHostProvider, OverlayHostSlot, type OverlayHistoryDriver } from './overlay-host'
-import { SignalComposerHost } from './signal-composer-host'
+import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { useT } from '@/i18n/use-t'
@@ -124,7 +124,10 @@ function ShellContent() {
   // v4 shell rebuild (Task 1): the header hamburger is gone — the bottom-tab More button is
   // the drawer's sole opener now, so there's only ever one opener to track focus-return for.
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const { open: searchOpen, setOpen: setSearchOpen } = useCommandMenu()
+  const { open: searchOpen, mode: searchMode, setOpen: setSearchOpen, openWithMode } = useCommandMenu()
+  // AC-428/FR-417: every Share Signal entry point — ⌘K, the phone action launcher (which opens
+  // ⌘K), the Home feed row — dispatches the SAME useSignalComposer().open().
+  const { open: openSignalComposer } = useSignalComposer()
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
 
   // Lane B2 — reconcile the Deputy companion with any shell-owner overlay. Both consume the shell's
@@ -167,7 +170,7 @@ function ShellContent() {
         }}
       >
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
-        <TopBar onOpenSearch={() => setSearchOpen(true)} />
+        <TopBar onOpenSearch={() => openWithMode('search')} />
 
         {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
             icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}
@@ -195,15 +198,13 @@ function ShellContent() {
         </div>
 
         {/* BottomTabBar — grid-area: tabbar, phone-first primary nav (ADR-0019 D8, plan §4.4).
-            `onOpenActionLauncher` is NOT yet the reduced create-set: v4's `useCommandMenu` carries
-            a 'launcher' mode whose palette shows only the universal create actions, and this
-            branch's CommandMenu has no Actions group at all to reduce to. So the phone `+` opens
-            the same full palette the search trigger opens; porting the mode without the create-set
-            would be a prop that changes nothing. Recorded on the map, not left silent. */}
+            `onOpenActionLauncher` opens the palette in 'launcher' mode — the REDUCED create-set
+            (the universal Actions only, no Recent and no Navigate), per OD-46/GAP-10. Typing still
+            escalates to the shared record search, which is OD-46's "More opens the full palette". */}
         {isNarrow && (
           <BottomTabBar
             onOpenMore={() => setDrawerOpen(true)}
-            onOpenActionLauncher={() => setSearchOpen(true)}
+            onOpenActionLauncher={() => openWithMode('launcher')}
             onRegisterMoreFocus={(focus) => { focusMoreRef.current = focus }}
             moreOpen={drawerOpen}
           />
@@ -229,10 +230,13 @@ function ShellContent() {
         focusOpener={() => focusMoreRef.current?.()}
       />
 
-      {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). v4 also
-          passes `mode` and an `onShareSignal` that dispatches to the shared Signal composer host;
-          those wait on the palette's own create-set and on the Signals surface respectively. */}
-      <CommandMenu open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {/* Command palette (⌘K) — mounted outside the grid as an overlay (ADR-0013 D4). */}
+      <CommandMenu
+        open={searchOpen}
+        mode={searchMode}
+        onClose={() => setSearchOpen(false)}
+        onShareSignal={openSignalComposer}
+      />
 
       {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,
           behind SHOW_ASSISTANT; OverlayCompanionSlot/RecordPanelHost own its physical chrome. The launcher is a neutral
