@@ -8,10 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       routes:
+        # Deliberately EMPTY. A non-empty default here always wins over the script's own list
+        # (GitHub fills a required:false input from its default), which silently pinned this to a
+        # stale 15-route set while the script advertised 22. One source of truth: design-shots.mjs.
         description: 'Comma-separated route list to screenshot (each resolved against BASE_URL + /mos/). Default is dev''s actual surface set — including routes v4-redesign never had (Signals, Café sub-tabs, Ecommerce/Roastery stubs) — so a review does not silently skip the newer surfaces.'
         required: false
         type: string
-        default: '/,/work/tasks,/work/signals,/work/objectives,/money,/inbox,/cafe/log,/cafe/plan,/cafe/stock,/cafe/review,/cafe/pushes,/ops,/ecommerce,/roastery,/admin/people'
+        default: ''
 
 jobs:
   design-shots:

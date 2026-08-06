@@ -43,10 +43,10 @@ const ROUTES = (process.env.ROUTES ||
   // as stubs), and a default that named only v4's routes would silently skip them — the same
   // 'a port decomposed by surface loses everything that has no route' defect one level up
   // (DD-WAY-30). The Director persona (dewi.dev, admin) sees every gated route below.
-  '/,/work/tasks,/work/signals,/work/objectives,/work/projects,/inbox,/events,/profile,' +
+  '/,/work/tasks,/work/tasks/new,/work/signals,/work/objectives,/work/projects,/inbox,/events,/profile,' +
     '/money,/money/detail,/money/budget,/money/pricing,' +
     '/cafe,/cafe/log,/cafe/plan,/cafe/stock,/cafe/review,/cafe/pushes,' +
-    '/ops,/ecommerce,/roastery,/admin/people')
+    '/ops,/ops/new,/ecommerce,/roastery,/admin/people')
   .split(',')
   .map((r) => r.trim())
   .filter(Boolean)
@@ -160,7 +160,7 @@ async function captureRoute(context, route, viewport) {
     // run exits 0 — a silent skip, which is the same defect class this harness exists to catch.
     // Trailing query is fine: collection routes canonicalise ?layout= into the URL by design.
     const landed = new URL(page.url()).pathname.replace(/\/$/, '')
-    const wanted = joinUrl(BASE_URL, route) && new URL(joinUrl(BASE_URL, route)).pathname.replace(/\/$/, '')
+    const wanted = new URL(joinUrl(BASE_URL, route)).pathname.replace(/\/$/, '')
     if (landed !== wanted) {
       throw new Error(
         `route ${route} bounced to ${landed} (expected ${wanted}) — capturing this would file the ` +
