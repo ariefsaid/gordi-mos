@@ -1,0 +1,26 @@
+name: guard-self-tests
+# Every guard ships with its own self-test, and the self-tests run in CI — a guard
+# whose test never runs is a control everyone believes is running.
+on:
+  pull_request:
+    paths:
+      - '.githooks/**'
+      - 'scripts/agent-git-shim/**'
+      - 'scripts/pre-pr-verify.sh'
+      - 'scripts/*.test.sh'
+      - 'scripts/setup-hooks.sh'
+      - '.github/workflows/guards.yml'
+jobs:
+  guard-self-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: pre-commit hook self-test
+        run: bash scripts/pre-commit-hook.test.sh
+      - name: pre-push hook self-test
+        run: bash scripts/pre-push-hook.test.sh
+      - name: agent git shim self-test
+        run: bash scripts/agent-git-shim.test.sh
+      - name: pre-pr-verify self-test
+        run: bash scripts/pre-pr-verify.test.sh

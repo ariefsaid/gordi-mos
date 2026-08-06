@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Pre-commit gate — blocks broken commits from any actor (agent, human, script).
+# Briefs advise; hooks enforce.
+#
+# Design rule: FAST + SCOPED. Only gates what is actually staged. The full battery
+# (scripts/pre-pr-verify.sh) stays a pre-PR concern — a slow hook gets bypassed,
+# which defeats the point.
+#
+# Install: ./scripts/setup-hooks.sh (also run by mos-app's npm `prepare`).
+# Self-test: scripts/pre-commit-hook.test.sh
+# Escape hatch: `git commit --no-verify` — for humans mid-rebase. Agents doing it is
+# a red flag; scripts/agent-git-shim/git blocks it for dispatches.
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -z "$STAGED" ] && exit 0
+
+fail=0
+note() { printf '\033[31m✗ pre-commit: %s\033[0m\n' "$1"; fail=1; }
+ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
+
+# ── 1. Merge-conflict markers (instant; markers have reached main before) ─────────
+# grep -c consumes the whole stream: no SIGPIPE under pipefail, so a marker deep in a
+# large diff cannot flip this check green (regression-tested).
+markers="$(git diff --cached | grep -cE '^\+(<<<<<<< |>>>>>>> )' || true)"
+if [ "${markers:-0}" -gt 0 ]; then
+  note "merge-conflict markers in staged hunks"
+else
+  ok "no conflict markers"
+fi
+
+if [ ! -d mos-app/node_modules ]; then
+  # ponytail: a worktree/fresh clone without deps can still commit — CI still gates it.
+  printf '\033[33m⚠ pre-commit: mos-app/node_modules missing — lint/test checks SKIPPED (npm install to enable)\033[0m\n'
+else
+  # ── 2. ESLint on the staged mos-app TS/TSX (seconds) ────────────────────────────
+  TS_FILES="$(echo "$STAGED" | grep -E '^mos-app/.*\.(ts|tsx)$' | sed 's|^mos-app/||' || true)"
+  if [ -n "$TS_FILES" ]; then
+    # shellcheck disable=SC2086
+    if (cd mos-app && npx eslint --max-warnings=0 $TS_FILES); then
+      ok "eslint: staged files clean"
+    else
+      note "eslint fails on staged files"
+    fi
+  fi
+
+  # ── 3. Stylelint on the staged CSS ──────────────────────────────────────────────
+  CSS_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.css$' | sed 's|^mos-app/||' || true)"
+  if [ -n "$CSS_FILES" ]; then
+    # shellcheck disable=SC2086
+    if (cd mos-app && npx stylelint $CSS_FILES); then
+      ok "stylelint: staged files clean"
+    else
+      note "stylelint fails on staged files"
+    fi
+  fi
+
+  # ── 4. Vitest, scoped to tests related to the staged source files ───────────────
+  SRC_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.(ts|tsx)$' | sed 's|^mos-app/||' || true)"
+  if [ -n "$SRC_FILES" ]; then
+    # shellcheck disable=SC2086
+    if (cd mos-app && npx vitest related --run $SRC_FILES); then
+      ok "vitest: related tests pass"
+    else
+      note "related tests FAIL — a task is not done until they pass"
+    fi
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+Commit BLOCKED: the staged change is red.
+
+Do NOT weaken, skip, or delete a test to get green — fix the code. If a test is
+genuinely wrong, say so explicitly rather than bending it.
+MSG
+  exit 1
+fi
+exit 0

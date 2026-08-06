@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Pre-push gate — refuse to push a feature branch that is not rebased on origin/dev.
+#
+# Incident class: two green sibling PRs, no textual conflict, dev broken — one deleted
+# a symbol the other imported. The fix is structural: every push re-checks against the
+# CURRENT base, so a branch cannot ship against a base it never saw.
+#
+# Self-test: scripts/pre-push-hook.test.sh
+# Escape hatch: `git push --no-verify` (humans; the agent shim blocks it for dispatches).
+set -uo pipefail
+
+# Fresh clone before first fetch: nothing to compare against.
+base="$(git rev-parse --verify -q origin/dev)" || exit 0
+
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  # Branch deletions push the null sha — nothing to check.
+  case "$local_sha" in *[!0]*) ;; *) continue ;; esac
+  # dev/main/staging promote by merge on the forge, not by rebase.
+  case "$remote_ref" in refs/heads/dev|refs/heads/main|refs/heads/staging) continue ;; esac
+
+  if ! git merge-base --is-ancestor "$base" "$local_sha"; then
+    branch="${remote_ref#refs/heads/}"
+    cat >&2 <<MSG
+✗ pre-push: '$branch' is NOT rebased on origin/dev.
+
+origin/dev has moved since this branch was cut. Two green sibling branches can break
+dev with no textual conflict — rebase so your gates run against the base that will
+actually receive the merge:
+
+  git fetch origin && git rebase origin/dev
+MSG
+    exit 1
+  fi
+done
+exit 0
