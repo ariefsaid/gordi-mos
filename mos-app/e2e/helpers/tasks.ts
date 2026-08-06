@@ -10,8 +10,12 @@ export async function createTaskViaUI(
   page: Page,
   title: string,
 ): Promise<string> {
-  // Click "+ New task" link from the toolbar or empty state
-  const newTaskLink = page.getByRole('link', { name: /new task/i })
+  // Click "+ Create task" from the toolbar or empty state. The label is `tasks.new`, which reads
+  // "+ Create task" — not "+ New task". This ONE stale locator blocked five specs at once
+  // (tasks-record-close ×2, tasks-browser-back-dirty-veto ×2, guards.geometry GUARD-R1) because
+  // they all create their fixture task through this helper, so every assertion after it was
+  // unreachable and had never been evaluated.
+  const newTaskLink = page.getByRole('link', { name: /create task/i })
   await newTaskLink.click()
   await page.waitForURL(/\/tasks\/new$/)
 

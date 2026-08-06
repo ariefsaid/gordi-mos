@@ -10,10 +10,16 @@ const redirectCases = [
   { oldPath: `tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`, finalPath: new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`), needsAdmin: false },
   { oldPath: 'work/cascade', finalPath: /\/work\/tasks$/, needsAdmin: false },
   { oldPath: 'work/follow-ups', finalPath: /\/work\/tasks\?view=followups$/, needsAdmin: false },
-  { oldPath: 'objectives', finalPath: /\/work\/objectives$/, needsAdmin: true },
-  { oldPath: 'projects-processes', finalPath: /\/work\/projects$/, needsAdmin: true },
-  { oldPath: 'work/projects-processes', finalPath: /\/work\/projects$/, needsAdmin: true },
-  { oldPath: 'updates', finalPath: /\/work\/signals$/, needsAdmin: false },
+  // OD-V4-1 / use-record-collection.ts: any urlMode:'synced' collection (Objectives,
+  // Projects/Processes, Signals) always mirrors its live presentation into the URL as
+  // `?layout=<presentation>` — "collection query state belongs in the URL where it must survive
+  // refresh/share" (DESIGN.md "Navigation, canonical URLs, and overlay grammar"). Tasks is the one
+  // exception (serializeTaskQuery omits `layout` when it's the neutral 'table'), which is why its
+  // redirects above stay bare. The canonical one-hop landing for these three is WITH the param.
+  { oldPath: 'objectives', finalPath: /\/work\/objectives\?layout=list$/, needsAdmin: true },
+  { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
+  { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
+  { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
   { oldPath: 'ops', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
   { oldPath: 'ops/new', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
   { oldPath: 'ops/legacy/edit', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
@@ -76,7 +82,11 @@ test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the ta
 
 test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen surfaces', async ({ page }) => {
   const cases = [
-    { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, surface: page.getByRole('table', { name: /kitchen production log/i }) },
+    // The table's accessible name is DataTable's `caption` prop (data-table.tsx: `<table
+    // aria-label={caption}>`), which kitchen-log-page.tsx sets to `kitchen.log.caption` — "Café
+    // production log …" (i18n/messages.ts). The Kitchen→Café rename that moved this route also
+    // renamed the table's own name; "kitchen production log" no longer exists anywhere on the page.
+    { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, surface: page.getByRole('table', { name: /café production log/i }) },
     { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
     { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
     { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },
@@ -92,9 +102,15 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
 
 test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are not 404s', async ({ page }) => {
   // Step 4 (C3): /work/signals is the real archive/search page now (SliceStubPage retired here).
+  // Canonical URL carries `?layout=feed` (see the redirectCases comment above) — asserting the
+  // bare path here would be racing the mount-time canonicalization effect that appends it.
   await page.goto('work/signals')
-  await expect(page).toHaveURL(/\/work\/signals$/)
-  await expect(page.getByRole('heading', { name: 'Signals' })).toBeVisible()
+  await expect(page).toHaveURL(/\/work\/signals\?layout=feed$/)
+  // Scoped to the page head: with zero Signals seeded for this org, the collection also renders
+  // an empty-state heading ("No Signals match \"\""), whose accessible name CONTAINS "Signals" —
+  // an unscoped getByRole('heading', {name:'Signals'}) is a substring match against both and hits
+  // a strict-mode violation. page-head is the same disambiguation this file already uses below.
+  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Signals' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: /search signals/i })).toBeVisible()
 
   // Step 7 (RATIFY-7D): /cafe resolves to the Café Operations home (opening panel host), not a

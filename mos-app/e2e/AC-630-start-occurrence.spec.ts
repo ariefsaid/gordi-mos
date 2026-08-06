@@ -82,10 +82,13 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
 
-  // Design fix wave item 1b: the due-runs list is collapsed by default behind a compact "N due to
-  // start" trigger (near the toolbar) — the flood of full-width Start-run rows that used to bury
-  // the Tasks table (design-review step-6 CRITICAL) no longer renders until expanded on demand.
-  await page.getByRole('button', { name: /due to start/i }).click()
+  // STALE→fixed: item 3(a) of the design fix wave folded the separate "N overdue" and "N due to
+  // start" pills into ONE count-labeled attention pill (critic-cited "Wall-of-Options" at w1024;
+  // src/components/tasks/tasks-toolbar.tsx, tasks.filter.attentionCount = "${count} need
+  // attention" in src/i18n/messages.ts). Clicking it still opens the overdue filter AND expands
+  // the due-runs disclosure (useDueRuns.toggleExpanded) when due work exists — the collapsed-by-
+  // default behavior (design-review step-6 CRITICAL) this test depends on is unchanged.
+  await page.getByRole('button', { name: /need attention/i }).click()
 
   const dueRow = page.locator('li.due-runs-row')
     .filter({ hasText: 'Café HQ daily opening' })
@@ -97,7 +100,9 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
   await expect(dueRow).not.toBeVisible({ timeout: 10_000 })
 
   // ── ASSERT: switch to Occurrence grouping — the single-holder Task groups under the caption ────
-  await page.getByRole('button', { name: 'Team work', exact: true }).click()
+  // STALE→fixed: "Team work" was removed as a saved-view chip (record-collection plan §Task-11);
+  // the org-visible set this assertion needs is now reached via "All" (also the default view).
+  await page.getByRole('button', { name: 'All', exact: true }).click()
   await page.getByLabel('Group').selectOption('occurrence')
 
   // Scope to the grouped table's header row (.grp .glabel) — the due-list rows for the OTHER

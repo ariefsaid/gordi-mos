@@ -21,10 +21,14 @@ test.describe('shell phone nav', () => {
     const more = page.getByRole('dialog', { name: 'More' })
     await expect(more.getByRole('link', { name: 'Events' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'Money' })).toBeVisible()
-    // OD-68: modules are NOT in an org-wide admin's More — the menu mirrors the rail
-    // ("your work, not the org chart"); module routes stay reachable via ⌘K/URL.
-    await expect(more.getByRole('link', { name: 'Ecommerce' })).not.toBeVisible()
-    await expect(more.getByRole('link', { name: 'Roastery' })).not.toBeVisible()
+    // OD-WAY-51 supersedes OD-68's "modules are hidden from an org-wide admin's More" rule.
+    // mobile-drawer.tsx Zone 2 now lists every viewer-scoped module regardless of promotion, and
+    // bottom-tab-bar.tsx's own comment documents the reversal directly: "The line here used to say
+    // 'module routes stay reachable via ⌘K / direct URL'. That was false ... It is deleted rather
+    // than replaced — under OD-WAY-51 no justification is needed, because nothing is being
+    // hidden." Navigation now mirrors what the route admits: Ecommerce/Roastery are live in More.
+    await expect(more.getByRole('link', { name: 'Ecommerce' })).toBeVisible()
+    await expect(more.getByRole('link', { name: 'Roastery' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'Admin Settings' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'Personal Profile' })).toBeVisible()
   })

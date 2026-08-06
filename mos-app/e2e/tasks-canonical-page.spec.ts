@@ -15,7 +15,12 @@ test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await page.getByRole('button', { name: 'Team work', exact: true }).click()
+  // STALE→fixed: "Team work" was removed as a saved-view chip (record-collection plan §Task-11,
+  // "until Issue 8 lands the real Task team_id contract" — src/components/tasks/tasks-workspace.tsx
+  // VIEW_VALUES / tasks.saved.* in src/i18n/messages.ts). The saved-view chips are now
+  // All / My work / Overdue / AR Follow-ups, and the org-visible set (what this beforeEach needs)
+  // is reached via "All", which is also the default view.
+  await page.getByRole('button', { name: 'All', exact: true }).click()
 })
 
 test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }) => {
@@ -31,10 +36,14 @@ test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not
   await page.goto(`${detailUrl}${sep}view=overdue`)
   await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?.*view=overdue/)
 
-  // The record renders as a standalone full page — the one TaskSurface renderer at
-  // width=full (.record-2col), with NO table shell and NO split drawer.
+  // The record renders as a standalone full page — TaskRecordPage (tasks-layout.tsx), with NO
+  // table shell and NO split drawer.
+  // STALE→fixed: `.record-2col` does not exist anywhere in src/ (confirmed by full-repo search).
+  // TaskRecordPage renders via PageFamilyFrame family="focused-record" + RecordPageChrome, not
+  // that class — the sibling AC-104 spec (tasks-split-view.spec.ts) already found and dropped the
+  // same stale geometry-class check in favor of role-based assertions, which is what this proves
+  // below: exactly one h1 (the record heading), no .split shell, no Tasks region, no drawer.
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.record-2col')).toBeVisible()
   await expect(page.locator('.split')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
   await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
@@ -49,7 +58,8 @@ test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', a
   // Return to the list and open the row by a normal in-list click (in-app SPA nav).
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await page.getByRole('button', { name: 'Team work', exact: true }).click()
+  // STALE→fixed: see the beforeEach comment above — "Team work" no longer exists.
+  await page.getByRole('button', { name: 'All', exact: true }).click()
   await page.getByText(title).first().click()
   await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(\?.*)?$/)
 
@@ -69,8 +79,12 @@ test('OD-63/OD-62: Mark complete sets a task to Done on the standalone page', as
 
   await page.getByRole('button', { name: 'Mark complete' }).click()
 
+  // STALE→fixed: there is no "change status" control anywhere in src/ — the status field's
+  // value-mode trigger is the generic RecordField edit affordance, aria-label
+  // t('record.field.edit', {label: 'Status'}) = "Edit Status" (src/components/records/
+  // record-field.tsx), same control tasks-split-view.spec.ts already drives as "Edit Status".
   // The status reflects Done (the trigger's pill) and the completion action is gone.
-  await expect(page.getByRole('button', { name: /change status/i })).toContainText('Done', { timeout: 8_000 })
+  await expect(page.getByRole('button', { name: /edit status/i })).toContainText('Done', { timeout: 8_000 })
   await expect(page.getByRole('button', { name: 'Mark complete' })).toHaveCount(0)
 })
 

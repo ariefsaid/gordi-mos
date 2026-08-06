@@ -2,15 +2,19 @@ import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
 
+// task-collection-adapter.tsx VIEW_ALIASES: 'mine' is accepted as INPUT but is "a legacy Task
+// saved-view chip alias that must be rewritten canonically, never kept raw" — the URL always
+// settles on `view=my-work`. This file's own canonical-URL assertions must match that, not the
+// retired alias.
 async function createOverdueTask(page: Page, title: string) {
-  await page.goto('work/tasks?view=mine')
+  await page.goto('work/tasks?view=my-work')
   await page.getByRole('link', { name: /create task/i }).first().click()
-  await expect(page).toHaveURL(/\/work\/tasks\/new\?view=mine$/)
+  await expect(page).toHaveURL(/\/work\/tasks\/new\?view=my-work$/)
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
   await form.getByLabel('Due date').fill('2020-01-01')
   await form.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=mine$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=my-work$/, { timeout: 15_000 })
 }
 
 test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, cancel, and create', async ({ page, context }) => {
@@ -20,32 +24,32 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   const futureTitle = `URL future ${Date.now()}`
   const mineTitle = `URL mine ${Date.now()}`
 
-  await page.goto(`work/tasks/new?view=mine&r=${VIEWER.personId}`)
-  await expect(page).toHaveURL(new RegExp(`/work/tasks/new\\?view=mine&r=${VIEWER.personId}$`))
+  await page.goto(`work/tasks/new?view=my-work&r=${VIEWER.personId}`)
+  await expect(page).toHaveURL(new RegExp(`/work/tasks/new\\?r=${VIEWER.personId}&view=my-work$`))
   const createForm = page.getByRole('form', { name: /create task form/i })
   await expect(createForm.getByLabel(/^pic$/i)).toHaveValue(VIEWER.personId)
   await createForm.getByRole('button', { name: /cancel/i }).click()
-  await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/)
+  await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
   await expect(page.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
 
-  await page.goto('work/tasks?view=mine')
+  await page.goto('work/tasks?view=my-work')
   await page.getByRole('link', { name: /create task/i }).first().click()
-  await expect(page).toHaveURL(/\/work\/tasks\/new\?view=mine$/)
+  await expect(page).toHaveURL(/\/work\/tasks\/new\?view=my-work$/)
   const mineForm = page.getByRole('form', { name: /create task form/i })
   await mineForm.getByLabel('Title').fill(mineTitle)
   await mineForm.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=mine$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=my-work$/, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: mineTitle })).toBeVisible()
 
   await createOverdueTask(page, overdueTitle)
 
-  await page.goto('work/tasks?view=mine')
+  await page.goto('work/tasks?view=my-work')
   await page.getByRole('link', { name: /create task/i }).first().click()
   const futureForm = page.getByRole('form', { name: /create task form/i })
   await futureForm.getByLabel('Title').fill(futureTitle)
   await futureForm.getByLabel('Due date').fill('2030-12-31')
   await futureForm.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=mine$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=my-work$/, { timeout: 15_000 })
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)

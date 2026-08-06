@@ -49,11 +49,20 @@ test.describe('shell aria-current', () => {
         await expect(page.getByRole('link', { name: routeCase.label, exact: true })).toHaveAttribute('aria-current', 'page')
       }
 
+      // breadcrumb.tsx Rule 5 (I7) / bottom-tab-bar.tsx (v4 shell rebuild, Task 3): "More is a
+      // door, not a location" — it carries aria-haspopup/aria-expanded, never aria-current. A
+      // non-primary destination's aria-current lands on the breadcrumb LEAF (the bold last crumb)
+      // instead, since the bottom-tab-bar doesn't cover it. This supersedes the old "non-primary
+      // destinations mark More" rule. The poll above already proves exactly one aria-current="page"
+      // exists per route; here we additionally prove it's on the breadcrumb, not on More.
       const nonPrimaryCases = ['events', 'money', 'profile']
       for (const path of nonPrimaryCases) {
         await page.goto(path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)
-        await expect(page.getByRole('button', { name: 'More' })).toHaveAttribute('aria-current', 'page')
+        await expect(page.getByRole('button', { name: 'More' })).not.toHaveAttribute('aria-current', 'page')
+        await expect(
+          page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'),
+        ).toHaveCount(1)
       }
     })
 
