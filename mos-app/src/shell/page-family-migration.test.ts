@@ -31,7 +31,7 @@ describe('PAGE_FAMILY_FRAME_ROUTES (#191)', () => {
  * with nothing filling the gap), so both are checked, against the source files themselves rather
  * than a mock.
  */
-describe('#270: the registry describes the pages that really render the frame', () => {
+describe('issue 270 — the registry describes the pages that really render the frame', () => {
   it.each(PAGE_FAMILY_FRAME_ROUTES.map((e) => [e.path, e.sourceFile, e.symbol] as const))(
     '%s — %s exports %s and renders the frame',
     (_path, sourceFile, symbol) => {

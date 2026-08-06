@@ -26,6 +26,7 @@ import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
 import { AppShell } from './app-shell'
+import { useSignalComposer } from './signal-composer-host'
 
 // AC-T01/T03 (plan §4.4): the shell renders a tabbar grid row + <BottomTabBar/>
 // only at narrow viewport. Real matchMedia-backed useIsNarrow is exercised by
@@ -208,11 +209,60 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
   })
 
-  // STILL DEFERRED after #190 — now waiting on the SIGNALS SURFACE. v4's `AC-428` case here proves
-  // the palette's Share Signal action opens the shell-mounted SignalComposerHost. That host mounts
-  // `SignalComposer` and reads the Signals mention rosters from the database, neither of which is on
-  // this branch, and the palette has no Share-Signal action to fire either. The case travels with
-  // that surface rather than being weakened to fit this branch.
+  // #267: the shell must mount `SignalComposerHost`, because `SignalsArchivePage` calls
+  // `useSignalComposer()` and that hook THROWS when the provider is absent.
+  //
+  // This is the check that was missing. The archive was built, routed and fully unit-tested while
+  // the host went unmounted and the whole suite stayed green — because the page's own test file
+  // supplies the provider itself, so it never exercises the shell's tree. The first thing to
+  // notice was a browser: the route rendered "Something went wrong".
+  //
+  // So this asserts against the REAL AppShell, from a route child, exactly where the archive sits.
+  // Unmount the host in app-shell.tsx and this goes red.
+  it('issue 267 — route content can reach the shell-mounted Signal composer', () => {
+    function ComposerProbe() {
+      const { postCount } = useSignalComposer()
+      return (
+        <div role="main">
+          <span data-testid="post-count">{postCount}</span>
+        </div>
+      )
+    }
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: '40000000-0000-0000-0000-000000000001',
+          org_id: '10000000-0000-0000-0000-000000000001',
+          user_id: 'auth-user-001',
+          full_name: 'Cahya Cafe',
+          email: 'cahya.dev@example.test',
+          archived_at: null,
+          must_change_password: false,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        roles: [],
+        isManager: false,
+        accessRoles: [],
+      },
+      signOut: vi.fn(),
+    })
+
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<ComposerProbe />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    expect(screen.getByTestId('post-count')).toHaveTextContent('0')
+  })
 })
 
 // Plan §4.4 (AC-T01/T03): phone chrome gains a tabbar grid row + BottomTabBar.
