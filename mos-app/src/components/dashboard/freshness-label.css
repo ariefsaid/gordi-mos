@@ -2,14 +2,19 @@
    FreshnessLabel — "as of {timestamp}" chip (design-plan §2.4, D11).
    Inline, flat text — no surface/border/shadow. Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
-/* The label wraps between words — at phone width "as of {timestamp}" and the
-   no-snapshot copy are both longer than the viewport, and nowrap here clipped
-   them at the right edge (#277). The timestamp keeps nowrap so a value never
-   splits across lines. */
+/* The label wraps between words — at phone width the stock surface's provenance
+   note is longer than the viewport, and nowrap here clipped it at the right
+   edge (#277). Declared `normal` rather than deleted: `.content-header
+   .ch-meta-line` sets nowrap, so an omitted declaration would inherit it and
+   leave this inert on the Money head. The timestamp span keeps nowrap so a
+   formatted value never splits across lines. Guarded by
+   freshness-label.css.test.ts — jsdom computes no layout, so the CSS grammar
+   is the assertable form of "this cannot overflow". */
 .freshness-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--muted-foreground);
+  white-space: normal;
 }
 .freshness-label-ts {
   color: var(--muted-foreground);
