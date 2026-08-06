@@ -90,6 +90,15 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
   const today = wibToday()
 
   test.beforeAll(async () => {
+    // Clear this fixture's rows BEFORE building them, not only in afterAll (#278). The ids here are
+    // fixed, so an interrupted or killed run leaves logs, stock, plans and batch rows behind — and
+    // the retry then reads its own debris as if it were the run's own output. That is the one
+    // failure this journey must never have: it is the single cross-stack proof that a capture
+    // reaches the database and comes back, so a pass contaminated by a previous attempt proves
+    // nothing. Same statements as the teardown, deliberately duplicated rather than shared, so
+    // neither hook can be silently weakened without the other being read.
+    await resetFixtureRows()
+
     // The six stream Teams are the seed's (FR-005) — assert the fixture rather than create it, so
     // a seed that shipped a thin catalog fails HERE with a readable message instead of surfacing
     // as a mystery empty dropdown three acts later.
@@ -127,7 +136,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     console.log(`[AC-014] fixture ready for ${today} — ${ITEM_NAME} (${UNIT_NAME}), plan ${PLAN_QTY}`)
   })
 
-  test.afterAll(async () => {
+  // Delete order matters: children before parents, so a partially-applied previous run cannot
+  // leave a row whose parent is already gone.
+  async function resetFixtureRows() {
     const dp = today.replace(/-/g, '')
     await sql(`
       DELETE FROM integrations.esb_push WHERE org_id='${ORG}' AND source_module='kitchen' AND source_ref LIKE 'PR-${dp}-%';
@@ -138,6 +149,10 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       DELETE FROM ops.item_units        WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.wip_items         WHERE org_id='${ORG}' AND id='${ITEM_ID}';
     `)
+  }
+
+  test.afterAll(async () => {
+    await resetFixtureRows()
     console.log(`[AC-014] teardown done for ${today}`)
   })
 
