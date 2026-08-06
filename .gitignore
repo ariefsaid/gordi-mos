@@ -78,7 +78,7 @@ supabase/seed.production.sql
 .impeccable/*
 !.impeccable/design.json
 .playwright-cli/
-# design-shots render output (scratch; the design-shots workflow publishes to a shots/<ref> branch)
+# design-shots render output (scratch; the design-shots workflow publishes a workflow artifact only)
 shots-out/
 scripts/__pycache__/
 # stray agent-browser output file (`--full-page` taken as a filename, not a flag)
