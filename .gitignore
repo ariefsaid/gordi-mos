@@ -69,8 +69,17 @@ supabase/seed.production.sql
 # so a future one could carry an env dump. 44 of these were committed to v3/v4-redesign before
 # this guard existed. Regenerated per run; never commit.
 .pi-subagents/
-.impeccable/
+# Impeccable design-tool workspace — critique notes, live session, hook cache: local only.
+# The ONE exception is the design-system sidecar (.impeccable/design.json): a committed
+# source-of-truth instrument the impeccable skill's detector reads as its canonical sidecar
+# (location hard-coded in impeccable/scripts/detector/design-system.mjs). Its values mirror
+# DESIGN.md, so it is public-safe and tracked, like DESIGN.md. Ignore the dir's contents, not
+# the dir, so the negation below can re-include that one file.
+.impeccable/*
+!.impeccable/design.json
 .playwright-cli/
+# design-shots render output (scratch; the design-shots workflow publishes to a shots/<ref> branch)
+shots-out/
 scripts/__pycache__/
 # stray agent-browser output file (`--full-page` taken as a filename, not a flag)
 /--full-page
