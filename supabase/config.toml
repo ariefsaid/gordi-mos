@@ -81,7 +81,12 @@ enabled = true
 # seed.dev-tasks.sql needs only mos.tasks / objectives / work_lines and seed.dev-auth.sql needs only
 # shared.people, so neither depends on the ops / integrations / reporting passes still to come.
 # DO NOT narrow this again: the frontend chain shares this local stack.
-sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql"]
+# seed.dev-processes.sql + seed.dev-cafe-opening.sql (#298) seed the two dev Processes the AC-630
+# and AC-720 e2e journeys start (plus /cafe's "Café Opening" home dataset). Both need only
+# seed.sql's org/BUs/roles/people/teams, so they run after it; they are independent of each other
+# and of seed.dev-auth.sql. DEV-ONLY like the other two — they reference the fictional *.dev
+# personas and must stay out of any prod seed run.
+sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

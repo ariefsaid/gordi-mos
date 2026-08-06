@@ -136,7 +136,9 @@ test.describe('AC-025: Dashboard — phone layout (390px)', () => {
     // Populated layout rendered (this label only exists in the ready state — doubles
     // as the data-loaded readiness wait; the empty state must NOT have triggered).
     await expect(page.getByText(/trailing 7-day revenue/i)).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    // STALE→fixed: /money's PageFamilyFrame h1 renders t('dest.money') = "Money"
+    // (dashboard-page.tsx) — "Dashboard" never renders on this surface.
+    await expect(page.getByRole('heading', { level: 1, name: 'Money' })).toBeVisible()
 
     // No horizontal scroll: document scrollWidth must not exceed the viewport width
     // (a 1px rounding allowance keeps this from being flaky on sub-pixel layouts).
@@ -196,7 +198,9 @@ test.describe('AC-026: Dashboard — desktop layout (≥1280px)', () => {
 
     // Populated layout rendered.
     await expect(page.getByText(/trailing 7-day revenue/i)).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    // STALE→fixed: /money's PageFamilyFrame h1 renders t('dest.money') = "Money"
+    // (dashboard-page.tsx) — "Dashboard" never renders on this surface.
+    await expect(page.getByRole('heading', { level: 1, name: 'Money' })).toBeVisible()
 
     // KPI rows: the revenue set (FR-006/007) + a gross-margin tile (FR-008) are
     // visible; the revenue grid holds ≥ its 5 tiles. (The old page had 4; the renamed

@@ -316,9 +316,13 @@ export function HomePage() {
     </>
   )
 
-  // ── Home layout preference (OD-V4-9) — read on mount and on person change so a reload resolves
-  // the real stored value rather than flashing the Focused default (FR-921/924).
-  const [layout, setLayout] = useState<HomeLayout>('focused')
+  // ── Home layout preference (OD-V4-9) — resolved LAZILY at first render (FR-921/924, #301):
+  // initializing to 'focused' and correcting in a post-mount effect painted one wrong frame for
+  // every viewer with a stored non-default arrangement. The initializer reads the store before
+  // the first paint; the effect stays only for the person CHANGING after mount (auth resolving
+  // late, or a mid-session viewer switch), where it re-resolves that person's stored choice.
+  const [layout, setLayout] = useState<HomeLayout>(() =>
+    personId ? resolveHomeLayout(personId) : 'focused')
   useEffect(() => {
     if (personId) setLayout(resolveHomeLayout(personId))
   }, [personId])
