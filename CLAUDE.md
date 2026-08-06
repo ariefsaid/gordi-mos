@@ -91,6 +91,11 @@ Edit skills **only** in `.claude/skill-overrides/<name>/`. `.claude/skills/` is 
 gitignored — edits there are destroyed by the next `scripts/vendor-skills.sh`.
 See `docs/agents/skills.md`.
 
+### Delegating to pi (GLM / luna)
+
+Background the dispatch and wait for the notification — **never poll, and never kill on an empty
+log: `pi -p` buffers until it exits.** See `docs/agents/pi-delegation.md`.
+
 ## Read before you start
 `CONTEXT.md` (domain glossary, in this repo) · then the local `docs/` repo: `docs/README.md`,
 `docs/gotchas.md` (scar tissue — read this one), `docs/decisions.md`, `docs/environments.md`.

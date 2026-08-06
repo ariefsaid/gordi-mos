@@ -100,6 +100,33 @@ fi
 # editing the generated skills/ directory).
 OVERRIDES="$ROOT/.claude/skill-overrides"
 ORIGINAL="$ROOT/.claude/skill-original"
+
+# GUARD: a tracked override that is missing from disk means this run silently applies pure upstream.
+#
+# On 2026-08-06 all five overrides sat DELETED-BUT-TRACKED in `.claude`. `git status` showed ' D ' on
+# each and nobody looked, so none of this project's skill customisations were being applied —
+# agents ran vendored upstream, including the /code-review battery this repo gates on. Nothing
+# caught it, because a deleted file produces no error and the populated `skills/` directory still
+# looked authoritative. At least one agent concluded the overrides simply did not exist.
+#
+# The check lives HERE rather than in CI because `.claude/` is gitignored by this repo — CI can
+# never see it — and a standalone script would be one more gate nobody runs. This is the tool that
+# consumes the overrides, so it is the one place the absence is guaranteed to matter.
+if [ -d "$OVERRIDES/../.git" ]; then
+  MISSING="$(git -C "$ROOT/.claude" ls-files 'skill-overrides/*/SKILL.md' 2>/dev/null | while read -r rel; do
+    [ -f "$ROOT/.claude/$rel" ] || printf '  %s\n' "$rel"
+  done)"
+  if [ -n "$MISSING" ]; then
+    echo "ERROR: these skill overrides are TRACKED but missing from disk:" >&2
+    printf '%s\n' "$MISSING" >&2
+    echo >&2
+    echo "Vendoring now would apply pure upstream and silently drop this project's customisations." >&2
+    echo "Restore them first:  git -C .claude checkout -- skill-overrides/" >&2
+    echo "See docs/agents/skills.md." >&2
+    exit 1
+  fi
+fi
+
 if [ -d "$OVERRIDES" ]; then
   for d in "$OVERRIDES"/*/; do
     [ -d "$d" ] || continue
