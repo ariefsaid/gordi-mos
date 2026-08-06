@@ -1,0 +1,55 @@
+name: review-gate
+
+# Enforces the rule `/code-review` step 6 has always stated and never been able to check: a change
+# is not merged on its author's own read. The evidence is a `<!-- review-gate -->` block in a PR
+# comment — public, timestamped, and readable by CI, which is the whole reason it lives there rather
+# than in a ledger under the gitignored `docs/` (the closed PR #240's approach, where the evidence
+# only ever existed on the author's laptop).
+#
+# `pull_request_target` rather than `pull_request`: the gate must run with permission to read the
+# PR's comments, and it must not be defined by the very branch it is gating. It checks out NOTHING
+# from the PR head and runs only this repository's own script from the base branch, so an untrusted
+# head cannot rewrite its own gate.
+
+on:
+  pull_request_target:
+    branches: [dev, main]
+    types: [opened, reopened, synchronize, edited]
+  # A review lands as a comment AFTER the PR is opened, so the gate has to re-run on comments too —
+  # otherwise the only way to go green is to push another commit, which is exactly backwards.
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  reviewed-by-someone-else:
+    # issue_comment fires for plain issues too; only pull requests have a gate to run.
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the gate from the BASE branch, never the PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Require a review by someone other than the author
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: bash scripts/review-gate.sh "$PR" "$GITHUB_REPOSITORY"
+
+  # The gate's own tests. A control nobody has watched refuse is a belief, so this runs the refusal
+  # suite on every change to the script — if the self-review check stops biting, this goes red here
+  # rather than silently letting the next self-merge through.
+  gate-can-refuse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash scripts/review-gate.test.sh
