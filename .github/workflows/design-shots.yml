@@ -1,0 +1,146 @@
+name: design-shots
+
+# Manual-only: this boots the full local Supabase stack (same as integration.yml) purely to render
+# and screenshot the logged-in app for a design review. It is never a merge gate and never runs on
+# push/PR — dispatch it by hand (or from an agent) when a design reviewer needs rendered screenshots
+# and the calling environment has no Docker (see mos-app/scripts/design-shots.mjs header for the "why").
+on:
+  workflow_dispatch:
+    inputs:
+      routes:
+        description: 'Comma-separated route list to screenshot (each resolved against BASE_URL + /mos/). Default is dev''s actual surface set — including routes v4-redesign never had (Signals, Café sub-tabs, Ecommerce/Roastery stubs) — so a review does not silently skip the newer surfaces.'
+        required: false
+        type: string
+        default: '/,/work/tasks,/work/signals,/work/objectives,/money,/inbox,/cafe/log,/cafe/plan,/cafe/stock,/cafe/review,/cafe/pushes,/ops,/ecommerce,/roastery,/admin/people'
+
+jobs:
+  design-shots:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.104.0
+
+      - name: Start local Supabase stack (applies migrations + seed)
+        # Mirrors .github/workflows/integration.yml exactly — same exclusion list, same reasoning:
+        # this app doesn't use edge-runtime/functions/studio/meta/imgproxy/storage/realtime/
+        # vector/analytics, and edge-runtime has intermittently 502d in this repo before. The demo
+        # persona this script logs in as (dewi.dev@example.test) is provisioned by
+        # supabase/seed.dev-auth.sql, which `supabase start` runs automatically (config.toml
+        # [db.seed]) — no separate seed step needed here.
+        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Export Supabase env to GITHUB_ENV
+        # No `|| true`: if the keys are missing we want THIS step to fail, not the screenshot run.
+        run: |
+          supabase status -o env | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' | tr -d '"' >> "$GITHUB_ENV"
+          grep -q '^SERVICE_ROLE_KEY=eyJ' "$GITHUB_ENV"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mos-app/package-lock.json
+
+      - name: Install app dependencies
+        working-directory: mos-app
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('mos-app/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: mos-app
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: mos-app
+        run: npx playwright install-deps chromium
+
+      - name: Start app dev server (background)
+        # Same serving mechanism mos-app/playwright.config.ts uses for e2e (webServer.command:
+        # 'npm run dev', baseURL http://localhost:5173/mos/) — NOT a build+preview server, so
+        # design-shots.mjs's BASE_URL below matches e2e exactly, /mos/ base path included.
+        working-directory: mos-app
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:44321
+          VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          VITE_SHOW_PLAN_BUDGET: 'true'
+        run: |
+          npm run dev > /tmp/mos-dev.log 2>&1 &
+          echo $! > /tmp/mos-dev.pid
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5173/mos/ >/dev/null 2>&1 && break
+            if [ "$i" = 60 ]; then
+              echo "dev server never came up at http://localhost:5173/mos/" >&2
+              cat /tmp/mos-dev.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "dev server: serving /mos/"
+
+      - name: Capture design screenshots
+        working-directory: mos-app
+        env:
+          BASE_URL: http://localhost:5173/mos/
+          ROUTES: ${{ inputs.routes }}
+          OUT_DIR: shots-out
+          VITE_SUPABASE_URL: http://127.0.0.1:44321
+          VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+        run: node scripts/design-shots.mjs
+
+      - name: Stop dev server
+        if: always()
+        run: kill "$(cat /tmp/mos-dev.pid 2>/dev/null)" 2>/dev/null || true
+
+      - name: Upload screenshots as workflow artifact (fallback)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-shots-${{ github.ref_name }}-${{ github.run_id }}
+          path: mos-app/shots-out
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish screenshots to shots/<ref_name> branch
+        if: always()
+        working-directory: mos-app/shots-out
+        run: |
+          if [ ! -d . ] || [ -z "$(ls -A . 2>/dev/null)" ]; then
+            echo "shots-out is empty — nothing to publish (screenshot step must have failed before writing any file)" >&2
+            exit 1
+          fi
+          cat > README.md <<EOF
+          # design-shots
+
+          Rendered screenshot matrix for design review, published by the \`design-shots\` workflow
+          (dispatch-only, never a merge gate).
+
+          - Source branch: \`${{ github.ref_name }}\`
+          - Source commit: \`${{ github.sha }}\`
+          - Routes: \`${{ inputs.routes }}\`
+          - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "design-shots: ${{ github.ref_name }} @ ${{ github.sha }}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/shots/${{ github.ref_name }}
+
+      - name: Stop stack
+        if: always()
+        run: supabase stop
