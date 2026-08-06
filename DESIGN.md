@@ -588,6 +588,23 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 | `--status-lost-text` | `0 72% 45%` | `lost` (red) | ≥4.5:1 AA |
 | `--status-violet-text` | `262 60% 42%` | `violet` | 7.4:1 AA |
 
+### Ops Log tokens (2026-06-12, OD-P2-15..19 — reuse existing hues, no new brand)
+
+`/ops` is still a live route, so these still bind.
+
+- **Source badge** (the business unit): calm, NOT a per-unit rainbow — only the two ops-writing
+  units tint, everything else neutral. Kitchen and Bar = `primary/10%` + `--status-open-text`;
+  Roastery = `violet/12%` + `--status-violet-text`; every other unit = neutral `badge-status`
+  (`secondary` + `muted-foreground`).
+- **Type** (production / receiving / qc / follow_up / other): quiet **muted-foreground label text**,
+  not a filled chip.
+- **Needs attention**: row treatment = `warning/7%` fill + a 2px `warning` left rule; the My Week
+  ops-strip amber = `warning/18%` + `warning-foreground` + `warning` dot — the same warning/amber
+  family as the late TimingChip, since late/attention is amber and never destructive red.
+  **The 2px left rule is the one deliberate, owner-approved exception to the anti-slop side-stripe
+  ban**: it is state-bearing, minimal, and always paired with the fill tint plus text, never colour
+  alone (WCAG 1.4.1).
+
 ### Cards / Containers
 - **Corner Style:** **12px radius** (`{rounded.lg}` = `var(--radius)`, OD-P3-10 — up from 8px). When a card sits directly above a toolbar+table assembly, top corners are rounded and the seam is squared (`var(--radius) var(--radius) 0 0`).
 - **Background:** `card` (white) on the `secondary/35%` main area; the contrast is what makes it read as elevated.
@@ -797,6 +814,28 @@ failed read can never masquerade as an all-clear.
 count is *absent*: an em-dash carrying a spoken alternative, never a `0`. A `0` beside a spinner or
 an error is a falsehood stated with full confidence and the viewer has no way to trace it. Because
 all three arrangements read the ONE region model, this is one rule, not three.
+
+### Sanctioned empty-state archetypes
+
+The variants `state-kit.tsx` actually exports (`EmptyStateVariant`). An empty that renders a bare
+heading, a bespoke card, or two CTAs for one empty is out of grammar.
+
+- **`quiet`** — calm nothing-to-do. Use when the truthful next step is to wait, not act. Icon +
+  title + one-line reason, **no CTA**. Example: `/inbox` caught up.
+- **`next-step`** — create-first or clear-the-state. Use when one direct operator action resolves
+  the empty: create the first row, or clear filters. Icon + title + explanation + **one** action.
+  Example: `/ops` true-empty / filtered-empty.
+- **`awaiting`** — queue or data pending. Use when the surface is expected to refill from new
+  submissions or a sync-fed source. Icon + title + body + muted retry/status line + **one** refresh
+  action. Examples: Café review, Café pushes.
+- **`blank`** — empty by design: a placeholder route, an unbuilt slice. Deliberately the quietest of
+  the four, with **no accent tint**, so it never reads as an earned all-clear (`quiet`) or as
+  pending work (`awaiting`).
+
+**Rule.** One route, one empty frame, one action maximum. The archetypes vary only the message and
+whether the single action slot is absent or populated; spacing, type, icon treatment and body
+measure stay shared. Reuse existing `state-kit` / button / spacing / type tokens only — no new
+empty-state colours, fonts or chrome.
 
 Phone (the 620px branch) drops the bento to one column with every tile spanning it — the tile grid is
 a desktop/tablet affordance (`OD-V4-7` constraint 4). **Both Home branches are `@container` queries

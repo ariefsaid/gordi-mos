@@ -272,7 +272,14 @@ function declaredP3(css: string, name: string): Color | null {
   return last
 }
 
-/** TOKENS key → [file, the custom property it is a transcription of]. */
+/**
+ * TOKENS key → [file, the custom property it is a transcription of].
+ *
+ * The DARK rows are here because a first pass covered light only, and a review mutated dark
+ * `--ds-font-color-primary` from 0.954 to 0.254 — a change that would destroy dark-mode legibility
+ * — and this file stayed green. Half the palette was unreconciled, which is the same hole one theme
+ * along.
+ */
 const RECONCILE: ReadonlyArray<readonly [keyof typeof TOKENS, string, string]> = [
   ['--surface-primary', 'theme-light.css', 'ds-background-primary'],
   ['--surface-secondary', 'theme-light.css', 'ds-background-secondary'],
@@ -281,6 +288,10 @@ const RECONCILE: ReadonlyArray<readonly [keyof typeof TOKENS, string, string]> =
   ['--text-secondary', 'theme-light.css', 'ds-font-color-secondary'],
   ['--text-tertiary', 'theme-light.css', 'ds-font-color-tertiary'],
   ['--ds-color-blue', 'theme-light.css', 'ds-color-blue'],
+  ['--surface-primary-dark', 'theme-dark.css', 'ds-background-primary'],
+  ['--surface-secondary-dark', 'theme-dark.css', 'ds-background-secondary'],
+  ['--text-primary-dark', 'theme-dark.css', 'ds-font-color-primary'],
+  ['--text-secondary-dark', 'theme-dark.css', 'ds-font-color-secondary'],
 ]
 
 describe('AC-007: the contrast table is a transcription of the shipped CSS, not a wish', () => {

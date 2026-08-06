@@ -1,0 +1,91 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Segmented Track — the ONE `seg` visual grammar (DESIGN.md §Tabs / Segmented
+   Controls): a 32px track on `secondary`, "on" = a white `background` pill +
+   `foreground` + 600 + a 0 1px 2px lift.
+
+   extract (2026-07-28): consolidated `seg` track pixel grammar here after finding
+   it re-authored in multiple places with identical pixel values.
+
+   SOLE CONSUMER: `dashboard/cut-toggle.css` (`CutToggle` — the view switcher, e.g.
+   Money's Branch/Activity tabs; a `role="tablist"` with roving tabindex). The second
+   consumer this file was extracted for, Home's `.home-order-seg` order toggle, was
+   retired with the order preference (OD-V4-10) and its selectors were deleted
+   2026-07-29 — a co-tenant that no longer exists made the shared rules look
+   load-bearing to the next reader. The file stays shared because a second `seg`
+   consumer arriving must inherit these pixels rather than re-author them; a new one
+   layers only its own state selector on top (`[aria-selected='true']` here,
+   `.is-active` for a radiogroup-shaped control), so the values cannot drift apart.
+
+   Lives in src/styles/ (the drawer.css precedent), NOT src/components/ui/: the
+   `ui/` kit directory is policed by kit-vocab.test.ts's stricter EXACT-token-only
+   radius vocabulary (no calc() composition permitted there), while this file's
+   inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius) - 2px)`
+   nested-radius idiom ("Nested radii compose so inner corners sit inside outer
+   ones") that consuming components already carry unchanged in this consolidation
+   — a shared PATTERN, not a kit PRIMITIVE.
+
+   Selectors keep the consumer's OWN class family rather than inventing a
+   canonical name — no component's markup/tests had to change. Token-only.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.cut-toggle {
+  display: inline-flex;
+  gap: 4px;
+  height: 32px;
+  padding: 3px;
+  background: var(--secondary);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.cut-toggle-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 12px;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: var(--font-size-mono);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+/* Selected/active state — consumers mark it via different selectors (e.g. `aria-selected`
+   for tablist, `.is-active` for radiogroup patterns), but they all share the same paint. */
+.cut-toggle-tab[aria-selected='true'] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
+  cursor: default;
+}
+.cut-toggle-tab:hover:not([aria-selected='true']) {
+  color: var(--foreground);
+}
+
+/* Focus is the global `*:focus-visible` ring (index.css) for both — no local override
+   needed (`--ring` and `--accent` resolve to the same blue; a per-component copy of the
+   identical rule was dead weight, not a real customisation). */
+
+@media (prefers-reduced-motion: reduce) {
+  .cut-toggle-tab {
+    transition: none;
+  }
+}
+
+/* Coarse-pointer floor (PRODUCT.md §Accessibility) — this shared rule enforces 44px
+   on phone for segmented controls. CutToggle ALSO adds its own `min-width: 44px` per option
+   in its own cut-toggle.css (a toolbar view-switcher can sit in a narrow slot) — a real,
+   consumer-specific difference, so that half stays local rather than forced in here. */
+@media (max-width: 767.98px) {
+  .cut-toggle,
+  .cut-toggle-tab {
+    height: auto;
+    min-height: 44px;
+  }
+}
