@@ -2,8 +2,10 @@ import { supabase } from '@/lib/supabase'
 import type { AttentionItem } from '@/lib/home-attention'
 
 const ops = () => supabase.schema('ops')
-// Café route the barista returns to in order to re-log a rejected check (RATIFY-3 — v1 failed-check source).
-const CAFE_LOG_ROUTE = '/cafe/log'
+// Café route the barista returns to in order to re-log a rejected check (RATIFY-3 — v1 failed-check
+// source). Exported so Home decides whether to render the band by asking what THIS route admits
+// (`viewerAdmittedToRoute`, OD-WAY-51) — one route constant, never a second copy to drift from.
+export const CAFE_LOG_ROUTE = '/cafe/log'
 
 // `action_label` is `ops.action_label(ops.kitchen_logs)` — a PostgREST computed column, not a
 // stored one. #191 port note: v4 authored this file against a stored `action_type` column; the

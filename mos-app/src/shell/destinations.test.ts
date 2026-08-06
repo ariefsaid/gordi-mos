@@ -5,7 +5,10 @@
  * FR-001..005, FR-020/021, AC-011/012 prep.
  */
 import { describe, it, expect } from 'vitest'
-import { DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, type Destination } from './destinations'
+import {
+  DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerAdmittedToRoute,
+  type Destination,
+} from './destinations'
 import { CAFE_SECTIONS, visibleSections } from './sections'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { routeConfig } from '@/router'
@@ -219,6 +222,62 @@ describe('Café module — the five screens are in the nav, gated as their route
       const nav = cafe.children!.find((c) => c.path === navPath)!
       expect([...(nav.anyOf ?? [])].sort(), navPath).toEqual(routeRoles)
     }
+  })
+})
+
+// viewerAdmittedToRoute — the ONE route-admission question (#246). OD-WAY-51: navigation mirrors
+// what the route admits, and job-role NAMES decide nothing. Any surface that has to ask "should
+// this viewer see the door to X" asks THIS, so a second visibility model cannot grow beside the
+// rail's — which is exactly how `viewerSeesCafe` reintroduced the regex the ruling had removed.
+describe('viewerAdmittedToRoute — one admission authority, shared with the rail (OD-WAY-51)', () => {
+  it('agrees with the rail for EVERY Café screen, at every role — one answer, not two', () => {
+    // The rule, not a hand-listed expectation: whatever `visibleSections` (the rail's own gate)
+    // says about a Café screen, route admission says the same. A second model drifting from the
+    // rail's fails here regardless of which roles or paths are involved.
+    const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
+    for (const roles of [[], ['member'], ['supervisor'], ['ops_lead'], ['admin'], ['finance']]) {
+      const railSees = new Set(visibleSections(cafe.children ?? [], roles).map((s) => s.path))
+      for (const section of cafe.children ?? []) {
+        expect(viewerAdmittedToRoute(section.path, roles), `${section.path} @ [${roles}]`)
+          .toBe(railSees.has(section.path))
+      }
+    }
+  })
+
+  it('an ungated route admits every authenticated viewer — including one with no access role at all', () => {
+    // The failed-checks band's destination. `/cafe/log` carries no access-role gate and
+    // ops.kitchen_logs is org-readable by policy, so admission is universal and the ruling's
+    // consequence is accepted rather than papered over with a hidden second gate.
+    expect(viewerAdmittedToRoute('/cafe/log', [])).toBe(true)
+    expect(viewerAdmittedToRoute('/cafe/log', ['finance'])).toBe(true)
+  })
+
+  it('a gated route still narrows — admission is the ROUTE\'s answer, not a blanket yes', () => {
+    // Without this, "admitted" would be indistinguishable from "always true" and the helper would
+    // prove nothing. Review is supervisor/ops_lead/admin; Pushes is ops_lead/admin.
+    expect(viewerAdmittedToRoute('/cafe/review', ['member'])).toBe(false)
+    expect(viewerAdmittedToRoute('/cafe/review', ['supervisor'])).toBe(true)
+    expect(viewerAdmittedToRoute('/cafe/pushes', ['supervisor'])).toBe(false)
+    expect(viewerAdmittedToRoute('/cafe/pushes', ['ops_lead'])).toBe(true)
+  })
+
+  it('honours the DESTINATION-level gate too, not only the section gate', () => {
+    expect(viewerAdmittedToRoute('/admin/people', ['member'])).toBe(false)
+    expect(viewerAdmittedToRoute('/admin/people', ['admin'])).toBe(true)
+    for (const role of REVENUE_VIEW_ROLES) expect(viewerAdmittedToRoute('/money', [role]), role).toBe(true)
+    expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false)
+  })
+
+  it('an unknown path is NOT admitted (fail closed, never a permissive default)', () => {
+    expect(viewerAdmittedToRoute('/nope/nowhere', ['admin'])).toBe(false)
+  })
+
+  it('takes access roles ONLY — a job-role name cannot reach the decision (the OD-WAY-51 fix)', () => {
+    // Structural, and deliberately so: the parameter that carried job-role NAMES is gone from the
+    // signature, so no caller can reintroduce regex matching without changing this contract. The
+    // roster measurement behind the ruling was that 5 of 10 real job roles matched no module regex.
+    expect(viewerAdmittedToRoute.length).toBe(2)
+    expect(String(viewerAdmittedToRoute)).not.toMatch(/workMatch/)
   })
 })
 
