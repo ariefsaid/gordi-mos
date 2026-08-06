@@ -16,9 +16,11 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
-  // Switch to "All" to see all tasks (not just mine — in case BU filter differs)
-  const allTab = page.getByRole('tab', { name: 'All' })
-  await allTab.click()
+  // Switch to "All" to see all tasks (not just mine — in case BU filter differs). STALE fix:
+  // "All" is a saved-view chip in a role="group" "Tasks saved views" strip (collection-toolbar.tsx),
+  // never a tab — see tasks-split-view.spec.ts for the full source citation.
+  const allViewGroup = page.getByRole('group', { name: 'Tasks saved views' })
+  await allViewGroup.getByRole('button', { name: 'All' }).click()
 
   // ── 3. Create a new task ────────────────────────────────────────────────────
   const taskTitle = `AC-090 Task ${Date.now()}`
@@ -30,7 +32,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.waitForURL(/\/tasks$/)
 
   // Switch to "All" again to see the newly created task
-  await page.getByRole('tab', { name: 'All' }).click()
+  await allViewGroup.getByRole('button', { name: 'All' }).click()
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 
   // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
@@ -41,32 +43,34 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible()
 
   // ── 6. Change status to "In Progress" inline ─────────────────────────────────
-  const statusTrigger = drawer.getByRole('button', { name: /change status/i })
-  await expect(statusTrigger).toBeVisible()
-  await statusTrigger.click()
-
-  // Scope to the status popover listbox (the toolbar Status <select> also has an
-  // "In Progress" option).
-  const statusListbox = page.getByRole('listbox', { name: /select status/i })
-  const inProgressOption = statusListbox.getByRole('option', { name: 'In Progress' })
-  await expect(inProgressOption).toBeVisible()
-  await inProgressOption.click()
+  // STALE fix: there is no "change status" trigger button + custom listbox/option popover any
+  // more. Status is a value-first RecordField (record-field.tsx): the pill activates a native
+  // <select> on click (aria-label "Edit ${label}" → "Edit Status", record.field.edit in
+  // messages.ts), and OPTION_CONTROLS (select/status/person/team/relation) commit eagerly on
+  // change — picking an option IS the commit, no separate confirm step.
+  const statusEditBtn = drawer.getByRole('button', { name: /edit status/i })
+  await expect(statusEditBtn).toBeVisible()
+  await statusEditBtn.click()
+  await drawer.getByLabel('Status').selectOption({ label: 'In Progress' })
 
   // ── 7. Assert: pill shows "In Progress" in place (no navigation) ─────────────
   await expect(drawer.getByText('In Progress')).toBeVisible({ timeout: 8_000 })
   // Still on the same detail URL
   expect(page.url()).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
 
-  // ── 8. Assert: the Activity tab shows the status_changed event ─────────────
-  // Activity is a tab in the Variant-B drawer (design-plan §1.2).
-  await drawer.getByRole('tab', { name: /activity/i }).click()
-  const activityPane = drawer.getByRole('tabpanel')
+  // ── 8. Assert: the Activity section shows the status_changed event ─────────
+  // STALE fix: RecordViewer moved to content-first anatomy (OD-REDESIGN-90 §2.2) — the record
+  // reads as ONE stacked document (content → ownership → relations → checklist → activity); there
+  // is no role="tab"/"tabpanel" anywhere in src/components/records or src/components/tasks any
+  // more. Activity is a plain content-slot <section aria-label="Activity"> (record-viewer.tsx),
+  // always mounted — no click needed to reveal it.
+  const activityPane = drawer.getByRole('region', { name: 'Activity' })
   await expect(activityPane.getByText(/status changed|→ In Progress|In Progress/i).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
-  await page.getByRole('tab', { name: 'All' }).click()
+  await allViewGroup.getByRole('button', { name: 'All' }).click()
   const taskRow = page.locator('tr', { hasText: taskTitle }).or(
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
   )
