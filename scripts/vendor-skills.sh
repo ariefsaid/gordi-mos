@@ -95,7 +95,8 @@ fi
 # (tests.md, mocking.md, agents/…) are KEPT. Before overlaying, snapshot the pristine upstream to
 # .claude/skill-original/<name>/ (gitignored) so `diff skill-original/<s>/SKILL.md
 # skill-overrides/<s>/SKILL.md` shows exactly our delta and a re-vendor reveals upstream drift.
-# See CLAUDE.md skill-ownership table.
+# See the "Skill ownership — where to edit a skill" table in CLAUDE.md (written 2026-08-06; this
+# comment previously cited a table that did not exist, which is why agents kept editing skills/).
 OVERRIDES="$ROOT/.claude/skill-overrides"
 ORIGINAL="$ROOT/.claude/skill-original"
 if [ -d "$OVERRIDES" ]; then
