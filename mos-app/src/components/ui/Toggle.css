@@ -4,18 +4,21 @@
   position: relative; display: inline-block; flex-shrink: 0;
   background: var(--secondary); border: 0; cursor: pointer; padding: 0;
   border-radius: var(--radius-pill);
-  transition: background-color 160ms ease;
+  transition: background-color var(--dur-med) ease;
 }
 .mk-toggle--medium { width: 28px; height: 16px; }
 .mk-toggle--small { width: 22px; height: 14px; }
 .mk-toggle[aria-checked="true"] { background: var(--primary); }
+/* Hover — off-track darkens, on-track deepens; a subtle interactivity cue (impeccable all-states). */
+.mk-toggle:hover:not(:disabled) { background: color-mix(in srgb, var(--secondary) 82%, var(--foreground)); }
+.mk-toggle[aria-checked="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 90%, var(--foreground)); }
 .mk-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .mk-toggle__knob {
   position: absolute; top: 2px; left: 2px;
   height: calc(100% - 4px); aspect-ratio: 1;
   background: var(--background); border-radius: 50%;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 20%, transparent);
-  transition: transform 160ms ease;
+  transition: transform var(--dur-med) ease;
 }
 /* knob travel = container width - knob width - 2px top offset × 2.
    For medium: 28 - (16-4) - 4 = 12px. For small: 22 - (14-4) - 4 = 8px. */

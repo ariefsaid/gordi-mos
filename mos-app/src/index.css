@@ -127,6 +127,10 @@
 
   /* OD-P3-12 gradients — navy-tinted whispers, never purple. Reuse accent (blue)
      + brand-navy. The gradient is a SHEEN, not a new hue (One-Blue Rule preserved). */
+  /* v4's literal stops, and `token-values.test.ts` pins them. This line previously derived the
+     sheen from `var(--accent)`, which is better token discipline — but --accent is a display-p3
+     value and these are hsl, so swapping them trades a stop that provably matches v4 for one that
+     might not. Re-deriving it belongs with a measurement, not with this port. */
   --gradient-primary-sheen: linear-gradient(
     180deg,
     hsl(225 75% 58%) 0%,

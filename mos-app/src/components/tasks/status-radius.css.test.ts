@@ -32,9 +32,17 @@ function allCssFiles(dir: string, acc: string[] = []): string[] {
 }
 
 describe('AC-D05: status pill + dot resolve to the pill radius, not 0px', () => {
-  it('AC-D05: .mk-tag border-radius references --radius-pill (fully-rounded), not the dangling --radius-full', () => {
+  // Shape re-ruled after this case was written. OD-REDESIGN-91 #30/E1, recorded in DESIGN.md's
+  // Geometry row: "status pills are 8px rounded-rects; 999px is reserved for circular marks (dots,
+  // count badges, basis chip)." `.mk-tag` renders task/catalog/role/push tags and — through
+  // StatusPill — the task status pill; none is a circular mark, so it takes --radius-sm.
+  //
+  // AC-D05's actual subject is unchanged and still asserted: the rule must reference a token that
+  // EXISTS, never the dangling --radius-full alias that resolved border-radius to 0px. The dot and
+  // the toggle track below are genuine circular marks and keep --radius-pill.
+  it('AC-D05: .mk-tag border-radius references a real token (--radius-sm per OD-REDESIGN-91), not the dangling --radius-full', () => {
     const body = ruleBody(read('src/components/ui/Tag.css'), '.mk-tag {')
-    expect(body).toMatch(/border-radius:\s*var\(--radius-pill\)/)
+    expect(body).toMatch(/border-radius:\s*var\(--radius-sm\)/)
     expect(body).not.toMatch(/--radius-full/)
   })
 

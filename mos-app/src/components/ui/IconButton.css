@@ -8,10 +8,11 @@
   width: 32px; height: 32px; padding: 0;
   border-radius: var(--radius-sm); /* 8px control */
   border: 0; cursor: pointer; background: transparent; color: var(--foreground);
-  transition: background-color 120ms ease;
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 .mk-iconbtn--small { width: 24px; height: 24px; }
 .mk-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.mk-iconbtn:active:not(:disabled) { transform: translateY(1px); }
 .mk-iconbtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* variant: secondary (default) — surface fill + border */
@@ -41,4 +42,12 @@
 .mk-iconbtn--primary.mk-accent--danger {
   background: var(--destructive); color: var(--destructive-foreground);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--destructive) 25%, transparent);
+}
+
+/* SYS-2 phone tap-target floor at the PRIMITIVE seam (same strategy as DO-15(a) for the field
+   primitives): every icon-only button — the Signal-composer close, record chrome, toolbar icons —
+   inherits the 44px touch minimum on phone. min-width/min-height raise the floor without changing
+   the 32px desktop icon rhythm. The --small variant is opt-out (dense inline affordances). */
+@media (max-width: 767.98px) {
+  .mk-iconbtn:not(.mk-iconbtn--small) { min-width: 44px; min-height: 44px; }
 }

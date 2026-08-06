@@ -1,9 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
 
 const SRC = join(__dirname, '..')
+
+/**
+ * Pages that render the frame but are reached through a parent's route rather than one of their
+ * own, so they carry no entry of their own. Each is listed deliberately; the reverse scan below
+ * fails on anything not named here, which is the point.
+ */
+const FRAME_PAGES_WITHOUT_A_ROUTE = new Set<string>([
+  // Routed as `SignalsArchivePage`/`SignalRecordPage`, both of which ARE registered above; the
+  // file is named by those entries under its own path.
+])
 
 // This registry started empty on `dev` (no page rendered `PageFamilyFrame` yet) and every existing
 // `context-row.test.tsx` case exercises it through a MOCK, never the real export — so before this
@@ -48,6 +58,30 @@ describe('issue 270 — the registry describes the pages that really render the 
       expect(src, `${sourceFile} renders no PageFamilyFrame`).toContain('PageFamilyFrame')
     },
   )
+
+  // THE REVERSE DIRECTION — and the one that matters, because it is the direction the bug went.
+  // Nineteen pages moved onto the frame and none added a row; a check that only validates existing
+  // rows would have stayed green through all of it. This reads `pages/` and fails on any page
+  // rendering `PageFamilyFrame` that no entry names.
+  //
+  // Deliberately keyed on the FILE, not the route: one file can serve several paths
+  // (dashboard-page → /money and /money/detail), and a page reachable by no route at all is the
+  // other half of what this port got wrong.
+  it('every page that renders the frame is named by an entry', () => {
+    const pagesDir = join(SRC, 'pages')
+    const registered = new Set(PAGE_FAMILY_FRAME_ROUTES.map((e) => e.sourceFile))
+    const unregistered = readdirSync(pagesDir)
+      .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))
+      .filter((f) => readFileSync(join(pagesDir, f), 'utf8').includes('<PageFamilyFrame'))
+      .map((f) => `pages/${f}`)
+      .filter((rel) => !registered.has(rel))
+      .filter((rel) => !FRAME_PAGES_WITHOUT_A_ROUTE.has(rel))
+    expect(
+      unregistered,
+      `these pages render PageFamilyFrame but no registry entry names them, so ContextRow will ` +
+        `print their job sentence a second time: ${unregistered.join(', ')}`,
+    ).toEqual([])
+  })
 
   it('follow-ups is deliberately excluded — that page renders no frame yet', () => {
     // The one place this branch's registry departs from v4's, guarded in both directions. If this

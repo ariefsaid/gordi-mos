@@ -34,8 +34,12 @@ export interface PageFamilyMigrationEntry {
  * **The one exclusion is real, not an oversight.** v4's list carries `/money/follow-ups` and
  * `/work/follow-ups/:id`; `follow-ups-page.tsx` on this branch renders **no** `PageFamilyFrame`
  * at all, so registering those two would silence ContextRow with nothing filling the gap. They
- * join this list when that page moves onto the frame — not before. `assertRegistryMatchesFrames`
- * in `page-family-migration.test.ts` is what keeps that honest in both directions.
+ * join this list when that page moves onto the frame — not before.
+ *
+ * `page-family-migration.test.ts` holds this honest in both directions: every entry must name a
+ * file that exists, exports its symbol and renders the frame; and every page under `pages/` that
+ * renders the frame must be named by an entry. The second is the one that matters — it is the
+ * direction this list drifted.
  */
 export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/', family: 'workspace', sourceFile: 'pages/home-page.tsx', symbol: 'HomePage' },

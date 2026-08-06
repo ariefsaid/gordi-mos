@@ -2,7 +2,7 @@
    32px box, 8px radius. error → destructive border. disabled → secondary bg. */
 .mk-select { display: flex; flex-direction: column; gap: 4px; }
 .mk-select__label {
-  font-size: var(--font-size-xs, 12px); color: var(--muted-foreground);
+  font-size: var(--font-size-label); color: var(--muted-foreground);
   font-weight: 500;
 }
 .mk-select__box {
@@ -10,16 +10,21 @@
   height: 32px; padding: 0 28px 0 10px;
   background: var(--background); border: 1px solid var(--input);
   border-radius: var(--radius-sm);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
   position: relative;
 }
+/* Hover — border shifts toward foreground (DESIGN.md field/cmdk hover); focus wins over hover. */
+.mk-select__box:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input));
+}
+.mk-select--disabled .mk-select__box:hover { border-color: var(--input); }
 .mk-select__box:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 .mk-select__field {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-  font: inherit; font-size: 15px; color: var(--foreground); padding: 0;
+  font: inherit; font-size: var(--font-size-control); color: var(--foreground); padding: 0;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
@@ -38,3 +43,10 @@
 }
 .mk-select--disabled .mk-select__box { background: var(--secondary); cursor: not-allowed; }
 .mk-select--disabled .mk-select__field { cursor: not-allowed; }
+
+/* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3) — one seam, every consumer.
+   The native select stretches with the box so the whole 44px area stays the hit target. */
+@media (max-width: 767.98px) {
+  .mk-select__box { min-height: 44px; }
+  .mk-select__field { min-height: 44px; }
+}

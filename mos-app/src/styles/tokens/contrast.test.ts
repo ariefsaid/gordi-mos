@@ -66,7 +66,10 @@ const TOKENS = {
   // Light theme text
   '--text-primary':       { r: 0.145, g: 0.141, b: 0.133, a: 1 },
   '--text-secondary':     { r: 0.388, g: 0.380, b: 0.365, a: 1 },
-  '--text-tertiary':      { r: 0.541, g: 0.533, b: 0.518, a: 1 },
+  // OD-71ii darkened this one step; the table kept the pre-darkening value {0.541,0.533,0.518}
+  // and so measured AA on a colour the app stopped shipping. The reconciliation block at the foot
+  // of this file is what caught it, and what stops it recurring.
+  '--text-tertiary':      { r: 0.44, g: 0.432, b: 0.418, a: 1 },
   // Status bases (light)
   '--success':            { r: 0.332, g: 0.634, b: 0.442, a: 1 },
   '--warning':            { r: 1.0,   g: 0.77,  b: 0.26,  a: 1 },
@@ -238,5 +241,80 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       const ratio = contrastRatio(TOKENS['--text-on-accent-tint-dark'], bg)
       expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The reconciliation this file was missing.
+//
+// Everything above computes AA ratios from the hardcoded TOKENS table, so it can only ever prove
+// that those NUMBERS clear AA — never that the app ships them. It read `--text-tertiary` as
+// {0.541, 0.533, 0.518} while the shipped `--ds-font-color-tertiary` was {0.44, 0.432, 0.418}:
+// a passing AA check on a colour that is not in the product.
+//
+// So this reads the CSS and asserts the table matches what ships. Change a colour in the theme
+// files without re-deriving the ratios above and this goes red, which is the only thing that makes
+// the ratios mean anything.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const TOKENS_DIR = join(__dirname)
+const APP_CSS = join(__dirname, '..', '..', 'index.css')
+
+function declaredP3(css: string, name: string): Color | null {
+  // Last declaration wins, matching the CSS cascade within one file.
+  const re = new RegExp(`--${name}:\\s*color\\(display-p3\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`, 'g')
+  let m: RegExpExecArray | null
+  let last: Color | null = null
+  while ((m = re.exec(css)) !== null) {
+    last = { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]), a: 1 }
+  }
+  return last
+}
+
+/** TOKENS key → [file, the custom property it is a transcription of]. */
+const RECONCILE: ReadonlyArray<readonly [keyof typeof TOKENS, string, string]> = [
+  ['--surface-primary', 'theme-light.css', 'ds-background-primary'],
+  ['--surface-secondary', 'theme-light.css', 'ds-background-secondary'],
+  ['--surface-tertiary', 'theme-light.css', 'ds-background-tertiary'],
+  ['--text-primary', 'theme-light.css', 'ds-font-color-primary'],
+  ['--text-secondary', 'theme-light.css', 'ds-font-color-secondary'],
+  ['--text-tertiary', 'theme-light.css', 'ds-font-color-tertiary'],
+  ['--ds-color-blue', 'theme-light.css', 'ds-color-blue'],
+]
+
+describe('AC-007: the contrast table is a transcription of the shipped CSS, not a wish', () => {
+  it.each(RECONCILE.map((r) => [r[0], r[1], r[2]] as const))(
+    '%s matches %s --%s',
+    (tokenKey, file, cssVar) => {
+      const css = readFileSync(join(TOKENS_DIR, file), 'utf8')
+      const shipped = declaredP3(css, cssVar)
+      expect(shipped, `--${cssVar} not found in ${file}`).not.toBeNull()
+      const table = TOKENS[tokenKey]
+      for (const ch of ['r', 'g', 'b'] as const) {
+        expect(
+          Math.abs(table[ch] - shipped![ch]),
+          `${tokenKey} ${ch}: table has ${table[ch]}, ${file} ships ${shipped![ch]} — ` +
+            `the AA ratios above are computed on a colour the app does not use`,
+        ).toBeLessThan(0.005)
+      }
+    },
+  )
+
+  it('the two status colours the port reverted are transcribed from index.css', () => {
+    const css = readFileSync(APP_CSS, 'utf8')
+    for (const [key, cssVar] of [
+      ['--status-lost-text', 'status-lost-text'],
+      ['--warning-foreground', 'warning-foreground'],
+    ] as const) {
+      // index.css declares a light value then a `.dark` override; take the FIRST (light).
+      const m = new RegExp(`--${cssVar}:\\s*color\\(display-p3\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\s*\\)`).exec(css)
+      expect(m, `--${cssVar} not found in index.css`).not.toBeNull()
+      const shipped = { r: Number(m![1]), g: Number(m![2]), b: Number(m![3]), a: 1 }
+      const table = TOKENS[key]
+      for (const ch of ['r', 'g', 'b'] as const) {
+        expect(Math.abs(table[ch] - shipped[ch]), `${key} ${ch} drifted from index.css`).toBeLessThan(0.005)
+      }
+    }
   })
 })

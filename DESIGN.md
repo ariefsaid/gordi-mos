@@ -5,33 +5,33 @@ description: The owner-approved "Quiet Control Surface" — calm, dense, data-fi
 colors:
   # --- Surfaces / action (oklch = linter-parseable wide-gamut form; runtime is color(display-p3 …)) ---
   primary: "oklch(0.546 0.2153 262.8719)"        # The One Blue — action/ring
-  background: "oklch(1 0 89.8756)"                # pure white canvas (light theme)
-  foreground: "oklch(0.1405 0.0044 285.8238)"     # near-black primary text
-  card: "oklch(1 0 89.8756)"                      # elevated surface (== background in light)
-  card-foreground: "oklch(0.1405 0.0044 285.8238)"
-  popover: "oklch(1 0 89.8756)"
-  popover-foreground: "oklch(0.1405 0.0044 285.8238)"
+  background: "oklch(0.994 0.002 85.0)"           # warm white canvas (light theme)
+  foreground: "oklch(0.145 0.004 30.0)"           # warm near-black primary text
+  card: "oklch(0.994 0.002 85.0)"                 # elevated surface (== background in light)
+  card-foreground: "oklch(0.145 0.004 30.0)"
+  popover: "oklch(0.994 0.002 85.0)"
+  popover-foreground: "oklch(0.145 0.004 30.0)"
   primary-foreground: "oklch(0.9848 0 89.8756)"   # near-white on solid blue
   # --- Quiet UI ---
-  secondary: "oklch(0.9676 0.0013 286.3752)"      # light cool grey — quiet fills
-  secondary-foreground: "oklch(0.2103 0.0059 285.8835)"
-  muted: "oklch(0.9676 0.0013 286.3752)"          # == secondary (shadcn convention)
-  muted-foreground: "oklch(0.4987 0.0128 285.925)" # darkened ~40% L so muted text clears AA on secondary fills
-  accent: "oklch(0.9676 0.0013 286.3752)"         # shadcn "accent" = quiet hover wash (NOT the blue)
-  accent-foreground: "oklch(0.2103 0.0059 285.8835)"
+  secondary: "oklch(0.976 0.002 38.0)"            # warm subtle panels
+  secondary-foreground: "oklch(0.210 0.006 30.0)"
+  muted: "oklch(0.976 0.002 38.0)"                # == secondary (shadcn convention)
+  muted-foreground: "oklch(0.388 0.012 30.0)"     # darkened ~40% L so muted text clears AA on secondary fills
+  accent: "oklch(0.976 0.002 38.0)"               # shadcn "accent" = quiet hover wash (NOT the blue)
+  accent-foreground: "oklch(0.210 0.006 30.0)"
   # --- Status / semantic ---
   destructive: "oklch(0.6368 0.2078 25.3259)"     # errors, destructive button, "lost"
   destructive-foreground: "oklch(0.9848 0 89.8756)"
   warning: "oklch(0.8334 0.1641 83.8666)"         # amber — aging/overdue caution
-  warning-foreground: "oklch(0.4096 0.1037 46.3142)" # deep brown — AA on amber tints
+  warning-foreground: "oklch(0.28 0.10 28.0)"    # deep brown — AA on amber tints
   success: "oklch(0.7205 0.192 149.4926)"         # green — "won"/positive
   success-foreground: "oklch(0.9848 0 89.8756)"
   # --- Lines / fields / focus ---
-  border: "oklch(0.9197 0.004 286.32)"            # Single-Border Rule: border == input
-  input: "oklch(0.9197 0.004 286.32)"
-  ring: "oklch(0.546 0.2153 262.8719)"            # focus ring == The One Blue
+  border: "oklch(0.922 0.004 38.0)"              # Single-Border Rule: border == input
+  input: "oklch(0.922 0.004 38.0)"
+  ring: "oklch(0.546 0.2153 262.8719)"           # focus ring == The One Blue
   # --- Categorical accent (non-interactive) ---
-  violet: "oklch(0.5424 0.2454 293.016)"          # KPI/timeline only — never action
+  violet: "oklch(0.5424 0.2454 293.016)"         # KPI/timeline only — never action
   # --- Gordi brand (OD-P3-7 — first owner-approved divergence) ---
   brand-navy: "oklch(0.3154 0.0639 260.7289)"     # structural weight; NOT an action color
   brand-navy-text: "oklch(0.3527 0.0672 260.7809)" # AA text/label on white (≥7:1)
@@ -68,6 +68,13 @@ typography:
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.45
+  body-lg:
+    # OD-REDESIGN-91 #6/B4 (2026-07-24): minted — the shipped ~65-use 15px family is a
+    # deliberate rung (emphasized body: record titles, primary row text, lead copy).
+    fontFamily: "DM Sans, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.45
   label:
     fontFamily: "DM Sans, system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: "12px"
@@ -102,7 +109,7 @@ shadows:
   pressed:      "0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent)"
   brand-button: "0 1px 2px color-mix(in srgb, var(--accent) 25%, transparent)"
   kanban-hover: "0 4px 14px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent)"
-  overlay:      "0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)"
+  overlay:      "0 10px 30px color-mix(in srgb, var(--brand-navy) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--brand-navy) 8%, transparent)"  # navy-tinted (Step-1 reskin) — matches runtime --shadow-overlay
 gradients:
   # OD-P3-12 (2026-06-18): SUBTLE NAVY gradients only (NEVER purple). Two bounded uses.
   # The gradient is a SHEEN, not a new hue — The One Blue Rule preserved.
@@ -164,7 +171,8 @@ components:
   badge-status:
     backgroundColor: "{colors.secondary}"
     textColor: "{colors.muted-foreground}"
-    rounded: "{rounded.full}"
+    # OD-REDESIGN-91 #30/E1 (2026-07-24): rounded-rect ratified — was {rounded.full}.
+    rounded: "{rounded.sm}"
     padding: "0 9px"
     height: "22px"
   table-header-cell:
@@ -176,7 +184,7 @@ components:
     backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
     padding: "12px"
-    height: "54px"
+    height: "52px"
   nav-item:
     backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
@@ -194,9 +202,63 @@ components:
     rounded: "{rounded.lg}"
     padding: "11px"
     # shadow semantics live in ## Elevation & Depth
+  home-tile:
+    # v4 Home bento tile (OD-V4-7). Deliberately NOT a new surface family: it reuses the
+    # card recipe verbatim — same surface, same 1px border, same 12px radius, same 16px
+    # padding, same shadows.rest. Only its grid span is its own (see ## Layout and
+    # ## Components → Home arrangements).
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.lg}"
+    padding: "16px"
+    # shadow semantics live in ## Elevation & Depth
 ---
 
 # Design System: Gordi MOS
+
+> ## Authority — read before trusting any value in this file
+>
+> Three artifacts describe this design system. They are **not** peers, and confusing them is the
+> single easiest way for an agent to do the wrong thing here.
+>
+> | Artifact | Is the truth about | Drifts? |
+> |---|---|---|
+> | `mos-app/src/index.css` | **Token values** — every colour, size, radius, shadow the app actually renders | No. It *is* the running code. |
+> | **This file** | **Design rules** — what to do and what never to do, stated so an agent can follow it while writing CSS | Its *values* can drift; its *rules* are the authority. |
+> | `docs/decisions.md` | **Decisions** — who decided a rule, when, why, and what was rejected (`OD-*`) | No. It is the decision record. |
+> | `.impeccable/design.json` | Machine-readable mirror for tooling | Generated. Never hand-edit. |
+>
+> **This file states rules; it does not host decisions.** A rule lives here because an agent needs
+> it in hand at the moment it writes a component — sending them to another file for every rule means
+> they won't look, and the design hook cannot read prose anyway. The *reasoning* behind a rule, the
+> alternatives weighed, and the ratification belong in `docs/decisions.md`. So a rule here carries a
+> bare `(OD-###)` citation, not a retelling. **If you want to know *why*, follow the citation.**
+>
+> **When a token value here disagrees with `index.css`, the code wins** — the oklch values below are
+> a documentation mirror (the runtime is `color(display-p3 …)`), kept for linter compatibility.
+> **When a *rule* here disagrees with the code, this file wins** — code that violates a named rule
+> is a defect, not a new convention.
+>
+> Do not regenerate this file wholesale. Its rules are owner-ratified; a spec-shaped rewrite would
+> silently drop the ones the canonical eight sections have no slot for. Extend it instead.
+>
+> *Known debt: several older rules still embed their full rationale inline (the Tabular-Numbers
+> verification narrative is the worst offender). That prose belongs in `docs/decisions.md` behind a
+> citation. Not yet migrated — do not add more of it.*
+>
+> **The One-Global-Utility Rule (extract, 2026-07-28).** A utility class meant to be app-wide
+> (`.sr-only` and its kin) is defined in exactly ONE place — `index.css` or, if it doesn't already
+> exist there, the platform library (this app's Tailwind import already ships a correct `.sr-only`).
+> A component or page stylesheet defining its OWN copy of a global-sounding class is not a harmless
+> local convenience: unlayered CSS from different files competing for the same selector resolves by
+> **import order**, not intent, so "whichever chunk happened to load last" silently decides the
+> app's accessibility behaviour. Found live 2026-07-28: four files (`tasks/TaskSurface.css`,
+> `tasks/TasksWorkspace.css`, `pages/kitchen-plan-page.css`, `pages/kitchen-review-page.css`) each
+> shipped their own `.sr-only`, which is why a skip link had to route around the cascade in React
+> state (`shell/app-shell.tsx`) instead of trusting the class — see DD-12, `docs/v4-inheritance.md`.
+> All four were deleted; Tailwind's own utility is the one definition now. The same failure mode
+> applies to any class name, not just utilities — see the Buttons section's `.btn-ghost` note below
+> for a case where it silently changed a *shared component's* rendered style, not just an a11y helper.
 
 > **ADR-0009 (2026-06-19) — token-system adoption.** This file is the identity authority
 > (OD-DIR-8). Runtime tokens live in `mos-app/src/index.css` as `color(display-p3 …)`
@@ -214,9 +276,9 @@ components:
 
 This is the existing, owner-approved RIS Portal look — a shadcn/Radix-derived, near-monochrome control surface — adopted wholesale as the Gordi MOS's visual identity. It is **preserved, not reinvented.** The system was extracted verbatim from the RIS reference mockups (`sales-pipeline-reference.html`, `budget-reference.html`), both of which carry one identical token block ("Token System A", shadcn-vue HSL, light scheme). Every value below is reverse-engineered from those files; nothing here is a new brand, palette, or font.
 
-The personality is **calm, dense, and data-first.** The surface is white-on-near-white: a single blue carries every interactive affordance against a field of warm-cool greys, so the eye goes straight to numbers, status, and the one action that matters. Density is deliberate — controls are compact (32px tall), but table rows breathe (54px) so financial figures are scannable. This is an operator's tool for a contract- and project-based business: the owner reviews budgets, procurement, and pipeline on desktop and phone, and the design optimizes for trust in the data over decoration. It explicitly rejects the "AI SaaS marketing" aesthetic: no neon, no glassmorphism panels, no oversized hero type, no shadow-heavy "floating card" soup, no purple gradients.
+The personality is **calm, dense, and data-first.** The surface is white-on-near-white: a single blue carries every interactive affordance against a field of warm-cool greys, so the eye goes straight to numbers, status, and the one action that matters. Density is deliberate — controls are compact (32px tall), but table rows breathe (52px) so financial figures are scannable. This is an operator's tool for a contract- and project-based business: the owner reviews budgets, procurement, and pipeline on desktop and phone, and the design optimizes for trust in the data over decoration. It explicitly rejects the "AI SaaS marketing" aesthetic: no neon, no glassmorphism panels, no oversized hero type, no shadow-heavy "floating card" soup, no purple gradients.
 
-**Owner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12).** After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's *texture* without changing its *identity*: a new font pairing (Plus Jakarta Sans + DM Sans, retiring Inter), a slightly larger card radius (12px), a single subtle *resting* shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Single-Border Rule, density, the Tinted-Status pattern, and all RACI/progress/ops/MOS-density tokens are **unchanged** — these are the load-bearing identity, and the refresh leaves them intact.
+**Owner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12).** After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's *texture* without changing its *identity*: a new font pairing (Plus Jakarta Sans + DM Sans, with Inter retained only for the verified numeric tabular scope), a slightly larger card radius (12px), a single subtle *resting* shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Single-Border Rule, density, the Tinted-Status pattern, current status and Signal semantics, Task PIC/Supervisor grammar, governance role-chip semantics, and MOS density mode are **unchanged** — these are the load-bearing identity, and the refresh leaves them intact.
 
 **Key Characteristics:**
 - One blue accent (`primary`, `hsl(221 83% 53%)`) does all the interactive work; everything else is neutral.
@@ -241,7 +303,7 @@ A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a coo
 - **Success Green** (`hsl(142 71% 45%)`, fg `hsl(0 0% 98%)`): "Won"/positive status, completed steps, positive deltas, high-threshold bars, the "Live" pulse tag, success toasts.
 
 ### Neutral
-- **Background** (`hsl(0 0% 100%)`, pure white): App background and header. Note the main scroll area uses `secondary` at 35% (`hsl(240 4.8% 95.9% / 0.35)`) to lift cards off the page.
+- **Background** (warm near-white canvas from the E7/runtime token foundation): App background and header. The main scroll area uses a quiet secondary wash to lift cards off the page without introducing a second visual identity.
 - **Foreground** (`hsl(240 10% 3.9%)`, near-black): Primary text.
 - **Card / Popover** (`hsl(0 0% 100%)`): Elevated surfaces (cards, table body, rail, popovers, toasts) — pure white against the tinted main area.
 - **Secondary / Muted / Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). `accent` is the hover wash on interactive neutral surfaces (rail items, ghost buttons, row hover, control hover).
@@ -266,19 +328,29 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only. *Note: Task status chips use an 8px dot (bumped from 6px for WCAG 1.4.1 visibility) + always-present text label (never dot-only) so status stays perceivable when grouping ≠ Status — see §5 Badges.*
 
-**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead.
+**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead. *(Restored in Step-1 styling pass OD-P3-13 — previously split for control visibility.)*
 
 **The Structural-Navy Rule (OD-P3-7).** `brand-navy` carries *structural* weight the lone action-blue must not: the logo square + dot, the active nav indicator (inset-shadow rail marker), the group-by control, the drawer's active-tab underline, the avatar gradient (`navy → primary`), and the navy tint behind the OD-P3-12 gradients. It is **never** an action color (no buttons, no links) and **never** a status. The One-Blue Rule is preserved — `primary` blue remains the *only* interactive/action color.
 
 **The Orange-Sprinkle Rule (OD-P3-7).** `brand-orange` is a brand sprinkle used **sparingly** (≤2 marks per screen): the logo dot and the **active view-tab underline marker**. It is kept **OFF all status semantics** (it sits hue-wise between the red/amber status hues and would be misread as a warning) and **OFF all actions**. Never a status, never a link, never a button.
 
-**The Deputy-Launcher / No-FAB Rule (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange FAB).** MOS sanctions **no floating action button** paradigm — a floating orange "Open deputy" FAB doubly violated the Orange-Sprinkle Rule (orange-as-action) and collided with page content + the Kitchen submit bar on phone. The deputy launcher is instead a **neutral top-bar icon button on every viewport** (desktop *and* phone): 32px, the deputy spark glyph, `muted-foreground` → `foreground` on hover, sitting in the header right-cluster beside search/bell — identical chrome to the notification bell. One launcher location app-wide (one app, not "several apps"). No orange, no float.
+**Deputy launcher and phone Action Launcher (RATIFIED 2026-07-07, owner-agreed — UI-coherence audit D8/E10; supersedes ADR-0019 D11's orange Deputy FAB).** Deputy is never a FAB; it uses the shared top-bar/host door on every viewport: a neutral 32px deputy spark button in the header right-cluster beside search/bell, with `muted-foreground` → `foreground` on hover. The only sanctioned phone Action Launcher FAB is the universal capability-filtered `+ Action Launcher`; it may expose at most one high-frequency contextual module action permitted by current law, never orange decorative chrome, never Capture, and never a second launcher. ~~Desktop/tablet use the shared top-bar `+ Create` door.~~ **STALE — superseded by OD-REDESIGN-91 #16
+(owner-initiated): "The top-bar Create button is REMOVED app-wide."** Decisions outrank this file, so
+the code is correct and this clause was the defect. Desktop/tablet creation goes through the ⌘K
+palette (OD-REDESIGN-57(i): universal actions live in ⌘K, not as header buttons). One launcher
+location app-wide (one app, not "several apps").
 
 ## Typography
 
 **Display / Heading Font (OD-P3-9):** Plus Jakarta Sans (with `system-ui, -apple-system, "Segoe UI", sans-serif` fallback) — page titles, section/card headings, subheadings.
 **Body / UI / Table Font (OD-P3-9):** DM Sans (same fallback stack) — body copy, controls, table cells, labels, overlines.
 **Mono Font:** SF Mono (with `ui-monospace, "JetBrains Mono", Menlo, monospace`) — IDs, codes, and the `⌘K` glyph only. *(Unchanged.)*
+
+**Touch-input step (v4).** `--font-size-touch-input: 16px` is the one size above the control step,
+and it exists for a mechanical reason rather than a typographic one: mobile Safari zooms the viewport
+when a focused input renders below 16px. Apply it ONLY to text/number inputs tapped on a coarse
+pointer (the Café Log quantity field is the reference case). Never for display, body, or label text —
+it is not a new headline size, and using it as one is drift.
 
 **Character:** Two geometric-humanist sans share the work: Plus Jakarta Sans gives headings a touch more warmth and presence than Inter did, while DM Sans keeps body and table text quiet, legible, and tight at 14px. The voice stays neutral and engineered, never expressive. **Jakarta tracks looser than Inter** — so the title `letterSpacing` was relaxed from `-0.02em`/`-0.01em` to `-0.01em`/`normal` (over-tightening Jakarta makes counters collide). Base size is 14px with a 1.45 line-height; the app reads like a well-set spreadsheet, not a landing page. **`tabular-nums` (`font-variant-numeric: tabular-nums` + `font-feature-settings: "tnum"`) is mandatory on all money, percentages, counts, deltas, and metric values** so columns align and figures don't jitter on update — both Plus Jakarta Sans and DM Sans ship a `tnum` feature, but this MUST be verified on the live Tasks table (see The Tabular-Numbers Rule + the implementer tnum-verification step).
 
@@ -287,6 +359,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 - **Heading** (Plus Jakarta Sans, 600, 20px, lh 1.25, ls normal): Section/card titles, kanban column titles (~13.5px/600 in compact contexts).
 - **Subheading** (Plus Jakarta Sans, 600, 18px, lh 1.3): Sub-section headers inside detail panels.
 - **Body** (DM Sans, 400, 14px, lh 1.45): Default text. Controls and table cells run 13.5px; the base run is 14px.
+- **Body Large** (DM Sans, 400–600 by role, 15px, lh 1.45): Emphasized body — record titles in rows, primary row text, lead copy on auth/empty surfaces. *(Minted OD-REDESIGN-91 #6/B4, 2026-07-24: the shipped ~65-use 15px family became a deliberate rung — `--font-size-body-lg`.)*
 - **Label** (DM Sans, 600, 12px, lh 1.3): Status pills, badge counts, dense metadata, button text at small sizes.
 - **Overline** (DM Sans, 600, 11px, lh 1.3, ls 0.06em, UPPERCASE): Rail group labels and table column headers (`thead th` at 11.5px). The uppercase + tracked treatment is the system's section-divider voice.
 - **Mono** (SF Mono, 500, 13px): Project codes / IDs (`.pc-id`), keyboard hints (`.kbd`, `⌘K`). Never for prose or numbers-in-tables (those use tabular DM Sans).
@@ -295,6 +368,161 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 **The Tabular-Numbers Rule.** Every figure that can change or be compared (currency, %, counts, deltas, ages) is `tabular-nums`. Non-negotiable in tables, KPIs, kanban totals, and funnel values. **Font-family contingency (OD-P3-9):** Plus Jakarta Sans and DM Sans both expose a `tnum` OpenType feature, but tabular-figure quality varies by build. The implementer MUST verify (see implementer note 7) that `font-feature-settings: "tnum"` actually column-aligns digits on the Tasks table in DM Sans. **If DM Sans `tnum` is weak or absent, fall back to `Inter, …` with `tnum` for numeric table cells / KPI values ONLY** (a scoped `.tnum`/`.num` utility), keeping Inter alive *solely* as the tabular-figure font in those cells — never as the proportional body/UI face. This is the only sanctioned residual use of Inter post-OD-P3-9, and only if the verification fails. **Verification result (2026-06-18): DM Sans `tnum` is a no-op in its `@fontsource` build — measured digit widths don't equalize (digit "1" stays ~0.9px narrower), so the Inter-tabular fallback IS ENGAGED.** The `.tabular` utility is scoped to `Inter Variable` (verified 0px digit spread); proportional body/UI text stays DM Sans. Inter is imported solely for this numeric scope.
 
 **The Mono-For-Identifiers Rule.** SF Mono appears only on machine identifiers (deal/project codes) and keyboard chips. Money is DM-Sans-tabular (or the Inter-tabular fallback above), not mono.
+
+**The Two-Role Scale Rule (OD-V4-8, 2026-07-28).** The scale has exactly **two roles**, and they do
+not meet: **display** runs 24 / 20 / 18px in Plus Jakarta Sans; **body** runs 15 / 14 / 13.5 / 12 /
+11px in DM Sans (plus the 10px `micro` avatar mark and the mechanical 16px touch-input step above).
+Two consequences follow, and both are ratified, not accidental:
+
+1. **The display scale stops at 24px.** No step above `page-title` exists, and the owner **deferred**
+   minting one, so a page-level verdict or progress line cannot be made to outweigh the page title by
+   size. Get that emphasis from position, weight, and surrounding air instead — not from a new
+   primitive invented at the call site.
+2. **The 15/14px pair is a deliberate rung**, not drift: `body-lg` (15px) is *emphasized* body —
+   record titles, primary row text, lead copy — against 14px base (OD-REDESIGN-91 #6/B4). A linter
+   that flags this pair as a "flat type hierarchy" is measuring a two-role scale as if it were one
+   ramp. It is a **known non-defect**; do not "fix" it by inflating a step.
+
+**The 18px rung, as v4 Home actually uses it (2026-07-29).** `OD-V4-8` ratified the *body* rungs
+(`15 / 14 / 13.5 / 12 / 11`, plus the 10px `micro` mark) and the display scale's 24px ceiling — it
+never named the **18px `subheading`** rung, which is what two shipped Home decisions both turn on.
+Recording them here is what stops the next surface re-deriving them at a call site:
+
+1. **A compact page `h1` steps to `subheading` (18px) — one rung below `page-title`, not three.**
+   Where a head carries a second full-width row (Home's day header: greeting + role, the day's tally,
+   a rule-driven state line and the progress track) the block's ~70px height budget is paid for by
+   stepping the title down the **same declared ladder**: `page-title` (24px) → `subheading` (18px).
+   No new size, no second header grammar. `shell/page-head.css` `.content-header--compact .ch-title`.
+   It landed first at `body-lg` (15px), which put the page's own `h1` **below** the group headers
+   inside it — the inversion is the reason the rung is one step, not a free choice.
+2. **A group header sits at `body-lg` (15px) — the SAME rung as the record-row titles it heads — and
+   separates on four other channels instead.** `.stream-band-label` (Home's List bands,
+   `components/home/home-stream.css`) and `.signal-feed-label` (the Signals column,
+   `components/signals/signal-feed-section.css`) are byte-for-byte the same treatment: the **display
+   face** (`--font-display`) against the rows' body face; **sentence case** (an uppercase overline is
+   a *divider*, not a header); full-strength **`--foreground`** (muted is exactly what made it recede
+   into the rows); a **1px `border` hairline edge** above; and **asymmetric space**. Size is
+   deliberately *not* one of the channels: at 18px the label ties Home's own `h1` and the two read as
+   peers ("Good morning, Dewi" vs "Needs you now · 2").
+
+Two rules follow:
+
+- **`subheading` stays reserved for a title that must OUTRANK the content beneath it** — sub-section
+  headers inside detail panels, empty-state titles, and the compact page `h1` above. A header that
+  merely *groups peers* does not qualify, and taking `subheading` for one is how a page ends up with
+  two things claiming to be its title.
+- **Neither carries a decorative hue.** Amber / red / blue already mean overdue / blocked /
+  in-progress on these very rows; a header colour that collides with the status vocabulary is worse
+  than the undifferentiated column it was meant to fix. Contrast + weight + an edge is the whole fix.
+
+*Pinned in CSS, not in a render:* `components/home/guard-list-band-separation.css.test.ts` and
+`guard-home-head-rank.css.test.ts` assert these declarations, because jsdom has no layout engine and
+the unit tests that render Home assert text, not paint.
+
+## Layout
+
+The application frame is fixed furniture — a **232px rail** (`--rail-w`, narrowing to a **72px
+icon-only rail** (`--rail-w-compact`) in the 920–1099.98px regime) and a **56px header**
+(`--header-h`) around a content measure that stops at **1180px** — and the page inside it is composed
+from the **4 / 8 / 12 / 16 / 20 / 24 / 32 / 48px** spacing steps. *MOS density mode* (below) governs
+*what* a surface may compose; this section records *where* the layout changes shape, and the rule for
+choosing the instrument that triggers the change.
+
+### The Two-Measure Rule (v4, 2026-07-29)
+
+There are **two** content measures, and which one a page gets is decided by **what kind of surface it
+is** — not by who authored it, and not per-page taste.
+
+| Measure | Value | Applies to |
+|---|---|---|
+| **Readable single column** | **1180px** — `shell/page-families.css` `.page-frame__content` | The default. One column of prose-width content: records, forms, management surfaces, settings, anything read top-to-bottom. |
+| **Wide operating surface** | **1760px** | A surface whose composition is genuinely *two-dimensional* — a master/detail split, or a work column beside a standing aside — where the readable cap leaves a **dead gutter** rather than a margin. |
+
+`1760px` is a **rule with two instances**, not a one-off:
+
+1. **Tasks master/detail** — `components/tasks/TasksWorkspace.css` `.split`. The data workspace runs
+   full-bleed so the table's right edge aligns with the account chip; only the `1fr` Task column
+   absorbs the extra width, the other columns are fixed-px, so nothing balloons. (*"owner-eyes item 7
+   — kill the dead right void"*.)
+2. **Home** — `components/home/home-layouts.css`, scoped
+   `.page-frame--v3 .page-frame__content:has(.home-frame)`. Home is a work region beside a standing
+   Signals aside, so the readable cap stopped the header rule, the arrangement and the Signals column
+   ~250px short of the content area and stranded a gutter to their right (*"why is the container for
+   home got cut mid screen horizontally?"* — owner, ~1730px window).
+
+Both take the **same** 1760px on purpose, so the two wide surfaces' right edges land in the same
+place; a different number would be a *second* wide measure, not a reuse of this one. Two further
+constraints follow:
+
+- **A wide surface opts in; it never widens the shared rule.** Home's `:has(.home-frame)` scoping is
+  the shape — it outranks the shared cap on **specificity**, not on stylesheet order, and every
+  single-column page keeps 1180px untouched.
+- **A third instance must bring the same evidence:** name the second dimension the surface composes,
+  and the void the readable cap leaves at a real window width. "It looks narrow" is not the
+  measurement. A single-column page is never widened — 1180px is what keeps a line readable.
+
+### Spacing: a real gap in the system (2026-07-29)
+
+Stated plainly because an implementer will look for these and not find them: **there is no adopted
+semantic spacing token set in this codebase.**
+
+- **`--space-*` / `--sp-*` do not exist.** Zero declarations, zero uses.
+- The frontmatter `spacing:` block above (`xs/sm/md/base/lg/xl`) has **no runtime counterpart under
+  those names**. It documents the intended steps; nothing in the app resolves them.
+- The platform token layer *does* ship a ramp — `--ds-spacing-0 … --ds-spacing-32` (plus `-0_5`,
+  `-1_5`) on a 4px multiplicator, in `styles/tokens/theme-light.css` / `theme-dark.css` — but it is
+  **effectively unadopted**: a handful of declarations in two files (`home-stream.css`,
+  `signal-feed-section.css`), all written with a raw-px fallback (`var(--ds-spacing-6, 24px)`).
+- Everywhere else, components write **on-scale raw px** against the 4 / 8 / 12 / 16 / 20 / 24 / 32 /
+  48 steps.
+
+So three half-systems coexist and none is authoritative. **This is a gap, not a convention.** Until
+it is closed by an owner-ratified decision, the binding rule is unchanged and is the one the code
+already follows: **any spacing value must land on the 4/8/12/16/20/24/32/48 scale**, whether it is
+written as a raw px or a `--ds-spacing-*` reference. Do **not** mint a third vocabulary at a call
+site, and do **not** treat the scattered `--ds-spacing-*` uses as an adopted standard to spread.
+*(Closing it properly — adopt `--ds-spacing-*`, or mint semantic aliases, or ratify raw-px-on-scale
+as the convention and delete the unused ramp — is an owner decision; it is a token-architecture
+change touching every stylesheet, not a doc edit.)*
+
+### Breakpoint inventory
+
+Every responsive branch in the system, in one place. There is deliberately no general-purpose
+breakpoint set to pick from: each of these exists because a specific component **measured wrong** on
+one side of it, and a new branch needs the same kind of evidence.
+
+| Name | Value | What changes at it |
+|---|---|---|
+| `home-bento-stack` | 620px | The Home bento collapses to one column and every tile spans it — the tile grid is a desktop/tablet affordance (v4, `OD-V4-7` constraint 4). **Measured on the Home frame (`@container home`), not the viewport.** |
+| `phone-toolbar` | 639px | The Café toolbar keeps search + category on one line instead of wrapping. |
+| `table-reflow` | 768px | `DataTable` single-renders: `<table>` at or above, stacked cards below (OD-W4-4). The Home layout picker's 3-up thumbnail grid also drops to one column here — and **stays 3-up all the way up: there is deliberately no intermediate 2-up step.** Measured: above this branch the picker's available content width never falls below **720px**, and the narrowest point is the branch *itself* (768px viewport, rail already collapsed, 24px frame gutters). It is **not monotonic** — the 920px icon-rail regime gives 800px and the 1100px full-rail regime 820px, both *wider* than at 768. At the 720px floor the picker card's inner width is `720 − 2 × (16px padding + 1px border)` = 686px, so each thumbnail measures `(686 − 2 × 12px gap) / 3` ≈ **221px** — comfortably above the ~200px at which the CSS wireframes stop reading as diagrams (at the 560px form measure they collapsed to 167px, which is what forced the wider host in the first place). A 2-up branch would therefore be a breakpoint with no measurement behind it. |
+| `coarse-pointer floors` | 767.98px | Segmented tracks and their options relax to `height: auto` + `min-height: 44px`. Additionally, and independently of width, `(pointer: coarse)` raises rail rows to 44px with 8px between adjacent targets. |
+| `rail-collapse` | 920px | *Below* it the desktop rail is gone entirely and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide. **Distinct from `table-reflow` — do not conflate the two.** *At or above* it the rail returns, but at 72px — see `rail-compact`. |
+| `rail-compact` | 1100px | Between `rail-collapse` and this, the rail is **icon-only at 72px** (`--rail-w-compact`; OD-REDESIGN-84.2 / P1-1, the 920–1099.98px regime): the item keeps its icon, the label moves to `.sr-only` (still its accessible name) and a CSS-only tooltip surfaces it back on hover/`:focus-visible` via `attr(data-label)`; the top-bar brand column narrows to match and drops the wordmark so the divider stays on the rail boundary. At or above 1100px the full 232px rail returns. **This regime is why available content width is non-monotonic in the viewport across 768→1280** — the diagnostic in The Container-Query Rule below, and the picker measurement on the `table-reflow` row, are both consequences of it. |
+| `home-single-column` | 940px | The Home work/feed split collapses: the Signals column stops being an aside and stacks under the work region (gap 32px → 24px), and the bento drops 6 columns → 4 (v4, `OD-V4-7`). **Measured on the Home frame (`@container home`), not the viewport.** |
+| `desktop` | 1280px | The full desktop contract of § Responsive grammar — rail + header + frame + a 40–45% record panel, without clipping. |
+
+**The Container-Query Rule (v4, 2026-07-28).** A component that renders at *different widths inside
+the same viewport* adapts to **the space it has**, not to the window. The Signal row is the reference
+case: the same anatomy renders in Home's ~300px ambient tail **and** in the `/work/signals` archive
+Feed's ~1140px column **at the same 1440px viewport**, so a viewport `@media` query is measuring the
+wrong thing entirely — it left the 300px tail horizontal, with a ~96px title that both wrapped *and*
+ellipsised and meta separators stranded on their own lines. `signal-feed-rows.css` therefore declares
+`container: signal-feed / inline-size` on the feed and branches on
+`@container signal-feed (max-width: 480px)`; the archive stays above the threshold and is untouched
+by the same rule. Reach for a viewport `@media` only when the thing that actually varies **is** the
+viewport (the rail, the header, the page frame).
+
+**Home is the second case, and it shows the failure mode.** Its two branches keyed off the window
+while the 232px rail collapses at 920px *independently* of it, so the space the arrangements
+actually had was **non-monotonic in the viewport** — the Overview work column measured 812px at
+1440, 488px at 1100, and 572px at 1024, i.e. *wider* at the narrower window. At 1100 the bento was
+consequently still holding 6 columns of 64.66px: row titles squeezed to 99px and meta wrapped to
+three lines. `home-layouts.css` now declares `container: home / inline-size` on `.home-frame` (the
+Home page-content wrapper — a container query styles a container's *descendants*, so `.home-layout`
+cannot be its own) and both branches read it. The thresholds are unchanged; only what they measure
+is. **Diagnostic:** if the quantity a breakpoint controls is not monotonic in the trigger, the
+trigger is the wrong quantity.
 
 ## Elevation & Depth
 
@@ -317,17 +545,17 @@ This is a **borders-first system with a permitted soft resting lift** (amended 2
 The system was gradient-free at rest by default. The owner ratified **two bounded, navy-tinted gradients** — explicitly **NOT purple**, far lighter than the demo's lavender, and always within The One Blue Rule.
 
 - **Primary-button sheen** (`gradients.primary-sheen`): An **optional** whisper-subtle vertical gradient on the primary fill — top ~3% lighter, bottom ~2% darker than the base `primary`. It is a sheen on the *same* blue, not a second hue. `primary-foreground` (near-white) clears AA (≥4.5:1) across the *entire* range.
-- **Surface wash** (`gradients.surface-wash`): A very faint navy-tinted top-wash for **home / digest surfaces only** (My Week). It fades from `brand-navy` at 3.5% alpha to fully transparent within 220px.
+- **Surface wash** (`gradients.surface-wash`): A very faint navy-tinted top-wash for **Home / digest surfaces only**. It fades from `brand-navy` at 3.5% alpha to fully transparent within 220px.
 
 **The Restrained-Gradient Rule (OD-P3-12).** Gradients are permitted in **exactly two places**: the optional primary-button sheen and the home/digest surface wash. Hard bounds: **(1)** never on status; **(2)** never introduces a new hue — only the `primary` blue (sheen) or `brand-navy` (wash) families, **never purple/indigo/violet**; **(3)** opacity ceiling — the surface wash tops out at **3.5% alpha** and fully fades to transparent; the button sheen stays within **±3% L** of base `primary`; **(4)** AA text contrast must hold across the **full** gradient range, verified at the worst-case stop. No glassmorphism, no neon, no multi-stop rainbows — these are *whispers* of depth.
 
 ## Shapes
 
-Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tight at 8px** (`rounded.sm`) — buttons, inputs, nav-items, badges — so 32px controls don't go bubbly. **Cards / containers / overlays take the 12px card radius** (`rounded.lg`, OD-P3-10). Checkbox / tiny inner corners use 4px (`rounded.xs`). Pills / status badges use `full` (999px). Nested radii compose so inner corners sit inside outer ones.
+Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tight at 8px** (`rounded.sm`) — buttons, inputs, nav-items, badges — so 32px controls don't go bubbly. **Cards / containers / overlays take the 12px card radius** (`rounded.lg`, OD-P3-10). Checkbox / tiny inner corners use 4px (`rounded.xs`). **Status pills are rounded-rects at the 8px control radius** (`rounded.sm` — ratified OD-REDESIGN-91 #30/E1; the former 999px capsule spec is retired for the status-pill shell). `full` (999px) remains for genuinely circular/capsule marks: leading dots, count badges, the basis chip. Nested radii compose so inner corners sit inside outer ones.
 
 ## Components
 
-All interactive controls are **32px tall** ("h-8") with **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`) unless noted; **cards/containers/overlays use the 12px card radius** (`{rounded.lg}` = `var(--radius)`). Data table rows are deliberately roomier at 54px. Nested radii use `calc(var(--radius) - 2px/4px)` so inner corners sit inside outer ones. *(OD-P3-10 taste guard: the radius bump to 12px applies to the big surfaces only — 32px controls stay tight at 8px so buttons/inputs/badges/nav-items don't go bubbly.)*
+All interactive controls are **32px tall** ("h-8") with **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`) unless noted; **cards/containers/overlays use the 12px card radius** (`{rounded.lg}` = `var(--radius)`). E7 table rows are 52px. Nested radii use `calc(var(--radius) - 2px/4px)` so inner corners sit inside outer ones. *(OD-P3-10 taste guard: the radius bump to 12px applies to the big surfaces only — 32px controls stay tight at 8px so buttons/inputs/badges/nav-items don't go bubbly.)*
 
 ### Buttons
 - **Shape:** 8px radius (`{rounded.sm}`, the control radius — unchanged in absolute px by OD-P3-10, now expressed as `calc(var(--radius) - 4px)`), 32px tall, `0 12px` padding, 7px gap to a 15px icon. Small variant (`btn-sm`): 28px tall, 13px text. Icon-only: 32px square.
@@ -337,16 +565,18 @@ All interactive controls are **32px tall** ("h-8") with **8px control radius** (
 - **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
+- **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home ("+ Tambah kategori"): **15px** instead of the canonical **13.5px** (`--font-size-control`), on a page that never renders a Task. *(Corrected 2026-07-29 during ratification: the `.btn` base is 13.5px/**600**, but `.btn-ghost` deliberately steps its weight down to **500** — a ghost is the quietest rank in the hierarchy. So the canonical ghost is 13.5px/500 and the shadowing defect was the **size** alone. The "13.5px/600" first written here — and the same phrase still in `tasks/TaskSurface.css`'s removal comment — mis-states the ghost variant; `ui/Button.css` is the truth.)* Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
+- **A secondary variant is a decision about rank, not a fallback.** When a control is a *door in an ambient region* rather than the surface's own action, it takes `.btn-outline` and the One Blue stays with the page's primary action — see § Signal row (v4) for the `+ Signal` case, where the primary paint made an ambient affordance outrank the overdue work above it.
 
 ### Badges / Status Pills
-- **Status pill:** 22px tall, full radius, 12px/600 label, with a leading 6px colored `dot`. Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
+- **Status pill:** 22px tall, **8px `rounded.sm` radius (rounded-rect — ratified OD-REDESIGN-91 #30/E1)**, 12px/600 label, with a leading 6px colored `dot` (the dot itself stays circular, `rounded.full`). Background = status hue at ~10–18%, text = a darkened variant of the hue for AA contrast (applied via the named CSS token — see below). Variants observed: `open` (blue), `won` (green), `lost` (red), `overdue` (amber). Default/neutral badge uses `secondary` bg + `muted-foreground` text. No gradient (status).
 - **Count badge** (nav rail / kanban): `secondary` bg + `muted-foreground` text, full radius; active nav item flips to `primary/15%` bg + `primary` text. Kanban column count adds a 1px border on `background`.
-- **Basis chip** (RATIFIED 2026-07-07, OD-DASH — the `/dashboard` KPI "interim/basis" label): a neutral explanatory chip that names the data basis under a number (e.g. "interim-stock-movement"). 20px tall, `rounded.full`, **no dot** (it is metadata, not status), `secondary` bg + `muted-foreground` text, 11px/600 label. It reuses the default/neutral badge pair verbatim — `--basis-chip` is **not a new token**; it is the *role name* for "neutral badge used as a basis label" (the same `secondary`/`muted-foreground` values as the count badge). Distinct from a status pill on two counts: (1) no dot, (2) neutral-only — a basis is never good/bad, it is a provenance note.
-- **Data-quality (DQ) badge** (RATIFIED 2026-07-07, OD-DASH — `/dashboard` BOM-coverage signal "good/partial/unknown"): a status pill **reusing the existing Tinted-Status hues — no new token**. The DQ state maps onto the established status families via the dot+text convention:
+- **Basis chip** (RATIFIED 2026-07-07, OD-DASH — the `/money` KPI "interim/basis" label): a neutral explanatory chip that names the data basis under a number (e.g. "interim-stock-movement"). 20px tall, `rounded.full`, **no dot** (it is metadata, not status), `secondary` bg + `muted-foreground` text, 11px/600 label. It reuses the default/neutral badge pair verbatim — `--basis-chip` is **not a new token**; it is the *role name* for "neutral badge used as a basis label" (the same `secondary`/`muted-foreground` values as the count badge). Distinct from a status pill on two counts: (1) no dot, (2) neutral-only — a basis is never good/bad, it is a provenance note.
+- **Data-quality (DQ) badge** (RATIFIED 2026-07-07, OD-DASH — `/money` BOM-coverage signal "good/partial/unknown"): a status pill **reusing the existing Tinted-Status hues — no new token**. The DQ state maps onto the established status families via the dot+text convention:
   - `good` → `success` family (dot `success`, text `success-foreground` over a `success/14%` tint).
   - `partial` → `warning` family (dot `warning`, text `warning-foreground` over a `warning/18%` tint). "Partial" is a *caveat*, not an error — `warning` (amber), never `destructive` (red).
   - `unknown` → neutral (dot `muted-foreground/40%`, text `muted-foreground` over `secondary`). Reads as "no signal," not "bad."
-  - The label is always the literal "BOM coverage: \<state\>" so the dot is never the sole carrier (WCAG 1.4.1). Same 22px / full-radius / 12px-600 shell as a status pill.
+  - The label is always the literal "BOM coverage: \<state\>" so the dot is never the sole carrier (WCAG 1.4.1). Same 22px / rounded-rect (`rounded.sm`) / 12px-600 shell as a status pill.
 
 #### Status-pill text tokens (Wave-6 H3 — named source of truth in `index.css` `:root`)
 The darkened-AA text values for the four non-neutral pill variants are defined as named CSS custom properties. The `StatusPill` component applies them as `hsl(var(--token))` inline styles — the token IS the applied value.
@@ -379,8 +609,8 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`, DM Sans), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
-- **Body cells:** 54px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu button is hidden until row hover. No per-row resting shadow (the table is one card; the Soft-Elevation rest sits on the card, not each row).
-- **Dense DB-view variant (OD-P3-6).** On the full-bleed Tasks DB-view, body rows run **50px** (not the standard 54px) — an intentional density increase for the scan-many-rows workspace job, paired with horizontal hairline dividers (`border/70%`) and **no vertical column rules** (vertical "stripes" hurt scan-readability — owner). 54px remains the default for all other DataTables. The 50px figure is the only deliberate divergence from the 54px row token and is documented here so it isn't "drift."
+- **Body cells:** 52px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu button is hidden until row hover. No per-row resting shadow (the table is one card; the Soft-Elevation rest sits on the card, not each row).
+- **Dense DB-view variant (OD-P3-6).** The full-bleed Tasks DB-view keeps the E7 52px row grammar, paired with horizontal hairline dividers (`border/70%`) and **no vertical column rules** (vertical "stripes" hurt scan-readability — owner). Any current source that uses a 50px row is inventory evidence to migrate, not a second V3 row token.
 - **In-cell patterns:** project cell (28px colored icon + 2-line name/code, code in mono); money (`tabular`, sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by threshold); age chip (turns `warning-foreground`/`destructive` when aging/stale).
 - **Footer:** totals row, `secondary/40%` bg, 1.5px top border, `tabular` values; count in `muted`.
 - **Toolbar / Action bar:** `card` bg seamed to the table top (`… … 0 0`), 10–12px padding, holds `control` chips (32px, `input` border, `muted` icon, chevron), a `seg` segmented filter (`secondary` track, "on" = white pill + lift), a `search-mini`, and trailing icon controls. Selection mode swaps the default controls for a bulk-action cluster on a `primary/6%` wash with a count `pill`. Flat at rest (utility surface — no resting shadow).
@@ -392,37 +622,277 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - A horizontal "journey" tracker: equal-flex steps each with a 6px rounded `jbar` (track = `secondary`), a label, and a date. `done` step → bar `success`, label `foreground`/600; `current` step → bar `primary`, label `foreground`/600. Used for budget version lifecycle and the deal stage journey in detail panels. The funnel/stage-summary band is the macro analog: 4 connected `card` segments with conversion-arrow chips between them; selected stage gets `primary/6%` + an inset `primary` bottom rule.
 
 ### Navigation
-- **Rail (sidebar):** 224px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`; nav-items are controls, kept tight per OD-P3-10), 13.5px/500, 17px stroke-2 icon, optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Settings.
+- **Rail (sidebar):** 232px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`; nav-items are controls, kept tight per OD-P3-10), 13.5px/500, 17px stroke-2 icon, optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Settings.
 - **Top bar (header):** 56px (`--header-h`), `background` bg, bottom `border`. Holds the mobile menu button, a breadcrumb (`muted` links → `foreground` on hover, `>` separators, bold `current`), a flexible spacer, the `cmdk` search button (`⌘K` chip), an icon button with a `destructive` notification dot, and a user chip (avatar gradient **navy→blue** (`brand-navy → primary`) + name/role, hidden on phone). *(OD-P3-7: gradient was blue→violet; violet moved to KPI/timeline only.)*
 - **Mobile:** below 920px the rail collapses (`--rail-w: 0`) and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide.
 - **DataTable reflow (OD-W4-4):** the DataTable **single-renders** — at `md` (768 px) it renders the `<table>`; below `md` it renders a stacked card list instead. Exactly ONE branch is in the DOM at a time (chosen by `useIsDesktop()` reading `(min-width: 768px)` synchronously at first paint, so no flash of the wrong branch on mobile). These are two separate breakpoints — 920 px for the rail collapse, 768 px for the table→card reflow. Card anatomy: first column = title/activation button, remaining columns = `<dl>` label:value grid. The mobile cards take the 12px card radius + resting lift (OD-P3-10/11). Because only one branch renders, each cell appears once in the AT tree — **no `aria-hidden` on either branch** (the unrendered branch is simply absent). Touch targets on card affordances extend to ≥44 px via `.touch-target`.
 
 ### View-tab strip (OD-P3-6)
-A horizontal tab strip above the toolbar selecting the workspace view (Table · Board · Calendar). 34px tall tabs, 13px/600, `0 12px` padding, 7px gap to a 15px icon. Inactive = `muted-foreground`; hover = `foreground`; **active = `brand-navy-text` + a 2px `brand-orange` bottom border** (the one orange sprinkle per screen). Disabled/"SOON" stubs = `hsl(240 4% 62%)` text + `not-allowed` cursor + a small `secondary`/`muted-foreground` "SOON" pill, `aria-disabled="true"`. `role="tablist"` / `role="tab"` / `aria-selected`; roving tabindex (only the active tab is `tabindex=0`). The strip is the "this is a database view, not a to-do list" signature. *Disabled stub AA note: ~3:1 contrast is acceptable for disabled controls (WCAG exempts them); state is communicated by the "SOON" pill + `aria-disabled`, not color alone.*
+A horizontal tab strip above the toolbar selects a **live presentation supported by the current domain**. A domain may expose Table, Board, Calendar, or another adapter only when that presentation is functional for the collection; unsupported future adapters are omitted, never rendered as dead tabs or decorative placeholders. Tabs remain 34px tall, 13px/600, `0 12px` padding, with a 7px gap to a 15px icon. Inactive = `muted-foreground`; hover = `foreground`; **active = `brand-navy-text` + a 2px `brand-orange` bottom border** (the one orange sprinkle per screen). `role="tablist"` / `role="tab"` / `aria-selected`; roving tabindex (only the active tab is `tabindex=0`). The strip is the "this is a database view, not a to-do list" signature; its visual grammar stays shared while its live tab set follows domain capability.
 
 ### Group header row (OD-P3-6)
 Inside the grouped DataTable, each group is introduced by a full-width `<tr>` rendered as a clean **hairline-separated** row (38px): top + bottom 1px `border`, transparent bg — **no navy band, no left-edge swatch** (left stripes removed as distracting — owner). Contents: a caret (`▾`/`▸`, `muted-foreground`, `aria-expanded`), the group **label** (13px/700, `brand-navy-text`, the structural-navy use), a plain **count** (`muted-foreground`, `tabular-nums`), an **overdue subtotal** when >0 (`· N overdue`, `--status-lost-text`, click-to-filter button `aria-label="Filter to N overdue tasks"`), and a trailing **"+ Add task"** ghost affordance (`muted-foreground`, pre-fills the grouped dimension). The whole header toggles collapse on click/Enter/Space (`aria-expanded`). Groups are **always shown** (including empty ones) for layout stability. Flat at rest (utility row — no resting shadow).
 
 ### DB-view toolbar controls (OD-P3-6)
-The Tasks toolbar uses **bordered** filter controls (the existing `control` chip: 32px, 1px `input` border, **8px control radius**, `muted-foreground` label + `foreground` value + chevron) — A's bordered chrome, not borderless text triggers. The **group-by control is the exception**: it is tinted to read as the active "database" control — `brand-navy/6` bg + 1px `brand-navy` border + `brand-navy-text` text + 600 weight (the structural-navy use). The Mine/RACI/All `seg` segmented control is unchanged (`secondary` track, white "on" pill + lift). **The segment is disabled when a Person filter is set** (Person overrides it): disabled `seg` = `opacity: 0.5`, `aria-disabled`, with the segment visually reading "Person: me."
+The Tasks toolbar uses **bordered** filter controls (the existing `control` chip: 32px, 1px `input` border, **8px control radius**, `muted-foreground` label + `foreground` value + chevron) — A's bordered chrome, not borderless text triggers. The **group-by control is the exception**: it is tinted to read as the active "database" control — `brand-navy/6` bg + 1px `brand-navy` border + `brand-navy-text` text + 600 weight (the structural-navy use). Saved views use **My work / Team work / Overdue**; explicit filters name **PIC / Supervisor / Team**. The saved-view segment stays available unless a more specific capability filter makes a view inapplicable, in which case the control explains that state rather than implying Task governance roles.
 
 ### Tabs / Segmented Controls
-- **Inline segmented (`seg`):** 32px track on `secondary`, buttons 28px, "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. `role="tablist"`/`role="tab"`/`aria-selected`. Used for stage filters.
+- **Inline segmented (`seg`):** 32px track on `secondary` (3px inset padding), options fill the track height (measures 26px, not the previously-stated 28px — corrected by live measurement, extract 2026-07-28), "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. Label size is the `mono` token's 13px *number* reused for sizing only — the face stays DM Sans (`font-family: inherit`), never the SF Mono typeface; this is an established v3 pattern (a token's numeric value borrowed for a non-typographic use), not a new exception.
+  **Canonical implementation:** `src/styles/segmented-track.css`, pulled in by CSS `@import` rather than re-authored per surface (as of 2026-07-29 there is exactly ONE importer, `dashboard/cut-toggle.css` — the rule is "every consumer imports it", and the count happens to be one) (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and the then-live `home/home-order-toggle.css`). The **one live consumer** is the `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — e.g. Money's Branch/Activity tabs, stage filters) with roving-tabindex arrow-key navigation. The second ARIA shape this grammar also served — a `role="radiogroup"`/`"radio"` persistent-setting form using `.is-active` instead of `aria-selected` for its state class — was the Home region-order toggle (`HomeOrderToggle`, the OD-REDESIGN-18 / RI-1 preference); **that control and its Personal-profile setting are RETIRED (OD-V4-10)** and the component is gone. The `.home-order-seg` / `.home-order-seg-opt` selectors still present in `segmented-track.css` are therefore **dead — removal debt, not a live pattern.** The radiogroup shape stays documented because it remains the correct contract if a persistent segmented *setting* returns: two genuinely different ARIA contracts may share one visual grammar file, but never one component. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
 - **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
 
 ### Overlays
-- **Popover menu (`#rowmenu`):** `popover` bg, `border`, **12px radius** (`{rounded.lg}` — overlays take the card radius, OD-P3-10), overlay shadow, 5px padding; 32px menu items, `accent` hover, `danger` items in `destructive`, hairline `menu-sep`.
-- **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), overlay shadow, 12px radius, bottom-right, slide-in.
-- **Tooltip (`#tip`):** dark surface (`hsl(240 10% 8%)`), near-white text, **8px radius** (control-scale; tooltips are small chips, not card-scale overlays), `0 8px 24px / 0.4` shadow, max 280px; bold title with optional dot, `tabular` key/value rows.
+- **Temporary search/command:** centered, bounded by the viewport, with the `popover` surface, single border, 12px overlay radius, and overlay shadow. It closes with Escape and returns focus to its launcher.
+- **Record panel:** the collection click target is a wide right-side panel on desktop (40–45% of the available content area), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
+- **Menus, confirmations, and feedback:** menus/pickers stay anchored to their trigger; destructive confirmation is one centered blocking dialog; toasts are brief status feedback and never a second navigation surface. Every real overlay owns focus entry, Escape/close, and focus return.
+
+### Metric summary rule (v4, 2026-07-27)
+The band that states a surface's derived figures. **Not** a row of KPI tiles: one line, metrics
+inline (`label` at label size in `muted-foreground`, value at body-lg/600 `tabular`), separated by
+~22px, closed by a single 1px `border` hairline underneath. No card, no shadow, no radius, no width
+branch — the same rule renders at every breakpoint. A delta renders **only** when it carries a state
+worth acting on (`destructive` / `success`); neutral deltas and restating captions are omitted.
+
+KPI **tiles** remain correct where the job is *reading* figures (dashboards, Money) and keep their
+Soft-Elevation treatment there. Choose by the surface's job, not by habit.
+*(Director decision, `docs/v4-inheritance.md` § v4 design rules — not yet owner-ratified.)*
+
+### Thin progress track (v4, 2026-07-29)
+
+The one-line completion track — shipped on Home's day header ("N of M done"), and the shape any
+future *ambient* progress mark takes. It is **not a new visual vocabulary**: the pairing is the
+system's already-documented progress-bar recipe — track = **`secondary`**, fill = **`success`** — the
+same pair as the Data Table's win-% bar (§ Data Table → in-cell patterns), with the pill radius
+(`--radius-pill`, the `{rounded.full}` role) on **both** so the fill's leading edge is never a square
+corner inside a rounded track.
+
+- **Height 4px** (`{spacing.xs}`, on the geometry scale). This is the only *fixed rendered* dimension
+  and it is the one that must stay on-scale.
+- **`flex: 1 1 90px; max-width: 200px`** — the two numbers that are **off** the
+  4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 scale, carried verbatim from the signed mockup. **They are
+  sanctioned, and the boundary is this:** the geometry scale governs *fixed* dimensions — padding,
+  gaps, heights, radii, anything that lands as a rendered edge. A `flex-basis` and a `max-width` on a
+  **flexible** track are neither; they are the bracket inside which the flex algorithm picks the
+  actual width, and the rendered width is essentially never either number. Rounding them to 88 / 192
+  would change nothing a reader could see and would cost the mockup-verbatim fidelity that makes the
+  header diffable against its source.
+- **No token is minted, deliberately.** A primitive two instances away from existing, carrying two
+  magic numbers, is worse than a documented recipe. **The bounds are the rule, not the digits:** a
+  track this thin needs a floor wide enough to read as a *proportion* at all (~90px) and a ceiling
+  that stops it becoming the widest mark in a header whose job is the greeting and the state line
+  (~200px). A second consumer copies the recipe; a **third** is the trigger to promote it to a real
+  primitive with named bounds.
+- **Never the sole carrier.** The track always sits beside the state line that says the same thing in
+  words — a bar alone is length-and-colour only (WCAG 1.4.1).
+- **Flat at rest** (Soft-Elevation Rule — a track is a utility surface, not a card).
+
+*As built:* `pages/home-page.css` `.home-head-track` / `.home-head-fill`, inside the shared
+`.content-header` in its `--compact` mode.
+
+### Compact capture row (v4, 2026-07-27)
+The phone row for a long list the user must run down and act on each item (Café · Log). Identity
+left (body-lg/600, wrapping), the control right where the thumb is, a unit label beside it, and a
+muted meta line beneath that renders **only when it has something to say**. ~66px against the ~200px
+of the generic record card. Supplied through `DataTable`'s `renderCard` seam so grouping, collapse,
+empty and loading behaviour are inherited rather than reimplemented. Touch target ≥44px.
+**Padding rhythm (`.dt-card--compact`, 10px 12px) lives in `dashboard/data-table.css`** beside the
+`.dt-card` it modifies — `PhoneCard` (the same file's own component) is what applies the class
+whenever a `renderCard` seam is supplied, and it now has four consumers (Café · Log/Plan/Pushes/
+Review). It previously lived in `pages/kitchen-log-page.css`, a page-specific, route-code-split
+stylesheet — live-measured on a fresh Café · Plan load with that chunk never fetched: 14px (the
+un-compacted `.dt-card` fallback), not 10px 12px (extract, 2026-07-28). A class the shared primitive
+applies belongs with that primitive, not with whichever page happened to author it first.
+
+**The control is a typed field, not a stepper.** Amounts in this domain are 10–20+, so `−`/`+` meant
+~20 taps per row. Use a right-aligned numeric input: `inputmode="decimal"`, `enterkeyhint="next"`,
+**blank at rest with the expected value echoed as a greyed placeholder anchor**, and `font-size: 16px`
+so mobile Safari does not zoom the viewport on focus. Reserve steppers for genuinely small counts
+(0–5). *(Owner-corrected; the pattern is the one the live kitchen app already uses on this job.)*
+
+**Validation that demands typing reveals on `blur`, never per keystroke.** A required note that
+appears while the user is mid-number flags at the first digit and shoves a textarea into the row.
+The *reading* of the divergence updates live — that is the feedback; the interruption waits.
+
+**A status that is true of every row at rest is not feedback.** Render per-row state only once the
+user has entered something to diverge from expectation.
+
+*When to use it:* the surface's phone job is high-frequency capture across many rows. The default
+`<dl>` card stays correct for **reading** a record, where labelled field/value pairs are the point.
+
+### Row status as text (v4, 2026-07-27)
+In a dense collection where a status applies to **every** row at rest, render it as toned text
+(label size, 500) rather than a filled pill. Same tone semantics as the pill — the fill is what is
+dropped. A column of filled pills on every row is colour that marks everything and therefore marks
+nothing, and it out-shouts the actual controls. Pills remain correct where status is *exceptional*
+or sparse.
+
+### Home arrangements (v4, `OD-V4-7` / `OD-V4-9`)
+Home is the one surface carrying a **per-person layout preference** (set in `/profile` → Personal).
+Three arrangements — **Focused**, **Overview**, **List** — render the *same* four regions
+(`needs-you`, `failed-checks`, `mentions`, `my-work`) from one shared region model. An arrangement
+chooses how regions are **presented**, never which of them **exist**; a region with zero items is
+still rendered, so "clear" stays distinguishable from "hidden" and from "broken".
+
+Shared primitives live in `components/home/home-layouts.css` — **ONE definition each.** An
+arrangement may override only what genuinely differs, and must say why at the override.
+
+- **`.home-layout`** — the work/feed split: a `minmax(0, 1fr)` work column beside a
+  `minmax(240px, 300px)` Signals column, 32px gap, `align-items: start`. All three arrangements sit
+  inside it, which is what makes the Signals feed a standing column in every one. Below the 940px
+  branch it becomes a single column at 24px.
+- **`.home-bento`** — Overview's tile grid: `repeat(6, minmax(0, 1fr))`, **20px gap**. The gap
+  deliberately **exceeds** the tile's own 16px padding: separation *between* groups must beat
+  spacing *within* them, or the grid reads as one mush.
+- **`.home-tile`** — the card recipe unchanged (`card` surface, 1px `border`, `{rounded.lg}`, 16px
+  padding, the one `shadows.rest` lift). **One level deep — never a card inside a card**
+  (`OD-V4-7` constraint 3). Head = `.home-tile-name` (display face at **`body-lg`**, 600) beside a
+  `.home-tile-count` in `muted-foreground`. The name sits at the *same* rung as the row titles it
+  heads, not below them: at the label rung the tile's own name was the quietest thing in the tile.
+  The **lead** tile takes a one-step tonal lift (`surface-tertiary`) keyed to its **region**, never
+  to its weight — `needs-you` and `my-work` are both `wide`, so a weight-keyed fill would raise
+  both and mark neither. It is a different step of the ramp from the row-hover fill (`secondary`),
+  so a lifted tile never reads as hovered.
+- **`.home-tabs` / `.home-tab`** — Focused's region switcher: a bottom-`border` strip; the selected
+  tab takes a 2px `primary` bottom border and `foreground` text, unselected sits in
+  `muted-foreground`; `min-height: 44px` per tab for the coarse-pointer floor. **Counts stay on
+  every tab, including unselected ones** — that is the entire safety argument for presenting one
+  region at a time.
+- **`.stream-band` / `.stream-band-head` / `.stream-band-label`** — the **List band**: a *headed
+  group of rows*, and the arrangement's answer to the bento tile. It is deliberately **not a card**;
+  it is three cues and nothing else, in `components/home/home-stream.css`:
+  **(a)** a **1px `border` hairline edge** on top (`border-top`) — the group's boundary. Without it
+  the label floated in the column with the same 24px of air above it as any other gap, and four
+  regions read as one undifferentiated list (*"i dont like the header on the current wall of text"* —
+  owner, 2026-07-28). **(b)** a **display-face header** at `body-lg`/600 in full `--foreground`,
+  sentence case — see The 18px rung in § Typography for why it does *not* go up a size.
+  **(c)** **asymmetric space**: **24px** above the rule (the `.stream-group` gap), **12px** between
+  rule and label (`padding-top`), **6px** from label to its own rows (`.stream-band-head`
+  `margin-bottom`). The grouping cue *is* the asymmetry — space that decreases as you descend binds
+  the label to what it heads. A symmetric band would just be another gap.
+  A trailing `.stream-band-link` (the region's drill door) and a quieter `.stream-band-more` ("+N
+  more", a fact) hang off the same head. **No box, no fill, no shadow** — a band that grows a card
+  shell is a nested card, which `OD-V4-7` constraint 3 forbids one level up.
+
+**The Full-Row Packing Rule (v4).** Tile weights exist so consecutive tiles pack to **exactly** the
+bento's column count at every desktop band — never so a tile is left with a hole beside it ("the
+boxes dont align … feels untidy nor professional" — owner). There are exactly **two** weights and
+they sum to the track: `data-weight="wide"` spans 4, `data-weight="narrow"` spans 2. At 6 columns
+that packs 4+2 then 2+4; at 4 columns, 4 | 2+2 | 4. **Adding a third weight is not a styling choice —
+it breaks the packing invariant at one band or the other.** The map lives in `home-tile-weight.ts`
+and a guard test packs it against the authored CSS spans.
+
+`wide` is the **consequence tier** — the regions carrying the viewer's own work, which hold task rows
+and need the room; `narrow` is the notice tier. `needs-you` leads by being first, top-left, and wide,
+and nothing outranks it (`OD-V4-7` constraint 1: sized by consequence, never a uniform grid).
+
+Every tile carries **real rows** through the shared `RegionRows` body (`OD-V4-7` constraint 2 — never
+icon + heading + stat). Overview renders a region's top rows only and states the remainder as plain
+text ("+N more"): that is a **fact, not an affordance** — the region's own drill link, where one
+exists, is the way through. `RegionRows` renders four distinguishable states — loading
+(`LoadingShell`), error (`ErrorState` + Retry), ready-with-rows, and ready-and-empty (the shared
+`EmptyState` in its compact `stream-all-clear` treatment, never a blank body), so a still-loading or
+failed read can never masquerade as an all-clear.
+
+**A region states a count only where its read SUCCEEDED.** Anywhere else — loading, errored — the
+count is *absent*: an em-dash carrying a spoken alternative, never a `0`. A `0` beside a spinner or
+an error is a falsehood stated with full confidence and the viewer has no way to trace it. Because
+all three arrangements read the ONE region model, this is one rule, not three.
+
+Phone (the 620px branch) drops the bento to one column with every tile spanning it — the tile grid is
+a desktop/tablet affordance (`OD-V4-7` constraint 4). **Both Home branches are `@container` queries
+on the Home frame, not viewport `@media`** — see The Container-Query Rule in § Layout.
+
+### Home layout picker (v4, `OD-V4-9`)
+The **wireframe-thumbnail chooser** is the standing convention for a *page-structure* choice: the
+diagram carries the shape so the label does not have to describe it. Three `.hlp-card` options in a
+`role="radiogroup"`, 3-up on desktop and one column below the 768px branch; the native radio is
+visually hidden and the whole card is the target, so keyboard, focus, and screen-reader semantics
+come for free.
+
+- **Thumbnails are CSS-drawn** — no image assets, so nothing has to be re-exported when a layout
+  changes. Every thumbnail includes the right-hand Signals strip, because the feed is present in all
+  three arrangements and the picture must not imply otherwise.
+- **Selected** = `primary` border + a 1px inset `primary` ring + `secondary` fill — and the thumb
+  then **flips its own fill to `card`**. The selected card's fill is `secondary`, which is also the
+  thumb's resting fill, so on the one option the reader is actually looking at, the wireframe would
+  otherwise lose its figure/ground and flatten into the card.
+- **Measure is tuned to the measured line, not the nominal unit.** The help text caps at `52ch`, not
+  the textbook 65–75: DM Sans's `ch` is its *digit* width, far wider than its average lowercase
+  letter, so `68ch` computed to 558px and capped nothing while the line still ran to 91 characters.
+  When a `ch` cap does not bite, measure the rendered line and set the number that does.
+
+**Setting-host measures (v4, 2026-07-29).** A setting card is sized by **what it hosts**, and there
+are exactly two hosts on `/profile`. Both are declared as named constants in `pages/profile-page.tsx`
+rather than inline numbers, because the whole point is that they are two *kinds*, not two guesses:
+
+| Constant | Value | Hosts |
+|---|---|---|
+| `FORM_MEASURE` | **560px** | A card of short labelled fields (Identity, Language) — a form column, deliberately narrow. Also the cap the Café opening surface reuses, rather than minting a second one. |
+| `PICKER_MEASURE` | **720px + chrome** | A three-up wireframe chooser (the Home layout picker). |
+
+The distinction that matters: **560 is an outer measure; 720 is a *content* measure.** 720px is the
+width the signed mockup drew the chooser at (`#profile .setting { max-width: 720px }`) on a bare
+`<div>` with no padding and no border — so the card host has to **add its own chrome back on top**:
+`720 + 2 × (16px padding + 1px border)` = the **754px** outer width the shipped picker passes. Taking
+a mockup's content measure as an outer measure silently narrows the content by 34px, which is exactly
+enough to matter here.
+
+Two consequences: the picker does **not** fit at `FORM_MEASURE` (its cards measured 167px and the
+wireframes stopped being readable, which is the entire point of a diagram-based chooser), and
+**widening one host must not drag the other out with it** — these are per-card measures, never a
+page-level cap. *(Pinned by `pages/profile-page.test.tsx` FR-920: the layout card asserts `754px`,
+the form cards `560px`.)*
+
+### Signal row (v4)
+The **ONE Signal anatomy**, shared by Home's ambient tail and the `/work/signals` archive Feed — rows
+in the same record-row grammar as the ranked stream, never fat cards. Title at `body-lg`/600 wrapping
+in **full** — *a feed is for reading*, and the clamp it used to carry truncated Signal prose
+mid-sentence in the column whose whole job is that prose. What must never come back is `nowrap`: it
+set a ~680px min-content width and blew a 375px phone row out to ~700px of horizontal scroll, and
+`white-space: normal` (not the clamp) is what fixed that. The 2-line clamp remains correct on the
+**task** row, where the title is an identifier to recognise rather than prose to read.
+Meta line in `muted-foreground` at the `mono` size, where **each separator
+travels inside a non-breaking group with the fact it introduces**, so the row can only ever wrap
+*between* facts and never orphans a bare "·" on a line of its own. It adapts by **container query**,
+not viewport — see The Container-Query Rule in § Layout.
+
+On **Home** the column is headed `Signals` (the word the layout picker, the destination and the
+record type already use — it read `RECENT` beside a `Signals →` link, three names for one column in
+one viewport) with an honest `N today` count where that link sat, and the list is **capped at 6**
+with a `See N more →` door at its foot carrying any active filter through. An unbounded ambient feed
+is the wall of text again, rotated 90°. The `/work/signals` archive Feed **is** the collection and is
+never capped.
+
+The feed's toolbar is a search field plus a **`+ Signal` button in the shared `.btn-outline`
+secondary variant**. It is deliberately *not* the action blue: this is a door in an **ambient** tail,
+and painted primary it became the loudest thing on Home — the eye landed on it before the overdue
+work above it. The One Blue stays reserved for the page's own primary action. The button carries no
+local fill, border, hover, or focus of its own; the toolbar rule supplies only the 44px
+coarse-pointer floor it shares with the search field beside it. *(Shape sets expectation: the former
+single full-width rounded row read as search and behaved as a composer, so the two jobs now have
+their own controls — owner, 2026-07-28.)*
+
+The archive's Urgent row treatment (`warning/7%` fill + a 2px `warning` left rule) is **Urgent
+only** — Needs-attention keeps its amber pill on a calm, unfilled row so the fill escalates Urgent
+above it. Every archive row reserves a 2px *transparent* left rule so all rows stay left-aligned
+regardless of state. See § Operations event tokens for the side-stripe exception this is scoped to.
 
 ## Do's and Don'ts
 
 ### Do:
+- **Do** pick the metric treatment from the surface's job: the **summary rule** where the user came
+  to *act*, KPI **tiles** where they came to *read*. (v4)
+- **Do** drop a status pill's fill to toned text when the status is present on every row at rest,
+  keeping the tone semantics unchanged. (v4)
+- **Do** pack a tile grid to **exactly** its column count — two weights that sum to the track, never
+  a third that leaves a hole beside a tile (The Full-Row Packing Rule). (v4)
+- **Do** branch on a **container query** when what actually varies is the width of the component's
+  own container rather than the viewport (The Container-Query Rule). (v4)
 - **Do** drive every interactive affordance with the one `primary` blue, and keep it under ~10% of any screen (The One Blue Rule). The optional primary-button sheen is the *same* blue — not a second action color.
 - **Do** define structure with the single 1px `border` (`hsl(240 5.9% 90%)`) and surface-tone contrast (white `card` on `secondary/35%` main); cards/KPI/kanban *also* carry the one subtle `shadows.rest` resting lift (Soft-Elevation Rule) — border and rest-shadow are co-equal, never shadow-alone.
 - **Do** apply `tabular-nums` to every figure — currency, %, counts, deltas, ages — in tables, KPIs, kanban, and funnels; **verify `tnum` actually aligns columns in DM Sans** and fall back to Inter-tabular for numeric cells only if it doesn't (The Tabular-Numbers Rule).
 - **Do** show status as a 6px dot + a tinted pill (status hue ~10–18% bg, darkened text), and reserve solid fills for the `destructive` button only.
-- **Do** keep controls at 32px ("h-8") with the **8px control radius** (`calc(var(--radius) - 4px)`) and table body rows roomy at 54px; cards/containers/overlays take the **12px card radius** (`var(--radius)`).
+- **Do** keep controls at 32px ("h-8") with the **8px control radius** (`calc(var(--radius) - 4px)`) and table body rows roomy at 52px; cards/containers/overlays take the **12px card radius** (`var(--radius)`).
 - **Do** set headings in **Plus Jakarta Sans** (600) and body/UI/table text in **DM Sans**; use SF Mono only for machine IDs/codes and the `⌘K` chip.
 - **Do** expose the global `:focus-visible` ring (`2px solid {colors.ring}`, 2px offset) on every focusable element, and keep `role`/`aria-selected`/`aria-checked`/`aria-current` on tabs, checkboxes, and nav.
 - **Do** reserve categorical violet and the status hues for non-interactive meaning (KPI tiles, avatars, timeline dots, data state) — never as action colors.
@@ -436,6 +906,18 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 - **Don't** use mono or proportional figures for money in tables — money is DM-Sans-`tabular` (or the scoped Inter-tabular fallback), IDs are mono.
 - **Don't** color body text with a fully saturated status hue, fill a status pill solid, or put a gradient on any status element.
 - **Don't** make interactive controls taller/shorter than 32px or invent radii outside the 4/8/10/12/999 scale, and don't let 32px controls take the 12px card radius (the OD-P3-10 taste guard keeps them at 8px).
+- **Don't** mint a display step above 24px to make something outweigh the page title, and don't
+  "correct" the ratified 15/14px body pair (The Two-Role Scale Rule, `OD-V4-8`). (v4)
+- **Don't** paint an *ambient* affordance in the one action blue. A door in a side rail or feed tail
+  takes `.btn-outline`; the blue belongs to the surface's own primary action. (v4)
+- **Don't** open a capture surface with a row of KPI tiles. Cards-as-page-structure and the
+  big-number/small-label hero metric are the two most recognisable generic-dashboard tells, and on a
+  phone they cost the entire first viewport. Use the summary rule. (v4)
+- **Don't** repeat a value under a control that the row or card already renders as its own
+  column/field. The `plan N` caption under each stepper duplicated the Plan column, cost ~40px per
+  desktop row and ~180px per phone card, and pushed the list off the screen. (v4)
+- **Don't** ship the generic `<dl>` record card on a surface whose phone job is running a long
+  capture list — supply a compact row through `renderCard` instead. (v4)
 
 ---
 
@@ -443,7 +925,7 @@ The Tasks toolbar uses **bordered** filter controls (the existing `control` chip
 
 The source ships these as **shadcn-vue HSL custom properties on `:root`**, consumed via `hsl(var(--token))` and `hsl(var(--token) / <alpha>)`. Preserve that pipeline in the React/Tailwind app:
 
-1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus **`--radius: 0.75rem`** (OD-P3-10 — bumped from `0.5rem`), `--rail-w: 224px`, `--header-h: 56px`. The frontmatter lists colors pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works. Include the Gordi brand tokens:
+1. **Define `:root` HSL triplets** (the bare `H S% L%` form, no `hsl()` wrapper) for every color token above, plus **`--radius: 0.75rem`** (OD-P3-10 — bumped from `0.5rem`), `--rail-w: 232px`, `--header-h: 56px`. The frontmatter lists colors pre-wrapped in `hsl()` for Stitch's hex-ish validator; the canonical runtime form is the bare triplet so alpha (`/ 0.1`) works. Include the Gordi brand tokens:
    ```css
    --brand-navy:      218 46% 22%;
    --brand-navy-text: 218 42% 26%;
@@ -502,11 +984,12 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
    --color-brand-orange:    hsl(var(--brand-orange));
    ```
 4. **Alpha tints** (`primary/10%`, `success/12%`, `border/70%`, `brand-navy/6`, etc.) come straight from the slash-alpha syntax — keep them; they are load-bearing for the tinted-status and hover-wash patterns.
-5. **Resting shadow (OD-P3-11).** Apply `box-shadow: var(--shadow-rest)` (or the `shadow-rest` utility) to the card, KPI-tile, kanban-card, and mobile-reflow-card classes **in addition to** their existing 1px border. Do NOT add it to toolbars, plain table rows, group-header rows, strips, or inputs (those stay flat). Hover still deepens to the existing `state lift` / `kanban-hover` shadow.
-6. **Gradients (OD-P3-12).** Primary-button sheen: optionally set `background-image: var(--gradient-primary-sheen)` on `.btn-primary` (keep the solid `primary` `background-color` underneath as fallback + as the hover flatten target). Surface wash: apply `var(--gradient-surface-wash)` as a `background-image` on the **home/digest page container only** (My Week), e.g. on the `PageFrame variant="prose"` home surface — never on list/detail surfaces, never on cards, never on status elements.
+5. **Resting shadow (OD-P3-11).** Apply `box-shadow: var(--shadow-rest)` (or the `shadow-rest` utility) to the card, KPI-tile, kanban-card, Home-tile, and mobile-reflow-card classes **in addition to** their existing 1px border. Do NOT add it to toolbars, plain table rows, group-header rows, strips, or inputs (those stay flat). Hover still deepens to the existing `state lift` / `kanban-hover` shadow.
+6. **Gradients (OD-P3-12).** Primary-button sheen: optionally set `background-image: var(--gradient-primary-sheen)` on `.btn-primary` (keep the solid `primary` `background-color` underneath as fallback + as the hover flatten target). Surface wash: apply `var(--gradient-surface-wash)` as a `background-image` on the **Home/digest page container only**, e.g. on the `PageFrame variant="prose"` Home surface — never on list/detail surfaces, never on cards, never on status elements.
 7. **Numbers + tnum verification (OD-P3-9 — REQUIRED step).** Add a `tabular`/`tnum` utility (`font-variant-numeric: tabular-nums; font-feature-settings: "tnum"`) and apply it to every metric. **Then verify on the live Tasks table:** render a column of varying-width currency/percent/count values and confirm the digits column-align (no jitter) in **DM Sans**. If they do, done. **If DM Sans `tnum` is weak/absent,** scope a numeric fallback — `.tnum, .num, td.num { font-family: "Inter", var(--font-sans); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }` — applying Inter-tabular to numeric table cells / KPI values ONLY (load Inter `wght@400;500;600` in that case). Proportional body/UI text stays DM Sans regardless. Record the outcome (DM Sans tnum OK, or Inter-fallback engaged) in the build PR.
 8. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px }` rather than per-component focus styles.
 9. **Charts (recharts):** theme series/axes/grid from these tokens — axis/grid in `border`/`muted-foreground`, primary series in `primary`, status series in success/warning/destructive, categorical in violet. (No chart tokens existed in the mockups; derive from the palette, do not invent new chart colors.)
+10. **Responsive branch (v4).** Before adding a `@media`, check § Layout's breakpoint inventory: reuse a listed value or bring the measurement that justifies a new one. If the width that actually varies is the component's own container rather than the window, declare a `container` and use `@container` instead (The Container-Query Rule).
 
 ---
 
@@ -515,7 +998,8 @@ The source ships these as **shadcn-vue HSL custom properties on `:root`**, consu
 - **Contrast:** `foreground` on `background`/`card` is ~AAA. `muted-foreground` (`46.1%` L) on white clears AA for body/secondary text. Status pills use **darkened text variants** (e.g. won text `hsl(142 64% 30%)`, lost `hsl(0 72% 45%)`, amber's deep-brown `warning-foreground`) specifically to clear AA on their light tinted backgrounds — preserve those darker text values; do not substitute the base status hue as pill text. **Gradient surfaces (OD-P3-12):** AA verified at the worst-case stop — primary-button `primary-foreground` over the darkest sheen stop (`51% L`), and `foreground`/`muted-foreground` over the top-most `3.5%`-navy band of the surface wash. Re-check if a gradient stop changes.
 - **Focus:** single source of truth — global `:focus-visible` = `2px solid {colors.ring}` (the primary blue) at 2px offset. Every focusable element inherits it.
 - **Semantics in source:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented filters and the layout switcher, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only buttons and section landmarks (`aria-label="Pipeline summary"`). Keep these; they are part of the system.
-- **Keyboard:** tab order follows DOM (rail → header → main); custom checkboxes are `tabindex="0"`. Overlays (popover/toast/tooltip) are non-focus-trapping in the mockup — real implementations must add focus management and `Esc`-to-close (a build-time gap, not a token gap).
+- **Keyboard and focus:** tab order follows the route's DOM order (rail → header → main); custom checkboxes are `tabindex="0"`. Real overlays move focus into their active surface, close the current layer on Escape, and return focus to the opener. Escape restores a saved inline field value rather than silently discarding the direct-edit contract. Browser Back closes the current panel/overlay before leaving the canonical route.
+- **Heading levels (v4).** The page frame owns the page's only `<h1>`. A section heading inside a Home region, tile, or band is an `<h2>` — Home has no intermediate level, so reaching for `<h3>` skips one. Ranks describe structure, not size; take the size from the type scale.
 
 ---
 
@@ -526,56 +1010,73 @@ composition rule only — every hue, type token, radius, and rule above is uncha
 two Phase-0 redline rounds (IA-1..5 "too dense" → IA-6/7 "too sparse" → IA-8 adopted, OD-P0-6).
 Reference rendering: `docs/design-mockups/proposal-IA-8-balanced-myweek.html`.
 
-### Home / digest surfaces (My Week and any future at-a-glance view)
+> **AMENDED for Home only — `OD-V4-7` (owner, 2026-07-28).** The single-column clauses below were
+> calibrated in era **E1**, when Home was a digest for a ~15-person first slice. In **E6** Home is the
+> landing surface for ~30 people across six Business Units, and one column *is* the failure at volume
+> (owner: *"currently its just a wall of text… multiple signals from different people, tasks from
+> different projects / process as well as trying to followup the team members"*). **Home may use a
+> tile composition.** Every other surface keeps the single-column rule unchanged. The intent of
+> density mode — calm, one dominant thing, no card-soup — is preserved by four binding constraints:
+>
+> 1. Tiles are **sized by consequence**, never a uniform grid; one lead tile dominates.
+> 2. Every tile carries **real rows** — never icon + heading + stat.
+> 3. **No nested cards.** A tile is one level deep.
+> 4. Phone degrades to **stacked sections**; the tile grid is a desktop/tablet affordance.
+>
+> Rationale and the era argument: `docs/v4-inheritance.md` § `OD-V4-7`.
+
+*As built:* the tile composition and how each of those four constraints is discharged is specified in
+§ Components → **Home arrangements (v4)**; its grid spans and breakpoints are in § Layout. The
+per-person choice among the three arrangements is `OD-V4-9`, and its control is § Components →
+**Home layout picker (v4)**.
+
+### Home / digest surfaces (current landing brief and any future at-a-glance view)
 - **Single content column ~1080px** (1040–1120) with generous header air; no side asides, no second
   card column. *(OD-P3-12: this surface may carry the faint `gradient-surface-wash` navy top-wash.)*
+  **Superseded on Home by `OD-V4-7` above; still binding on every other surface.**
 - **One dominant module** per surface: a grouped table — 4 columns max, **44–48px rows**, 8–10 rows
   visible, group headers as muted overline text + count (never colored bars).
 - **≤2 auxiliary strips** (56–64px, one CTA/link each) for secondary concerns; everything else is a
   link to its full surface, not a rendered module. **One ratified exception (OD-P0-8):** users with
   direct reports get a third, role-conditional compact team module (filed-status + overdue count per
   person) after the strips.
-- **Progressive disclosure:** RACI renders as the R-person avatar + muted "+N" on rows; full
-  R/A/C/I chips live on detail surfaces only. No mono IDs, no double badges, no nav badge-counts,
-  no caption paragraphs on home.
+- **Progressive disclosure:** Task rows show the PIC and a compact Supervisor cue; full typed metadata
+  lives on the focused record surface. No mono IDs, no double badges, no nav badge-counts, no caption
+  paragraphs on Home.
 - **Due dates:** colored only when overdue (destructive) or ≤3 days (warning text); otherwise muted.
 
-### RACI role chips (added 2026-06-11, OD-P2 — reuse existing hues, no new brand)
-RACI ownership renders as small role chips, all from the existing palette:
+### Governance role chips (Objective / Project / Process only — reuse existing hues, no new brand)
+RACI ownership for Objective, Project, and Process governance renders as small role chips, all from the existing palette:
 - `--raci-responsible` = `primary` (blue) — R, the doer; mirrors the list R-avatar tint.
 - `--raci-accountable` = `violet` — A, the single owner (categorical use of violet, allowed).
 - `--raci-consulted` / `--raci-informed` = `muted-foreground` on `secondary` — C and I, quiet.
 Chip = ≤16px role glyph + person name on a tinted pill (10–12% bg + darkened text, the standard
-tinted-status pattern). On list rows only the R person shows (avatar + "+N"); the full R/A/C/I set
-appears on the task detail surface. The R chip's small categorical use of the brand blue is within
-The One Blue Rule budget (it is never an action).
+tinted-status pattern). On governance list rows only the R person shows (avatar + "+N"); the full
+role set appears on the corresponding governance detail surface. A Task never uses RACI role chips;
+Task rows and details use PIC + Supervisor. The R chip's small categorical use of the brand blue is
+within The One Blue Rule budget (it is never an action).
 
-### Progress-marker pills (added 2026-06-12, OD-P2-10 — reuse existing hues, no new brand)
-Weekly-update **update lines** carry a progress marker — distinct from a task's Status (self-reported
-achievement cue, not the task's real state). Three values, all from the existing palette via the
-Tinted-Status pattern (10–14% tint + darkened AA text + dot):
-- **In progress** = `primary/12%` bg + `--status-open-text` + `primary` dot.
-- **Blocked** = `destructive/12%` bg + `--status-lost-text` + `destructive` dot.
-- **Done** = `success/14%` bg + `--status-won-text` + `success` dot.
-Note the vocabulary/semantics differ from the task `StatusPill` (which maps Open→amber over 4 values);
-keep them as separate components. **Late** (a weekly update filed after the Friday 17:00 WIB due) is
-shown in **warning/amber** (caution — filing is allowed, OD-P2-14), never destructive/red.
+### Status and Signal semantics (current)
+Task `StatusPill` represents the record's current state with the shared tinted-status rule. Signal
+entries use source, type, and attention treatment from the same semantic palette; an attention or late
+condition is warning/amber, never destructive/red. These are current data states, not a filing or
+progress-marker component contract.
 
-### Ops Log tokens (added 2026-06-12, OD-P2-15..19 — reuse existing hues, no new brand)
-The Ops Log feed (`/ops`) renders log entries with:
+### Operations event tokens (added 2026-06-12, OD-P2-15..19 — reuse existing hues, no new brand)
+The Signals archive (`/work/signals`) renders operational event entries with:
 - **Source badge** (the business unit): calm, NOT a per-unit rainbow — only the two ops-writing units
-  tint, everything else neutral. Kitchen and Bar = `primary/10%` + `--status-open-text`; Roastery =
+  tint, everything else neutral. Café = `primary/10%` + `--status-open-text`; Roastery =
   `violet/12%` + `--status-violet-text`; all other units = neutral `badge-status` (`secondary` +
   `muted-foreground`).
 - **Type** (production/receiving/qc/follow_up/other): quiet **muted-foreground label text**, not a
   filled chip (per the signed mockup).
-- **Needs attention**: row treatment = `warning/7%` fill + a 2px `warning` left rule; the My Week
+- **Needs attention**: row treatment = `warning/7%` fill + a 2px `warning` left rule; the Home
   ops-strip amber = `warning/18%` + `warning-foreground` + `warning` dot (the same warning/amber family
   as the late TimingChip — late/attention is amber, never destructive/red). The 2px left rule is the
   one deliberate, owner-approved exception to the anti-slop side-stripe ban: it is state-bearing,
   minimal, and always paired with the fill tint + text, never color-alone (WCAG 1.4.1).
 
-### List / detail surfaces (Tasks, Updates, Ops full pages)
+### List / detail surfaces (Tasks, Signals, and Café full pages)
 PMO's data-dense DataTable posture stays: sortable columns, functional filters, loading/empty/error
 states. Density mode governs *home*, not the working lists ("Executive vs Data-Dense split" —
 at-a-glance up top, dense where the work happens).
@@ -601,12 +1102,13 @@ not identity; everything in "KEEP UNCHANGED" below is untouched.
 | **OD-P3-10** | `--radius` **0.5rem → 0.75rem (12px)** for cards/containers/overlays. **Controls stay tight at 8px** (`calc(var(--radius) - 4px)`) — taste guard against bubbly 32px controls. `rounded` scale recomputed (xs 4 / sm 8 / md 10 / lg 12 / full 999). | `--radius`; `rounded.*`; `card`/`kanban-card`/`input`/button/nav radii in components frontmatter; §5 per-component radius notes; `@theme inline` radius scale (note 3) |
 | **OD-P3-11** | **Soft-Elevation Rule** amends the former Flat-By-Default Rule: ONE subtle resting shadow now permitted on cards/KPI/kanban (co-equal with the border), shadow-soup still banned. New `shadows.rest` token (faintly navy-tinted near-black, ≤0.06 total alpha). | new `shadows.rest`; `card`/`kanban-card` `shadow`; §4 rule rewrite; §6 Don'ts; implementer note 5 |
 | **OD-P3-12** | **Restrained-Gradient Rule**: two navy-tinted gradients only — an optional primary-button sheen (same blue) and a faint home/digest surface wash. NEVER purple, never on status, AA verified across range. | new `gradients.primary-sheen` + `gradients.surface-wash`; §4b new section; One-Blue / Structural-Navy rules; §6 Do/Don't; implementer note 6 |
+| **OD-P3-13** | **Step-1 redesign styling pass**: warm neutrals, brighter action blue, navy-tinted shadows, AA status text — token values aligned to E7 reference. Restored Single-Border Rule (field border == divider). Fixed `--warning-foreground` bug (was red, now deep brown). | `--ds-background-*`, `--ds-font-color-*`, `--ds-border-color-*`, `--ds-color-blue*`, `--ds-color-green/red/amber/violet`, `--brand-navy`, `--brand-orange`, `--status-*-text`, `--warning-foreground`, `--shadow-overlay`, `--scrim`, `--shadow-popover`, `--shadow-drawer`, `--gradient-primary-sheen`, `--gradient-surface-wash`, `--radius-lg` |
 
 **KEEP UNCHANGED (owner: "keep the rest").** The One Blue Rule (blue stays the only action color;
 accent hue is NOT changing to the demo's indigo-violet), the near-monochrome palette, the
 Single-Border Rule, density (16px card padding, 32px controls, roomy table rows), no-emoji /
-SVG-icons, the Tinted-Status pattern, all RACI / progress-marker / Ops Log tokens, and MOS density
-mode. The four OD-P3-9..12 changes touch those sections only where a font/radius/elevation/gradient
+SVG-icons, the Tinted-Status pattern, current StatusPill/Signal/Task/governance tokens, and MOS density
+mode. Retired filing and legacy operations surfaces are not binding component guidance. The four OD-P3-9..12 changes touch those sections only where a font/radius/elevation/gradient
 change mechanically requires it (e.g. card frontmatter radius, KPI value weight 700→600).
 
 ### Open risk (OD-P3-9 tnum contingency)
@@ -618,175 +1120,124 @@ identity on DM Sans. The owner should be told which path the build took (recorde
 
 ---
 
-## Page Archetypes (OD-DASH-adjacent, 2026-07-08)
+## V3 design foundation (E7 visual foundation and V3 grammar)
 
-Three rendered teardowns (`docs/reviews/design-teardown-2026-07-07.md` root problem #1 + §B2;
-`docs/reviews/audit-probe-craft.md` finding #1) independently converged on the system's true seam:
-**MOS shares tokens but not a page grammar.** Every route picks a different layout religion — table
-workspace vs accordion tree vs essay form vs CRUD list vs kitchen console vs blank placeholder — so the
-app reads as "several products stitched together" beneath an otherwise coherent surface. The cure is a
-**page-archetype system**: three durable page archetypes, every route conforms to exactly one, so
-spacing, toolbars, page heads, and body structure repeat with intent.
+This section is the binding V3 composition contract for the application. It resolves the old page-archetype language and records the owner-approved E7 visual foundation, shared record grammar, collection behavior, overlay behavior, focus behavior, navigation behavior, and responsive behavior.
 
-**Archetypes are compositions of EXISTING primitives — not new shell code and not new tokens.** Each is
-expressed purely in the slots the shell already owns: `PageFrame` (`shell/page-frame.tsx`, `variant:
-'data' | 'prose'`) + `PageHead` (`shell/page-head.tsx`, `variant: 'prose' | 'content'`) + the state-kit
-(`EmptyState`/`ErrorState`/`SkeletonRows`, `ui/state-kit.tsx`) + the signature body primitives
-(`DataTable`, `KPITile`, `ChartFrame`, `FreshnessLabel` under `components/dashboard`). Spacing and type
-are strictly existing tokens: the shared 24px left gutter (CONV), the 1080px prose cap, the workspace's
-self-imposed 1280px internal cap, and the `page-title`/`heading`/`overline`/`label` scale. This section
-adds **no** color, font, radius, shadow, or gradient token — it is a grammar, ratifying the B2 decision.
+**Authority boundary.** E7 owns composed visual styling. Owner decisions OD-REDESIGN-72 through OD-REDESIGN-79, the current domain vocabulary, the Experience Contract, and the Interaction Contract own IA and interaction behavior. The latest owner law wins over an older mockup or route name. The live route/component/style inventory is evidence of current debt, not permission to preserve a superseded surface.
 
-### The three archetypes
+### E7 visual foundation
 
-#### 1. Workspace — dense operator surface for scanning + acting on many records
+The visual result is one calm MOS application, not a new visual identity per module:
 
-- **Intent.** A full-bleed surface where the operator scans many rows and acts on them: triage, filter,
-  group, sort, then drill in. Density and a functional tool rail are the point. **Shell contract.**
-  `PageFrame variant="data"` (full-bleed; the workspace caps itself at 1280 internally) + `PageHead
-  variant="content"` — the `.content-header` chrome: leading entity `icon` + `ch-title` + `ch-count` pill
-  (record total) + right-aligned `ch-action` (the ONE primary action, e.g. "+ New").
-- **Regions (top → bottom).** (1) page head — **required**. (2) optional **signal strip** — KPI tiles
-  (`KPITile`), a summary/caption line (`WorkloadCaption`-style), and/or a `FreshnessLabel` ("as of …").
-  (3) optional **tool rail** — view-tabs (`Table · Board · …`, the OD-P3-6 strip) + filter chips + a
-  `search-mini` + the group-by control + the Mine/RACI/All `seg`. (4) **dense body** — **required**: the
-  shared `DataTable` (groups + `hint` + `headerActions` supported), full-bleed, 50px rows in the DB-view
-  density. The signal strip and tool rail are omitted only when the surface genuinely has no signals/filters.
-- **Body component(s).** `DataTable` (the ONE table); `ChartFrame` when a chart is the body (e.g. an
-  analytical workspace — see `/dashboard`); `KPITile` + `FreshnessLabel` only as the signal strip.
-- **All states.** Loading → `SkeletonRows` (6 skeleton rows in the table body); the head + tool rail +
-  strip **always render** so the user sees structure. Empty → `EmptyState` with ONE clear next action
-  (create/refresh) — never a vacuum; the head `ch-action` is omitted so the create CTA is not duplicated
-  (exactly one create affordance per state). Error → `ErrorState` (`role="alert"`) with a Retry button,
-  filters preserved across retry. Filtered-empty → `EmptyState` naming the active filter + a
-  clear-filters action. Every sparse state routes through state-kit — page rhythm (gutter + head + rail)
-  is preserved, never collapsed to a bare heading.
-- **Responsive.** Desktop ≥1280: full 5/3-up signal strip, single-line tool rail, dense `<table>`.
-  Tablet 768–1279: strip drops to 3-up, tool rail wraps (`flex-wrap`). Phone ≤767: the `DataTable`
-  single-renders its card list (`useIsDesktop()`, 768px boundary); the tool rail becomes a sticky
-  horizontal-scroll filter rail; signal strip → 2-up; no signal-strip-over-table stacking.
-- **A11y.** `PageFrame` owns the single `<main>` landmark; `PageHead` carries the `<h1>`. Focus order is
-  DOM order: head → strip → tool rail → table. View-tabs + segs are `role="tablist"` with roving
-  tabindex; sortable headers are real `<button>`s with `aria-sort`; `DataTable` exposes `<caption>`/`aria-label`.
-- **Exemplars.** `/dashboard` (the reference instance — head + FreshnessLabel + KPI strip + global toolbar
-  + tab strip + DataTable/ChartFrame), `/tasks` (the de-facto reference), `/ops` (Daily
-  Log feed), `/inbox`, `/kitchen/log`, `/kitchen/plan`, `/kitchen/stock`, `/kitchen/review`, `/kitchen/pushes`.
+| Role | Binding rule |
+|---|---|
+| Surface | Warm near-white canvas and card surfaces, warm near-black primary text, quiet warm-neutral secondary surfaces, and one single-border value. |
+| Action | One Blue is the only saturated interactive color. Brand navy carries structural weight; brand orange is a restrained sprinkle of no more than two marks per screen and is never an action or status. |
+| Status | Green, amber, red, and categorical violet are data semantics with tinted surfaces and AA-safe text; they are not alternate action colors. |
+| Type | Plus Jakarta Sans is display/headings; DM Sans is body, UI, and proportional table text; Inter-tabular is permitted only for verified numeric alignment; SF Mono is for IDs, codes, and keyboard hints. |
+| Geometry | Spacing uses 4/8/12/16/20/24/32/48px steps. Cards and overlays use 12px radius; controls use 8px radius; status pills are 8px rounded-rects (OD-REDESIGN-91 #30/E1); 999px is reserved for circular marks (dots, count badges, basis chip). |
+| Density | Standard controls are 32px; phone targets are at least 44px; E7 table rows are 52px; the **readable** content measure is 1180px (a **wide operating surface** — a master/detail split or a work-column-plus-aside — takes 1760px instead; see § Layout → The Two-Measure Rule); the desktop rail is 232px, 72px in the icon-only 920–1099.98px regime, and the header is 56px. |
+| Depth | Borders and surface tone carry structure. One subtle navy-tinted resting shadow is allowed on cards/KPI/kanban only; overlays use the defined overlay shadow. No shadow soup. |
+| Focus | Every focusable control exposes a visible `:focus-visible` ring using the One Blue ring token with a 2px offset. |
+| Gradient | Only the ratified same-blue button sheen and faint navy home/digest wash are allowed. No purple, glass, neon, or decorative gradient family. |
 
-#### 2. Write-Review — bounded surface for authoring or deciding on ONE thing
+Runtime implementation continues to use the existing `--ds-*`, `--brand-*`, and `--status-*` token seams in `mos-app/src/index.css`. `--e7-*` names belong to the static E7 reference files and are not application token names. Later migration work may replace a bad canonical primitive once, then migrate its consumers; it must not create a parallel visual family.
 
-- **Intent.** A quiet, bounded surface for writing or deciding on a single entity: a weekly update, a
-  log entry, a task, a plan capture. The measure is comfortable, not acreage; feedback is immediate.
-  **Shell contract.** `PageFrame variant="prose"` (the 1080px cap) + `PageHead` — `variant="content"` for
-  a single-record page, or a compact `variant="prose"` head when the entity context is better shown as a
-  subtitle/meta line. No signal strip, no tool rail — this is not a scan surface.
-- **Regions (top → bottom).** (1) page head — **required**. (2) optional **context strip** — a read-only
-  line naming the entity/period/status being acted on ("Week of 7–11 Jul · due Fri" / "Edit log entry ·
-  Kitchen"), carried in the head `meta`/`subtitle` or a slim strip directly under it. (3) **bounded
-  single-column form/review stack** — **required**, ~≤720px measure. (4) inline **saved/pending
-  feedback** + per-field errors (the A5 gap: autosave surfaces must show "saved / saving…").
-- **Body component(s).** A form/review stack of `TextInput`/`Select`/`Checkbox` fields (§5 Inputs) + the
-  in-card `CardHead` (`ui/card-head.tsx`) for any section headers inside the stack. No `DataTable`, no
-  KPI strip. The task detail drawer is a Write-Review surface mounted beside the `/tasks` workspace.
-- **All states.** Loading → a bounded skeleton card (not blank). Empty (nothing to review) → `EmptyState`
-  naming the entity + ONE next action. Error → `ErrorState` with Retry; field errors use `--field-error-border`
-  + `--field-error-text`. Submitting → the primary button shows `aria-busy` + a non-blocking saved/pending
-  label; submit failure keeps field values. No duplicate CTAs — the page has exactly one primary submit.
-- **Responsive.** Desktop ≥1280 + tablet: the 1080 cap keeps the measure bounded; the form stack stays a
-  single column. Phone ≤767: the stack stays single-column at full width; the context strip reflows to a
-  full-width meta row; NO duplicate primary CTA (the A3 phone gap).
-- **A11y.** Single `<main>` + `<h1>` from the shell; focus order head → context → first field. Every
-  field has a `<label>`/`aria-label`; errors carry `role="alert"` + `aria-describedby`; the live
-  "saved/pending" region is `aria-live="polite"`.
-- **Exemplars.** `/updates` (write + manager review — two bounded stacks, not one giant card), `/ops/new`,
-  `/ops/:id/edit`, `/tasks/new` and `/tasks/:id` (the detail drawer — Write-Review beside the workspace).
+### V3 page families
 
-#### 3. Catalog-Manage — reference-data CRUD (create + curate a list)
+V3 has exactly three page families: **Workspace**, **Focused record**, and **Management**.
 
-- **Intent.** A calm CRUD surface for curating a short reference list — objectives, work-lines, people.
-  It is the manage-mode for nouns the rest of the app points at. **Shell contract.** `PageFrame
-  variant="data"` + `PageHead variant="content"` carrying a primary **"＋ New"** `ch-action`. Reference
-  lists are usually short, so the full-bleed `data` frame is used for head/body alignment with the other
-  workspaces, even though the list is not always dense.
-- **Regions (top → bottom).** (1) page head — **required**, with the ＋ New action. (2) optional **inline
-  create bar** — a slim name field + type `Select` + Add button directly under the head (the existing
-  `CatalogManager` Add form); the head action and the bar are two presentations of the same create —
-  pick one per surface, do not render both. (3) **dense list** — **required**: the shared `DataTable`, or a
-  grouped list (active / archived) with row-level edit affordances (Rename / Archive inline).
-- **Body component(s).** `DataTable` (flat or grouped), or the `CatalogManager` grouped list
-  (`components/catalog/catalog-manager.tsx`) which already composes PageFrame + content PageHead + inline
-  create + state-kit. The body is a list, never a form.
-- **All states.** Loading → `SkeletonRows`. Empty → `EmptyState` ("No objectives yet") with the create
-  affordance as its ONE action. Error → `ErrorState` with Retry. Inline rename failure shows a per-row
-  `--field-error-text` message; soft-archive is reversible (no destructive confirm needed). Exactly one
-  create affordance per surface (head ＋ New XOR inline bar).
-- **Responsive.** Desktop ≥1280: head + inline bar + list. Tablet: list as `<table>`. Phone ≤767: list as
-  the `DataTable` card list; the inline create bar stacks to a full-width column; row actions collapse to
-  a per-card menu.
-- **A11y.** Single `<main>` + `<h1>`; the create form has an accessible `<label>`; inline edit fields
-  announce via `aria-label`; an off-screen `aria-live="polite"` region announces add/rename/archive outcomes.
-- **Exemplars.** `/work/objectives`, `/work/projects-processes` (both via `CatalogManager`), `/admin/people`.
+- **Workspace** is the operator surface for scanning, querying, filtering, grouping, sorting, selecting, and acting on a collection or specialized module body. Current route examples include `/`, `/work/tasks`, `/work/signals`, `/events`, `/money`, `/inbox`, `/cafe`, `/ecommerce`, and `/roastery`.
+- **Focused record** is one typed record presented in a panel or canonical page. Current route examples include `/work/tasks/new`, `/work/tasks/:taskId`, `/work/signals/:signalId`, and conditional `/work/follow-ups/:id`.
+- **Management** is people, definitions, catalogs, profile, and administration. Current route examples include `/work/projects`, `/work/objectives`, `/admin/people`, and `/profile`.
 
-### Cross-archetype invariants
+Every application route targets one family. Public authentication, redirects, DEV harnesses, and the not-found route are routing infrastructure and are marked not-applicable in the inventory; they do not create a fourth page family.
 
-- **One shell per route.** Every route renders exactly **one** `PageFrame`, and that `PageFrame` owns the
-  single `<main>` landmark. No route stacks two frames or invents a parallel shell. (Existing invariant;
-  the archetype system makes it load-bearing.)
-- **One shared page head.** The ONE `PageHead` (`testid="page-head"`) is the head for every archetype —
-  the `content` variant chrome (`icon` + `ch-title` + `ch-count` + `ch-meta` + `ch-action`) for Workspace
-  and Catalog-Manage, the `prose` or `content` variant for Write-Review. No bespoke `.tc-page-head`,
-  `.kl-head`, or flex-wrap head is a page head.
-- **24px left gutter everywhere.** Content origin is identical across routes (the existing CONV in
-  `page-frame.tsx`); trailing whitespace sits on the RIGHT only, never centered. No centered-prose vs
-  left-data jump between routes.
-- **Empty / error / loading always via state-kit.** `EmptyState` / `ErrorState` / `SkeletonRows` carry
-  every sparse state, preserving page rhythm (gutter + head + rail still render). An `EmptyState` carries
-  exactly **one** next-action CTA; the head `ch-action` create button is omitted in empty state so the
-  create affordance is never duplicated (the A3 phone double-CTA fix, generalized).
-- **Spacing and type strictly from existing tokens.** Archetypes introduce **no** new color, font,
-  radius, shadow, or gradient token. The `page-title` (24px) / `heading` (20px) / `overline` (11px) /
-  `label` (12px) scale and the `spacing` scale (`xs 4` / `sm 8` / `md 12` / `base 16` / `lg 20` / `xl 24`)
-  govern all archetype rhythm. New tokens proposed by a consuming plan (e.g. the dashboard's pending
-  `--basis-chip` / `--dq-*` roles) are added under their own OD, never here.
-- **`surfaceWash` is home/digest-only.** The faint navy `--gradient-surface-wash` sits on the My Week /
-  digest surface alone (the Restrained-Gradient Rule, restated for archetypes). No Workspace, Write-Review,
-  or Catalog-Manage body carries it.
+**Shared frame target.** A page route uses one `PageFrame` owning one `<main>` landmark and one `PageHead` owning one `<h1>`. The head has one clear job sentence/context and one primary action where the task requires it. Specialized content may vary by domain, but shell geometry, type roles, spacing rhythm, and state treatment remain shared. Current source files that do not meet this target remain explicitly listed as conformance debt until Issue 3 migrates them after the Storybook proof in Issue 2.
 
-### Named Rules
+### RecordViewer
 
-**The Archetype Rule.** Every route declares exactly one of **{Workspace, Write-Review, Catalog-Manage}**
-— no bespoke page grammar. The shell contract (`PageFrame` variant + `PageHead` variant) and the body
-primitive (`DataTable` / form stack / catalog list) follow from the declared archetype. A route that
-mixes a workspace head with a prose form body, or a CRUD list with a kitchen console, is non-conformant.
-*(Teardown root problem #1 / §B2; ratifies the owner design decision.)*
+RecordViewer is the shared presentation and editing contract over separate typed database models. It is a grammar, not a universal records table.
 
-**The One-Shell Rule.** One `PageFrame` (owning `<main>`) + one shared `PageHead` (`<h1>`) per route;
-the page head is never re-invented per surface. Archetypes vary the *variants* of these two primitives
-and the *body* between them — never the number or identity of the shell pieces. (Generalizes IA-1 / RI-IA-1.)
+| RecordViewer region | Contract |
+|---|---|
+| Identity and type | Make the record name, type, status, and current context clear without exposing internal system nouns as the primary label. |
+| Ordered metadata and relations | Render typed metadata and typed relation links in a stable order. Relation navigation stays in the same panel stack and exposes an internal Back control. |
+| Content | Render authored sections/blocks through an allow-listed domain renderer. Structured authored content is the Issue 10 concern; do not invent a universal JSON renderer in Issue 1. |
+| Activity/history | Show meaningful activity or history when the domain supports it, using the shared activity treatment rather than a page-local timeline identity. |
+| Actions and permission | Show actions available to the current viewer. Unauthorized records are honestly read-only; do not show a disabled fake affordance as if editing were available. |
+| Fields and feedback | Use the shared field display/edit treatment with direct-edit lifecycle feedback: Saving, Saved, validation, retry, and server error. |
+| Modes and URL | The same anatomy works in panel mode and full-page mode. Direct URL, refresh, bookmark, explicit expand, and new-tab opening resolve to the canonical full-page mode. |
+| Keyboard and Back | Focus enters the viewer, Escape closes the current overlay or restores a saved field, internal Back unwinds relation navigation, browser Back closes the panel before leaving the route, and focus returns to the opener. |
 
-**The State-Kit Rule.** Loading / empty / error / filtered-empty are first-class versions of every
-archetype, rendered through `state-kit` with page rhythm preserved and exactly one next action — never a
-white vacuum or a bare heading. *(A3, generalized across all three archetypes.)*
+Task, Standard/SOP, Signal, Process, Project, Money, and People keep separate typed models and object-specific layouts. Shared UI is similar, not identical: the RecordViewer contract standardizes presentation jobs and behavior, not database shape or domain meaning.
 
-## Empty States
+### RecordCollection
 
-`EmptyState` (`ui/state-kit.tsx`) is the ONE empty-state frame: centered in the body, max 440px measure,
-44px tinted icon well, title + one-line body + optional muted note + exactly one action row. No route
-renders a bare heading/paragraph, a bespoke card, or multiple CTAs for the same empty.
+RecordCollection owns collection state independently of the presentation adapter. It owns search, filter, sort, group, saved views, selection, pagination readiness, loading, error, empty, filtered-empty, URL/query state, and record opening. A page may present that state as a Feed, Table, Triage Queue, Board, Calendar, or Library, but the adapter does not own a second query grammar.
 
-### Sanctioned empty-state archetypes
+- **Feed** is a chronological or event-oriented adapter.
+- **Table** is the dense scan/sort adapter.
+- **Triage Queue** emphasizes urgency and next action.
+- **Board** maps records to stages or lanes.
+- **Calendar** maps records to time.
+- **Library** maps records to browse/search.
 
-- **`quiet`** — calm nothing-to-do. Use when the truthful next step is to wait, not to act. Icon + title +
-  one-line reason, **no CTA**. Example: `/inbox` caught up.
-- **`next-step`** — create-first or clear-the-state. Use when one direct operator action resolves the empty:
-  create the first row, or clear filters. Icon + title + explanation + **one** action. Example: `/ops`
-  true-empty / filtered-empty.
-- **`awaiting`** — queue/data pending. Use when the surface is expected to refill from new submissions or a
-  sync-fed source. Icon + title + body + muted retry/status line + **one** refresh action. Examples:
-  `/kitchen/review`, `/kitchen/pushes`.
+Each adapter declares the capabilities it supports. Unsupported search/filter/sort/group/saved-view controls do not appear as decorative empty chrome. Collection clicks use the shared record-opening contract below.
 
-### Rule
+### Navigation, canonical URLs, and overlay grammar
 
-One route, one empty frame, one action maximum. Archetypes vary only the message and whether the single
-slot is absent (`quiet`) or populated (`next-step` / `awaiting`); spacing, type, icon treatment, and body
-measure stay shared. Reuse existing `state-kit` / button / spacing / type tokens only — no new empty-state
-colors, fonts, or chrome.
+Navigation is organized by the operator's jobs, not by an org chart or implementation ownership. The primary rail presents the current destination groups (Home, Work, Events, Money, Inbox, Café, and role-appropriate management/configuration) with one active page destination. The mobile navigation preserves work before configuration and uses a coherent selector/disclosure for the rest. A route has one `aria-current="page"` destination; active styling, page title, and canonical URL must agree.
+
+Canonical route state is part of the interaction grammar: collection query state belongs in the URL where it must survive refresh/share, a panel record is an in-context presentation of a canonical record destination, and a direct record URL always opens the full-page viewer. Legacy aliases redirect to current destinations and do not become new page families.
+
+### Overlay, focus, and Back grammar
+
+There is one overlay grammar by interaction job:
+
+- **Search/command** is a centered temporary overlay, including the `⌘K` entry point. It is bounded by the viewport, keyboard reachable, dismissible with Escape, and returns focus to its launcher.
+- **Record open from a collection** is a wide right panel on desktop, retaining the collection in view. It is a right-side panel sized to 40–45% of the available content area at desktop widths and is not a near-full centered record popup. The panel uses the same RecordViewer as the full page.
+- **Panel navigation** uses one host and an internal stack. Relation clicks push a new record; internal Back pops the stack; Close exits the panel. Focus enters the new record and returns to the originating control when the panel closes.
+- **Explicit full page** is always available from the viewer. A direct URL, refresh, bookmark, browser new tab, or explicit Open full page action is the canonical full-page destination, not an accidental re-opening of a panel.
+- **Deputy** uses the same host and focus/close behavior as other non-blocking panels. Deputy is never a FAB; it uses the shared top-bar/host door. The sanctioned phone Action Launcher remains the one capability-filtered `+` FAB and is not a Deputy or Capture control.
+- **Confirmation** is one centered blocking dialog for consequential actions. **Menus and pickers** are anchored to their trigger and remain keyboard navigable. **Toast/status feedback** reports completion or failure without becoming a second navigation surface.
+- **Phone** turns the record panel into a full-screen record surface. Phone does not use a near-full centered record popup or a clipped desktop table.
+
+The opening path is consistent across collections: click opens the panel; Open full page or a canonical record URL opens the page. Escape closes the current layer. Browser Back closes the current panel/overlay before leaving the canonical route. Focus entry and focus return are required behavior, not optional polish.
+
+### Direct editing and feedback
+
+Supported inline edits use the same direct-edit lifecycle:
+
+- Click, Enter, or an equivalent control enters editing; Enter, Tab, or click-outside commits when the field contract supports it.
+- **Escape restores the saved value** and exits editing. It does not submit a guessed value or leave a stale optimistic display behind.
+- Saving, Saved, validation, retry, and server failure are visible near the edited field or record action. A failed save preserves the user's attempted value and offers a truthful retry path.
+- Read-only permission is explicit in the record anatomy. Do not render edit affordances that cannot succeed, and do not use disabled controls to conceal why a viewer cannot edit.
+
+### Responsive grammar
+
+- **Desktop (≥1280px):** rail, header, page frame, collection, and 40–45% record panel fit without clipping. The **readable** content measure remains 1180px or less; a **wide operating surface** (Tasks master/detail, Home) takes the 1760px measure instead — see § Layout → The Two-Measure Rule. The panel preserves enough collection context to understand the opened record.
+- **Intermediate (768–1279px):** the frame contracts, tool rails wrap or become a coherent selector stack, and the record panel remains usable without forcing horizontal page overflow.
+- **Phone (390px and ≤767px):** work appears before configuration; selectors stack; collection rows/cards retain meaning; the record viewer is full-screen; bottom navigation remains task-oriented; every required tap target is at least 44×44px; no horizontal page overflow is allowed.
+- **Very narrow devices:** at 390px and below, controls may wrap or stack but must not shrink below the tap-target contract. Avoid permanent horizontal scroll as a substitute for responsive layout.
+
+Responsive behavior preserves meaning, not just pixels: a collection adapter may change from table to cards, but the record identity, status, actions, query state, and Back/Close path remain understandable and reachable.
+
+### Component and state conformance matrix
+
+| Page family | Default | Loading | Empty / filtered-empty | Error / retry | Permission / read-only | Saving / Saved / validation | Archived / retracted |
+|---|---|---|---|---|---|---|---|
+| Workspace | Shared PageFrame/PageHead plus the declared collection adapter | State-kit structure remains visible with SkeletonRows/LoadingShell | EmptyState explains the next action; filtered-empty names and clears the active query | ErrorState is an alert with Retry and preserves query state | Collection actions disclose the viewer's permission honestly | Inline edits expose lifecycle feedback without changing collection context | Retain the row/card truth and explain why it is no longer active |
+| Focused record | RecordViewer identity, metadata, content, relations, activity, actions | Viewer anatomy remains visible while content loads | EmptyState is domain-specific and does not become a blank record shell | ErrorState explains failure and offers Retry | Read-only is a first-class viewer state | Saving/Saved/validation/retry appear beside the field/action | Archived/retracted status remains explicit with the canonical URL |
+| Management | Shared frame/head around people, definitions, catalogs, profile, or admin list | Loading preserves frame and list structure | EmptyState has one truthful next action; filtered-empty preserves filters | ErrorState supports Retry without losing the management query | Unauthorized actions are omitted or explained as read-only | Direct-edit feedback is local and visible | Archive/retract is reversible where the domain permits it |
+
+The state-kit components (`EmptyState`, `ErrorState`, `SkeletonRows`, and `LoadingShell`) are the default state primitives. A domain may add meaning, but it must preserve the shared geometry, type roles, focus behavior, and one clear next action. **A region or tile that renders a subset of a collection follows the same contract** — see § Components → Home arrangements (v4) for the four-state region body those primitives compose into.
+
+### Anti-slop limits
+
+Taste is an anti-slop checklist only. It yields to E7 identity, owner law, accessibility, and the existing React/CSS architecture. Do not introduce a new visual identity, generic font direction, Tailwind direction, or a new component family under the taste banner. Do not add oversized rounding, glass panels, neon, purple/lavender gradients, shadow soup, decorative metrics, emoji, fake records, perpetual animation, or decorative effects that compete with the operator's task. Do not turn the shared grammar into a universal database model, a card-soup dashboard, or a modal-first workflow.
+
+### Issue 1 evidence boundary
+
+The live inventory at `docs/reference/v3-live-inventory.md` records the current route/component/style seams, including existing bespoke heads/frames, route-local CSS, duplicate menus/dialogs/panels, and the current panel geometry. That evidence is intentionally not a claim that AC-V3-001 or final AC-V3-014 rendered acceptance has passed. Issue 1 changes documentation and source inspection only. Issue 2 is **Storybook component/state/responsive matrix proving the reconciled DESIGN.md contract** only; it cannot claim application migration or rendered representative acceptance. The approved sequence assigns Issue 3 to **Page-family primitives and migration guards**, Issue 4 to **Shared overlay/panel/navigation host**, Issue 5 to **RecordViewer contract, field primitives, and Task adapter**, Issue 6 to **RecordCollection/view engine and Tasks/Signals adapters**, Issue 7 to **Inbox triage plus Deputy host integration**, Issue 8 to **Café canonical-record integration and Team-context correction**, and Issue 9 to **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain separately owned by the master spec.

@@ -2,7 +2,7 @@
    32px box, 8px radius. error → danger border + danger focus ring. disabled → secondary bg. */
 .mk-textinput { display: flex; flex-direction: column; gap: 4px; }
 .mk-textinput__label {
-  font-size: var(--font-size-xs, 12px); color: var(--muted-foreground);
+  font-size: var(--font-size-label); color: var(--muted-foreground);
   font-weight: 500;
 }
 .mk-textinput__box {
@@ -10,8 +10,13 @@
   height: 32px; padding: 0 10px;
   background: var(--background); border: 1px solid var(--input);
   border-radius: var(--radius-sm);
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
+/* Hover — border shifts toward foreground (DESIGN.md field/cmdk hover); focus wins over hover. */
+.mk-textinput__box:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input));
+}
+.mk-textinput--disabled .mk-textinput__box:hover { border-color: var(--input); }
 .mk-textinput__box:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
@@ -19,7 +24,7 @@
 .mk-textinput__icon { display: inline-flex; width: 16px; height: 16px; color: var(--muted-foreground); flex-shrink: 0; }
 .mk-textinput__field {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-  font: inherit; font-size: 15px; color: var(--foreground); padding: 0;
+  font: inherit; font-size: var(--font-size-control); color: var(--foreground); padding: 0;
 }
 .mk-textinput__field::placeholder { color: var(--muted-foreground); }
 .mk-textinput--full { width: 100%; }
@@ -29,3 +34,11 @@
 }
 .mk-textinput--disabled .mk-textinput__box { background: var(--secondary); cursor: not-allowed; }
 .mk-textinput--disabled .mk-textinput__field { cursor: not-allowed; }
+
+/* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3): the 32px box (and any
+   consumer height override, e.g. the create form's 36px rhythm) rises to the 44px touch
+   floor on phone. min-height beats a smaller height, so per-surface overrides stay intact
+   at desktop widths while every phone consumer inherits the floor from this one seam. */
+@media (max-width: 767.98px) {
+  .mk-textinput__box { min-height: 44px; }
+}

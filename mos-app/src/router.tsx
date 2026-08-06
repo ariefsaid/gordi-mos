@@ -221,8 +221,9 @@ export const routeConfig: RouteObject[] = [
           // sat fully built and unreachable while the route kept serving UpdatesPage (#267).
           //
           // `signals-archive-page.test.tsx` mounts its own <Route> and so passed throughout —
-          // which is why nothing caught it. `router.test.tsx` now resolves both paths through
-          // THIS table instead.
+          // which is why nothing caught it. The guard that does resolve through THIS table is the
+          // AC-020 wiring ledger in `router-lazy.test.tsx`, and it had `UpdatesPage` written into
+          // it, so it agreed with the bug. Both rows are corrected there.
           {
             path: 'work/signals',
             element: withSuspense(<SignalsArchivePage />),
