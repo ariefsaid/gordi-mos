@@ -20,7 +20,7 @@ jobs:
   design-shots:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -109,7 +109,10 @@ jobs:
         if: always()
         run: kill "$(cat /tmp/mos-dev.pid 2>/dev/null)" 2>/dev/null || true
 
-      - name: Upload screenshots as workflow artifact (fallback)
+      - name: Upload screenshots as workflow artifact
+        # The ONLY publication channel, by owner decision (2026-08-06, #294 follow-up): this repo is
+        # public, and the previous shots/<ref> branch publish made every logged-in surface
+        # world-readable. The artifact serves reviewers (login-gated, 30-day) without publishing.
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -117,32 +120,6 @@ jobs:
           path: mos-app/shots-out
           if-no-files-found: warn
           retention-days: 30
-
-      - name: Publish screenshots to shots/<ref_name> branch
-        if: always()
-        working-directory: mos-app/shots-out
-        run: |
-          if [ ! -d . ] || [ -z "$(ls -A . 2>/dev/null)" ]; then
-            echo "shots-out is empty — nothing to publish (screenshot step must have failed before writing any file)" >&2
-            exit 1
-          fi
-          cat > README.md <<EOF
-          # design-shots
-
-          Rendered screenshot matrix for design review, published by the \`design-shots\` workflow
-          (dispatch-only, never a merge gate).
-
-          - Source branch: \`${{ github.ref_name }}\`
-          - Source commit: \`${{ github.sha }}\`
-          - Routes: \`${{ inputs.routes }}\`
-          - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF
-          git init -q
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "design-shots: ${{ github.ref_name }} @ ${{ github.sha }}"
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/shots/${{ github.ref_name }}
 
       - name: Stop stack
         if: always()
