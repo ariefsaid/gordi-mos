@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { DESTINATIONS, UTILITY, isLive, modulesByBU, type Destination } from './destinations'
 import { visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
@@ -229,6 +229,15 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
 export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
+  // #225: the Work parent link used to target the BARE `/work` — a route-table redirect entry
+  // (path: 'work' → RouteRedirect to /work/tasks), not a screen. `to="/work"` bought NavLink's
+  // free prefix-match ("active on every /work/* descendant") at the cost of routing every direct
+  // click through the doormat. `/work/tasks` is the real destination AND the canonical child that
+  // was always going to render, so the link now targets it directly; the prefix-active semantics
+  // Rule 5 needs are computed by hand below instead of leaned on from NavLink's `to` matching
+  // (the same split bottom-tab-bar.tsx already uses via its own `sectionPrefix`).
+  const { pathname } = useLocation()
+  const workActive = pathname === '/work' || pathname.startsWith('/work/')
   // H1 fix (design audit, 2026-07-27): Inbox's unread badge — the SAME cheap, dedicated,
   // unread-only read the header bell already uses (useUnreadCount → countUnread, backed by the
   // owner-unread index), not a per-render full-list count. Fetched once per shell mount like the
@@ -260,29 +269,31 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
         <div className="flex flex-col gap-[2px] rail-item-list">
           {liveDestinations.map((d) => {
             if (d.id === 'work') {
-              // Work parent: aria-current="location" when any /work/* route is active
-              // (Rule 5 — parent never carries "page"; the active child does). `to="/work"`
-              // matches every /work/* descendant so the parent is "active" across all children.
+              // Work parent: aria-current="location" when any /work/* route is active (Rule 5 —
+              // parent never carries "page"; the active child does). `workActive` (computed above
+              // from the URL directly) drives that, now that `to` targets the real canonical
+              // destination instead of the `/work` redirect entry.
               const children = visibleSections(d.children ?? [], accessRoles)
               const workLabel = t(d.labelKey)
               return (
                 <div key={d.id}>
-                  <NavLink
-                    to="/work"
-                    aria-current="location"
+                  {/* Plain Link, not NavLink: NavLink only emits `aria-current` when ITS OWN
+                      `to`-based match is active, which is exactly the coupling we're breaking —
+                      `to` now names the real destination, not a /work* prefix, so `workActive`
+                      (matching the FULL /work section, computed above) has to drive aria-current
+                      by hand instead of riding NavLink's internal match. */}
+                  <Link
+                    to="/work/tasks"
+                    aria-current={workActive ? 'location' : undefined}
                     onClick={onNavigate}
                     data-label={compact ? workLabel : undefined}
-                    className={({ isActive }) => itemBase(isActive, compact)}
+                    className={itemBase(workActive, compact)}
                   >
-                    {({ isActive }) => (
-                      <>
-                        <span className={isActive ? 'text-[color:var(--text-on-accent-tint)]' : 'text-muted-foreground'}>
-                          <d.Icon />
-                        </span>
-                        <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>
-                      </>
-                    )}
-                  </NavLink>
+                    <span className={workActive ? 'text-[color:var(--text-on-accent-tint)]' : 'text-muted-foreground'}>
+                      <d.Icon />
+                    </span>
+                    <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>
+                  </Link>
                   {/* Always-expanded children, grouped by the E7 Work sub-section families
                       (workNavModel grammar): Execution · Work systems · Direction · Cadence, in E7's
                       top-down order. A family's overline is DECORATIVE unless it actually groups

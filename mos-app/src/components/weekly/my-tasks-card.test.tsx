@@ -208,13 +208,13 @@ describe('AC-W01: lists R/A tasks off-track-first as name-chip links', () => {
     expect(doneIdx).toBe(titles.length - 1)
   })
 
-  it('AC-W01: task name cell is a link to /tasks/:id', async () => {
+  it('AC-W01: task name cell is a link to /work/tasks/:id', async () => {
     await renderCard()
     await waitFor(() =>
       expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
     )
     const link = screen.getByRole('link', { name: /Finalise Q3 roastery output forecast/i })
-    expect(link.getAttribute('href')).toBe('/tasks/task-100')
+    expect(link.getAttribute('href')).toBe('/work/tasks/task-100')
   })
 })
 
@@ -354,7 +354,7 @@ describe('AC-W06: name cell truncates + carries title; status cells nowrap', () 
     await waitFor(() =>
       expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument(),
     )
-    const link = container.querySelector('a[href="/tasks/task-100"]')
+    const link = container.querySelector('a[href="/work/tasks/task-100"]')
     expect(link).not.toBeNull()
     // The link or an ancestor should have the `truncate` class OR the `name-chip` CSS class
     expect(link!.className).toMatch(/truncate|name-chip/)
@@ -368,9 +368,9 @@ describe('Card-head chrome: title + meta + All tasks link', () => {
     expect(screen.getByText('My tasks')).toBeInTheDocument()
   })
 
-  it('renders "All tasks →" link targeting /tasks', async () => {
+  it('renders "All tasks →" link targeting /work/tasks', async () => {
     await renderCard()
     const link = screen.getByRole('link', { name: /All tasks/i })
-    expect(link.getAttribute('href')).toBe('/tasks')
+    expect(link.getAttribute('href')).toBe('/work/tasks')
   })
 })

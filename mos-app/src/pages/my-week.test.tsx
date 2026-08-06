@@ -178,11 +178,11 @@ describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () =>
     )
   })
 
-  it('AC-W01/AC-011: has "All tasks →" link targeting /tasks', async () => {
+  it('AC-W01/AC-011: has "All tasks →" link targeting /work/tasks', async () => {
     await renderMyWeek()
     await waitFor(() => {
       const link = screen.getByRole('link', { name: /All tasks/i })
-      expect(link.getAttribute('href')).toBe('/tasks')
+      expect(link.getAttribute('href')).toBe('/work/tasks')
     })
   })
 
@@ -213,15 +213,16 @@ describe('AC-011: MyTasksCard — the dominant module (data-wired, PR-4)', () =>
 
 // AC-012: Empty strips link to their surfaces
 describe('AC-012: Empty strips', () => {
-  it('update strip shows no-update copy with Due Fri phrase and link to /updates', async () => {
+  it('update strip shows no-update copy with Due Fri phrase and link to /work/signals', async () => {
     await renderMyWeek()
     // After renderMyWeek resolves, the no-update state is already shown
     await waitFor(() => expect(screen.getByText('No weekly update for this week yet.')).toBeInTheDocument())
     // "Due Fri" substring present in the explainer
     expect(screen.getByText(/Due Fri /)).toBeInTheDocument()
-    // Strip links to /updates (link label changed from "Open Updates" to "Write update" per design-plan §6)
+    // Strip links to /work/signals — #225 pointed this at the canonical Signals route instead of
+    // the retired /updates path (link label changed from "Open Updates" to "Write update" per design-plan §6)
     const link = screen.getByRole('link', { name: /write update|open updates/i })
-    expect(link.getAttribute('href')).toBe('/updates')
+    expect(link.getAttribute('href')).toBe('/work/signals')
   })
 
   it('ops strip shows no-ops copy and link to /ops', async () => {
@@ -355,7 +356,7 @@ describe('AC-050: My Week strip — No update state', () => {
     await waitFor(() => screen.getByText(/No weekly update for this week yet/i))
     expect(screen.getByText(/Due Fri/i)).toBeTruthy()
     const link = screen.getByRole('link', { name: /write update/i })
-    expect(link.getAttribute('href')).toBe('/updates')
+    expect(link.getAttribute('href')).toBe('/work/signals')
   })
 })
 
@@ -385,7 +386,7 @@ describe('AC-051: My Week strip — Draft state', () => {
     await renderMyWeek()
     await waitFor(() => screen.getByText(/Draft — not filed yet/i))
     const link = screen.getByRole('link', { name: /continue draft/i })
-    expect(link.getAttribute('href')).toBe('/updates')
+    expect(link.getAttribute('href')).toBe('/work/signals')
   })
 })
 
@@ -447,7 +448,7 @@ describe('AC-051: My Week strip — Submitted state', () => {
     })
     await renderMyWeek()
     await waitFor(() => screen.getByRole('link', { name: /view update/i }))
-    expect(screen.getByRole('link', { name: /view update/i }).getAttribute('href')).toBe('/updates')
+    expect(screen.getByRole('link', { name: /view update/i }).getAttribute('href')).toBe('/work/signals')
   })
 })
 

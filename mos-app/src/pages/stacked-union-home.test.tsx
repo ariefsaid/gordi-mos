@@ -207,8 +207,8 @@ describe('AC-HS12: BU-head (no finance) sees only own-BU — no whole-company ti
   })
 })
 
-describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops', () => {
-  it('owner-cockpit money tiles link to /dashboard, ops-KPI to /ops, and nothing drills to the cut cascade', async () => {
+describe('AC-HS13: drills — revenue/margin → /money, ops-KPI → /ops', () => {
+  it('owner-cockpit money tiles link to /money, ops-KPI to /ops, and nothing drills to the cut cascade', async () => {
     mockListRevenue.mockResolvedValue([
       { revenue_date: '2026-07-06', channel: 'POS', esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', transactions: 80, clean_revenue: 12_000_000, snapshot_as_of: '2026-07-07T00:00:00Z', source_contract_version: 'v1' },
     ])
@@ -220,11 +220,11 @@ describe('AC-HS13: drills — revenue/margin → /dashboard, ops-KPI → /ops', 
     )
     await waitFor(() => expect(mockListRevenue).toHaveBeenCalled())
 
-    // Revenue + margin tiles drill to /dashboard
+    // Revenue + margin tiles drill to /money (issue #225 corrected this from the retired /dashboard path)
     const revenueTile = screen.getByRole('group', { name: /revenue/i })
-    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/money')
     const marginTile = screen.getByRole('group', { name: /gross margin/i })
-    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/money')
 
     // Ops-KPI placeholder drills to /ops
     const opsDrill = screen.getByRole('link', { name: /See today's floor activity/i })
@@ -253,9 +253,9 @@ describe('AC-129: a manager viewer sees the company money tiles (ADR-0050 D8)', 
     expect(mockListMargin).toHaveBeenCalled()
 
     const revenueTile = screen.getByRole('group', { name: /revenue/i })
-    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    expect(revenueTile.closest('a')!.getAttribute('href')).toBe('/money')
     const marginTile = screen.getByRole('group', { name: /gross margin/i })
-    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/dashboard')
+    expect(marginTile.closest('a')!.getAttribute('href')).toBe('/money')
   })
 })
 

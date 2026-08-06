@@ -84,7 +84,7 @@ function CompanyMoneyTiles({
   return (
     <>
       <div className="home-kpi-grid" role="group" aria-label="Sales KPIs">
-        <Link to="/dashboard" className="home-kpi-link">
+        <Link to="/money" className="home-kpi-link">
           <KPITile
             label={t('home.kpi.revenue')}
             value={
@@ -101,7 +101,7 @@ function CompanyMoneyTiles({
           />
         </Link>
         {canSeeMargin && (
-          <Link to="/dashboard" className="home-kpi-link">
+          <Link to="/money" className="home-kpi-link">
             <KPITile
               label={t('home.kpi.margin')}
               value={marginState === 'ready' && marginDisplay ? marginDisplay.value : '—'}

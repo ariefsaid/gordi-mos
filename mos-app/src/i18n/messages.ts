@@ -10,8 +10,6 @@ export const messages = {
   en: {
     'dest.home': 'Home',
     'dest.work': 'Work',
-    'dest.operate': 'Operate',
-    'dest.plan': 'Plan',
     'dest.inbox': 'Inbox',
     // Nav sub-item labels — every nav string flows through the catalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id shape-identical (AC-409).
@@ -21,13 +19,10 @@ export const messages = {
     'nav.updates': 'Weekly Updates',
     'nav.dailyLog': 'Daily Log',
     'nav.sales': 'Sales',
-    'nav.dashboard': 'Dashboard',
     'nav.followUps': 'Follow-ups',
-    'nav.planBudget': 'Budget',
     'nav.planPricing': 'Pricing pre-flight',
     'nav.objectives': 'Objectives',
     'nav.projectsProcesses': 'Projects & Processes',
-    'nav.kitchen': 'Kitchen',
     'nav.kitchen.log': 'Kitchen Log',
     'nav.kitchen.plan': 'Plan',
     'nav.kitchen.stock': 'Stock',
@@ -38,7 +33,6 @@ export const messages = {
     'home.kpi.revenue': 'Trailing 7-day revenue',
     'home.kpi.margin': 'Gross margin (interim)',
     'home.kpi.tasks': 'My open tasks',
-    'home.kpi.ops': "Today's log entries",
     // Issue E — Home stacked-union section labels (docs/specs/home-stacked-union.spec.md). Every new
     // section label flows through the catalog in BOTH locales (FR-HS50). en/id shape-identical.
     'home.stack.owner.title': 'Whole-company cockpit',
@@ -58,7 +52,6 @@ export const messages = {
     'home.stack.opskpi.coming': 'Ops KPIs — coming. The metric set is owner-decided.',
     'home.stack.opskpi.drill': "See today's floor activity on the Daily Log",
     'home.stack.error': "Couldn't load your Home. Refresh to try again.",
-    'home.kpi.followUps': 'AR aging',
     // ── #191 (Home port) — v4's region/attention Home. Kept alongside the home.kpi.*/home.stack.*
     // keys above rather than replacing them: home-stack/* (StackedUnionHome, DEV-only preview
     // route) still reads those. ──
@@ -148,7 +141,6 @@ export const messages = {
     'views.render.error.body': 'The composition spec references something unknown. Edit the spec and try again.',
     'views.render.retry': 'Try again',
     'views.panel.error': 'This panel could not be loaded.',
-    'views.panel.rows': '${n} rows',
     'views.stub.title': 'Planned primitive',
     'views.stub.body': '${name} is on the roadmap and not yet implemented.',
     'views.chart.pending': 'Chart binding lands with the builder.',
@@ -206,13 +198,11 @@ export const messages = {
     'assistant.rating.reason.too_slow': 'Took too long',
     'assistant.rating.reason.submit': 'Submit',
     'inbox.title': 'Inbox',
-    'inbox.subtitle': 'Notifications, mentions, and approvals',
     'inbox.empty': "You're all caught up",
     'inbox.emptyCopy': 'Anything that needs your attention — mentions, approvals, assignments — will appear here.',
     'inbox.emptyUnread.title': 'No unread',
     'inbox.emptyUnread.hidden': '${count} read hidden',
     'inbox.emptyUnread.showAll': 'Show all',
-    'inbox.markRead': 'Mark read',
     'inbox.severity.info': 'Info',
     'inbox.severity.warning': 'Warning',
     'inbox.severity.critical': 'Critical',
@@ -234,7 +224,6 @@ export const messages = {
     'inbox.target.unavailable.permission': "You don't have access to open that record.",
     'inbox.target.unavailable.crossOrg': "You don't have access to open that record.",
     'inbox.target.unavailable.featureOff': "That record isn't available yet.",
-    'inbox.openRecord': 'Open full record',
     'inbox.target.type.task': 'Task',
     'inbox.target.type.signal': 'Signal',
     'inbox.target.type.followUp': 'AR Follow-up',
@@ -244,7 +233,6 @@ export const messages = {
     // Receivable — the Task follow-ups view embeds the SAME table via FollowUpQueueEmbed, so both
     // consumers share this one key). follow-ups-page.test.tsx updated to match.
     'followUps.title': 'AR Follow-up queue',
-    'followUps.subtitle': 'Chase, settle, and confirm invoice-grain commitments',
     'followUps.overdue': 'Overdue',
     'followUps.loading': 'Loading follow-ups…',
     'followUps.error': "Couldn't load follow-ups",
@@ -267,9 +255,7 @@ export const messages = {
     'followUps.submit': 'Submit',
     // ADR-0022 (Issue D) — Plan budget/COGS + pricing pre-flight page strings.
     'plan.budget.title': 'Budget creation',
-    'plan.budget.subtitle': 'Capture a budgeted COGS from the linked BOM × ingredient cost lines',
     'plan.pricing.title': 'Pricing pre-flight',
-    'plan.pricing.subtitle': 'Check the margin against the linked certified budgeted COGS',
     // ---- Money surface (#200) ----
     // I18N-1 (census DO-8): every KPI / tab / chart / table string the Money dashboard renders
     // routes through the catalog. The cut nouns carry singular+plural forms because the head
@@ -499,10 +485,6 @@ export const messages = {
     'kitchen.actionType.intraBranch': 'within branch · ${activity}',
     'kitchen.actionType.intraBranch.short': '· ${activity}',
     'kitchen.actionType.production': 'Production',
-    'kitchen.actionType.transferBungur': 'Transfer to Bungur',
-    'kitchen.actionType.transferBungur.short': '→ Bungur',
-    'kitchen.actionType.transferRadiant': 'Transfer to Radiant',
-    'kitchen.actionType.transferRadiant.short': '→ Radiant',
     // The DERIVED movement labels (DD-WAY-13). ${branch} is the destination branch's display
     // name, resolved through the same single alias the SQL derivation carries.
     'kitchen.actionType.transferTo': 'Transfer to ${branch}',
@@ -1114,9 +1096,7 @@ export const messages = {
     'admin.people.empty.noMatch.title': 'No people match this filter',
     'admin.people.empty.noMatch.copy': 'Try a different search term or status filter.',
     'admin.people.empty.noMatch.clear': 'Clear filter',
-    'admin.people.toast.loginEnabled': '${name}: login enabled.',
     'admin.people.toast.restored': '${name} restored.',
-    'admin.people.toast.loginDisabled': '${name}: login disabled.',
     'admin.people.toast.archived': '${name} archived.',
     'admin.people.confirm.reset.title': 'Reset password for ${name}?',
     'admin.people.confirm.reset.body': 'Their current password will stop working. A new temporary password will be shown once.',
@@ -1182,8 +1162,6 @@ export const messages = {
   id: {
     'dest.home': 'Beranda',
     'dest.work': 'Kerja',
-    'dest.operate': 'Operasi',
-    'dest.plan': 'Rencana',
     'dest.inbox': 'Kotak Masuk',
     // Label sub-nav — setiap string nav mengalir melalui katalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id bentuk-identik (AC-409).
@@ -1193,13 +1171,10 @@ export const messages = {
     'nav.updates': 'Update Mingguan',
     'nav.dailyLog': 'Log Harian',
     'nav.sales': 'Penjualan',
-    'nav.dashboard': 'Dasbor',
     'nav.followUps': 'Follow-up',
-    'nav.planBudget': 'Anggaran',
     'nav.planPricing': 'Pracetak harga',
     'nav.objectives': 'Objective',
     'nav.projectsProcesses': 'Proyek & Proses',
-    'nav.kitchen': 'Dapur',
     'nav.kitchen.log': 'Log Dapur',
     'nav.kitchen.plan': 'Rencana',
     'nav.kitchen.stock': 'Stok',
@@ -1210,7 +1185,6 @@ export const messages = {
     'home.kpi.revenue': 'Pendapatan 7 hari terakhir',
     'home.kpi.margin': 'Margin kotor (interim)',
     'home.kpi.tasks': 'Tugas saya yang terbuka',
-    'home.kpi.ops': 'Entri log hari ini',
     // Issue E — label bagian Home stacked-union (docs/specs/home-stacked-union.spec.md). Setiap label
     // bagian baru mengalir melalui katalog di KEDUA locale (FR-HS50). en/id bentuk-identik.
     'home.stack.owner.title': 'Cockpit seluruh perusahaan',
@@ -1230,7 +1204,6 @@ export const messages = {
     'home.stack.opskpi.coming': 'KPI Operasi — segera hadir. Set metrik ditentukan pemilik.',
     'home.stack.opskpi.drill': 'Lihat aktivitas floor hari ini di Log Harian',
     'home.stack.error': 'Home Anda tidak dapat dimuat. Muat ulang untuk mencoba lagi.',
-    'home.kpi.followUps': 'Umur AR',
     'common.docTitle': '${page} — Gordi MOS',
     'common.help': 'Bantuan',
     'home.help': 'Diurutkan menurut konsekuensi: terlambat, jatuh tempo hari ini, terhambat, pemeriksaan gagal, lalu sebutan — diikuti pekerjaan terbuka Anda yang lain. Ubah tata letak Beranda di Profil Pribadi.',
@@ -1311,7 +1284,6 @@ export const messages = {
     'views.render.error.body': 'Spec komposisi merujuk sesuatu yang tidak dikenal. Perbaiki spec lalu coba lagi.',
     'views.render.retry': 'Coba lagi',
     'views.panel.error': 'Panel ini tidak dapat dimuat.',
-    'views.panel.rows': '${n} baris',
     'views.stub.title': 'Primitif rencana',
     'views.stub.body': '${name} ada di peta jalan dan belum diimplementasikan.',
     'views.chart.pending': 'Pengikatan chart akan hadir bersama builder.',
@@ -1367,13 +1339,11 @@ export const messages = {
     'assistant.rating.reason.too_slow': 'Terlalu lama',
     'assistant.rating.reason.submit': 'Kirim',
     'inbox.title': 'Kotak Masuk',
-    'inbox.subtitle': 'Notifikasi, sebutan, dan persetujuan',
     'inbox.empty': 'Semua sudah terbaca',
     'inbox.emptyCopy': 'Apa pun yang butuh perhatian Anda — sebutan, persetujuan, penugasan — akan muncul di sini.',
     'inbox.emptyUnread.title': 'Tidak ada yang belum dibaca',
     'inbox.emptyUnread.hidden': '${count} sudah dibaca, disembunyikan',
     'inbox.emptyUnread.showAll': 'Tampilkan semua',
-    'inbox.markRead': 'Tandai dibaca',
     'inbox.severity.info': 'Info',
     'inbox.severity.warning': 'Peringatan',
     'inbox.severity.critical': 'Kritis',
@@ -1395,14 +1365,12 @@ export const messages = {
     'inbox.target.unavailable.permission': 'Anda tidak punya akses untuk membuka catatan itu.',
     'inbox.target.unavailable.crossOrg': 'Anda tidak punya akses untuk membuka catatan itu.',
     'inbox.target.unavailable.featureOff': 'Catatan itu belum tersedia.',
-    'inbox.openRecord': 'Buka catatan lengkap',
     'inbox.target.type.task': 'Tugas',
     'inbox.target.type.signal': 'Sinyal',
     'inbox.target.type.followUp': 'AR Follow-up',
     'inbox.help': 'Semua yang ditujukan kepada Anda — sebutan, persetujuan, penugasan tugas — muncul di sini. Membuka satu baris menandainya sudah dibaca dan membawa Anda ke catatan asalnya. Pakai filter Belum dibaca untuk melihat yang belum Anda buka saja.',
     // NFR-300/FR-321 — tata bahasa kartu ponsel + prefiks terlambat + fallback ketahanan katalog.
     'followUps.title': 'Antrean AR Follow-up',
-    'followUps.subtitle': 'Kejar, lunasi, dan konfirmasi komitmen per invoice',
     'followUps.overdue': 'Terlambat',
     'followUps.loading': 'Memuat follow-up…',
     'followUps.error': 'Follow-up tidak dapat dimuat',
@@ -1425,9 +1393,7 @@ export const messages = {
     'followUps.submit': 'Kirim',
     // ADR-0022 (Issue D) — Plan budget/COGS + pricing pre-flight (string halaman).
     'plan.budget.title': 'Penyusunan anggaran',
-    'plan.budget.subtitle': 'Catat COGS yang dianggarkan dari BOM tertaut × lini biaya bahan',
     'plan.pricing.title': 'Pracetak harga',
-    'plan.pricing.subtitle': 'Periksa margin terhadap COGS terjanggar yang tersertifikasi dan tertaut',
     // ---- Money surface (#200) ----
     'money.documentTitle': 'Keuangan — Gordi MOS',
     'money.kpi.rev7d': 'Pendapatan 7 hari terakhir',
@@ -1632,10 +1598,6 @@ export const messages = {
     'kitchen.actionType.intraBranch': 'dalam cabang · ${activity}',
     'kitchen.actionType.intraBranch.short': '· ${activity}',
     'kitchen.actionType.production': 'Produksi',
-    'kitchen.actionType.transferBungur': 'Transfer ke Bungur',
-    'kitchen.actionType.transferBungur.short': '→ Bungur',
-    'kitchen.actionType.transferRadiant': 'Transfer ke Radiant',
-    'kitchen.actionType.transferRadiant.short': '→ Radiant',
     'kitchen.actionType.transferTo': 'Transfer ke ${branch}',
     'kitchen.actionType.transferTo.fallback': 'cabang lain',
     'kitchen.actionType.transferTo.short': '→ ${branch}',
@@ -2231,9 +2193,7 @@ export const messages = {
     'admin.people.empty.noMatch.title': 'Tidak ada orang yang cocok dengan filter ini',
     'admin.people.empty.noMatch.copy': 'Coba kata kunci pencarian atau filter status yang berbeda.',
     'admin.people.empty.noMatch.clear': 'Hapus filter',
-    'admin.people.toast.loginEnabled': '${name}: login diaktifkan.',
     'admin.people.toast.restored': '${name} dipulihkan.',
-    'admin.people.toast.loginDisabled': '${name}: login dinonaktifkan.',
     'admin.people.toast.archived': '${name} diarsipkan.',
     'admin.people.confirm.reset.title': 'Atur ulang kata sandi untuk ${name}?',
     'admin.people.confirm.reset.body': 'Kata sandi mereka saat ini akan berhenti berfungsi. Kata sandi sementara yang baru akan ditampilkan satu kali.',

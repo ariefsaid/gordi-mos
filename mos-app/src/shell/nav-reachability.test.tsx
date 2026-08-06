@@ -63,7 +63,7 @@ function setAuthAs(accessRoles: string[], roleNames: string[]) {
     viewer: {
       person: {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Test Viewer',
-        email: 't@gordi.id', archived_at: null, must_change_password: false,
+        email: 't@example.test', archived_at: null, must_change_password: false,
         created_at: '', updated_at: '',
       },
       roles: roleNames.map((n, i) => ({
