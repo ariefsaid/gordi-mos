@@ -235,6 +235,29 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(mockUpsert.mock.calls[0][0].qty_porsi).toBe(25)
   })
 
+  it('DD-5/I5: while a commit is in flight the field is disabled + aria-busy — Enter-then-blur saves exactly ONCE', async () => {
+    const user = userEvent.setup()
+    // A slow-resolving upsert holds the commit pending long enough for the follow-up blur.
+    let release!: (id: string) => void
+    mockUpsert.mockImplementation(() => new Promise<string>(r => { release = r }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await user.type(input, '25{Enter}')
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+    // I5 contract (useInlineCommit): pending commit → field disabled + aria-busy.
+    expect(input).toBeDisabled()
+    expect(input).toHaveAttribute('aria-busy', 'true')
+    // Blur while pending must NOT fire a second upsert for the same edit.
+    fireEvent.blur(input)
+    await new Promise(r => setTimeout(r, 0))
+    expect(mockUpsert).toHaveBeenCalledOnce()
+    release('new-id')
+    // After the commit resolves the field is editable again.
+    await waitFor(() => expect(input).not.toBeDisabled())
+    expect(mockUpsert).toHaveBeenCalledOnce()
+  })
+
   it('DD-5/I5: Escape discards the draft and restores the saved qty — never saves', async () => {
     const user = userEvent.setup()
     mockPlans.mockResolvedValue(PLAN_CELLS)

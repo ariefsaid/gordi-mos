@@ -53,7 +53,7 @@ interface PlanQtyFieldProps {
 
 export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }: PlanQtyFieldProps) {
   const t = useT()
-  const { draft, setDraft, onKeyDown, onBlur } = useInlineCommit<number>({
+  const { draft, setDraft, pending, onKeyDown, onBlur } = useInlineCommit<number>({
     value: qty,
     onCommit: onSave,
     disabled,
@@ -80,11 +80,20 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
         min={0}
         step={1}
         enterKeyHint="next"
-        disabled={disabled}
+        // I5 contract: while an async commit is pending the field is disabled + aria-busy
+        // (useInlineCommit's own doc) — otherwise Enter-then-blur fires onCommit twice
+        // for one edit. Same consumption as task-row.tsx, the hook's reference consumer.
+        // The commit handlers are ALSO gated on pending: React still delivers blur to a
+        // disabled input (disabling the focused field is itself what blurs it), and the
+        // hook's commit() checks only its `disabled` option — proven by the page's
+        // "saves exactly ONCE" regression test, which fails with the attribute alone.
+        // NOTE: v4's copy omitted all of this — deliberate improvement over the source.
+        disabled={disabled || pending}
+        aria-busy={pending || undefined}
         data-touch-target="true"
         onChange={handleInput}
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
+        onKeyDown={pending ? undefined : onKeyDown}
+        onBlur={pending ? undefined : onBlur}
       />
       <span className="pqf-unit">{t('kitchen.unit.porsi')}</span>
     </div>
