@@ -107,6 +107,11 @@ three. See `docs/agents/review.md`.
 Background the dispatch and wait for the notification — **never poll, and never kill on an empty
 log: `pi -p` buffers until it exits.** See `docs/agents/pi-delegation.md`.
 
+## Out-of-scope findings
+
+Do it (self or subagent), backlog it (GitHub issue), or drop it with one line of reasoning —
+**never a suggested-task chip** (owner, 2026-08-07). A chip pushes the decision back to the owner.
+
 ## Read before you start
 `CONTEXT.md` (domain glossary, in this repo) · then the local `docs/` repo: `docs/README.md`,
 `docs/gotchas.md` (scar tissue — read this one), `docs/decisions.md`, `docs/environments.md`.
