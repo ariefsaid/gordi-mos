@@ -86,7 +86,12 @@ enabled = true
 # seed.sql's org/BUs/roles/people/teams, so they run after it; they are independent of each other
 # and of seed.dev-auth.sql. DEV-ONLY like the other two — they reference the fictional *.dev
 # personas and must stay out of any prod seed run.
-sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql"]
+# seed.dev-signals.sql (v4 port) runs LAST: it needs seed.sql's people/teams and defers to the
+# membership rows seed.dev-processes.sql / seed.dev-cafe-opening.sql create first. DEV-ONLY like
+# the rest. seed.dev-kitchen.sql + seed.dev-money.sql are deliberately NOT listed — hand-loaded
+# demo datasets (see their headers): the kitchen (AC-090/AC-014) and budget-pricing (AC-PB-012)
+# e2e journeys assume the clean post-reset ops/reporting state.
+sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql", "./seed.dev-signals.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
