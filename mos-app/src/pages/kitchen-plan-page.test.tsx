@@ -5,9 +5,17 @@
 // logging/approve affordance), FR-030/031 (ops_lead edits a cell → upsert, the
 // payload sends qty_porsi, never org_id/plan_by). Covers every state: loading,
 // empty, error+retry, saving/saved, offline, member-read-only, unauthenticated.
+//
+// DD-5 (v4 typed-qty port): the editor journey is TYPE the amount, then Enter/Tab/blur
+// to commit — never increment. The owner killed the −/+ stepper ("the production is not
+// logged incrementally. it should be typed in the amount being produced. mostly are
+// 10-20+. incremental is just too tedious."), so these tests assert the typed journey
+// and the ABSENCE of any −/+ affordance; Escape discards without saving (I5 /
+// OD-REDESIGN-22, via useInlineCommit).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -128,7 +136,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(12)
   })
 
-  it('FR-031: editing a cell + save calls upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
+  it('FR-031: typing an amount + blur commits — upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
@@ -194,11 +202,52 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
-  it('empty: ops_lead sees an editable blank grid (items, all qty 0) — not "no plan"', async () => {
+  it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
     mockPlans.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(0)
+    // DD-5 data-honesty: qty 0 = "nothing planned" → the field is genuinely blank with a
+    // greyed "0" placeholder, never a column of committed-looking black zeros.
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveValue(null)
+    expect(input).toHaveAttribute('placeholder', '0')
+  })
+
+  // ── DD-5: the typed journey (owner ruling — typed, never incremented) ─────────
+  it('DD-5: the plan qty is a typed field — NO −/+ stepper affordance renders', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryByRole('button', { name: /increase|decrease/i })).toBeNull()
+  })
+
+  // Interaction realism: these two drive the field with userEvent (real keystroke
+  // sequences, act-settled between events) rather than a single synthetic
+  // change+keyDown pair — under full-suite load the synthetic pair could race the
+  // field's mount effects and flake (the same load-flake class documented on the
+  // save-error test above). The journey asserted is unchanged: type, then Enter/Escape.
+  it('DD-5/I5: Enter commits the typed amount', async () => {
+    const user = userEvent.setup()
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await user.type(input, '25{Enter}')
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
+    expect(mockUpsert.mock.calls[0][0].qty_porsi).toBe(25)
+  })
+
+  it('DD-5/I5: Escape discards the draft and restores the saved qty — never saves', async () => {
+    const user = userEvent.setup()
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await user.clear(input)
+    await user.type(input, '99{Escape}')
+    // draft rolled back to the saved 12; tabbing away is then a no-op (no needless write)
+    expect(input).toHaveValue(12)
+    await user.tab()
+    await new Promise(r => setTimeout(r, 0))
+    expect(mockUpsert).not.toHaveBeenCalled()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {

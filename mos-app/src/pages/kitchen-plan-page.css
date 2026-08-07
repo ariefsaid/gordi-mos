@@ -1,9 +1,10 @@
 /* ════════════════════════════════════════════════════════════════════════════
    Kitchen Plan editor + pesanan horizon (S2 / OD-K-5 redesign §4–§5).
    Editor (ops_lead): variant="data" full-bleed; KPI strip + the (branch, activity)
-   stream + movement scope + the useIsDesktop() branch (PlanQtyCell | PlanQtyStepper) —
-   those components own their own CSS (.pqcell-/.kps-). This file holds only the page
-   chrome: banners, the scope wrap, and the Pesanan read view (grouped by date).
+   stream + movement scope + the typed PlanQtyField (DD-5 — one control for both
+   viewports, dense on desktop) which owns its own CSS (.pqf-). This file holds only
+   the page chrome: banners, the scope wrap, the qty-cell save status, and the Pesanan
+   read view (grouped by date).
    Token-only (DESIGN.md) — no raw hex/spacing/shadow literals.
    member-read / lead-edit: the read view has NO editable affordance (absence = signal).
    ════════════════════════════════════════════════════════════════════════════ */
@@ -94,6 +95,28 @@
 .kp-cat {
   font-size: 11px;
   color: var(--muted-foreground);
+}
+
+/* ── "Plan" cell — typed qty + inline save status (v4, DD-5 typed-qty port) ──
+   Mirrors the retired .pqcell-saving/.pqcell-saved look (plan-qty-cell.css) under this
+   page's own namespace, now that the cell composes PlanQtyField directly rather than
+   importing PlanQtyCell/PlanQtyStepper. */
+.kp-cell-qty {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.kp-cell-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--font-size-overline);
+  color: var(--muted-foreground);
+}
+.kp-cell-tick {
+  color: var(--success);
+  font-weight: 600;
 }
 
 /* ── States: loading / empty / error are the shared StateKit

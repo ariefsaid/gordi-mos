@@ -52,8 +52,7 @@ import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { PlanQtyCell } from '@/components/kitchen/plan-qty-cell'
-import { PlanQtyStepper } from '@/components/kitchen/plan-qty-stepper'
+import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
 import { groupByCategory } from '@/lib/kitchen-category'
 import {
   DataTable,
@@ -262,25 +261,38 @@ function PlanEditor() {
       key: 'plan',
       header: t('kitchen.plan.col.plan'),
       numeric: true,
-      render: item => isDesktop ? (
-        <PlanQtyCell
-          itemName={item.name}
-          qty={qtyOf(item.id)}
-          saving={savingId === item.id}
-          justSaved={justSavedId === item.id}
-          disabled={!isOnline || !stream}
-          onSave={next => saveCell(item.id, next)}
-        />
-      ) : (
-        <PlanQtyStepper
-          itemName={item.name}
-          qty={qtyOf(item.id)}
-          saving={savingId === item.id}
-          justSaved={justSavedId === item.id}
-          disabled={!isOnline || !stream}
-          onSave={next => saveCell(item.id, next)}
-        />
-      ),
+      // v4 (DD-5 typed-qty port): both viewports render the SAME typed field —
+      // PlanQtyField — not the retired −/+ PlanQtyCell/PlanQtyStepper pair. Planning a
+      // dish at 25 portions cost 25 taps; the owner already ordered this pattern killed
+      // on Café · Log ("the production is not logged incrementally. it should be typed
+      // in the amount being produced. mostly are 10-20+. incremental is just too
+      // tedious"), and Plan is the same job on the next screen. Desktop gets the dense
+      // (32px pointer-surface) sizing; the phone card keeps the 44px touch floor.
+      // Commit state (Saving… / ✓ Saved) renders BESIDE the field at the page, only
+      // when it has something to say — inline in the control it would reflow the row's
+      // one input mid-entry.
+      render: item => {
+        const saving = savingId === item.id
+        const saved = !saving && justSavedId === item.id
+        return (
+          <div className="kp-cell-qty">
+            <PlanQtyField
+              itemName={item.name}
+              qty={qtyOf(item.id)}
+              disabled={!isOnline || !stream}
+              onSave={next => saveCell(item.id, next)}
+              dense={isDesktop}
+            />
+            {(saving || saved) && (
+              <span className="kp-cell-status" role="status" aria-live="polite">
+                {saving
+                  ? 'Saving…'
+                  : <><span className="kp-cell-tick" aria-hidden="true">✓</span> Saved</>}
+              </span>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
