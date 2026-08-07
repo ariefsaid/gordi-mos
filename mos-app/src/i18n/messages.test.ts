@@ -105,7 +105,6 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
 describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
   const ASSISTANT_KEYS = [
     'assistant.title',
-    'assistant.close',
     'assistant.history',
     'assistant.newConversation',
     'assistant.open',
@@ -115,8 +114,8 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
     'assistant.empty.suggestion2',
     'assistant.empty.suggestion3',
     'assistant.composer.placeholder',
+    'assistant.composer.sendHint',
     'assistant.send',
-    'assistant.stop',
     'assistant.retry',
     'assistant.streaming',
     'assistant.approval.header',
