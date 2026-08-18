@@ -205,6 +205,6 @@ fi
 echo
 echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
 echo "sssf factory skeleton stamped into adws/ at pin $SSSF_PIN (see adws/PORT-MANIFEST.md)"
-echo "Project overrides applied from .claude/skill-overrides/ (implement to-spec code-review tdd handoff)."
+echo "Project overrides applied from .claude/skill-overrides/: $(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' ')"
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"
