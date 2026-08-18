@@ -96,6 +96,13 @@ Edit skills **only** in `.claude/skill-overrides/<name>/`. `.claude/skills/` is 
 gitignored — edits there are destroyed by the next `scripts/vendor-skills.sh`.
 See `docs/agents/skills.md`.
 
+### Factory
+
+Bounded tickets ride the SSSF factory (`adws/` — `uv run adws/adw_simple_sdlc.py`, from the
+ticket's worktree, never the dev checkout). Executor routing + decision rights:
+`docs/agents/factory.md`. HITL sits at intake and milestone review; inside a signed milestone
+brief the Director does not pause per ticket.
+
 ### Review roster
 
 **Three lenses review every change, always: `spec`, `code-quality`, `security`.** A loop step, not a
