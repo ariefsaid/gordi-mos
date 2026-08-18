@@ -1,0 +1,175 @@
+// C4 (FR-418) — the consolidated retired-entry-point sweep, ported from the v4-redesign
+// line and authored to THIS line's ruled state:
+//
+//  · Weekly Update: the Signal supersedes it. Entry points are retired everywhere —
+//    `/updates` redirects to `/work/signals`, UpdatesPage is unrouted, SHOW_WEEKLY_UPDATES
+//    is false — while the surface FILES stay pending the #281 ruling (hidden, not deleted;
+//    see pages/my-week.hidden.test.tsx for the flag-off contract of the My Week panel).
+//  · Daily Log: DELIBERATE divergence from v4 — `/ops` stays a live, flag-gated surface
+//    (v4 retired it to `/`; this line's router documents why it does not). What IS ruled
+//    is that no nav surface offers it: no destination link, no ⌘K item, no Home link.
+//
+// This file is the single consolidated assertion that no residual entry point creeps back
+// in across DESTINATIONS/MODULES/UTILITY, the route table, ⌘K, and Home. It deliberately
+// does NOT re-assert what its siblings own: guard-no-links-to-retired-paths.test.ts owns
+// "no in-app link routes through the redirect map", and guard-od-v4-10-retirement.test.ts
+// owns the region-order toggle's retirement. The value here is the entry-point sweep.
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { DESTINATIONS, MODULES, UTILITY } from './destinations'
+import { SHOW_WEEKLY_UPDATES } from '@/config/features'
+import { allRedirects, leafInThisTable, isRedirect, flattenRoutes, expectOneHop } from '@/test/route-table'
+import { CommandMenu } from '@/components/command/command-menu'
+import { HomePage } from '@/pages/home-page'
+
+const FORBIDDEN = /write update|weekly update|daily log|open the daily log/i
+
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
+const mockUseAuth = vi.mocked(useAuth)
+
+vi.mock('@/lib/db/tasks', () => ({
+  searchTasksByTitle: vi.fn().mockResolvedValue([]),
+  listTasks: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('@/lib/db/reporting', () => ({
+  listSalesDailyRevenue: vi.fn().mockResolvedValue([]),
+  latestSnapshotAsOf: vi.fn(() => null),
+  latestReportingDate: vi.fn(() => null),
+}))
+vi.mock('@/lib/db/reporting-margin', () => ({
+  listSalesMarginDaily: vi.fn().mockResolvedValue([]),
+  latestMarginSnapshotAsOf: vi.fn(() => null),
+  latestMarginReportingDate: vi.fn(() => null),
+}))
+vi.mock('@/lib/db/directory', () => ({
+  getBusinessUnits: vi.fn().mockResolvedValue([]),
+  getPeople: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('@/lib/db/notifications', () => ({
+  listNotifications: vi.fn().mockResolvedValue([]),
+  notificationRoute: () => null,
+}))
+vi.mock('@/lib/db/home-attention-data', () => ({
+  loadFailedChecksForViewer: vi.fn().mockResolvedValue([]),
+  CAFE_LOG_ROUTE: '/cafe/log',
+}))
+// PARTIAL mock: the feed's ranking (`orderSignalsForFeed`) must stay the production one;
+// only the reads are controlled here. (Same seam as home-page.test.tsx.)
+vi.mock('@/lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  listReadableSignals: vi.fn().mockResolvedValue([]),
+  listAllTeams: vi.fn().mockResolvedValue([]),
+  searchSignalsByBody: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('@/lib/db/follow-ups', () => ({
+  searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]),
+}))
+vi.mock('@/shell/signal-composer-host', () => ({
+  useSignalComposer: () => ({ open: vi.fn(), close: vi.fn(), isOpen: false, postCount: 0 }),
+}))
+
+function memberViewer() {
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'U', email: null,
+        must_change_password: false, archived_at: null, created_at: '', updated_at: '',
+      },
+      roles: [], isManager: false, accessRoles: [],
+    },
+    signOut: vi.fn(),
+  })
+}
+
+describe('C4 — retirement: the ruled flag state', () => {
+  it('SHOW_WEEKLY_UPDATES stays false — no surface serves it, so a true flag would be a dead affordance', () => {
+    // If #281 revives weekly updates WITH a route of their own, this flips with it (and this
+    // assertion updates as part of that ruling — see config/features.ts).
+    expect(SHOW_WEEKLY_UPDATES).toBe(false)
+  })
+})
+
+describe('C4 — retirement: destinations.tsx carries no Weekly Update / Daily Log entry point', () => {
+  it('no destination/module/utility link (workspace or Work-children) mentions the forbidden entry points', () => {
+    const allDestinations = [...DESTINATIONS, ...MODULES.flatMap((g) => g.items), ...UTILITY]
+    const allLinks = allDestinations.flatMap((d) => [...d.links, ...(d.children ?? [])])
+    expect(allLinks.length).toBeGreaterThan(0)
+    for (const link of allLinks) {
+      expect(link.label).not.toMatch(FORBIDDEN)
+      expect(link.path).not.toMatch(/weekly-update|daily-log|\/updates$|^\/ops(\/|$)/i)
+    }
+  })
+})
+
+describe('C4 — retirement: the route table (FR-418, read off the REAL routeConfig)', () => {
+  it('/updates redirects to /work/signals in one hop — never a chained redirect through a Weekly Update page', () => {
+    const updates = allRedirects().find((r) => r.from === '/updates')
+    expect(updates, '/updates must be a redirect-map entry').toBeDefined()
+    expect(updates!.to).toBe('/work/signals')
+    expect(updates!.replace).toBe(true)
+    expectOneHop('/updates', updates!.to)
+  })
+
+  it('no route path resurrects a weekly-update spelling', () => {
+    const paths = flattenRoutes().map((r) => r.path)
+    expect(paths.some((p) => /weekly-update|daily-log/.test(p))).toBe(false)
+  })
+
+  it('the Daily Log surface itself stays live at /ops (ruled divergence from v4 — hidden from nav, not deleted)', () => {
+    const leaf = leafInThisTable('/ops')
+    expect(leaf).toBeDefined()
+    expect(leaf!.route.path).not.toBe('*')
+    // With SHOW_DAILY_LOG on (the live default) /ops serves OpsPage, not a redirect. A port
+    // that silently retires it to `/` (v4's table) turns this red — that retirement is a
+    // surface ticket's call, not a route-table side effect.
+    expect(isRedirect(leaf!.route.element)).toBe(false)
+  })
+})
+
+describe('C4 — retirement: ⌘K carries no Weekly Update / Daily Log action or navigate item', () => {
+  it('the command palette lists no forbidden entry point', () => {
+    memberViewer()
+    render(
+      <I18nProvider>
+        <MemoryRouter>
+          <CommandMenu open onClose={vi.fn()} onShareSignal={vi.fn()} />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    const options = screen.getAllByRole('option')
+    expect(options.length).toBeGreaterThan(0)
+    for (const option of options) {
+      expect(option.textContent ?? '').not.toMatch(FORBIDDEN)
+    }
+  })
+})
+
+describe('C4 — retirement: Home renders no residual Weekly Update / Daily Log links', () => {
+  it('a member viewer sees no "write update" / "weekly update" / "daily log" link or region on Home', async () => {
+    memberViewer()
+    render(
+      <I18nProvider>
+        <MemoryRouter>
+          <Routes>
+            <Route path="*" element={<HomePage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    // Ready sentinel — a JOURNEY STEP, not the oracle: the Signals feed region is what the
+    // Home spec guarantees in every arrangement, so waiting on it proves the page finished
+    // composing before the sweep runs. The oracle is the absence assertions below.
+    await waitFor(() => expect(screen.getByRole('region', { name: /signals/i })).toBeInTheDocument())
+    for (const link of screen.queryAllByRole('link')) {
+      expect(link.textContent ?? '').not.toMatch(FORBIDDEN)
+    }
+    expect(screen.queryByRole('region', { name: 'My weekly update' })).toBeNull()
+    expect(screen.queryByRole('region', { name: /Today on the Daily Log/i })).toBeNull()
+  })
+})
