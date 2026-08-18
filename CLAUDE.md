@@ -98,10 +98,8 @@ See `docs/agents/skills.md`.
 
 ### Factory
 
-Bounded tickets ride the SSSF factory (`adws/` — `uv run adws/adw_simple_sdlc.py`, from the
-ticket's worktree, never the dev checkout). Executor routing + decision rights:
-`docs/agents/factory.md`. HITL sits at intake and milestone review; inside a signed milestone
-brief the Director does not pause per ticket.
+Bounded tickets ride the SSSF factory (`adws/`). Routing, decision rights, and the drive loop:
+`docs/agents/factory.md`. HITL = intake + milestone review; no per-ticket pauses inside a signed brief.
 
 ### Review roster
 
