@@ -245,7 +245,16 @@ _Avoid_: watcher, CC, stakeholder
 
 ## Cadence
 
-**Weekly Update**:
+**Signal**:
+A short, past-tense floor fact posted by a person and owned by a **Team** — body + when it occurred +
+an **attention level** (**FYI · Needs attention · Urgent**) + optional category, with mentions
+(person / team / BU). No owner, RACI, or Status — it is not work-to-do; a Signal can spawn a
+follow-up **Task** that carries its context. Retracted, never deleted (a retracted Signal is a
+tombstone). Surfaces: the `/work/signals` archive, the Signal record page, and the global composer.
+_Avoid_: status (a Signal has none), alert, notification, log entry (that's the Daily Log's unit)
+
+**Weekly Update** — ⚑ **surface fate OPEN, issue #281.** No route on `dev` (`/work/updates`
+redirects to the Signals archive); the concept below stands unchanged until the owner decides #281:
 A person-keyed recap of one person's week — a free-text summary plus a list of update lines. Keyed by
 (person, week). Everyone files one (incl. top-of-chain, who has no reviewer); a manager reads their
 reports' (upward-only — author + manager chain, OD-P1-3) and files their own upward. Person-keyed is a
