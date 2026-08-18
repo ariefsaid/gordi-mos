@@ -1,0 +1,115 @@
+/* Deputy content only. OverlayCompanionSlot + RecordPanelHost own geometry, scrim, modal regime,
+   Escape, focus, border, shadow, and close chrome (OD-REDESIGN-75/80). */
+.assistant-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.assistant-panel__title {
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+/* OD-REDESIGN-91 #1 — hybrid transcript chrome (variant C). User turns bubble; Deputy prose is
+   bare under a small speaker label; widgets are full-width first-class blocks. */
+.assistant-turn { display: flex; flex-direction: column; min-width: 0; }
+.assistant-turn--user { align-items: flex-end; }
+.assistant-turn--deputy { align-items: flex-start; }
+.assistant-turn--widget { width: 100%; }
+
+.assistant-bubble--user {
+  max-width: 85%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--text-inverted);
+  font-size: var(--font-size-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-speaker {
+  font-size: var(--font-size-micro);
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  margin-bottom: 2px;
+}
+
+.assistant-prose {
+  max-width: 65ch;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+}
+
+/* OD-REDESIGN-91 #10 — quiet "Shift+Enter to send" hint under the composer, hidden on touch. */
+.assistant-composer { display: flex; flex-direction: column; }
+.assistant-composer-hint {
+  margin-top: 4px;
+  text-align: right;
+  font-size: var(--font-size-micro);
+  color: var(--muted-foreground);
+}
+@media (pointer: coarse) {
+  .assistant-composer-hint { display: none; }
+}
+
+/* ── Tokenized sub-component type (dev chrome reconciliation) ─────────────────────────────
+   v4's file still carried inline fontSize literals (12/13/14) on the chips, banners, and the
+   composer. On this line every type size resolves through the DESIGN.md ramp:
+     14 → var(--font-size-body)     (base body)
+     13 → var(--font-size-control)  ("controls run 13.5px" — banner strings + their buttons)
+     12 → var(--font-size-label)    (dense metadata / pill labels)                          */
+
+/* Approval + question chip cards (accent-bordered callouts in the transcript). */
+.assistant-chip-card { border-color: var(--border-accent); padding: 0.625rem 0.75rem; }
+.assistant-chip-card__header {
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.assistant-chip-card__text { font-size: var(--font-size-body); }
+.assistant-chip-card__meta { font-size: var(--font-size-label); }
+.assistant-chip-btn { padding: 0.4rem 0.625rem; font-size: var(--font-size-body); }
+.assistant-chip-btn--approve { background: var(--accent); color: var(--text-inverted); padding: 0.4rem 0.5rem; }
+.assistant-chip-btn--deny { padding: 0.4rem 0.5rem; }
+.assistant-chip-input { padding: 0.4rem 0.625rem; font-size: var(--font-size-body); }
+.assistant-chip-btn--submit { background: var(--accent); color: var(--text-inverted); }
+.assistant-chip-btn--submit:disabled { opacity: 0.5; }
+
+/* Rating control (👍/👎 + downvote reason picker under a Deputy turn). */
+.assistant-rating-meta { font-size: var(--font-size-label); margin-top: 0.25rem; }
+.assistant-rating-row { margin-top: 0.25rem; }
+.assistant-rating-picker { padding: 0.5rem 0.625rem; max-width: 85%; }
+.assistant-rating-reason-btn { padding: 0.3rem 0.5rem; font-size: var(--font-size-label); }
+
+/* Error / stuck-run banners + the streaming indicator. */
+.assistant-banner { padding: 0.5rem 0.75rem; border-bottom-width: 1px; border-bottom-style: solid; }
+.assistant-banner--error { padding: 0.625rem 0.75rem; }
+.assistant-banner__text { font-size: var(--font-size-control); }
+.assistant-banner__btn { padding: 0.25rem 0.5rem; font-size: var(--font-size-control); }
+
+/* Composer row. */
+.assistant-composer-form { padding: 0.625rem 0.75rem; border-top-width: 1px; border-top-style: solid; }
+.assistant-composer-input {
+  padding: 0.5rem 0.625rem;
+  font-size: var(--font-size-body);
+  min-height: 40px;
+  max-height: 140px;
+}
+.assistant-send-btn {
+  height: 40px;
+  padding: 0 0.875rem;
+  font-size: var(--font-size-body);
+  background: var(--accent);
+  color: var(--text-inverted);
+}
+.assistant-send-btn:disabled { opacity: 0.5; }
+
+/* The transcript scroll body. */
+.assistant-body { padding: 0.75rem; }

@@ -3,12 +3,12 @@
  * to DESIGN.md tokens). One component mounted at the shell root; self-gates visibility on the
  * runtime context's `open`.
  *
- *   - Desktop (≥920px): right-side NON-MODAL drawer, `role="complementary"`, width var(--assistant-w).
- *   - Phone (<920px): full-height MODAL sheet, `role="dialog" aria-modal`, scrim + focus-trap +
- *     body-scroll-lock + Esc close.
+ *   - Desktop (≥920px): the shared OverlayCompanionSlot/RecordPanelHost renders a non-modal
+ *     companion. With a record open it contracts into the remaining canvas (OD-REDESIGN-80).
+ *   - Phone (<920px): that same host renders the modal sheet above any mounted record.
  *
- * Keep-mounted (FR-P2-AP-003): the section is ALWAYS in the DOM — when closed it is `inert` +
- * `aria-hidden` + translated off-screen, so the hook's transcript/chip state survives close→open.
+ * Keep-mounted (FR-P2-AP-003): this component and its hook state stay mounted while the physical
+ * host closes, so transcript/chip/draft/history state survives close→open. The closed slot is inert.
  * Assistant prose renders through the safe markdown boundary (ADR-0049); user turns and control
  * strings stay literal. Typed artifact widgets render through the ADR-0045 registry.
  * Every string flows through useT() (FR-P2-AP-005).
@@ -20,10 +20,12 @@ import { useEffect, useRef, useState, useCallback, type FormEvent, type Keyboard
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion, type AssistantRating } from '@/hooks/useAssistantPanel'
 import { useT } from '@/i18n/use-t'
-import { useIsNarrow } from '@/shell/use-is-narrow'
+import { EmptyState } from '@/components/ui/state-kit'
 import { ThreadList } from './ThreadList'
 import { AssistantMarkdown } from './AssistantMarkdown'
 import { AssistantWidgetSlot } from './AssistantWidgetSlot'
+import { OverlayCompanionSlot } from '@/shell/overlay-host'
+import './AssistantPanel.css'
 
 const SUGGESTION_KEYS = [
   'assistant.empty.suggestion1',
@@ -44,78 +46,24 @@ interface RatingLabels {
 export function AssistantPanel() {
   const { open, closePanel, pendingDraft, consumePendingDraft } = useAgentRuntime()
   const panel = useAssistantPanel()
-  const isNarrow = useIsNarrow()
   const t = useT()
 
   const [draft, setDraft] = useState('')
-  const [showHistory, setShowHistory] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLElement>(null)
 
-  const role: 'dialog' | 'complementary' = isNarrow ? 'dialog' : 'complementary'
-
-  // ── Body scroll-lock (phone modal) ───────────────────────────────────────────
-  useEffect(() => {
-    if (!(open && isNarrow)) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [open, isNarrow])
-
-  // ── Esc closes (never cancels) + focus trap (phone modal) ────────────────────
-  useEffect(() => {
-    if (!open) return
-    const getFocusables = (): HTMLElement[] =>
-      panelRef.current
-        ? Array.from(
-            panelRef.current.querySelectorAll<HTMLElement>(
-              'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          )
-        : []
-
-    // Move focus into the panel on open (phone modal) so the trap has a starting point.
-    if (isNarrow) {
-      const f = getFocusables()
-      f[0]?.focus()
-    }
-
-    const handler = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closePanel()
-        return
-      }
-      if (isNarrow && e.key === 'Tab') {
-        const f = getFocusables()
-        if (f.length === 0) return
-        const first = f[0]
-        const last = f[f.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, isNarrow, closePanel])
-
-  // ── Ported for #192 (Tasks): adopt a record-scoped composer seed once on open ────────────────
-  // (e.g. "About Task: <title>", set via openPanel(draft) from AskDeputyAction). Consumed
-  // single-shot so a later plain openPanel() (the launcher, no draft) never resurrects it.
+  // Record-scoped "Ask Deputy": when the panel opens with a seeded reference (e.g. "About Task: …"),
+  // pre-fill the composer once and clear the seed. The user still edits and presses Send — this
+  // NEVER auto-sends, and re-opening the panel later does not re-seed a consumed draft.
   useEffect(() => {
     if (open && pendingDraft != null) {
       setDraft(pendingDraft)
       consumePendingDraft()
     }
   }, [open, pendingDraft, consumePendingDraft])
+  const [showHistory, setShowHistory] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
+  // ── Body scroll-lock (phone modal) ───────────────────────────────────────────
+  // ── Esc closes (never cancels) + focus trap (phone modal) ────────────────────
   // ── Autoscroll the transcript to the latest turn ─────────────────────────────
   useEffect(() => {
     if (open && scrollRef.current) {
@@ -139,8 +87,9 @@ export function AssistantPanel() {
   }
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter sends; Shift+Enter inserts a newline. (Enter-without-Shift only when not composing.)
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // OD-REDESIGN-91 #10 (owner's variant): Shift+Enter SENDS; plain Enter inserts a newline.
+    // Deputy changed from Enter=send to match the Signal composer — one composer contract app-wide.
+    if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault()
       void submit(draft)
     }
@@ -149,89 +98,48 @@ export function AssistantPanel() {
   const transcriptEmpty = panel.transcript.length === 0
   const canSend = draft.trim().length > 0 && panel.phase !== 'running'
 
-  // inert={true} only when closed — `|| undefined` keeps the attribute absent when open.
-  const inertAttr = !open || undefined
-
   return (
-    <>
-      {isNarrow && open && (
-        <div
-          className="fixed inset-0 bg-foreground/40"
-          style={{ zIndex: 40 }}
-          aria-hidden="true"
-          onClick={closePanel}
-        />
-      )}
-      <section
-        ref={panelRef}
-        role={role}
-        aria-modal={isNarrow ? true : undefined}
-        aria-label={t('assistant.title')}
-        aria-hidden={!open}
-        inert={inertAttr}
-        className="fixed bg-background border-border flex flex-col"
-        style={{
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: isNarrow ? '100%' : 'var(--assistant-w)',
-          maxWidth: '100vw',
-          borderLeftWidth: isNarrow ? 0 : 1,
-          borderLeftStyle: 'solid',
-          boxShadow: 'var(--shadow-strong)',
-          zIndex: 50,
-          transform: open ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 180ms ease-out',
-          pointerEvents: open ? 'auto' : 'none',
-        }}
-      >
-        {/* Header */}
-        <header
-          className="border-border flex items-center gap-2 flex-none"
-          style={{ height: 'var(--header-h)', borderBottomWidth: 1, borderBottomStyle: 'solid', padding: '0 0.75rem' }}
-        >
-          <h2 className="text-foreground font-semibold flex-1 truncate" style={{ fontSize: 16 }}>
-            {t('assistant.title')}
-          </h2>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center flex-none"
-            style={{ width: 32, height: 32 }}
-            aria-label={t('assistant.newConversation')}
-            title={t('assistant.newConversation')}
-            onClick={() => {
-              panel.newConversation()
-              setShowHistory(false)
-            }}
-            disabled={transcriptEmpty && !showHistory}
-          >
-            <PlusIcon />
-          </button>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center flex-none"
-            style={{ width: 32, height: 32 }}
-            aria-label={t('assistant.history')}
-            title={t('assistant.history')}
-            aria-expanded={showHistory}
-            onClick={() => setShowHistory((v) => !v)}
-          >
-            <HistoryIcon />
-          </button>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground rounded-sm flex items-center justify-center flex-none"
-            style={{ width: 32, height: 32 }}
-            aria-label={t('assistant.close')}
-            title={t('assistant.close')}
-            onClick={closePanel}
-          >
-            <CloseIcon />
-          </button>
-        </header>
+    <OverlayCompanionSlot
+      open={open}
+      onClose={() => closePanel()}
+      entry={{
+        key: 'deputy',
+        owner: 'shell',
+        tenant: 'deputy',
+        label: t('assistant.title'),
+        title: <strong className="assistant-panel__title">{t('assistant.title')}</strong>,
+        actions: (
+          <>
+            <button
+              type="button"
+              className="record-panel-btn"
+              aria-label={t('assistant.newConversation')}
+              title={t('assistant.newConversation')}
+              onClick={() => {
+                panel.newConversation()
+                setShowHistory(false)
+              }}
+              disabled={transcriptEmpty && !showHistory}
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              className="record-panel-btn"
+              aria-label={t('assistant.history')}
+              title={t('assistant.history')}
+              aria-expanded={showHistory}
+              onClick={() => setShowHistory((v) => !v)}
+            >
+              <HistoryIcon />
+            </button>
+          </>
+        ),
+        content: (
+          <div className="assistant-panel bg-background flex flex-col">
 
         {/* Body */}
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto" style={{ padding: '0.75rem' }}>
+        <div ref={scrollRef} className="assistant-body flex-1 min-h-0 overflow-y-auto">
           {showHistory ? (
             <ThreadList
               emptyText={t('assistant.thread.empty')}
@@ -241,16 +149,24 @@ export function AssistantPanel() {
               }}
             />
           ) : transcriptEmpty ? (
+            // Cohesion-debt 2026-07-19, item #2: the Assistant's empty state is THE
+            // kit EmptyState (next-step variant) with pickable suggestions — one
+            // empty-state grammar app-wide, no bespoke local copy.
             <EmptyState
+              nested
+              variant="next-step"
               title={t('assistant.empty.title')}
-              body={t('assistant.empty.body')}
-              suggestions={SUGGESTION_KEYS.map((k) => t(k))}
-              onPick={(s) => void submit(s)}
+              copy={t('assistant.empty.body')}
+              suggestions={SUGGESTION_KEYS.map((k) => {
+                const label = t(k)
+                return { label, onSelect: () => void submit(label) }
+              })}
             />
           ) : (
             <Transcript
               items={panel.transcript}
               chips={panel.chips}
+              speakerLabel={t('assistant.title')}
               error={panel.error}
               errorTitle={t('assistant.error.title')}
               errorCta={t('assistant.error.cta')}
@@ -278,11 +194,11 @@ export function AssistantPanel() {
           <StuckRunBanner banner={t('assistant.stuck.banner')} stopLabel={t('assistant.stuck.stop')} onStop={() => panel.stop()} />
         )}
 
-        {/* Composer */}
+        {/* Composer — no Stop here (OD-REDESIGN-91 #40): the stuck-run banner owns the one Stop. */}
         <Composer
           placeholder={t('assistant.composer.placeholder')}
           sendLabel={t('assistant.send')}
-          stopLabel={t('assistant.stop')}
+          sendHint={t('assistant.composer.sendHint')}
           streamingLabel={t('assistant.streaming')}
           value={draft}
           onChange={setDraft}
@@ -290,22 +206,24 @@ export function AssistantPanel() {
           onKeyDown={onKeyDown}
           canSend={canSend}
           running={panel.phase === 'running'}
-          onStop={() => panel.stop()}
         />
-      </section>
-    </>
+          </div>
+        ),
+      }}
+    />
   )
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function Transcript({
-  items, chips, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
+  items, chips, speakerLabel, error, errorTitle, errorCta, onRetry, onApprove, onDeny,
   pendingQuestion, onAnswer, freeTextPlaceholder, freeTextSubmitLabel,
   ratings, onRate, ratingLabels,
 }: {
   items: TranscriptItem[]
   chips: ChipState[]
+  speakerLabel: string
   error: string | null
   errorTitle: string
   errorCta: string
@@ -320,51 +238,45 @@ function Transcript({
   onRate: (eventId: string, rating: AssistantRating, reason?: string) => void
   ratingLabels: RatingLabels
 }) {
+  // OD-REDESIGN-91 #1 — HYBRID chrome (variant C, deputy-bubble-pick.html):
+  //  · user turns  → a compact right-aligned bubble
+  //  · Deputy prose → BARE (no bubble), left-aligned, under a small DEPUTY speaker label
+  //  · widgets / tool-output → FULL-WIDTH first-class blocks, never inside a bubble
   return (
     <div className="flex flex-col gap-3">
-      {items.map((item) => (
-        <div key={item.id} className="flex flex-col" style={{ alignItems: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
-          <div
-            className="flex"
-            style={{ justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}
-          >
-            {item.widget ? (
-              <div
-                className="rounded-md text-sm"
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  padding: '0.75rem',
-                  background: 'var(--surface-secondary)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <AssistantWidgetSlot widget={item.widget} />
-              </div>
-            ) : (
-              <div
-                className="rounded-md text-sm whitespace-pre-wrap break-words"
-                style={{
-                  maxWidth: '85%',
-                  padding: '0.5rem 0.75rem',
-                  background: item.role === 'user' ? 'var(--accent)' : 'var(--surface-secondary)',
-                  color: item.role === 'user' ? 'var(--text-inverted)' : 'var(--text-primary)',
-                }}
-              >
-                {item.role === 'assistant' ? <AssistantMarkdown source={item.text} /> : item.text}
-              </div>
-            )}
-          </div>
-          {item.role === 'assistant' && (
+      {items.map((item) => {
+        // Widgets stand alone as full-width first-class blocks (their own chrome, no tint/bubble).
+        if (item.widget) {
+          return (
+            <div key={item.id} className="assistant-turn assistant-turn--widget">
+              <AssistantWidgetSlot widget={item.widget} />
+            </div>
+          )
+        }
+        // User turns keep the chat bubble (right-aligned).
+        if (item.role === 'user') {
+          return (
+            <div key={item.id} className="assistant-turn assistant-turn--user">
+              <div className="assistant-bubble assistant-bubble--user">{item.text}</div>
+            </div>
+          )
+        }
+        // Deputy prose — bare, with a small speaker label; rating hangs below.
+        return (
+          <div key={item.id} className="assistant-turn assistant-turn--deputy">
+            <div className="assistant-speaker">{speakerLabel}</div>
+            <div className="assistant-prose">
+              <AssistantMarkdown source={item.text} />
+            </div>
             <RatingControl
               eventId={item.id}
               rating={ratings[item.id]}
               onRate={onRate}
               labels={ratingLabels}
             />
-          )}
-        </div>
-      ))}
+          </div>
+        )
+      })}
       {chips.map((chip) => (
         <ApprovalChip key={chip.pendingId} chip={chip} onApprove={onApprove} onDeny={onDeny} />
       ))}
@@ -378,52 +290,19 @@ function Transcript({
       )}
       {error && (
         <div
-          className="rounded-md border border-border bg-secondary flex items-center gap-2"
-          style={{ padding: '0.625rem 0.75rem' }}
+          className="assistant-banner--error rounded-md border border-border bg-secondary flex items-center gap-2"
           role="alert"
         >
-          <span className="text-foreground flex-1" style={{ fontSize: 13 }}>{errorTitle}</span>
+          <span className="assistant-banner__text text-foreground flex-1">{errorTitle}</span>
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-sm border border-border text-foreground"
-            style={{ padding: '0.25rem 0.5rem', fontSize: 13 }}
+            className="assistant-banner__btn rounded-sm border border-border text-foreground"
           >
             {errorCta}
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-function EmptyState({
-  title, body, suggestions, onPick,
-}: {
-  title: string
-  body: string
-  suggestions: string[]
-  onPick: (s: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-4" style={{ padding: '1.5rem 0.25rem' }}>
-      <div>
-        <div className="text-foreground font-semibold" style={{ fontSize: 18 }}>{title}</div>
-        <p className="text-muted-foreground" style={{ fontSize: 14, marginTop: '0.25rem' }}>{body}</p>
-      </div>
-      <div className="flex flex-col gap-2">
-        {suggestions.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => onPick(s)}
-            className="text-left rounded-md border border-border bg-secondary text-foreground hover:border-muted-foreground/50"
-            style={{ padding: '0.625rem 0.75rem', fontSize: 14 }}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
@@ -436,36 +315,31 @@ function ApprovalChip({ chip, onApprove, onDeny }: { chip: ChipState; onApprove:
   const denyLabel = t('assistant.approval.deny')
   const pending = chip.state === 'pending'
   return (
-    <div
-      className="rounded-md border bg-secondary flex flex-col gap-2"
-      style={{ borderColor: 'var(--border-accent)', padding: '0.625rem 0.75rem' }}
-    >
-      <div className="text-muted-foreground" style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+    <div className="assistant-chip-card rounded-md border bg-secondary flex flex-col gap-2">
+      <div className="assistant-chip-card__header text-muted-foreground">
         {t('assistant.approval.header')}
       </div>
       {/* Plain text — the server-composed summary, never model HTML. */}
-      <div className="text-foreground" style={{ fontSize: 14 }}>{chip.humanSummary}</div>
+      <div className="assistant-chip-card__text text-foreground">{chip.humanSummary}</div>
       {pending ? (
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => onApprove(chip.pendingId)}
-            className="rounded-sm font-medium flex-1"
-            style={{ background: 'var(--accent)', color: 'var(--text-inverted)', padding: '0.4rem 0.5rem', fontSize: 14 }}
+            className="assistant-chip-btn assistant-chip-btn--approve rounded-sm font-medium flex-1"
           >
             {approveLabel}
           </button>
           <button
             type="button"
             onClick={() => onDeny(chip.pendingId)}
-            className="rounded-sm font-medium flex-1 border border-border"
-            style={{ padding: '0.4rem 0.5rem', fontSize: 14 }}
+            className="assistant-chip-btn assistant-chip-btn--deny rounded-sm font-medium flex-1 border border-border"
           >
             {denyLabel}
           </button>
         </div>
       ) : (
-        <div className="text-muted-foreground" style={{ fontSize: 12 }}>
+        <div className="assistant-chip-card__meta text-muted-foreground">
           {chip.state === 'approved' ? approveLabel : denyLabel}
         </div>
       )}
@@ -489,20 +363,16 @@ function QuestionChips({
 }) {
   const [freeText, setFreeText] = useState('')
   return (
-    <div
-      className="rounded-md border bg-secondary flex flex-col gap-2"
-      style={{ borderColor: 'var(--border-accent)', padding: '0.625rem 0.75rem' }}
-    >
+    <div className="assistant-chip-card rounded-md border bg-secondary flex flex-col gap-2">
       {/* Plain text — the server-composed question prompt, never model HTML. */}
-      <div className="text-foreground" style={{ fontSize: 14 }}>{question.prompt}</div>
+      <div className="assistant-chip-card__text text-foreground">{question.prompt}</div>
       <div className="flex flex-wrap gap-2">
         {question.options.map((opt) => (
           <button
             key={opt.id}
             type="button"
             onClick={() => onAnswer(question.questionId, opt.id)}
-            className="rounded-sm font-medium border border-border text-foreground"
-            style={{ padding: '0.4rem 0.625rem', fontSize: 14 }}
+            className="assistant-chip-btn rounded-sm font-medium border border-border text-foreground"
           >
             {opt.label}
           </button>
@@ -525,14 +395,12 @@ function QuestionChips({
             onChange={(e) => setFreeText(e.target.value)}
             placeholder={freeTextPlaceholder}
             aria-label={freeTextPlaceholder}
-            className="bg-background border-border text-foreground rounded-sm flex-1 min-w-0"
-            style={{ padding: '0.4rem 0.625rem', fontSize: 14 }}
+            className="assistant-chip-input bg-background border-border text-foreground rounded-sm flex-1 min-w-0"
           />
           <button
             type="submit"
             disabled={!freeText.trim()}
-            className="rounded-sm font-medium flex-none"
-            style={{ padding: '0.4rem 0.625rem', fontSize: 14, background: 'var(--accent)', color: 'var(--text-inverted)', opacity: freeText.trim() ? 1 : 0.5 }}
+            className="assistant-chip-btn assistant-chip-btn--submit rounded-sm font-medium flex-none"
           >
             {freeTextSubmitLabel}
           </button>
@@ -559,14 +427,14 @@ function RatingControl({
 
   if (rating) {
     return (
-      <div className="text-muted-foreground" style={{ fontSize: 12, marginTop: '0.25rem' }}>
+      <div className="assistant-rating-meta text-muted-foreground">
         {rating === 'up' ? labels.up : labels.down}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-1" style={{ marginTop: '0.25rem' }}>
+    <div className="assistant-rating-row flex flex-col gap-1">
       <div className="flex gap-1">
         <button
           type="button"
@@ -590,11 +458,8 @@ function RatingControl({
         </button>
       </div>
       {pickingReason && (
-        <div
-          className="rounded-md border border-border bg-secondary flex flex-col gap-2"
-          style={{ padding: '0.5rem 0.625rem', maxWidth: '85%' }}
-        >
-          <div className="text-muted-foreground" style={{ fontSize: 12 }}>{labels.reasonLabel}</div>
+        <div className="assistant-rating-picker rounded-md border border-border bg-secondary flex flex-col gap-2">
+          <div className="assistant-chip-card__meta text-muted-foreground">{labels.reasonLabel}</div>
           <div className="flex flex-wrap gap-1">
             {labels.reasons.map((r) => (
               <button
@@ -604,8 +469,7 @@ function RatingControl({
                   onRate(eventId, 'down', r.id)
                   setPickingReason(false)
                 }}
-                className="rounded-sm border border-border text-foreground"
-                style={{ padding: '0.3rem 0.5rem', fontSize: 12 }}
+                className="assistant-rating-reason-btn rounded-sm border border-border text-foreground"
               >
                 {r.label}
               </button>
@@ -620,16 +484,14 @@ function RatingControl({
 function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLabel: string; onStop: () => void }) {
   return (
     <div
-      className="border-border bg-secondary flex items-center gap-2 flex-none"
-      style={{ padding: '0.5rem 0.75rem', borderBottomWidth: 1, borderBottomStyle: 'solid' }}
+      className="assistant-banner border-border bg-secondary flex items-center gap-2 flex-none"
       role="status"
     >
-      <span className="text-muted-foreground flex-1" style={{ fontSize: 13 }}>{banner}</span>
+      <span className="assistant-banner__text text-muted-foreground flex-1">{banner}</span>
       <button
         type="button"
         onClick={onStop}
-        className="rounded-sm border border-border text-foreground"
-        style={{ padding: '0.25rem 0.5rem', fontSize: 13 }}
+        className="assistant-banner__btn rounded-sm border border-border text-foreground"
       >
         {stopLabel}
       </button>
@@ -638,11 +500,11 @@ function StuckRunBanner({ banner, stopLabel, onStop }: { banner: string; stopLab
 }
 
 function Composer({
-  placeholder, sendLabel, stopLabel, streamingLabel, value, onChange, onSubmit, onKeyDown, canSend, running, onStop,
+  placeholder, sendLabel, sendHint, streamingLabel, value, onChange, onSubmit, onKeyDown, canSend, running,
 }: {
   placeholder: string
   sendLabel: string
-  stopLabel: string
+  sendHint: string
   streamingLabel: string
   value: string
   onChange: (v: string) => void
@@ -650,67 +512,44 @@ function Composer({
   onKeyDown: (e: ReactKeyboardEvent<HTMLTextAreaElement>) => void
   canSend: boolean
   running: boolean
-  onStop: () => void
 }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="border-border flex items-end gap-2 flex-none"
-      style={{ padding: '0.625rem 0.75rem', borderTopWidth: 1, borderTopStyle: 'solid' }}
+      className="assistant-composer assistant-composer-form border-border flex-none"
     >
-      <textarea
-        className="bg-secondary border-border text-foreground rounded-md flex-1 min-w-0 resize-none"
-        style={{ padding: '0.5rem 0.625rem', fontSize: 14, minHeight: 40, maxHeight: 140 }}
-        aria-label={placeholder}
-        placeholder={placeholder}
-        rows={1}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      {running ? (
-        <>
-          <span className="text-muted-foreground" style={{ fontSize: 13 }} aria-live="polite">{streamingLabel}</span>
+      <div className="assistant-composer-row flex items-end gap-2">
+        <textarea
+          className="assistant-composer-input bg-secondary border-border text-foreground rounded-md flex-1 min-w-0 resize-none"
+          aria-label={placeholder}
+          placeholder={placeholder}
+          rows={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+        {running ? (
+          // OD-REDESIGN-91 #40 (G4): ONE Deputy Stop — the stuck-run banner owns Stop. The composer
+          // shows only the streaming indicator while running.
+          <span className="assistant-banner__text text-muted-foreground" aria-live="polite">{streamingLabel}</span>
+        ) : (
           <button
-            type="button"
-            onClick={onStop}
-            className="rounded-sm border border-border text-foreground flex-none"
-            style={{ height: 40, padding: '0 0.75rem', fontSize: 14 }}
+            type="submit"
+            disabled={!canSend}
+            className="assistant-send-btn rounded-sm font-medium flex-none"
           >
-            {stopLabel}
+            {sendLabel}
           </button>
-        </>
-      ) : (
-        <button
-          type="submit"
-          disabled={!canSend}
-          className="rounded-sm font-medium flex-none"
-          style={{
-            height: 40,
-            padding: '0 0.875rem',
-            fontSize: 14,
-            background: 'var(--accent)',
-            color: 'var(--text-inverted)',
-            opacity: canSend ? 1 : 0.5,
-          }}
-        >
-          {sendLabel}
-        </button>
-      )}
+        )}
+      </div>
+      {/* OD-REDESIGN-91 #10 — quiet Send hint; hidden on touch (no physical keyboard). */}
+      {!running && <span className="assistant-composer-hint">{sendHint}</span>}
     </form>
   )
 }
 
 // ── Icons (16px, stroke-2, aria-hidden) ───────────────────────────────────────
 
-function CloseIcon() {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  )
-}
 function PlusIcon() {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">

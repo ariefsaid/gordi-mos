@@ -32,12 +32,25 @@ export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }
 
 export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
 
+/** A pickable starter prompt (the Assistant's empty-state suggestions — v4 cohesion item #2). */
+export interface EmptyStateSuggestion {
+  label: string
+  onSelect: () => void
+}
+
 export interface EmptyStateProps {
   title: ReactNode
   copy?: ReactNode
   note?: ReactNode
   variant?: EmptyStateVariant
   icon?: ReactNode
+  /**
+   * Pickable starter prompts, rendered as a stacked button list below the copy. Ported from v4's
+   * `state-kit.tsx` with the Deputy chrome cutover — the one call site is the Assistant panel's
+   * empty state (one empty-state grammar app-wide; the `.empty-suggestion*` rules already shipped
+   * in CardHead.css waiting for this prop).
+   */
+  suggestions?: EmptyStateSuggestion[]
   /**
    * Heading level for the title. Defaults to 3, which is what every call site on this branch
    * already renders — the prop exists so a surface whose EmptyState sits directly under the page
@@ -48,8 +61,7 @@ export interface EmptyStateProps {
   headingLevel?: 2 | 3 | 4 | 5 | 6
   /**
    * Drop the `region` landmark + its labelling when this EmptyState sits inside an already-labelled
-   * landmark. Ported from v4's `state-kit.tsx`, scoped to just this prop (v4 also carries a
-   * `suggestions` list for the Assistant panel's empty state, which is unrelated and left out).
+   * landmark. Ported from v4's `state-kit.tsx`.
    * Two independent call sites need it: #191 (Home) — region-rows.tsx's tabpanel/section around a
    * region already carries its own accessible name, so an all-clear EmptyState inside it must not
    * add a second, redundant region; #192 (Tasks) — RecordViewer's empty body is already inside the
@@ -82,6 +94,7 @@ export function EmptyState({
   note,
   variant = 'quiet',
   icon,
+  suggestions,
   headingLevel = 3,
   nested = false,
   children,
@@ -107,6 +120,20 @@ export function EmptyState({
           {copy && <p className="empty-copy">{copy}</p>}
           {note && <p className="empty-note">{note}</p>}
         </div>
+        {suggestions && suggestions.length > 0 && (
+          <div className="empty-suggestions">
+            {suggestions.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                className="empty-suggestion"
+                onClick={s.onSelect}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
         {children && <div className="empty-actions">{children}</div>}
       </div>
     </div>

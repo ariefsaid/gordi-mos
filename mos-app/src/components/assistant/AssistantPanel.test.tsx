@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { OverlayHostProvider, OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { AssistantPanel } from './AssistantPanel'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
@@ -15,6 +16,56 @@ import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 function OpenHarness() {
   const { openPanel } = useAgentRuntime()
   return createElement('button', { type: 'button', onClick: openPanel }, 'reopen')
+}
+
+function RecordHarness() {
+  const overlay = useOverlayHost()
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void overlay.openRoot({
+          key: 'task:coexistence',
+          owner: 'tasks',
+          tenant: 'record',
+          label: 'Task record',
+          title: 'Opening checklist',
+          content: <button type="button">Record action</button>,
+        }, 'ephemeral')}
+      >
+        open record
+      </button>
+      <OverlayHostSlot owner="tasks" />
+    </>
+  )
+}
+
+function renderPanelWithRecord({ narrow }: { narrow: boolean }) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('max-width') ? narrow : query.includes('min-width') ? !narrow : narrow,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+  localStorage.setItem('mos.assistant.open', 'true')
+  return render(
+    <I18nProvider>
+      <MemoryRouter>
+        <AgentRuntimeProvider runtime={makeFakeRuntime()}>
+          <OverlayHostProvider>
+            <RecordHarness />
+            <AssistantPanel />
+          </OverlayHostProvider>
+        </AgentRuntimeProvider>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
 }
 
 function replyScript(text = 'Sure — here is your answer.'): AgentEvent[] {
@@ -79,6 +130,38 @@ describe('AssistantPanel (T27)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('OD-REDESIGN-80: a desktop Deputy becomes a compact adjacent surface when a record is open', async () => {
+    renderPanelWithRecord({ narrow: false })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('complementary', { name: 'Deputy' })).toHaveClass(
+      'overlay-companion-host--with-record',
+    )
+  })
+
+  it('OD-REDESIGN-80: phone may place Deputy above the primary record surface', async () => {
+    renderPanelWithRecord({ narrow: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('dialog', { name: 'Deputy' }).closest('.drawer-modal-root')).toHaveClass(
+      'overlay-companion-host--phone-over-record',
+    )
+
+    // One Escape belongs to the top companion only. The primary record stays mounted underneath
+    // and is immediately available again after Deputy closes.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Deputy' })).toBeNull()
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+  })
+
   it('AC-AP-003: when closed, the panel is inert + aria-hidden (keep-mounted, hidden from AT)', () => {
     renderPanel({ narrow: true, open: false })
     // Keep-mounted: the container is in the DOM but inert.
@@ -87,22 +170,106 @@ describe('AssistantPanel (T27)', () => {
   })
 
   it('AC-AP-002: transcript survives close→open (keep-mounted, state preserved)', async () => {
-    const { container } = renderPanel({ narrow: false, open: true })
+    renderPanel({ narrow: false, open: true })
     // Send a message → an assistant reply lands in the transcript.
     const input = screen.getByRole('textbox', { name: /ask the deputy/i }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: 'hello deputy' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
 
-    // Close the panel (Esc) → it becomes inert/hidden but stays mounted.
+    // Close the shared physical host. The AssistantPanel hook owner stays mounted even though its
+    // transcript DOM is absent from the accessibility tree.
     fireEvent.keyDown(document, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByText('Sure — here is your answer.')).not.toBeNull())
-    // The reply text node is still in the DOM (keep-mounted) — query off the container.
-    expect(container.textContent).toContain('Sure — here is your answer.')
+    await waitFor(() => expect(screen.queryByText('Sure — here is your answer.')).toBeNull())
 
     // Reopen → the reply is visible again (transcript survived).
     fireEvent.click(screen.getByRole('button', { name: 'reopen' }))
     await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
+  })
+
+  // OD-REDESIGN-91 #40 (G4): ONE Deputy Stop — the stuck-run banner owns it; the composer's
+  // duplicate is gone. While a run is in flight the composer shows only the streaming indicator.
+  it('#40: while running, the composer shows the streaming indicator and NO Stop button', async () => {
+    const runningRuntime: AgentRuntime = {
+      createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
+      followUp: vi.fn(async () => {}),
+      openThread: vi.fn(),
+      control: vi.fn(async () => {}),
+      // Yield a partial reply, then hang — the run never completes, so phase stays 'running'.
+      subscribe: vi.fn(async function* () {
+        yield { id: 'a1', runId: 'r1', type: 'assistant', text: 'partial…', createdAt: '2026-01-01T00:00:00.000Z' } as AgentEvent
+        await new Promise(() => {})
+      }),
+    }
+    renderPanel({ narrow: false, open: true, runtime: runningRuntime })
+    const input = screen.getByRole('textbox', { name: /ask the deputy/i }) as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    // The composer swaps the Send button for the streaming indicator…
+    await waitFor(() => expect(screen.getByText('Working…')).toBeInTheDocument())
+    // …and carries NO Stop button — the single Stop lives on the stuck-run banner only.
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+  })
+
+  it('OD-REDESIGN-91 #10: Shift+Enter sends; plain Enter is a newline (not a send)', async () => {
+    const runtime = makeFakeRuntime()
+    renderPanel({ narrow: false, open: true, runtime })
+    const input = screen.getByRole('textbox', { name: /ask the deputy/i })
+    fireEvent.change(input, { target: { value: 'hello deputy' } })
+
+    // Plain Enter must NOT send (owner's variant: Enter inserts a newline).
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(runtime.createRun).not.toHaveBeenCalled()
+
+    // Shift+Enter sends.
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
+    expect(runtime.createRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('OD-REDESIGN-91 #1: user turns bubble, Deputy prose is bare under a speaker label', async () => {
+    renderPanel({ narrow: false, open: true })
+    const input = screen.getByRole('textbox', { name: /ask the deputy/i })
+    fireEvent.change(input, { target: { value: 'hello deputy' } })
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    await waitFor(() => expect(screen.getByText('Sure — here is your answer.')).toBeInTheDocument())
+
+    // User turn keeps the chat bubble.
+    expect(screen.getByText('hello deputy')).toHaveClass('assistant-bubble--user')
+
+    // Deputy prose is bare (no bubble) beneath a small speaker label.
+    const deputyTurn = document.querySelector('.assistant-turn--deputy')
+    expect(deputyTurn).not.toBeNull()
+    expect(deputyTurn?.querySelector('.assistant-speaker')?.textContent).toBe('Deputy')
+    expect(deputyTurn?.querySelector('.assistant-prose')?.textContent).toContain('Sure — here is your answer.')
+  })
+
+  it('OD-REDESIGN-91 #1: widgets render as full-width blocks, never inside a bubble', async () => {
+    renderPanel({
+      narrow: false,
+      open: true,
+      runtime: makeFakeRuntime([
+        {
+          id: 'w1', runId: 'r1', type: 'artifact', createdAt: '2026-01-01T00:00:00.000Z',
+          payload: {
+            kind: 'data_table', title: 'Blocked tasks',
+            columns: [{ key: 'title', header: 'Task' }],
+            rows: [{ title: 'Fix stock sync' }],
+          },
+        },
+        { id: 's1', runId: 'r1', type: 'status', payload: { status: 'completed' }, createdAt: '2026-01-01T00:00:01.000Z' },
+      ]),
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'show blocked' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    const heading = await screen.findByRole('heading', { name: 'Blocked tasks' })
+    // The widget lives in a full-width widget turn, not inside a user/deputy bubble.
+    expect(heading.closest('.assistant-turn--widget')).not.toBeNull()
+    expect(heading.closest('.assistant-bubble--user')).toBeNull()
+
   })
 
   it('AC-AP-004: assistant prose renders safe markdown while user turns stay literal', async () => {
@@ -292,10 +459,20 @@ describe('AssistantPanel (T27)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('a11y: closing Deputy returns focus to the element that opened it', async () => {
+    renderPanel({ narrow: false, open: false })
+    const opener = screen.getByRole('button', { name: 'reopen' })
+    opener.focus()
+    fireEvent.click(opener)
+    await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(opener).toHaveFocus())
+  })
+
   it('empty state: shows the three suggestion chips when the transcript is empty', () => {
     renderPanel({ narrow: false, open: true })
     expect(screen.getByText("What's on my plate this week?")).toBeInTheDocument()
-    expect(screen.getByText('Draft my weekly update')).toBeInTheDocument()
+    expect(screen.getByText('Summarize my week')).toBeInTheDocument()
     expect(screen.getByText("Show last week's revenue")).toBeInTheDocument()
   })
 

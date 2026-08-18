@@ -48,6 +48,25 @@ describe('ThreadList (T7, AC-P3-RP-003)', () => {
     await waitFor(() => expect(screen.getByText('No conversations yet')).toBeInTheDocument())
   })
 
+  // DEP-1 (census DO-16): loading + empty join the shared state-kit grammar (role=status skeleton;
+  // the sanctioned EmptyState), not a bare "…" / naked <div>.
+  it('DEP-1: the loading state is a role=status LoadingShell (not a bare "…")', () => {
+    let resolve: (rows: never[]) => void = () => {}
+    vi.mocked(listThreads).mockReturnValue(new Promise((r) => { resolve = r }))
+    render(<ThreadList emptyText="No conversations yet" onOpen={vi.fn()} />)
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.queryByText('…')).toBeNull()
+    resolve([])
+  })
+
+  it('DEP-1: the empty state uses the shared EmptyState (blank archetype), not a naked div', async () => {
+    vi.mocked(listThreads).mockResolvedValue([])
+    render(<ThreadList emptyText="No conversations yet" onOpen={vi.fn()} />)
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'blank')
+    expect(empty.textContent).toContain('No conversations yet')
+  })
+
   it('an untitled thread falls back to a placeholder label (never renders blank)', async () => {
     vi.mocked(listThreads).mockResolvedValue([
       { id: 't1', title: null, updated_at: '2026-07-04T00:00:00.000Z' },
