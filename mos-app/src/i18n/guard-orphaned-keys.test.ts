@@ -75,7 +75,9 @@ function referencedLiterally(key: string, tree: string): boolean {
 }
 
 describe('GUARD #206: every i18n message key has a consumer', () => {
-  it('GUARD: every en key is either referenced literally or under a curated dynamic prefix', () => {
+  // 60s: this is a whole-src scan (12–19s under parallel-suite load), not a perf assertion —
+  // the default 15s cap made it the suite's one load-dependent flake.
+  it('GUARD: every en key is either referenced literally or under a curated dynamic prefix', { timeout: 60_000 }, () => {
     const tree = haystack()
     const keys = Object.keys(messages.en)
 
