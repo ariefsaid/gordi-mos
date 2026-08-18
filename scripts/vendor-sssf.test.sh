@@ -40,9 +40,18 @@ cp -R "$T/harness_engineering" "$tmp/expected/adws/adw_data/harness_engineering"
 cp "$T/sssf.config.yaml" "$tmp/expected/adws/adw_sssf_config/sssf.config.yaml"
 cp "$tmp/up/LICENSE" "$tmp/expected/adws/LICENSE"
 
-# Byte-compare, excluding only manifest-listed MOS files and gitignored runtime.
+# Byte-compare, excluding only manifest-listed deviations and gitignored runtime.
+# DEVIATED holds the files carrying ported PMO deltas (#335) — every name here
+# MUST have a row in adws/PORT-MANIFEST.md, cross-checked below so this list
+# cannot drift ahead of the manifest.
+DEVIATED="agents.py data_types.py quality.py adw_simple_sdlc.py"
+for f in $DEVIATED; do
+  grep -q "\`[^\`]*$f\`" adws/PORT-MANIFEST.md \
+    || bad "excluded from byte-compare but not manifest-listed: $f"
+done
 DIFF_OUT="$(diff -r \
   -x PORT-MANIFEST.md \
+  -x agents.py -x data_types.py -x quality.py -x adw_simple_sdlc.py \
   -x __pycache__ -x '*.pyc' \
   -x sessions -x 'sssf.db*' \
   "$tmp/expected/adws" "$ROOT/adws" 2>&1)"

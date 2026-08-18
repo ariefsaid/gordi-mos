@@ -65,6 +65,10 @@ def validate(cfg: SSSFConfig, required: list[str]) -> None:
                            ("user", agent.prompt_engineering.user)):
             if not Path(ref).is_file():
                 problems.append(f"agent {name!r}: {label} prompt not found: {ref}")
+        # MOS addition (FAC-002): a DECLARED contract that is missing refuses the
+        # whole run here, before anything spawns — never a silent contract-less agent.
+        if agent.contract and not Path(agent.contract).is_file():
+            problems.append(f"agent {name!r}: contract declared but not found: {agent.contract}")
         try:
             agent_pi.resolve_model(agent.model)
         except ValueError as e:
@@ -87,6 +91,11 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
         "context_handoff_dir": str(run.context_handoff_dir),
     }
     system_text = prompts.render(agent.prompt_engineering.system, variables)
+    if agent.contract:
+        # Appended after render, verbatim — contract text is not a template.
+        contract_text = (run.repo_root / agent.contract).read_text()
+        system_text += (f"\n\n# Role contract (appended mechanically from {agent.contract})\n\n"
+                        + contract_text)
     user_text = prompts.render(agent.prompt_engineering.user, variables)
     prompts.save(agent_dir / "prompts", "system.md", system_text)
     prompts.save(agent_dir / "prompts", "user.md", user_text)

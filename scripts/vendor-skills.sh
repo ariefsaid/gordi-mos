@@ -129,12 +129,24 @@ cp -R "$TMP/sssf/.claude/skills/sssf" "$DEST/sssf"
 # Stamp the factory skeleton the way upstream's own skill installer
 # (.claude/skills/sssf/scripts/install.py) lays it out — but force-overwrite instead of
 # skip-if-exists, so a re-vendor surfaces upstream drift as a git diff on the tracked files.
+# EXCEPT the deviated files carrying ported PMO deltas (#335): those are excluded from the
+# stamp — upstream drift on them is merged BY HAND on a pin bump, per adws/PORT-MANIFEST.md.
 # MOS-authored files inside adws/ (PORT-MANIFEST.md; LICENSE is upstream's, relocated) survive
 # because only upstream-owned subtrees are removed first.
 SSSF_T="$TMP/sssf/.claude/skills/sssf/templates"
+SSSF_KEEP="$(mktemp -d)"
+for f in adw_modules/agents.py adw_modules/data_types.py adw_modules/quality.py adw_simple_sdlc.py; do
+  if [ -f "$ROOT/adws/$f" ]; then
+    mkdir -p "$SSSF_KEEP/$(dirname "$f")"; cp "$ROOT/adws/$f" "$SSSF_KEEP/$f"
+  fi
+done
 rm -rf "$ROOT/adws/adw_modules" "$ROOT/adws/adw_data/prompt_engineering" "$ROOT/adws/adw_data/harness_engineering"
 mkdir -p "$ROOT/adws/adw_data" "$ROOT/adws/adw_sssf_config"
 cp -R "$SSSF_T/adws/." "$ROOT/adws/"
+for f in adw_modules/agents.py adw_modules/data_types.py adw_modules/quality.py adw_simple_sdlc.py; do
+  if [ -f "$SSSF_KEEP/$f" ]; then cp "$SSSF_KEEP/$f" "$ROOT/adws/$f"; fi
+done
+rm -rf "$SSSF_KEEP"
 cp -R "$SSSF_T/prompt_engineering" "$ROOT/adws/adw_data/prompt_engineering"
 cp -R "$SSSF_T/harness_engineering" "$ROOT/adws/adw_data/harness_engineering"
 cp "$SSSF_T/sssf.config.yaml" "$ROOT/adws/adw_sssf_config/sssf.config.yaml"
