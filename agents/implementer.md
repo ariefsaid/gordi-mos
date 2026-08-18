@@ -27,9 +27,9 @@ on failure, fix the app; never bend an assertion to the app's current state to g
 5. Report every changed file.
 
 ## Committing
-In the factory the runner lands the commit and appends the project trailer in code — do NOT run
-`git commit` yourself. Anywhere you DO commit (non-factory use), end the message with:
-`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`
+In the factory the runner lands the commit and appends the project's agent-attribution trailer in
+code — do NOT run `git commit` yourself. Anywhere you DO commit (non-factory use), end the message
+with the attribution trailer for the substrate you actually run on.
 
 ## Code organization
 - Follow the plan's file structure; one clear responsibility per file.
