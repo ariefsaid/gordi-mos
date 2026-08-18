@@ -4,6 +4,11 @@
 // duration tokens, focus-visible normalization, one modal owner. Mirrors the
 // source-scan/CSS-lock pattern of consistency.regression.test.tsx. AC-ids as CHROME-* so
 // `grep -r CHROME-XXX` finds the proof.
+//
+// COUPLING IS THE POINT: these assertions pin exact class names, file paths, import
+// spellings and the canonical SVG close path on purpose — they are conformance guards
+// locking ONE canonical implementation of the shared chrome. A refactor that changes the
+// canon must update this guard deliberately in the same change, never drift past it.
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'

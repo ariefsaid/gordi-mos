@@ -35,7 +35,11 @@ const FONT_SIZE_TOKENS = new Set([
 ])
 
 /**
- * The pinned pre-existing debt. file → declaration → count. Measured on this line 2026-08-07:
+ * The pinned pre-existing debt — a PAYDOWN QUEUE, not an allowlist. Entries only shrink
+ * (the ratchet below fails on new debt AND on stale entries whose debt was paid); driving
+ * the ledger to zero is tracked in #327.
+ *
+ * file → declaration → count. Measured on this line 2026-08-07:
  * 127 raw font-size + 29 raw border-radius declarations across 30 files. A value may only be
  * here because it predates the guard — deciding its fate (remap vs mint) is a design call,
  * not a mechanical one. New entries are a failure; counts only ratchet down.
