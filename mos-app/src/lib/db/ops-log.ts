@@ -111,8 +111,10 @@ export async function getLogEntry(id: string): Promise<LogEntryRow> {
 export const OPS_LOG_ROUTE = '/ops'
 
 // Open needs-attention Daily Log entries — the set Home's needs-you region surfaces (AC-091
-// propagation, #302). needs_attention = true AND archived_at IS NULL is exactly the partial index
-// log_entries_needs_attn_idx, so this is an index scan, never a feed re-read. RLS scopes rows to
+// propagation, #302). The two filters restate the predicate of the partial index
+// log_entries_needs_attn_idx (20260805000009_ops_structure.sql: `on ops.log_entries (org_id,
+// needs_attention) where needs_attention and archived_at is null`), so the read is index-backed,
+// never a feed re-read. RLS scopes rows to
 // the org (FR-061: a log entry has no per-person assignee, so any open flag the viewer can see is
 // theirs to notice). archived_at IS NULL is also the CLEARING mechanism — archiving an entry
 // removes it from this read, which is what clears the Home signal.

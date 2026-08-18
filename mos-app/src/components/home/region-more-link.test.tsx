@@ -58,6 +58,26 @@ describe('the remainder a region does not render is reachable from Home', () => 
     expect(screen.queryByText(/more/i)).toBeNull()
   })
 
+  // #302 review: needs-you mixes Daily Log flag rows (→ /ops) with task rows, but its drill goes
+  // to the tasks view — a flagged entry cut behind "N more" would be reachable only through a
+  // destination that cannot show it. Flags are pinned past the cap, so the remainder the drill
+  // names is always tasks, which is exactly what the destination holds.
+  it('needs-you never cuts a Daily Log flag behind the drill — every flag renders, the remainder is tasks only', () => {
+    const flags = Array.from({ length: 7 }, (_, i): StreamItem => ({
+      id: `f${i}`, title: `Flag f${i}`, route: '/ops',
+    }))
+    draw(buildHomeRegions({
+      overdue: many(4, 'o'), dueToday: [], blocked: [],
+      myWork: [], failedChecks: [], mentions: [],
+      opsNeedsAttention: flags,
+    }))
+    // All 7 flags are visible even though the tile caps at 5 rows.
+    for (const flag of flags) expect(screen.getByText(flag.title)).toBeInTheDocument()
+    // The 4 hidden rows are ALL tasks, so the tasks-view drill is the honest way through to them.
+    const link = screen.getByRole('link', { name: '4 more in Needs you now' })
+    expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
+  })
+
   it('a region with no destination degrades to the plain fact rather than a broken link', () => {
     const [needsYou, ...rest] = buildHomeRegions({
       overdue: many(9, 'o'), dueToday: [], blocked: [],

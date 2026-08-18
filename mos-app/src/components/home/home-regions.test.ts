@@ -178,6 +178,18 @@ describe('needs-you carries the Daily Log needs-attention flags (AC-091 propagat
     }
   })
 
+  it('pins exactly the flag rows past any arrangement cut — their remainder would drill to a view that cannot show them', () => {
+    const regions = buildHomeRegions({
+      ...base, overdue: [item('a')],
+      opsNeedsAttention: [opsItem('o1'), opsItem('o2')],
+    })
+    expect(regions.find((region) => region.id === 'needs-you')!.pinnedCount).toBe(2)
+    // No other region mixes content — nothing else pins.
+    for (const region of regions) {
+      if (region.id !== 'needs-you') expect(region.pinnedCount ?? 0).toBe(0)
+    }
+  })
+
   it('the needs-you retry re-fires BOTH reads; my-work keeps the tasks retry alone', () => {
     const calls: string[] = []
     const regions = buildHomeRegions({

@@ -29,6 +29,11 @@ export interface HomeRegionDrillTo {
  * overdue ∪ due-today ∪ blocked, and `?view=my-work` is the ONE view that holds every item the
  * region ranks — due-date ascending by default, so they arrive at the top. Inventing a new
  * server-side view for the union is out of scope here and would be a data change, not a link.
+ *
+ * The Daily Log needs-attention rows (#302) are the one content this destination does NOT hold —
+ * no surface unions log entries with tasks. They are therefore `pinnedCount`-exempt from any
+ * arrangement's visible cut: every flagged row renders (each linking to /ops itself), so the
+ * remainder behind this drill is always tasks, which is exactly what the destination shows.
  */
 const REGION_ROUTE: Record<HomeRegionId, string> = {
   'needs-you': '/work/tasks?view=my-work',
@@ -61,6 +66,12 @@ export interface HomeRegion {
    *  region that names a remainder must be able to show it. `count` rides along only where the
    *  region has an honest full-scope figure (my-work's "My open tasks · N →"). */
   drillTo?: HomeRegionDrillTo
+  /** Leading rows NO arrangement may cut behind its "N more →" remainder (Overview's tile cap).
+   *  needs-you's Daily Log flags (#302): their rows link to /ops while the region's drill goes to
+   *  the tasks view — cut, a flagged entry would be reachable only through a destination that
+   *  cannot show it. They lead the region by construction, so pinning them keeps every hidden row
+   *  a task, which IS what the drill destination holds. Absent means 0 (nothing pinned). */
+  pinnedCount?: number
 }
 
 export interface HomeRegionInput {
@@ -124,6 +135,8 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
       count: countOf(needsYouItems, needsYouState),
       state: needsYouState, onRetry: retryNeedsYou,
       drillTo: drillTo('needs-you'),
+      // The flags lead needsYouItems, so pinning exactly their count keeps each of them visible.
+      pinnedCount: opsNeedsAttention.length,
     },
     {
       id: 'failed-checks', labelKey: 'home.stream.band.failedChecks', items: input.failedChecks,
