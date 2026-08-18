@@ -4,6 +4,8 @@ import type { MessageKey } from '@/i18n/messages'
 // The ONE region model. All three Home arrangements render these same regions — a layout chooses
 // how to present them, never which of them exist (NFR-924 parity). A region with zero items is
 // still returned, so an empty region is distinguishable from a hidden one (FR-929).
+// needs-you is cross-domain: Daily Log needs-attention flags (#302, AC-091) lead, then overdue
+// → due today → blocked.
 
 export type HomeRegionId = 'needs-you' | 'failed-checks' | 'mentions' | 'my-work'
 
@@ -77,14 +79,35 @@ export interface HomeRegionInput {
   onRetryFailedChecks?: () => void
   mentionsState?: StreamBandState
   onRetryMentions?: () => void
+  // Open needs-attention Daily Log entries (AC-091 propagation, #302) — they LEAD needs-you: an
+  // explicitly flagged open entry is the region's strongest claim, and leading keeps the signal
+  // inside Overview's 5-row tile cap, where trailing rows would become count-only.
+  opsNeedsAttention?: StreamItem[]
+  // State of the ops needs-attention read — needs-you's SECOND projection.
+  opsState?: StreamBandState
+  onRetryOps?: () => void
   /** The viewer's FULL open-task count (all owned, non-Done tasks) — feeds my-work's drill link.
    *  Absent (no link) when the caller has no honest count to report yet. */
   myWorkFullCount?: number
 }
 
 export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
-  const needsYou = [...input.overdue, ...input.dueToday, ...input.blocked]
+  const opsNeedsAttention = input.opsNeedsAttention ?? []
+  const opsState = input.opsState ?? 'ready'
+  const needsYouItems = [...opsNeedsAttention, ...input.overdue, ...input.dueToday, ...input.blocked]
   const taskState = input.taskState ?? 'ready'
+  // needs-you reads TWO projections (the shared tasks fetch + the ops flag read). Combined per
+  // DIV-G5: the region may claim 'ready' — and a count — only when BOTH succeeded. 'error' wins
+  // over 'loading' so a read that has already failed offers its retry rather than a spinner.
+  const needsYouState: StreamBandState =
+    taskState === 'error' || opsState === 'error' ? 'error'
+      : taskState === 'loading' || opsState === 'loading' ? 'loading' : 'ready'
+  // The region's retry re-fires EVERY read behind it — a region-level button that retried only
+  // one of two projections would "succeed" and still show the other's error. With one read
+  // reported, that read's retry is the region's (the shared-tasks shape the parity suite pins).
+  const retryNeedsYou = input.onRetryTasks && input.onRetryOps
+    ? () => { input.onRetryTasks?.(); input.onRetryOps?.() }
+    : input.onRetryTasks ?? input.onRetryOps
   const drillTo = (id: HomeRegionId, count?: number): HomeRegionDrillTo =>
     count != null ? { route: REGION_ROUTE[id], count } : { route: REGION_ROUTE[id] }
 
@@ -97,9 +120,9 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
 
   return [
     {
-      id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYou,
-      count: countOf(needsYou, taskState),
-      state: taskState, onRetry: input.onRetryTasks,
+      id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYouItems,
+      count: countOf(needsYouItems, needsYouState),
+      state: needsYouState, onRetry: retryNeedsYou,
       drillTo: drillTo('needs-you'),
     },
     {

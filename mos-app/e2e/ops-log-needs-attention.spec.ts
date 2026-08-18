@@ -1,22 +1,15 @@
 // AC-091: needs-attention entry gets amber treatment in the Daily Log feed; archive removes it.
 //
-// STALE (v4 Home retirement): the original journey continued past /ops into "My Week" to check a
-// `<section aria-label="Today on the Daily Log">` amber strip. That surface was MyWeekPanel/OpsStrip
-// (src/components/weekly/my-week-panel.tsx), part of the Home v1 KPI-row composition. Home v1 was
-// retired by #191 (src/config/features.ts, the SHOW_FOLLOWUPS comment): "the `/` index route now
-// always renders the ported (v4) HomePage" — the region/attention design, not MyWeekPanel. Confirmed
-// by source: MyWeekPanel is reachable only from the DEV-only `/__home-stacked` preview
-// (src/pages/stacked-union-home.tsx, unrouted for real viewers) — `/` renders src/pages/home-page.tsx,
-// which has no "Daily Log" text and no ops-strip anywhere. There is no v4 equivalent this signal
-// propagates to; the strip concept did not move, it was cut with Home v1. DESIGN.md ¶"Ops Log
-// tokens" still documents the amber-strip token, but nothing live renders it — a doc that wants its
-// own follow-up, not a reason to assert against dead markup.
-//
-// What remains real and provable: the /ops feed's own amber row treatment (data-attn) and archive
-// removing/restoring the entry from the default feed — both still live on the current Daily Log
-// page (ops-page.tsx) and asserted below. The My Week propagation half of the original AC is
-// retired along with its surface; if Home ever grows a needs-attention signal again, it needs a new
-// assertion pointed at wherever that lands, not a resurrection of this locator.
+// PROPAGATION RESTORED (#302): the removed My Week steps asserted that a needs-attention entry
+// surfaces OUT of /ops somewhere the person looks first. That surface now exists again on the
+// v4 Home: open needs-attention entries lead the "Needs you now" region (home-page.tsx reads
+// listNeedsAttentionLogEntries; archived entries are excluded — archiving clears the signal).
+// The propagation half is OWNED at the RTL layer (src/pages/home-page.test.tsx, describe
+// "AC-091 (restored, #302)") plus the DAL contract (src/lib/db/ops-log.test.ts), per the
+// one-criterion-one-test rule — Playwright is main-targeted-PRs only (#284), so an e2e copy
+// could not be verified on this branch and would be a second owner, not a stronger one. This
+// file keeps owning the /ops half: the feed's amber row (data-attn), archive from the feed, and
+// show-archived.
 
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
@@ -108,9 +101,7 @@ test('AC-091: needs-attention entry gets amber row treatment → archive removes
   const attnRow = page.locator('[data-attn="true"]', { hasText: entryTitle })
   await expect(attnRow).toBeVisible()
 
-  // ── 4. [REMOVED] My Week ops-strip check — see file header. The strip's home,
-  // MyWeekPanel/OpsStrip, is retired along with Home v1 (#191); `/` renders v4 HomePage, which has
-  // no "Today on the Daily Log" region to assert against.
+  // ── 4. [MOVED] The propagation half lives at src/pages/home-page.test.tsx (see file header).
 
   // ── 5. Go back to /ops and archive the entry ──────────────────────────────
   await page.goto('ops')
@@ -137,5 +128,5 @@ test('AC-091: needs-attention entry gets amber row treatment → archive removes
   await toggle.uncheck()
   await expect(page.getByText(entryTitle)).not.toBeVisible({ timeout: 5_000 })
 
-  // ── 8. [REMOVED] My Week ops-strip clear check — same retirement as step 4 above.
+  // ── 8. [MOVED] The propagation half lives at src/pages/home-page.test.tsx (see file header).
 })

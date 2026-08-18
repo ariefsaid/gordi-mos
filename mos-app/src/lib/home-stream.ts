@@ -24,6 +24,8 @@
 
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { Attention, SignalRow } from '@/lib/db/signals.types'
+import type { LogEntryRow } from '@/lib/db/ops-log.types'
+import { OPS_LOG_ROUTE } from '@/lib/db/ops-log'
 import { raciOwner } from '@/lib/raci-member'
 import { formatDate } from '@/components/tasks/task-formatters'
 import type { Locale } from '@/i18n/messages'
@@ -135,6 +137,29 @@ export function failedCheckStreamItems(items: AttentionItem[]): StreamItem[] {
 /** Decorate the pre-built mention items with the "Mentions you" reason. */
 export function mentionStreamItems(items: AttentionItem[]): StreamItem[] {
   return items.map(i => ({ ...i, reason: { tone: 'mention' as const } }))
+}
+
+// Open needs-attention Daily Log entries → needs-you rows (AC-091 propagation, #302). The reason
+// is the 'attention' tone — the same "Needs attention" label the Signals band uses — and the
+// route is the feed itself (there is no /ops/:id record route; the flagged row is the way in).
+// `directory` decorates the row with the flagger (created_by) + owning BU from the SAME shared
+// best-effort directory every other attention row reads. Order is the DAL's (occurred_at desc)
+// — no re-rank here.
+export function opsNeedsAttentionStreamItems(
+  entries: readonly LogEntryRow[],
+  directory?: AttentionDirectory,
+): StreamItem[] {
+  return entries.map((entry) => {
+    const flagger = directory?.people?.get(entry.created_by)
+    return {
+      id: entry.id,
+      title: entry.title,
+      route: OPS_LOG_ROUTE,
+      caption: directory?.businessUnits?.get(entry.business_unit_id),
+      pic: flagger ? { name: flagger } : undefined,
+      reason: { tone: 'attention' as const },
+    }
+  })
 }
 
 /** Owned, non-Done tasks NOT already surfaced in an attention band — the "my work today" band.
