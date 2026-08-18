@@ -105,3 +105,27 @@ export async function getLogEntry(id: string): Promise<LogEntryRow> {
   if (error) throw new Error(`getLogEntry failed — ${error.message}`)
   return data as unknown as LogEntryRow
 }
+
+// The feed's route — exported so Home's rows and their tests share ONE copy (the same reason
+// home-attention-data exports CAFE_LOG_ROUTE).
+export const OPS_LOG_ROUTE = '/ops'
+
+// Open needs-attention Daily Log entries — the set Home's needs-you region surfaces (AC-091
+// propagation, #302). The two filters restate the predicate of the partial index
+// log_entries_needs_attn_idx (20260805000009_ops_structure.sql: `on ops.log_entries (org_id,
+// needs_attention) where needs_attention and archived_at is null`), so the read is index-backed,
+// never a feed re-read. RLS scopes rows to
+// the org (FR-061: a log entry has no per-person assignee, so any open flag the viewer can see is
+// theirs to notice). archived_at IS NULL is also the CLEARING mechanism — archiving an entry
+// removes it from this read, which is what clears the Home signal.
+export async function listNeedsAttentionLogEntries(limit = 20): Promise<LogEntryRow[]> {
+  const { data, error } = await ops()
+    .from('log_entries')
+    .select(LIST_SELECT)
+    .eq('needs_attention', true)
+    .is('archived_at', null)
+    .order('occurred_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(`listNeedsAttentionLogEntries failed — ${error.message}`)
+  return (data ?? []) as unknown as LogEntryRow[]
+}

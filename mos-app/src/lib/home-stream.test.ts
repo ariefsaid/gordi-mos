@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest'
 import {
   daysOverdue, overdueStreamItems, dueTodayStreamItems, blockedStreamItems,
   failedCheckStreamItems, mentionStreamItems, myWorkStreamItems, openTaskCount, handledTodayCount,
-  signalStreamItems, isAttentionSignal,
+  signalStreamItems, isAttentionSignal, opsNeedsAttentionStreamItems,
   type AttentionDirectory,
 } from './home-stream'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { AttentionItem } from '@/lib/home-attention'
+import type { LogEntryRow } from '@/lib/db/ops-log.types'
 
 const VIEWER = 'p-viewer'
 const TODAY = '2026-07-22'
@@ -161,6 +162,40 @@ describe('signalStreamItems (OD-84.1 / Luna P0-1 — attention-worthy Signals le
     expect(item.route).toBe('/work/signals?record=x')
     expect(item.pic).toEqual({ name: 'Cahya Cafe' })
     expect(item.caption).toBe('HQ Operations')
+  })
+})
+
+describe('opsNeedsAttentionStreamItems (AC-091 propagation, #302)', () => {
+  const entry = (overrides: Partial<LogEntryRow> = {}): LogEntryRow => ({
+    id: 'ol-1', org_id: 'org-1', business_unit_id: 'bu-cafe', origin: 'manual',
+    event_type: 'qc', title: 'Chiller down — stock at risk', detail: null,
+    occurred_at: '2026-08-10T02:00:00Z', needs_attention: true, linked_task_id: null,
+    archived_at: null, created_by: 'p-flagger',
+    created_at: '2026-08-10T02:00:00Z', updated_at: '2026-08-10T02:00:00Z',
+    ...overrides,
+  })
+
+  it('maps an open flag to a needs-you row: title, /ops route, attention reason, flagger + BU from the shared directory', () => {
+    const directory: AttentionDirectory = {
+      people: new Map([['p-flagger', 'Riri Barista']]),
+      businessUnits: new Map([['bu-cafe', 'Café']]),
+    }
+    const [row] = opsNeedsAttentionStreamItems([entry()], directory)
+    expect(row).toEqual({
+      id: 'ol-1',
+      title: 'Chiller down — stock at risk',
+      route: '/ops',
+      pic: { name: 'Riri Barista' },
+      caption: 'Café',
+      reason: { tone: 'attention' },
+    })
+  })
+
+  it('keeps the DAL order (occurred_at desc) and degrades without a directory', () => {
+    const rows = opsNeedsAttentionStreamItems([entry({ id: 'ol-2' }), entry({ id: 'ol-1' })])
+    expect(rows.map((row) => row.id)).toEqual(['ol-2', 'ol-1'])
+    expect(rows[0].pic).toBeUndefined()
+    expect(rows[0].caption).toBeUndefined()
   })
 })
 

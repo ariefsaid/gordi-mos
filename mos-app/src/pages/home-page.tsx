@@ -1,6 +1,7 @@
 // HomePage — the index route (/). Home renders the SAME consequence-ranked data — needs-you
-// (overdue → due today → blocked), failed checks, mentions, my work today — in whichever of the
-// three Home layouts (Focused / Overview / List) the viewer has chosen from /profile (OD-V4-9).
+// (Daily Log needs-attention flags → overdue → due today → blocked), failed checks, mentions, my
+// work today (#302) — in whichever of the three Home layouts (Focused / Overview / List) the
+// viewer has chosen from /profile (OD-V4-9).
 // HomePage owns every data read + the ranking/selection logic and hands the result down as the ONE
 // shared region model (`buildHomeRegions`, FR-930) — a layout composes those regions, it never
 // re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream layout
@@ -35,13 +36,17 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listNotifications } from '@/lib/db/notifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
+import { listNeedsAttentionLogEntries } from '@/lib/db/ops-log'
+import type { LogEntryRow } from '@/lib/db/ops-log.types'
+import { SHOW_DAILY_LOG } from '@/config/features'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, openTaskCount, handledTodayCount, type StreamBand,
+  mentionStreamItems, myWorkStreamItems, openTaskCount, handledTodayCount,
+  opsNeedsAttentionStreamItems, type StreamBand,
 } from '@/lib/home-stream'
 import { dayRotation } from '@/lib/home-day-state'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
@@ -199,6 +204,44 @@ export function HomePage() {
     loadFailedChecks()
   }, [loadFailedChecks])
 
+  // ── Open needs-attention Daily Log entries (AC-091 propagation, #302) ─────────
+  // The propagation half of the AC-091 journey: the /ops half (feed amber + archive) lives on
+  // ops-page; this read surfaces the flag where the person looks first. RLS scopes rows to the
+  // org (FR-061: no per-person assignee on a log entry). The read follows the ROUTE's own gate:
+  // when SHOW_DAILY_LOG is off, /ops redirects to /, so Home renders a ready-empty region
+  // rather than rows linking at a dead door.
+  const [opsNeedsAttentionRows, setOpsNeedsAttentionRows] = useState<LogEntryRow[]>([])
+  const [opsNeedsAttentionState, setOpsNeedsAttentionState] = useState<FetchState>('loading')
+  const opsNeedsAttentionInFlightRef = useRef(false)
+  const opsNeedsAttentionTokenRef = useRef(0)
+
+  const loadOpsNeedsAttention = useCallback(() => {
+    if (!personId || opsNeedsAttentionInFlightRef.current) return
+    if (!SHOW_DAILY_LOG) { setOpsNeedsAttentionRows([]); setOpsNeedsAttentionState('ready'); return }
+    opsNeedsAttentionInFlightRef.current = true
+    const token = ++opsNeedsAttentionTokenRef.current
+    setOpsNeedsAttentionState('loading')
+    listNeedsAttentionLogEntries()
+      .then(rows => {
+        if (!isMountedRef.current || opsNeedsAttentionTokenRef.current !== token) return
+        setOpsNeedsAttentionRows(rows)
+        setOpsNeedsAttentionState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || opsNeedsAttentionTokenRef.current !== token) return
+        setOpsNeedsAttentionState('error')
+      })
+      .finally(() => {
+        if (opsNeedsAttentionTokenRef.current === token) opsNeedsAttentionInFlightRef.current = false
+      })
+  }, [personId])
+
+  useEffect(() => {
+    opsNeedsAttentionTokenRef.current += 1
+    opsNeedsAttentionInFlightRef.current = false
+    loadOpsNeedsAttention()
+  }, [loadOpsNeedsAttention])
+
   // ── Signals (the ambient feed column, #245) ─────────────────────────────────
   // The ONE Signals read on this page; `SignalFeedSection` is presentational and receives the rows,
   // the resolved names and a reload. Same in-flight/token/retry shape as every other loader here,
@@ -273,6 +316,13 @@ export function HomePage() {
     () => (ready && personId ? blockedStreamItems(tasks, personId, today, locale, directory) : []),
     [ready, personId, tasks, today, locale, directory])
 
+  // Needs-you's second projection: open Daily Log flags, decorated by the SAME shared
+  // best-effort directory the task rows read (flagger + owning BU). Empty unless the read
+  // succeeded (DIV-G5) — buildHomeRegions combines its state with the tasks state.
+  const opsNeedsAttention = useMemo(
+    () => (opsNeedsAttentionState === 'ready' ? opsNeedsAttentionStreamItems(opsNeedsAttentionRows, directory) : []),
+    [opsNeedsAttentionState, opsNeedsAttentionRows, directory])
+
   // The my-work band = owned open work NOT already surfaced in a task attention band (overdue ∪
   // due-today ∪ blocked ids), off-track first, capped. Shares the one tasks projection.
   const myWork = useMemo(() => {
@@ -341,11 +391,13 @@ export function HomePage() {
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
       mentionsState: mentionsBand.state, onRetryMentions: loadNotifications,
+      opsNeedsAttention: opsNeedsAttention, opsState: opsNeedsAttentionState, onRetryOps: loadOpsNeedsAttention,
       myWorkFullCount: ready ? openCount : undefined,
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand, mentionsBand,
       taskState, loadTasks, loadFailedChecks, loadNotifications, ready, openCount,
+      opsNeedsAttention, opsNeedsAttentionState, loadOpsNeedsAttention,
     ],
   )
 

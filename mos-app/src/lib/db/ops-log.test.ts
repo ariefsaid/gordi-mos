@@ -9,6 +9,7 @@ vi.mock('../supabase', () => {
 import {
   listLogEntries, addLogEntry, editLogEntry,
   archiveLogEntry, unarchiveLogEntry, getTodayOpsSummary,
+  listNeedsAttentionLogEntries,
 } from './ops-log'
 import { supabase } from '@/lib/supabase'
 
@@ -23,6 +24,7 @@ interface Recorder {
   updates: unknown[]
   deletes: string[]
   orders: Array<[string, unknown]>
+  limits: number[]
 }
 
 function makeSchema(responses: Record<string, { data: unknown; error: unknown }[]>, rec: Recorder) {
@@ -45,6 +47,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.gte = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.lt = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve)
@@ -54,7 +57,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [], orders: [] }
+  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [], orders: [], limits: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -262,5 +265,30 @@ describe('getTodayOpsSummary', () => {
       makeSchema({ log_entries: [{ data: null, error: { message: 'fail' } }] }, rec) as never,
     )
     await expect(getTodayOpsSummary(new Date())).rejects.toThrow(/getTodayOpsSummary failed/)
+  })
+})
+
+describe('listNeedsAttentionLogEntries (AC-091 propagation, #302)', () => {
+  it('reads the OPEN flag set: needs_attention=true, archived_at IS NULL, occurred_at desc, capped at 20 — no org_id client filter', async () => {
+    const rec = freshRec()
+    const openFlag = { id: 'ol-1', org_id: 'org-1', needs_attention: true, archived_at: null }
+    schemaMock.mockReturnValue(makeSchema({ log_entries: [{ data: [openFlag], error: null }] }, rec) as never)
+
+    const rows = await listNeedsAttentionLogEntries()
+
+    expect(rec.fromTables).toEqual(['log_entries'])
+    // archived_at IS NULL is what makes ARCHIVING clear the Home signal (AC-091's clear half).
+    expect(rec.eqs).toContainEqual(['needs_attention', true])
+    expect(rec.eqs).toContainEqual(['archived_at', null])
+    expect(rec.orders).toEqual([['occurred_at', { ascending: false }]])
+    expect(rec.limits).toEqual([20])
+    noServerStamps(rec)
+    expect(rows).toEqual([openFlag])
+  })
+
+  it('throws the named error when the read fails', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ log_entries: [{ data: null, error: { message: 'boom' } }] }, rec) as never)
+    await expect(listNeedsAttentionLogEntries()).rejects.toThrow(/listNeedsAttentionLogEntries failed — boom/)
   })
 })

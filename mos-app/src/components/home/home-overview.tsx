@@ -28,7 +28,13 @@ export function HomeOverview({ regions, feed }: HomeLayoutProps) {
               <h2 className="home-tile-name">{t(region.labelKey)}</h2>
               <RegionCount region={region} className="home-tile-count" />
             </div>
-            <RegionRows region={region} items={region.items.slice(0, OVERVIEW_TILE_ROWS)} />
+            {/* The cap never cuts a pinned row (needs-you's Daily Log flags, #302): the "N more"
+                remainder drills to the region's ONE destination, and a pinned row's content is
+                precisely what that destination cannot show. Pins lead, so max() keeps them all. */}
+            <RegionRows
+              region={region}
+              items={region.items.slice(0, Math.max(OVERVIEW_TILE_ROWS, region.pinnedCount ?? 0))}
+            />
             <RegionDrillLink region={region} />
           </section>
         ))}
