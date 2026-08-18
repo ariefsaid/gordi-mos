@@ -33,7 +33,7 @@ test-results
 # skill-original/, worktrees/, plugins/ stay regenerable/local. See .claude/.gitignore.
 .claude/
 # Codex-harness vendored skill mirror (same convention — regenerated, not committed)
-.agents/skills/
+.agents/
 
 # Transient design-review artifacts (screenshots, Playwright-MCP dumps, audit scratch — regenerated per review)
 .playwright-mcp/
