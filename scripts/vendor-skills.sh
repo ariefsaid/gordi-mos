@@ -111,6 +111,38 @@ for cat in engineering productivity; do
   done
 done
 
+echo "==> disler/super-simple-software-factory — sssf orchestrator skill + adws/ factory skeleton (#334)"
+# PINNED, unlike every other stanza: the factory skeleton is stamped into the TRACKED tree (adws/),
+# so an upstream bump must be a deliberate act — raise SSSF_PIN, re-run, review `git diff adws/`,
+# update adws/PORT-MANIFEST.md. scripts/vendor-sssf.test.sh proves the stamped tree is byte-identical
+# to upstream at this pin except the manifest-listed MOS files.
+# Vetted 2026-08-18 at this pin — RE-VET ON EVERY PIN BUMP: skill scripts/{install,make_adw,
+# make_config}.py are local file-stampers (no network); apps/visualizer is a bun/Vue app serving
+# localhost only; templates/adws has no network beyond what the pi/claude runners themselves do.
+SSSF_PIN="de31374882e7a4e3e5b7bb9bd09e69dc2f779356"
+git init -q "$TMP/sssf"
+git -C "$TMP/sssf" remote add origin https://github.com/disler/super-simple-software-factory.git
+git -C "$TMP/sssf" fetch -q --depth 1 origin "$SSSF_PIN"
+git -C "$TMP/sssf" checkout -q FETCH_HEAD
+rm -rf "${DEST:?}/sssf"
+cp -R "$TMP/sssf/.claude/skills/sssf" "$DEST/sssf"
+# Stamp the factory skeleton the way upstream's own skill installer
+# (.claude/skills/sssf/scripts/install.py) lays it out — but force-overwrite instead of
+# skip-if-exists, so a re-vendor surfaces upstream drift as a git diff on the tracked files.
+# MOS-authored files inside adws/ (PORT-MANIFEST.md; LICENSE is upstream's, relocated) survive
+# because only upstream-owned subtrees are removed first.
+SSSF_T="$TMP/sssf/.claude/skills/sssf/templates"
+rm -rf "$ROOT/adws/adw_modules" "$ROOT/adws/adw_data/prompt_engineering" "$ROOT/adws/adw_data/harness_engineering"
+mkdir -p "$ROOT/adws/adw_data" "$ROOT/adws/adw_sssf_config"
+cp -R "$SSSF_T/adws/." "$ROOT/adws/"
+cp -R "$SSSF_T/prompt_engineering" "$ROOT/adws/adw_data/prompt_engineering"
+cp -R "$SSSF_T/harness_engineering" "$ROOT/adws/adw_data/harness_engineering"
+cp "$SSSF_T/sssf.config.yaml" "$ROOT/adws/adw_sssf_config/sssf.config.yaml"
+cp "$TMP/sssf/LICENSE" "$ROOT/adws/LICENSE"                # MIT notice travels with the vendored code
+cp "$SSSF_T/env.sample" "$ROOT/.env.sample"                # root-stamped, exactly as install.py does
+cp "$SSSF_T/justfile" "$ROOT/justfile"                     # root-stamped, exactly as install.py does
+# (install.py's .gitignore entries are committed directly in this repo's tracked .gitignore)
+
 echo "==> agent-browser (discovery stub) — rendered UI verification from pi (docs/pi-delegation.md §3a)"
 # The CLI (npm i -g agent-browser) serves its own version-matched usage skill via
 # `agent-browser skills get core`; the vendored file is only a discovery stub. Source = the global
@@ -146,7 +178,8 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 echo
-echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling agent-browser + mattpocock full eng+prod set"
+echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
+echo "sssf factory skeleton stamped into adws/ at pin $SSSF_PIN (see adws/PORT-MANIFEST.md)"
 echo "Project overrides applied from .claude/skill-overrides/ (implement to-spec code-review tdd handoff)."
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

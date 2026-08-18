@@ -10,6 +10,12 @@ on:
       - 'scripts/*.test.sh'
       - 'scripts/setup-hooks.sh'
       - '.github/workflows/guards.yml'
+      # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory
+      # skeleton or its stamp re-proves byte-identity against the upstream pin.
+      - 'scripts/vendor-skills.sh'
+      - 'adws/**'
+      - '.env.sample'
+      - 'justfile'
 jobs:
   guard-self-tests:
     runs-on: ubuntu-latest
@@ -24,3 +30,5 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
+      - name: sssf vendor conformance self-test (FAC-001)
+        run: bash scripts/vendor-sssf.test.sh

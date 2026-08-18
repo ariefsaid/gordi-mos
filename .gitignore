@@ -40,10 +40,19 @@ test-results
 /review/
 /mos-*.png
 
+# sssf factory runtime (upstream install.py's entries, committed here since adws/ is tracked;
+# see adws/PORT-MANIFEST.md)
+adws/adw_data/sessions/
+adws/adw_data/sssf.db*
+__pycache__/
+*.pyc
+
 # Secrets — NEVER commit (public repo). Repo-wide guard (app env lives in pmo-portal/.gitignore).
 .env
 .env.*
 !.env.example
+# upstream sssf's key-name sample (no values) — stamped at root by vendor-skills.sh, tracked
+!.env.sample
 # Catch env files that don't START with ".env" (e.g. foo.resend.env) — the patterns above miss those.
 *.env
 !supabase/op.resend.env
