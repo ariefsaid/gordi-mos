@@ -62,7 +62,7 @@ a current stamp. Every guard ships with a `scripts/*.test.sh` self-test, run by 
 - `npm run typecheck` zero errors; ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
-- UI is not done until it has been rendered and looked at, at real widths (incl. ≤380px phone).
+- UI is not done until it has been rendered and looked at, at real widths (incl. ≤390px phone).
 
 ## Test pyramid
 Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)
