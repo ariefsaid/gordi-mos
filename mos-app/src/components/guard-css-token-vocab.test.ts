@@ -95,16 +95,6 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'font-size: 11px': 1,
     'font-size: 13px': 1,
   },
-  'src/components/kitchen/plan-qty-cell.css': {
-    'font-size: 16px': 1,
-    'font-size: 13px': 1,
-    'font-size: 11px': 2,
-  },
-  'src/components/kitchen/plan-qty-stepper.css': {
-    'font-size: 20px': 1,
-    'font-size: 16px': 1,
-    'font-size: 12px': 2,
-  },
   'src/components/kitchen/qty-cell.css': {
     'font-size: 16px': 1,
     'font-size: 13px': 1,

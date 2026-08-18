@@ -240,7 +240,6 @@ describe('CHROME-DUR: transition-duration tokens', () => {
     'components/tasks/TaskSurface.css': 1,
     'components/dashboard/data-table.css': 2,
     'components/dashboard/kpi-tile.css': 1,
-    'components/kitchen/plan-qty-cell.css': 2,
     'components/kitchen/qty-cell.css': 2,
   }
 
