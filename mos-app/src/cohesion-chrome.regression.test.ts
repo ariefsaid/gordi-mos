@@ -15,14 +15,6 @@ import { resolve, join } from 'node:path'
 
 const SRC = resolve(process.cwd(), 'src')
 
-// ONE named temporary exception. The Deputy panel still paints its own chrome — a
-// bg-foreground/40 scrim, numeric zIndex literals (40/50), a local CloseIcon, a raw
-// 180ms slide, its own keydown listener and inline fontSize literals. A parallel branch
-// (feat/deputy-chrome) moves that chrome into the shared host.
-// TODO remove when the Deputy chrome port lands — deleting this ONE constant re-arms
-// every assertion below for AssistantPanel; its removal is mechanical.
-const DEPUTY_CHROME_EXCEPTION = 'components/assistant/AssistantPanel.tsx'
-
 // The Weekly Update surface is UNROUTED (retired entry points; the files stay pending the
 // #281 ruling — see src/shell/retirement.test.tsx). Its chrome predates the consolidation
 // and is pinned here rather than reworked: dead-to-navigation code is #281's to delete or
@@ -120,7 +112,6 @@ describe('CHROME-Z: z-index tier scale', () => {
     const offenders: string[] = []
     for (const f of listSource(SRC, ['.tsx'])) {
       const rel = srcRel(f)
-      if (rel === DEPUTY_CHROME_EXCEPTION) continue
       const body = stripTsx(readFileSync(f, 'utf8'))
       const m = body.match(/zIndex:\s*[0-9]+/)
       if (m) offenders.push(`${rel} — ${m[0]}`)
@@ -169,7 +160,6 @@ describe('CHROME-SCRIM: one scrim token + utility', () => {
     const offenders: string[] = []
     for (const f of listSource(SRC, ['.tsx'])) {
       const rel = srcRel(f)
-      if (rel === DEPUTY_CHROME_EXCEPTION) continue
       if (/bg-foreground\/40/.test(readFileSync(f, 'utf8'))) offenders.push(rel)
     }
     expect(offenders, 'use the .scrim utility, not bg-foreground/40').toEqual([])
@@ -192,7 +182,7 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
     const offenders: string[] = []
     for (const f of listSource(SRC, ['.tsx'])) {
       const rel = srcRel(f)
-      if (rel === 'shell/icons.tsx' || rel === DEPUTY_CHROME_EXCEPTION || rel === RETIRED_WEEKLY_WRITE_PANE) continue
+      if (rel === 'shell/icons.tsx' || rel === RETIRED_WEEKLY_WRITE_PANE) continue
       const body = readFileSync(f, 'utf8')
       if (/function CloseIcon\b/.test(body)) offenders.push(`${rel} (local CloseIcon)`)
       else if (/M18 6 6 18M6 6l12 12/.test(body)) offenders.push(`${rel} (inline close-X path)`)
