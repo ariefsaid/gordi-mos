@@ -259,16 +259,24 @@ def as_envelope(result: QualityResult, what: str) -> VerifyOutput:
 def run_quality(run) -> QualityResult:
     """Run every block and collect ALL failures — one pass tells you everything.
 
+    The FULL census, distinct from run_tests(): the gate stops early to give the
+    builder fast rounds; this runs everything regardless, because its callers
+    (adw_quality, adw_plan_build_test_quality) want the complete picture in one
+    pass. Same real MOS blocks, cheap-first ORDER for readable output, plus
+    pgTAP when the run touched supabase/ — never a placeholder (#336).
+
     Ordering contract for the caller: a failing block does NOT fail the phase.
     The runner did its job; the CODE is what failed. Hand this result to the
     builder and let the bounded repair loop decide the run's fate.
     """
     blocks: list[Callable] = [
-        test,
-        lint,
         typecheck,
+        lint,
+        test,
         build,
     ]
+    if _touches_db(run):
+        blocks.append(pgtap)
     checks = [block(run) for block in blocks]
     # A failure is the command, its exit code, and what it actually printed —
     # everything a builder needs to repair without opening a log or being told

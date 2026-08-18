@@ -32,6 +32,13 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
+# Re-entrancy: if this process tree ALREADY holds the test lock (flock-run.sh
+# exported MOS_TEST_LOCK_HELD=1 into our env), run the command directly —
+# re-acquiring our own advisory lock would self-deadlock.
+if [ "${MOS_TEST_LOCK_HELD:-}" = "1" ]; then
+  exec "$@"
+fi
+
 DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$DIR/lib/flock-run.sh" "test-lock" "$LOCK" "$TIMEOUT" "MOS_TEST_LOCK_HELD" \
   "the shared test suite" -- "$@"

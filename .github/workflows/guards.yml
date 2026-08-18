@@ -36,3 +36,5 @@ jobs:
         run: bash scripts/sssf-gate.test.sh
       - name: sssf roster config self-test (FR-007)
         run: bash scripts/sssf-config.test.sh
+      - name: sssf lock-wrapper self-test (re-entrancy + mutual exclusion)
+        run: bash scripts/sssf-locks.test.sh

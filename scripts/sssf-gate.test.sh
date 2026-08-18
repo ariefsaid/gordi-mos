@@ -118,6 +118,19 @@ check("failure carries the block's verbatim output tail",
 r = compose(te=False)
 check("red suite: pgtap never runs", calls == ["typecheck", "lint", "test"] and not r.passed, str(calls))
 
+# run_quality (the census used by adw_quality / adw_plan_build_test_quality):
+# same real blocks, cheap-first order, conditional pgtap — and it runs EVERYTHING
+# even on failure (collect-all contract), unlike the early-stopping gate.
+calls.clear()
+quality.typecheck = block("typecheck", False)
+quality.lint = block("lint")
+quality.test = block("test")
+quality.build = block("build")
+quality.pgtap = block("pgtap")
+r = quality.run_quality(Run())
+check("run_quality: cheap-first order, pgtap on supabase change, all blocks despite failure",
+      calls == ["typecheck", "lint", "test", "build", "pgtap"] and not r.passed, str(calls))
+
 # _touches_db is the real function against the real repo
 check("_touches_db true on supabase/ change", quality._touches_db(Run()) is True)
 subprocess.run(["git", "add", "-A"], cwd=repo, check=True)

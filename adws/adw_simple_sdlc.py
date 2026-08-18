@@ -7,17 +7,18 @@
 Usage:
     uv run adws/adw_simple_sdlc.py "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 
-Phases: engineer(request) -> planner -> git(commit_plan)
+Phases: engineer(request) -> planner -> code(commit_plan: trace record)
         -> builder -> code(test) [-> builder(fix) -> code(test) ... bounded]
         -> reviewer [-> builder(revise) -> reviewer ... bounded]
         -> code(retest, only if a revision changed code)
-        -> git(commit_build) -> code(changes) -> documenter -> git(commit_docs)
+        -> git(commit_build) -> code(changes) -> documenter -> code(commit_docs: trace record)
 
-Three commits, three work products, three authors. The plan, the code, and the
-write-up each land in their own commit, and each commit message is the words of
-the agent that produced it — `commit_message` on PlanOutput describes the spec,
-on BuildOutput the code, on DocumentOutput the write-up. No agent's sentence is
-ever reused for another agent's diff.
+One commit, three work products (MOS #336). The plan and the write-up are
+documentary, and this repo is PUBLIC with a blunt docs-split rule — they live
+in the session dir and land on the TRACE record at their phase, never in git.
+Only the code commits (`commit_build`), in the builder's own words
+(`commit_message` on BuildOutput), with the project trailer appended by
+git_helper.
 
 Testing is CODE, not an agent. `bun test` is a command, not a judgement call:
 an agent rediscovering it every run costs a million tokens to learn what a
@@ -32,9 +33,9 @@ tested and approved.
 
 The code commit lands after verification, not straight after the build: fixes
 and revisions are part of the same work product, and red code has no business
-on the branch. A run that fails verification therefore leaves the plan
-committed and the working tree dirty — the spec is a real artifact either way,
-and the unfinished code stays where the engineer can see it.
+on the branch. A run that fails verification therefore commits NOTHING — the
+plan stays on the trace as the record of what was asked, and the unfinished
+code stays dirty in the working tree where the engineer can see it.
 
 The documenter measures against the commit this run STARTED from, not against
 `main`, because by then the run has moved `main` itself. That baseline is
