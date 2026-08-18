@@ -130,8 +130,11 @@ class DocumentOutput(EnvelopeBase):
 
 # ── Deterministic quality blocks ─────────────────────────────────────────────
 
-QualityArea = Literal["frontend", "backend"]
-QualityOperation = Literal["lint", "typecheck", "build"]
+# MOS (#336): "db"/"test" admitted for the pgtap block. Upstream's Literals predate
+# a db-area gate; the grown gate constructs QualityCheckSpec(area="db",
+# operation="test"), which strict Literals would reject at runtime.
+QualityArea = Literal["frontend", "backend", "db"]
+QualityOperation = Literal["lint", "typecheck", "build", "test"]
 
 
 class QualityCheckSpec(BaseModel):

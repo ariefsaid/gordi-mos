@@ -53,8 +53,9 @@ MAX_FIX_LOOPS = 3
 MAX_REVISION_LOOPS = 2
 
 DOCUMENT_NOTES = ("Read diff_path in full before writing. Document only what the "
-                  "diff shows, then copy the write-up into app_docs/ as your task "
-                  "describes.")
+                  "diff shows. The write-up lives in <context_handoff_dir> only — "
+                  "this repo is PUBLIC and documentary artifacts never land in its "
+                  "tree (docs-split rule); the session dir and trace are the record.")
 
 
 def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None,
@@ -86,9 +87,14 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
         plan = ph.call(AgentCall(output_type=PlanOutput, prompt=prompt,
                                  gates=[gates.artifacts_exist, gates.files_non_empty]))
 
+    # MOS (#336): the plan is documentary, and this repo is PUBLIC with a blunt
+    # docs-split rule — documentary artifacts never land in its tree. The plan
+    # stays in the session dir (gitignored); this phase puts it on the TRACE
+    # record before any code exists to blur it, instead of in a commit.
     with run.phase(PhaseParams(name="commit_plan", kind="code", owner="git",
-                               description="Put the spec on record before any code exists to blur it")) as ph:
-        commit(ph, plan)
+                               description="Put the plan on the trace record before any code exists to blur it")) as ph:
+        ph.log(recorded=", ".join(plan.artifacts),
+               note="plan recorded in the session dir + trace; not committed (docs-split rule)")
 
     with run.phase(PhaseParams(name="build", kind="agent", owner=builder,
                                description="Implement the plan exactly")) as ph:
@@ -168,9 +174,12 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
                                          previous=changes.as_envelope(changeset, DOCUMENT_NOTES),
                                          gates=[gates.artifacts_exist, gates.files_non_empty]))
 
+        # MOS (#336): same docs-split rule as commit_plan — the write-up stays in
+        # the session dir; the trace is its record, not a commit.
         with run.phase(PhaseParams(name="commit_docs", kind="code", owner="git",
-                                   description="Ship the write-up in its own commit, beside the code it describes")) as ph:
-            commit(ph, document)
+                                   description="Put the write-up on the trace record beside the code it describes")) as ph:
+            ph.log(recorded=", ".join(document.artifacts),
+                   note="write-up recorded in the session dir + trace; not committed (docs-split rule)")
 
     return run.finish(accepted=verified,
                       reason="the suite or the review never came back clean")

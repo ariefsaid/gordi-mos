@@ -135,48 +135,54 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
 # ── Blocks ────────────────────────────────────────────────────────────────────
 # Replace every argv below. See the banner at the top of this file.
 
-# PMO-delta mechanism (see adws/PORT-MANIFEST.md): the heavy unit suite goes through
-# scripts/with-test-lock.sh — one full suite on this machine at a time; the timeout must cover
-# waiting on the lock. These are the inner-loop gates; the repo's full pre-PR battery stays the
-# Director's pre-pr-verify concern, not a per-fix-loop cost.
+# MOS wiring (#336, see adws/PORT-MANIFEST.md): app commands run from mos-app/ (CLAUDE.md
+# Commands). The vitest suite is heavy and the machine is shared, so `test` goes through
+# scripts/with-test-lock.sh — one full suite at a time; its timeout covers waiting on the lock.
+# These are the inner-loop gates; the repo's full pre-PR battery stays the Director's
+# pre-pr-verify concern, not a per-fix-loop cost.
 
 def test(run) -> QualityCheckResult:
     """Run the project's test suite. The highest-value block to wire up first."""
     return _run(QualityCheckSpec(
         name="test",
-        area="backend",
-        operation="build",
-        # TODO(#336): replace the placeholder with the MOS suite command, keeping the lock wrapper.
-        argv=["scripts/with-test-lock.sh", *_placeholder("test")],
-        timeout_seconds=600,
+        area="frontend",
+        operation="test",
+        argv=["scripts/with-test-lock.sh", "bash", "-c", "cd mos-app && npm test"],
+        timeout_seconds=1200,
     ), run)
 
 
 def lint(run) -> QualityCheckResult:
     return _run(QualityCheckSpec(
         name="lint",
-        area="backend",
+        area="frontend",
         operation="lint",
-        argv=_placeholder("lint"),        # e.g. ["bun", "x", "oxlint@1.36.0", "src"]
+        # The lint script itself pins --max-warnings=0 (eslint) + lint:css — zero warnings is
+        # the script's contract, not a flag the caller may forget.
+        argv=["bash", "-c", "cd mos-app && npm run lint"],
+        timeout_seconds=300,
     ), run)
 
 
 def typecheck(run) -> QualityCheckResult:
     return _run(QualityCheckSpec(
         name="typecheck",
-        area="backend",
+        area="frontend",
         operation="typecheck",
-        argv=_placeholder("typecheck"),   # e.g. ["bun", "x", "tsc", "--noEmit"]
+        # tsc -b --noEmit: the solution build. A bare `npx tsc --noEmit -p tsconfig.json`
+        # checks NOTHING in this app (solution file) — always the npm script.
+        argv=["bash", "-c", "cd mos-app && npm run typecheck"],
+        timeout_seconds=300,
     ), run)
 
 
 def build(run) -> QualityCheckResult:
-    output_dir = _check_dir(run, "build") / "bundle"
     return _run(QualityCheckSpec(
         name="build",
-        area="backend",
+        area="frontend",
         operation="build",
-        argv=_placeholder("build"),       # e.g. ["bun", "build", "src/index.ts", "--outdir", str(output_dir)]
+        argv=["bash", "-c", "cd mos-app && npm run build"],
+        timeout_seconds=600,
     ), run)
 
 
@@ -188,7 +194,9 @@ def pgtap(run) -> QualityCheckResult:
         name="pgtap",
         area="db",
         operation="test",
-        # TODO(#336): point this at the MOS local stack (per-project db-lock stays mandatory).
+        # The supabase CLI from repo root targets THIS project's local stack via
+        # supabase/config.toml (ports 443xx — per-project, like the lock). Never
+        # `npx supabase`: the binary is installed.
         argv=["scripts/with-db-lock.sh", "bash", "-c",
               "supabase db reset && supabase test db"],
         timeout_seconds=1800,

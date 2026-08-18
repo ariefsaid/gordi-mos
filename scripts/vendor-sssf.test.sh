@@ -37,21 +37,32 @@ mkdir -p "$tmp/expected/adws/adw_data" "$tmp/expected/adws/adw_sssf_config"
 cp -R "$T/adws/." "$tmp/expected/adws/"
 cp -R "$T/prompt_engineering" "$tmp/expected/adws/adw_data/prompt_engineering"
 cp -R "$T/harness_engineering" "$tmp/expected/adws/adw_data/harness_engineering"
-cp "$T/sssf.config.yaml" "$tmp/expected/adws/adw_sssf_config/sssf.config.yaml"
 cp "$tmp/up/LICENSE" "$tmp/expected/adws/LICENSE"
 
-# Byte-compare, excluding only manifest-listed deviations and gitignored runtime.
-# DEVIATED holds the files carrying ported PMO deltas (#335) — every name here
-# MUST have a row in adws/PORT-MANIFEST.md, cross-checked below so this list
-# cannot drift ahead of the manifest.
-DEVIATED="agents.py data_types.py quality.py adw_simple_sdlc.py"
+# Manifest-listed deviations (#335/#336) are synced from the repo into the expected
+# tree BY PATH (a basename -x would over-exclude sibling prompt files), so the
+# byte-compare passes over them and over nothing else. Every path here MUST have a
+# row in adws/PORT-MANIFEST.md — cross-checked so this list cannot drift ahead of
+# the manifest. Keep it equal to SSSF_DEVIATED in scripts/vendor-skills.sh, plus
+# the MOS-owned config and this manifest.
+DEVIATED="adw_modules/agents.py adw_modules/data_types.py adw_modules/quality.py \
+adw_modules/git_helper.py adw_simple_sdlc.py adw_sssf_config/sssf.config.yaml \
+adw_data/prompt_engineering/planner/system.md adw_data/prompt_engineering/planner/user.md \
+adw_data/prompt_engineering/builder/system.md adw_data/prompt_engineering/reviewer/system.md \
+adw_data/prompt_engineering/documenter/system.md adw_data/prompt_engineering/documenter/user.md \
+adw_data/prompt_engineering/fe_builder/system.md adw_data/prompt_engineering/fe_reviewer/system.md \
+PORT-MANIFEST.md"
 for f in $DEVIATED; do
-  grep -q "\`[^\`]*$f\`" adws/PORT-MANIFEST.md \
-    || bad "excluded from byte-compare but not manifest-listed: $f"
+  grep -qF "$(basename "$f")" adws/PORT-MANIFEST.md \
+    || bad "excluded from byte-compare but not manifest-listed: adws/$f"
+  if [ -f "$ROOT/adws/$f" ]; then
+    mkdir -p "$tmp/expected/adws/$(dirname "$f")"
+    cp "$ROOT/adws/$f" "$tmp/expected/adws/$f"
+  else
+    bad "manifest-listed deviation missing from the tree: adws/$f"
+  fi
 done
 DIFF_OUT="$(diff -r \
-  -x PORT-MANIFEST.md \
-  -x agents.py -x data_types.py -x quality.py -x adw_simple_sdlc.py \
   -x __pycache__ -x '*.pyc' \
   -x sessions -x 'sssf.db*' \
   "$tmp/expected/adws" "$ROOT/adws" 2>&1)"
@@ -62,12 +73,21 @@ else
   printf '%s\n' "$DIFF_OUT" | sed 's/^/        /'
 fi
 
-cmp -s "$T/env.sample" "$ROOT/.env.sample" \
-  && ok ".env.sample byte-identical to upstream templates/env.sample" \
-  || bad ".env.sample deviates from upstream templates/env.sample"
+# Root-stamped files: justfile stays byte-identical; .env.sample is a manifest-listed
+# MOS deviation (roster note) — assert it exists, is manifested, and names no values.
 cmp -s "$T/justfile" "$ROOT/justfile" \
   && ok "justfile byte-identical to upstream templates/justfile" \
   || bad "justfile deviates from upstream templates/justfile"
+if [ -f "$ROOT/.env.sample" ]; then
+  grep -qF '.env.sample' adws/PORT-MANIFEST.md \
+    && ok ".env.sample present and manifest-listed as a MOS deviation" \
+    || bad ".env.sample deviates but has no manifest row"
+  grep -qE '^[A-Z_]+=[^[:space:]]' "$ROOT/.env.sample" \
+    && bad ".env.sample carries a non-empty value — it must stay names-only" \
+    || ok ".env.sample carries no values"
+else
+  bad ".env.sample missing from the repo root"
+fi
 
 grep -q '^Copyright (c)' adws/LICENSE \
   && ok "MIT notice carries the copyright line" \

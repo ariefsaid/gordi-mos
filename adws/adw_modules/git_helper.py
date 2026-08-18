@@ -40,6 +40,11 @@ def repo_root() -> Path:
     return Path.cwd().resolve()
 
 
+# MOS (#336): every commit the runner lands carries the project trailer, appended
+# in code so no agent's commit_message has to remember it.
+COMMIT_TRAILER = "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+
+
 def commit_all(message: str) -> str:
     """Stage the working tree and commit it. Returns the new short sha."""
     if not is_repo():
@@ -49,6 +54,8 @@ def commit_all(message: str) -> str:
     _git("add", "-A")
     if not _git("status", "--porcelain"):
         raise RuntimeError("nothing to commit — the preceding phases changed no files")
+    if COMMIT_TRAILER not in message:
+        message = f"{message}\n\n{COMMIT_TRAILER}"
     _git("commit", "-m", message)
     return _git("rev-parse", "--short", "HEAD")
 

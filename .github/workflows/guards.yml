@@ -32,3 +32,7 @@ jobs:
         run: bash scripts/pre-pr-verify.test.sh
       - name: sssf vendor conformance self-test (FAC-001)
         run: bash scripts/vendor-sssf.test.sh
+      - name: sssf gate composition + chain-exit self-test (FAC-004/FAC-005)
+        run: bash scripts/sssf-gate.test.sh
+      - name: sssf roster config self-test (FR-007)
+        run: bash scripts/sssf-config.test.sh
