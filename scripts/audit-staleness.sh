@@ -13,7 +13,8 @@
 #                OR changed with NO pins → owes its once-per-generation battery.
 #
 # Staleness is demoted to a signal (plan §cadence): stale + pins-green = fine; the
-# hard merge teeth live in scripts/pre-merge-check.sh. This script never fails the
+# hard merge teeth are the pre-pr-verify lane + the review roster (pre-merge-check.sh
+# never existed in CI — DD-WAY-31). This script never fails the
 # build — it always exits 0 and just reports. Fast: jq + git, no server, no node.
 #
 # Usage:
