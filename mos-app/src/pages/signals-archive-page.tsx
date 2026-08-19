@@ -46,7 +46,7 @@ export function SignalsArchivePage() {
   const recordId = params.get('record')
   const hadSignalSession = useRef(false)
   const suppressNextOpen = useRef(false)
-  const { open: openSignalComposer } = useSignalComposer()
+  const { open: openSignalComposer, postCount } = useSignalComposer()
 
   const controller = useRecordCollection({
     descriptor: signalCollectionDescriptor,
@@ -57,6 +57,17 @@ export function SignalsArchivePage() {
   const query = controller.state.query
   const projection = controller.state.projection
   const context = controller.state.data?.context
+
+  // #360 (AC-430): a Share from the toolbar's compose door bumps the composer host's postCount —
+  // re-run the collection's load so the fresh Signal appears without a manual refresh. This uses
+  // the same retry handle as categorization while preserving the typed collection query.
+  const { retry: retryCollection } = controller
+  const seenPostCountRef = useRef(postCount)
+  useEffect(() => {
+    if (seenPostCountRef.current === postCount) return
+    seenPostCountRef.current = postCount
+    retryCollection()
+  }, [postCount, retryCollection])
 
   // The active Signals view as a readable label — shared by the result header and the phone
   // "View & filters" disclosure summary so the two never drift (OD-REDESIGN-72/79 convergence).

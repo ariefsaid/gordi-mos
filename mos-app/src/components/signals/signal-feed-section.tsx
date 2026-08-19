@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { correctSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -42,9 +42,20 @@ export function SignalFeedSection({
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
-  const { open: openSignalComposer } = useSignalComposer()
+  const { open: openSignalComposer, postCount } = useSignalComposer()
   const t = useT()
   const titleId = useId()
+
+  // #360 (AC-430): the composer host bumps postCount on each successful Share — turn that bump
+  // into a re-run of HomePage's ONE shared read (onReload) so a freshly shared Signal appears
+  // without a manual refresh. The ref skips the mount run: postCount only changes when a Share
+  // happened since this section last looked, and a remount re-seeds the ref without double-firing.
+  const seenPostCountRef = useRef(postCount)
+  useEffect(() => {
+    if (seenPostCountRef.current === postCount) return
+    seenPostCountRef.current = postCount
+    onReload?.()
+  }, [postCount, onReload])
 
   function openRecord(signalId: string) {
     if (host) {
