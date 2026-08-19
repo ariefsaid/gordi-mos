@@ -39,5 +39,7 @@ jobs:
         run: bash scripts/sssf-config.test.sh
       - name: sssf lock-wrapper self-test (re-entrancy + mutual exclusion)
         run: bash scripts/sssf-locks.test.sh
+      - name: sssf design-audit chain self-test (#350)
+        run: bash scripts/sssf-design-audit.test.sh
       - name: kitchen history import self-test (#349)
         run: bash scripts/import-kitchen-history.test.sh
