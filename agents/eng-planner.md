@@ -34,7 +34,8 @@ Report back: the plan location, task count, which criterion each task covers, op
 
 ## Build vs take (mandatory for anything first-of-kind)
 
-A plan that introduces a first-of-kind component, subsystem, or capability MUST record the
+A plan that introduces a first-of-kind component, subsystem, or capability (first-of-kind = no
+existing component or pattern in this tree already does the job) MUST record the
 make-vs-take decision, one line per rung, stopping at the first that holds: native/platform
 feature → already-installed dependency (the repo takes headless weight: tanstack table/virtual are
 precedent) → a NEW dependency (name it; `mos-app/package.json` is builder-immutable, so a new dep
