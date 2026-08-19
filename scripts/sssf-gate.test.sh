@@ -418,15 +418,26 @@ subprocess.run(["git", "init", "-q", str(work)])
 (work / "kept.txt").write_text("k"); (work / "gone.txt").write_text("g")
 subprocess.run(["git", "-C", str(work), "add", "-A"], capture_output=True)
 subprocess.run(["git", "-C", str(work), "commit", "-qm", "seed"], capture_output=True)
-(work / "gone.txt").unlink()
+(work / "gone.txt").unlink()                                   # unstaged deletion
+(work / "staged-gone.txt").write_text("s")
+subprocess.run(["git", "-C", str(work), "add", "staged-gone.txt"], capture_output=True)
+subprocess.run(["git", "-C", str(work), "commit", "-qm", "s2"], capture_output=True)
+subprocess.run(["git", "-C", str(work), "rm", "-q", "staged-gone.txt"], capture_output=True)
+outside = Path(tempfile.mkdtemp()) / "outside.txt"; outside.write_text("o")
 run = types.SimpleNamespace(repo_root=str(work))
-env = types.SimpleNamespace(changed_files=["kept.txt", "gone.txt", "phantom.txt"])
-import os; os.chdir(work)
+env = types.SimpleNamespace(changed_files=[
+    "kept.txt", "gone.txt", "staged-gone.txt", "phantom.txt",
+    "../%s/outside.txt" % outside.parent.name, str(outside)])
+import os; os.chdir(tempfile.gettempdir())                      # non-repo cwd: anchoring must not care
 rep = gates.diff_matches_claims(env, run)
 res = {ch.item: ch.ok for ch in rep.checks}
 assert res.get("kept.txt") is True, res
-assert res.get("gone.txt") is True, "git-visible deletion must pass: %s" % res
+assert res.get("gone.txt") is True, "unstaged deletion must pass: %s" % res
+assert res.get("staged-gone.txt") is True, "staged deletion must pass: %s" % res
 assert res.get("phantom.txt") is False, "phantom claim must fail: %s" % res
+traversal = [k for k in res if k.startswith("..")][0]
+assert res[traversal] is False, "traversal claim must be refused: %s" % res
+assert res.get(str(outside)) is False, "absolute escape must be refused: %s" % res
 print("GATE-UNIT-OK")
 PY
 )"

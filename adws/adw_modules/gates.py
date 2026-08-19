@@ -59,16 +59,26 @@ def json_parses(envelope: EnvelopeBase, run) -> GateReport:
 
 
 def diff_matches_claims(envelope: EnvelopeBase, run) -> GateReport:
-    """Every file claimed changed must exist on disk — or be a real, git-visible
-    deletion. Deletions are legitimate build outcomes (a retirement ticket deletes
-    files); what the gate refuses is a CLAIM the tree cannot corroborate either way
-    (first hit live on the #348 events retirement, 2026-08-19)."""
+    """Every file claimed changed must be corroborated by the run's own tree:
+    it exists under repo_root, or git records its deletion. Deletions are
+    legitimate build outcomes (a retirement ticket deletes files); what the gate
+    refuses is a claim the tree cannot corroborate either way, a path escaping
+    the repository, or a symlink pointing out of it (first hit live on the #348
+    events retirement, 2026-08-19)."""
     report = GateReport()
-    deleted = _git_deleted_paths(run)
+    root = Path(getattr(run, "repo_root", ".")).resolve()
+    deleted = _git_deleted_paths(root)
     for f in getattr(envelope, "changed_files", []):
-        p = Path(f)
-        if p.exists():
-            report.check(f, True, f"exists, {_size(p)}")
+        candidate = (root / f)
+        try:
+            resolved = candidate.resolve()
+            inside = resolved.is_relative_to(root)
+        except OSError:
+            inside = False
+        if not inside:
+            report.check(f, False, "claim escapes the repository root")
+        elif candidate.exists():
+            report.check(f, True, f"exists, {_size(candidate)}")
         elif f in deleted:
             report.check(f, True, "deleted (git-visible deletion)")
         else:
@@ -76,16 +86,19 @@ def diff_matches_claims(envelope: EnvelopeBase, run) -> GateReport:
     return report
 
 
-def _git_deleted_paths(run) -> set[str]:
-    """Paths git sees as deleted in the run's worktree (staged or not). --no-renames
-    so a rename never masquerades as a deletion the gate would bless."""
+def _git_deleted_paths(root: Path) -> set[str]:
+    """Paths git records as deleted (staged or not) in the tree at root.
+    --no-renames so a rename never masquerades as a blessed deletion; -z so
+    quoted/escaped filenames arrive verbatim instead of C-quoted."""
     import subprocess
-    out = subprocess.run(["git", "status", "--porcelain", "--no-renames"],
-                         cwd=getattr(run, "repo_root", "."), capture_output=True, text=True)
+    out = subprocess.run(["git", "status", "--porcelain", "--no-renames", "-z"],
+                         cwd=root, capture_output=True, text=True)
+    if out.returncode != 0:
+        return set()
     paths = set()
-    for line in out.stdout.splitlines():
-        if len(line) > 3 and "D" in line[:2]:
-            paths.add(line[3:].strip().strip('"'))
+    for entry in out.stdout.split("\0"):
+        if len(entry) > 3 and "D" in entry[:2]:
+            paths.add(entry[3:])
     return paths
 
 
