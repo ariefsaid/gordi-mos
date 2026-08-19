@@ -53,7 +53,7 @@ describe('jobKeyForPath — route → owning job key (Work child / record resolu
 
   it('resolves top-level destination routes to their job key', () => {
     expect(jobKeyForPath('/')).toBe('job.home')
-    expect(jobKeyForPath('/work/events')).toBe('job.tasks')
+    expect(jobKeyForPath('/work/events')).toBe('job.events')
     expect(jobKeyForPath('/events')).toBe('job.notFound')
     expect(jobKeyForPath('/money')).toBe('job.money')
     expect(jobKeyForPath('/money/detail')).toBe('job.money')

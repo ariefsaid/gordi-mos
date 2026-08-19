@@ -125,7 +125,7 @@ export interface CollectionSavedViewDescriptor<
   TQuery extends object,
   TPresentation extends string,
 > {
-  readonly enabled: true
+  readonly enabled: boolean
   readonly store: CollectionViewStore
   readonly operations: readonly SavedViewOperation[]
   buildSpec(args: { query: TQuery; presentation: TPresentation }): CollectionViewSpec

@@ -13,12 +13,16 @@
 -- helpers — are each asserted at the end, because any one of them alone is defeatable.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(34);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();   -- GrandMgr ...0d3 -> admin; Author ...0d1 -> member + finance
 select mos._test_seed_rows();              -- one row in every mos table, in BOTH orgs
+
+insert into mos.events (id, org_id, title, venue, is_outbound, starts_at, ends_at, created_by) values
+  ('00000000-0000-0000-0000-00000000e0a1','00000000-0000-0000-0000-0000000000a1','Org A seam event','Office',false,now(),now() + interval '1 hour','00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-00000000e0b1','00000000-0000-0000-0000-0000000000b1','Org B seam event','Office',false,now(),now() + interval '1 hour','00000000-0000-0000-0000-0000000000b4');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["admin","finance"]}';
@@ -44,6 +48,8 @@ select is((select count(*)::int from mos.task_events               where org_id 
   'org seam: an org-A session reads zero org-B task events');
 select is((select count(*)::int from mos.signals                   where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
   'org seam: an org-A session reads zero org-B signals');
+select is((select count(*)::int from mos.events                    where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
+  'org seam: an org-A session reads zero org-B events');
 select is((select count(*)::int from mos.signal_mentions           where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
   'org seam: an org-A session reads zero org-B signal mentions');
 select is((select count(*)::int from mos.signal_acknowledgements   where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
@@ -87,6 +93,8 @@ select is((select count(*)::int from reporting.esb_ar_reduction    where org_id 
 -- Without this the whole file above would pass against a schema that returns nothing to anybody.
 select cmp_ok((select count(*) from mos.tasks), '>', 0::bigint,
   'org seam control: the same session DOES read its own org''s rows — the zeros above are isolation, not a broken read');
+select is((select count(*)::int from mos.events where id = '00000000-0000-0000-0000-00000000e0a1'), 1,
+  'org seam control: the org-A event is readable, so its foreign zero is isolation');
 
 -- ── The stamp is a DEFAULT and a WITH CHECK, not one or the other ────────────────────────────
 -- mos.objectives is the subject because it has a real INSERT policy in the shipped schema, so this

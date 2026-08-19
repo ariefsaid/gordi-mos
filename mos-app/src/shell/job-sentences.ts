@@ -32,6 +32,11 @@ export const jobSentences = {
   roastery: 'Record today’s roasts, yield, and transfers truthfully.',
 } as const
 
+/** Work children may have a page-specific job sentence without becoming destinations. */
+export const workChildJobSentences = {
+  events: 'See commitments of people and space.',
+} as const
+
 /** The union of registry ids. */
 export type JobKey = keyof typeof jobSentences
 
@@ -40,6 +45,7 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
   work: 'job.work',
   tasks: 'job.tasks',
   signals: 'job.signals',
+  events: 'job.events',
   projects: 'job.projects',
   objectives: 'job.objectives',
   money: 'job.money',
@@ -83,7 +89,8 @@ export function jobKeyForPath(pathname: string): MessageKey {
   }
 
   // Module sub-routes resolve to the module job key (e.g. /cafe/log → job.cafe).
-  if (SEG_TO_JOB[root]) return SEG_TO_JOB[root]
+  // Events is a Work child only; the retired root spelling must stay a not-found sentence.
+  if (root !== 'events' && SEG_TO_JOB[root]) return SEG_TO_JOB[root]
 
   // Unknown route → the 404 line (OD-REDESIGN-91 #42). An unrecognized path renders the
   // NotFoundPage, so its context sentence is the 404's own, never Home's borrowed one.

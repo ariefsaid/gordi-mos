@@ -11,13 +11,15 @@ export interface EventCollectionContext { businessUnits: ReadonlyMap<string, str
 type EventPresentation = 'calendar'
 type EventAction = never
 
-export const EVENT_COLLECTION_NEUTRAL_QUERY: EventCollectionQuery = { month: wibMonthKey(), savedViewId: null }
+/** Fresh at request time: a long-lived module must never pin yesterday's month. */
+export const currentEventCollectionQuery = (): EventCollectionQuery => ({ month: wibMonthKey(), savedViewId: null })
 const EVENT_QUERY_KEYS: readonly QueryKey<EventCollectionQuery>[] = ['month', 'savedViewId']
 
 function parseEventQuery(params: URLSearchParams): CollectionQueryParse<EventCollectionQuery> {
-  const month = params.get('month') ?? wibMonthKey()
+  const neutral = currentEventCollectionQuery()
+  const month = params.get('month') ?? neutral.month
   const savedViewId = params.get('saved')
-  if (!wibMonthRange(month)) return { ok: false, query: { month: wibMonthKey(), savedViewId }, issues: [{ key: 'month', code: 'invalid-value', value: month }] }
+  if (!wibMonthRange(month)) return { ok: false, query: { month: neutral.month, savedViewId }, issues: [{ key: 'month', code: 'invalid-value', value: month }] }
   return { ok: true, query: { month, savedViewId } }
 }
 function serializeEventQuery(query: EventCollectionQuery): URLSearchParams {
@@ -27,7 +29,11 @@ function serializeEventQuery(query: EventCollectionQuery): URLSearchParams {
   return params
 }
 export const eventCollectionQuery: CollectionQuerySchema<EventCollectionQuery> = {
-  keys: EVENT_QUERY_KEYS, neutral: EVENT_COLLECTION_NEUTRAL_QUERY, parse: parseEventQuery, serialize: serializeEventQuery, normalize: (query) => query,
+  keys: EVENT_QUERY_KEYS,
+  get neutral() { return currentEventCollectionQuery() },
+  parse: parseEventQuery,
+  serialize: serializeEventQuery,
+  normalize: (query) => query,
 }
 
 const noSavedViews: CollectionViewStore = {
@@ -37,7 +43,7 @@ const noSavedViews: CollectionViewStore = {
   async archive() { throw new Error('Events saved views are not available') },
 }
 const eventSavedViews: CollectionSavedViewDescriptor<EventCollectionQuery, EventPresentation> = {
-  enabled: true, store: noSavedViews, operations: [],
+  enabled: false, store: noSavedViews, operations: [],
   buildSpec({ query }): CollectionViewSpec { return { kind: 'collection', version: 1, collectionId: 'events', domain: 'events', presentation: 'calendar', visibleFields: ['title', 'time', 'venue', 'outbound', 'businessUnit', 'coordinator'], query: { month: query.month }, sort: { field: 'startsAt', direction: 'ascending' }, grouping: null, layout: { density: 'comfortable' } } },
   parseAndValidate: parseCollectionViewSpec,
   applySpec(spec) { if (spec.collectionId !== 'events') throw new Error('Expected events view'); return { presentation: 'calendar', query: { month: spec.query.month, savedViewId: null } } },

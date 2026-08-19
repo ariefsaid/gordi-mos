@@ -29,7 +29,7 @@ create or replace function mos._guard_events() returns trigger language plpgsql 
 begin
   if tg_op = 'UPDATE' and (new.org_id is distinct from old.org_id or new.created_by is distinct from old.created_by) then raise exception 'event ownership is immutable' using errcode = '42501'; end if;
   if shared.current_org_id() is not null and new.org_id is distinct from shared.current_org_id() then raise exception 'event org must match current org' using errcode = '42501'; end if;
-  if new.created_by <> shared.current_person_id() and shared.current_person_id() is not null then raise exception 'event creator must match current person' using errcode = '42501'; end if;
+  if tg_op = 'INSERT' and new.created_by <> shared.current_person_id() and shared.current_person_id() is not null then raise exception 'event creator must match current person' using errcode = '42501'; end if;
   if new.business_unit_id is not null and not exists (select 1 from shared.business_units where id = new.business_unit_id and org_id = new.org_id) then raise exception 'business unit belongs to a different org' using errcode = '42501'; end if;
   if new.coordinator_person_id is not null and not exists (select 1 from shared.people where id = new.coordinator_person_id and org_id = new.org_id) then raise exception 'coordinator belongs to a different org' using errcode = '42501'; end if;
   return new;
@@ -53,4 +53,4 @@ alter table mos.user_views add constraint mos_user_views_metadata_ck check (
       or (kind = 'composition' and context in ('home','work')))
   )
 );
--- DOWN: drop policy events_update on mos.events; drop policy events_insert on mos.events; drop policy events_select on mos.events; revoke all on mos.events from authenticated; drop trigger events_guard on mos.events; drop trigger events_set_updated_at on mos.events; drop function mos._guard_events(); drop function mos.can_edit_event(uuid); drop table mos.events;
+-- DOWN: alter table mos.user_views drop constraint mos_user_views_metadata_ck; alter table mos.user_views add constraint mos_user_views_metadata_ck check ((kind is null and context is null and lifecycle is null) or (kind is not null and context is not null and lifecycle is not null and ((lifecycle = 'archived' and archived_at is not null) or (lifecycle = 'active' and archived_at is null)) and ((kind = 'collection' and context = 'work' and (spec->>'kind') = 'collection' and (spec->>'version') = '1' and (spec->>'collectionId') in ('tasks','signals')) or (kind = 'composition' and context in ('home','work'))))); drop policy events_update on mos.events; drop policy events_insert on mos.events; drop policy events_select on mos.events; revoke all on mos.events from authenticated; drop trigger events_guard on mos.events; drop trigger events_set_updated_at on mos.events; drop function mos._guard_events(); drop function mos.can_edit_event(uuid); drop table mos.events;

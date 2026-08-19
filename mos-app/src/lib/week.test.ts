@@ -1,9 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange, toWibInputValue, wibInputToUTCISO } from './week'
+import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange, toWibInputValue, wibInputToUTCISO, wibMonthKey, wibMonthRange } from './week'
 import type { WeekLabel } from './week'
 
 // AC-010: WIB week math — tests the pure weekLabel utility.
 // All instants are expressed in UTC; the impl must use Asia/Jakarta (UTC+7) for the calendar.
+
+describe('AC-348: WIB month helpers', () => {
+  it('derives the WIB month rather than the host UTC month', () => {
+    expect(wibMonthKey(new Date('2026-12-31T18:00:00Z'))).toBe('2027-01')
+  })
+  it('returns December and January half-open UTC boundaries', () => {
+    expect(wibMonthRange('2026-12')).toEqual({ month: '2026-12', startISO: '2026-11-30T17:00:00.000Z', endISO: '2026-12-31T17:00:00.000Z' })
+    expect(wibMonthRange('2027-01')).toEqual({ month: '2027-01', startISO: '2026-12-31T17:00:00.000Z', endISO: '2027-01-31T17:00:00.000Z' })
+  })
+  it('rejects malformed month keys', () => {
+    expect(wibMonthRange('2026-13')).toBeNull()
+    expect(wibMonthRange('2026-1')).toBeNull()
+  })
+})
 
 describe('AC-010: weekLabel WIB week math', () => {
   it('(a) Wed 10 Jun 2026 12:00 WIB → range 8–14 Jun 2026, today Wed 10 Jun', () => {
