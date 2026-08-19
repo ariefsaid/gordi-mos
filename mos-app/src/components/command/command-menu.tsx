@@ -8,7 +8,7 @@ import { useAuth } from '@/auth/use-auth'
 import { can, canViewRevenue } from '@/lib/capabilities'
 import {
   HomeIcon, WorkIcon, SignalsIcon, TasksIcon, WorkLineIcon, ObjectiveIcon,
-  EventsIcon, MoneyIcon, InboxIcon, CafeIcon,
+  MoneyIcon, InboxIcon, CafeIcon,
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -145,7 +145,6 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     // (mos.objectives SELECT RLS has no role check). Write stays gated inside the page.
     items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
     items.push(
-      { id: 'n-events', label: t('dest.events'), Icon: EventsIcon, kind: 'navigate', to: '/events' },
       { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
       { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
       { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },

@@ -43,7 +43,7 @@ export const SECTIONS: Section[] = [
   // only `Destination.children` was filtered on capability, but it read as live and would have
   // become live the moment anyone filtered SECTIONS.
   { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
-  { path: '/events', label: 'Events', labelKey: 'nav.events', Icon: EventsIcon },
+  { path: '/work/events', label: 'Events', labelKey: 'nav.work.events', Icon: EventsIcon },
   { path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon },
   { path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon },
   { path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon },

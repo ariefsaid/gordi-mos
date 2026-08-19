@@ -61,11 +61,11 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   // ruling) replaces that model: navigation mirrors what the ROUTE admits, and the module routes
   // are ungated. The drawer is the phone's only route to a module's screens, so hiding them here
   // is precisely what left kitchen staff with no phone nav (#242).
-  it('an org-wide admin sees Events, Admin Settings, Profile — and the module links their routes admit', () => {
+  it('an org-wide admin sees Work Events, Admin Settings, Profile — and the module links their routes admit', () => {
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(screen.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/events')
+    expect(screen.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/work/events')
     expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
     expect(screen.getByRole('link', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
     expect(screen.getByRole('link', { name: /Ecommerce/ })).toHaveAttribute('href', '/ecommerce')
@@ -150,7 +150,7 @@ describe('More menu navigation + a11y', () => {
     const onClose = vi.fn()
     renderDrawer({ onClose, accessRoles: ['admin'] })
     await user.click(screen.getByRole('link', { name: /Events/ }))
-    expect(screen.getByTestId('location').textContent).toBe('/events')
+    expect(screen.getByTestId('location').textContent).toBe('/work/events')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -178,7 +178,7 @@ describe('More menu navigation + a11y', () => {
       </ThemeProvider>,
     )
     await user.click(screen.getByRole('link', { name: /Events/ }))
-    expect(screen.getByTestId('location').textContent).toBe('/events')
+    expect(screen.getByTestId('location').textContent).toBe('/work/events')
     expect(onClose).toHaveBeenCalled()
     expect(focusOpener).toHaveBeenCalled()
   })

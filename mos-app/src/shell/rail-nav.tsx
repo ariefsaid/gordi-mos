@@ -23,7 +23,7 @@ const WORK_SUBSECTIONS: { labelKey: MessageKey; paths: readonly string[] }[] = [
   { labelKey: 'rail.work.execution', paths: ['/work/tasks'] },
   { labelKey: 'rail.work.workSystems', paths: ['/work/projects'] },
   { labelKey: 'rail.work.direction', paths: ['/work/objectives'] },
-  { labelKey: 'rail.work.cadence', paths: ['/work/signals'] },
+  { labelKey: 'rail.work.cadence', paths: ['/work/signals', '/work/events'] }
 ]
 
 // The ONE render seam for the rail count badges: which path shows which count (undefined → no badge).

@@ -370,15 +370,10 @@ export const messages = {
     // built yet — distinct from a 404, which is a path that will never exist.
     'stub.notInSlice': 'Not in this slice yet',
     'stub.comingLater': '${name} lands in a later build step.',
-    // Events (#199). The destination is owner-named and in scope, but WHAT IT IS FOR is still
-    // unruled (#158 — external happenings vs internal calendar), so the surface claims no model:
-    // a job sentence and an honest empty state, and nothing that implies a schema.
-    'events.empty.title': 'Nothing scheduled yet',
-    'events.empty.copy': 'Outlet events — cuppings, workshops, bookings — will appear here once events are turned on.',
     'dest.admin': 'Admin Settings',
     'dest.cafe': 'Café',
     'dest.ecommerce': 'Ecommerce',
-    'dest.events': 'Events',
+
     'dest.money': 'Money',
     'dest.profile': 'Personal Profile',
     'dest.roastery': 'Roastery',
@@ -386,7 +381,7 @@ export const messages = {
     'job.admin': 'Configure who can sign in and what they can do.',
     'job.cafe': "Run today's café floor work — openings, checks, stock, shifts.",
     'job.ecommerce': "Fulfil today's online orders against the right stock.",
-    'job.events': "See what's happening around our outlets and when.",
+
     'job.home': 'What needs my attention right now?',
     'job.inbox': 'Triage what was directed to you and return to its source.',
     'job.money': 'Trust the financial figures and act on money exceptions.',
@@ -412,7 +407,7 @@ export const messages = {
     'nav.cafe.review': 'Review',
     'nav.cafe.stock': 'Stock',
     'nav.ecommerce': 'Ecommerce',
-    'nav.events': 'Events',
+    'nav.work.events': 'Events',
     'nav.money': 'Money',
     'nav.more': 'More',
     'nav.profile': 'Personal Profile',
@@ -1494,12 +1489,10 @@ export const messages = {
     'leaveGuard.discard': 'Buang dan keluar',
     'stub.notInSlice': 'Belum ada di slice ini',
     'stub.comingLater': '${name} hadir di tahap build berikutnya.',
-    'events.empty.title': 'Belum ada acara terjadwal',
-    'events.empty.copy': 'Acara outlet — cupping, workshop, pemesanan — akan muncul di sini setelah fitur acara diaktifkan.',
     'dest.admin': 'Pengaturan Admin',
     'dest.cafe': 'Kafe',
     'dest.ecommerce': 'Ecommerce',
-    'dest.events': 'Acara',
+
     'dest.money': 'Keuangan',
     'dest.profile': 'Profil Pribadi',
     'dest.roastery': 'Roastery',
@@ -1507,7 +1500,7 @@ export const messages = {
     'job.admin': 'Atur siapa yang bisa masuk dan apa yang boleh mereka lakukan.',
     'job.cafe': 'Jalankan kerja floor kafe hari ini — pembukaan, cek, stok, shift.',
     'job.ecommerce': 'Penuhi pesanan online hari ini terhadap stok yang tepat.',
-    'job.events': 'Lihat apa yang terjadi di outlet kita dan kapan.',
+
     'job.home': 'Apa yang perlu perhatian saya sekarang?',
     'job.inbox': 'Triase apa yang ditujukan kepada Anda dan kembali ke sumbernya.',
     'job.money': 'Percayai angka keuangan dan bertindak pada pengecualian uang.',
@@ -1530,7 +1523,7 @@ export const messages = {
     'nav.cafe.review': 'Tinjauan',
     'nav.cafe.stock': 'Stok',
     'nav.ecommerce': 'Ecommerce',
-    'nav.events': 'Acara',
+    'nav.work.events': 'Acara',
     'nav.money': 'Keuangan',
     'nav.more': 'Lainnya',
     'nav.profile': 'Profil Pribadi',

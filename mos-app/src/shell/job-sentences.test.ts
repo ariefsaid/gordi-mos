@@ -7,12 +7,12 @@
 import { describe, it, expect } from 'vitest'
 import { jobSentences, jobKeyForPath } from './job-sentences'
 
-describe('AC-011/013 prep (T2): jobSentences registry — 12 rows, verbatim', () => {
-  it('exports exactly the 12 convergence keys (no more, no less)', () => {
+describe('jobSentences registry', () => {
+  it('does not retain a retired Events destination key', () => {
     expect(Object.keys(jobSentences).sort()).toEqual(
       [
         'home', 'work', 'tasks', 'signals', 'projects', 'objectives',
-        'events', 'money', 'inbox', 'cafe', 'ecommerce', 'roastery',
+        'money', 'inbox', 'cafe', 'ecommerce', 'roastery',
       ].sort(),
     )
   })
@@ -24,7 +24,6 @@ describe('AC-011/013 prep (T2): jobSentences registry — 12 rows, verbatim', ()
     expect(jobSentences.signals).toBe('Search and revisit the Signals your Teams have shared.')
     expect(jobSentences.projects).toBe('Govern the Processes and Projects that generate the work.')
     expect(jobSentences.objectives).toBe('Track the Objectives the org committed to.')
-    expect(jobSentences.events).toBe("See what's happening around our outlets and when.")
     expect(jobSentences.money).toBe('Trust the financial figures and act on money exceptions.')
     // DELIBERATE copy change (Census R2 DO-24(b) · F-INBOX-7): the convergence string
     // "Triage what asked for me…" was ungrammatical — rewritten to plain second person.
@@ -54,7 +53,8 @@ describe('jobKeyForPath — route → owning job key (Work child / record resolu
 
   it('resolves top-level destination routes to their job key', () => {
     expect(jobKeyForPath('/')).toBe('job.home')
-    expect(jobKeyForPath('/events')).toBe('job.events')
+    expect(jobKeyForPath('/work/events')).toBe('job.tasks')
+    expect(jobKeyForPath('/events')).toBe('job.notFound')
     expect(jobKeyForPath('/money')).toBe('job.money')
     expect(jobKeyForPath('/money/detail')).toBe('job.money')
     expect(jobKeyForPath('/inbox')).toBe('job.inbox')

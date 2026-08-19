@@ -26,7 +26,7 @@ import {
  * aria-current logic see one owner per route.
  */
 export type DestinationId =
-  | 'home' | 'work' | 'events' | 'money' | 'inbox'
+  | 'home' | 'work' | 'money' | 'inbox'
   | 'cafe' | 'ecommerce' | 'roastery'
   | 'admin' | 'profile'
 
@@ -73,6 +73,7 @@ export const DESTINATIONS: Destination[] = [
     // holder of the named capability; RequireCapability is the real route gate.
     children: [
       { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
+      { path: '/work/events', label: 'Events', labelKey: 'nav.work.events', Icon: EventsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
       { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon, capability: 'workline.manage' },
       // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible
@@ -84,24 +85,6 @@ export const DESTINATIONS: Destination[] = [
       // inside ObjectivesPage's own mutations — that capability is a WRITE gate, not a read one.
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
     ],
-  },
-  {
-    // This root renders as "Events". It previously carried a comment claiming OD-V4-2 ("Signals
-    // everywhere") had retired the noun and that `dest.events` / `nav.events` now resolve to
-    // "Signals", with the Work child relabelled "Signals Archive".
-    //
-    // Checked against the catalogue on BOTH lines: `dest.events` and `nav.events` are 'Events' /
-    // 'Acara' here AND on `v4-redesign` itself, and the Work child is 'Signals' / 'Sinyal', not
-    // 'Signals Archive'. So the comment was already wrong at its source — this is not a half-ported
-    // ruling, it is a rationale describing a relabelling nobody ever made. Corrected to match the
-    // code rather than carried across; whether OD-V4-2 still wants that relabelling is a question
-    // for the map, not something to infer from a stale comment.
-    id: 'events',
-    zone: 'workspace',
-    labelKey: 'dest.events',
-    Icon: EventsIcon,
-    primaryPath: '/events',
-    links: [{ path: '/events', label: 'Events', labelKey: 'nav.events', Icon: EventsIcon }],
   },
   {
     id: 'money',

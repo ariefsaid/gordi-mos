@@ -26,7 +26,7 @@ import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { ProfilePage } from './pages/profile-page'
-import { EventsPage } from './pages/events-page'
+import { EventsWorkspacePage } from './pages/events-workspace-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
@@ -133,9 +133,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/objectives', ObjectivesPage, 'dev'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   ['/work/follow-ups/:id', FollowUpsPage, 'dev'],
-  // Built by #199, routed by #269. EventsPage rather than the stub because the two say different
-  // things: the stub claims build order, Events is waiting on a ruling (#158).
-  ['/events', EventsPage, 'dev'],
+  ['/work/events', EventsWorkspacePage, 'dev'], 
   ['/money', DashboardPage, 'dev'],
   ['/money/detail', DashboardPage, 'dev'],
   ['/money/budget', BudgetPage, 'dev'],

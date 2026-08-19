@@ -38,8 +38,8 @@ describe('SliceStubPage — the placeholder for a route whose surface is not bui
   })
 
   it('sets the document title from the destination name', () => {
-    renderStub(<SliceStubPage jobKey="job.events" nameKey="dest.events" />)
-    expect(document.title).toBe('Events — Gordi MOS')
+    renderStub(<SliceStubPage jobKey="job.inbox" nameKey="dest.inbox" />)
+    expect(document.title).toBe('Inbox — Gordi MOS')
   })
 
   it('renders in the record family when the route is a record door', () => {

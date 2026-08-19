@@ -211,14 +211,14 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
 
 // ── AC-016: Navigate group — new canonical routes; old entries absent ──────────
 describe('AC-016: Navigate group points to the new canonical routes', () => {
-  it('AC-016: Navigate items include Home, Work, Signals, Events, Inbox, Café, Money (admin)', () => {
+  it('AC-016: Navigate items include live destinations and omit retired Events', () => {
     renderMenu()
     const nav = screen.getByRole('option', { name: /^Home$/i })
     expect(nav).toBeInTheDocument()
     // Navigate targets (href not exposed on option; assert labels present + activation navigates)
     expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Events$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Money$/i })).toBeInTheDocument()
@@ -300,7 +300,7 @@ describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per
     expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Events$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
