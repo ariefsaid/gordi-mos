@@ -246,19 +246,36 @@ finally:
     shutil.rmtree(scratch, ignore_errors=True)
 PYEOF
 
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" allowed >/dev/null \
+# The harness drives the REAL permissions.py, whose import chain reaches
+# pydantic (via data_types.py), and the harness itself needs yaml. CI's guard
+# runner provisions no python deps, so resolve them here — NEVER skip the
+# harness: a skipped control is exactly the failure mode this test exists to
+# kill. Plain python3 when it already has the deps (dev machines), else uv
+# with inline deps, else a scratch venv via pip. A provisioning failure falls
+# through to the harness checks going red, never to a silent pass.
+if python3 -c 'import pydantic, yaml' 2>/dev/null; then
+  PY() { python3 "$@"; }
+elif command -v uv >/dev/null 2>&1; then
+  PY() { uv run --no-project --quiet --with pydantic --with pyyaml python "$@"; }
+else
+  python3 -m venv "$tmp/venv" && "$tmp/venv/bin/pip" install --quiet pydantic pyyaml \
+    || bad "could not provision harness deps (no uv; venv/pip failed) (#357)"
+  PY() { "$tmp/venv/bin/python" "$@"; }
+fi
+
+PY "$tmp/harness.py" "$PWD" "$CONFIG" allowed >/dev/null \
   && ok "builder deliverables in general scripts//mos-app/ + lockfile allowed by enforce() (#357)" \
   || bad "a builder deliverable outside the control surfaces was refused (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" breach >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" breach >/dev/null \
   && ok "every protected pattern's probe + floor control paths rolled back + refused (#357)" \
   || bad "a protected pattern or floor control path was NOT refused/rolled back (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" rename >/dev/null \
   && ok "rename-aside of a protected file refused + restored (collapse attack closed) (#357)" \
   || bad "rename-aside collapse attack not caught (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename_protected >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" rename_protected >/dev/null \
   && ok "protected-to-protected rename: both halves named + rolled back, tree clean (#357)" \
   || bad "protected-to-protected rename not fully caught/rolled back (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" quoted >/dev/null \
   && ok "tab/quote-named files under a protected pattern named verbatim + rolled back (#357)" \
   || bad "a C-quoted path slipped past enforcement (#357)"
 
@@ -266,27 +283,27 @@ python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted >/dev/null \
 awk '{print} /^  protected_files:/{print "    - scripts/**"}' "$CONFIG" > "$tmp/broad.yaml"
 check_config "$tmp/broad.yaml" >/dev/null && bad "checker missed a re-broadened scripts/ entry (#357)" \
   || ok "checker catches a re-broadened scripts/ entry (#357)"
-python3 "$tmp/harness.py" "$PWD" "$tmp/broad.yaml" allowed >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$tmp/broad.yaml" allowed >/dev/null \
   && bad "harness missed the broad-scripts/ rollback (the #349 failure) (#357)" \
   || ok "harness goes red on the old broad-scripts/ behavior (#349 failure) (#357)"
 grep -v 'scripts/pre-pr-verify.sh' "$CONFIG" > "$tmp/unguarded.yaml"
-python3 "$tmp/harness.py" "$PWD" "$tmp/unguarded.yaml" breach >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$tmp/unguarded.yaml" breach >/dev/null \
   && bad "harness missed a control script losing protection (#357)" \
   || ok "harness goes red when a control script loses protection (#357)"
 grep -v -- '- mos-app/package.json' "$CONFIG" > "$tmp/nogatecmd.yaml"
-python3 "$tmp/harness.py" "$PWD" "$tmp/nogatecmd.yaml" breach >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$tmp/nogatecmd.yaml" breach >/dev/null \
   && bad "harness missed the gate-command definition losing protection (#357)" \
   || ok "harness goes red when the gate-command definition loses protection (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename strip-no-renames >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" rename strip-no-renames >/dev/null \
   && bad "harness missed the rename collapse with --no-renames stripped (#357)" \
   || ok "harness goes red without --no-renames (collapse attack works again) (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-z >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-z >/dev/null \
   && bad "harness missed the C-quoting hole with -z stripped (#357)" \
   || ok "harness goes red without -z (C-quoted paths dodge the patterns again) (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted force-text >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" quoted force-text >/dev/null \
   && bad "harness missed the CR newline-translation hole with text-mode forced (#357)" \
   || ok "harness goes red with text-mode translation forced (CR paths dodge again) (#357)"
-python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-ctl-cap >/dev/null \
+PY "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-ctl-cap >/dev/null \
   && bad "harness missed the control-byte cap being stripped (#357)" \
   || ok "harness goes red without the control-byte cap (non-pattern CR path permitted) (#357)"
 
