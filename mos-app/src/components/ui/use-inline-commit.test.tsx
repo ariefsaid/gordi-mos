@@ -128,6 +128,24 @@ describe('useInlineCommit — async pending + rollback (reuses the I6 optimistic
     await waitFor(() => expect(input).not.toHaveAttribute('aria-busy'))
   })
 
+  it('suppresses the blur delivered after Enter while an async commit is pending', async () => {
+    const deferredCommit = deferred<void>()
+    const onCommit = vi.fn(() => deferredCommit.promise)
+    render(<NumberField value={5} onCommit={onCommit} />)
+    const input = screen.getByLabelText('qty')
+    fireEvent.change(input, { target: { value: '8' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(onCommit).toHaveBeenCalledTimes(1)
+      expect(input).toBeDisabled()
+    })
+    fireEvent.blur(input)
+    await Promise.resolve()
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    deferredCommit.resolve()
+    await waitFor(() => expect(input).not.toBeDisabled())
+  })
+
   it('AC-I5-5: a rejected commit rolls the draft back to saved AND announces via role=status', async () => {
     const d = deferred<void>()
     render(<NumberField value={5} onCommit={() => d.promise} rollbackMessage="Couldn’t save — reverted." />)
