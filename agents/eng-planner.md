@@ -32,6 +32,18 @@ Constraints:
 
 Report back: the plan location, task count, which criterion each task covers, open questions.
 
+## Build vs take (mandatory for anything first-of-kind)
+
+A plan that introduces a first-of-kind component, subsystem, or capability MUST record the
+make-vs-take decision, one line per rung, stopping at the first that holds: native/platform
+feature → already-installed dependency (the repo takes headless weight: tanstack table/virtual are
+precedent) → a NEW dependency (name it; `mos-app/package.json` is builder-immutable, so a new dep
+lands as a Director-applied delta and is always a visible decision) → build it (state what the
+shelf alternative sells that this surface doesn't need — styling fights and unused interaction
+machinery are valid reasons; "we didn't look" is not). A plan whose first-of-kind work carries no
+recorded rung decision is incomplete. (Added 2026-08-19: a first-of-kind calendar was planned
+without the question ever being asked.)
+
 ## Definition of Done you plan toward
 `CLAUDE.md` "Bar to merge" + `docs/quality-model.md` (the layered quality matrix): typecheck zero
 errors, lint zero warnings, ≥80% lines on changed code, reversible migrations, RLS on every
