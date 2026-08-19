@@ -42,9 +42,19 @@ class PermissionBreach(RuntimeError):
     """An agent modified a path it was not permitted to modify."""
 
 
-def _git(args: list[str], cwd) -> str:
-    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    return result.stdout if result.returncode == 0 else ""
+def _git(args: list[str], cwd) -> bytes:
+    """Run git and return raw stdout BYTES.
+
+    Bytes on purpose (#357): `text=True` applies universal-newline translation,
+    which rewrites a `\\r` inside a filename to `\\n` — the fingerprint key then
+    names a path that does not exist, so matching or rollback acts on the wrong
+    name and the real file survives. Callers that parse paths decode each one
+    at the edge with utf-8/surrogateescape: round-trippable for non-UTF-8
+    names (argv and os calls re-encode them byte-exactly), no translation
+    anywhere.
+    """
+    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True)
+    return result.stdout if result.returncode == 0 else b""
 
 
 def snapshot(run) -> dict[str, str]:
@@ -72,14 +82,15 @@ def snapshot(run) -> dict[str, str]:
     """
     fingerprints: dict[str, str] = {}
     for record in _git(["diff", "HEAD", "--numstat", "--no-renames", "-z"],
-                       run.repo_root).split("\0"):
-        fields = record.split("\t", 2)
+                       run.repo_root).split(b"\0"):
+        fields = record.split(b"\t", 2)
         if len(fields) == 3 and fields[2]:
-            fingerprints[fields[2]] = f"{fields[0]},{fields[1]}"
-    for path in _git(["ls-files", "--others", "--exclude-standard", "-z"],
-                     run.repo_root).split("\0"):
-        if path:
-            fingerprints[path] = "untracked"
+            path = fields[2].decode("utf-8", "surrogateescape")
+            fingerprints[path] = f"{fields[0].decode()},{fields[1].decode()}"
+    for raw in _git(["ls-files", "--others", "--exclude-standard", "-z"],
+                    run.repo_root).split(b"\0"):
+        if raw:
+            fingerprints[raw.decode("utf-8", "surrogateescape")] = "untracked"
     return fingerprints
 
 
@@ -139,8 +150,22 @@ def always_writable(cfg: SSSFConfig) -> list[str]:
     return [cfg.defaults.data_dir.rstrip("/") + "/"]
 
 
+def _control_bytes(path: str) -> bool:
+    """True when the path smuggles control characters (< 0x20).
+
+    No legitimate path in this repo contains a tab, newline, carriage return,
+    or escape byte — every historical use of one here was an attempt to slip
+    past pattern matching or output parsing (#357). Rather than proving each
+    representation layer safe case by case, the whole class is a breach by
+    definition: such a path is never permitted, for any agent.
+    """
+    return any(ord(ch) < 0x20 for ch in path)
+
+
 def permitted(path: str, agent: AgentConfig, cfg: SSSFConfig) -> bool:
     """Session runtime first, then the agent's own list, then what is protected."""
+    if _control_bytes(path):
+        return False
     if any(_matches(path, p) for p in always_writable(cfg)):
         return True
     if any(_matches(path, p) for p in (agent.writes or [])):

@@ -109,13 +109,21 @@ import yaml
 from adws.adw_modules import permissions as P
 
 if len(sys.argv) > 4:
-    # can-fail controls: prove a snapshot git flag is load-bearing (#357) by
-    # removing it from every git invocation and expecting the matching attack
-    # scenario to go red — strip-no-renames re-enables the rename collapse,
-    # strip-z re-enables C-quoted paths dodging the protected patterns.
-    _strip = {"strip-no-renames": "--no-renames", "strip-z": "-z"}[sys.argv[4]]
+    # can-fail controls (#357): re-open one closed hole and expect the matching
+    # attack scenario to go red — strip-no-renames re-enables the rename
+    # collapse, strip-z re-enables C-quoted paths dodging the patterns,
+    # force-text re-applies universal-newline translation (what text=True
+    # subprocess reads did to \r in filenames), strip-ctl-cap disables the
+    # control-byte breach-by-definition cap.
+    mode = sys.argv[4]
     _orig_git = P._git
-    P._git = lambda args, cwd: _orig_git([a for a in args if a != _strip], cwd)
+    if mode == "force-text":
+        P._git = lambda args, cwd: _orig_git(args, cwd).replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    elif mode == "strip-ctl-cap":
+        P._control_bytes = lambda path: False
+    else:
+        _strip = {"strip-no-renames": "--no-renames", "strip-z": "-z"}[mode]
+        P._git = lambda args, cwd: _orig_git([a for a in args if a != _strip], cwd)
 
 raw = yaml.safe_load(Path(config_path).read_text())
 patterns = raw["defaults"]["protected_files"]
@@ -152,7 +160,9 @@ try:
     for p in PROTECTED:
         f = scratch / p; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(SEED)
     QTRACKED = "scripts/audit-tr\tacked357.sh"          # tab in a tracked name
-    QNEW = ["scripts/audit-ta\tb357.sh", 'scripts/audit-qu"ote357.sh']
+    QNEW = ["scripts/audit-ta\tb357.sh", 'scripts/audit-qu"ote357.sh',
+            "scripts/audit-c\rr357.sh"]                 # \r would be newline-translated by text-mode reads
+    QCAP = "mos-app/src/we\rird357.tsx"                 # \r OUTSIDE every pattern — only the control-byte cap refuses it
     if scenario == "quoted":
         f = scratch / QTRACKED; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(SEED)
     git("init", "-q"); git("add", "-A")
@@ -191,16 +201,17 @@ try:
         # protected pattern. All three files here sit under scripts/audit-*.sh:
         # a tracked tab-name tampered, and two created (tab, double quote).
         (scratch / QTRACKED).write_text("builder tampered\n")
-        for p in QNEW: (scratch / p).write_text("evil\n")
+        f = scratch / QCAP; f.parent.mkdir(parents=True, exist_ok=True)
+        for p in [*QNEW, QCAP]: (scratch / p).write_text("evil\n")
         try:
             P.enforce(run, None, builder, before)
             die("no breach — C-quoted paths slipped past the protected patterns")
         except P.PermissionBreach as e:
             msg = str(e)
-            for p in [QTRACKED, *QNEW]:
+            for p in [QTRACKED, *QNEW, QCAP]:
                 if p not in msg: die(f"breach does not name {p!r} verbatim")
             if (scratch / QTRACKED).read_text() != SEED: die(f"{QTRACKED!r} not restored")
-            for p in QNEW:
+            for p in [*QNEW, QCAP]:
                 if (scratch / p).exists(): die(f"created {p!r} not deleted")
             status = subprocess.run(["git", "status", "--porcelain"], cwd=scratch,
                                     capture_output=True, text=True).stdout
@@ -272,6 +283,12 @@ python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename strip-no-renames >/dev/null \
 python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-z >/dev/null \
   && bad "harness missed the C-quoting hole with -z stripped (#357)" \
   || ok "harness goes red without -z (C-quoted paths dodge the patterns again) (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted force-text >/dev/null \
+  && bad "harness missed the CR newline-translation hole with text-mode forced (#357)" \
+  || ok "harness goes red with text-mode translation forced (CR paths dodge again) (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-ctl-cap >/dev/null \
+  && bad "harness missed the control-byte cap being stripped (#357)" \
+  || ok "harness goes red without the control-byte cap (non-pattern CR path permitted) (#357)"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
