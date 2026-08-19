@@ -8,6 +8,7 @@ on:
       - 'scripts/agent-git-shim/**'
       - 'scripts/pre-pr-verify.sh'
       - 'scripts/*.test.sh'
+      - 'scripts/import-kitchen-history.py'
       - 'scripts/setup-hooks.sh'
       - '.github/workflows/guards.yml'
       # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory

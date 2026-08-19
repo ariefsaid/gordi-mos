@@ -6,6 +6,9 @@
 # write the integrations.esb_push outbox — the import can never create outbox work.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# Hermeticity is enforced, not assumed: a leaked env var must not turn the no-db-url
+# refusal check into a real load against whatever it points at (PR-gate finding, 2026-08-19).
+unset KITCHEN_IMPORT_DB_URL
 SCRIPT="$(pwd)/scripts/import-kitchen-history.py"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -43,14 +46,14 @@ cat > "$tmp/wip.json" <<'EOF'
 EOF
 cat > "$tmp/logs.json" <<'EOF'
 {"records":[
- {"id":"recL1","createdTime":"2026-08-01T02:00:00.000Z","fields":{"date":"2026-08-01T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Production","qty_porsi":10,"status":"Approved","submitted_by":"Ansori","reviewed_by":"Riri","reviewed_at":"2026-08-01T09:30:00.000Z","posted_to_esb":true,"esb_doc_num":"ESB-HIST-1","posted_at":"2026-08-01T09:00:00.000Z","notes":"hift"}},
+ {"id":"recL1","createdTime":"2026-08-01T02:00:00.000Z","fields":{"date":"2026-08-01T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Production","qty_porsi":10,"status":"Approved","submitted_by":"cahya.dev","reviewed_by":"dewi.dev","reviewed_at":"2026-08-01T09:30:00.000Z","posted_to_esb":true,"esb_doc_num":"ESB-HIST-1","posted_at":"2026-08-01T09:00:00.000Z","notes":"hift"}},
  {"id":"recL2","fields":{"date":"2026-08-02T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Fire Sale","qty_porsi":3,"status":"Approved"}},
  {"id":"recL3","fields":{"date":"2026-08-03T17:00:00.000Z","wip_item":{"id":"recW2"},"action_type":"Transfer to Radiant","qty_porsi":5,"status":"Approved","posted_to_esb":false}},
  {"id":"recL4","fields":{"date":"2026-08-04T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Transfer to GGS","qty_porsi":2,"status":"Submitted"}}]}
 EOF
 cat > "$tmp/plans.json" <<'EOF'
-[{"id":"recP1","createdTime":"2026-08-01T01:00:00.000Z","fields":{"date":"2026-08-01T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Production","planned_qty":40,"plan_by":"Riri","notes":"shift plan"}},
- {"id":"recP2","createdTime":"2026-08-01T05:00:00.000Z","fields":{"date":"2026-08-01T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Production","planned_qty":45,"plan_by":"Riri"}}]
+[{"id":"recP1","createdTime":"2026-08-01T01:00:00.000Z","fields":{"date":"2026-08-01T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Production","planned_qty":40,"plan_by":"dewi.dev","notes":"shift plan"}},
+ {"id":"recP2","createdTime":"2026-08-01T05:00:00.000Z","fields":{"date":"2026-08-01T17:00:00.000Z","wip_item":{"id":"recW1"},"action_type":"Production","planned_qty":45,"plan_by":"dewi.dev"}}]
 EOF
 
 # ── refusal paths (AC-6) ─────────────────────────────────────────────────────────────────────
