@@ -1,9 +1,11 @@
 # sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
 # v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
 #
-# MOS substrate ruling (owner 2026-08-15): zai/glm-5.3 is the top-tier builder/planner model;
-# reviews run CROSS-FAMILY on the gpt-5.6 pair via openai-codex OAuth (luna = design/FE review,
-# terra = code review). openrouter and fireworks are NOT valid substrates in this roster.
+# MOS roster ruling (owner 2026-08-19, OD-WAY-64; supersedes 2026-08-15's builder half):
+# planner zai/glm-5.3 · standard builder openai-codex/gpt-5.6-luna · reviewer gpt-5.6-terra.
+# The standard chain's inner review is therefore SAME-FAMILY (luna→terra); the PR-gate three-lens
+# roster carries the cross-family check. fe_builder stays glm-5.3 (fe_reviewer is luna — one model
+# on both sides is no review). openrouter and fireworks are NOT valid substrates in this roster.
 #
 # ⚑ Two places, always: a substrate ruling lands in docs/agents/pi-delegation.md AND here —
 # one ruling applied twice, never a drift.
@@ -79,7 +81,7 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: zai/glm-5.3             # pinned explicitly — see the header rule
+    model: openai-codex/gpt-5.6-luna  # owner roster ruling 2026-08-19 (OD-WAY-64): builder on luna; same-family vs terra review — cross-family restored at the PR gate
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     contract: agents/implementer.md
@@ -124,7 +126,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-terra   # code review — cross-family vs the GLM builders, via codex OAuth
+    model: openai-codex/gpt-5.6-terra   # code review — same family as the luna builder (OD-WAY-64); the PR-gate three-lens roster carries the cross-family check
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -143,7 +145,7 @@ agents:
       - write
 
   - name: fe_builder
-    model: zai/glm-5.3             # pinned explicitly — the unpinned-fe_builder defaults gap is a bug, not a pattern
+    model: zai/glm-5.3             # DELIBERATELY kept on GLM (OD-WAY-64): fe_reviewer is luna, and a luna fe_builder would collapse build+review onto one model
     color: "#34d399"
     purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
     contract: agents/ui-implementer.md
