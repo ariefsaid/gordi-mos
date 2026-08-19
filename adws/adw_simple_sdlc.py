@@ -53,6 +53,7 @@ pinned before the first commit phase and printed in the request phase.
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -75,10 +76,22 @@ FINDINGS_PROMPT = ("Close these findings against the existing plan (from run "
                    "Findings:\n{findings}")
 
 
+# The exact shape session.py mints (utils.new_id(8) -> token_hex): 8 lowercase
+# hex chars. --from-adw-id becomes a filesystem path component, so anything
+# else is refused BEFORE any file read — an id is opaque, never a path.
+_ADW_ID = re.compile(r"^[0-9a-f]{8}$")
+
+
 def _prior_plan(cfg, prior_adw_id: str) -> PlanOutput:
     """The plan envelope the prior session recorded — reused verbatim as build context."""
-    path = (Path(cfg.defaults.data_dir) / "sessions" / prior_adw_id
-            / "planner" / "envelope.json")
+    if not _ADW_ID.fullmatch(prior_adw_id):
+        raise SystemExit(f"--from-adw-id {prior_adw_id!r} is not a session id "
+                         f"(8 hex chars, as the runner mints them)")
+    sessions = (Path(cfg.defaults.data_dir) / "sessions").resolve()
+    path = (sessions / prior_adw_id / "planner" / "envelope.json").resolve()
+    if sessions not in path.parents:      # defense in depth behind the format check
+        raise SystemExit(f"--from-adw-id {prior_adw_id!r} is not a session id "
+                         f"(resolves outside the sessions dir)")
     if not path.is_file():
         raise SystemExit(f"--from-adw-id {prior_adw_id}: no recorded plan envelope at "
                          f"{path} — findings mode needs a prior session that planned")

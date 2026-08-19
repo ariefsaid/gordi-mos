@@ -34,6 +34,13 @@ grep -q 'Co-Authored-By: Claude Fable 5' adws/adw_modules/git_helper.py \
 grep -q 'contract declared but not found' adws/adw_modules/agents.py \
   && ok "declared-but-missing contract refuses in validate() (FAC-002 seam)" \
   || bad "agents.py validate() lacks the missing-contract refusal"
+# #343: every chain that commits passes its executing builder's model — all four
+# chains have exactly one builder at commit time, so none may fall back silently.
+for chain in adw_plan_build adw_plan_build_test adw_plan_build_test_quality; do
+  grep -q 'commit_all(message, model=builder_model)' "adws/${chain}.py" \
+    && ok "${chain}.py commits with the builder's model (#343)" \
+    || bad "${chain}.py commits without the builder's model — silent neutral fallback (#343)"
+done
 
 OUT="$(python3 - "$ROOT" <<'PY'
 import contextlib, importlib.util, json, os, shutil, subprocess, sys, tempfile, types
@@ -184,6 +191,32 @@ check("landed commit never attributes a model that did not build",
       "anthropic" not in body, body)
 check("exactly one trailer line", body.count("Co-Authored-By:") == 1, body)
 
+# a builder-supplied trailer must NOT survive: the derived line is the only
+# attribution, enforced in code — a message arriving WITH a bogus trailer lands
+# with exactly the derived one.
+def land(msg, filename):
+    (grepo / filename).write_text(filename)
+    prev = os.getcwd()
+    try:
+        os.chdir(grepo)
+        gh.commit_all(msg, model="zai/glm-5.3")
+    finally:
+        os.chdir(prev)
+    return subprocess.run(["git", "log", "-1", "--format=%B"], cwd=grepo,
+                          capture_output=True, text=True).stdout
+
+body = land("feat: x\n\nCo-Authored-By: Someone Else <bogus@example.com>", "g.txt")
+check("builder-supplied bogus trailer is stripped; derived one appended",
+      "bogus@example.com" not in body
+      and "Co-Authored-By: GLM-5.3 <noreply@z.ai>" in body
+      and body.count("Co-Authored-By:") == 1, body)
+body = land("feat: y\n\nCo-Authored-By: A <a@x.invalid>\nCo-Authored-By: B <b@x.invalid>",
+            "h.txt")
+check("two bogus trailers both stripped; exactly the derived line lands",
+      "x.invalid" not in body
+      and "Co-Authored-By: GLM-5.3 <noreply@z.ai>" in body
+      and body.count("Co-Authored-By:") == 1, body)
+
 # proven-can-fail: drop the mapping row (a broken derivation) → the same
 # attribution predicate goes red; restore → green again.
 saved = gh.SUBSTRATE_ATTRIBUTION.pop("zai/glm-5.3")
@@ -300,16 +333,16 @@ check("normal run enters through the plan phase",
       "plan" in phases and "commit_plan" in phases, str(phases))
 
 # ── findings mode: skip planning, reuse the prior plan, link the sessions ─────
-prior_dir = datadir / "sessions" / "prior123" / "planner"
+prior_dir = datadir / "sessions" / "ab12cd34" / "planner"
 prior_dir.mkdir(parents=True)
 (prior_dir / "envelope.json").write_text(json.dumps({
     "status": "success", "summary": "the prior plan",
-    "artifacts": ["adws/adw_data/sessions/prior123/context_handoff/plan.md"],
+    "artifacts": ["adws/adw_data/sessions/ab12cd34/context_handoff/plan.md"],
     "commit_message": ""}))
 
 phases.clear(); committed.clear(); prompts_seen.clear(); logs.clear(); validated.clear()
 rc = sdlc.main(None, findings="finding A: the trailer names the wrong model",
-               from_adw_id="prior123")
+               from_adw_id="ab12cd34")
 check("findings run accepted end-to-end", rc == 0 and fake_run.accepted is True)
 check("findings run NEVER runs the planner — no plan/commit_plan phase in the trace",
       "plan" not in phases and "commit_plan" not in phases, str(phases))
@@ -323,23 +356,41 @@ check("build prompt is the findings, framed against the existing plan",
       and "existing plan" in build_prompts[0], str(build_prompts))
 request_logs = [kw for name, kw in logs if name == "request"]
 check("request record links the prior session (prior_adw_id logged)",
-      request_logs and request_logs[0].get("prior_adw_id") == "prior123", str(request_logs))
+      request_logs and request_logs[0].get("prior_adw_id") == "ab12cd34", str(request_logs))
 check("findings run still commits exactly once, attributed to the builder model",
       len(committed) == 1 and committed[0][1] == "zai/glm-5.3", str(committed))
 
 # a prior id with no recorded plan refuses the run before anything spawns
 try:
-    sdlc.main(None, findings="x", from_adw_id="no-such-session")
+    sdlc.main(None, findings="x", from_adw_id="deadbeef")
     check("missing prior plan refuses the run", False, "SystemExit not raised")
 except SystemExit as e:
     check("missing prior plan refuses the run", "no recorded plan" in str(e), str(e))
+
+# --from-adw-id is a filesystem path component: anything but a runner-minted
+# session id (8 hex chars) is refused BEFORE any file read. A plan envelope is
+# planted OUTSIDE the sessions dir so a traversal that slipped through would
+# actually be read — the refusal check fails loudly on vulnerable code.
+outside = work / "outside" / "planner"
+outside.mkdir(parents=True)
+(outside / "envelope.json").write_text(json.dumps({
+    "status": "success", "summary": "planted outside the sessions dir",
+    "artifacts": ["x"], "commit_message": ""}))
+for evil in ("../../outside", "/etc", "ab12cd34/../../../outside", "AB12CD34"):
+    try:
+        rc = sdlc.main(None, findings="x", from_adw_id=evil)
+        check(f"traversal --from-adw-id refused before any read: {evil!r}",
+              False, f"run proceeded, rc={rc}")
+    except SystemExit as e:
+        check(f"traversal --from-adw-id refused before any read: {evil!r}",
+              "not a session id" in str(e), str(e))
 
 # round caps unchanged: a red findings run still exhausts at 3 fix rounds, no commit
 QUALITY_GREEN = False
 stub_quality.run_tests = lambda run: types.SimpleNamespace(
     passed=False, checks=[], failures=["test: red"], artifacts=[])
 phases.clear(); committed.clear()
-rc = sdlc.main(None, findings="finding B", from_adw_id="prior123")
+rc = sdlc.main(None, findings="finding B", from_adw_id="ab12cd34")
 check("red findings run: same 3-round cap, exits unaccepted with zero commits",
       rc == 1 and len([p for p in phases if p.startswith("fix_")]) == 3 and committed == [],
       str(phases) + str(committed))

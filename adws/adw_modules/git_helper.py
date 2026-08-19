@@ -67,8 +67,10 @@ def commit_all(message: str, model: str | None = None) -> str:
 
     `model` is the executing builder's roster model (e.g. "zai/glm-5.3") — it
     decides the attribution trailer. A caller that passes none gets the neutral
-    fallback, never a named model that did not build. The guard keeps the
-    message to a single Co-Authored-By line.
+    fallback, never a named model that did not build. The derived line is the
+    ONLY attribution: any Co-Authored-By an agent wrote into its message is
+    stripped first, so a false trailer cannot ride a builder's commit_message —
+    exactly one trailer, enforced in code, not convention.
     """
     if not is_repo():
         raise RuntimeError(
@@ -77,8 +79,9 @@ def commit_all(message: str, model: str | None = None) -> str:
     _git("add", "-A")
     if not _git("status", "--porcelain"):
         raise RuntimeError("nothing to commit — the preceding phases changed no files")
-    if "Co-Authored-By:" not in message:
-        message = f"{message}\n\n{commit_trailer(model)}"
+    kept = [line for line in message.splitlines()
+            if not line.lstrip().lower().startswith("co-authored-by:")]
+    message = "\n".join(kept).rstrip() + f"\n\n{commit_trailer(model)}"
     _git("commit", "-m", message)
     return _git("rev-parse", "--short", "HEAD")
 
