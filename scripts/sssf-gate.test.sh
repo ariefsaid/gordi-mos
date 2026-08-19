@@ -407,5 +407,34 @@ else
   bad "python harness reported failures"
 fi
 
+# ── gate unit: diff_matches_claims accepts real deletions, refuses phantoms (#348 live hit) ──
+GOUT="$(python3 - <<'PY'
+import subprocess, sys, tempfile, types
+from pathlib import Path
+sys.path.insert(0, str(Path("adws").resolve()))
+from adw_modules import gates
+work = Path(tempfile.mkdtemp())
+subprocess.run(["git", "init", "-q", str(work)])
+(work / "kept.txt").write_text("k"); (work / "gone.txt").write_text("g")
+subprocess.run(["git", "-C", str(work), "add", "-A"], capture_output=True)
+subprocess.run(["git", "-C", str(work), "commit", "-qm", "seed"], capture_output=True)
+(work / "gone.txt").unlink()
+run = types.SimpleNamespace(repo_root=str(work))
+env = types.SimpleNamespace(changed_files=["kept.txt", "gone.txt", "phantom.txt"])
+import os; os.chdir(work)
+rep = gates.diff_matches_claims(env, run)
+res = {ch.item: ch.ok for ch in rep.checks}
+assert res.get("kept.txt") is True, res
+assert res.get("gone.txt") is True, "git-visible deletion must pass: %s" % res
+assert res.get("phantom.txt") is False, "phantom claim must fail: %s" % res
+print("GATE-UNIT-OK")
+PY
+)"
+if printf '%s' "$GOUT" | grep -q GATE-UNIT-OK; then
+  ok "diff_matches_claims: kept passes, git deletion passes, phantom refused"
+else
+  bad "diff_matches_claims deletion semantics: $GOUT"
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
