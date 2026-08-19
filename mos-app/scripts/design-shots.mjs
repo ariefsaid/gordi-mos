@@ -43,7 +43,7 @@ const ROUTES = (process.env.ROUTES ||
   // as stubs), and a default that named only v4's routes would silently skip them — the same
   // 'a port decomposed by surface loses everything that has no route' defect one level up
   // (DD-WAY-30). The Director persona (dewi.dev, admin) sees every gated route below.
-  '/,/work/tasks,/work/tasks/new,/work/signals,/work/objectives,/work/projects,/inbox,/events,/profile,' +
+  '/,/work/tasks,/work/tasks/new,/work/signals,/work/events,/work/objectives,/work/projects,/inbox,/profile,' +
     '/money,/money/detail,/money/budget,/money/pricing,' +
     '/cafe,/cafe/log,/cafe/plan,/cafe/stock,/cafe/review,/cafe/pushes,' +
     '/ops,/ops/new,/ecommerce,/roastery,/admin/people')

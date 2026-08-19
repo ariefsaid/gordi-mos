@@ -25,6 +25,7 @@ import { CommandMenu } from '@/components/command/command-menu'
 import { HomePage } from '@/pages/home-page'
 
 const FORBIDDEN = /write update|weekly update|daily log|open the daily log/i
+const RETIRED_EVENTS_PATH = '/events'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -145,6 +146,27 @@ describe('C4 — retirement: ⌘K carries no Weekly Update / Daily Log action or
     expect(options.length).toBeGreaterThan(0)
     for (const option of options) {
       expect(option.textContent ?? '').not.toMatch(FORBIDDEN)
+    }
+  })
+})
+
+describe('AC-348 — retirement: Events is a Work child, never a root destination', () => {
+  it('keeps the retired root out of real navigation registries and route table while Work Events remains', () => {
+    const links = [...DESTINATIONS, ...MODULES.flatMap((group) => group.items), ...UTILITY]
+      .flatMap((destination) => [...destination.links, ...(destination.children ?? [])])
+    expect(links.map((link) => link.path)).not.toContain(RETIRED_EVENTS_PATH)
+    expect(links.map((link) => link.path)).toContain('/work/events')
+    const paths = flattenRoutes().map((route) => route.path)
+    expect(paths).not.toContain(RETIRED_EVENTS_PATH)
+    expect(paths).toContain('/work/events')
+  })
+
+  it('keeps the retired root out of the rendered command palette', () => {
+    memberViewer()
+    render(<I18nProvider><MemoryRouter><CommandMenu open onClose={vi.fn()} onShareSignal={vi.fn()} /></MemoryRouter></I18nProvider>)
+    for (const option of screen.getAllByRole('option')) {
+      expect(option.textContent ?? '').not.toMatch(/^Events$/i)
+      expect(option.getAttribute('data-value') ?? '').not.toContain(RETIRED_EVENTS_PATH)
     }
   })
 })

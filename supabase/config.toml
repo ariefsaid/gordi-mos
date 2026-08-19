@@ -91,7 +91,7 @@ enabled = true
 # the rest. seed.dev-kitchen.sql + seed.dev-money.sql are deliberately NOT listed — hand-loaded
 # demo datasets (see their headers): the kitchen (AC-090/AC-014) and budget-pricing (AC-PB-012)
 # e2e journeys assume the clean post-reset ops/reporting state.
-sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql", "./seed.dev-signals.sql"]
+sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql", "./seed.dev-signals.sql", "./seed.dev-events.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

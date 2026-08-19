@@ -99,7 +99,7 @@ const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
-const EventsPage = lazyPage(() => import('./pages/events-page').then((m) => ({ default: m.EventsPage })))
+const EventsWorkspacePage = lazyPage(() => import('./pages/events-workspace-page').then((m) => ({ default: m.EventsWorkspacePage })))
 const NotFoundPage = lazyPage(() => import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage })))
 const RecoveryPage = lazyPage(() => import('./pages/recovery-page').then((m) => ({ default: m.RecoveryPage })))
 const UiGallery = lazyPage(() => import('./pages/ui-gallery').then((m) => ({ default: m.UiGallery })))
@@ -314,15 +314,8 @@ export const routeConfig: RouteObject[] = [
             handle: redirectHandle('/work/signals'),
           },
 
-          // ── Events ──────────────────────────────────────────────────────────────────────
-          {
-            path: 'events',
-            // EventsPage, not the stub: the stub says "not in this slice yet", which is a claim
-            // about build order. Events is waiting on a ruling (#158), not on build order, and
-            // its own page says the honest version of that. Built for #199, never routed (#269).
-            element: withSuspense(<EventsPage />),
-            handle: pageHandle('workspace'),
-          },
+          // ── Events (Work calendar) ───────────────────────────────────────────────────────
+          { path: 'work/events', element: withSuspense(<EventsWorkspacePage />), handle: pageHandle('workspace') },
 
           // ── Money ───────────────────────────────────────────────────────────────────────
           // The gate is `dev`'s, not v4's. v4 collapsed all of Money to finance|admin, which

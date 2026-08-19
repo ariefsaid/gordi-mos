@@ -67,8 +67,9 @@ describe('T5: ADMIN_SECTIONS — kept (People)', () => {
 })
 
 describe('T5: new destination sections resolve', () => {
-  it('sectionForPath resolves /events, /money, /profile, /work/signals', () => {
-    expect(sectionForPath('/events')!.label).toBe('Events')
+  it('sectionForPath resolves Work Events, /money, /profile, /work/signals', () => {
+    expect(sectionForPath('/work/events')!.label).toBe('Events')
+    expect(sectionForPath('/events')).toBeNull()
     expect(sectionForPath('/money')!.label).toBe('Money')
     expect(sectionForPath('/profile')!.label).toBe('Personal Profile')
     expect(sectionForPath('/work/signals')!.label).toBe('Signals')

@@ -449,6 +449,14 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     },
   )
 
+  it('AC-348: Events is reachable as a Work child, never through its retired root', () => {
+    const { rail, phone } = allReachable()
+    expect(rail).toContain('/work/events')
+    expect(phone).toContain('/work/events')
+    expect(rail).not.toContain('/events')
+    expect(phone).not.toContain('/events')
+  })
+
   it('a rendered nav link never points at a path the route table does not serve', () => {
     // The mirror image: a rail entry that 404s is as broken as a surface with no rail entry.
     const served = new Set(flattenRoutes().map((f) => f.path))

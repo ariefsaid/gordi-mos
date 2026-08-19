@@ -15,8 +15,8 @@ import { routeConfig } from '@/router'
 import { allRoutes } from '@/test/route-table'
 
 describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () => {
-  it('exports exactly the five workspace ids in order: home, work, events, money, inbox', () => {
-    expect(DESTINATIONS.map((d) => d.id)).toEqual(['home', 'work', 'events', 'money', 'inbox'])
+  it('exports workspace roots without a retired Events destination', () => {
+    expect(DESTINATIONS.map((d) => d.id)).toEqual(['home', 'work', 'money', 'inbox'])
   })
 
   it('every workspace destination is zone:workspace', () => {
@@ -30,11 +30,12 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     expect(isLive(home, [])).toBe(true)
   })
 
-  it('AC-004/011: Work has exactly 4 children (signals · tasks · projects · objectives), 0 family headings', () => {
+  it('Work has five children including Events, 0 family headings', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     expect(work.children).toBeDefined()
     expect(work.children!.map((c) => c.path)).toEqual([
       '/work/signals',
+      '/work/events',
       '/work/tasks',
       '/work/projects',
       '/work/objectives',
@@ -100,8 +101,7 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     expect(money.anyOf).toBe(routeAnyOf)
   })
 
-  it('events + inbox are always live (no anyOf gate)', () => {
-    expect(isLive(DESTINATIONS.find((d) => d.id === 'events')!, [])).toBe(true)
+  it('inbox is always live (no anyOf gate)', () => {
     expect(isLive(DESTINATIONS.find((d) => d.id === 'inbox')!, [])).toBe(true)
   })
 
@@ -308,9 +308,10 @@ describe('destinationForPath — resolution across all three zones', () => {
     expect(destinationForPath('/profile')?.id).toBe('profile')
   })
 
-  it('resolves /, /events, /money, /inbox to their workspace roots', () => {
+  it('resolves Work Events and other workspace paths', () => {
     expect(destinationForPath('/')?.id).toBe('home')
-    expect(destinationForPath('/events')?.id).toBe('events')
+    expect(destinationForPath('/work/events')?.id).toBe('work')
+    expect(destinationForPath('/events')).toBeNull()
     expect(destinationForPath('/money')?.id).toBe('money')
     expect(destinationForPath('/inbox')?.id).toBe('inbox')
   })

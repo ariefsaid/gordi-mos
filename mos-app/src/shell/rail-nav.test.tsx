@@ -151,32 +151,31 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
   })
 
-  it('AC-004: single-item Work families render their child with NO sub-section overline, in E7 order', () => {
+  it('AC-004: Work children retain E7 order and only the shared Cadence family has an overline', () => {
     setAuthAs(['admin'])
     const { container } = renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // The 4 children are present and reachable.
+    // The 5 children are present and reachable.
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
-    // Item 2 (impeccable ban-eyebrow-on-every-section): with today's IA each Work family governs
-    // exactly ONE child, so its decorative overline is suppressed — no eyebrow renders. (An overline
-    // that governs a single item is pure decoration; the grammar auto-returns when a family gains a
-    // second sibling — Process Runs, Standards, Follow-ups.)
-    for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
+    expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
+    for (const label of ['Execution', 'Work Systems', 'Direction']) {
       expect(within(nav).queryByText(label)).toBeNull()
     }
-    // Children still render in E7 top-down order: Tasks → Projects → Objectives → Signals.
+    expect(within(nav).getByText('Cadence')).toBeInTheDocument()
+    // Children still render in E7 top-down order: Tasks → Projects → Objectives → Signals → Events.
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    const links = ['Tasks', 'Projects & Processes', 'Objectives', 'Signals'].map(
+    const links = ['Tasks', 'Projects & Processes', 'Objectives', 'Signals', 'Events'].map(
       (l) => within(nav).getByRole('link', { name: l }),
     )
     expect(precedes(links[0], links[1])).toBe(true)
     expect(precedes(links[1], links[2])).toBe(true)
     expect(precedes(links[2], links[3])).toBe(true)
+    expect(precedes(links[3], links[4])).toBe(true)
     expect(container).toBeTruthy()
   })
 
@@ -307,12 +306,9 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
   })
 })
 
-// AC-1004 (events-stub, Step 10): Rule 5 still holds for /events now that it renders EventsPage,
-// not the generic SliceStubPage — the rail's aria-current resolution never depended on which
-// component the route mounts.
-describe('AC-1004: aria-current — at /events, the Events link is the sole "page"', () => {
-  it('AC-1004: at /events, Events link has aria-current=page and is the only one', () => {
-    renderRailNav('/events')
+describe('AC-1004: aria-current — at /work/events, the Events link is the sole "page"', () => {
+  it('AC-1004: at /work/events, Events link has aria-current=page and is the only one', () => {
+    renderRailNav('/work/events')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav)
       .getAllByRole('link')

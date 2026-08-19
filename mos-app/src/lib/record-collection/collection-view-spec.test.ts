@@ -103,6 +103,14 @@ describe('collection-view-spec validator', () => {
     expect(parseCollectionViewSpec({ ...taskSpec, presentation: 'board' }).ok).toBe(false)
   })
 
+  it('AC-348: validates the calendar-only Events saved-view shape', () => {
+    const event = { kind: 'collection', version: 1, collectionId: 'events', domain: 'events', presentation: 'calendar', visibleFields: ['title', 'time', 'venue', 'outbound'], query: { month: '2027-01' }, sort: { field: 'startsAt', direction: 'ascending' }, grouping: null, layout: { density: 'comfortable' } }
+    expect(parseCollectionViewSpec(event).ok).toBe(true)
+    for (const invalid of [{ ...event, presentation: 'table' }, { ...event, visibleFields: ['title', 'unknown'] }, { ...event, query: { month: '2027-13' } }, { ...event, sort: { field: 'title', direction: 'ascending' } }, { ...event, grouping: { field: 'venue' } }]) {
+      expect(parseCollectionViewSpec(invalid).ok).toBe(false)
+    }
+  })
+
   it('FR-V3-013: CollectionViewSpec contains typed query only and no result rows, SQL, or executable code', () => {
     const withRows = parseCollectionViewSpec({ ...taskSpec, rows: [{ id: 't-1' }] })
     expect(withRows.ok).toBe(false)

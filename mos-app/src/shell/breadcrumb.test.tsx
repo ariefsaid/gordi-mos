@@ -64,9 +64,9 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('Work · Objectives')
   })
 
-  it('/events → "Events"', () => {
-    renderBC('/events')
-    expect(crumbText()).toBe('Events')
+  it('/work/events → "Work · Events"', () => {
+    renderBC('/work/events')
+    expect(crumbText()).toBe('Work · Events')
   })
 
   it('/money → "Money"', () => {

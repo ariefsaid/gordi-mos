@@ -19,7 +19,7 @@ import type {
 } from '@/components/signals/signal-collection-adapter'
 
 export const COLLECTION_VIEW_SPEC_VERSION = 1 as const
-export type CollectionViewCollection = 'tasks' | 'signals'
+export type CollectionViewCollection = 'tasks' | 'signals' | 'events'
 export type CollectionViewScope = 'private' | 'shared_team'
 export type CollectionViewLayout = { density: 'compact' | 'comfortable' }
 
@@ -28,6 +28,7 @@ export type TaskCollectionVisibleField =
   | 'workline' | 'objective' | 'source' | 'activity'
 export type SignalCollectionVisibleField =
   | 'message' | 'author' | 'team' | 'occurredAt' | 'attention' | 'category' | 'retracted'
+export type EventCollectionVisibleField = 'title' | 'time' | 'venue' | 'outbound' | 'businessUnit' | 'coordinator'
 
 export type TaskCollectionSavedQuery = Pick<
   TaskCollectionQuery,
@@ -50,6 +51,18 @@ export type CollectionViewSpec =
       query: TaskCollectionSavedQuery
       sort: { field: TaskCollectionSort; direction: 'ascending' | 'descending' }
       grouping: { field: TaskCollectionGroup } | null
+      layout: CollectionViewLayout
+    }
+  | {
+      kind: 'collection'
+      version: typeof COLLECTION_VIEW_SPEC_VERSION
+      collectionId: 'events'
+      domain: 'events'
+      presentation: 'calendar'
+      visibleFields: readonly EventCollectionVisibleField[]
+      query: { month: string }
+      sort: { field: 'startsAt'; direction: 'ascending' }
+      grouping: null
       layout: CollectionViewLayout
     }
   | {
@@ -110,6 +123,9 @@ const SIGNAL_GROUP_FIELDS: readonly SignalCollectionGroup[] = ['team', 'attentio
 const SIGNAL_VISIBLE: readonly SignalCollectionVisibleField[] = [
   'message', 'author', 'team', 'occurredAt', 'attention', 'category', 'retracted',
 ]
+const EVENT_VISIBLE: readonly EventCollectionVisibleField[] = ['title', 'time', 'venue', 'outbound', 'businessUnit', 'coordinator']
+const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/
+
 const SIGNAL_VIEWS = ['all', 'needs-attention', 'retracted']
 const SIGNAL_ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
 const DIRECTIONS = ['ascending', 'descending']
@@ -141,7 +157,7 @@ export function parseCollectionViewSpec(input: unknown): CollectionViewValidatio
     }
   }
   const collectionId = input.collectionId
-  if (collectionId !== 'tasks' && collectionId !== 'signals') {
+  if (collectionId !== 'tasks' && collectionId !== 'signals' && collectionId !== 'events') {
     return { ok: false, issues: [{ code: 'unknown-collection', path: 'collectionId', detail: String(collectionId) }] }
   }
   if (input.domain !== collectionId) {
@@ -154,7 +170,8 @@ export function parseCollectionViewSpec(input: unknown): CollectionViewValidatio
   if (!isLayout(input.layout)) push('invalid-layout', 'layout', 'invalid layout')
 
   if (collectionId === 'tasks') validateTaskSpec(input, push)
-  else validateSignalSpec(input, push)
+  else if (collectionId === 'signals') validateSignalSpec(input, push)
+  else validateEventSpec(input, push)
 
   if (issues.length > 0) return { ok: false, issues }
   return { ok: true, spec: input as unknown as CollectionViewSpec }
@@ -203,6 +220,18 @@ function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
       push('invalid-grouping', 'grouping.field', String(grouping.field))
     }
   }
+}
+
+function validateEventSpec(input: Record<string, unknown>, push: Push): void {
+  if (input.presentation !== 'calendar') push('invalid-presentation', 'presentation', String(input.presentation))
+  if (!Array.isArray(input.visibleFields) || input.visibleFields.some((field) => !EVENT_VISIBLE.includes(field as EventCollectionVisibleField))) {
+    push('invalid-visible-field', 'visibleFields', 'invalid event field')
+  }
+  if (!isRecord(input.query) || typeof input.query.month !== 'string' || !MONTH_KEY.test(input.query.month)) {
+    push('invalid-query', 'query.month', 'month must be YYYY-MM')
+  }
+  if (!isRecord(input.sort) || input.sort.field !== 'startsAt' || input.sort.direction !== 'ascending') push('invalid-sort', 'sort', 'Events calendar has no sort control')
+  if (input.grouping !== null) push('unsupported-grouping', 'grouping', 'Events calendar has no grouping')
 }
 
 function validateSignalSpec(input: Record<string, unknown>, push: Push): void {

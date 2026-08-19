@@ -73,9 +73,9 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     symbol: 'ProjectsProcessesPage',
   },
 
-  // ── Inbox · Events · Profile ──────────────────────────────────────────────────────────────
+  // ── Inbox · Work Events · Profile ─────────────────────────────────────────────────────────
   { path: '/inbox', family: 'workspace', sourceFile: 'pages/inbox-page.tsx', symbol: 'InboxPage' },
-  { path: '/events', family: 'workspace', sourceFile: 'pages/events-page.tsx', symbol: 'EventsPage' },
+  { path: '/work/events', family: 'workspace', sourceFile: 'pages/events-workspace-page.tsx', symbol: 'EventsWorkspacePage' },
   { path: '/profile', family: 'management', sourceFile: 'pages/profile-page.tsx', symbol: 'ProfilePage' },
 
   // ── Money ─────────────────────────────────────────────────────────────────────────────────

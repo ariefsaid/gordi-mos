@@ -24,17 +24,17 @@ export const jobSentences = {
   signals: 'Search and revisit the Signals your Teams have shared.',
   projects: 'Govern the Processes and Projects that generate the work.',
   objectives: 'Track the Objectives the org committed to.',
-  // OD-V4-2 ("Signals everywhere"): this row is the workspace-root Signals feed (rendered
-  // label "Signals", registry id/route unchanged — see destinations.tsx) — its one job is
-  // reading what is happening now, distinct from `signals` above (the Work archive's job:
-  // searching and revisiting past Signals).
-  events: "See what's happening around our outlets and when.",
   money: 'Trust the financial figures and act on money exceptions.',
   // DO-24(b) (census F-INBOX-7): "what asked for me" was ungrammatical — plain second person.
   inbox: 'Triage what was directed to you and return to its source.',
   cafe: "Run today's café floor work — openings, checks, stock, shifts.",
   ecommerce: "Fulfil today's online orders against the right stock.",
   roastery: 'Record today’s roasts, yield, and transfers truthfully.',
+} as const
+
+/** Work children may have a page-specific job sentence without becoming destinations. */
+export const workChildJobSentences = {
+  events: 'See commitments of people and space.',
 } as const
 
 /** The union of registry ids. */
@@ -45,9 +45,9 @@ const SEG_TO_JOB: Record<string, MessageKey> = {
   work: 'job.work',
   tasks: 'job.tasks',
   signals: 'job.signals',
+  events: 'job.events',
   projects: 'job.projects',
   objectives: 'job.objectives',
-  events: 'job.events',
   money: 'job.money',
   inbox: 'job.inbox',
   cafe: 'job.cafe',
@@ -89,7 +89,8 @@ export function jobKeyForPath(pathname: string): MessageKey {
   }
 
   // Module sub-routes resolve to the module job key (e.g. /cafe/log → job.cafe).
-  if (SEG_TO_JOB[root]) return SEG_TO_JOB[root]
+  // Events is a Work child only; the retired root spelling must stay a not-found sentence.
+  if (root !== 'events' && SEG_TO_JOB[root]) return SEG_TO_JOB[root]
 
   // Unknown route → the 404 line (OD-REDESIGN-91 #42). An unrecognized path renders the
   // NotFoundPage, so its context sentence is the 404's own, never Home's borrowed one.
