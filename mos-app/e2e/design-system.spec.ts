@@ -20,8 +20,6 @@ import type { Page } from '@playwright/test';
  * (which locks the class-toggle mechanism).
  */
 
-test.use({ baseURL: 'http://localhost:5173/mos' });
-
 /** Wait until the design-kit token cascade is applied (Vite injects the CSS
  *  module after the initial load event; reading before that yields ''). */
 async function waitForTokens(page: Page) {

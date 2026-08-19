@@ -24,8 +24,10 @@ test('AC-090: create a task → it appears in the list → open detail → chang
 
   // ── 3. Create a new task ────────────────────────────────────────────────────
   const taskTitle = `AC-090 Task ${Date.now()}`
+  // GAP-6 / OD-REDESIGN-91 #11: the helper waits for the originating collection landing
+  // and its highlighted row before returning the canonical detail URL.
   const detailUrl = await createTaskViaUI(page, taskTitle)
-  expect(detailUrl).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(detailUrl).toMatch(/\/work\/tasks\/[0-9a-f-]{36}$/)
 
   // ── 4. Go back to the list and assert the task appears ──────────────────────
   await page.goto('work/tasks')
@@ -37,7 +39,8 @@ test('AC-090: create a task → it appears in the list → open detail → chang
 
   // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
   await page.getByText(taskTitle).first().click()
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  // DO-18 / tasks-workspace.tsx:214-217: in-app opens use the collection ?record= overlay.
+  await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
   // The split-view drawer hosts the task surface; the title is the drawer heading.
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible()
@@ -54,9 +57,9 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await drawer.getByLabel('Status').selectOption({ label: 'In Progress' })
 
   // ── 7. Assert: pill shows "In Progress" in place (no navigation) ─────────────
-  await expect(drawer.getByText('In Progress')).toBeVisible({ timeout: 8_000 })
+  await expect(drawer.getByRole('button', { name: /edit status/i })).toContainText('In Progress', { timeout: 8_000 })
   // Still on the same detail URL
-  expect(page.url()).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(page.url()).toMatch(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // ── 8. Assert: the Activity section shows the status_changed event ─────────
   // STALE fix: RecordViewer moved to content-first anatomy (OD-REDESIGN-90 §2.2) — the record

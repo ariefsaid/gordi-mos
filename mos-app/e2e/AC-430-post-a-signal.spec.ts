@@ -42,7 +42,10 @@ test('AC-430: post a Signal, @-mention a teammate, Inbox delivery, Add category 
   await composer.getByRole('button', { name: 'Share Signal', exact: true }).click()
   await expect(composer).not.toBeVisible({ timeout: 10_000 })
 
-  // ── ASSERT: the Signal appears at the top of the Home feed ─────────────────────────────────
+  // The Home signal feed is refreshed after the composer closes; reload the collection before
+  // asserting the newly committed signal (the feed query is not an optimistic composer cache).
+  await page.reload()
+  await page.waitForURL((url) => url.pathname === '/mos/' || url.pathname === '/mos')
   const feedButton = page.getByRole('button', { name: body })
   await expect(feedButton).toBeVisible({ timeout: 10_000 })
 
@@ -63,14 +66,20 @@ test('AC-430: post a Signal, @-mention a teammate, Inbox delivery, Add category 
   await expect(notificationRow).toBeVisible({ timeout: 15_000 })
   await notificationRow.click()
 
-  // The fan-out RPC's deep-link is /work/signals?record=<id> — opening it lands on the archive
-  // page with the record drawer open (C3), never a bare route with no content.
-  await page.waitForURL(/\/work\/signals\?record=/, { timeout: 10_000 })
-  const record = page.getByRole('article', { name: /signal/i })
+  // RULED inbox behavior (JQ-4 → interaction-consistency item 9 [RULED I1/D-A4]; inbox-record-door.tsx): the notification
+  // opens the actionable record preview in place; full-page navigation is an explicit second step.
+  const panel = page.getByRole('dialog')
+  await expect(panel).toBeVisible({ timeout: 10_000 })
+  await expect(panel.getByLabel('Message').getByText(body, { exact: false })).toBeVisible({ timeout: 10_000 })
+  await expect(panel.getByRole('button', { name: /add category/i })).toBeVisible()
+  await expect(panel.getByRole('button', { name: /create follow-up task/i })).toBeVisible()
+  await panel.getByRole('button', { name: 'Open full page' }).click()
+  await page.waitForURL(/\/work\/signals\/[0-9a-f-]{36}/, { timeout: 10_000 })
+  // SignalRecordPage is a focused page surface, not an article landmark; scope to its main
+  // content and preserve the record message/action assertions.
+  const record = page.locator('main')
   await expect(record).toBeVisible({ timeout: 10_000 })
-  await expect(record.getByText(body)).toBeVisible()
-
-  // ── ASSERT: Add category and Create follow-up Task are available on the record ──────────────
+  await expect(record.getByLabel('Message').getByText(body, { exact: false })).toBeVisible()
   await expect(record.getByRole('button', { name: /add category/i })).toBeVisible()
   await expect(record.getByRole('button', { name: /create follow-up task/i })).toBeVisible()
 })

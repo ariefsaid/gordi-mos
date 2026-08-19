@@ -77,7 +77,6 @@ async function execSql(query: string): Promise<void> {
 // ── Fixed UUIDs ───────────────────────────────────────────────────────────────
 const ORG     = '10000000-0000-0000-0000-000000000001'
 const P_CAHYA = '40000000-0000-0000-0000-000000000001' // Cahya Cafe (VIEWER persona)
-const BU_CAFE = '20000000-0000-0000-0000-000000000001' // Cafe Ops – General
 
 // Work-line IDs match seed.dev-tasks.sql canon — idempotent with ON CONFLICT.
 const WL_PROCESS = 'c0000000-0000-0000-0000-000000000001' // "Daily IG Content" (process)
@@ -110,6 +109,8 @@ test.beforeAll(async () => {
 
   // Insert Cahya cascade tasks. global-setup wipes mos.tasks → always a fresh insert.
   // ON CONFLICT DO NOTHING guards against manual re-runs without a db reset.
+  // Post-ADR-0019 D1: resolve the canonical Team by code, following AC-524.spec.ts:46;
+  // never carry forward the retired pre-D1 business-unit UUID.
   await execSql(`
     INSERT INTO mos.tasks
       (id, org_id, title, business_unit_id, status,
@@ -117,10 +118,10 @@ test.beforeAll(async () => {
        consulted_person_ids, informed_person_ids,
        description, created_by, work_line_id)
     VALUES
-      ('${T_PROCESS}', '${ORG}', '${T_PROCESS_TITLE}', '${BU_CAFE}', 'Open',
+      ('${T_PROCESS}', '${ORG}', '${T_PROCESS_TITLE}', (select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1), 'Open',
        '${P_CAHYA}', '${P_CAHYA}', '{}', '{}',
        'Seeded for AC-230 cascade read-path e2e.', '${P_CAHYA}', '${WL_PROCESS}'),
-      ('${T_PROJECT}', '${ORG}', '${T_PROJECT_TITLE}', '${BU_CAFE}', 'Open',
+      ('${T_PROJECT}', '${ORG}', '${T_PROJECT_TITLE}', (select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1), 'Open',
        '${P_CAHYA}', '${P_CAHYA}', '{}', '{}',
        'Seeded for AC-230 cascade read-path e2e.', '${P_CAHYA}', '${WL_PROJECT}')
     ON CONFLICT (id) DO NOTHING;
@@ -158,12 +159,15 @@ test(
   await page.getByRole('button', { name: 'All', exact: true }).click()
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
-  await page.locator('#group-by-filter').selectOption('workline')
+  // OD-REDESIGN-84: Group and Person controls render only inside the disclosed options row.
+  await page.getByRole('button', { name: 'View & filters' }).click()
+  await page.getByRole('group', { name: 'View & filters' }).waitFor()
+  await page.getByLabel('Group').selectOption('workline')
 
   // ── 5. Set Person = Cahya ────────────────────────────────────────────────────
   // The Person filter overrides the segment (FR-124). Only Cahya's tasks pass
   // raciMember. filterZeroWhenPerson=true suppresses empty work-line groups (RI-2).
-  await page.locator('#person-filter').selectOption(P_CAHYA)
+  await page.getByLabel('Person').selectOption(P_CAHYA)
 
   // ── 6. Wait for work-line group headers ──────────────────────────────────────
   // Groups depend on useCascadeCatalogs (async non-blocking load of mos.work_lines).

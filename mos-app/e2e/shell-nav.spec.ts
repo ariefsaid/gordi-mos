@@ -65,7 +65,8 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   // --- Work → Signals ---
   await nav.getByRole('link', { name: 'Signals' }).first().click()
-  await expect(page).toHaveURL(/\/work\/signals$/, { timeout: 5_000 })
+  // OD-V4-1 / use-record-collection.ts:108-118: synced Signals layout may settle as ?layout=feed.
+  await expect(page).toHaveURL(/\/work\/signals(\?layout=feed)?$/, { timeout: 5_000 })
   // The Signals archive has now ported (#267) and this destination serves it, so the
   // "until it ports, this shows dev's weekly-update surface" arm above is retired — it would
   // now assert the title of a page this route no longer serves. Playwright runs only on
@@ -75,7 +76,8 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 
   // --- Deep-link reload (FR-008) ---
   await page.reload()
-  await expect(page).toHaveURL(/\/work\/signals$/, { timeout: 5_000 })
+  // OD-V4-1: cold-load canonicalization retains the synced ?layout=feed presentation.
+  await expect(page).toHaveURL(/\/work\/signals\?layout=feed$/, { timeout: 5_000 })
   await expect(nav.getByRole('link', { name: 'Signals' }).first()).toHaveAttribute('aria-current', 'page')
 
   // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---

@@ -6,6 +6,23 @@ import { VIEWER } from './fixtures/users'
 // saved-view chip alias that must be rewritten canonically, never kept raw" — the URL always
 // settles on `view=my-work`. This file's own canonical-URL assertions must match that, not the
 // retired alias.
+// FR-417 No-FAB + DO-17: mobile creation uses the universal action launcher.
+async function createOverdueTaskMobile(page: Page, title: string) {
+  await page.goto('work/tasks?view=my-work')
+  await page.getByRole('button', { name: 'Open actions' }).click()
+  await expect(page.getByRole('dialog', { name: 'Command menu' })).toBeVisible()
+  await page.getByRole('option', { name: 'Create task' }).click()
+  await expect(page).toHaveURL(/\/work\/tasks\/new$/)
+  const form = page.getByRole('form', { name: /create task form/i })
+  await form.getByLabel('Title').fill(title)
+  await form.getByLabel('Due date').fill('2020-01-01')
+  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
+  await form.getByRole('button', { name: /create task/i }).click()
+  await page.waitForURL(/\/work\/tasks\?.*highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await expect(page.locator('tr.task-row, [data-testid="task-card"]', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
+}
+
+// OD-REDESIGN-3/14/41 + GAP-6 / OD-REDESIGN-91 #11: explicit Supervisor and collection landing.
 async function createOverdueTask(page: Page, title: string) {
   await page.goto('work/tasks?view=my-work')
   await page.getByRole('link', { name: /create task/i }).first().click()
@@ -13,8 +30,12 @@ async function createOverdueTask(page: Page, title: string) {
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
   await form.getByLabel('Due date').fill('2020-01-01')
+  await form.getByLabel('Team').waitFor({ state: 'visible' })
+  await expect(form.getByLabel('Team')).not.toHaveValue('')
+  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
   await form.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=my-work$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\?view=my-work&highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await expect(page.locator('tr.task-row', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
 }
 
 test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, cancel, and create', async ({ page, context }) => {
@@ -37,9 +58,10 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await expect(page).toHaveURL(/\/work\/tasks\/new\?view=my-work$/)
   const mineForm = page.getByRole('form', { name: /create task form/i })
   await mineForm.getByLabel('Title').fill(mineTitle)
+  await mineForm.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
   await mineForm.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=my-work$/, { timeout: 15_000 })
-  await expect(page.getByRole('heading', { name: mineTitle })).toBeVisible()
+  await page.waitForURL(/\/work\/tasks\?view=my-work&highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await expect(page.locator('tr.task-row', { hasText: mineTitle }).first()).toBeVisible({ timeout: 10_000 })
 
   await createOverdueTask(page, overdueTitle)
 
@@ -48,8 +70,10 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   const futureForm = page.getByRole('form', { name: /create task form/i })
   await futureForm.getByLabel('Title').fill(futureTitle)
   await futureForm.getByLabel('Due date').fill('2030-12-31')
+  await futureForm.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
   await futureForm.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=my-work$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\?view=my-work&highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await expect(page.locator('tr.task-row', { hasText: futureTitle }).first()).toBeVisible({ timeout: 10_000 })
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
@@ -58,7 +82,8 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await expect(page.getByText(futureTitle)).not.toBeVisible()
 
   await page.locator('tr.task-row', { hasText: overdueTitle }).first().click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
+  // DO-18 / tasks-workspace.tsx:214-217: row opens use ?record= while preserving the view.
+  await page.waitForURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
   const recordUrl = page.url()
 
@@ -66,7 +91,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   // the saved view (?view=overdue) is preserved in the URL (Rule 4). The page has
   // no table/toolbar shell, so the Overdue chip is verified by returning to the list.
   await page.reload()
-  await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+  await expect(page).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
   await expect(page.getByRole('heading', { name: overdueTitle })).toBeVisible()
 
   // Return to the list — the saved view is still active: Overdue chip pressed,
@@ -79,7 +104,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   // New tab / direct URL of the record → the same full page, ?view= preserved.
   const secondPage = await context.newPage()
   await secondPage.goto(recordUrl)
-  await expect(secondPage).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+  await expect(secondPage).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
   await expect(secondPage.getByRole('heading', { name: overdueTitle })).toBeVisible({ timeout: 15_000 })
 })
 
@@ -91,11 +116,11 @@ test('AC-307: task-name link keeps ?view=overdue across open and refresh', async
   await page.goto('work/tasks?view=overdue')
   await expect(page.getByRole('link', { name: title })).toBeVisible({ timeout: 15_000 })
   await page.getByRole('link', { name: title }).click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
   await page.reload()
-  await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+  await expect(page).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
   await expect(page.getByRole('heading', { name: title })).toBeVisible()
 })
 
@@ -109,6 +134,8 @@ test('AC-307: row-menu Open keeps ?view=overdue across open and refresh', async 
   await expect(row).toBeVisible({ timeout: 15_000 })
   await row.hover()
   await row.getByRole('button', { name: /row actions/i }).click()
+  // Row-menu Open is the hard-navigation grammar (unlike an in-app title click): it uses the
+  // canonical task pathname and carries the saved-view query into that standalone page.
   await page.getByRole('menuitem', { name: /open/i }).click()
   await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: title })).toBeVisible()
@@ -124,17 +151,17 @@ test.describe('AC-307 mobile', () => {
   test('mobile card open keeps ?view=overdue across open and refresh', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
     const title = `URL mobile-card ${Date.now()}`
-    await createOverdueTask(page, title)
+    await createOverdueTaskMobile(page, title)
 
     await page.goto('work/tasks?view=overdue')
     const cardLink = page.getByRole('link', { name: new RegExp(title) }).first()
     await expect(cardLink).toBeVisible({ timeout: 15_000 })
     await cardLink.click()
-    await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/, { timeout: 15_000 })
+    await page.waitForURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
     await page.reload()
-    await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
+    await expect(page).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
   })
 })

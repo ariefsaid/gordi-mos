@@ -22,5 +22,6 @@ test('AC-001: password login journey', async ({ page }) => {
   // anchor is the document title, set unconditionally by useDocumentTitle('Home — Gordi MOS')
   // in src/pages/stacked-union-home.tsx.
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
-  await expect(page.getByText('Cahya Cafe')).toBeVisible({ timeout: 10_000 })
+  // user-chip.tsx:71: the viewer identity is the accessible name of the chip button.
+  await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 10_000 })
 })

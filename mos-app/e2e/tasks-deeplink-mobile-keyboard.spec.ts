@@ -70,7 +70,8 @@ test.describe('mobile', () => {
     const card = page.locator('[data-testid="task-card"]', { hasText: title }).first()
     await expect(card).toBeVisible({ timeout: 10_000 })
     await card.getByRole('link').click()
-    await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+    // DO-18 / tasks-workspace.tsx:214-217: in-app card opens use the collection ?record= overlay.
+    await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
     // Full-screen modal dialog (no 1/3 drawer on a phone).
     const dialog = page.getByRole('dialog', { name: /task detail/i })
@@ -109,7 +110,8 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await expect(page.locator('tr.task-row.kfocus')).toBeVisible()
   const cursorTitle = await page.locator('tr.task-row.kfocus .task-name').first().innerText()
   await page.keyboard.press('Enter')
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  // DO-18: keyboard in-app open uses the same collection ?record= grammar.
+  await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: cursorTitle })).toBeVisible({ timeout: 10_000 })
 
