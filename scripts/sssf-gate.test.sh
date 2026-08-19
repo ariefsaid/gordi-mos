@@ -4,7 +4,9 @@
 # FAC-005 (fix-round exhaustion exits without committing), the #343 attribution
 # trailer (derived from the executing builder's roster model, honest fallback),
 # and the findings-rerun mode (--findings skips planning, reuses the prior
-# session's recorded plan, links the runs) — all at the unit layer.
+# session's recorded plan, links the runs, and — #367 — copies the plan into
+# the current session's context_handoff so the reviewer judges against it) —
+# all at the unit layer.
 # Runs the REAL adw_modules/quality.py and adws/adw_simple_sdlc.py with stub
 # siblings (python3 stdlib only — no pydantic/yaml installed here, on purpose:
 # the factory's deps are uv-managed at run time, never CI's concern).
@@ -240,12 +242,19 @@ committed = []
 phases = []
 prompts_seen = []
 logs = []
+review_time_plan = []   # what <context_handoff_dir>/plan.md held when the reviewer ran (#367)
+build_previous = []     # the artifacts on the previous= envelope the builder received
 class Ph:
     def __init__(self, params): self.params = params
     def call(self, agent_call):
         name = self.params.kw["name"]
         prompts_seen.append((name, agent_call.prompt))
-        if name.startswith("review"): return Envelope(approved=REVIEW_APPROVED)
+        if name == "build":
+            build_previous.append(getattr(agent_call.previous, "artifacts", None))
+        if name.startswith("review"):
+            plan_file = fake_run.context_handoff_dir / "plan.md"
+            review_time_plan.append(plan_file.read_text() if plan_file.is_file() else None)
+            return Envelope(approved=REVIEW_APPROVED)
         return Envelope()
     def log(self, **kw): logs.append((self.params.kw["name"], kw))
 class PhaseCtx:
@@ -253,8 +262,11 @@ class PhaseCtx:
     def __enter__(self):
         phases.append(self.params.kw["name"]); return Ph(self.params)
     def __exit__(self, *a): return False
+cur_handoff = work / "cur_session" / "context_handoff"
+cur_handoff.mkdir(parents=True)
 class FakeRun:
     engineer = "t"; adw_id = "test"
+    repo_root = work; context_handoff_dir = cur_handoff
     def phase(self, params): return PhaseCtx(self, params)
     def finish(self, accepted, reason=""):
         self.accepted = accepted; return 0 if accepted else 1
@@ -335,9 +347,12 @@ check("normal run enters through the plan phase",
 # ── findings mode: skip planning, reuse the prior plan, link the sessions ─────
 prior_dir = datadir / "sessions" / "ab12cd34" / "planner"
 prior_dir.mkdir(parents=True)
+prior_handoff = datadir / "sessions" / "ab12cd34" / "context_handoff"
+prior_handoff.mkdir(parents=True)
+(prior_handoff / "plan.md").write_text("PRIOR PLAN: test obligations live here")
 (prior_dir / "envelope.json").write_text(json.dumps({
     "status": "success", "summary": "the prior plan",
-    "artifacts": ["adws/adw_data/sessions/ab12cd34/context_handoff/plan.md"],
+    "artifacts": [str(prior_handoff / "plan.md")],
     "commit_message": ""}))
 
 phases.clear(); committed.clear(); prompts_seen.clear(); logs.clear(); validated.clear()
@@ -359,6 +374,47 @@ check("request record links the prior session (prior_adw_id logged)",
       request_logs and request_logs[0].get("prior_adw_id") == "ab12cd34", str(request_logs))
 check("findings run still commits exactly once, attributed to the builder model",
       len(committed) == 1 and committed[0][1] == "zai/glm-5.3", str(committed))
+# #367: the reviewer must judge WITH the plan — at review time, plan.md sits in
+# THIS session context_handoff, exactly where a normal run planner leaves it.
+check("reviewer call carries the plan: plan.md in this session handoff at review time (#367)",
+      review_time_plan and review_time_plan[-1] == "PRIOR PLAN: test obligations live here",
+      str(review_time_plan[-1:]))
+check("builder previous= envelope points at this session adopted copy, not the prior dir",
+      build_previous and build_previous[-1] == [str(cur_handoff / "plan.md")],
+      str(build_previous[-1:]))
+
+def clear_handoff():
+    for stale in cur_handoff.iterdir():
+        stale.unlink()
+
+# proven-can-fail (#367): stub the adoption back out (the pre-fix behavior) —
+# the reviewer has no plan.md again, and the same review-time predicate goes red.
+saved_adopt = sdlc._adopt_plan
+sdlc._adopt_plan = lambda run, plan, prior_dir: plan
+clear_handoff()
+review_time_plan.clear()
+rc = sdlc.main(None, findings="finding A again", from_adw_id="ab12cd34")
+check("without the copy the reviewer reviews blind — the #367 predicate can fail",
+      rc == 0 and review_time_plan and review_time_plan[-1] is None, str(review_time_plan))
+sdlc._adopt_plan = saved_adopt
+
+# multi-artifact happy path: a plan with several artifacts adopts ALL of them
+multi_handoff = datadir / "sessions" / "fe10ba98" / "context_handoff"
+multi_handoff.mkdir(parents=True)
+(multi_handoff / "plan.md").write_text("MULTI PLAN")
+(multi_handoff / "notes.md").write_text("MULTI NOTES")
+multi_planner = datadir / "sessions" / "fe10ba98" / "planner"
+multi_planner.mkdir(parents=True)
+(multi_planner / "envelope.json").write_text(json.dumps({
+    "status": "success", "summary": "s",
+    "artifacts": [str(multi_handoff / "plan.md"), str(multi_handoff / "notes.md")],
+    "commit_message": ""}))
+clear_handoff()
+rc = sdlc.main(None, findings="finding multi", from_adw_id="fe10ba98")
+check("multi-artifact plan: every artifact adopted into this session handoff",
+      rc == 0 and (cur_handoff / "plan.md").read_text() == "MULTI PLAN"
+      and (cur_handoff / "notes.md").read_text() == "MULTI NOTES",
+      str(sorted(p.name for p in cur_handoff.iterdir())))
 
 # a prior id with no recorded plan refuses the run before anything spawns
 try:
@@ -384,6 +440,50 @@ for evil in ("../../outside", "/etc", "ab12cd34/../../../outside", "AB12CD34"):
     except SystemExit as e:
         check(f"traversal --from-adw-id refused before any read: {evil!r}",
               "not a session id" in str(e), str(e))
+
+# #367 adoption bounds: a recorded plan artifact resolving outside its own
+# session dir, or missing on disk, refuses the rerun before any copy happens.
+# Each hostile artifact rides SECOND behind a valid one: validation must cover
+# the whole list before the first copy, so a refusal leaves the handoff EMPTY —
+# never half-populated with a partial plan (luna review finding).
+bound_dir = datadir / "sessions" / "ba98fe10" / "planner"
+bound_dir.mkdir(parents=True)
+bound_handoff = datadir / "sessions" / "ba98fe10" / "context_handoff"
+bound_handoff.mkdir(parents=True)
+(bound_handoff / "plan.md").write_text("VALID FIRST")
+(bound_dir / "envelope.json").write_text(json.dumps({
+    "status": "success", "summary": "s",
+    "artifacts": [str(bound_handoff / "plan.md"), str(outside / "envelope.json")],
+    "commit_message": ""}))
+clear_handoff()
+try:
+    sdlc.main(None, findings="x", from_adw_id="ba98fe10")
+    check("plan artifact outside its session dir refused at adoption", False, "run proceeded")
+except SystemExit as e:
+    check("plan artifact outside its session dir refused at adoption",
+          "outside its session dir" in str(e), str(e))
+check("escape refusal leaves the handoff EMPTY — valid first artifact NOT copied",
+      list(cur_handoff.iterdir()) == [],
+      str(sorted(p.name for p in cur_handoff.iterdir())))
+gone_dir = datadir / "sessions" / "cd34ab12" / "planner"
+gone_dir.mkdir(parents=True)
+gone_handoff = datadir / "sessions" / "cd34ab12" / "context_handoff"
+gone_handoff.mkdir(parents=True)
+(gone_handoff / "plan.md").write_text("VALID FIRST")
+(gone_dir / "envelope.json").write_text(json.dumps({
+    "status": "success", "summary": "s",
+    "artifacts": [str(gone_handoff / "plan.md"), str(gone_handoff / "missing.md")],
+    "commit_message": ""}))
+clear_handoff()
+try:
+    sdlc.main(None, findings="x", from_adw_id="cd34ab12")
+    check("missing plan artifact file refuses the rerun", False, "run proceeded")
+except SystemExit as e:
+    check("missing plan artifact file refuses the rerun",
+          "artifact missing" in str(e), str(e))
+check("missing-file refusal leaves the handoff EMPTY — valid first artifact NOT copied",
+      list(cur_handoff.iterdir()) == [],
+      str(sorted(p.name for p in cur_handoff.iterdir())))
 
 # round caps unchanged: a red findings run still exhausts at 3 fix rounds, no commit
 QUALITY_GREEN = False
