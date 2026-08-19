@@ -15,17 +15,17 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* The role="search" wrapper is the flex ITEM; the input inside it is not. Sizing rules
-   aimed at `.ktb-search` alone never reached the flex algorithm — at 320px the wrapper
-   held its 158px intrinsic width and pushed the category select onto a third row.
-   `flex-basis: 0` also means the search can never be the reason the band breaks a line:
-   with the scope slot now sharing this band, an intrinsic 200px basis wrapped the
-   category select onto a row of its own between 640 and 767px. It grows into whatever
-   is left, up to the 200px it has always been. */
+/* #378: the search's floor and bracket. `flex-basis: 0` meant the search only ever got
+   LEFTOVER row space — with the derived catalog the scope slot's content (931–1091px at
+   1440) left it 40.75–49px. The basis is now the usable minimum itself: --control-measure-search ≈ 18 mono
+   characters at the 13px control size, enough to identify every catalog dish name; the
+   bracket idiom (basis + max on a flexible track, DESIGN.md §Thin progress track) keeps
+   these bracket values, not rendered geometry. It grows into the filters row up to the
+   200px cap it has always had. */
 .ktb-search-wrap {
   display: flex;
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 var(--control-measure-search);
+  min-width: var(--control-measure-search);
   max-width: 200px;
 }
 
@@ -76,6 +76,22 @@
   max-width: 100%;
 }
 
+/* ── Filters-band grammar (#378) ───────────────────────────────────────────────
+   When the toolbar carries BOTH filters (search + category — Log + Plan), the scope slot
+   is a full band: its content can no longer share a row with them at any realistic
+   desktop width (931–1091px of scope against a 1144px band at 1440), so sharing "when it
+   happens to fit" only ever squeezed the search and orphaned the category. The band is
+   the phone grammar promoted to every width: scope block first, then search + category
+   composed on one row. Stock (no category) does not take this class and keeps its
+   leading-row layout. */
+.ktb-children--band {
+  flex: 1 0 100%;
+}
+.ktb-children--band > * {
+  width: 100%;
+  max-width: 100%;
+}
+
 /* ── Phone: scope on its own line, search + category on ONE line below (v4) ─────
    The 200px fixed search plus the category select overflowed 375px and wrapped,
    costing ~48px of vertical chrome directly above the dish list — on the surface
@@ -88,7 +104,7 @@
    with a search field and a select), and search + category shrink onto the row below —
    two rows inside ONE band instead of two separately-padded, separately-ruled bands.
    `flex-wrap` is back to `wrap` for exactly that break; search stays unwrappable beside
-   the select via `flex: 1 1 0; min-width: 0`.
+   the select via `flex: 1 1 var(--control-measure-search); min-width: 160px`.
    The search field also takes the 44px touch floor here: it was the one control in this
    band below it (36px), and the row's height is already set by the 44px select, so the
    floor is free. */

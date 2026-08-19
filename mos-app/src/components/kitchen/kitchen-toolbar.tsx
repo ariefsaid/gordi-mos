@@ -46,9 +46,21 @@ export function KitchenToolbar({
 }: KitchenToolbarProps) {
   const t = useT()
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
+  // #378: when BOTH filters ride this toolbar (search + category), the scope slot is a
+  // BAND, not a row-sharer. The derived movement catalog made the slot's content
+  // (931–1091px at 1440) wider than any row it could share with the filters, and
+  // "share when it happens to fit" is exactly the accidental composition the audit
+  // caught squeezing the search to 40.75px. The class carries the decision; the
+  // geometry lives in kitchen-toolbar.css. Toolbars WITHOUT the category (Stock)
+  // keep the leading-row composition — their scope still fits beside the search.
+  const filtersBand = Boolean(categories && onCategoryChange)
   return (
     <div className="ktb" aria-label={ariaLabel}>
-      {children && <div className="ktb-children">{children}</div>}
+      {children && (
+        <div className={filtersBand ? 'ktb-children ktb-children--band' : 'ktb-children'}>
+          {children}
+        </div>
+      )}
       <div role="search" className="ktb-search-wrap">
         <input
           type="search"

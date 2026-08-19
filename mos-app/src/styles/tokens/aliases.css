@@ -59,4 +59,9 @@
   --text-size-lg: var(--ds-font-size-lg);   /* ~19.7px */
   --text-size-xl: var(--ds-font-size-xl);   /* ~24.6px */
   --text-size-xxl: var(--ds-font-size-xxl); /* ~29.6px */
+
+  /* Measured floors — the narrowest a control may render and still do its job.
+     search: 160px ≈ 18 monospace characters, enough for a dish name (#378, measured
+     against the live Café Log/Plan toolbars at 1440 and 390). */
+  --control-measure-search: 160px;
 }
