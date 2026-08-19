@@ -91,11 +91,26 @@ export function useInlineCommit<T>({
   // attempt (not the rolled-back saved value). `null` means there is nothing to retry.
   const lastAttemptRef = useRef<{ value: T } | null>(null)
 
+  // The last upstream value this hook has synced against. Seeded with the mount value:
+  // the draft is ALREADY initialized from `value` (useState above), so the effect's job
+  // is strictly to track LATER upstream changes — never to re-assert the mount value.
+  const lastSyncedValueRef = useRef(value)
+
   // Keep the draft synced to the committed value when it changes upstream (a confirmed
   // save, an external edit, or — for the qty cells — an action-type switch). Never
   // clobber an in-flight edit: while a commit is pending the draft is authoritative.
   // A confirmed upstream value also clears any stale error/retry (the field is at rest).
+  //
+  // #345: the effect MUST no-op when `value` has not actually changed — above all on its
+  // mount invocation. Passive effects flush asynchronously, so when the field appears via
+  // a non-act/concurrent commit (every data-loaded surface) there is a window between the
+  // DOM landing and the mount effects running; a keystroke in that window sets the draft
+  // first, and an unguarded `setDraft(value)` then lands later in the same batch and wipes
+  // it — the user's edit silently becomes a no-op commit. Deps alone don't guard the mount
+  // run, hence the explicit last-synced ref.
   useEffect(() => {
+    if (Object.is(lastSyncedValueRef.current, value)) return
+    lastSyncedValueRef.current = value
     if (!pendingRef.current) {
       setDraft(value)
       setError(false)

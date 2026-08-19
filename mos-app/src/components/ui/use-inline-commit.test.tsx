@@ -5,6 +5,8 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import { useInlineCommit } from './use-inline-commit'
 
 // A minimal text/number field wired to the primitive — the shape every retrofit
@@ -202,5 +204,50 @@ describe('useInlineCommit — external value sync', () => {
     expect(screen.getByLabelText('qty')).toHaveValue(5)
     rerender(<NumberField value={12} onCommit={() => {}} />)
     expect(screen.getByLabelText('qty')).toHaveValue(12)
+  })
+
+  // #345 regression — the flake's exact mechanism, made deterministic. In the app the
+  // surface's data-load commit comes from a promise continuation (not act), so React
+  // commits the DOM in one scheduler task and flushes the MOUNT passive effects in a
+  // later one. A keystroke landing in that window (slow device / starved CI runner —
+  // or a user typing right as the grid paints) used to be CLOBBERED: the hook's [value]
+  // sync effect ran its mount invocation AFTER the keystroke and setDraft(value), so
+  // the follow-up blur committed draft === value → silent no-op, the edit lost.
+  // The test opens the same window on purpose: a concurrent-lane mount outside act,
+  // caught at the commit by MutationObserver — before the passive-flush task — then
+  // the keystroke and blur are delivered inside the window. The typed value must survive.
+  it('issue 345: a keystroke delivered before the mount effects flush is not clobbered by the initial sync', async () => {
+    const onCommit = vi.fn()
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    try {
+      // A concurrent-lane mount OUTSIDE act — the same lane as the page's non-act
+      // data-load commit (the "not wrapped in act" warning is the point: the app's own
+      // fetch continuation is not wrapped either). React commits the DOM in a scheduler
+      // task and flushes the mount passive effects in a LATER one.
+      root.render(<NumberField value={0} onCommit={onCommit} />)
+      // Catch the commit in a MutationObserver microtask — after the DOM lands, before
+      // the passive-flush task runs. This is the window the starved runner opened.
+      const input = await new Promise<HTMLInputElement>((resolve, reject) => {
+        const timer = setTimeout(() => { mo.disconnect(); reject(new Error('input never rendered')) }, 5000)
+        const mo = new MutationObserver(() => {
+          const el = host.querySelector('input')
+          if (el) { clearTimeout(timer); mo.disconnect(); resolve(el) }
+        })
+        mo.observe(host, { childList: true, subtree: true })
+      })
+      // The keystroke + blur inside the pre-effect window, delivered the same way the
+      // page tests deliver them. The buggy sync effect's mount invocation then lands
+      // AFTER the keystroke's setDraft in the same batch and wipes it.
+      fireEvent.change(input, { target: { value: '15' } })
+      fireEvent.blur(input)
+      // However the pending mount effects interleave, the typed draft must survive
+      // and the blur must have committed it.
+      await waitFor(() => expect(onCommit).toHaveBeenCalledWith(15))
+    } finally {
+      flushSync(() => root.unmount())
+      host.remove()
+    }
   })
 })
