@@ -61,18 +61,25 @@ def snapshot(run) -> dict[str, str]:
     aside and drop a replacement without either real path ever being checked.
     Detection off, the two halves appear as a deletion and an addition, and
     each is matched on its own.
+
+    `-z` is load-bearing too (#357): without it git C-quotes any path holding
+    a tab, quote, backslash, or control byte — the fingerprint key arrives as
+    `"scripts/audit-e\\tvil.sh"`, quotes included, which matches no protected
+    pattern, so the file survives enforcement. NUL-separated output delivers
+    every path verbatim, no unquoting code to get wrong. With -z a numstat
+    record is `added TAB deleted TAB path NUL`, so the path is everything
+    after the second tab (a name may itself contain tabs).
     """
     fingerprints: dict[str, str] = {}
-    for line in _git(["diff", "HEAD", "--numstat", "--no-renames"],
-                     run.repo_root).splitlines():
-        fields = line.split("\t")
-        if len(fields) >= 3:
-            path = fields[-1].strip()
-            fingerprints[path] = f"{fields[0]},{fields[1]}"
-    for path in _git(["ls-files", "--others", "--exclude-standard"],
-                     run.repo_root).splitlines():
-        if path.strip():
-            fingerprints[path.strip()] = "untracked"
+    for record in _git(["diff", "HEAD", "--numstat", "--no-renames", "-z"],
+                       run.repo_root).split("\0"):
+        fields = record.split("\t", 2)
+        if len(fields) == 3 and fields[2]:
+            fingerprints[fields[2]] = f"{fields[0]},{fields[1]}"
+    for path in _git(["ls-files", "--others", "--exclude-standard", "-z"],
+                     run.repo_root).split("\0"):
+        if path:
+            fingerprints[path] = "untracked"
     return fingerprints
 
 

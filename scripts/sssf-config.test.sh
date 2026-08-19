@@ -108,12 +108,14 @@ sys.path.insert(0, repo_root)
 import yaml
 from adws.adw_modules import permissions as P
 
-if len(sys.argv) > 4 and sys.argv[4] == "strip-no-renames":
-    # can-fail control: prove the --no-renames flag is load-bearing (#357) by
-    # removing it from every git invocation and expecting the rename scenarios
-    # to go red (the collapse attack succeeds again).
+if len(sys.argv) > 4:
+    # can-fail controls: prove a snapshot git flag is load-bearing (#357) by
+    # removing it from every git invocation and expecting the matching attack
+    # scenario to go red — strip-no-renames re-enables the rename collapse,
+    # strip-z re-enables C-quoted paths dodging the protected patterns.
+    _strip = {"strip-no-renames": "--no-renames", "strip-z": "-z"}[sys.argv[4]]
     _orig_git = P._git
-    P._git = lambda args, cwd: _orig_git([a for a in args if a != "--no-renames"], cwd)
+    P._git = lambda args, cwd: _orig_git([a for a in args if a != _strip], cwd)
 
 raw = yaml.safe_load(Path(config_path).read_text())
 patterns = raw["defaults"]["protected_files"]
@@ -149,6 +151,10 @@ try:
     SEED = "seed content\n"
     for p in PROTECTED:
         f = scratch / p; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(SEED)
+    QTRACKED = "scripts/audit-tr\tacked357.sh"          # tab in a tracked name
+    QNEW = ["scripts/audit-ta\tb357.sh", 'scripts/audit-qu"ote357.sh']
+    if scenario == "quoted":
+        f = scratch / QTRACKED; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(SEED)
     git("init", "-q"); git("add", "-A")
     git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed")
     run = types.SimpleNamespace(repo_root=str(scratch), cfg=cfg)
@@ -177,6 +183,28 @@ try:
                 status = subprocess.run(["git", "status", "--porcelain"], cwd=scratch,
                                         capture_output=True, text=True).stdout
                 if status.strip(): die(f"tree not clean after rollback:\n{status}")
+        shutil.rmtree(scratch, ignore_errors=True); sys.exit(0)
+    if scenario == "quoted":
+        # The C-quoting hole (#357): without -z, git quotes any path holding a
+        # tab/quote/backslash, so the fingerprint key arrives as
+        # '"scripts/audit-e\\tvil.sh"' — quotes included — and matches no
+        # protected pattern. All three files here sit under scripts/audit-*.sh:
+        # a tracked tab-name tampered, and two created (tab, double quote).
+        (scratch / QTRACKED).write_text("builder tampered\n")
+        for p in QNEW: (scratch / p).write_text("evil\n")
+        try:
+            P.enforce(run, None, builder, before)
+            die("no breach — C-quoted paths slipped past the protected patterns")
+        except P.PermissionBreach as e:
+            msg = str(e)
+            for p in [QTRACKED, *QNEW]:
+                if p not in msg: die(f"breach does not name {p!r} verbatim")
+            if (scratch / QTRACKED).read_text() != SEED: die(f"{QTRACKED!r} not restored")
+            for p in QNEW:
+                if (scratch / p).exists(): die(f"created {p!r} not deleted")
+            status = subprocess.run(["git", "status", "--porcelain"], cwd=scratch,
+                                    capture_output=True, text=True).stdout
+            if status.strip(): die(f"tree not clean after rollback:\n{status}")
         shutil.rmtree(scratch, ignore_errors=True); sys.exit(0)
     for p in ALLOWED:
         f = scratch / p; f.parent.mkdir(parents=True, exist_ok=True)
@@ -219,6 +247,9 @@ python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename >/dev/null \
 python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename_protected >/dev/null \
   && ok "protected-to-protected rename: both halves named + rolled back, tree clean (#357)" \
   || bad "protected-to-protected rename not fully caught/rolled back (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted >/dev/null \
+  && ok "tab/quote-named files under a protected pattern named verbatim + rolled back (#357)" \
+  || bad "a C-quoted path slipped past enforcement (#357)"
 
 # prove the boundary checks can fail, both directions
 awk '{print} /^  protected_files:/{print "    - scripts/**"}' "$CONFIG" > "$tmp/broad.yaml"
@@ -238,6 +269,9 @@ python3 "$tmp/harness.py" "$PWD" "$tmp/nogatecmd.yaml" breach >/dev/null \
 python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename strip-no-renames >/dev/null \
   && bad "harness missed the rename collapse with --no-renames stripped (#357)" \
   || ok "harness goes red without --no-renames (collapse attack works again) (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" quoted strip-z >/dev/null \
+  && bad "harness missed the C-quoting hole with -z stripped (#357)" \
+  || ok "harness goes red without -z (C-quoted paths dodge the patterns again) (#357)"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
