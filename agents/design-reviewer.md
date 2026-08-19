@@ -36,6 +36,14 @@ not what the diff claims. You are a text model: verify via the a11y tree / DOM /
 save screenshots into the run's handoff dir — they are the "fresh attested renders" the judgment
 layer drives.
 
+**In the audit chain** (`adws/adw_design_audit.py` — the milestone judgment pass, OD-WAY-55), two
+things read differently: the app is **already running** at the base URL the prompt provides — never
+start, stop, or rebuild it (factory worktrees carry no env file, so a server you boot yourself
+renders an unauthenticated husk and every verdict on it is void); and a red guard **fails that
+surface's verdict while the audit continues** over the remaining scope — failure is per-surface
+there, so one red guard cannot void the milestone-wide artifact set. "Start the app" above, and
+"a red guard ends the review" below, apply when you run standalone with no server provided.
+
 ## THE LAYERED BATTERY (artifacts, not essays)
 0. **Guard suite green.** Run the repo's guard tests over the changed surfaces (`guard-*` suites
    under `mos-app/src/` — token vocabulary via `guard-css-token-vocab`, geometry/measure guards,

@@ -120,6 +120,38 @@ class ReviewOutput(EnvelopeBase):
     blocking: list[str] = Field(default_factory=list)   # what must change before approval
 
 
+class AuditFinding(BaseModel):
+    """One design defect, tied to the surface it was seen on (adw_design_audit)."""
+
+    surface: str                    # the surface id the defect was seen on
+    severity: Literal["critical", "important", "minor"]
+    finding: str                    # what is wrong, as rendered
+    rule: str = ""                  # the violated token / contract rule / job story
+
+
+class SurfaceVerdict(BaseModel):
+    """One audited surface and the verdict on its fresh render."""
+
+    surface: str                    # the scope line verbatim, or a connected screen
+    verdict: Literal["pass", "fail"]
+    screenshots: list[str] = Field(default_factory=list)   # fresh renders, session dir only
+
+
+class AuditOutput(EnvelopeBase):
+    """The milestone design-audit verdict (adw_design_audit, OD-WAY-55).
+
+    Per-surface and artifact-backed: the chain's gates hold every verdict to its
+    screenshots and every failing surface to its findings — a verdict without
+    artifacts is void (DD-WAY-32), enforced mechanically. No commit_message on
+    purpose: the audit chain commits nothing, ever.
+    """
+
+    approved: bool = False          # true ONLY when every surface verdict is "pass"
+    surfaces: list[SurfaceVerdict] = Field(default_factory=list)
+    findings: list[AuditFinding] = Field(default_factory=list)
+    audit_path: str = ""            # audit.md in the session dir (docs-split: never the tree)
+
+
 class DocumentOutput(EnvelopeBase):
     """Where the write-up of a completed change landed."""
 
