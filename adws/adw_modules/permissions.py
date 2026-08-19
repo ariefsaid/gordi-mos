@@ -42,9 +42,19 @@ class PermissionBreach(RuntimeError):
     """An agent modified a path it was not permitted to modify."""
 
 
-def _git(args: list[str], cwd) -> str:
-    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
-    return result.stdout if result.returncode == 0 else ""
+def _git(args: list[str], cwd) -> bytes:
+    """Run git and return raw stdout BYTES.
+
+    Bytes on purpose (#357): `text=True` applies universal-newline translation,
+    which rewrites a `\\r` inside a filename to `\\n` — the fingerprint key then
+    names a path that does not exist, so matching or rollback acts on the wrong
+    name and the real file survives. Callers that parse paths decode each one
+    at the edge with utf-8/surrogateescape: round-trippable for non-UTF-8
+    names (argv and os calls re-encode them byte-exactly), no translation
+    anywhere.
+    """
+    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True)
+    return result.stdout if result.returncode == 0 else b""
 
 
 def snapshot(run) -> dict[str, str]:
@@ -54,17 +64,33 @@ def snapshot(run) -> dict[str, str]:
     file still registers as a change. Untracked files are listed by name.
     Gitignored paths never appear, which is why the session runtime under
     `data_dir` — where handoff files legitimately land — needs no special case.
+
+    `--no-renames` is load-bearing (#357): with rename detection on, a staged
+    `git mv old new` collapses into ONE numstat pseudo-path ("dir/{old => new}")
+    that matches no protected pattern — an agent could rename a protected file
+    aside and drop a replacement without either real path ever being checked.
+    Detection off, the two halves appear as a deletion and an addition, and
+    each is matched on its own.
+
+    `-z` is load-bearing too (#357): without it git C-quotes any path holding
+    a tab, quote, backslash, or control byte — the fingerprint key arrives as
+    `"scripts/audit-e\\tvil.sh"`, quotes included, which matches no protected
+    pattern, so the file survives enforcement. NUL-separated output delivers
+    every path verbatim, no unquoting code to get wrong. With -z a numstat
+    record is `added TAB deleted TAB path NUL`, so the path is everything
+    after the second tab (a name may itself contain tabs).
     """
     fingerprints: dict[str, str] = {}
-    for line in _git(["diff", "HEAD", "--numstat"], run.repo_root).splitlines():
-        fields = line.split("\t")
-        if len(fields) >= 3:
-            path = fields[-1].strip()
-            fingerprints[path] = f"{fields[0]},{fields[1]}"
-    for path in _git(["ls-files", "--others", "--exclude-standard"],
-                     run.repo_root).splitlines():
-        if path.strip():
-            fingerprints[path.strip()] = "untracked"
+    for record in _git(["diff", "HEAD", "--numstat", "--no-renames", "-z"],
+                       run.repo_root).split(b"\0"):
+        fields = record.split(b"\t", 2)
+        if len(fields) == 3 and fields[2]:
+            path = fields[2].decode("utf-8", "surrogateescape")
+            fingerprints[path] = f"{fields[0].decode()},{fields[1].decode()}"
+    for raw in _git(["ls-files", "--others", "--exclude-standard", "-z"],
+                    run.repo_root).split(b"\0"):
+        if raw:
+            fingerprints[raw.decode("utf-8", "surrogateescape")] = "untracked"
     return fingerprints
 
 
@@ -124,8 +150,22 @@ def always_writable(cfg: SSSFConfig) -> list[str]:
     return [cfg.defaults.data_dir.rstrip("/") + "/"]
 
 
+def _control_bytes(path: str) -> bool:
+    """True when the path smuggles control characters (< 0x20).
+
+    No legitimate path in this repo contains a tab, newline, carriage return,
+    or escape byte — every historical use of one here was an attempt to slip
+    past pattern matching or output parsing (#357). Rather than proving each
+    representation layer safe case by case, the whole class is a breach by
+    definition: such a path is never permitted, for any agent.
+    """
+    return any(ord(ch) < 0x20 for ch in path)
+
+
 def permitted(path: str, agent: AgentConfig, cfg: SSSFConfig) -> bool:
     """Session runtime first, then the agent's own list, then what is protected."""
+    if _control_bytes(path):
+        return False
     if any(_matches(path, p) for p in always_writable(cfg)):
         return True
     if any(_matches(path, p) for p in (agent.writes or [])):
@@ -155,9 +195,25 @@ def _roll_back(run, path: str, before: dict[str, str], after: dict[str, str]) ->
             return "deleted"
         except OSError as error:
             return f"could not delete ({error})"
-    result = subprocess.run(["git", "checkout", "--", path],
-                            cwd=run.repo_root, capture_output=True, text=True)
-    return "rolled back" if result.returncode == 0 else "could not roll back"
+    # Restore from HEAD, not from the index: a STAGED change — either half of a
+    # `git mv`, or any `git add`ed edit — has already tampered the index, so an
+    # index-restore (`git checkout -- path`) would reinstate the agent's version
+    # (or fail outright on the staged-delete half of a rename).
+    in_head = subprocess.run(["git", "cat-file", "-e", f"HEAD:{path}"],
+                             cwd=run.repo_root, capture_output=True).returncode == 0
+    if in_head:
+        result = subprocess.run(["git", "checkout", "HEAD", "--", path],
+                                cwd=run.repo_root, capture_output=True, text=True)
+        return "rolled back" if result.returncode == 0 else "could not roll back"
+    # Tracked in the index but absent from HEAD: a staged addition (e.g. the
+    # arrival half of a rename). Unstage it, then remove it from disk.
+    subprocess.run(["git", "rm", "-q", "--cached", "--force", "--", path],
+                   cwd=run.repo_root, capture_output=True)
+    try:
+        (Path(run.repo_root) / path).unlink()
+        return "unstaged + deleted"
+    except OSError as error:
+        return f"unstaged, could not delete ({error})"
 
 
 def enforce(run, phase, agent: AgentConfig, before: dict[str, str]) -> list[str]:
