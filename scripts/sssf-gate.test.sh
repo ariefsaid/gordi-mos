@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Self-test for the factory's grown gate + chain exit contract (#336).
-# Owns: FAC-004 (pgTAP conditional on supabase/ changes; cheap-first skip) and
-# FAC-005 (fix-round exhaustion exits without committing) at the unit layer.
+# Owns: FAC-004 (pgTAP conditional on supabase/ changes; cheap-first skip),
+# FAC-005 (fix-round exhaustion exits without committing), the #343 attribution
+# trailer (derived from the executing builder's roster model, honest fallback),
+# and the findings-rerun mode (--findings skips planning, reuses the prior
+# session's recorded plan, links the runs) — all at the unit layer.
 # Runs the REAL adw_modules/quality.py and adws/adw_simple_sdlc.py with stub
 # siblings (python3 stdlib only — no pydantic/yaml installed here, on purpose:
 # the factory's deps are uv-managed at run time, never CI's concern).
@@ -22,14 +25,18 @@ grep -q 'with-test-lock.sh' adws/adw_modules/quality.py \
   && ok "unit suite rides the test lock" || bad "test block does not use scripts/with-test-lock.sh"
 grep -q 'cd mos-app && npm' adws/adw_modules/quality.py \
   && ok "gate commands run in mos-app" || bad "gate commands do not target mos-app"
-grep -q 'Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>' adws/adw_modules/git_helper.py \
-  && ok "runner commits carry the MOS trailer" || bad "git_helper.py lacks the MOS commit trailer"
+grep -q 'def commit_trailer' adws/adw_modules/git_helper.py \
+  && ok "runner derives the attribution trailer from the builder's model (#343)" \
+  || bad "git_helper.py lacks commit_trailer derivation (#343)"
+grep -q 'Co-Authored-By: Claude Fable 5' adws/adw_modules/git_helper.py \
+  && bad "git_helper still hardcodes a single-substrate trailer (#343 regression)" \
+  || ok "no hardcoded single-substrate trailer remains in git_helper (#343)"
 grep -q 'contract declared but not found' adws/adw_modules/agents.py \
   && ok "declared-but-missing contract refuses in validate() (FAC-002 seam)" \
   || bad "agents.py validate() lacks the missing-contract refusal"
 
 OUT="$(python3 - "$ROOT" <<'PY'
-import contextlib, importlib.util, shutil, subprocess, sys, tempfile, types
+import contextlib, importlib.util, json, os, shutil, subprocess, sys, tempfile, types
 from pathlib import Path
 
 root = Path(sys.argv[1])
@@ -137,6 +144,55 @@ subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
 subprocess.run(["git", "commit", "-qm", "supabase in baseline"], cwd=repo, check=True)
 check("_touches_db false on a clean tree", quality._touches_db(Run()) is False)
 
+# ── #343: the REAL git_helper derives the trailer from the builder's model ────
+spec_gh = importlib.util.spec_from_file_location("real_git_helper",
+                                                root / "adws/adw_modules/git_helper.py")
+gh = importlib.util.module_from_spec(spec_gh)
+spec_gh.loader.exec_module(gh)
+
+check("glm builder derives the z.ai trailer",
+      gh.commit_trailer("zai/glm-5.3") == "Co-Authored-By: GLM-5.3 <noreply@z.ai>",
+      gh.commit_trailer("zai/glm-5.3"))
+check("luna derives the openai trailer",
+      gh.commit_trailer("openai-codex/gpt-5.6-luna")
+      == "Co-Authored-By: GPT-5.6 Luna <noreply@openai.com>")
+fallback = gh.commit_trailer("someprovider/unmapped-model")
+check("unmapped substrate gets the neutral factory line — no vendor model named",
+      fallback == "Co-Authored-By: SSSF factory agent <factory@sssf.invalid>", fallback)
+check("a call naming no model gets the same honest fallback",
+      gh.commit_trailer() == fallback)
+
+# the real commit path: the landed commit names the model that built it — the
+# exact #343 defect, so this check is RED on the old hardcoded-trailer code.
+grepo = work / "grepo"
+grepo.mkdir()
+subprocess.run(["git", "init", "-q"], cwd=grepo, check=True)
+subprocess.run(["git", "config", "user.email", "t@t"], cwd=grepo, check=True)
+subprocess.run(["git", "config", "user.name", "t"], cwd=grepo, check=True)
+(grepo / "f.txt").write_text("x")
+cwd_before = os.getcwd()
+try:
+    os.chdir(grepo)
+    gh.commit_all("feat: a glm-built change", model="zai/glm-5.3")
+finally:
+    os.chdir(cwd_before)
+body = subprocess.run(["git", "log", "-1", "--format=%B"], cwd=grepo,
+                      capture_output=True, text=True).stdout
+check("landed commit carries the builder-model trailer",
+      "Co-Authored-By: GLM-5.3 <noreply@z.ai>" in body, body)
+check("landed commit never attributes a model that did not build",
+      "anthropic" not in body, body)
+check("exactly one trailer line", body.count("Co-Authored-By:") == 1, body)
+
+# proven-can-fail: drop the mapping row (a broken derivation) → the same
+# attribution predicate goes red; restore → green again.
+saved = gh.SUBSTRATE_ATTRIBUTION.pop("zai/glm-5.3")
+check("attribution check can fail: with the row dropped, GLM attribution disappears",
+      "GLM-5.3" not in gh.commit_trailer("zai/glm-5.3"))
+gh.SUBSTRATE_ATTRIBUTION["zai/glm-5.3"] = saved
+check("restored mapping derives GLM again",
+      "GLM-5.3" in gh.commit_trailer("zai/glm-5.3"))
+
 # ── FAC-005: run the REAL chain file with stub modules — exhaustion must not commit ──
 class Envelope:
     def __init__(self, **kw):
@@ -144,16 +200,21 @@ class Envelope:
         self.commit_message = "msg"; self.approved = True
         self.__dict__.update(kw)
     def model_dump_json(self, **kw): return "{}"
+    @classmethod
+    def model_validate(cls, data): return cls(**data)
 
 committed = []
 phases = []
+prompts_seen = []
+logs = []
 class Ph:
     def __init__(self, params): self.params = params
     def call(self, agent_call):
         name = self.params.kw["name"]
+        prompts_seen.append((name, agent_call.prompt))
         if name.startswith("review"): return Envelope(approved=REVIEW_APPROVED)
         return Envelope()
-    def log(self, **kw): pass
+    def log(self, **kw): logs.append((self.params.kw["name"], kw))
 class PhaseCtx:
     def __init__(self, run, params): self.run, self.params = run, params
     def __enter__(self):
@@ -182,11 +243,17 @@ stub_quality = mod("adw_modules.quality",
     as_envelope=lambda result, what: Envelope())
 stub_git = mod("adw_modules.git_helper",
     rev=lambda ref="HEAD": "base", short_sha=lambda ref="HEAD": "abc1234",
-    commit_all=lambda msg: (committed.append(msg), "abc1234")[1])
+    commit_all=lambda msg, model=None: (committed.append((msg, model)), "abc1234")[1])
+# a cfg with a real data_dir, so findings mode can read a prior session's plan
+datadir = work / "adw_data"
+cfg_obj = types.SimpleNamespace(defaults=types.SimpleNamespace(data_dir=str(datadir)))
+validated = []
 stubs = {
     "adw_modules": mod("adw_modules"),
     "adw_modules.agents": mod("adw_modules.agents",
-                              load_config=lambda p: "cfg", validate=lambda cfg, req: None),
+                              load_config=lambda p: cfg_obj,
+                              validate=lambda cfg, req: validated.append(list(req)),
+                              resolve=lambda cfg, name: types.SimpleNamespace(model="zai/glm-5.3")),
     "adw_modules.changes": mod("adw_modules.changes",
                                capture=lambda run, cc: changeset, as_envelope=lambda cs, notes: Envelope()),
     "adw_modules.gates": mod("adw_modules.gates",
@@ -225,6 +292,57 @@ rc = sdlc.main("do a thing")
 check("green run accepted", rc == 0 and fake_run.accepted is True)
 check("green run commits exactly once (commit_build; plan and docs stay trace-only)",
       len(committed) == 1, str(committed))
+check("commit carries the executing builder's model for attribution (#343)",
+      committed and committed[0][1] == "zai/glm-5.3", str(committed))
+# control for the findings-mode assertions below: a NORMAL run plans — the
+# "no planner phase" predicate is proven able to fail right here.
+check("normal run enters through the plan phase",
+      "plan" in phases and "commit_plan" in phases, str(phases))
+
+# ── findings mode: skip planning, reuse the prior plan, link the sessions ─────
+prior_dir = datadir / "sessions" / "prior123" / "planner"
+prior_dir.mkdir(parents=True)
+(prior_dir / "envelope.json").write_text(json.dumps({
+    "status": "success", "summary": "the prior plan",
+    "artifacts": ["adws/adw_data/sessions/prior123/context_handoff/plan.md"],
+    "commit_message": ""}))
+
+phases.clear(); committed.clear(); prompts_seen.clear(); logs.clear(); validated.clear()
+rc = sdlc.main(None, findings="finding A: the trailer names the wrong model",
+               from_adw_id="prior123")
+check("findings run accepted end-to-end", rc == 0 and fake_run.accepted is True)
+check("findings run NEVER runs the planner — no plan/commit_plan phase in the trace",
+      "plan" not in phases and "commit_plan" not in phases, str(phases))
+check("findings run records the plan reuse before build",
+      phases[:3] == ["request", "reuse_plan", "build"], str(phases))
+check("planner excluded from roster validation in findings mode",
+      validated and "planner" not in validated[-1], str(validated))
+build_prompts = [p for name, p in prompts_seen if name == "build"]
+check("build prompt is the findings, framed against the existing plan",
+      build_prompts and "finding A: the trailer names the wrong model" in build_prompts[0]
+      and "existing plan" in build_prompts[0], str(build_prompts))
+request_logs = [kw for name, kw in logs if name == "request"]
+check("request record links the prior session (prior_adw_id logged)",
+      request_logs and request_logs[0].get("prior_adw_id") == "prior123", str(request_logs))
+check("findings run still commits exactly once, attributed to the builder model",
+      len(committed) == 1 and committed[0][1] == "zai/glm-5.3", str(committed))
+
+# a prior id with no recorded plan refuses the run before anything spawns
+try:
+    sdlc.main(None, findings="x", from_adw_id="no-such-session")
+    check("missing prior plan refuses the run", False, "SystemExit not raised")
+except SystemExit as e:
+    check("missing prior plan refuses the run", "no recorded plan" in str(e), str(e))
+
+# round caps unchanged: a red findings run still exhausts at 3 fix rounds, no commit
+QUALITY_GREEN = False
+stub_quality.run_tests = lambda run: types.SimpleNamespace(
+    passed=False, checks=[], failures=["test: red"], artifacts=[])
+phases.clear(); committed.clear()
+rc = sdlc.main(None, findings="finding B", from_adw_id="prior123")
+check("red findings run: same 3-round cap, exits unaccepted with zero commits",
+      rc == 1 and len([p for p in phases if p.startswith("fix_")]) == 3 and committed == [],
+      str(phases) + str(committed))
 
 shutil.rmtree(work, ignore_errors=True)
 sys.exit(1 if failures else 0)

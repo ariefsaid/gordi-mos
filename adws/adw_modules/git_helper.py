@@ -40,13 +40,36 @@ def repo_root() -> Path:
     return Path.cwd().resolve()
 
 
-# MOS (#336): every commit the runner lands carries the project trailer, appended
-# in code so no agent's commit_message has to remember it.
-COMMIT_TRAILER = "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+# MOS (#336, #343): every commit the runner lands carries ONE attribution trailer,
+# appended in code so no agent's commit_message has to remember it. #343: the
+# trailer names the model that ACTUALLY built the change — the chain passes the
+# executing builder's configured roster model, and this table (the single place
+# substrate → attribution lives) maps it to a name/email. A model with no row,
+# and a caller that names no model at all, gets the neutral factory line:
+# honest over specific — never attribute a model that did not build.
+SUBSTRATE_ATTRIBUTION: dict[str, tuple[str, str]] = {
+    "zai/glm-5.3": ("GLM-5.3", "noreply@z.ai"),
+    "zai/glm-4.7": ("GLM-4.7", "noreply@z.ai"),
+    "openai-codex/gpt-5.6-terra": ("GPT-5.6 Terra", "noreply@openai.com"),
+    "openai-codex/gpt-5.6-luna": ("GPT-5.6 Luna", "noreply@openai.com"),
+}
+FALLBACK_ATTRIBUTION = ("SSSF factory agent", "factory@sssf.invalid")
 
 
-def commit_all(message: str) -> str:
-    """Stage the working tree and commit it. Returns the new short sha."""
+def commit_trailer(model: str | None = None) -> str:
+    """The single trailer line attributing a commit to the model that built it."""
+    name, email = SUBSTRATE_ATTRIBUTION.get(model or "", FALLBACK_ATTRIBUTION)
+    return f"Co-Authored-By: {name} <{email}>"
+
+
+def commit_all(message: str, model: str | None = None) -> str:
+    """Stage the working tree and commit it. Returns the new short sha.
+
+    `model` is the executing builder's roster model (e.g. "zai/glm-5.3") — it
+    decides the attribution trailer. A caller that passes none gets the neutral
+    fallback, never a named model that did not build. The guard keeps the
+    message to a single Co-Authored-By line.
+    """
     if not is_repo():
         raise RuntimeError(
             "not a git repository — a commit phase needs one. Run `git init` in the "
@@ -54,8 +77,8 @@ def commit_all(message: str) -> str:
     _git("add", "-A")
     if not _git("status", "--porcelain"):
         raise RuntimeError("nothing to commit — the preceding phases changed no files")
-    if COMMIT_TRAILER not in message:
-        message = f"{message}\n\n{COMMIT_TRAILER}"
+    if "Co-Authored-By:" not in message:
+        message = f"{message}\n\n{commit_trailer(model)}"
     _git("commit", "-m", message)
     return _git("rev-parse", "--short", "HEAD")
 

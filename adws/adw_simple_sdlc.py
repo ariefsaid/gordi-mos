@@ -6,12 +6,21 @@
 
 Usage:
     uv run adws/adw_simple_sdlc.py "<prompt or path/to/prompt.md>" [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
+    uv run adws/adw_simple_sdlc.py --findings "<text or path>" --from-adw-id <prior id>
 
 Phases: engineer(request) -> planner -> code(commit_plan: trace record)
         -> builder -> code(test) [-> builder(fix) -> code(test) ... bounded]
         -> reviewer [-> builder(revise) -> reviewer ... bounded]
         -> code(retest, only if a revision changed code)
         -> git(commit_build) -> code(changes) -> documenter -> code(commit_docs: trace record)
+
+Findings mode (MOS #343 train — the findings-rerun rule): review findings
+against an already-planned change do not need a new plan. `--findings` +
+`--from-adw-id` reuses the prior session's RECORDED plan envelope as build
+context, skips the plan phase entirely, and enters at build with the findings
+as the prompt ("close these findings against the existing plan"). The rerun is
+its own new adw_id; the prior id is logged on the request phase record, so the
+two sessions link in the trace. Round caps and gates are unchanged.
 
 One commit, three work products (MOS #336). The plan and the write-up are
 documentary, and this repo is PUBLIC with a blunt docs-split rule — they live
@@ -43,7 +52,9 @@ pinned before the first commit phase and printed in the request phase.
 """
 
 import argparse
+import json
 import sys
+from pathlib import Path
 
 from adw_modules import agents, changes, gates, git_helper, quality, session, utils
 from adw_modules.data_types import (AgentCall, BuildOutput, ChangeCapture,
@@ -58,20 +69,47 @@ DOCUMENT_NOTES = ("Read diff_path in full before writing. Document only what the
                   "this repo is PUBLIC and documentary artifacts never land in its "
                   "tree (docs-split rule); the session dir and trace are the record.")
 
+FINDINGS_PROMPT = ("Close these findings against the existing plan (from run "
+                   "{prior}). The plan is the previous envelope — read its "
+                   "artifacts in full before changing anything; do not re-plan.\n\n"
+                   "Findings:\n{findings}")
 
-def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None,
-         builder: str = "builder", reviewer: str = "reviewer") -> int:
+
+def _prior_plan(cfg, prior_adw_id: str) -> PlanOutput:
+    """The plan envelope the prior session recorded — reused verbatim as build context."""
+    path = (Path(cfg.defaults.data_dir) / "sessions" / prior_adw_id
+            / "planner" / "envelope.json")
+    if not path.is_file():
+        raise SystemExit(f"--from-adw-id {prior_adw_id}: no recorded plan envelope at "
+                         f"{path} — findings mode needs a prior session that planned")
+    return PlanOutput.model_validate(json.loads(path.read_text()))
+
+
+def main(prompt: str | None, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None,
+         builder: str = "builder", reviewer: str = "reviewer",
+         findings: str | None = None, from_adw_id: str | None = None) -> int:
     # builder/reviewer are roster names — swap in fe_builder/fe_reviewer for a UI slice;
     # the chain is otherwise identical.
+    findings_mode = findings is not None
+    if findings_mode:
+        if not from_adw_id:
+            raise SystemExit("--findings requires --from-adw-id <prior session id>")
+        prompt = FINDINGS_PROMPT.format(prior=from_adw_id, findings=findings)
+    if prompt is None:
+        raise SystemExit("a prompt is required (or --findings with --from-adw-id)")
     cfg = agents.load_config(config)
-    agents.validate(cfg, ["planner", builder, reviewer, "documenter"])
+    required = [builder, reviewer, "documenter"]
+    agents.validate(cfg, required if findings_mode else ["planner", *required])
+    builder_model = agents.resolve(cfg, builder).model   # commit attribution (#343)
     run = session.ensure(cfg, adw_id)
     baseline = git_helper.rev("HEAD")     # pinned before this run commits anything
 
     def commit(ph, envelope) -> None:
         """Commit what the preceding phase produced, in that agent's own words."""
         message = envelope.commit_message or f"sssf({run.adw_id}): {envelope.summary}"
-        ph.log(sha=git_helper.commit_all(message), message=message)
+        # #343: the trailer names the model that built this — the executing
+        # builder's roster model, never a hardcoded substrate.
+        ph.log(sha=git_helper.commit_all(message, model=builder_model), message=message)
 
     def record(ph, result) -> None:
         """Log a deterministic block's verdict — the same shape every ADW uses."""
@@ -81,21 +119,35 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
 
     with run.phase(PhaseParams(name="request", kind="engineer", owner=run.engineer,
                                description="Capture the incoming ask")) as ph:
-        ph.log(input=prompt, baseline=git_helper.short_sha(baseline))
+        if findings_mode:
+            # The link between the two sessions lives here, on the request record.
+            ph.log(input=prompt, baseline=git_helper.short_sha(baseline),
+                   prior_adw_id=from_adw_id,
+                   mode="findings rerun — plan reused from the prior session")
+        else:
+            ph.log(input=prompt, baseline=git_helper.short_sha(baseline))
 
-    with run.phase(PhaseParams(name="plan", kind="agent", owner="planner",
-                               description="Turn the request into an implementable plan")) as ph:
-        plan = ph.call(AgentCall(output_type=PlanOutput, prompt=prompt,
-                                 gates=[gates.artifacts_exist, gates.files_non_empty]))
+    if findings_mode:
+        plan = _prior_plan(cfg, from_adw_id)
+        with run.phase(PhaseParams(name="reuse_plan", kind="code", owner="git",
+                                   description="Findings rerun: reuse the prior session's recorded "
+                                               "plan as build context instead of planning again")) as ph:
+            ph.log(prior_adw_id=from_adw_id, plan=", ".join(plan.artifacts),
+                   note="plan envelope read from the prior session dir; the planner never runs")
+    else:
+        with run.phase(PhaseParams(name="plan", kind="agent", owner="planner",
+                                   description="Turn the request into an implementable plan")) as ph:
+            plan = ph.call(AgentCall(output_type=PlanOutput, prompt=prompt,
+                                     gates=[gates.artifacts_exist, gates.files_non_empty]))
 
-    # MOS (#336): the plan is documentary, and this repo is PUBLIC with a blunt
-    # docs-split rule — documentary artifacts never land in its tree. The plan
-    # stays in the session dir (gitignored); this phase puts it on the TRACE
-    # record before any code exists to blur it, instead of in a commit.
-    with run.phase(PhaseParams(name="commit_plan", kind="code", owner="git",
-                               description="Put the plan on the trace record before any code exists to blur it")) as ph:
-        ph.log(recorded=", ".join(plan.artifacts),
-               note="plan recorded in the session dir + trace; not committed (docs-split rule)")
+        # MOS (#336): the plan is documentary, and this repo is PUBLIC with a blunt
+        # docs-split rule — documentary artifacts never land in its tree. The plan
+        # stays in the session dir (gitignored); this phase puts it on the TRACE
+        # record before any code exists to blur it, instead of in a commit.
+        with run.phase(PhaseParams(name="commit_plan", kind="code", owner="git",
+                                   description="Put the plan on the trace record before any code exists to blur it")) as ph:
+            ph.log(recorded=", ".join(plan.artifacts),
+                   note="plan recorded in the session dir + trace; not committed (docs-split rule)")
 
     with run.phase(PhaseParams(name="build", kind="agent", owner=builder,
                                description="Implement the plan exactly")) as ph:
@@ -188,13 +240,27 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("prompt", help="inline text or a path to a prompt file")
+    parser.add_argument("prompt", nargs="?", default=None,
+                        help="inline text or a path to a prompt file (omit in findings mode)")
     parser.add_argument("--config", default="adws/adw_sssf_config/sssf.config.yaml")
     parser.add_argument("--adw-id", default=None, help="join or pin an existing session")
     parser.add_argument("--builder", default="builder",
                         help="roster agent for build/fix/revise phases (e.g. fe_builder for a UI slice)")
     parser.add_argument("--reviewer", default="reviewer",
                         help="roster agent for review phases (e.g. fe_reviewer for a UI slice)")
+    parser.add_argument("--findings", default=None,
+                        help="findings text or file — skip planning and enter at build "
+                             "against a prior session's recorded plan (requires --from-adw-id)")
+    parser.add_argument("--from-adw-id", default=None,
+                        help="the prior session whose recorded plan the findings close")
     args = parser.parse_args()
-    sys.exit(main(utils.resolve_prompt(args.prompt), args.config, args.adw_id,
-                  args.builder, args.reviewer))
+    if args.findings is None and args.prompt is None:
+        parser.error("a prompt is required (or --findings with --from-adw-id)")
+    if args.findings is not None and args.prompt is not None:
+        parser.error("pass a prompt OR --findings, not both — findings ARE the build prompt")
+    if args.findings is not None and args.from_adw_id is None:
+        parser.error("--findings requires --from-adw-id <prior session id>")
+    sys.exit(main(utils.resolve_prompt(args.prompt) if args.prompt else None,
+                  args.config, args.adw_id, args.builder, args.reviewer,
+                  findings=utils.resolve_prompt(args.findings) if args.findings else None,
+                  from_adw_id=args.from_adw_id))
