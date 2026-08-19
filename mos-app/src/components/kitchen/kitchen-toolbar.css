@@ -17,15 +17,15 @@
 
 /* #378: the search's floor and bracket. `flex-basis: 0` meant the search only ever got
    LEFTOVER row space — with the derived catalog the scope slot's content (931–1091px at
-   1440) left it 40.75–49px. The basis is now the usable minimum itself: 160px ≈ 18 mono
+   1440) left it 40.75–49px. The basis is now the usable minimum itself: --control-measure-search ≈ 18 mono
    characters at the 13px control size, enough to identify every catalog dish name; the
    bracket idiom (basis + max on a flexible track, DESIGN.md §Thin progress track) keeps
    these bracket values, not rendered geometry. It grows into the filters row up to the
    200px cap it has always had. */
 .ktb-search-wrap {
   display: flex;
-  flex: 1 1 160px;
-  min-width: 160px;
+  flex: 1 1 var(--control-measure-search);
+  min-width: var(--control-measure-search);
   max-width: 200px;
 }
 
@@ -104,7 +104,7 @@
    with a search field and a select), and search + category shrink onto the row below —
    two rows inside ONE band instead of two separately-padded, separately-ruled bands.
    `flex-wrap` is back to `wrap` for exactly that break; search stays unwrappable beside
-   the select via `flex: 1 1 160px; min-width: 160px`.
+   the select via `flex: 1 1 var(--control-measure-search); min-width: 160px`.
    The search field also takes the 44px touch floor here: it was the one control in this
    band below it (36px), and the row's height is already set by the 44px select, so the
    floor is free. */

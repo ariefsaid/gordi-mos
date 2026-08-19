@@ -213,6 +213,9 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Log @390')
     expect(search.height, 'Café · Log @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(43.5)
+    // #378 review: same-row checks can pass while the category runs off-viewport — assert it cannot.
+    const logOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+    expect(logOverflow, 'Café · Log @390: the toolbar never pushes the document wider than the viewport').toBe(false)
   })
 
   test('GUARD-SEARCH: Café · Plan at 390 — phone composition not regressed by the fix', async ({ page }) => {
@@ -220,5 +223,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Plan @390')
     expect(search.height, 'Café · Plan @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(43.5)
+    const planOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+    expect(planOverflow, 'Café · Plan @390: the toolbar never pushes the document wider than the viewport').toBe(false)
   })
 })
