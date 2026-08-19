@@ -16,11 +16,15 @@ Phases: engineer(request) -> planner -> code(commit_plan: trace record)
 
 Findings mode (MOS #343 train — the findings-rerun rule): review findings
 against an already-planned change do not need a new plan. `--findings` +
-`--from-adw-id` reuses the prior session's RECORDED plan envelope as build
-context, skips the plan phase entirely, and enters at build with the findings
-as the prompt ("close these findings against the existing plan"). The rerun is
-its own new adw_id; the prior id is logged on the request phase record, so the
-two sessions link in the trace. Round caps and gates are unchanged.
+`--from-adw-id` reuses the prior session's RECORDED plan envelope, skips the
+plan phase entirely, and enters at build with the findings as the prompt
+("close these findings against the existing plan"). The reuse_plan phase
+COPIES the plan artifacts into this session's context_handoff (#367): the
+builder reads them via `previous=`, and the reviewer finds `plan.md` in its
+own session exactly as after a normal plan phase — review-against-plan holds
+in every findings run. The rerun is its own new adw_id; the prior id is logged
+on the request phase record, so the two sessions link in the trace. Round caps
+and gates are unchanged.
 
 One commit, three work products (MOS #336). The plan and the write-up are
 documentary, and this repo is PUBLIC with a blunt docs-split rule — they live
@@ -54,6 +58,7 @@ pinned before the first commit phase and printed in the request phase.
 import argparse
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -96,6 +101,38 @@ def _prior_plan(cfg, prior_adw_id: str) -> PlanOutput:
         raise SystemExit(f"--from-adw-id {prior_adw_id}: no recorded plan envelope at "
                          f"{path} — findings mode needs a prior session that planned")
     return PlanOutput.model_validate(json.loads(path.read_text()))
+
+
+def _adopt_plan(run, plan: PlanOutput, prior_dir: Path) -> PlanOutput:
+    """Copy the prior session's plan artifacts into THIS session's context_handoff.
+
+    The reused plan lives in the PRIOR session's dir. The builder gets it as
+    `previous=`, but the reviewer's spec convention is
+    `<context_handoff_dir>/plan.md` in its OWN session — without this copy the
+    reviewer judged blind (#367, seen live in run bc868de1: review.md admitted
+    no plan.md was present and approved a build that met almost none of the
+    plan's obligations). Copying puts the plan exactly where a normal run's
+    planner leaves it, so every later phase finds it with no special-casing.
+    Artifact paths are agent-recorded, so each one is held inside the prior
+    session dir before it is read — same defense as `_prior_plan`.
+    """
+    adopted = []
+    for artifact in plan.artifacts:
+        src = Path(artifact)
+        if not src.is_absolute():
+            src = Path(run.repo_root) / src
+        src = src.resolve()
+        if prior_dir not in src.parents:
+            raise SystemExit(f"prior plan artifact {artifact!r} resolves outside its "
+                             f"session dir — refusing to adopt it")
+        if not src.is_file():
+            raise SystemExit(f"prior plan artifact missing: {src} — a findings rerun "
+                             f"cannot review against a plan that no longer exists")
+        dest = run.context_handoff_dir / src.name
+        shutil.copyfile(src, dest)
+        adopted.append(str(dest))
+    plan.artifacts = adopted
+    return plan
 
 
 def main(prompt: str | None, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None,
@@ -142,11 +179,15 @@ def main(prompt: str | None, config: str = "adws/adw_sssf_config/sssf.config.yam
 
     if findings_mode:
         plan = _prior_plan(cfg, from_adw_id)
+        prior_dir = (Path(cfg.defaults.data_dir) / "sessions" / from_adw_id).resolve()
         with run.phase(PhaseParams(name="reuse_plan", kind="code", owner="git",
-                                   description="Findings rerun: reuse the prior session's recorded "
-                                               "plan as build context instead of planning again")) as ph:
+                                   description="Findings rerun: adopt the prior session's recorded "
+                                               "plan into this session instead of planning again")) as ph:
+            plan = _adopt_plan(run, plan, prior_dir)
             ph.log(prior_adw_id=from_adw_id, plan=", ".join(plan.artifacts),
-                   note="plan envelope read from the prior session dir; the planner never runs")
+                   note="plan artifacts copied into this session's context_handoff, so the "
+                        "builder AND the reviewer find the plan where a normal run puts it "
+                        "(#367); the planner never runs")
     else:
         with run.phase(PhaseParams(name="plan", kind="agent", owner="planner",
                                    description="Turn the request into an implementable plan")) as ph:
