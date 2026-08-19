@@ -17,8 +17,11 @@ vi.mock('@/lib/db/signals', async (importOriginal) => {
 import { correctSignal } from '@/lib/db/signals'
 const mockCorrectSignal = vi.mocked(correctSignal)
 
+const composerPostCount = vi.hoisted(() => ({ value: 0 }))
 const openSignalComposer = vi.fn()
-vi.mock('@/shell/signal-composer-host', () => ({ useSignalComposer: () => ({ open: openSignalComposer, postCount: 0 }) }))
+vi.mock('@/shell/signal-composer-host', () => ({
+  useSignalComposer: () => ({ open: openSignalComposer, postCount: composerPostCount.value }),
+}))
 vi.mock('@/components/signals/signal-record-host', () => ({
   SignalRecordHost: ({ signalId }: { signalId: string }) => <div data-testid="home-signal-record" data-signal-id={signalId} />,
 }))
@@ -80,6 +83,7 @@ function renderSectionWithHost(props: Partial<React.ComponentProps<typeof Signal
 
 beforeEach(() => {
   vi.clearAllMocks()
+  composerPostCount.value = 0
 })
 
 describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => {
@@ -181,6 +185,36 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     renderSection({ signals: [] })
     await waitFor(() => expect(screen.getByText(/No Signals yet/i)).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /\+ Signal/i })).toBeInTheDocument()
+  })
+
+  // Issue 360 (AC-430): the composer host bumps postCount on each successful Share; the section must
+  // turn that bump into a re-run of HomePage's ONE shared read, or a freshly shared Signal never
+  // appears on Home without a manual refresh. Pinned at the component layer so the e2e is not the
+  // only owner of the re-read trigger.
+  it('Issue 360: a postCount bump (a Share) re-runs the shared read — once per bump, never on mount', async () => {
+    const onReload = vi.fn()
+    const feedTree = () => (
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={
+              <SignalFeedSection signals={[row()]} authorNamesById={AUTHORS} teamNamesById={TEAMS} onReload={onReload} />
+            } />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    )
+    const { rerender } = render(feedTree())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(onReload).not.toHaveBeenCalled()
+
+    composerPostCount.value = 1
+    rerender(feedTree())
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+
+    composerPostCount.value = 2
+    rerender(feedTree())
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(2))
   })
 
   it('renders nothing during the shared read\'s initial load (Home skeletons cover it, NFR-405)', () => {

@@ -18,9 +18,12 @@ vi.mock('@/lib/db/directory', () => ({
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
 const desktopState = vi.hoisted(() => ({ value: true }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
-const composerOpen = vi.hoisted(() => vi.fn())
+const { composerOpen, composerPostCount } = vi.hoisted(() => ({
+  composerOpen: vi.fn(),
+  composerPostCount: { value: 0 },
+}))
 vi.mock('@/shell/signal-composer-host', () => ({
-  useSignalComposer: () => ({ open: composerOpen, postCount: 0 }),
+  useSignalComposer: () => ({ open: composerOpen, postCount: composerPostCount.value }),
 }))
 
 // The ?record=<id> record is SignalRecordHost's own job (signal-record-host.test.tsx covers its
@@ -56,8 +59,8 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
 
 const PEOPLE: PersonOption[] = [{ id: 'person-author-a', full_name: 'Author One' }]
 
-function renderPage(initialPath = '/work/signals') {
-  return render(
+function pageTree(initialPath = '/work/signals') {
+  return (
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
         <OverlayHostProvider>
@@ -67,8 +70,12 @@ function renderPage(initialPath = '/work/signals') {
           </Routes>
         </OverlayHostProvider>
       </MemoryRouter>
-    </I18nProvider>,
+    </I18nProvider>
   )
+}
+
+function renderPage(initialPath = '/work/signals') {
+  return render(pageTree(initialPath))
 }
 
 // OD-REDESIGN-84.1: the filters/group/sort/toggles (incl. Show retracted) live behind the one
@@ -91,6 +98,7 @@ function LocationProbe() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  composerPostCount.value = 0
   desktopState.value = true
   mockListReadableSignals.mockResolvedValue([
     row({ id: 'signal-1', body: 'The freezer alarm went off' }),
@@ -290,6 +298,22 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument())
     expect(screen.queryByText('The freezer alarm went off')).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toHaveValue('espresso')
+  })
+
+  // Issue 360 (AC-430, archive half): a Share from the toolbar's ONE compose door bumps the composer
+  // host's postCount — the collection must re-run its load so the fresh Signal appears on
+  // /work/signals without a manual refresh. Mirrors the feed's unit pin; no e2e covers this
+  // surface, so this test is the owner.
+  it('Issue 360: a postCount bump (a Share) re-runs the collection load', async () => {
+    const view = renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    const callsAfterMount = mockListReadableSignals.mock.calls.length
+    expect(callsAfterMount).toBeGreaterThan(0)
+
+    composerPostCount.value = 1
+    view.rerender(pageTree())
+    await waitFor(() => expect(mockListReadableSignals.mock.calls.length).toBe(callsAfterMount + 1))
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
   })
 
   it('hides retracted rows by default, and reveals them as tombstones via "Show retracted" (IMPORTANT-6)', async () => {
