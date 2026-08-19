@@ -129,7 +129,9 @@ export function useInlineCommit<T>({
     }
   }, [])
 
+  // A pending async attempt owns the field until it settles; duplicate gestures are inert.
   const commit = useCallback((override?: T) => {
+    if (pendingRef.current) return
     const next = override !== undefined ? override : draft
     if (override !== undefined) setDraft(override)
     if (disabled) return

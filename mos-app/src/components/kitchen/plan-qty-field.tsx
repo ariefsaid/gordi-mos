@@ -80,20 +80,13 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
         min={0}
         step={1}
         enterKeyHint="next"
-        // I5 contract: while an async commit is pending the field is disabled + aria-busy
-        // (useInlineCommit's own doc) — otherwise Enter-then-blur fires onCommit twice
-        // for one edit. Same consumption as task-row.tsx, the hook's reference consumer.
-        // The commit handlers are ALSO gated on pending: React still delivers blur to a
-        // disabled input (disabling the focused field is itself what blurs it), and the
-        // hook's commit() checks only its `disabled` option — proven by the page's
-        // "saves exactly ONCE" regression test, which fails with the attribute alone.
-        // NOTE: v4's copy omitted all of this — deliberate improvement over the source.
+        // The hook owns duplicate suppression; these attributes still expose pending state.
         disabled={disabled || pending}
         aria-busy={pending || undefined}
         data-touch-target="true"
         onChange={handleInput}
-        onKeyDown={pending ? undefined : onKeyDown}
-        onBlur={pending ? undefined : onBlur}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
       />
       <span className="pqf-unit">{t('kitchen.unit.porsi')}</span>
     </div>
