@@ -12,9 +12,10 @@ pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
-# check_config <file> — prints nothing, returns nonzero with reasons on stdout on violation.
+# check_config <file> [<git_helper.py>] — prints nothing, returns nonzero with
+# reasons on stdout on violation.
 check_config() {
-  local cfg="$1" bad_out=""
+  local cfg="$1" gh="${2:-adws/adw_modules/git_helper.py}" bad_out=""
   # 1. every roster slot pins model: explicitly (FR-007 — no defaults inheritance)
   local names models
   names=$(grep -c '^  - name: ' "$cfg")
@@ -39,6 +40,12 @@ check_config() {
   done
   # 5. two-places rule names the sibling record
   grep -q 'docs/agents/pi-delegation.md' "$cfg" || bad_out+="header does not name docs/agents/pi-delegation.md\n"
+  # 6. every roster model has an attribution row in git_helper (#343) — a commit
+  #    must be able to name the model that built it, so a substrate ruling that
+  #    adds a model here must add its trailer mapping there too
+  while read -r m; do
+    grep -qF "\"$m\":" "$gh" || bad_out+="model with no attribution trailer row in git_helper: $m\n"
+  done < <(grep -E '^ *model: ' "$cfg" | awk '{print $2}' | sort -u)
   [ -z "$bad_out" ] || { printf '%b' "$bad_out"; return 1; }
 }
 
@@ -67,6 +74,11 @@ check_config "$tmp/unprot.yaml" >/dev/null && bad "checker missed dropped protec
 sed 's|contract: agents/|contract: elsewhere/|' "$CONFIG" > "$tmp/contract.yaml"
 check_config "$tmp/contract.yaml" >/dev/null && bad "checker missed an out-of-tree contract path" \
   || ok "checker catches a contract path outside agents/"
+
+grep -v '"zai/glm-5.3":' adws/adw_modules/git_helper.py > "$tmp/gh-unmapped.py"
+check_config "$CONFIG" "$tmp/gh-unmapped.py" >/dev/null \
+  && bad "checker missed a roster model with no attribution trailer row (#343)" \
+  || ok "checker catches a roster model with no attribution trailer row (#343)"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

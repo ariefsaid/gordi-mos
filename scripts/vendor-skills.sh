@@ -139,6 +139,7 @@ SSSF_T="$TMP/sssf/.claude/skills/sssf/templates"
 # config and root .env.sample are handled below as bootstrap-only stamps, never overwritten.
 SSSF_DEVIATED="adw_modules/agents.py adw_modules/data_types.py adw_modules/quality.py \
 adw_modules/git_helper.py adw_simple_sdlc.py \
+adw_plan_build.py adw_plan_build_test.py adw_plan_build_test_quality.py \
 adw_data/prompt_engineering/planner/system.md adw_data/prompt_engineering/planner/user.md \
 adw_data/prompt_engineering/builder/system.md adw_data/prompt_engineering/reviewer/system.md \
 adw_data/prompt_engineering/documenter/system.md adw_data/prompt_engineering/documenter/user.md \

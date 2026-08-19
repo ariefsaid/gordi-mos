@@ -22,6 +22,9 @@ REQUIRED_AGENTS = ["planner", "builder"]
 def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None) -> int:
     cfg = agents.load_config(config)
     agents.validate(cfg, REQUIRED_AGENTS)
+    # MOS (#343): this chain's one builder is the "builder" roster slot — its
+    # model attributes the commit, so the trailer names the model that built.
+    builder_model = agents.resolve(cfg, "builder").model
     run = session.ensure(cfg, adw_id)
 
     with run.phase(PhaseParams(name="request", kind="engineer", owner=run.engineer,
@@ -41,7 +44,7 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
     with run.phase(PhaseParams(name="commit", kind="code", owner="git",
                                description="Land the builder's changes, using the message it wrote")) as ph:
         message = build.commit_message or f"sssf({run.adw_id}): {build.summary}"
-        ph.log(sha=git_helper.commit_all(message), message=message)
+        ph.log(sha=git_helper.commit_all(message, model=builder_model), message=message)
 
     return run.finish()
 
