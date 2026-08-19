@@ -39,8 +39,10 @@ check_config() {
   local p
   for p in 'adws/**' 'agents/**' '.githooks/**' '.github/**' 'scripts/vendor-*' \
            'scripts/with-*-lock.sh' 'scripts/lib/**' scripts/pre-pr-verify.sh \
-           scripts/setup-hooks.sh 'scripts/audit-*.sh' 'scripts/sssf-*.test.sh' \
-           'scripts/agent-git-shim/**'; do
+           scripts/setup-hooks.sh 'scripts/audit-*.sh' 'scripts/*.test.sh' \
+           'scripts/agent-git-shim/**' mos-app/package.json mos-app/vite.config.ts \
+           mos-app/playwright.config.ts mos-app/tsconfig.json mos-app/eslint.config.js \
+           mos-app/.stylelintrc.json; do
     grep -qF -- "- $p" "$cfg" || bad_out+="protected_files missing: $p\n"
   done
   # 4b. and NOT the whole of scripts/ — a blanket entry is the #357 regression:
@@ -92,9 +94,12 @@ check_config "$CONFIG" "$tmp/gh-unmapped.py" >/dev/null \
 # ── #357 permission boundary: the runner's REAL matcher + enforce() ──────────
 # A scratch git repo seeds the control surfaces, a simulated unrestricted
 # builder (writes: None) makes changes, and the real permissions.enforce()
-# judges them against the actual config's protected_files. Both directions:
-# a deliverable in general scripts/ is allowed; edits to the gate, the verify
-# script, and CI are rolled back and the phase refused.
+# judges them against the actual config's protected_files. Coverage is
+# GENERATED from the config: every protected pattern gets one concrete probe
+# path derived from it (a pattern edit cannot silently lose its refusal
+# proof), plus a spec-pinned FLOOR of control paths that must stay refused
+# no matter how the list is rewritten. Allowed near-misses prove the other
+# direction: general scripts/ and mos-app/ deliverables, and the lockfile.
 cat > "$tmp/harness.py" <<'PYEOF'
 import shutil, subprocess, sys, tempfile, types
 from pathlib import Path
@@ -104,26 +109,45 @@ import yaml
 from adws.adw_modules import permissions as P
 
 raw = yaml.safe_load(Path(config_path).read_text())
+patterns = raw["defaults"]["protected_files"]
 cfg = types.SimpleNamespace(defaults=types.SimpleNamespace(
-    protected_files=raw["defaults"]["protected_files"],
-    data_dir=raw["defaults"]["data_dir"]))
+    protected_files=patterns, data_dir=raw["defaults"]["data_dir"]))
 builder = types.SimpleNamespace(name="builder", writes=None)
-
-SEED = "seed content\n"
-PROTECTED = ["scripts/pre-pr-verify.sh", "adws/adw_modules/quality.py",
-             ".github/workflows/guards.yml"]
-LOADER = "scripts/some-new-loader.py"
 scratch = Path(tempfile.mkdtemp(prefix="sssf357-"))
 def die(msg): print(f"harness: {msg}"); shutil.rmtree(scratch, ignore_errors=True); sys.exit(1)
+
+def probe(pattern):
+    """One concrete path the pattern protects — derived, then verified
+    against the runner's own matcher so a derivation bug cannot go vacuous."""
+    if pattern.endswith("/**"):  path = pattern[:-2] + "__probe357__"
+    elif pattern.endswith("/"):  path = pattern + "__probe357__"
+    else:                        path = pattern.replace("**", "probe357/deep") \
+                                               .replace("*", "probe357").replace("?", "x")
+    if not P._matches(path, pattern):
+        die(f"probe derivation failed: {path!r} does not match {pattern!r}")
+    return path
+
+# Spec-pinned floor: real control paths that must be refused regardless of how
+# protected_files is rewritten — dropping any pattern that covers one goes red.
+FLOOR = ["scripts/pre-pr-verify.sh", "adws/adw_modules/quality.py",
+         ".github/workflows/guards.yml", "scripts/agent-git-shim.test.sh",
+         "mos-app/package.json"]
+PROTECTED = sorted(set(p for pat in patterns for p in [probe(pat)]) | set(FLOOR))
+ALLOWED = sorted(["scripts/some-new-loader.py", "mos-app/src/probe357.tsx",
+                  "mos-app/package-lock.json"])
+
 try:
     def git(*a): subprocess.run(["git", *a], cwd=scratch, check=True, capture_output=True)
+    SEED = "seed content\n"
     for p in PROTECTED:
         f = scratch / p; f.parent.mkdir(parents=True, exist_ok=True); f.write_text(SEED)
     git("init", "-q"); git("add", "-A")
     git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed")
     run = types.SimpleNamespace(repo_root=str(scratch), cfg=cfg)
     before = P.snapshot(run)
-    (scratch / LOADER).write_text("print('builder deliverable')\n")
+    for p in ALLOWED:
+        f = scratch / p; f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("builder deliverable\n")
     if scenario == "breach":
         for p in PROTECTED: (scratch / p).write_text("builder tampered\n")
     if scenario == "allowed":
@@ -131,8 +155,9 @@ try:
             touched = P.enforce(run, None, builder, before)
         except P.PermissionBreach as e:
             die(f"builder deliverable REFUSED: {e}")
-        if touched != [LOADER]: die(f"unexpected touched set: {touched}")
-        if not (scratch / LOADER).exists(): die("allowed file was rolled back")
+        if touched != ALLOWED: die(f"unexpected touched set: {touched}")
+        for p in ALLOWED:
+            if not (scratch / p).exists(): die(f"allowed file rolled back: {p}")
     else:
         try:
             P.enforce(run, None, builder, before)
@@ -142,18 +167,19 @@ try:
             for p in PROTECTED:
                 if p not in msg: die(f"breach does not name {p}")
                 if (scratch / p).read_text() != SEED: die(f"{p} not rolled back")
-            if LOADER in msg: die("allowed deliverable wrongly named as breach")
-            if not (scratch / LOADER).exists(): die("allowed deliverable rolled back too")
+            for p in ALLOWED:
+                if p in msg: die(f"allowed deliverable wrongly named as breach: {p}")
+                if not (scratch / p).exists(): die(f"allowed deliverable rolled back: {p}")
 finally:
     shutil.rmtree(scratch, ignore_errors=True)
 PYEOF
 
 python3 "$tmp/harness.py" "$PWD" "$CONFIG" allowed >/dev/null \
-  && ok "builder deliverable in general scripts/ is allowed by enforce() (#357)" \
-  || bad "builder deliverable in general scripts/ was refused (#357)"
+  && ok "builder deliverables in general scripts//mos-app/ + lockfile allowed by enforce() (#357)" \
+  || bad "a builder deliverable outside the control surfaces was refused (#357)"
 python3 "$tmp/harness.py" "$PWD" "$CONFIG" breach >/dev/null \
-  && ok "gate/verify/CI edits rolled back + phase refused by enforce() (#357)" \
-  || bad "gate/verify/CI edits were NOT refused/rolled back (#357)"
+  && ok "every protected pattern's probe + floor control paths rolled back + refused (#357)" \
+  || bad "a protected pattern or floor control path was NOT refused/rolled back (#357)"
 
 # prove the boundary checks can fail, both directions
 awk '{print} /^  protected_files:/{print "    - scripts/**"}' "$CONFIG" > "$tmp/broad.yaml"
@@ -166,6 +192,10 @@ grep -v 'scripts/pre-pr-verify.sh' "$CONFIG" > "$tmp/unguarded.yaml"
 python3 "$tmp/harness.py" "$PWD" "$tmp/unguarded.yaml" breach >/dev/null \
   && bad "harness missed a control script losing protection (#357)" \
   || ok "harness goes red when a control script loses protection (#357)"
+grep -v -- '- mos-app/package.json' "$CONFIG" > "$tmp/nogatecmd.yaml"
+python3 "$tmp/harness.py" "$PWD" "$tmp/nogatecmd.yaml" breach >/dev/null \
+  && bad "harness missed the gate-command definition losing protection (#357)" \
+  || ok "harness goes red when the gate-command definition loses protection (#357)"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
