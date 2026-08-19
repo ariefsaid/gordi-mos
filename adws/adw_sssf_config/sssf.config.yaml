@@ -35,18 +35,34 @@ defaults:
   # reaches any path. An agent must not be able to edit the machinery that
   # decides whether its own work passed. Enforced in adw_modules/permissions.py.
   #
+  # Boundary ruling (#357): protect the CONTROL SURFACES, not whole convention
+  # directories. Builder deliverables legitimately live in scripts/ (repo
+  # convention: guards ship a scripts/*.test.sh sibling), and a blanket
+  # scripts/ entry made the runner roll back a builder's own import script +
+  # self-test on the #349 findings run. General scripts/ is writable; only the
+  # named control scripts below are not. .github/ stays whole on purpose:
+  # guards.yml registration rows remain Director-applied, never builder-edited.
+  #
+  # Glob semantics (permissions.py `_matches`): `*` stops at `/`, `**` crosses
+  # directories, a trailing `/` is a directory prefix, anything else is exact.
+  #
   # `writes:` per agent says what it may change IN THE REPO. It never restricts
   # the session runtime under data_dir — context_handoff/, envelopes, prompts,
   # raw output. Every agent can always write its own report; `writes: []` means
   # read-only with respect to the repo, not mute.
   protected_files:
-    - adws/adw_modules/            # the gate + runner: no agent edits its own grader
-    - adws/adw_sssf_config/        # this roster
-    - adws/adw_*.py                # the chains
-    - agents/                      # role contracts — injected verbatim, never self-edited
-    - scripts/                     # gates, locks, git shim, guard self-tests
-    - .github/                     # CI
-    - .githooks/                   # tracked git hooks
+    - adws/**                      # gate + runner + this roster + the chains: no agent edits its own grader
+    - agents/**                    # role contracts — injected verbatim, never self-edited
+    - .githooks/**                 # tracked git hooks
+    - .github/**                   # CI, kept whole — guards.yml rows stay Director-applied (#357)
+    - scripts/vendor-*             # vendor/stamp step + its conformance self-test
+    - scripts/with-*-lock.sh       # the gate's db/suite mutex wrappers
+    - scripts/lib/**               # flock core behind the wrappers
+    - scripts/pre-pr-verify.sh     # the local verify gate
+    - scripts/setup-hooks.sh       # tracked-hook installer
+    - scripts/audit-*.sh           # audit-register enforcement
+    - scripts/sssf-*.test.sh       # the factory's own self-tests
+    - scripts/agent-git-shim/**    # the git shim agents are steered through
   data_dir: adws/adw_data          # runtime home: {data_dir}/sessions/{adw_id}/{agent_name}/
 
 observability:
