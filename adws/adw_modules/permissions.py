@@ -54,9 +54,17 @@ def snapshot(run) -> dict[str, str]:
     file still registers as a change. Untracked files are listed by name.
     Gitignored paths never appear, which is why the session runtime under
     `data_dir` — where handoff files legitimately land — needs no special case.
+
+    `--no-renames` is load-bearing (#357): with rename detection on, a staged
+    `git mv old new` collapses into ONE numstat pseudo-path ("dir/{old => new}")
+    that matches no protected pattern — an agent could rename a protected file
+    aside and drop a replacement without either real path ever being checked.
+    Detection off, the two halves appear as a deletion and an addition, and
+    each is matched on its own.
     """
     fingerprints: dict[str, str] = {}
-    for line in _git(["diff", "HEAD", "--numstat"], run.repo_root).splitlines():
+    for line in _git(["diff", "HEAD", "--numstat", "--no-renames"],
+                     run.repo_root).splitlines():
         fields = line.split("\t")
         if len(fields) >= 3:
             path = fields[-1].strip()
@@ -155,9 +163,25 @@ def _roll_back(run, path: str, before: dict[str, str], after: dict[str, str]) ->
             return "deleted"
         except OSError as error:
             return f"could not delete ({error})"
-    result = subprocess.run(["git", "checkout", "--", path],
-                            cwd=run.repo_root, capture_output=True, text=True)
-    return "rolled back" if result.returncode == 0 else "could not roll back"
+    # Restore from HEAD, not from the index: a STAGED change — either half of a
+    # `git mv`, or any `git add`ed edit — has already tampered the index, so an
+    # index-restore (`git checkout -- path`) would reinstate the agent's version
+    # (or fail outright on the staged-delete half of a rename).
+    in_head = subprocess.run(["git", "cat-file", "-e", f"HEAD:{path}"],
+                             cwd=run.repo_root, capture_output=True).returncode == 0
+    if in_head:
+        result = subprocess.run(["git", "checkout", "HEAD", "--", path],
+                                cwd=run.repo_root, capture_output=True, text=True)
+        return "rolled back" if result.returncode == 0 else "could not roll back"
+    # Tracked in the index but absent from HEAD: a staged addition (e.g. the
+    # arrival half of a rename). Unstage it, then remove it from disk.
+    subprocess.run(["git", "rm", "-q", "--cached", "--force", "--", path],
+                   cwd=run.repo_root, capture_output=True)
+    try:
+        (Path(run.repo_root) / path).unlink()
+        return "unstaged + deleted"
+    except OSError as error:
+        return f"unstaged, could not delete ({error})"
 
 
 def enforce(run, phase, agent: AgentConfig, before: dict[str, str]) -> list[str]:

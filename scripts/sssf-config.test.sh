@@ -108,6 +108,13 @@ sys.path.insert(0, repo_root)
 import yaml
 from adws.adw_modules import permissions as P
 
+if len(sys.argv) > 4 and sys.argv[4] == "strip-no-renames":
+    # can-fail control: prove the --no-renames flag is load-bearing (#357) by
+    # removing it from every git invocation and expecting the rename scenarios
+    # to go red (the collapse attack succeeds again).
+    _orig_git = P._git
+    P._git = lambda args, cwd: _orig_git([a for a in args if a != "--no-renames"], cwd)
+
 raw = yaml.safe_load(Path(config_path).read_text())
 patterns = raw["defaults"]["protected_files"]
 cfg = types.SimpleNamespace(defaults=types.SimpleNamespace(
@@ -131,7 +138,8 @@ def probe(pattern):
 # protected_files is rewritten — dropping any pattern that covers one goes red.
 FLOOR = ["scripts/pre-pr-verify.sh", "adws/adw_modules/quality.py",
          ".github/workflows/guards.yml", "scripts/agent-git-shim.test.sh",
-         "mos-app/package.json"]
+         "mos-app/package.json", "mos-app/tsconfig.app.json",
+         "mos-app/tsconfig.e2e.json", "mos-app/tsconfig.node.json"]
 PROTECTED = sorted(set(p for pat in patterns for p in [probe(pat)]) | set(FLOOR))
 ALLOWED = sorted(["scripts/some-new-loader.py", "mos-app/src/probe357.tsx",
                   "mos-app/package-lock.json"])
@@ -145,6 +153,31 @@ try:
     git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed")
     run = types.SimpleNamespace(repo_root=str(scratch), cfg=cfg)
     before = P.snapshot(run)
+    if scenario.startswith("rename"):
+        # The collapse attack (#357): a staged `git mv` of a protected file.
+        # With rename detection on, numstat folds both halves into one
+        # "dir/{old => new}" pseudo-path that matches no pattern. "rename"
+        # moves the gate config aside to a WRITABLE name — the protected
+        # source must be named + restored; the arrival is an ordinary allowed
+        # write. "rename_protected" moves it to a name another pattern covers
+        # — BOTH halves must be named and rolled back, tree left clean.
+        src = "mos-app/vite.config.ts" if scenario == "rename" else "scripts/pre-pr-verify.sh"
+        dst = "mos-app/vite.config.old357.ts" if scenario == "rename" else "scripts/audit-evil357.sh"
+        git("mv", src, dst)
+        try:
+            P.enforce(run, None, builder, before)
+            die(f"rename of {src} raised no breach — the collapse attack succeeded")
+        except P.PermissionBreach as e:
+            msg = str(e)
+            if src not in msg: die(f"breach does not name the renamed-away {src}")
+            if (scratch / src).read_text() != SEED: die(f"{src} not restored from HEAD")
+            if scenario == "rename_protected":
+                if dst not in msg: die(f"breach does not name the protected arrival {dst}")
+                if (scratch / dst).exists(): die(f"protected arrival {dst} not removed")
+                status = subprocess.run(["git", "status", "--porcelain"], cwd=scratch,
+                                        capture_output=True, text=True).stdout
+                if status.strip(): die(f"tree not clean after rollback:\n{status}")
+        shutil.rmtree(scratch, ignore_errors=True); sys.exit(0)
     for p in ALLOWED:
         f = scratch / p; f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("builder deliverable\n")
@@ -180,6 +213,12 @@ python3 "$tmp/harness.py" "$PWD" "$CONFIG" allowed >/dev/null \
 python3 "$tmp/harness.py" "$PWD" "$CONFIG" breach >/dev/null \
   && ok "every protected pattern's probe + floor control paths rolled back + refused (#357)" \
   || bad "a protected pattern or floor control path was NOT refused/rolled back (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename >/dev/null \
+  && ok "rename-aside of a protected file refused + restored (collapse attack closed) (#357)" \
+  || bad "rename-aside collapse attack not caught (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename_protected >/dev/null \
+  && ok "protected-to-protected rename: both halves named + rolled back, tree clean (#357)" \
+  || bad "protected-to-protected rename not fully caught/rolled back (#357)"
 
 # prove the boundary checks can fail, both directions
 awk '{print} /^  protected_files:/{print "    - scripts/**"}' "$CONFIG" > "$tmp/broad.yaml"
@@ -196,6 +235,9 @@ grep -v -- '- mos-app/package.json' "$CONFIG" > "$tmp/nogatecmd.yaml"
 python3 "$tmp/harness.py" "$PWD" "$tmp/nogatecmd.yaml" breach >/dev/null \
   && bad "harness missed the gate-command definition losing protection (#357)" \
   || ok "harness goes red when the gate-command definition loses protection (#357)"
+python3 "$tmp/harness.py" "$PWD" "$CONFIG" rename strip-no-renames >/dev/null \
+  && bad "harness missed the rename collapse with --no-renames stripped (#357)" \
+  || ok "harness goes red without --no-renames (collapse attack works again) (#357)"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
