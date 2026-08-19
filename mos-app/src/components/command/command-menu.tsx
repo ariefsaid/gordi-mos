@@ -80,12 +80,13 @@ function firstLine(body: string): string {
 }
 
 // Per-kind row config for the widened Records group (OD-REDESIGN-91 #4/B2): the icon, the
-// canonical record route (mirrors record-deep-link-resolver's pageTo paths), and the muted kind
-// label. AR Follow-ups borrow the Money glyph — they are the finance/AR settlement record.
-const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; basePath: string; kindLabelKey: 'commandMenu.kind.task' | 'commandMenu.kind.signal' | 'commandMenu.kind.followUp' }> = {
-  task: { Icon: TasksIcon, basePath: '/work/tasks', kindLabelKey: 'commandMenu.kind.task' },
-  signal: { Icon: SignalsIcon, basePath: '/work/signals', kindLabelKey: 'commandMenu.kind.signal' },
-  'follow-up': { Icon: MoneyIcon, basePath: '/work/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
+// navigation target for a hit, and the muted kind label. Tasks/Signals deep-link to their record
+// pages; an AR Follow-up hit lands on the Money queue, behind its finance gate. The Work record
+// route is deleted (DD-WAY-36), so there is no record page to open.
+const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: (id: string) => string; kindLabelKey: 'commandMenu.kind.task' | 'commandMenu.kind.signal' | 'commandMenu.kind.followUp' }> = {
+  task: { Icon: TasksIcon, to: (id) => `/work/tasks/${id}`, kindLabelKey: 'commandMenu.kind.task' },
+  signal: { Icon: SignalsIcon, to: (id) => `/work/signals/${id}`, kindLabelKey: 'commandMenu.kind.signal' },
+  'follow-up': { Icon: MoneyIcon, to: () => '/money/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
 }
 
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
@@ -230,7 +231,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
         label: r.title,
         Icon: cfg.Icon,
         kind: 'record',
-        to: `${cfg.basePath}/${r.id}`,
+        to: cfg.to(r.id),
         // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
         meta: t(cfg.kindLabelKey),
         // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.

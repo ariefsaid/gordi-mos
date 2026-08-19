@@ -95,12 +95,11 @@ describe('FollowUpQueueEmbed', () => {
     expect(screen.getByRole('button', { name: 'Settle' })).toBeInTheDocument()
   })
 
-  it('AC-908: with no overlay host mounted, the row falls back to the canonical /work/follow-ups/:id <Link>', async () => {
+  it('AC-908 (DD-WAY-36): with no overlay host mounted, the source ref is plain text — no link to a deleted route', async () => {
     renderEmbed()
     await screen.findByText('PT Big Buyer')
-    expect(screen.getByRole('link', { name: /Read-only source INV-1001/ })).toHaveAttribute(
-      'href', '/work/follow-ups/fu-1',
-    )
+    expect(screen.getByText('INV-1001')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Read-only source/i })).toBeNull()
   })
 
   it('JQ-4 / D-A4: with the overlay host mounted, the row opens the shared record host in the panel (not a bare Link)', async () => {
@@ -123,6 +122,8 @@ describe('FollowUpQueueEmbed', () => {
     fireEvent.click(screen.getByRole('button', { name: /Open follow-up INV-1001/ }))
 
     expect(screen.getByTestId('follow-up-record-host')).toHaveAttribute('data-follow-up-id', 'fu-1')
+    // DD-WAY-36: the Work record page is deleted, so the panel chrome offers no Open-full-page.
+    expect(screen.queryByRole('button', { name: 'Open full page' })).toBeNull()
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 

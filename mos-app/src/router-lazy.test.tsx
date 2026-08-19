@@ -132,7 +132,6 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
-  ['/work/follow-ups/:id', FollowUpsPage, 'dev'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
   ['/money', DashboardPage, 'dev'],
   ['/money/detail', DashboardPage, 'dev'],

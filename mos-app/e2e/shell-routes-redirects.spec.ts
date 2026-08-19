@@ -9,7 +9,6 @@ const redirectCases = [
   { oldPath: 'tasks', finalPath: /\/work\/tasks$/, needsAdmin: false },
   { oldPath: `tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`, finalPath: new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`), needsAdmin: false },
   { oldPath: 'work/cascade', finalPath: /\/work\/tasks$/, needsAdmin: false },
-  { oldPath: 'work/follow-ups', finalPath: /\/work\/tasks\?view=followups$/, needsAdmin: false },
   // OD-V4-1 / use-record-collection.ts: any urlMode:'synced' collection (Objectives,
   // Projects/Processes, Signals) always mirrors its live presentation into the URL as
   // `?layout=<presentation>` — "collection query state belongs in the URL where it must survive
@@ -69,13 +68,13 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
   }
 })
 
-test('AC-003: /work/follow-ups redirects to /work/tasks?view=followups and the saved view survives refresh', async ({ page }) => {
+test('AC-003 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no redirect', async ({ page }) => {
   await page.goto('work/follow-ups')
-  await expect(page).toHaveURL(/\/work\/tasks\?view=followups$/)
-  await page.reload()
-  await expect(page).toHaveURL(/\/work\/tasks\?view=followups$/)
-  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
+  // No redirect: the URL the viewer asked for is the URL they keep.
+  await expect(page).toHaveURL(/\/work\/follow-ups$/)
+  // AC-021: not-found renders INSIDE the shell — the real cross-stack proof of the guard's
+  // fall-through assertion (unit layer owns the invariant; this owns the journey).
+  await expect(page.getByRole('heading', { name: 'Page not found.' })).toBeVisible()
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {

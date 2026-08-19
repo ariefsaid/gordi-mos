@@ -73,8 +73,7 @@ function renderRoute(initialEntry: string) {
         createElement(
           Routes,
           null,
-          createElement(Route, { path: '/work/follow-ups', element: createElement(FollowUpsPage) }),
-          createElement(Route, { path: '/work/follow-ups/:id', element: createElement(FollowUpsPage) }),
+          createElement(Route, { path: '/money/follow-ups', element: createElement(FollowUpsPage) }),
         ),
       ),
     ),
@@ -114,10 +113,11 @@ describe('FollowUpsPage', () => {
     expect(container.querySelector('.follow-ups-table-wrap')).toBeNull()
   })
 
-  it('AC-520: /work/follow-ups/:id opens a read-only detail panel for that follow-up', async () => {
-    renderRoute('/work/follow-ups/fu-1')
-    expect(await screen.findByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent('INV-1001')
-    expect(screen.getByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent('PT Big Buyer')
+  it('DD-WAY-36: the queue renders the source ref as plain text — no link to the deleted Work path', async () => {
+    renderRoute('/money/follow-ups')
+    expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
+    expect(screen.getByText('INV-1001')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Read-only source/i })).toBeNull()
   })
 
   it('AC-520: renders queue rows with lifecycle actions', async () => {

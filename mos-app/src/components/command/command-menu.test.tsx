@@ -6,6 +6,13 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn() }))
+// DD-WAY-36: scoped flag flip so one test can light the follow-up palette search without
+// disturbing the darkness test below (default stays false).
+const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false }))
+vi.mock('@/config/features', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/config/features')>()),
+  get SHOW_FOLLOWUPS() { return features.SHOW_FOLLOWUPS },
+}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
@@ -403,6 +410,7 @@ describe('AC-K04: typing loads the Records group', () => {
 
 // ── OD-REDESIGN-91 #4/B2: the Records group spans ALL kinds ──────────────────
 describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
+  afterEach(() => { features.SHOW_FOLLOWUPS = false })
   it('#B2: a Signal hit appears under Records, carries the "Signal" kind, and navigates to /work/signals/:id', async () => {
     mockSearch.mockResolvedValue([])
     mockSearchSignals.mockResolvedValue([{ id: 's1', body: 'Fridge temperature high\nchecked at 8am' }])
@@ -429,6 +437,21 @@ describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
     const signal = await screen.findByRole('option', { name: /Grinder jammed/i })
     expect(task).toHaveTextContent('Task')
     expect(signal).toHaveTextContent('Signal')
+  })
+
+  it('DD-WAY-36: a follow-up palette hit navigates to the Money queue, never the deleted Work path', async () => {
+    features.SHOW_FOLLOWUPS = true
+    mockSearch.mockResolvedValue([])
+    mockSearchSignals.mockResolvedValue([])
+    mockSearchFollowUps.mockResolvedValue([{ id: 'fu-1', counterparty: 'PT Acme' }])
+    const { onClose } = renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'acme' } })
+    const opt = await screen.findByRole('option', { name: /PT Acme/i })
+    expect(opt).toHaveTextContent('AR Follow-up')
+    expect(screen.getByText('Records')).toBeInTheDocument()
+    fireEvent.click(opt)
+    expect(screen.getByTestId('location')).toHaveTextContent('/money/follow-ups')
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('#B2/GAP-3: AR Follow-ups stay dark while SHOW_FOLLOWUPS is off — the search is never fired', async () => {

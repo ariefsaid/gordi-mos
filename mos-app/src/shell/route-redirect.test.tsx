@@ -48,9 +48,10 @@ describe('RouteRedirect', () => {
   })
 
   it('a target that names its own view keeps it and drops the incoming query', () => {
-    // /work/follow-ups is retired INTO a specific view of Tasks. Honouring the caller's ?view=
-    // would land them on a different view than the redirect exists to send them to.
-    renderAt(['/work/follow-ups?view=all'], '/work/follow-ups', '/work/tasks?view=followups')
+    // Proven on a synthetic retired path: /work/follow-ups itself is DELETED, not redirected
+    // (DD-WAY-36 — deleted paths 404; they do not get doormats), so no real map entry carries
+    // its own query string anymore. The behavior is RouteRedirect's, not any one entry's.
+    renderAt(['/legacy/queue?view=all'], '/legacy/queue', '/work/tasks?view=followups')
     expect(screen.getByTestId('here')).toHaveTextContent('/work/tasks?view=followups')
   })
 

@@ -1,10 +1,9 @@
 // FollowUpQueueTable — the ONE canonical Follow-up record renderer (table +
 // lifecycle actions + detail aside). Reused by every door: the canonical page
-// (FollowUpsPage, at /work/follow-ups and /money/follow-ups) and the Work
+// (FollowUpsPage, at /money/follow-ups — the Work spelling is deleted, DD-WAY-36) and the Work
 // Tasks saved-view embed (FollowUpQueueEmbed). Money-inbox-alignment (Step 9,
 // FR-905/AC-906/AC-907). Presentational only — all data/behavior lives in
 // useFollowUpQueue.
-import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
@@ -34,13 +33,8 @@ export function FollowUpQueueTable({
   onOpenRecord,
 }: {
   queue: FollowUpQueueState
-  /**
-   * When provided, the counterparty cell renders a BUTTON that opens the follow-up record through
-   * the shared overlay host in panel mode (drawer-first), instead of a bare <Link> to the page.
-   * The canonical page route remains reachable via the host chrome's Open-full-page button (the
-   * entry carries pageTo). When omitted (e.g. the Work Tasks saved-view embed), the cell falls back
-   * to the legacy direct <Link> so the embed's behavior is unchanged.
-   */
+  // WHY: no-host embeds render plain text because the retired Work record route has no page left
+  // to link; an overlay host still provides the panel-only record door (DD-WAY-36).
   onOpenRecord?: (row: FollowUpRow) => void
 }) {
   const t = useT()
@@ -110,12 +104,7 @@ export function FollowUpQueueTable({
               {row.source_invoice_ref ?? row.kind}
             </button>
           ) : (
-            <Link
-              to={`/work/follow-ups/${row.id}`}
-              aria-label={`Read-only source ${row.source_invoice_ref ?? row.id}`}
-            >
-              {row.source_invoice_ref ?? row.kind}
-            </Link>
+            row.source_invoice_ref ?? row.kind
           )}
         </div>
       ),

@@ -278,16 +278,8 @@ export const routeConfig: RouteObject[] = [
             element: <RouteRedirect to="/work/tasks" />,
             handle: redirectHandle('/work/tasks'),
           },
-          {
-            path: 'work/follow-ups',
-            element: <RouteRedirect to="/work/tasks?view=followups" />,
-            handle: redirectHandle('/work/tasks?view=followups'),
-          },
-          {
-            path: 'work/follow-ups/:id',
-            element: SHOW_FOLLOWUPS ? withSuspense(<FollowUpsPage />) : <Navigate to="/" replace />,
-            handle: pageHandle('focused-record'),
-          },
+          // /work/follow-ups is DELETED, not redirected (DD-WAY-36, #369): the queue lives at
+          // /money/follow-ups behind its finance gate; a Work visit falls through to not-found.
           {
             path: 'objectives',
             element: <RouteRedirect to="/work/objectives" />,

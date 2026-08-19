@@ -1,6 +1,6 @@
 // useFollowUpQueue — the single data/behavior hook behind every Follow-up queue
 // door (Money queue entry, Work Tasks saved-view, and the canonical
-// /work/follow-ups record page). Money-inbox-alignment (Step 9, FR-905/AC-906/
+// /money/follow-ups queue). Money-inbox-alignment (Step 9, FR-905/AC-906/
 // AC-907): extracted verbatim from FollowUpsPage so the record has ONE canonical
 // behavior implementation reached from multiple destinations (ADR-0025 D9;
 // experience-contract Rule 2 "Follow-up" row).
@@ -28,7 +28,7 @@ export interface FollowUpTransitionForm {
 }
 
 export interface UseFollowUpQueueOptions {
-  /** the follow-up id whose detail aside should open (the canonical /work/follow-ups/:id route). */
+  /** the follow-up id whose detail aside should open (set by a lifecycle form flow — the Work record route is deleted, DD-WAY-36). */
   detailId?: string
 }
 
