@@ -249,6 +249,7 @@ test(
   // URL stays canonical (no navigation happened).
   expect(page.url()).toBe(taskUrl)
 
+  // EXPECTED RED until #372 lands — row status desync (grouped table); the oracle is the fix's proof, never weaken it
   // Same table row now shows "Open" — AC-117 optimistic sync without view transition.
   const reopenedRow = page.locator('tr.task-row', { hasText: openedTitle }).first()
   await expect(reopenedRow.locator('.td-status').getByText('Open')).toBeVisible({ timeout: 8_000 })

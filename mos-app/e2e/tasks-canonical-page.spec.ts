@@ -23,6 +23,7 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'All', exact: true }).click()
 })
 
+// EXPECTED RED until #373 lands — split view survives direct-open; the oracle is the fix's proof, never weaken it
 test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }) => {
   const title = `OD63 Direct ${Date.now()}`
   // createTaskViaUI ends on /work/tasks/:id via an in-app navigation (panel/drawer).
@@ -70,6 +71,7 @@ test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', a
   await expect(page.getByRole('button', { name: /open full page/i })).toBeVisible()
 })
 
+// EXPECTED RED until #373 lands — split view survives Mark-complete open; the oracle is the fix's proof, never weaken it
 test('OD-63/OD-62: Mark complete sets a task to Done on the standalone page', async ({ page }) => {
   const title = `OD63 Complete ${Date.now()}`
   const detailUrl = await createTaskViaUI(page, title)

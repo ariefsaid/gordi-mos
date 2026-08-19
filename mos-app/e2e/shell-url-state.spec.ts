@@ -83,7 +83,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
 
   await page.locator('tr.task-row', { hasText: overdueTitle }).first().click()
   // DO-18 / tasks-workspace.tsx:214-217: row opens use ?record= while preserving the view.
-  await page.waitForURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
   const recordUrl = page.url()
 
@@ -91,7 +91,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   // the saved view (?view=overdue) is preserved in the URL (Rule 4). The page has
   // no table/toolbar shell, so the Overdue chip is verified by returning to the list.
   await page.reload()
-  await expect(page).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
+  await expect(page).toHaveURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/)
   await expect(page.getByRole('heading', { name: overdueTitle })).toBeVisible()
 
   // Return to the list — the saved view is still active: Overdue chip pressed,
@@ -104,7 +104,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   // New tab / direct URL of the record → the same full page, ?view= preserved.
   const secondPage = await context.newPage()
   await secondPage.goto(recordUrl)
-  await expect(secondPage).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
+  await expect(secondPage).toHaveURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/)
   await expect(secondPage.getByRole('heading', { name: overdueTitle })).toBeVisible({ timeout: 15_000 })
 })
 
@@ -116,11 +116,11 @@ test('AC-307: task-name link keeps ?view=overdue across open and refresh', async
   await page.goto('work/tasks?view=overdue')
   await expect(page.getByRole('link', { name: title })).toBeVisible({ timeout: 15_000 })
   await page.getByRole('link', { name: title }).click()
-  await page.waitForURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await page.waitForURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
   await page.reload()
-  await expect(page).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
+  await expect(page).toHaveURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/)
   await expect(page.getByRole('heading', { name: title })).toBeVisible()
 })
 
@@ -157,11 +157,11 @@ test.describe('AC-307 mobile', () => {
     const cardLink = page.getByRole('link', { name: new RegExp(title) }).first()
     await expect(cardLink).toBeVisible({ timeout: 15_000 })
     await cardLink.click()
-    await page.waitForURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
+    await page.waitForURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/, { timeout: 15_000 })
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
     await page.reload()
-    await expect(page).toHaveURL(/\/work\/tasks\?[^#]*record=[0-9a-f-]{36}$/)
+    await expect(page).toHaveURL(/\/work\/tasks\?(?=[^#]*view=overdue)[^#]*record=[0-9a-f-]{36}$/)
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
   })
 })

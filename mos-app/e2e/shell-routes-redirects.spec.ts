@@ -24,8 +24,9 @@ const redirectCases = [
   { oldPath: 'ops', finalPath: /\/ops$/, needsAdmin: false, surface: 'Daily Log' },
   { oldPath: 'ops/new', finalPath: /\/ops\/new$/, needsAdmin: false, surface: 'Add log entry' },
   { oldPath: 'ops/legacy/edit', finalPath: /\/ops\/legacy\/edit$/, needsAdmin: false, surface: 'Log entry not found' },
-  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home now (opening panel), no longer a
-  // redirect to /cafe/log — so legacy bare /kitchen lands on the Café home. Deep sub-routes below
+  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home (opening panel). Legacy bare
+  // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
+  // redirectHandle('/cafe/log') — the capture surface, not the home). Deep sub-routes below
   // keep their exact 1:1 mapping.
   { oldPath: 'kitchen', finalPath: /\/cafe\/log$/, needsAdmin: false },
   { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, needsAdmin: false },
