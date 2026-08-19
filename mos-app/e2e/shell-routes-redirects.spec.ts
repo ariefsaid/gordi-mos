@@ -20,13 +20,15 @@ const redirectCases = [
   { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
   { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
   { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
-  { oldPath: 'ops', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
-  { oldPath: 'ops/new', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
-  { oldPath: 'ops/legacy/edit', finalPath: /\/$|\/mos\/?$/, needsAdmin: false },
-  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home now (opening panel), no longer a
-  // redirect to /cafe/log — so legacy bare /kitchen lands on the Café home. Deep sub-routes below
+  // router.tsx:450-459: the dev-flagged Daily Log surfaces resolve in place, not to /.
+  { oldPath: 'ops', finalPath: /\/ops$/, needsAdmin: false, surface: 'Daily Log' },
+  { oldPath: 'ops/new', finalPath: /\/ops\/new$/, needsAdmin: false, surface: 'Add log entry' },
+  { oldPath: 'ops/legacy/edit', finalPath: /\/ops\/legacy\/edit$/, needsAdmin: false, surface: 'Log entry not found' },
+  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home (opening panel). Legacy bare
+  // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
+  // redirectHandle('/cafe/log') — the capture surface, not the home). Deep sub-routes below
   // keep their exact 1:1 mapping.
-  { oldPath: 'kitchen', finalPath: /\/cafe$/, needsAdmin: false },
+  { oldPath: 'kitchen', finalPath: /\/cafe\/log$/, needsAdmin: false },
   { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, needsAdmin: false },
   { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, needsAdmin: false },
   { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, needsAdmin: false },
@@ -60,6 +62,9 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
     await page.goto(routeCase.oldPath, { waitUntil: 'commit', timeout: 10_000 })
     await page.waitForTimeout(1_000)
     await expect(page).toHaveURL(routeCase.finalPath, { timeout: 10_000 })
+    if ('surface' in routeCase) {
+      await expect(page.getByTestId('page-head').getByRole('heading', { name: routeCase.surface })).toBeVisible({ timeout: 10_000 })
+    }
     await expectBackDoesNotReenterOld(page, routeCase.oldPath)
   }
 })

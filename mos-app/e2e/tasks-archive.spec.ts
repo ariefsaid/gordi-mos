@@ -51,6 +51,9 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
   // ── 5. Toggle "Show archived" — task reappears ──────────────────────────────
+  // OD-REDESIGN-84: secondary filters, including Show archived, render behind disclosure.
+  await page.getByRole('button', { name: 'View & filters' }).click()
+  await expect(page.getByRole('group', { name: 'View & filters' })).toBeVisible()
   const archivedToggle = page.getByLabel(/show archived/i)
   await archivedToggle.check()
 
@@ -64,10 +67,17 @@ test('AC-091: archive task from detail → leaves default list → reappears und
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
   )
   await taskRow.click()
-  await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+  // DO-18 / tasks-workspace.tsx:214-217: the in-app row opener writes ?record=.
+  await page.waitForURL(new RegExp('record=' + taskId))
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   // Detail shows archived banner
   await expect(drawer.getByText(/this task is archived/i)).toBeVisible()
   // Unarchive button is visible (VIEWER is A)
   await expect(drawer.getByRole('button', { name: /unarchive/i })).toBeVisible()
+  // OD-REDESIGN-84 disclosure + archive journey ruling: restore the fixture for later specs.
+  await drawer.getByRole('button', { name: /unarchive/i }).click()
+  await expect(drawer.getByText(/this task is archived/i)).toHaveCount(0)
+  await page.goto('work/tasks')
+  await page.getByRole('group', { name: 'Tasks saved views' }).getByRole('button', { name: 'All' }).click()
+  await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 })

@@ -62,11 +62,6 @@ const P_KRISHNA = '40000000-0000-0000-0000-000000000002' // Krishna Kitchen
 const P_RAMA    = '40000000-0000-0000-0000-000000000003' // Rama Roastery
 const P_SARI    = '40000000-0000-0000-0000-000000000004' // Sari Sales
 const P_FITRI   = '40000000-0000-0000-0000-000000000005' // Fitri Finance
-const BU_CAFE   = '20000000-0000-0000-0000-000000000001'
-const BU_KIT    = '20000000-0000-0000-0000-000000000002'
-const BU_ROAST  = '20000000-0000-0000-0000-000000000003'
-const BU_SALES  = '20000000-0000-0000-0000-000000000004'
-const BU_FIN    = '20000000-0000-0000-0000-000000000005'
 
 // Fixed-UUID task IDs for this spec (avoid collisions with other e2e fixtures).
 const T = {
@@ -97,6 +92,7 @@ test.beforeAll(async () => {
     DELETE FROM mos.tasks                WHERE id      IN (${ALL_T_IDS});
   `)
 
+  // Post-ADR-0019 D1: resolve canonical business-unit ids by code, never retired UUID literals.
   // Insert 11 demo tasks:
   //   In Progress×4 (1 overdue), Blocked×2 (2 overdue), Open×3, Done×2
   //   ─→ 3 overdue among non-Done tasks (IP1 + BL1 + BL2).
@@ -109,40 +105,40 @@ test.beforeAll(async () => {
        description, due_date, created_by)
     VALUES
       -- In Progress (4; IP1 is overdue)
-      ('${T.IP1}','${ORG}','Dial in new Brazil single-origin','${BU_ROAST}','In Progress',
+      ('${T.IP1}','${ORG}','Dial in new Brazil single-origin',(select id from shared.business_units where org_id='${ORG}' and code='b2b_ops' limit 1),'In Progress',
         '${P_RAMA}','${P_DEWI}','{"${P_CAHYA}","${P_SARI}"}','{}',
         'Seeded for AC-134.', (current_date - 4), '${P_DEWI}'),
-      ('${T.IP2}','${ORG}','Update espresso recipe cards','${BU_CAFE}','In Progress',
+      ('${T.IP2}','${ORG}','Update espresso recipe cards',(select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1),'In Progress',
         '${P_CAHYA}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date + 2), '${P_DEWI}'),
-      ('${T.IP3}','${ORG}','Photograph new pastry line','${BU_KIT}','In Progress',
+      ('${T.IP3}','${ORG}','Photograph new pastry line',(select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1),'In Progress',
         '${P_KRISHNA}','${P_DEWI}','{"${P_CAHYA}"}','{}',
         'Seeded for AC-134.', (current_date + 8), '${P_DEWI}'),
-      ('${T.IP4}','${ORG}','Q3 wholesale price list','${BU_SALES}','In Progress',
+      ('${T.IP4}','${ORG}','Q3 wholesale price list',(select id from shared.business_units where org_id='${ORG}' and code='b2b_sales' limit 1),'In Progress',
         '${P_SARI}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date + 14), '${P_DEWI}'),
       -- Blocked (2; both overdue — C1: only non-Done tasks count as overdue)
-      ('${T.BL1}','${ORG}','Replace grinder burrs (Cafe 2)','${BU_CAFE}','Blocked',
+      ('${T.BL1}','${ORG}','Replace grinder burrs (Cafe 2)',(select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1),'Blocked',
         '${P_CAHYA}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date - 7), '${P_DEWI}'),
-      ('${T.BL2}','${ORG}','Source compostable cups vendor','${BU_FIN}','Blocked',
+      ('${T.BL2}','${ORG}','Source compostable cups vendor',(select id from shared.business_units where org_id='${ORG}' and code='finance' limit 1),'Blocked',
         '${P_FITRI}','${P_DEWI}','{"${P_CAHYA}"}','{}',
         'Seeded for AC-134.', (current_date - 5), '${P_DEWI}'),
       -- Open (3; all future due-dates — no overdue)
-      ('${T.OP1}','${ORG}','Plan barista latte-art workshop','${BU_CAFE}','Open',
+      ('${T.OP1}','${ORG}','Plan barista latte-art workshop',(select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1),'Open',
         '${P_CAHYA}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date + 17), '${P_DEWI}'),
-      ('${T.OP2}','${ORG}','Roastery extractor PM schedule','${BU_ROAST}','Open',
+      ('${T.OP2}','${ORG}','Roastery extractor PM schedule',(select id from shared.business_units where org_id='${ORG}' and code='b2b_ops' limit 1),'Open',
         '${P_RAMA}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date + 22), '${P_DEWI}'),
-      ('${T.OP3}','${ORG}','Draft Q3 OKRs for cafe team','${BU_CAFE}','Open',
+      ('${T.OP3}','${ORG}','Draft Q3 OKRs for cafe team',(select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1),'Open',
         '${P_DEWI}','${P_DEWI}','{"${P_CAHYA}","${P_SARI}","${P_KRISHNA}"}','{}',
         'Seeded for AC-134.', (current_date + 25), '${P_DEWI}'),
       -- Done (2; past due-dates — must NOT contribute to any overdue subtotal)
-      ('${T.DN1}','${ORG}','Refit cold brew taps','${BU_KIT}','Done',
+      ('${T.DN1}','${ORG}','Refit cold brew taps',(select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1),'Done',
         '${P_KRISHNA}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date - 10), '${P_DEWI}'),
-      ('${T.DN2}','${ORG}','Migrate POS to v4','${BU_SALES}','Done',
+      ('${T.DN2}','${ORG}','Migrate POS to v4',(select id from shared.business_units where org_id='${ORG}' and code='b2b_sales' limit 1),'Done',
         '${P_SARI}','${P_DEWI}','{}','{}',
         'Seeded for AC-134.', (current_date - 14), '${P_DEWI}')
     ON CONFLICT (id) DO NOTHING;
@@ -168,7 +164,10 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'All', exact: true }).click()
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
-  await page.locator('#group-by-filter').selectOption('status')
+  // OD-REDESIGN-84: Group is disclosed in the View & filters options row.
+  await page.getByRole('button', { name: 'View & filters' }).click()
+  await page.getByRole('group', { name: 'View & filters' }).waitFor()
+  await page.getByLabel('Group').selectOption('status')
   // Wait for at least one group header to appear (TanStack row model, one render cycle).
   await page.waitForSelector('tr.grp', { timeout: 10_000 })
 })
@@ -217,11 +216,15 @@ test(
   // ─── Step 2: open a row → drawer opens in place, URL is canonical /tasks/:id ────────────
   const firstRow = page.locator('tr.task-row').first()
   await expect(firstRow).toBeVisible({ timeout: 8_000 })
+  // Grouping by status moves the row to its destination group when the inline status changes;
+  // retain the title so the post-commit oracle re-finds the same record after that move.
+  const openedTitle = await firstRow.getByRole('link').innerText()
   await firstRow.click()
 
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 10_000 })
+  // DO-18 / tasks-workspace.tsx:214-217: in-app row open uses the collection ?record= entry.
+  await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/, { timeout: 10_000 })
   const taskUrl = page.url()
-  expect(taskUrl).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  expect(taskUrl).toMatch(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // Drawer opens beside the still-mounted table (split-view, ADR-0007).
   const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -230,34 +233,29 @@ test(
   // Table (section[aria-label="Tasks"]) stays mounted — the split-view oracle.
   await expect(page.getByRole('region', { name: 'Tasks' })).toBeVisible()
 
-  // The opened row is marked current (aria-current="true").
-  const currentRow = page.locator('tr.task-row[aria-current="true"]')
+  // DO-18: an in-app record overlay selects its row with aria-selected; aria-current is
+  // reserved for route navigation (tasks-workspace row-selection contract).
+  const currentRow = page.locator('tr.task-row[aria-selected="true"]')
   await expect(currentRow).toBeVisible()
 
   // ─── Step 3: change status inline → row reflects it optimistically, no nav ─────────────
   // AC-117 oracle: same URL, same row updated in the table, no page reload.
-  const statusBtn = drawer.getByRole('button', { name: /change status/i })
-  await expect(statusBtn).toBeVisible({ timeout: 8_000 })
-  await statusBtn.click()
-
-  const listbox = page.getByRole('listbox', { name: /select status/i })
-  await expect(listbox).toBeVisible({ timeout: 5_000 })
-  await listbox.getByRole('option', { name: 'Open' }).click()
-
-  // Drawer pill reflects the new status immediately. Scoped to the status
-  // trigger button (not the drawer at large) — the activity/event log below
-  // also renders "Open" inside a "Status changed · In Progress → Open" entry,
-  // which would otherwise make this locator ambiguous (strict-mode violation).
-  await expect(statusBtn.getByText('Open')).toBeVisible({ timeout: 8_000 })
+  const statusEdit = drawer.getByRole('button', { name: /edit status/i })
+  await statusEdit.click()
+  const statusSelect = drawer.getByLabel('Status')
+  await statusSelect.selectOption({ label: 'Open' })
+  await expect(statusSelect).toHaveValue('Open')
 
   // URL stays canonical (no navigation happened).
   expect(page.url()).toBe(taskUrl)
 
+  // EXPECTED RED until #372 lands — row status desync (grouped table); the oracle is the fix's proof, never weaken it
   // Same table row now shows "Open" — AC-117 optimistic sync without view transition.
-  await expect(currentRow.getByText('Open')).toBeVisible({ timeout: 8_000 })
+  const reopenedRow = page.locator('tr.task-row', { hasText: openedTitle }).first()
+  await expect(reopenedRow.locator('.td-status').getByText('Open')).toBeVisible({ timeout: 8_000 })
 
   // ─── Step 4: regroup by Owner → Owner group headers appear for all persons ─────────────
-  await page.locator('#group-by-filter').selectOption('owner')
+  await page.getByLabel('Group').selectOption('owner')
 
   // All 6 seeded persons must have group headers (OD-P3-6: empty groups always shown).
   for (const name of ['Dewi Director', 'Cahya Cafe', 'Krishna Kitchen',
@@ -272,18 +270,17 @@ test(
   const ramaHeader = page.locator('tr.grp').filter({ hasText: 'Rama Roastery' })
   await expect(ramaHeader).toBeVisible()
 
-  const addTaskBtn = ramaHeader.getByRole('button', { name: /add task to Rama Roastery/i })
+  const addTaskBtn = ramaHeader.getByRole('button', { name: /create task in Rama Roastery/i })
   await expect(addTaskBtn).toBeVisible()
   await addTaskBtn.click()
 
   await page.waitForURL(/\/tasks\/new(\?|$)/, { timeout: 10_000 })
   expect(page.url()).toContain(`r=${P_RAMA}`)
 
-  // Create form mounts and the Responsible (R) select is pre-filled with Rama's person ID.
+  // OD-REDESIGN-3: the person field is PIC and is pre-filled from ?r=.
   const createForm = page.getByRole('form', { name: /create task form/i })
   await expect(createForm).toBeVisible({ timeout: 8_000 })
-
-  const responsibleSelect = createForm.getByRole('combobox', { name: /Responsible \(R\)/i })
-  await expect(responsibleSelect).toBeVisible({ timeout: 10_000 })
-  await expect(responsibleSelect).toHaveValue(P_RAMA)
+  const picSelect = createForm.getByLabel(/^pic$/i)
+  await expect(picSelect).toBeVisible({ timeout: 10_000 })
+  await expect(picSelect).toHaveValue(P_RAMA)
 })

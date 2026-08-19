@@ -23,11 +23,11 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'All', exact: true }).click()
 })
 
+// EXPECTED RED until #373 lands — split view survives direct-open; the oracle is the fix's proof, never weaken it
 test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }) => {
   const title = `OD63 Direct ${Date.now()}`
   // createTaskViaUI ends on /work/tasks/:id via an in-app navigation (panel/drawer).
-  await createTaskViaUI(page, title)
-  const detailUrl = page.url()
+  const detailUrl = await createTaskViaUI(page, title)
 
   // A `page.goto` is a full document navigation — a direct/new-tab/refresh — so the
   // SAME record URL now renders as a standalone full canonical page. Preserve ?view=
@@ -42,8 +42,8 @@ test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not
   // TaskRecordPage renders via PageFamilyFrame family="focused-record" + RecordPageChrome, not
   // that class — the sibling AC-104 spec (tasks-split-view.spec.ts) already found and dropped the
   // same stale geometry-class check in favor of role-based assertions, which is what this proves
-  // below: exactly one h1 (the record heading), no .split shell, no Tasks region, no drawer.
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
+  // below: exactly one record heading, no .split shell, no Tasks region, no drawer.
+  await expect(page.getByRole('heading', { name: new RegExp(title) })).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('.split')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
   await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
@@ -61,7 +61,8 @@ test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', a
   // STALE→fixed: see the beforeEach comment above — "Team work" no longer exists.
   await page.getByRole('button', { name: 'All', exact: true }).click()
   await page.getByText(title).first().click()
-  await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(\?.*)?$/)
+  // DO-18 / tasks-workspace.tsx:214-217: in-app row opens settle on the collection ?record= URL.
+  await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // The split drawer mounts beside a STILL-mounted table — the load-bearing split-view
   // win (OD-63 retains the drawer for fast triage) — and offers the page escalation.
@@ -70,12 +71,13 @@ test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', a
   await expect(page.getByRole('button', { name: /open full page/i })).toBeVisible()
 })
 
+// EXPECTED RED until #373 lands — split view survives Mark-complete open; the oracle is the fix's proof, never weaken it
 test('OD-63/OD-62: Mark complete sets a task to Done on the standalone page', async ({ page }) => {
   const title = `OD63 Complete ${Date.now()}`
-  await createTaskViaUI(page, title)
+  const detailUrl = await createTaskViaUI(page, title)
   // Direct-open → full page.
-  await page.goto(page.url())
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
+  await page.goto(detailUrl)
+  await expect(page.getByRole('heading', { name: new RegExp(title) })).toBeVisible({ timeout: 10_000 })
 
   await page.getByRole('button', { name: 'Mark complete' }).click()
 
@@ -91,6 +93,12 @@ test('OD-63/OD-62: Mark complete sets a task to Done on the standalone page', as
 test('OD-62: no RACI grammar is visible on any Task surface', async ({ page }) => {
   const title = `OD62 Surface ${Date.now()}`
   await createTaskViaUI(page, title)
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByText(title).first().click()
+  // GAP-6 / OD-REDESIGN-91 #11 then DO-18: reopen the landed row through the ?record= overlay.
+  await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // Split-drawer surface (panel mode).
   const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -100,6 +108,6 @@ test('OD-62: no RACI grammar is visible on any Task surface', async ({ page }) =
 
   // Standalone full-page surface (direct open).
   await page.goto(page.url())
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: new RegExp(title) })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/RACI|Owner \(R\)|Responsible \(R\)|Accountable \(A\)|R·A·C·I/i)).toHaveCount(0)
 })

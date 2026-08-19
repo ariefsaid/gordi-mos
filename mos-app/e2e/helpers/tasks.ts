@@ -1,5 +1,5 @@
 // Reusable task helpers for e2e journeys.
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 /**
  * Open the Create Task form from the Tasks list page, fill the required fields,
@@ -24,14 +24,16 @@ export async function createTaskViaUI(
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
 
-  // BU should already be pre-filled (creator's primary-role BU) — verify it's there.
-  await form.getByLabel('Business unit').waitFor({ state: 'visible' })
+  // OD-REDESIGN-3/14/41: Team and PIC prefill; Supervisor is an explicit required choice.
+  await expect(form.getByLabel('Team')).not.toHaveValue('')
+  await expect(form.getByLabel(/^pic$/i)).not.toHaveValue('')
+  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
 
-  // Submit
+  // GAP-6 / OD-REDESIGN-91 #11: creation returns to the originating collection with a highlight.
   await form.getByRole('button', { name: /create task/i }).click()
-
-  // Wait for navigation to the new task detail page
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 15_000 })
-
-  return page.url()
+  await page.waitForURL(/\/work\/tasks\?.*highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  const newId = page.url().match(/highlight=([0-9a-f-]{36})/)?.[1] ?? ''
+  await expect(page.locator('tr.task-row', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
+  if (!newId) throw new Error('[createTaskViaUI] could not read the new task id from ?highlight=')
+  return `/work/tasks/${newId}`
 }

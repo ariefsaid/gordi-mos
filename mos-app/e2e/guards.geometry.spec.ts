@@ -42,6 +42,13 @@ test.describe('desktop geometry guards', () => {
     // Open a real task in the drawer (own task → independent of shared seed state).
     const title = `Guard R1 parity ${Date.now()}`
     await createTaskViaUI(page, title)
+    // EXPECTED RED until #375 lands — GUARD-R1 shared-track geometry; the oracle is the fix's proof, never weaken it
+    // GAP-6 / OD-REDESIGN-91 #11: creation lands on the collection; reopen for drawer geometry.
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await page.getByText(title).first().click()
+    await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
     const drawer = page.getByRole('complementary', { name: /task detail/i })
     await expect(drawer).toBeVisible()
     await expect(drawer.getByRole('heading', { name: title })).toBeVisible() // record content settled

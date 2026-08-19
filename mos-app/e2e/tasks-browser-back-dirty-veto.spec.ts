@@ -114,6 +114,7 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
   const confirmDialog2 = page.getByRole('dialog', { name: 'Discard unsaved changes?' })
   await expect(confirmDialog2).toBeVisible({ timeout: 8_000 })
 
+  // EXPECTED RED until #374 lands — Discard leaves the drawer; the oracle is the fix's proof, never weaken it
   // Discard this time → the browser navigation actually completes: the drawer closes (the host's
   // allow path re-performs the original pop: commit() + programmaticGo(delta), overlay-host.tsx
   // ~line 380-383).
@@ -168,6 +169,7 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
   const confirmDialog = page.getByRole('dialog', { name: 'Discard unsaved changes?' })
   await expect(confirmDialog).toBeVisible({ timeout: 8_000 })
 
+  // EXPECTED RED until #374 lands — Discard leaves the drawer (settled); the oracle is the fix's proof, never weaken it
   // Discard → the drawer closes and the browser navigation completes for real.
   await confirmDialog.getByRole('button', { name: 'Discard changes' }).click()
   await expect(drawer).toBeHidden({ timeout: 8_000 })

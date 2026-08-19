@@ -39,14 +39,16 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
 
   await expect(page.getByText(rowText).first()).toBeVisible({ timeout: 10_000 })
   await page.getByText(rowText).first().click()
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await page.waitForURL(/\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // The drawer renders beside a STILL-mounted table (the load-bearing split-view win).
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: rowText })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Tasks' })).toBeVisible() // table still there
   // The open row is marked current.
-  const openRow = page.locator('tr.task-row[aria-current="true"]')
+  // DO-18 / tasks-workspace row-selection contract: the opened row is selected while its
+  // ?record= panel is active; aria-current is reserved for route navigation.
+  const openRow = page.locator('tr.task-row[aria-selected="true"]')
   await expect(openRow).toContainText(rowText)
 
   // STALE fix: there is no "change status" button + listbox/option popover any more. The record
@@ -58,9 +60,11 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   await drawer.getByLabel('Status').selectOption({ label: 'Blocked' })
 
   // The drawer pill AND the table row both reflect Blocked, still on /tasks/:id.
-  await expect(drawer.getByText('Blocked')).toBeVisible({ timeout: 8_000 })
-  await expect(openRow.getByText('Blocked')).toBeVisible({ timeout: 8_000 })
-  expect(page.url()).toMatch(/\/tasks\/[0-9a-f-]{36}$/)
+  await expect(drawer.getByRole('button', { name: /edit status/i })).toContainText('Blocked', { timeout: 8_000 })
+  // EXPECTED RED — AC-101 drawer/row desync is tracked by issue #372; keep this oracle intact.
+  await expect(page.locator('tr.task-row', { hasText: rowText }).first().getByText('Blocked')).toBeVisible({ timeout: 8_000 })
+  // DO-18: inline status editing does not navigate away from the ?record= panel entry.
+  expect(page.url()).toMatch(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 })
 
 // STALE — rewritten. GAP-2 (OD-REDESIGN-91 #7), task-drawer.tsx docblock: "expand-in-place is
@@ -75,15 +79,19 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
 test('AC-104 (J2): "Open full page" escalates to the standalone record page; "Back to split view" returns', async ({ page }) => {
   const rowText = `J2 Expand ${Date.now()}`
   await createTaskViaUI(page, rowText)
-  const url = page.url()
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
+  await page.getByText(rowText).first().click()
+  await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await drawer.getByRole('button', { name: /open full page/i }).click()
 
-  // Same URL string (pathname+search unchanged; only router state differs) — but the split shell
-  // is gone: no table, no drawer, just the standalone page with the record title as its h1.
-  expect(page.url()).toBe(url)
+  // Open-full-page uses the ruled canonical pathname grammar (OD-63), replacing the panel
+  // entry; the split shell is gone: no table, no drawer, just the standalone page h1.
+  await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}/, { timeout: 10_000 })
   await expect(page.getByRole('heading', { level: 1, name: rowText })).toBeVisible({ timeout: 10_000 })
+  // EXPECTED RED — AC-104 split view surviving escalation is tracked by issue #373; keep this oracle intact.
   await expect(page.getByRole('complementary', { name: /task detail/i })).not.toBeVisible()
   await expect(page.getByRole('region', { name: 'Tasks' })).not.toBeVisible()
 
@@ -102,21 +110,16 @@ test('AC-104 (J2): "Open full page" escalates to the standalone record page; "Ba
 
 test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in the table', async ({ page }) => {
   const title = `J3 Created ${Date.now()}`
-  await page.getByRole('link', { name: /new task/i }).first().click()
+  await page.getByRole('link', { name: /create task/i }).first().click()
   await page.waitForURL(/\/tasks\/new$/)
 
   // The create drawer renders beside the table (no second editor).
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
-  await form.getByLabel('Business unit').waitFor({ state: 'visible' })
+  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
   await form.getByRole('button', { name: /create task/i }).click()
 
-  // Transitions in place to the new task's view-mode drawer on /tasks/:newId.
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 15_000 })
-  const drawer = page.getByRole('complementary', { name: /task detail/i })
-  await expect(drawer.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-
-  // The new row is in the table beside it + marked current — no reload.
-  const openRow = page.locator('tr.task-row[aria-current="true"]')
-  await expect(openRow).toContainText(title)
+  // GAP-6: creation returns to the originating collection with the highlighted row.
+  await page.waitForURL(/\/work\/tasks\?.*highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  await expect(page.locator('tr.task-row', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
 })

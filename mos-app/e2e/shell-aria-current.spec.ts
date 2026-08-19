@@ -8,7 +8,7 @@ const desktopRoutes = [
   'work/signals',
   'work/projects',
   'work/objectives',
-  'events',
+  'work/events',
   'money',
   'inbox',
   'cafe/log',
@@ -55,7 +55,7 @@ test.describe('shell aria-current', () => {
       // instead, since the bottom-tab-bar doesn't cover it. This supersedes the old "non-primary
       // destinations mark More" rule. The poll above already proves exactly one aria-current="page"
       // exists per route; here we additionally prove it's on the breadcrumb, not on More.
-      const nonPrimaryCases = ['events', 'money', 'profile']
+      const nonPrimaryCases = ['cafe/log', 'money', 'profile']
       for (const path of nonPrimaryCases) {
         await page.goto(path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)

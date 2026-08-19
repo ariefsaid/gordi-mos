@@ -18,7 +18,9 @@ import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
 
 test('AC-1011: scrolling Home main content leaves the rail bounding top fixed', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 })
+  // #276 row L / AC-1011 geometry ruling: 1280px preserves the width-gated rail; the shorter fixture viewport
+  // guarantees main overflow without perturbing seeded Home content.
+  await page.setViewportSize({ width: 1280, height: 200 })
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('')
   await page.waitForURL(/\/mos\/?$/)
