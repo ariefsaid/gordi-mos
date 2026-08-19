@@ -220,7 +220,6 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/work/signals/:signalId': 'record door — opened from the Signals list or a deep link, never from nav',
   '/work/tasks/new': 'record door — opened by the create action, not a nav entry',
   '/work/tasks/:taskId': 'record door — opened from the Tasks table or a deep link',
-  '/work/follow-ups/:id': 'record door — opened from the follow-ups queue or a deep link',
   '/ops/new': 'record door — opened from the Daily Log surface',
   '/ops/:id/edit': 'record door — opened from a Daily Log row',
   '/ops': "Daily Log — a live dev surface with no v4 IA entry; reached from Home's own links. Owed a retirement-or-adoption ticket",

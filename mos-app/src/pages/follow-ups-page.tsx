@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
@@ -148,12 +148,7 @@ export function FollowUpsPage() {
         <div>
           <strong>{row.counterparty}</strong>
           <br />
-          <Link
-            to={`/work/follow-ups/${row.id}`}
-            aria-label={`Read-only source ${row.source_invoice_ref ?? row.id}`}
-          >
-            {row.source_invoice_ref ?? row.kind}
-          </Link>
+          {row.source_invoice_ref ?? row.kind}
         </div>
       ),
     },

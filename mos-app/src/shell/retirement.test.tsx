@@ -15,17 +15,20 @@
 // "no in-app link routes through the redirect map", and guard-od-v4-10-retirement.test.ts
 // owns the region-order toggle's retirement. The value here is the entry-point sweep.
 import { describe, it, expect, vi } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { DESTINATIONS, MODULES, UTILITY } from './destinations'
-import { SHOW_WEEKLY_UPDATES } from '@/config/features'
+import { SHOW_FOLLOWUPS, SHOW_WEEKLY_UPDATES } from '@/config/features'
 import { allRedirects, leafInThisTable, isRedirect, flattenRoutes, expectOneHop } from '@/test/route-table'
 import { CommandMenu } from '@/components/command/command-menu'
 import { HomePage } from '@/pages/home-page'
 
 const FORBIDDEN = /write update|weekly update|daily log|open the daily log/i
 const RETIRED_EVENTS_PATH = '/events'
+const RETIRED_FOLLOWUPS_PREFIX = '/work/follow-ups'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -168,6 +171,77 @@ describe('AC-348 — retirement: Events is a Work child, never a root destinatio
       expect(option.textContent ?? '').not.toMatch(/^Events$/i)
       expect(option.getAttribute('data-value') ?? '').not.toContain(RETIRED_EVENTS_PATH)
     }
+  })
+})
+
+// ── DD-WAY-36 (#369): the Work follow-ups path is DELETED, not redirected ────────────────────
+// /work/follow-ups used to redirect to an inert ?view=followups the tasks surface never served,
+// while the real queue lives at /money/follow-ups behind a finance gate the Work path did not
+// carry — a lying redirect. The events precedent (OD-WAY-51): deleted outright. A direct visit
+// falls through to the not-found catch-all in ONE hop; the Money surface itself is untouched
+// (OD-WAY-34). The static source scan below is the "no rendered link / palette entry / pageTo"
+// half: guard-no-links only checks paths that REDIRECT — a deleted path has left its map, so this
+// file owns the spelling.
+const APP_SRC = resolve(__dirname, '..')
+
+function appSourceFiles(directory: string, output: string[] = []): string[] {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules') appSourceFiles(fullPath, output)
+    } else if ((entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) && !entry.name.includes('.test.')) {
+      output.push(fullPath)
+    }
+  }
+  return output
+}
+
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (comment) => comment.replace(/[^\n]/g, ' '))
+}
+
+describe('DD-WAY-36 — retirement: the Work follow-ups path is deleted, not redirected', () => {
+  it('no route under /work/follow-ups exists in the real table — neither the queue doormat nor the record page', () => {
+    const survivors = flattenRoutes().map((route) => route.path).filter((routePath) => routePath.startsWith(RETIRED_FOLLOWUPS_PREFIX))
+    expect(survivors, 'these routes must be deleted outright (DD-WAY-36)').toEqual([])
+  })
+
+  it('a direct visit falls through to the not-found catch-all — one hop, no redirect', () => {
+    for (const requestedUrl of ['/work/follow-ups', '/work/follow-ups/fu-1']) {
+      const routeMatch = leafInThisTable(requestedUrl)
+      expect(routeMatch, `${requestedUrl} matched nothing at all`).toBeDefined()
+      expect(routeMatch!.route.path, `${requestedUrl} must fall through to the not-found catch-all`).toBe('*')
+      expect(isRedirect(routeMatch!.route.element), `${requestedUrl} must not redirect before the 404`).toBe(false)
+    }
+  })
+
+  it('the redirect map carries no /work/follow-ups spelling — deleted paths do not get doormats', () => {
+    expect(allRedirects().filter((redirect) => redirect.from.startsWith(RETIRED_FOLLOWUPS_PREFIX))).toEqual([])
+  })
+
+  it('no app source names the deleted path — no link target, palette basePath, or pageTo (comments stripped, tests excluded)', () => {
+    const offenders: string[] = []
+    for (const sourceFile of appSourceFiles(APP_SRC)) {
+      const sourceCode = stripComments(readFileSync(sourceFile, 'utf-8'))
+      if (sourceCode.includes(RETIRED_FOLLOWUPS_PREFIX)) offenders.push(relative(APP_SRC, sourceFile))
+    }
+    expect(offenders, `${offenders.join(', ')} still names the deleted /work/follow-ups path`).toEqual([])
+  })
+
+  it('no destination/module/utility link names the deleted path', () => {
+    const links = [...DESTINATIONS, ...MODULES.flatMap((destinationGroup) => destinationGroup.items), ...UTILITY]
+      .flatMap((destination) => [...destination.links, ...(destination.children ?? [])])
+    expect(links.map((link) => link.path).some((linkPath) => linkPath.startsWith(RETIRED_FOLLOWUPS_PREFIX))).toBe(false)
+  })
+
+  it('the Money follow-ups queue keeps its home (OD-WAY-34 — this retirement does not touch it)', () => {
+    const leaf = leafInThisTable('/money/follow-ups')
+    expect(leaf?.pathname).toBe('/money/follow-ups')
+    // The live Money queue remains flag-gated exactly as before; when lit it is a page, not a
+    // redirect. This assertion protects the route without changing OD-WAY-34's dark default.
+    expect(isRedirect(leaf!.route.element)).toBe(!SHOW_FOLLOWUPS)
   })
 })
 
