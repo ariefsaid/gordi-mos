@@ -38,8 +38,9 @@ public tree), and its findings become tickets or findings fix-runs
 never self-score — this chain produces layer 0-2 artifacts and the per-surface
 verdict; the Director's cross-family judgment and the owner's milestone review sit
 above it — and a verdict without artifacts is void, which the gates enforce
-mechanically (every surface needs a fresh screenshot under this run's session dir;
-a failing surface must carry findings).
+mechanically (audit.md and every screenshot must live under this run's session dir;
+every surface needs both width classes — desktop and ≤390px phone — declared in its
+screenshot filenames; a failing surface must carry findings).
 
 Scope file format (markdown; refused when missing or empty of surfaces):
     free prose anywhere; every line beginning "- " names ONE surface, e.g.
@@ -54,6 +55,7 @@ adw_simple_sdlc's red suite: the phase did its job; the milestone is not clean.
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -64,6 +66,13 @@ from adw_modules.data_types import (AgentCall, AuditOutput, GateReport,
 
 DEFAULT_BASE_URL = "http://localhost:5173/mos/"
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+WIDTH_CLASSES = ("desktop", "phone")   # phone = ≤390px viewport, per the contract
+
+# The exact shape session.py mints (utils.new_id(8) -> token_hex): 8 lowercase hex
+# chars. --adw-id becomes a filesystem path component under the sessions dir, so
+# anything else is refused BEFORE a session exists — an id is opaque, never a path.
+# Same validation adw_simple_sdlc applies to --from-adw-id.
+_ADW_ID = re.compile(r"^[0-9a-f]{8}$")
 
 AUDIT_PROMPT = """\
 This is the MILESTONE DESIGN AUDIT (OD-WAY-55) — the judgment pass over a completed
@@ -94,8 +103,11 @@ milestone's blast radius is wider than its diff.
 
 ## Artifacts (a verdict without artifacts is void)
 - Screenshots per surface — populated state at desktop AND ≤390px phone width at
-  minimum — under <context_handoff_dir>/screenshots/. Every surface verdict needs
-  at least one screenshot from THIS run; stale or repo-committed images are void.
+  minimum — under <context_handoff_dir>/screenshots/, named
+  `<surface-slug>-desktop.png` and `<surface-slug>-phone.png` (the gate requires
+  BOTH width classes in every surface's filenames; capture phone at ≤390px for
+  real). Every screenshot must be from THIS run's session dir; stale or
+  repo-committed images are void.
 - The audit report at <context_handoff_dir>/audit.md: findings grouped
   Critical / Important / Minor, each citing surface + the violated token /
   contract rule / job story, per your contract's Report section.
@@ -149,6 +161,13 @@ def _read_scope(scope_path: str) -> tuple[Path, str, list[str]]:
 def _validate_base_url(base_url: str) -> str:
     """Localhost only: the audit drives a local render, never a deployed one."""
     parsed = urlparse(base_url)
+    if parsed.username is not None or parsed.password is not None:
+        # Refused FIRST, and the URL is deliberately not echoed: credentials in a
+        # URL must reach neither the trace log nor the agent prompt.
+        raise SystemExit(
+            "--base-url refused: it carries userinfo (credentials@host). A local "
+            "dev server needs none, and secrets must never reach the trace or the "
+            "prompt — pass a bare localhost URL.")
     host = (parsed.hostname or "").lower()
     if parsed.scheme not in ("http", "https") or host not in LOCAL_HOSTS:
         raise SystemExit(
@@ -157,6 +176,23 @@ def _validate_base_url(base_url: str) -> str:
             f"Start it yourself — `npm run dev` from mos-app/ — and point --base-url "
             f"at it; this chain never audits staging or production.")
     return base_url
+
+
+def _validate_adw_id(cfg, adw_id: str | None) -> str | None:
+    """--adw-id joins a session BY PATH under the sessions dir, so it is held to
+    the exact shape the runner mints (utils.new_id(8)) plus containment — the
+    same validation adw_simple_sdlc applies to --from-adw-id."""
+    if adw_id is None:
+        return None
+    if not _ADW_ID.fullmatch(adw_id):
+        raise SystemExit(f"--adw-id {adw_id!r} is not a session id "
+                         f"(8 hex chars, as the runner mints them)")
+    sessions = (Path(cfg.defaults.data_dir) / "sessions").resolve()
+    path = (sessions / adw_id).resolve()
+    if sessions not in path.parents:      # defense in depth behind the format check
+        raise SystemExit(f"--adw-id {adw_id!r} is not a session id "
+                         f"(resolves outside the sessions dir)")
+    return adw_id
 
 
 # ── gates (chain-local: they verify AuditOutput's claims, nothing else uses them) ──
@@ -169,18 +205,25 @@ def _inside(path: str, root: Path) -> bool:
 def audit_artifacts_exist(envelope, run) -> GateReport:
     """A verdict without artifacts is void (DD-WAY-32) — enforced, not trusted.
 
-    audit.md must exist non-empty, and every surface must carry at least one
-    screenshot that exists UNDER THIS RUN'S session dir — a path outside it is
-    not a fresh render, whatever the auditor claims.
+    audit.md must exist non-empty UNDER THIS RUN'S session dir — a pre-existing
+    report outside the run is not this run's audit. Every surface must carry
+    screenshots that exist under the session dir too (a path outside it is not a
+    fresh render, whatever the auditor claims), covering BOTH width classes:
+    filenames must carry "desktop" and "phone" (phone = ≤390px viewport). The
+    width class is a declaration in the name — the smallest honest mechanism the
+    harness can hold a path to; capturing phone at ≤390px for real stays the
+    contract's obligation on the auditor.
     """
     report = GateReport()
+    session_root = Path(run.session_dir)
     audit_path = str(getattr(envelope, "audit_path", "") or "")
     p = Path(audit_path) if audit_path else None
-    ok = bool(p) and p.is_file() and p.stat().st_size > 0
+    ok = (bool(p) and p.is_file() and p.stat().st_size > 0
+          and _inside(audit_path, session_root))
     report.check("audit.md", ok,
-                 f"exists, {p.stat().st_size}B" if ok
-                 else "audit_path missing, empty, or not a file — the audit report is required")
-    session_root = Path(run.session_dir)
+                 f"exists in the session dir, {p.stat().st_size}B" if ok
+                 else "audit_path missing, empty, or outside this run's session dir "
+                      "— the audit report must be this run's own")
     for surface in getattr(envelope, "surfaces", []):
         shots = list(getattr(surface, "screenshots", []))
         if not shots:
@@ -192,6 +235,13 @@ def audit_artifacts_exist(envelope, run) -> GateReport:
             report.check(f"screenshot: {shot}", fresh,
                          "fresh render in the session dir" if fresh
                          else "missing, or outside this run's session dir — only fresh renders count")
+        names = [Path(shot).name.lower() for shot in shots]
+        for width_class in WIDTH_CLASSES:
+            covered = any(width_class in name for name in names)
+            report.check(f"{width_class} render: {surface.surface}", covered,
+                         "declared" if covered
+                         else f"no screenshot filename carries {width_class!r} — both "
+                              f"width classes are required (phone = ≤390px)")
     return report
 
 
@@ -260,6 +310,7 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
     scope_file, scope_text, scoped = _read_scope(scope_path)
     base_url = _validate_base_url(base_url)
     cfg = agents.load_config(config)
+    adw_id = _validate_adw_id(cfg, adw_id)
     agents.validate(cfg, [auditor])
     run = session.ensure(cfg, adw_id)
 
