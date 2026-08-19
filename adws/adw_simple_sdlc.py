@@ -114,9 +114,11 @@ def _adopt_plan(run, plan: PlanOutput, prior_dir: Path) -> PlanOutput:
     plan's obligations). Copying puts the plan exactly where a normal run's
     planner leaves it, so every later phase finds it with no special-casing.
     Artifact paths are agent-recorded, so each one is held inside the prior
-    session dir before it is read — same defense as `_prior_plan`.
+    session dir before it is read — same defense as `_prior_plan`. Validation
+    runs over the WHOLE list before the first copy: a refusal must leave this
+    session's handoff untouched, never half-populated with a partial plan.
     """
-    adopted = []
+    sources = []
     for artifact in plan.artifacts:
         src = Path(artifact)
         if not src.is_absolute():
@@ -128,6 +130,9 @@ def _adopt_plan(run, plan: PlanOutput, prior_dir: Path) -> PlanOutput:
         if not src.is_file():
             raise SystemExit(f"prior plan artifact missing: {src} — a findings rerun "
                              f"cannot review against a plan that no longer exists")
+        sources.append(src)
+    adopted = []
+    for src in sources:
         dest = run.context_handoff_dir / src.name
         shutil.copyfile(src, dest)
         adopted.append(str(dest))

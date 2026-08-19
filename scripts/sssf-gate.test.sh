@@ -383,17 +383,38 @@ check("builder previous= envelope points at this session adopted copy, not the p
       build_previous and build_previous[-1] == [str(cur_handoff / "plan.md")],
       str(build_previous[-1:]))
 
+def clear_handoff():
+    for stale in cur_handoff.iterdir():
+        stale.unlink()
+
 # proven-can-fail (#367): stub the adoption back out (the pre-fix behavior) —
 # the reviewer has no plan.md again, and the same review-time predicate goes red.
 saved_adopt = sdlc._adopt_plan
 sdlc._adopt_plan = lambda run, plan, prior_dir: plan
-for stale in cur_handoff.iterdir():
-    stale.unlink()
+clear_handoff()
 review_time_plan.clear()
 rc = sdlc.main(None, findings="finding A again", from_adw_id="ab12cd34")
 check("without the copy the reviewer reviews blind — the #367 predicate can fail",
       rc == 0 and review_time_plan and review_time_plan[-1] is None, str(review_time_plan))
 sdlc._adopt_plan = saved_adopt
+
+# multi-artifact happy path: a plan with several artifacts adopts ALL of them
+multi_handoff = datadir / "sessions" / "fe10ba98" / "context_handoff"
+multi_handoff.mkdir(parents=True)
+(multi_handoff / "plan.md").write_text("MULTI PLAN")
+(multi_handoff / "notes.md").write_text("MULTI NOTES")
+multi_planner = datadir / "sessions" / "fe10ba98" / "planner"
+multi_planner.mkdir(parents=True)
+(multi_planner / "envelope.json").write_text(json.dumps({
+    "status": "success", "summary": "s",
+    "artifacts": [str(multi_handoff / "plan.md"), str(multi_handoff / "notes.md")],
+    "commit_message": ""}))
+clear_handoff()
+rc = sdlc.main(None, findings="finding multi", from_adw_id="fe10ba98")
+check("multi-artifact plan: every artifact adopted into this session handoff",
+      rc == 0 and (cur_handoff / "plan.md").read_text() == "MULTI PLAN"
+      and (cur_handoff / "notes.md").read_text() == "MULTI NOTES",
+      str(sorted(p.name for p in cur_handoff.iterdir())))
 
 # a prior id with no recorded plan refuses the run before anything spawns
 try:
@@ -422,29 +443,47 @@ for evil in ("../../outside", "/etc", "ab12cd34/../../../outside", "AB12CD34"):
 
 # #367 adoption bounds: a recorded plan artifact resolving outside its own
 # session dir, or missing on disk, refuses the rerun before any copy happens.
+# Each hostile artifact rides SECOND behind a valid one: validation must cover
+# the whole list before the first copy, so a refusal leaves the handoff EMPTY —
+# never half-populated with a partial plan (luna review finding).
 bound_dir = datadir / "sessions" / "ba98fe10" / "planner"
 bound_dir.mkdir(parents=True)
+bound_handoff = datadir / "sessions" / "ba98fe10" / "context_handoff"
+bound_handoff.mkdir(parents=True)
+(bound_handoff / "plan.md").write_text("VALID FIRST")
 (bound_dir / "envelope.json").write_text(json.dumps({
     "status": "success", "summary": "s",
-    "artifacts": [str(outside / "envelope.json")], "commit_message": ""}))
+    "artifacts": [str(bound_handoff / "plan.md"), str(outside / "envelope.json")],
+    "commit_message": ""}))
+clear_handoff()
 try:
     sdlc.main(None, findings="x", from_adw_id="ba98fe10")
     check("plan artifact outside its session dir refused at adoption", False, "run proceeded")
 except SystemExit as e:
     check("plan artifact outside its session dir refused at adoption",
           "outside its session dir" in str(e), str(e))
+check("escape refusal leaves the handoff EMPTY — valid first artifact NOT copied",
+      list(cur_handoff.iterdir()) == [],
+      str(sorted(p.name for p in cur_handoff.iterdir())))
 gone_dir = datadir / "sessions" / "cd34ab12" / "planner"
 gone_dir.mkdir(parents=True)
+gone_handoff = datadir / "sessions" / "cd34ab12" / "context_handoff"
+gone_handoff.mkdir(parents=True)
+(gone_handoff / "plan.md").write_text("VALID FIRST")
 (gone_dir / "envelope.json").write_text(json.dumps({
     "status": "success", "summary": "s",
-    "artifacts": [str(datadir / "sessions" / "cd34ab12" / "context_handoff" / "plan.md")],
+    "artifacts": [str(gone_handoff / "plan.md"), str(gone_handoff / "missing.md")],
     "commit_message": ""}))
+clear_handoff()
 try:
     sdlc.main(None, findings="x", from_adw_id="cd34ab12")
     check("missing plan artifact file refuses the rerun", False, "run proceeded")
 except SystemExit as e:
     check("missing plan artifact file refuses the rerun",
           "artifact missing" in str(e), str(e))
+check("missing-file refusal leaves the handoff EMPTY — valid first artifact NOT copied",
+      list(cur_handoff.iterdir()) == [],
+      str(sorted(p.name for p in cur_handoff.iterdir())))
 
 # round caps unchanged: a red findings run still exhausts at 3 fix rounds, no commit
 QUALITY_GREEN = False
