@@ -23,6 +23,11 @@
  * and merge shape" — surface-by-surface, one PR per surface). Flagged on wayfinder map #150 for
  * #200 to pick up. The Tasks-scoped case below is unaffected and stays; it already passes against
  * `dev`'s unmodified Tasks page head.
+ *
+ * RESOLVED (#250): the Money, Budget and Pricing enumerations now exist — in
+ * `pages/guard-r2-naked-heads.test.tsx`, the page-head enumeration sweep, which documents itself
+ * as their home and already owns the oracle helpers. This file stays Tasks-only: it is the
+ * class's owning guard and oracle DEFINITION, not the register of every head that inherits it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'

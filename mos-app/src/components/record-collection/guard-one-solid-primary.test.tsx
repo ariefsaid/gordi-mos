@@ -30,6 +30,14 @@ import { CollectionToolbar } from './collection-toolbar'
 // bulk-destructive-adjacent action, which is the kind of detail CLAUDE.md's public-repo banner
 // asks to keep out of the tracker until fixed). The law's own guard — the shared
 // CollectionToolbar, which this PR does port — is below, unchanged.
+//
+// RESOLVED (#249): the Café Review row Approve is now `.btn-outline` and the enumeration exists —
+// but it lives in `pages/kitchen-review-page.test.tsx` ("GUARD-PRIMARY"), not here. That page's
+// suite already owns the eight database mocks, the multi-stream fixtures and the queue's grouping
+// rules, and the invariant is a page-level one: one solid `Approve all` PER action_type group and
+// no solid control in any row. Re-mounting the whole page from this component-level file would
+// have duplicated that harness to assert something the page suite can assert with a fixture it
+// already has.
 
 function stubDesktopMatchMedia() {
   Object.defineProperty(window, 'matchMedia', {

@@ -67,6 +67,17 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
   ] ?? 0
 }
 
+/**
+ * FR-040 variance — the ONE definition of "off-plan" (logged qty ≠ this stream's plan qty,
+ * including no-plan rows where planQty is 0). Both the per-row note gate (AC-040) and the
+ * bulk scope (#398) read it from here: while bulk filtered on its own criteria and never on
+ * variance, the loudest control on the surface cleared off-plan rows with a null note — the
+ * exact gate the per-row path refuses to skip. A second definition is how the two drift.
+ */
+function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
+  return log.qty_porsi !== planQty
+}
+
 /** Format an ISO timestamp to HH:MM (WIB, fixed +7 offset — NFR-007). */
 function formatTime(iso: string): string {
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -85,7 +96,7 @@ function formatDate(iso: string): string {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Group header actions — the production-first gate message + the per-group
-// "Approve all (N)" bulk button. Lifted out of the retired .kr-group-head so the
+// "Approve all on-plan (N)" bulk button. Lifted out of the retired .kr-group-head so the
 // shared DataTable can mount them as a group's `headerActions` (right of the
 // desktop group-header row / under the phone heading). Behaviour-identical to the
 // retired controls: FR-042 gate, FR-043 bulk (offline / in-flight disables).
@@ -93,7 +104,7 @@ function formatDate(iso: string): string {
 interface GroupActionsProps {
   /** production-first gate (FR-042): show the "Blocked until Production approved" message. */
   transferGated: boolean
-  /** N eligible Submitted rows in the section (0 hides the bulk button). */
+  /** N eligible ON-PLAN Submitted rows in the section (0 hides the bulk button — #398). */
   eligibleCount: number
   /** this section's bulk run is in flight → "Approving…". */
   bulkBusy: boolean
@@ -111,6 +122,7 @@ function GroupActions({
   actionLabel,
   onBulkApprove,
 }: GroupActionsProps): ReactNode {
+  const t = useT()
   return (
     <>
       {transferGated && (
@@ -123,11 +135,11 @@ function GroupActions({
         <button
           type="button"
           className="btn btn-primary kr-bulk-btn"
-          aria-label={`Approve all (${eligibleCount}) — ${actionLabel}`}
+          aria-label={`${t('kitchen.review.bulkApprove', { count: eligibleCount })} — ${actionLabel}`}
           disabled={disabled}
           onClick={onBulkApprove}
         >
-          {bulkBusy ? 'Approving…' : `Approve all (${eligibleCount})`}
+          {bulkBusy ? t('kitchen.review.bulkApproving') : t('kitchen.review.bulkApprove', { count: eligibleCount })}
         </button>
       )}
     </>
@@ -173,8 +185,8 @@ function KitchenReviewDecision({
   const [note, setNote] = useState('')
   const [noteError, setNoteError] = useState(false)
 
-  // FR-040 variance: off-plan when logged ≠ plan (incl. no-plan rows where planQty===0).
-  const offPlan = log.qty_porsi !== planQty
+  // FR-040 variance — shared with the bulk scope (see isOffPlan).
+  const offPlan = isOffPlan(log, planQty)
 
   function startApprove() {
     if (!offPlan) {
@@ -224,7 +236,7 @@ function KitchenReviewDecision({
         <>
           <button
             type="button"
-            className="btn btn-primary krow-btn"
+            className="btn btn-outline krow-btn"
             aria-label={`Approve ${log.wip_item_name}`}
             disabled={approveDisabled || submitting}
             title={approveDisabled ? approveDisabledReason : undefined}
@@ -232,9 +244,15 @@ function KitchenReviewDecision({
           >
             {submitting ? 'Working…' : 'Approve'}
           </button>
+          {/* #249 rank: Approve fires irreversibly on one click (on-plan rows commit
+              straight to the RPC — no confirm, no undo), while Reject only opens a
+              required-note gate. Two controls at the same weight beside each other make
+              the irreversible one a mis-click, so Reject drops to the quietest rank the
+              system has — `.btn-ghost` (DESIGN.md § Buttons: "a ghost is the quietest
+              rank in the hierarchy"). The solid primary stays with the bulk "Approve all". */}
           <button
             type="button"
-            className="btn btn-outline krow-btn"
+            className="btn btn-ghost krow-btn"
             aria-label={`Reject ${log.wip_item_name}`}
             disabled={submitting}
             onClick={startReject}
@@ -522,10 +540,19 @@ export function KitchenReviewPage() {
     }
   }
 
+  // #398 (owner ruling, 2026-08-20): bulk scopes to ON-PLAN rows only. Off-plan rows fall to
+  // the per-row path and keep their required approve note (AC-040 / FR-041) — the gate bulk
+  // used to skip by handing every row a null note. The label says so: "Approve all on-plan (N)".
   const bulkEligible = useCallback(
     (action: string): ReviewLogRow[] =>
-      visibleLogs.filter(l => l.action_type === action && canDecide(l) && !rowGated(l)),
-    [visibleLogs, canDecide, rowGated],
+      visibleLogs.filter(
+        l =>
+          l.action_type === action &&
+          canDecide(l) &&
+          !rowGated(l) &&
+          !isOffPlan(l, planQtyFor(streamPlans, l)),
+      ),
+    [visibleLogs, canDecide, rowGated, streamPlans],
   )
 
   async function handleBulkApprove(action: string) {
@@ -590,7 +617,7 @@ export function KitchenReviewPage() {
 
   // ── ONE DataTable: one group per action_type (Production, Transfer to …),
   //    now the DISTINCT labels present (groupOrder above) rather than a fixed
-  //    3-literal list. Each group's headerActions carries its bulk "Approve all (N)"
+  //    3-literal list. Each group's headerActions carries its bulk "Approve all on-plan (N)"
   //    button + the gate message (disabled/hidden exactly as the retired bespoke
   //    header — transfer gate blocks it until Production approved; offline disables
   //    it). ─────────────────────────────────────────────────────────────────────

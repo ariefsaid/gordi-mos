@@ -591,6 +591,10 @@ export const messages = {
     'kitchen.plan.toolbarAria': 'Plan scope and filters',
     'kitchen.review.allStreams': 'All streams',
     'kitchen.review.backToLog': 'Back to Log',
+    // #398 (owner ruling): bulk approve clears ON-PLAN rows only — off-plan rows keep the
+    // per-row required note (AC-040) — and the label states the scope it actually covers.
+    'kitchen.review.bulkApprove': 'Approve all on-plan (${count})',
+    'kitchen.review.bulkApproving': 'Approving…',
     'kitchen.review.caption': 'Submitted kitchen logs awaiting review',
     // #238 (FR-031): the stream lead's completeness confirmation. Says what IS true, never what
     // is blocked — the record gates nothing, so an unconfirmed stream is a visible gap, not a wall.
@@ -1733,6 +1737,8 @@ export const messages = {
     'kitchen.plan.toolbarAria': 'Lingkup dan filter rencana',
     'kitchen.review.allStreams': 'Semua stream',
     'kitchen.review.backToLog': 'Kembali ke Log',
+    'kitchen.review.bulkApprove': 'Setujui semua sesuai rencana (${count})',
+    'kitchen.review.bulkApproving': 'Menyetujui…',
     'kitchen.review.caption': 'Log dapur yang diajukan menunggu tinjauan',
     'kitchen.review.completeness.aria': 'Kelengkapan daftar item untuk stream ini',
     'kitchen.review.completeness.confirm': 'Konfirmasi daftar item sudah lengkap',
