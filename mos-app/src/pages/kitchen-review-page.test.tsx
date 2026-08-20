@@ -380,12 +380,14 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
 })
 
 // ── Bulk approve (FR-043, AC-042 extension) ──────────────────────────────────
-// Parity with the OLD app (app/main.py review_bulk ~L1031-1034, L1210-1273): bulk
-// "Approve all (N)" approves EVERY Submitted row in the section — incl. off-plan rows
-// (approved with null note, no per-row note forced) — gated only by production-first
-// (a Transfer section's bulk stays disabled while Production is pending). N counts all
-// Submitted rows in the section. The per-row single-approve flow keeps its variance-note
-// gate (only bulk approves-all without per-row notes, mirroring the oracle).
+// #398, owner ruling 2026-08-20: bulk "Approve all on-plan (N)" clears ON-PLAN rows only.
+// It used to inherit the old app's parity behaviour — approve EVERY Submitted row in the
+// section with a null note — which let the surface's loudest control clear off-plan rows
+// note-free, the exact gate the per-row path refuses to skip (AC-040 / FR-041). Off-plan
+// rows now fall to the per-row path and keep their required note; N counts only the rows
+// the button will actually touch, and the label says "on-plan" so it cannot quietly widen
+// again. Production-first still gates the whole section (a Transfer bulk stays blocked
+// while Production is pending).
 const PROD_ONPLAN_A: ReviewLogRow = {
   id: 'log-a', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
@@ -406,29 +408,35 @@ const PROD_OFFPLAN: ReviewLogRow = {
 }
 
 describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
-  it('AC-042: "Approve all (N)" approves EVERY Submitted row in the section — incl. off-plan', async () => {
-    // 2 on-plan (A=20==plan, B=5==plan) + 1 off-plan (C=7 != plan 10) → N = 3 (ALL Submitted)
+  it('issue 398: bulk scopes to ON-PLAN rows — the off-plan row is left to the per-row note gate', async () => {
+    // 2 on-plan (A=20==plan, B=5==plan) + 1 off-plan (C=7 != plan 10) → N = 2, not 3.
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B, PROD_OFFPLAN])
     mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 }, wC: { produce: 10 } })
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-007' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    // the group-header bulk button counts ALL 3 Submitted logs (off-plan included)
-    const bulk = screen.getByRole('button', { name: /approve all \(3\)/i })
-    expect(bulk).not.toBeDisabled()
+    // the label states the narrowed scope AND the narrowed count — a button that claimed
+    // "(3)" would be claiming rows it must not touch
+    const bulk = screen.getByRole('button', { name: /approve all on-plan \(2\) — Production/i })
+    expect(bulk).toHaveTextContent('Approve all on-plan (2)')
+    expect(screen.queryByRole('button', { name: /approve all on-plan \(3\)/i })).not.toBeInTheDocument()
     fireEvent.click(bulk)
 
-    // all three rows are approved with a null note (off-plan included, no per-row note forced)
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(3))
+    // only the two on-plan rows are approved; the off-plan row is never handed a null note
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2))
     expect(mockApprove).toHaveBeenCalledWith('log-a', null)
     expect(mockApprove).toHaveBeenCalledWith('log-b', null)
-    expect(mockApprove).toHaveBeenCalledWith('log-c', null)
+    expect(mockApprove).not.toHaveBeenCalledWith('log-c', null)
 
-    // every row leaves the queue
+    // the on-plan rows leave the queue; the off-plan row stays, and its per-row Approve
+    // still opens the required-note gate (AC-040) rather than committing
     await waitFor(() => expect(screen.queryByText('Ayam Bakar')).not.toBeInTheDocument())
     expect(screen.queryByText('Sambal')).not.toBeInTheDocument()
-    expect(screen.queryByText('Tahu')).not.toBeInTheDocument()
+    expect(screen.getByText('Tahu')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /approve tahu/i }))
+    expect(await screen.findByRole('textbox', { name: /approve note for tahu/i })).toBeInTheDocument()
+    expect(mockApprove).toHaveBeenCalledTimes(2)
   })
 
   it('AC-042: a Transfer group bulk-approve is blocked while a Production log is still Submitted', async () => {
@@ -442,7 +450,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     await screen.findByText('Latte')
 
     // Production bulk is offered (1 Submitted) and live
-    expect(screen.getByRole('button', { name: /approve all \(1\)/i })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: /approve all on-plan \(1\)/i })).not.toBeDisabled()
     // the Transfer group's bulk approve is NOT offered while Production pending (production-first gate)
     expect(screen.queryByRole('button', { name: /approve all transfer to radiant/i })).not.toBeInTheDocument()
   })
@@ -457,7 +465,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    fireEvent.click(screen.getByRole('button', { name: /approve all \(2\)/i }))
+    fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
 
     await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2))
     // A left the queue; B is kept (generic failure)
@@ -467,16 +475,17 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     expect(await screen.findByText(/1 approved.*1 failed|approved 1.*failed 1/i)).toBeInTheDocument()
   })
 
-  it('AC-042: an off-plan-only group IS bulk-eligible — "Approve all (1)" is offered', async () => {
-    // Parity: off-plan rows are no longer excluded from bulk (oracle approves all Submitted).
+  it('issue 398: an off-plan-only group offers NO bulk button — every row keeps its note gate', async () => {
     mockList.mockResolvedValue([PROD_OFFPLAN])
-    mockPlan.mockResolvedValue({ wC: { produce: 10 } }) // 7 != 10 → off-plan, still bulk-eligible
-    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-008' })
+    mockPlan.mockResolvedValue({ wC: { produce: 10 } }) // 7 != 10 → off-plan → not bulk-eligible
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Tahu')
-    const bulk = screen.getByRole('button', { name: /approve all \(1\)/i })
-    fireEvent.click(bulk)
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-c', null))
+
+    expect(screen.queryByRole('button', { name: /approve all/i })).not.toBeInTheDocument()
+    // the only path left is the per-row one, and it forces the note (AC-040)
+    fireEvent.click(screen.getByRole('button', { name: /approve tahu/i }))
+    expect(await screen.findByRole('textbox', { name: /approve note for tahu/i })).toBeInTheDocument()
+    expect(mockApprove).not.toHaveBeenCalled()
   })
 })
 
@@ -578,6 +587,9 @@ describe('KitchenReviewPage — GUARD-PRIMARY: bulk approve is the only solid pr
     // stream has no pending production — so both groups are bulk-eligible and both render a
     // solid "Approve all". Two groups is what makes the count assertion below non-trivial.
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    // #398: bulk is offered for ON-PLAN rows only, so both fixture rows are pinned on-plan —
+    // otherwise neither group renders the solid control this guard is about.
+    mockPlan.mockResolvedValue({ w1: { produce: 8 }, w4: { [`transfer:${BRANCH_ID}`]: 5 } })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')
 
