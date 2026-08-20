@@ -16,8 +16,18 @@ select fk_ok('ops','kitchen_logs','activity','shared','activities','code','logs 
 select fk_ok('ops','kitchen_plans','activity','shared','activities','code','plans resolve Activity through the catalog');
 select fk_ok('ops','kitchen_stock','activity','shared','activities','code','stock resolves Activity through the catalog');
 select fk_ok('ops','stream_completeness','activity','shared','activities','code','completeness resolves Activity through the catalog');
-select is((select count(*) from pg_constraint where contype = 'c'
-  and pg_get_constraintdef(oid) ilike '%activity in%'), 0::bigint,
+-- The sweep that would have caught the duplication. Scoped to the five activity-bearing tables,
+-- and matched against what Postgres actually RENDERS: `check (activity in ('kitchen','bar'))`
+-- comes back as `CHECK ((activity = ANY (ARRAY['kitchen'::text, 'bar'::text])))`, and a
+-- single-valued allow-list as `CHECK ((activity = 'kitchen'::text))` — both are `activity = `.
+-- teams_stream_pair_check reads `activity IS NULL` and is correctly left alone. Names, not a
+-- count, so a red says which constraint came back.
+select is((select coalesce(string_agg(conname, ', ' order by conname), '')
+  from pg_constraint where contype = 'c'
+  and conrelid in ('shared.teams'::regclass, 'ops.kitchen_plans'::regclass,
+                   'ops.kitchen_logs'::regclass, 'ops.kitchen_stock'::regclass,
+                   'ops.stream_completeness'::regclass)
+  and pg_get_constraintdef(oid) ilike '%activity = %'), '',
   'no activity allow-list CHECK remains outside the catalog');
 
 insert into shared.activities (code, name) values ('prep', 'Prep');

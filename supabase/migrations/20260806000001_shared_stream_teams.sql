@@ -61,6 +61,14 @@ comment on index shared.teams_stream_unique is
   'OD-WAY-42) is enumerable because a stream cannot have two live teams.';
 
 -- ── Seed: the six stream teams — {GHQ, RRS, Radiant} x {kitchen, bar} (FR-005, OD-WAY-42) ────
+-- SUPERSEDED IN PART by 20260814000001 (#215), which `create or replace`s this function so the
+-- activity half of each pair comes from the shared.activities catalog instead of the literal
+-- kitchen/bar list below. Everything else this block explains — the deduplicated dual-seed
+-- pattern, the fail-loud validation, the pair list restated independently of the INSERT, and
+-- roastery's deliberate absence — still governs the LIVE body, which is where to edit it. What
+-- follows is what a fresh database runs at this point in the sequence, and what the DOWN path of
+-- ...0814000001 restores.
+--
 -- ONE seeder, named, called by this migration for orgs that exist at migration time and by
 -- supabase/seed.sql for the dev org a fresh reset creates afterwards — the dual-seed pattern the
 -- branch catalog uses, except deduplicated: both halves call this function, so the pair list has
