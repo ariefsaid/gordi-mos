@@ -265,6 +265,45 @@ describe('LoginPage — credentials form', () => {
     })
   })
 
+  // #137: supabase-js reports a refused send (429, 5xx, transport failure) in `error` instead of
+  // throwing. Telling the user to check an inbox nothing was sent to is the bug that made the
+  // password-recovery e2e flake read as a mail-catcher timeout instead of a failed send.
+  it('a refused reset send shows the failure, not "check your email"', async () => {
+    mockResetPassword.mockResolvedValue({
+      data: {},
+      error: { status: 500, message: 'Error sending recovery email' },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Couldn't reach the server — try again.")).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Check your email to reset your password.')).not.toBeInTheDocument()
+  })
+
+  it('a rate-limited magic-link send says so, and does not claim mail was sent', async () => {
+    mockSignInWithOtp.mockResolvedValue({
+      data: {},
+      error: { status: 429, message: 'over_email_send_rate_limit' },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.signInWithOtp>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Too many attempts — try again in a minute.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Check your email for a sign-in link.')).not.toBeInTheDocument()
+  })
+
   it('AC-006: magic-link and reset confirmations both show back-to-sign-in link', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},

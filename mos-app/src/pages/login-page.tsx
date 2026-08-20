@@ -35,6 +35,18 @@ function mapAuthError(error: unknown): string {
   return ERR_CREDENTIAL
 }
 
+/**
+ * Message for a magic-link / password-reset send that did not go through. Deliberately separate
+ * from mapAuthError: nothing here is a credential problem, and "Invalid email or password" would
+ * be a lie about a request that never reached the mail step.
+ */
+function mapSendError(error: unknown): string {
+  if (error && typeof error === 'object' && 'status' in error) {
+    if ((error as { status: number }).status === 429) return ERR_RATE_LIMIT
+  }
+  return ERR_NETWORK
+}
+
 // Simple RFC-5322-inspired email check (same pattern used by most browsers)
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -132,10 +144,19 @@ export function LoginPage() {
     if (!validateEmail()) return
     setLoading('magic')
     try {
-      await supabase.auth.signInWithOtp({
+      const { error: sendError } = await supabase.auth.signInWithOtp({
         email,
         options: { shouldCreateUser: false },
       })
+      // A send that FAILED must not be reported as sent. supabase-js reports transport/5xx/429
+      // failures in `error` rather than throwing, so without this check the user is told to check
+      // an inbox nothing was ever sent to. This leaks no account information: GoTrue answers 200
+      // for known and unknown addresses alike, so anything in `error` is about the request, never
+      // about whether the account exists — the AC-006 neutrality below is untouched.
+      if (sendError) {
+        setError(mapSendError(sendError))
+        return
+      }
       // Always show neutral confirmation (no enumeration — AC-006)
       setMode('magic-confirm')
     } catch {
@@ -153,7 +174,12 @@ export function LoginPage() {
       // redirectTo ensures the recovery link lands on /recovery so the PASSWORD_RECOVERY
       // event is handled while the router is at the correct path (audit L1 fix).
       const redirectTo = `${window.location.origin}/mos/recovery`
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      // Same as the magic link above: never claim a mail was sent when the request failed.
+      if (sendError) {
+        setError(mapSendError(sendError))
+        return
+      }
       // Always show neutral confirmation (no enumeration — AC-006)
       setMode('reset-confirm')
     } catch {
