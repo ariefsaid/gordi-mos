@@ -21,8 +21,6 @@ vi.mock('@/lib/db/notifications', () => ({
 }))
 
 vi.mock('../config/features', () => ({
-  SHOW_WEEKLY_UPDATES: true,
-  SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: true,
   SHOW_ASSISTANT: true,
   SHOW_FOLLOWUPS: false,

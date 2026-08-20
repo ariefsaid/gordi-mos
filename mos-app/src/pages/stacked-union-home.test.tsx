@@ -185,6 +185,7 @@ describe('AC-HS11: pure member → capture-first only, no finance, no cockpit', 
     // The finance DAL is never issued (no company-scope money section renders for a member).
     expect(mockListRevenue).not.toHaveBeenCalled()
     expect(mockListMargin).not.toHaveBeenCalled()
+    expect(screen.getByRole('link', { name: /Add a log entry/i })).toHaveAttribute('href', '/cafe/log')
   })
 })
 
@@ -226,9 +227,8 @@ describe('AC-HS13: drills — revenue/margin → /money, ops-KPI → /ops', () =
     const marginTile = screen.getByRole('group', { name: /gross margin/i })
     expect(marginTile.closest('a')!.getAttribute('href')).toBe('/money')
 
-    // Ops-KPI placeholder drills to /ops
-    const opsDrill = screen.getByRole('link', { name: /See today's floor activity/i })
-    expect(opsDrill.getAttribute('href')).toBe('/ops')
+    // Ops-KPI remains an owner-deferred placeholder without a dead drill link.
+    expect(screen.queryByRole('link', { name: /floor activity/i })).toBeNull()
 
     // The cascade drill is cut with its destination (#179, OD-WAY-32): Home must not offer a
     // link into a route the app no longer serves.

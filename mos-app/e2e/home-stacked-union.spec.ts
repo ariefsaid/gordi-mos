@@ -36,6 +36,7 @@ test.describe('Home stacked-union cockpit (Issue E)', () => {
     await page.goto('__home-stacked')
 
     await expect(page.getByRole('heading', { name: /what needs you/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Add a log entry/i })).toHaveAttribute('href', '/cafe/log')
 
     // No cockpit, no money-position, no finance tiles.
     await expect(page.getByRole('heading', { name: /cockpit/i })).toHaveCount(0)
@@ -57,5 +58,11 @@ test.describe('Home stacked-union cockpit — phone (≤380px)', () => {
       clientWidth: document.documentElement.clientWidth,
     }))
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth)
+  })
+
+  test('AC-HS23: a pure member can tap capture on a ≤380px phone', async ({ page }) => {
+    await loginAs(page, MEMBER.email, MEMBER.password)
+    await page.goto('__home-stacked')
+    await expect(page.getByRole('link', { name: /Add a log entry/i })).toHaveAttribute('href', '/cafe/log')
   })
 })

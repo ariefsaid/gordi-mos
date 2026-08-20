@@ -124,26 +124,6 @@ const EXCEPTIONS: Record<string, Record<string, number>> = {
     'border-radius: 6px': 2,
     'border-radius: 2px': 1,
   },
-  'src/components/weekly/ProgressMarker.css': {
-    'font-size: 15px': 1,
-    'border-radius: 999px': 1,
-    'border-radius: 6px': 1,
-  },
-  'src/components/weekly/TimingChip.css': {
-    'font-size: 12px': 1,
-    'border-radius: 9999px': 2,
-  },
-  'src/components/weekly/WeeklyUpdateReviewPane.css': {
-    'font-size: 11px': 2,
-    'font-size: 15.5px': 2,
-    'font-size: 12px': 2,
-    'font-size: 15px': 2,
-    'font-size: 16px': 2,
-    'border-radius: 4px': 2,
-    'border-radius: 9999px': 2,
-    'border-radius: 6px': 1,
-    'border-radius: 0 0 4px 4px': 1,
-  },
   'src/components/weekly/my-tasks-card.css': {
     'font-size: 11px': 2,
     'font-size: 15px': 2,

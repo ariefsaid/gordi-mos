@@ -51,13 +51,6 @@ vi.mock('../lib/db/home-attention-data', () => ({
 }))
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 
-// The Daily Log needs-attention read (AC-091 propagation, #302) — stubbed for the same reason as
-// every DAL above: this file pins WHICH arrangement mounts, never data.
-vi.mock('../lib/db/ops-log', () => ({
-  listNeedsAttentionLogEntries: vi.fn(() => Promise.resolve([])),
-  OPS_LOG_ROUTE: '/ops',
-}))
-
 // Partial mock, mirroring home-page.test.tsx: only the two reads are controlled; the module's
 // other exports (feed ordering) stay real for whichever module imports them at load.
 vi.mock('../lib/db/signals', async (importOriginal) => ({

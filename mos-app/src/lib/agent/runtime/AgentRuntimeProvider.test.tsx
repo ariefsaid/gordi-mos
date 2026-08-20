@@ -13,8 +13,6 @@ import type { AgentRuntime } from './port'
 // LOCALLY so the flag-gating coverage is preserved (BDD rule). Every other test injects a
 // runtime via the prop, so the blanket file-level mock is safe for them.
 vi.mock('@/config/features', () => ({
-  SHOW_WEEKLY_UPDATES: true,
-  SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: true,
   SHOW_ASSISTANT: false,
   SHOW_FOLLOWUPS: false,

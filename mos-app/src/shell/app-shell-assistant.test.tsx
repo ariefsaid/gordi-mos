@@ -14,10 +14,8 @@ vi.mock('@/config/features', () => ({
     return flag.SHOW_ASSISTANT
   },
   SHOW_USER_VIEWS: false,
-  SHOW_WEEKLY_UPDATES: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
-  SHOW_DAILY_LOG: false,
 }))
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))

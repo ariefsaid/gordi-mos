@@ -220,9 +220,6 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/work/signals/:signalId': 'record door — opened from the Signals list or a deep link, never from nav',
   '/work/tasks/new': 'record door — opened by the create action, not a nav entry',
   '/work/tasks/:taskId': 'record door — opened from the Tasks table or a deep link',
-  '/ops/new': 'record door — opened from the Daily Log surface',
-  '/ops/:id/edit': 'record door — opened from a Daily Log row',
-  '/ops': "Daily Log — a live dev surface with no v4 IA entry; reached from Home's own links. Owed a retirement-or-adoption ticket",
   // Corrected: the previous reason said "reached from the Money surface itself", which is false.
   // The Detail tab does not navigate to this PATH — it writes `?tab=detail` onto the current one
   // via setSearchParams. Nothing in the app links `/money/detail`; breadcrumb.tsx only renders a

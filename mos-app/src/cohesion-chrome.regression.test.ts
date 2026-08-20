@@ -15,13 +15,6 @@ import { resolve, join } from 'node:path'
 
 const SRC = resolve(process.cwd(), 'src')
 
-// The Weekly Update surface is UNROUTED (retired entry points; the files stay pending the
-// #281 ruling — see src/shell/retirement.test.tsx). Its chrome predates the consolidation
-// and is pinned here rather than reworked: dead-to-navigation code is #281's to delete or
-// revive, not this guard's to restyle. Remove these entries when #281 settles.
-const RETIRED_WEEKLY_WRITE_PANE = 'components/weekly/weekly-update-write-pane.tsx' // inline close-X <line> SVG
-const RETIRED_WEEKLY_REVIEW_FOCUS = 'components/weekly/WeeklyUpdateReviewPane.css .wup-review-row-btn' // --primary focus ring
-
 function readSrc(rel: string): string {
   return readFileSync(resolve(SRC, rel), 'utf8')
 }
@@ -182,7 +175,7 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
     const offenders: string[] = []
     for (const f of listSource(SRC, ['.tsx'])) {
       const rel = srcRel(f)
-      if (rel === 'shell/icons.tsx' || rel === RETIRED_WEEKLY_WRITE_PANE) continue
+      if (rel === 'shell/icons.tsx') continue
       const body = readFileSync(f, 'utf8')
       if (/function CloseIcon\b/.test(body)) offenders.push(`${rel} (local CloseIcon)`)
       else if (/M18 6 6 18M6 6l12 12/.test(body)) offenders.push(`${rel} (inline close-X path)`)
@@ -295,7 +288,6 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
     const offenders = focusRules()
       .filter((r) => /outline:[^;]*var\(--primary\)/.test(r.body))
       .map((r) => `${r.file} ${r.selector}`)
-      .filter((o) => o !== RETIRED_WEEKLY_REVIEW_FOCUS)
     expect(offenders, 'focus ring must stay --accent/--ring, never --primary').toEqual([])
   })
 

@@ -19,10 +19,6 @@ const redirectCases = [
   { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
   { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
   { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
-  // router.tsx:450-459: the dev-flagged Daily Log surfaces resolve in place, not to /.
-  { oldPath: 'ops', finalPath: /\/ops$/, needsAdmin: false, surface: 'Daily Log' },
-  { oldPath: 'ops/new', finalPath: /\/ops\/new$/, needsAdmin: false, surface: 'Add log entry' },
-  { oldPath: 'ops/legacy/edit', finalPath: /\/ops\/legacy\/edit$/, needsAdmin: false, surface: 'Log entry not found' },
   // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home (opening panel). Legacy bare
   // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
   // redirectHandle('/cafe/log') — the capture surface, not the home). Deep sub-routes below
@@ -62,13 +58,21 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
     await page.waitForTimeout(1_000)
     await expect(page).toHaveURL(routeCase.finalPath, { timeout: 10_000 })
     if ('surface' in routeCase) {
-      await expect(page.getByTestId('page-head').getByRole('heading', { name: routeCase.surface })).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByTestId('page-head').getByRole('heading', { name: String(routeCase.surface) })).toBeVisible({ timeout: 10_000 })
     }
     await expectBackDoesNotReenterOld(page, routeCase.oldPath)
   }
 })
 
-test('AC-003 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no redirect', async ({ page }) => {
+test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found without redirect', async ({ page }) => {
+  for (const path of ['ops', 'ops/new', 'ops/retired-id/edit']) {
+    await page.goto(path)
+    await expect(page).toHaveURL(new RegExp(`/mos/${path.replaceAll('/', '\\/')}$`))
+    await expect(page.getByRole('heading', { name: 'Page not found.' })).toBeVisible()
+  }
+})
+
+test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no redirect', async ({ page }) => {
   await page.goto('work/follow-ups')
   // No redirect: the URL the viewer asked for is the URL they keep.
   await expect(page).toHaveURL(/\/work\/follow-ups$/)

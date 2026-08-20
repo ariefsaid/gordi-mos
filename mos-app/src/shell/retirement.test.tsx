@@ -2,12 +2,9 @@
 // line and authored to THIS line's ruled state:
 //
 //  · Weekly Update: the Signal supersedes it. Entry points are retired everywhere —
-//    `/updates` redirects to `/work/signals`, UpdatesPage is unrouted, SHOW_WEEKLY_UPDATES
-//    is false — while the surface FILES stay pending the #281 ruling (hidden, not deleted;
-//    see pages/my-week.hidden.test.tsx for the flag-off contract of the My Week panel).
-//  · Daily Log: DELIBERATE divergence from v4 — `/ops` stays a live, flag-gated surface
-//    (v4 retired it to `/`; this line's router documents why it does not). What IS ruled
-//    is that no nav surface offers it: no destination link, no ⌘K item, no Home link.
+//    `/updates` redirects to `/work/signals` and the Weekly Updates UI is absent.
+//  · Daily Log: the surface and its routes are retired outright. No redirect is offered
+//    because there is no honest destination.
 //
 // This file is the single consolidated assertion that no residual entry point creeps back
 // in across DESTINATIONS/MODULES/UTILITY, the route table, ⌘K, and Home. It deliberately
@@ -21,7 +18,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { DESTINATIONS, MODULES, UTILITY } from './destinations'
-import { SHOW_FOLLOWUPS, SHOW_WEEKLY_UPDATES } from '@/config/features'
+import { SHOW_FOLLOWUPS } from '@/config/features'
 import { allRedirects, leafInThisTable, isRedirect, flattenRoutes, expectOneHop } from '@/test/route-table'
 import { CommandMenu } from '@/components/command/command-menu'
 import { HomePage } from '@/pages/home-page'
@@ -93,10 +90,10 @@ function memberViewer() {
 }
 
 describe('C4 — retirement: the ruled flag state', () => {
-  it('SHOW_WEEKLY_UPDATES stays false — no surface serves it, so a true flag would be a dead affordance', () => {
-    // If #281 revives weekly updates WITH a route of their own, this flips with it (and this
-    // assertion updates as part of that ruling — see config/features.ts).
-    expect(SHOW_WEEKLY_UPDATES).toBe(false)
+  it('does not retain feature flags for retired surfaces', () => {
+    const source = readFileSync(resolve(__dirname, '../config/features.ts'), 'utf8')
+    expect(source).not.toContain('SHOW_WEEKLY_UPDATES')
+    expect(source).not.toContain('SHOW_DAILY_LOG')
   })
 })
 
@@ -126,14 +123,19 @@ describe('C4 — retirement: the route table (FR-418, read off the REAL routeCon
     expect(paths.some((p) => /weekly-update|daily-log/.test(p))).toBe(false)
   })
 
-  it('the Daily Log surface itself stays live at /ops (ruled divergence from v4 — hidden from nav, not deleted)', () => {
-    const leaf = leafInThisTable('/ops')
-    expect(leaf).toBeDefined()
-    expect(leaf!.route.path).not.toBe('*')
-    // With SHOW_DAILY_LOG on (the live default) /ops serves OpsPage, not a redirect. A port
-    // that silently retires it to `/` (v4's table) turns this red — that retirement is a
-    // surface ticket's call, not a route-table side effect.
-    expect(isRedirect(leaf!.route.element)).toBe(false)
+  for (const path of ['/ops', '/ops/new', '/ops/retired-id/edit']) {
+    it(`${path} falls through to the shell not-found page without redirecting`, () => {
+      const leaf = leafInThisTable(path)
+      expect(leaf).toBeDefined()
+      expect(leaf!.route.path).toBe('*')
+      expect(isRedirect(leaf!.route.element)).toBe(false)
+    })
+  }
+
+  it('does not retain retired page entry modules', () => {
+    for (const file of ['../pages/updates-page.tsx', '../pages/ops-page.tsx', '../pages/ops-add-form.tsx']) {
+      expect(() => readFileSync(resolve(__dirname, file))).toThrow()
+    }
   })
 })
 

@@ -23,7 +23,6 @@ import { loginAs } from './helpers/login'
 // Weekly Updates is flag-hidden for the first rollout (src/config/features.ts). The Signals
 // destination itself is unconditional (#189), but the surface currently behind it is dev's weekly
 // update page, so the leg that asserts that surface's own content stays gated on the same flag.
-import { SHOW_WEEKLY_UPDATES } from '../src/config/features'
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Pre-login: static HTML title is present on the login page ---
@@ -90,8 +89,6 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
 // AC-013 e2e: MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8)
 test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page }) => {
   // The team module IS the weekly-update review surface — flag-hidden for the first rollout
-  // (src/config/features.ts). Skip while hidden; auto-restores when SHOW_WEEKLY_UPDATES flips on.
-  test.skip(!SHOW_WEEKLY_UPDATES, 'Weekly Updates (team module) is flag-hidden (config/features.ts)')
   // The two Home landings below use the document title for the same reason as AC-001 above: the h1
   // is a time-dependent greeting. Fixed here even though this test currently skips — a stale
   // locator parked behind a flag is a trap that springs the moment the flag flips, which is how

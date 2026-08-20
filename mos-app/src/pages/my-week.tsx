@@ -8,7 +8,6 @@ import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { weekLabel } from '@/lib/week'
-import { SHOW_WEEKLY_UPDATES, SHOW_DAILY_LOG } from '@/config/features'
 import { MyWeekPanel } from '@/components/weekly/my-week-panel'
 
 export function MyWeek() {
@@ -18,14 +17,7 @@ export function MyWeek() {
   const now = useMemo(() => new Date(), [])
   const wib = weekLabel(now)
 
-  // Subtitle promises only the surfaces that are actually shown (Weekly Updates + Daily Log
-  // are flag-hidden for the first rollout — see config/features.ts).
-  const focus = SHOW_WEEKLY_UPDATES && SHOW_DAILY_LOG
-    ? 'what needs you, your update, and today on the floor'
-    : SHOW_WEEKLY_UPDATES ? 'what needs you and your update'
-    : SHOW_DAILY_LOG ? 'what needs you and today on the floor'
-    : 'what needs you'
-  const subtitle = `Week of ${wib.range} · ${wib.today} · ${focus}`
+  const subtitle = `Week of ${wib.range} · ${wib.today} · what needs you`
 
   return (
     <PageFrame surfaceWash>

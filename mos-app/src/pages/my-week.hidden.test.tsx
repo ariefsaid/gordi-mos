@@ -7,7 +7,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 // Force both sections OFF regardless of the live default.
-vi.mock('../config/features', () => ({ SHOW_WEEKLY_UPDATES: false, SHOW_DAILY_LOG: false, SHOW_FOLLOWUPS: false }))
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -19,7 +18,6 @@ vi.mock('../lib/db/weekly-updates', () => ({
   listTeamUpdates: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
-vi.mock('../lib/db/ops-log', () => ({ getTodayOpsSummary: vi.fn(() => Promise.resolve({ count: 0, needsAttention: false })) }))
 
 import { MyWeek } from './my-week'
 
