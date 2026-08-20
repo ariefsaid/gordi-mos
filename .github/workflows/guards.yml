@@ -54,6 +54,8 @@ jobs:
         run: bash scripts/sssf-config.test.sh
       - name: sssf lock-wrapper self-test (re-entrancy + mutual exclusion)
         run: bash scripts/sssf-locks.test.sh
+      - name: sssf timed-out quality check self-test (#389)
+        run: bash scripts/sssf-quality-timeout.test.sh
       - name: sssf design-audit chain self-test (#350)
         run: bash scripts/sssf-design-audit.test.sh
       - name: sssf provider-fault vs model-fault self-test (#386)
