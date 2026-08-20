@@ -861,6 +861,32 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       )
       expect(getLocation()?.search ?? '').not.toContain('record=')
     })
+
+    // #374's fix taught the open effect to remember "the user closed THIS record" so a replayed
+    // ?record= cannot resurrect the drawer. The memory must not outlive the close: after a browser
+    // Back the SAME row is the likeliest next click, and it opened nothing at all (PR #394 review).
+    it('after a browser-Back close, clicking the same row opens it again', async () => {
+      const task = makeTask({ id: 'task-reopen', title: 'Reopenable task' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      const { getLocation } = renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Reopenable task'))
+
+      const row = () => document.querySelector('tr.task-row') as HTMLElement
+      const drawer = () => document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')
+
+      fireEvent.click(row())
+      await waitFor(() => expect(drawer()).toBeTruthy())
+      await waitFor(() => expect(getLocation()?.search).toContain('record=task-reopen'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      await waitFor(() => expect(drawer()).toBeNull())
+      await waitFor(() => expect(getLocation()?.search ?? '').not.toContain('record='))
+
+      fireEvent.click(row())
+      await waitFor(() => expect(drawer()).toBeTruthy())
+      expect(getLocation()?.search).toContain('record=task-reopen')
+    })
   })
 
   // I2 (issue #379, audit 8e4c0e93 finding 4): ✕ and Esc → underlying page with focus returned to

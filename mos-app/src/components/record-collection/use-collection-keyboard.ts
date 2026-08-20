@@ -126,7 +126,8 @@ export function useCollectionKeyboard(args: UseCollectionKeyboardArgs): UseColle
         return
       }
 
-      // Single-letter hotkeys are suppressed while typing.
+      // Text entry and native controls own their letters, so typing in a field never triggers a
+      // collection hotkey (including j/k option navigation in a focused select).
       if (isTypingTarget()) return
       // Ignore when a modifier is held (let native shortcuts through).
       if (e.metaKey || e.ctrlKey || e.altKey) return

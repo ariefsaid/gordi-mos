@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Chevron } from './icons'
+import { viewOptionsTraversal } from './view-options-keyboard'
 
 /**
  * ViewOptionsDisclosure — the ONE capture-first "View options" disclosure primitive
@@ -14,6 +15,11 @@ import { Chevron } from './icons'
  * Live callers (#379): the Tasks workspace phone wrapper and the Signals archive phone wrapper —
  * both host a CollectionToolbar inside this door. The desktop "View & filters" door is
  * CollectionToolbar's own trigger, which carries the same Escape contract.
+ *
+ * The panel also carries the shared Arrow/Home/End traversal between its controls (#382), so both
+ * doors inherit it. Opening does NOT move focus into the panel: a disclosure is not an overlay, and
+ * focusing the first filter `<select>` on expand takes the collection's j/k row cursor away from a
+ * keyboard user with no way back (PR #394 review).
  */
 export interface ViewOptionsDisclosureProps {
   /** Whether the panel is expanded. */
@@ -87,7 +93,13 @@ export function ViewOptionsDisclosure({
         <Chevron className={chevronCls} />
       </button>
       {open && (
-        <div id={panelId} className={panelClassName} onKeyDown={onKeyDown}>
+        <div
+          id={panelId}
+          className={panelClassName}
+          // Traversal first, then the Escape contract: they own disjoint keys, and the traversal
+          // reads its control set from this panel element (event.currentTarget).
+          onKeyDown={(event) => { viewOptionsTraversal(event); onKeyDown(event) }}
+        >
           {children}
         </div>
       )}

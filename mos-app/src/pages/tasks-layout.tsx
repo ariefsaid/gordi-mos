@@ -80,6 +80,7 @@ export function TasksLayout() {
       splitLayout={isSplit}
       statusOverrides={statusOverrides}
       refreshKey={refreshKey}
+      onTaskChanged={onTaskChanged}
       drawerSlot={<Outlet context={outletContext} />}
     />
   )

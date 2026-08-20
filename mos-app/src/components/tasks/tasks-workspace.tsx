@@ -2,6 +2,7 @@ import './TasksWorkspace.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import type { To } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
@@ -37,7 +38,7 @@ import type { TaskStatus } from '@/lib/db/tasks.types'
 import { updateTaskFields } from '@/lib/db/tasks'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
-import type { OverlayEntry } from '@/shell/overlay-host'
+import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -51,6 +52,10 @@ const taskRouteAdapter = createRecordRouteAdapter({
 
 // §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
 type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
+// The one page-state literal for a Task's canonical surface — the entry carries it, and both
+// promotion doors send it, so "which surface am I on" cannot drift between them.
+const TASK_PAGE_STATE = { taskSurface: 'page' } as const
+
 const EMPTY_ACCESS_ROLES: readonly string[] = []
 const EMPTY_RECORDS: never[] = []
 const EMPTY_STATUS_OVERRIDES = new Map<string, TaskStatus>()
@@ -202,6 +207,20 @@ export function TasksWorkspace({
   // resurrect it" so Back truly closes the drawer instead of re-opening it (I2, no dead-end).
   const openedRecordRef = useRef<string | null>(null)
 
+  // Canonical promotion (#373), from EITHER door — the record content's own "Open full page" and
+  // the host chrome's button both land here, so the flag sequence and the page state exist once.
+  // The collection's cleanup effect must not remove ?record= while the host swaps the overlay for
+  // the canonical record page; a denied dirty-leave clears the flag again so the still-mounted
+  // drawer stays addressable. On a GRANTED promotion the flag deliberately stays raised: the
+  // workspace survives the navigation, and lowering it here would re-arm the cleanup effect
+  // against a route that is still settling. `onOpenTask` lowers it on the next explicit open,
+  // which is the only moment a stale flag could matter.
+  const promoteToPage = useCallback(async (to: To, openPage: OverlayHostApi['openPage']) => {
+    suppressNextOpen.current = true
+    const result = await openPage(to, TASK_PAGE_STATE)
+    if (result.status === 'denied') suppressNextOpen.current = false
+  }, [])
+
   // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
   // collection's query (view/filter/sort) survives the jump onto the canonical page.
   const pageSearch = useCallback(() => {
@@ -214,6 +233,16 @@ export function TasksWorkspace({
   // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
   // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
   const onOpenTask = useCallback((taskId: string) => {
+    // An explicit open is the user's intent, so it clears every "this record is closing" memory
+    // the guards below keep. Those guards exist to stop an AUTOMATIC resurrection of a record the
+    // user just closed — they must never outlive the close itself. A browser Back drops the host
+    // marker and ?record= in the SAME render, so the clear effect returns early on the missing
+    // record and both memories survive: without this reset the next click on that very row was
+    // swallowed in silence, and the one after it lost ?record= again (PR #394 review, blocking 3).
+    // `hadTaskSession` is re-armed the moment the new session opens.
+    openedRecordRef.current = null
+    suppressNextOpen.current = false
+    hadTaskSession.current = false
     const next = new URLSearchParams(params)
     next.set('record', taskId)
     setParams(next)
@@ -237,28 +266,30 @@ export function TasksWorkspace({
         />
       ),
       pageTo,
-      pageState: { taskSurface: 'page' },
+      pageState: TASK_PAGE_STATE,
       content: null,
     }
     entry.content = (
       <TaskOverlayContent
         taskId={recordId}
         onClose={() => { void host.close() }}
-        onOpenPage={() => { void host.openPage(pageTo, entry.pageState) }}
+        onOpenPage={() => { void promoteToPage(pageTo, host.openPage) }}
         onTaskChanged={onTaskChanged}
         onTaskArchived={onTaskArchived}
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
       />
     )
     return entry
-  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, t])
+  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, promoteToPage, t])
 
   // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
   // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
   useEffect(() => {
     if (!taskEntry) {
-      openedRecordRef.current = null
-      suppressNextOpen.current = false
+      // No reset here (#374): during a guarded browser POP the route marker and the task entry
+      // both disappear for a render before the host replays the decision, and forgetting the
+      // identity let the replayed ?record= resurrect the drawer after Discard. The identity is
+      // cleared by an explicit `onOpenTask` instead, so a real re-open is never swallowed.
       return
     }
     if (suppressNextOpen.current) return
@@ -557,7 +588,10 @@ export function TasksWorkspace({
             OverlayHostSlot owns panel geometry, focus, Back, Escape, and canonical promotion. The
             ?record= query is dropped by the session-tracking effect above whenever the host session
             closes (explicit close or a browser POP), so no onClose override is needed here. */}
-        <OverlayHostSlot owner="tasks" />
+        <OverlayHostSlot
+          owner="tasks"
+          onOpenPage={(to, openPage) => { void promoteToPage(to, openPage) }}
+        />
       </div>
     </PageFamilyFrame>
   )

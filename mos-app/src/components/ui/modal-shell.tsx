@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { focusableWithin } from '@/lib/focusable'
 import './modal-shell.css'
 
 export type ModalShellProps = {
@@ -13,21 +14,6 @@ export type ModalShellProps = {
   closeOnEscape?: boolean
   surface?: 'centered' | 'sheet'
   phoneMode?: 'centered' | 'fullscreen'
-}
-
-const FOCUSABLE = [
-  'button:not([disabled]):not([aria-disabled="true"])',
-  '[href]',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(', ')
-
-function focusableChildren(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true',
-  )
 }
 
 /**
@@ -58,7 +44,7 @@ export function ModalShell({
     invokerRef.current = document.activeElement as HTMLElement | null
     const dialog = dialogRef.current
     if (dialog) {
-      const [first] = focusableChildren(dialog)
+      const [first] = focusableWithin(dialog)
       ;(first ?? dialog).focus()
     }
 
@@ -83,7 +69,7 @@ export function ModalShell({
 
       const dialog = dialogRef.current
       if (!dialog) return
-      const focusable = focusableChildren(dialog)
+      const focusable = focusableWithin(dialog)
       if (focusable.length === 0) {
         event.preventDefault()
         dialog.focus()

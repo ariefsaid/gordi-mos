@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useCollectionKeyboard } from './use-collection-keyboard'
 
-function fireKey(key: string) {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+function fireKey(key: string, target: EventTarget = window) {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+  target.dispatchEvent(event)
+  return event
 }
 
 describe('useCollectionKeyboard — shared collection j/k cursor (AC-109, GAP-9)', () => {
@@ -108,6 +110,31 @@ describe('useCollectionKeyboard — shared collection j/k cursor (AC-109, GAP-9)
     ta.focus()
     act(() => fireKey('n'))
     expect(onNew).not.toHaveBeenCalled()
+  })
+
+  it('preserves native select handling for j and k instead of moving the collection cursor', () => {
+    const { result } = setup(3)
+    const sel = document.createElement('select')
+    for (const value of ['Jasmine', 'Kale']) {
+      const option = document.createElement('option')
+      option.textContent = value
+      option.value = value
+      sel.appendChild(option)
+    }
+    document.body.appendChild(sel)
+    sel.focus()
+
+    let selectReceived = 0
+    sel.addEventListener('keydown', () => { selectReceived += 1 })
+    let jEvent: KeyboardEvent
+    let kEvent: KeyboardEvent
+    act(() => { jEvent = fireKey('j', sel) })
+    act(() => { kEvent = fireKey('k', sel) })
+
+    expect(result.current.cursor).toBe(-1)
+    expect(selectReceived).toBe(2)
+    expect(jEvent!.defaultPrevented).toBe(false)
+    expect(kEvent!.defaultPrevented).toBe(false)
   })
 
   it('disabled: no key is handled when enabled=false', () => {

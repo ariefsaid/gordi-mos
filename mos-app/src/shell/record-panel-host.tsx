@@ -6,6 +6,7 @@ import { useIsNarrow } from './use-is-narrow'
 import { CloseIcon, BackIcon } from './icons'
 import { useT } from '@/i18n/use-t'
 import type { OverlayOwner } from './overlay-navigation'
+import { focusableWithin } from '@/lib/focusable'
 
 // ONE overlay grammar for records. Every
 // record tenant — Task, Signal, and eventually Inbox/Deputy — mounts its CONTENT through this
@@ -19,11 +20,6 @@ import type { OverlayOwner } from './overlay-navigation'
 // is not in this line's docs tree — the port's governing spec is `docs/specs/v4-port.spec.md` — so
 // the path is dropped rather than carried as a pointer into nothing. The FR/AC ids the cases below
 // use are v4's own and are kept so a reviewer diffing against v4 can still line them up.)
-
-const FOCUSABLE = [
-  'a[href]', 'button:not([disabled])', 'input:not([disabled])',
-  'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
-].join(',')
 
 export type RecordPanelHostProps = {
   /** aria-label for the panel surface (both regimes). */
@@ -105,7 +101,7 @@ export function RecordPanelHost({
     // focusable (e.g. the create form's Title field, a record's first value control), not the
     // chrome bar's ✕ — the chrome stays reachable by Tab. Chrome-only panels keep their first
     // chrome control as the fallback so focus always enters the panel.
-    const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+    const focusables = focusableWithin(panel)
     const first = focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
     first?.focus()
 
@@ -123,7 +119,7 @@ export function RecordPanelHost({
 
     function onTrapKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Tab') return
-      const focusable = Array.from(panel!.querySelectorAll<HTMLElement>(FOCUSABLE))
+      const focusable = focusableWithin(panel)
         .filter(el => el.offsetParent !== null || el === document.activeElement)
       if (focusable.length === 0) return
       const firstEl = focusable[0]
