@@ -67,21 +67,47 @@ beforeEach(() => {
   vi.mocked(listTasks).mockResolvedValue([])
 })
 
+async function renderObjectives() {
+  render(
+    <I18nProvider>
+      <MemoryRouter>
+        <ObjectivesPage />
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+  await screen.findByText('Grow revenue')
+}
+
+const writeAffordances = () => [
+  screen.queryByRole('button', { name: 'Create objective' }),
+  screen.queryByRole('button', { name: 'Rename Grow revenue' }),
+  screen.queryByRole('button', { name: 'Archive Grow revenue' }),
+]
+
 describe('GUARD-OBJECTIVE-CAP: Objectives gates writes on objective.manage, not a neighbour', () => {
   it('asks for the objective.manage capability, using the viewer’s own access roles', async () => {
-    render(
-      <I18nProvider>
-        <MemoryRouter>
-          <ObjectivesPage />
-        </MemoryRouter>
-      </I18nProvider>,
-    )
-    await screen.findByText('Grow revenue')
-
+    await renderObjectives()
     expect(can).toHaveBeenCalledWith(ACCESS_ROLES, 'objective.manage')
-    // And never on the sibling catalog's capability. Projects/Processes is a different surface
-    // with a different gate (workline.manage, enforced at its route); borrowing it here would be
-    // invisible today and wrong the moment the two grants diverge.
-    expect(can).not.toHaveBeenCalledWith(expect.anything(), 'workline.manage')
+  })
+
+  // The original form of this guard asserted `can` was NEVER asked about `workline.manage` on this
+  // page. That over-reached its own stated goal the moment the relations drill grew a legitimate
+  // `workline.manage` read — the branch name is a door into the route-gated Projects & Processes
+  // catalog (#204 review, finding 1), which has nothing to do with who may WRITE an Objective. So
+  // the guard now pins the thing it actually means, and pins it harder: the write affordances
+  // follow `objective.manage` and follow NOTHING else. Swapping the page's string for its
+  // neighbour's fails both cases below, which is what the mutation during #194 got away with.
+  it('withholds every write affordance when objective.manage alone is missing', async () => {
+    vi.mocked(can).mockImplementation((_roles, capability) => capability !== 'objective.manage')
+    await renderObjectives()
+    for (const affordance of writeAffordances()) expect(affordance).toBeNull()
+    // …and reading is untouched: the row, its relations disclosure and its trace all still render.
+    expect(screen.getByRole('button', { name: 'Show relations for Grow revenue' })).toBeInTheDocument()
+  })
+
+  it('grants every write affordance when objective.manage alone is held', async () => {
+    vi.mocked(can).mockImplementation((_roles, capability) => capability === 'objective.manage')
+    await renderObjectives()
+    for (const affordance of writeAffordances()) expect(affordance).toBeInTheDocument()
   })
 })

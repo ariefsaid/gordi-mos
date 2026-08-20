@@ -1,7 +1,9 @@
 // ProjectsProcessesPage — V3 catalog collection grammar (RecordCollectionSurface + CollectionToolbar).
-// AC-406 (FR-422): each project/process shows its parent objective(s) + the per-objective task count,
-// inferred from task linkage (work_lines has no objective_id column) over listTasks + listObjectivesAll
-// (no schema change). The management CRUD (create with a Type field / rename / archive / unarchive) and
+// AC-406 (FR-422): each project/process shows its parent objective(s) + the per-objective task count.
+// The parent is READ from the shipped `work_lines.objective_id` edge (DD-WAY-15, #204); the Task's own
+// objective_id is the fallback for a task filed with no Project/Process. These fixtures set both, so
+// the trace reads the same either way — the edge-vs-fallback precedence itself is owned by
+// `src/lib/cascade/count-rollup.test.ts`. The management CRUD (create with a Type field / rename / archive / unarchive) and
 // the Project·Process type filter are preserved; journeys assert the goal, not the old inline-add chrome.
 //
 // PORTED 2026-08-05 (#194). Two assertion literals here contradicted the v4 SOURCE and were refreshed
@@ -72,7 +74,7 @@ beforeEach(() => {
 })
 
 describe('AC-406: ProjectsProcessesPage up-trace (FR-422)', () => {
-  it('shows the parent objective(s) + per-objective task count, inferred from task linkage', async () => {
+  it('shows the parent objective(s) + per-objective task count', async () => {
     vi.mocked(listTasks).mockResolvedValue([
       task('t1', 'obj-1', 'wl-1'),
       task('t2', 'obj-1', 'wl-1'),

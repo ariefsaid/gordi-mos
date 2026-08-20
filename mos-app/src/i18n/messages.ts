@@ -39,6 +39,7 @@ export const messages = {
     'home.stack.owner.subtitle': 'Money, ops, and delivery across all functions',
     'home.stack.function.title': '${bu} — function cockpit',
     'home.stack.function.subtitle': 'Money, ops, and delivery for your function',
+    'home.stack.objectives.rollup': 'Progress rolls up from each Objective through its Projects and Processes to their Tasks',
     'home.stack.objectivesProgress': 'See Objectives progress',
     'home.stack.myweek.title': 'My Week',
     'home.stack.capture.title': 'What needs you',
@@ -945,8 +946,8 @@ export const messages = {
     // Shared branch vocabulary (#204): the Objectives catalog, the Projects & Processes catalog
     // and Tasks "Group by Objective" all name the two synthetic branches with THESE keys, so the
     // same bucket cannot read as two different things depending on which surface you are on.
-    'rollup.branch.noWorkLine': 'No Project/Process',
-    'rollup.branch.unlinked': '(Unlinked)',
+    'rollup.group.noWorkLine': 'No Project/Process',
+    'rollup.group.unlinked': '(Unlinked)',
     'catalog.relations.moreTasks': '+${count} more — open Tasks',
     // Several branches can overflow in one relations panel, so the visible copy repeats; the
     // accessible name names the branch so the links are tellable apart.
@@ -1218,6 +1219,7 @@ export const messages = {
     'home.stack.owner.subtitle': 'Uang, operasi, dan eksekusi di seluruh fungsi',
     'home.stack.function.title': '${bu} — cockpit fungsi',
     'home.stack.function.subtitle': 'Uang, operasi, dan eksekusi untuk fungsi Anda',
+    'home.stack.objectives.rollup': 'Progres bergulir dari tiap Objective lewat Proyek dan Prosesnya sampai ke Tugas',
     'home.stack.objectivesProgress': 'Lihat progres Objectives',
     'home.stack.myweek.title': 'Minggu Saya',
     'home.stack.capture.title': 'Yang perlu Anda kerjakan',
@@ -2071,8 +2073,8 @@ export const messages = {
     'catalog.relations.heading.tasks': 'Tugas',
     'catalog.relations.empty.objective': 'Belum ada Proyek, Proses, atau Tugas yang terhubung.',
     'catalog.relations.empty.workLine': 'Belum terhubung ke Objective atau Tugas apa pun.',
-    'rollup.branch.noWorkLine': 'Tanpa Proyek/Proses',
-    'rollup.branch.unlinked': '(Tidak terhubung)',
+    'rollup.group.noWorkLine': 'Tanpa Proyek/Proses',
+    'rollup.group.unlinked': '(Tidak terhubung)',
     'catalog.relations.moreTasks': '+${count} lainnya — buka Tugas',
     'catalog.relations.moreTasksAria': '${name}: +${count} lainnya — buka Tugas',
     'catalog.relations.progress': '${done} / ${total} selesai',

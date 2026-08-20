@@ -117,6 +117,29 @@ function sectionKey(section: HomeSection, i: number): string {
   return `sec-${i}`
 }
 
+/**
+ * AC-204 (4): the cockpit's cascade row.
+ *
+ * #179 cut the cascade route and took Home's progress drill with it, leaving the owner/function
+ * cockpit ending on a "coming" placeholder — a section that read as one with something removed.
+ * This is the successor door, and it is deliberately shaped like the section's other rows rather
+ * than like a drop point: a SOLID slot (the `--muted` read-only strip), a caption that says what
+ * rolls up, and a real drill link — never the dashed "coming" placeholder the ops-KPI slot uses
+ * for a metric set nobody has decided yet. The destination exists and is ungated (OD-V4-1), so
+ * every viewer who sees a cockpit can walk it.
+ */
+function ObjectivesProgressSlot() {
+  const t = useT()
+  return (
+    <div className="home-stack-slot home-stack-slot--muted">
+      <span className="home-stack-slot-label">{t('home.stack.objectives.rollup')}</span>
+      <Link to="/work/objectives" className="home-stack-slot-link">
+        {t('home.stack.objectivesProgress')} →
+      </Link>
+    </div>
+  )
+}
+
 interface SectionViewProps {
   section: HomeSection
   canSeeRevenue: boolean
@@ -143,9 +166,7 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
           canSeeMargin={canSeeMargin}
         />
         <OpsKpiSection />
-        <Link className="home-stack-slot" to="/work/objectives">
-          {t('home.stack.objectivesProgress')}
-        </Link>
+        <ObjectivesProgressSlot />
       </section>
     )
   }
@@ -165,9 +186,7 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
           canSeeMargin={canSeeMargin}
         />
         <OpsKpiSection />
-        <Link className="home-stack-slot" to="/work/objectives">
-          {t('home.stack.objectivesProgress')}
-        </Link>
+        <ObjectivesProgressSlot />
       </section>
     )
   }

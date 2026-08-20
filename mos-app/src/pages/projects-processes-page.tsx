@@ -4,8 +4,10 @@
 // Project/Process. It now speaks the V3 collection grammar: a typed RecordCollection descriptor
 // owns load / view (Active/Archived) / name search / a Project·Process type filter, the shared
 // RecordCollectionSurface + CollectionToolbar render it, and the FR-422 up-trace (each work_line's
-// parent objective(s), inferred from task linkage — work_lines has no objective_id column) rides
-// under each active row. Each row also carries a relations disclosure (OD-V4-1 H4) — a real drill
+// parent objective(s)) rides under each active row. That parent is now READ from the shipped
+// `work_lines.objective_id` edge (DD-WAY-15, #204) — it is no longer inferred from tasks that
+// happen to carry both keys, and the Task's own objective_id is only the fallback for a task with
+// no Project/Process. Each row also carries a relations disclosure (OD-V4-1 H4) — a real drill
 // target into its parent Objective(s) and its own Tasks, bidirectional with ObjectivesPage's own
 // disclosure (docs/v4-inheritance.md INC-1: relations live on the records, not a new cascade
 // route). A catalog row has no record panel, so its inline management actions (Rename / Archive /

@@ -9,6 +9,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { AuthContext, type AuthState } from '@/auth/context'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
@@ -65,24 +66,47 @@ const TASKS: TaskListRow[] = [
 const OVERFLOWING = Array.from({ length: 13 }, (_, i) =>
   task({ id: `t-prep-${i}`, title: `Prep step ${i}`, work_line_id: 'wl-2' }))
 
-async function renderCatalog(descriptor: typeof objectivesCollectionDescriptor) {
+/** A viewer carrying exactly the given access roles — the drill reads them for its route gates. */
+function authWith(accessRoles: readonly string[]): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p1', org_id: 'org-1', user_id: 'u1', full_name: 'Test Viewer',
+        email: 'viewer@example.test', must_change_password: false, archived_at: null,
+        created_at: '2026-08-01', updated_at: '2026-08-01',
+      },
+      roles: [],
+      isManager: false,
+      accessRoles: [...accessRoles],
+    },
+    signOut: vi.fn(),
+  }
+}
+
+async function renderCatalog(
+  descriptor: typeof objectivesCollectionDescriptor,
+  accessRoles: readonly string[] = ['admin'],
+) {
   const data = await descriptor.load({ query: QUERY, viewerId: null })
   const projection = descriptor.project(data, QUERY, 'list')
   render(
-    <I18nProvider>
-      <MemoryRouter>
-        <CatalogCollectionActionsProvider actions={{
-          canManage: true,
-          rename: async () => {}, archive: async () => {}, unarchive: async () => {},
-        }}>
-          {descriptor.presentations.list.render({
-            query: QUERY, projection, context: data.context,
-            selectedIds: new Set(), onToggleSelected: () => {},
-            onOpenRecord: () => {}, onToggleGroup: () => {}, isGroupCollapsed: () => false,
-          })}
-        </CatalogCollectionActionsProvider>
-      </MemoryRouter>
-    </I18nProvider>,
+    <AuthContext.Provider value={authWith(accessRoles)}>
+      <I18nProvider>
+        <MemoryRouter>
+          <CatalogCollectionActionsProvider actions={{
+            canManage: true,
+            rename: async () => {}, archive: async () => {}, unarchive: async () => {},
+          }}>
+            {descriptor.presentations.list.render({
+              query: QUERY, projection, context: data.context,
+              selectedIds: new Set(), onToggleSelected: () => {},
+              onOpenRecord: () => {}, onToggleGroup: () => {}, isGroupCollapsed: () => false,
+            })}
+          </CatalogCollectionActionsProvider>
+        </MemoryRouter>
+      </I18nProvider>
+    </AuthContext.Provider>,
   )
 }
 
@@ -153,6 +177,38 @@ describe('AC-204: drilling down from an Objective record', () => {
       .toHaveAttribute('href', '/work/tasks?group=objective')
   })
 
+  // The Objectives catalog is ungated (OD-V4-1) but /work/projects is not — it sits behind
+  // RequireCapability('workline.manage'), held by admin and ops_lead only. A live blue branch name
+  // that bounces member/manager/supervisor/finance off the page is an affordance the surface cannot
+  // honour, so a non-holder gets the inert span the synthetic branches already use. Their drill is
+  // NOT reduced: the branch's own Tasks stay real links, and so does the overflow door.
+  it.each([['ops_lead'], ['admin']])('links the branch to Projects & Processes for %s', async (role) => {
+    await renderCatalog(objectivesCollectionDescriptor, [role])
+    const panel = await drillInto('Grow revenue')
+    expect(within(panel).getByRole('link', { name: 'Menu launch' }))
+      .toHaveAttribute('href', '/work/projects?q=Menu%20launch')
+  })
+
+  it.each([['member'], ['manager'], ['supervisor'], ['finance']])(
+    'renders the branch name inert for %s, who cannot reach /work/projects',
+    async (role) => {
+      await renderCatalog(objectivesCollectionDescriptor, [role])
+      const panel = await drillInto('Grow revenue')
+
+      expect(within(panel).queryByRole('link', { name: 'Menu launch' })).toBeNull()
+      const inert = within(panel).getByText('Menu launch')
+      expect(inert.tagName).toBe('SPAN')
+      expect(inert).toHaveClass('catalog-collection__relations-link--inert')
+      // Nothing anywhere in the panel points at the route this viewer is refused.
+      for (const link of within(panel).getAllByRole('link')) {
+        expect(link.getAttribute('href')).not.toContain('/work/projects')
+      }
+      // …and the Tasks under that branch are still real doors.
+      expect(within(panel).getByRole('link', { name: 'Print the menus' }))
+        .toHaveAttribute('href', '/work/tasks/t-launch-done')
+    },
+  )
+
   it('shows an Objective with no work as empty rather than as a false zero', async () => {
     await renderCatalog(objectivesCollectionDescriptor)
     const panel = await drillInto('Lonely objective')
@@ -170,6 +226,15 @@ describe('AC-204: drilling up from a Project/Process record', () => {
     expect(parent.closest('li')).toHaveTextContent('1 / 2 done')
     expect(within(panel).getByRole('link', { name: 'Brief the floor' }))
       .toHaveAttribute('href', '/work/tasks/t-launch-open')
+  })
+
+  // The gate is one-directional, not a blanket kill: /work/objectives carries no read gate at all
+  // (OD-V4-1), so the UP-trace door stays live for a viewer holding no capability whatsoever.
+  it('keeps the parent Objective door live for a viewer with no capabilities', async () => {
+    await renderCatalog(projectsProcessesCollectionDescriptor, [])
+    const panel = await drillInto('Menu launch')
+    expect(within(panel).getByRole('link', { name: 'Grow revenue' }))
+      .toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
   })
 
   it('renders the (Unlinked) branch for a Project/Process with no parent Objective', async () => {

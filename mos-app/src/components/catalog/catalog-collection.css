@@ -98,7 +98,7 @@
 
 .catalog-collection__menu {
   position: absolute;
-  z-index: 2;
+  z-index: var(--z-popover);
   top: calc(100% + 4px);
   right: 0;
   display: flex;
@@ -181,7 +181,7 @@
   gap: 16px;
 }
 
-.catalog-collection__relations-group {
+.catalog-collection__relations-column {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -210,21 +210,21 @@
   align-items: baseline;
   gap: 6px;
 }
-/* A relation BRANCH carries its own nested Task list, so it stacks: name + count on one line,
+/* A relation GROUP carries its own nested Task list, so it stacks: name + count on one line,
    its Tasks indented beneath. The flex-row default above turned that nested list into a third
-   COLUMN, which at 390px read as one branch's tasks sitting beside another branch's name. */
-.catalog-collection__relations-list li.catalog-collection__relations-branch {
+   COLUMN, which at 390px read as one group's tasks sitting beside another group's name. */
+.catalog-collection__relations-list li.catalog-collection__relations-group {
   flex-direction: column;
   align-items: stretch;
   gap: 2px;
 }
-.catalog-collection__relations-branch-head {
+.catalog-collection__relations-group-head {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 6px;
 }
-.catalog-collection__relations-branch > .catalog-collection__relations-list {
+.catalog-collection__relations-group > .catalog-collection__relations-list {
   padding-left: 12px;
 }
 
@@ -234,7 +234,7 @@
   text-decoration: none;
 }
 
-/* A synthetic branch has no record behind it, so it must not wear the link colour — blue text
+/* A synthetic group has no record behind it, so it must not wear the link colour — blue text
    that does nothing on tap is an affordance the surface cannot honour. */
 .catalog-collection__relations-link--inert {
   color: var(--muted-foreground);

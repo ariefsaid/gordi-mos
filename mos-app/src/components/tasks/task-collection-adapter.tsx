@@ -10,7 +10,7 @@ import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
-import { buildObjectiveBranches, type BranchTask } from '@/lib/cascade/count-rollup'
+import { buildCascadeGroups, type CascadeTask } from '@/lib/cascade/count-rollup'
 import { isOverdue } from '@/lib/due-status'
 import { STATUS_ORDER } from './task-formatters'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
@@ -405,7 +405,7 @@ function countOverdue(rows: readonly TaskCollectionRecord[], now: Date): number 
 
 /**
  * Build the ordered, typed group list from the filtered + sorted rows, reproducing every legacy
- * branch: flat, status (fixed 4-status order), pic (empty groups from the full people directory),
+ * group: flat, status (fixed 4-status order), pic (empty groups from the full people directory),
  * bu (empty groups from the full BU directory), workline (alpha + trailing "No work-line", with
  * zero-count suppression under an explicit PIC filter), and occurrence (run-captioned roll-up
  * groups + the ad-hoc catch-all tail).
@@ -459,14 +459,14 @@ export function buildTaskGroups(
 
   if (query.groupBy === 'objective') {
     // The SHARED projection (#204), the same one the Objectives and Projects & Processes catalog
-    // rows read. Constructing these branches a second time here is precisely the drift this ticket
+    // rows read. Constructing these groups a second time here is precisely the drift this ticket
     // exists to remove one layer up: the catalog's counts and this list's groups would diverge and
     // nothing would go red. `includeEmptyWorkLines` stays off — a catalog row shows a child that
     // holds no work yet, a list of tasks does not.
     //
     // No `minePersonId`: `rows` has already been through the view filter (my-work and friends), so
     // re-applying ownership here would filter the same rule twice.
-    const branches = buildObjectiveBranches<TaskCollectionRecord & BranchTask>({
+    const groups = buildCascadeGroups<TaskCollectionRecord & CascadeTask>({
       objectives: [...ctx.objectivesById].map(([id, name]) => ({ id, name })),
       workLines: [...ctx.workLinesById].map(([id, name]) => ({
         id, name,
@@ -475,13 +475,13 @@ export function buildTaskGroups(
       })),
       tasks: rows.map((row) => ({ ...row, objective_id: row.objectiveId, work_line_id: row.workLineId })),
     })
-    return branches.map((branch) => ({
+    return groups.map((group) => ({
       // The label and the hint stay in the projection's English fallback here; the presentation
-      // localizes both off the stable branch key, the same contract the other groupings use.
-      ...mk(branch.key, branch.workLineName, '', branch.tasks.map(stripBranchTask), {
-        workLineType: branch.workLineType,
+      // localizes both off the stable group key, the same contract the other groupings use.
+      ...mk(group.key, group.workLineName, '', group.tasks.map(stripCascadeTask), {
+        workLineType: group.workLineType,
       }),
-      objectiveHint: { id: branch.objectiveId, name: branch.objectiveName },
+      objectiveHint: { id: group.objectiveId, name: group.objectiveName },
     }))
   }
 
@@ -527,8 +527,8 @@ function stripGroupable(r: TaskCollectionRecord & { process_run_id: string | nul
   return rest
 }
 
-/** Drop the snake_case edge aliases the shared branch projection reads. */
-function stripBranchTask(r: TaskCollectionRecord & BranchTask): TaskCollectionRecord {
+/** Drop the snake_case edge aliases the shared group projection reads. */
+function stripCascadeTask(r: TaskCollectionRecord & CascadeTask): TaskCollectionRecord {
   const { objective_id: _o, work_line_id: _w, ...rest } = r
   void _o
   void _w

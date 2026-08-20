@@ -3,7 +3,7 @@
 // RENDERED stack: persona combo → right sections in order; member → no finance; BU-head → own-BU
 // (no whole-company tiles); drills (anchor A4); the AR slot drop point.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -235,6 +235,52 @@ describe('AC-HS13: drills — revenue/margin → /money, ops-KPI → /ops', () =
     expect(screen.queryByRole('link', { name: /Cascade progress/i })).not.toBeInTheDocument()
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(hrefs.some((h) => h?.includes('cascade'))).toBe(false)
+  })
+})
+
+describe("AC-204 (4): the cockpit reads as intentional, not as a surface with something removed", () => {
+  // #179 cut the cascade route and took Home's progress drill with it. #204's fourth criterion is
+  // that what is left reads deliberate — so the cockpit must END on a real, reachable cascade door
+  // with its own caption, not on the "coming" placeholder that was all that remained. Placeholder
+  // copy is what a removed surface leaves behind, so its ABSENCE from this row is asserted too.
+  const cascadeRow = () =>
+    screen.getByRole('link', { name: /See Objectives progress/i }).closest('.home-stack-slot')!
+
+  it('the owner cockpit ends on a real Objectives roll-up door, not a placeholder', async () => {
+    await renderStacked(viewer({ roles: [MD_ROLE], accessRoles: ['admin'] }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /Whole-company cockpit/i })).toBeInTheDocument(),
+    )
+
+    const link = screen.getByRole('link', { name: /See Objectives progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    // It sits INSIDE the owner-cockpit section — a door parked elsewhere on the page does not
+    // make this section read as finished.
+    const cockpit = screen.getByRole('heading', { name: /Whole-company cockpit/i }).closest('section')!
+    expect(cockpit).toContainElement(link)
+
+    // A caption says what rolls up, so the row states a fact rather than pointing away silently.
+    expect(cascadeRow()).toHaveTextContent(/Progress rolls up from each Objective/i)
+    // …and it is not dressed as an unbuilt drop point: no "coming" language on this row.
+    expect(cascadeRow()).not.toHaveTextContent(/coming/i)
+  })
+
+  it('a BU-head\'s function cockpit gets the same door', async () => {
+    await renderStacked(viewer({ roles: [FINANCE_LEAD], accessRoles: ['member'] }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /Finance — function cockpit/i })).toBeInTheDocument(),
+    )
+    const cockpit = screen.getByRole('heading', { name: /Finance — function cockpit/i }).closest('section')!
+    const link = within(cockpit).getByRole('link', { name: /See Objectives progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+  })
+
+  it('a pure member gets no cockpit and so no cascade row at all', async () => {
+    await renderStacked(viewer({ roles: [BARISTA], accessRoles: ['member'] }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /what needs you/i })).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('link', { name: /See Objectives progress/i })).toBeNull()
   })
 })
 

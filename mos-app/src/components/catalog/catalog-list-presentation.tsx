@@ -7,10 +7,16 @@
 // OD-V4-1 H4: every row ALSO carries a disclosure toggle that expands its bidirectional
 // relations — child Projects/Processes for an Objective, parent Objective(s) for a Project/Process,
 // and either way the row's own Tasks — each a real <Link> to an existing route (/work/objectives,
-// /work/projects, /work/tasks/:id). Not a new cascade page/route (docs/v4-inheritance.md INC-1):
-// the relations live on the rows themselves, reusing routes that already exist.
+// /work/projects, /work/tasks/:id) THIS viewer is admitted to; a name whose route would refuse them
+// renders inert instead. Not a new cascade page/route (docs/v4-inheritance.md INC-1): the relations
+// live on the rows themselves, reusing routes that already exist.
+//
+// VOCABULARY: an (Objective, Project/Process) pair is a cascade GROUP here, never a "branch" —
+// CONTEXT.md owns Branch as the physical-outlet noun (#204 review).
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/auth/use-auth'
+import { can } from '@/lib/capabilities'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
@@ -33,7 +39,7 @@ import './catalog-collection.css'
     runaway DOM — the row's disclosure is a real drill-in for the common case, not a full report. */
 const MAX_RELATIONS_TASKS = 12
 
-/** Where a capped branch's overflow goes: Tasks grouped by Objective, every branch in full. */
+/** Where a capped group's overflow goes: Tasks grouped by Objective, every group in full. */
 const OVERFLOW_TASKS_DOOR = '/work/tasks?group=objective'
 
 // The disclosure marker is an SVG chevron, rotated by CSS when open — never a text triangle.
@@ -52,13 +58,16 @@ function DisclosureChevron({ expanded }: { expanded: boolean }) {
 }
 
 function RelationsPanel({
-  relations, kind, t,
+  relations, kind, groupPath, groupPathAdmits, t,
 }: {
   relations: CatalogRelations
   kind: CatalogRelationsKind
+  /** The sibling catalog this row's groups drill into. */
+  groupPath: string
+  /** False when THIS viewer's roles do not admit them to `groupPath` — see the caller. */
+  groupPathAdmits: boolean
   t: ReturnType<typeof useT>
 }) {
-  const groupPath = kind === 'objective' ? '/work/projects' : '/work/objectives'
   const hasGroups = relations.groups.length > 0
   const hasTasks = relations.tasks.length > 0
 
@@ -75,13 +84,13 @@ function RelationsPanel({
 
   /**
    * A capped list AND its way through (#204 finding 1). The cap without a door is the defect: task
-   * 13 of a branch simply vanished, and the branches most likely to run long are the synthetic ones
+   * 13 of a group simply vanished, and the groups most likely to run long are the synthetic ones
    * — `No Project/Process` and `(Unlinked)` — which hold exactly the work nobody is tracking. So
    * the door is emitted by the same helper that does the capping; it cannot be forgotten for one
-   * branch and remembered for another. It lands on Tasks grouped by Objective, where every branch,
+   * group and remembered for another. It lands on Tasks grouped by Objective, where every group,
    * synthetic included, is rendered in full.
    */
-  const taskList = (tasks: readonly CatalogRelationTask[], branchName: string) => {
+  const taskList = (tasks: readonly CatalogRelationTask[], groupName: string) => {
     const overflow = tasks.length - MAX_RELATIONS_TASKS
     return (
       <ul className="catalog-collection__relations-list">
@@ -95,10 +104,10 @@ function RelationsPanel({
             <Link
               className="catalog-collection__relations-link"
               to={OVERFLOW_TASKS_DOOR}
-              /* Several branches can overflow in one panel, so the visible copy repeats. The
-                 accessible name carries the branch, or a screen-reader user gets a list of
+              /* Several groups can overflow in one panel, so the visible copy repeats. The
+                 accessible name carries the group, or a screen-reader user gets a list of
                  identical "+3 more" links with no way to tell them apart. */
-              aria-label={t('catalog.relations.moreTasksAria', { count: String(overflow), name: branchName })}
+              aria-label={t('catalog.relations.moreTasksAria', { count: String(overflow), name: groupName })}
             >
               {t('catalog.relations.moreTasks', { count: String(overflow) })}
             </Link>
@@ -111,20 +120,22 @@ function RelationsPanel({
   return (
     <div className="catalog-collection__relations-body">
       {hasGroups && (
-        <div className="catalog-collection__relations-group">
+        <div className="catalog-collection__relations-column">
           <span className="catalog-collection__relations-heading">
             {t(kind === 'objective' ? 'catalog.relations.heading.children' : 'catalog.relations.heading.parents')}
           </span>
           <ul className="catalog-collection__relations-list">
             {relations.groups.map((group) => (
-              <li key={group.id} className="catalog-collection__relations-branch">
-                {/* Name + count on their own line, the branch's Tasks nested beneath. The default
+              <li key={group.id} className="catalog-collection__relations-group">
+                {/* Name + count on their own line, the group's Tasks nested beneath. The default
                     row is a flex ROW, so without this the nested list became a third column and
-                    a branch's tasks read as if they belonged to the branch beside it (390px). */}
-                <span className="catalog-collection__relations-branch-head">
-                  {/* A synthetic branch is not a record, so it gets no record door — linking one
-                      into the catalog search would hunt for a name that does not exist there. */}
-                  {group.synthetic ? (
+                    a group's tasks read as if they belonged to the group beside it (390px). */}
+                <span className="catalog-collection__relations-group-head">
+                  {/* Two reasons a name carries no door, one inert span. A synthetic group is not a
+                      record, so linking it into the catalog search would hunt for a name that does
+                      not exist there. And a viewer the destination route refuses (`groupPathAdmits`)
+                      would be bounced off the page by a live blue name — worse than no door. */}
+                  {group.synthetic || !groupPathAdmits ? (
                     <span className="catalog-collection__relations-link catalog-collection__relations-link--inert">
                       {group.name}
                     </span>
@@ -144,7 +155,7 @@ function RelationsPanel({
         </div>
       )}
       {ungroupedTasks.length > 0 && (
-        <div className="catalog-collection__relations-group">
+        <div className="catalog-collection__relations-column">
           <span className="catalog-collection__relations-heading">{t('catalog.relations.heading.tasks')}</span>
           {taskList(ungroupedTasks, t('catalog.relations.heading.tasks'))}
         </div>
@@ -164,6 +175,18 @@ type CatalogListProps = CollectionPresentationProps<
 export function CatalogListPresentation({ query, projection, context }: CatalogListProps) {
   const t = useT()
   const actions = useCatalogCollectionActions()
+  // A group name is a door into the SIBLING catalog, and the two catalogs are not gated alike:
+  // /work/projects sits behind RequireCapability('workline.manage') — admin and ops_lead only —
+  // while /work/objectives carries no read gate at all (OD-V4-1). So on the Objectives page most
+  // viewers were being shown a live blue name that bounced them straight back off the page. Every
+  // other affordance for that route in this codebase is conditioned on the capability; this is that
+  // condition. Affordance only — the route guard is the boundary, RLS behind it (NFR-004).
+  const auth = useAuth()
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const groupPath = context.relationsKind === 'objective' ? '/work/projects' : '/work/objectives'
+  const groupPathAdmits = context.relationsKind === 'objective'
+    ? can(accessRoles, 'workline.manage')
+    : true
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editError, setEditError] = useState('')
@@ -313,7 +336,13 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
                 className="catalog-collection__relations"
                 data-testid="catalog-relations"
               >
-                <RelationsPanel relations={relations} kind={context.relationsKind} t={t} />
+                <RelationsPanel
+                  relations={relations}
+                  kind={context.relationsKind}
+                  groupPath={groupPath}
+                  groupPathAdmits={groupPathAdmits}
+                  t={t}
+                />
               </div>
             )}
           </li>

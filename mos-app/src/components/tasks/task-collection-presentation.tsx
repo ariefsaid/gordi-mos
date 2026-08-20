@@ -220,7 +220,7 @@ function localizedGroupLabel(
   // An Objective branch with no Project/Process. The key is the shared projection's, so the label
   // here and the branch label on a catalog row are the same words in every locale.
   if (query.groupBy === 'objective' && group.key.endsWith(`:${NO_WORK_LINE_KEY}`)) {
-    return t('rollup.branch.noWorkLine')
+    return t('rollup.group.noWorkLine')
   }
   if (query.groupBy === 'status') {
     const labels: Record<TaskStatus, string> = {
@@ -254,7 +254,7 @@ function buildRenderGroups(
     // what makes it localizable here and unlinkable in the header (there is no record to open).
     objectiveHint: group.objectiveHint && {
       id: group.objectiveHint.id,
-      name: group.objectiveHint.id ? group.objectiveHint.name : t('rollup.branch.unlinked'),
+      name: group.objectiveHint.id ? group.objectiveHint.name : t('rollup.group.unlinked'),
     },
     occurrenceRollup: group.occurrenceRollup,
   }))
