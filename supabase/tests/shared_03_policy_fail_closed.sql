@@ -10,16 +10,16 @@
 -- missed: an INSERT with no permitting policy RAISES 42501, while an UPDATE or DELETE with no
 -- permitting policy silently affects ZERO ROWS. Both are asserted in their correct form.
 --
--- Policies covered (18):
+-- Policies covered (19):
 --   orgs_select_own · business_units_select_org · roles_select_org · people_select_org ·
 --   people_select_self · person_roles_select_org · person_access_roles_select_org ·
 --   sites_select_org · teams_select_org · team_memberships_select_org · branches_select_org ·
 --   role_capabilities_select_all · people_insert_admin · people_update_admin ·
 --   person_roles_insert_admin · person_roles_delete_admin · person_access_roles_insert_admin ·
---   person_access_roles_update_admin
+--   person_access_roles_update_admin · activities_select_all
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(27);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();   -- GrandMgr ...0d03 -> admin
@@ -89,6 +89,8 @@ select is(
 -- there is nothing to isolate. Its fail-closed property is the WRITE surface, asserted below.
 select cmp_ok((select count(*) from shared.role_capabilities), '>', 0::bigint,
   'role_capabilities_select_all: the capability vocabulary is readable by any authenticated session (deliberate — it is not secret)');
+select cmp_ok((select count(*) from shared.activities), '>', 0::bigint,
+  'activities_select_all: the global Activity vocabulary is readable by any authenticated session');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- WRITE POLICIES — a non-admin org member is closed out of every one of them
@@ -139,6 +141,10 @@ select is(
 -- privilege layer, since a missing GRANT denies before any policy is consulted.
 select ok(not has_table_privilege('authenticated','shared.role_capabilities','INSERT'),
   'role_capabilities: authenticated has no INSERT privilege — the vocabulary is migration-owned');
+select ok(not has_table_privilege('authenticated','shared.activities','INSERT')
+      and not has_table_privilege('authenticated','shared.activities','UPDATE')
+      and not has_table_privilege('authenticated','shared.activities','DELETE'),
+  'activities: authenticated has no write privileges — the vocabulary is migration-owned');
 select ok(not has_table_privilege('authenticated','shared.role_capabilities','UPDATE')
       and not has_table_privilege('authenticated','shared.role_capabilities','DELETE'),
   'role_capabilities: authenticated has no UPDATE or DELETE privilege either');

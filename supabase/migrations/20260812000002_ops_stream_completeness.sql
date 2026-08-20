@@ -57,7 +57,6 @@ create table ops.stream_completeness (
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
 
-  constraint stream_completeness_activity_check check (activity in ('kitchen','bar')),
   constraint stream_completeness_stream_uk unique (org_id, branch_id, activity),
   -- The same-org seam, declaratively, via the composite FK shared.teams uses for its own branch
   -- link. A plain existence FK would accept another org's branch and need a guard arm; this one

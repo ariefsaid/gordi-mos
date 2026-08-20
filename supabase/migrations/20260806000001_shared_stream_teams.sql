@@ -19,7 +19,6 @@
 --   alter table shared.teams
 --     drop constraint teams_branch_same_org_fkey,
 --     drop constraint teams_stream_pair_check,
---     drop constraint teams_activity_check,
 --     drop column activity,
 --     drop column branch_id;                                 -- also drops teams_stream_unique
 --   (If memberships have since attached to a stream team, re-point or end them first — the delete
@@ -33,8 +32,6 @@ alter table shared.teams
   add column activity  text;
 
 alter table shared.teams
-  add constraint teams_activity_check
-    check (activity in ('kitchen','bar')),
   add constraint teams_stream_pair_check
     check ((branch_id is null) = (activity is null)),
   -- The same-org seam, declaratively: the composite FK targets shared.branches_org_id_key, the

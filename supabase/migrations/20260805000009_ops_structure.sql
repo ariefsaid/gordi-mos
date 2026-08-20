@@ -155,7 +155,7 @@ create table ops.kitchen_plans (
 
   -- ── the production stream this plan belongs to (OD-WAY-28) ──────────────────────────────────
   branch_id   uuid not null references shared.branches(id),
-  activity    text not null check (activity in ('kitchen','bar')),
+  activity    text not null,
 
   -- ── the movement (DD-WAY-13) ────────────────────────────────────────────────────────────────
   action                text not null check (action in ('produce','transfer')),
@@ -219,7 +219,7 @@ create table ops.kitchen_logs (
   -- NOT NULL is the whole point of landing this now rather than later: a log cannot be written
   -- without saying whose books it moves (AC-007).
   branch_id        uuid not null references shared.branches(id),
-  activity         text not null check (activity in ('kitchen','bar')),
+  activity         text not null,
 
   -- ── the movement (DD-WAY-13) ────────────────────────────────────────────────────────────────
   -- There is no stored action_type. `action` says what happened; `destination_branch_id` says where
@@ -322,7 +322,7 @@ create table ops.kitchen_stock (
   log_date    date not null,
   wip_item_id uuid not null references ops.wip_items(id) on delete cascade,
   branch_id   uuid not null references shared.branches(id),
-  activity    text not null check (activity in ('kitchen','bar')),
+  activity    text not null,
   usable_qty  numeric(12,2) not null,
   notes       text,
   updated_at  timestamptz not null default now(),

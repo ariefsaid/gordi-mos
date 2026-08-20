@@ -56,8 +56,8 @@ select throws_ok($$
           (select id from shared.branches
             where org_id = '10000000-0000-0000-0000-000000000001' and code = 'radiant'),
           'roasting')
-  $$, '23514', null,
-  'kitchen and bar are the only activities — the two WIP-producing activities the Cafe Module serves (OD-WAY-26)');
+  $$, '23503', null,
+  'the Activity catalog rejects an unknown activity (OD-WAY-26)');
 
 -- One live stream team per (org, branch, activity): the catalog is enumerable because it cannot
 -- hold two rows for one stream.
