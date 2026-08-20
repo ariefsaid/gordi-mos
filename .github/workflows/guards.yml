@@ -41,5 +41,7 @@ jobs:
         run: bash scripts/sssf-locks.test.sh
       - name: sssf design-audit chain self-test (#350)
         run: bash scripts/sssf-design-audit.test.sh
+      - name: sssf provider-fault vs model-fault self-test (#386)
+        run: bash scripts/sssf-provider-error.test.sh
       - name: kitchen history import self-test (#349)
         run: bash scripts/import-kitchen-history.test.sh
