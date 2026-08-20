@@ -462,6 +462,7 @@ export function TasksWorkspace({
       <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
+      onClose={() => setMobileOptionsOpen(false)}
       label={t('tasks.viewAndFilters')}
       summary={viewLabel(query.view, t)}
       panelId="mobile-task-options-panel"

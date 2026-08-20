@@ -393,7 +393,15 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     rowCount: leafTasks.length,
     enabled: desktopLayout,
     overlayActive,
-    onOpen: (index) => { const task = leafTasks[index]; if (task) openTask(task.id) },
+    onOpen: (index) => {
+      const task = leafTasks[index]
+      if (!task) return
+      // I2 (issue #379): the j/k cursor row is the invoking row; j/k move a virtual cursor and
+      // leave DOM focus on <body>. Focus the cursor row's opener so the panel's close returns
+      // focus to where the user was.
+      cursorRowRef.current?.querySelector<HTMLAnchorElement>('a.task-row-link')?.focus()
+      openTask(task.id)
+    },
     onClose: runtime.onCloseDrawer,
     onNew: runtime.onNewTask,
   })

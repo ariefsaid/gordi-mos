@@ -93,6 +93,9 @@ export function TaskRow({
   const canEdit = Boolean(onEditTitle)
   const [editing, setEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
+  // shared panel's close returns focus to the invoking element.
+  const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current) }, [])
   const inline = useInlineCommit<string>({
@@ -195,7 +198,14 @@ export function TaskRow({
       // second aria-current on the page (interaction-contract I7 "exactly one").
       aria-selected={isSelected || isCursor ? true : undefined}
       data-leaf-index={leafIndex}
-      onClick={() => onOpen(task.id)}
+      onClick={() => {
+        // I2 (issue #379): a click anywhere on the row makes the ROW the invoking control, but a
+        // click on a non-focusable cell leaves DOM focus on <body> — the shared panel then captured
+        // body as its opener and Escape returned focus to the page, not the row. Focus the row's
+        // opener link first so close returns focus to the invoking element.
+        titleLinkRef.current?.focus()
+        onOpen(task.id)
+      }}
     >
       <td className="td-main">
         {editing ? (
@@ -225,6 +235,7 @@ export function TaskRow({
           <Link
             to={recordTo}
             state={panelState}
+            ref={titleLinkRef}
             className="task-row-link name-chip collection-grammar-title-cell"
             title={task.title}
             tabIndex={0}
