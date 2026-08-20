@@ -3,7 +3,8 @@
 // so the trigger/panel behavior + a11y wiring lives in one place. Each host passes its own
 // skin classes, so computed styles are preserved (design-reviewer-verified).
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { useState } from 'react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ViewOptionsDisclosure } from './view-options-disclosure'
 
@@ -50,6 +51,40 @@ describe('ViewOptionsDisclosure', () => {
     renderDisclosure({ open: false, onToggle })
     await user.click(screen.getByRole('button', { name: /view options/i }))
     expect(onToggle).toHaveBeenCalledOnce()
+  })
+
+  it('focuses the first enabled control and traverses the live control set with arrows/Home/End', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <ViewOptionsDisclosure open={open} onToggle={() => setOpen(value => !value)} label="View options" panelId="focus-panel">
+          <button type="button">First</button>
+          <select aria-label="Second" defaultValue="a"><option value="a">A</option></select>
+          <button type="button" disabled>Disabled</button>
+          <button type="button" hidden>Hidden</button>
+          <button type="button" aria-disabled="true">Unavailable</button>
+          <button type="button" tabIndex={-1}>Untabbable</button>
+          <button type="button">Last</button>
+        </ViewOptionsDisclosure>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'View options' }))
+    const first = screen.getByRole('button', { name: 'First' })
+    const second = screen.getByRole('combobox', { name: 'Second' })
+    const last = screen.getByRole('button', { name: 'Last' })
+    await waitFor(() => expect(first).toHaveFocus())
+    await user.keyboard('{ArrowDown}')
+    expect(second).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(last).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(first).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(last).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(first).toHaveFocus()
   })
 
   it('renders the summary as a decorative (aria-hidden) hint, not part of the accessible name', () => {

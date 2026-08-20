@@ -1244,6 +1244,8 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
     await waitFor(() => screen.getByText('Open one'))
     await switchToAll()
     await waitFor(() => screen.getByText('Blocked one'))
+    // j/k are collection shortcuts only outside native controls; avoid inheriting toolbar focus.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     // Press j several times — the cursor (.kfocus) must always be on a .task-row,
     // never on a .grp header (group headers are not cursor targets).
     for (let i = 0; i < 5; i++) {
@@ -1270,6 +1272,10 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
     await waitFor(() => screen.getByText('Open one'))
     await switchToAll()
     await waitFor(() => screen.getByText('Blocked one'))
+
+    // The collection hotkeys intentionally stand down for native controls. Keep this cursor
+    // contract test focused on the collection rather than whichever toolbar control last focused.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 
     // Before any j press: no row is marked as the cursor, and NO row emits aria-current
     expect(document.querySelector('tr.task-row[aria-selected="true"]')).toBeNull()

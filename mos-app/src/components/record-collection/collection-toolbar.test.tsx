@@ -248,6 +248,30 @@ describe('CollectionToolbar — I3 "View & filters" Escape (issue #379)', () => 
     )
   }
 
+  it('opening focuses the first filter and traversal includes dynamically opened Save-view controls', async () => {
+    stubDesktop()
+    renderToolbar({
+      savedViews: {
+        label: 'Saved views', selectedId: null, operation: 'idle', items: [], onApply: vi.fn(),
+        onSave: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+    const trigger = screen.getByRole('button', { name: /view & filters/i })
+    await userEvent.click(trigger)
+    const team = screen.getByRole('combobox', { name: 'Team' })
+    expect(team).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    const saveTrigger = screen.getByRole('button', { name: /save view/i })
+    expect(saveTrigger).toHaveFocus()
+    await userEvent.click(saveTrigger)
+    saveTrigger.focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveFocus()
+    saveTrigger.focus()
+    await userEvent.keyboard('{End}')
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+  })
+
   it('Escape on the open trigger closes the disclosure; focus stays on the trigger', async () => {
     stubDesktop()
     renderToolbar()

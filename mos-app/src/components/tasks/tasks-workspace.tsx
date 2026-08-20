@@ -202,6 +202,15 @@ export function TasksWorkspace({
   // resurrect it" so Back truly closes the drawer instead of re-opening it (I2, no dead-end).
   const openedRecordRef = useRef<string | null>(null)
 
+  const openTaskPage = useCallback(async (to: { pathname: string; search: string }, pageState: unknown) => {
+    // The collection's cleanup effect must not remove ?record= while the host promotes
+    // the overlay to the canonical record page. A denied dirty-leave clears this flag so
+    // the still-mounted drawer remains addressable.
+    suppressNextOpen.current = true
+    const result = await host.openPage(to, pageState)
+    if (result.status === 'denied') suppressNextOpen.current = false
+  }, [host])
+
   // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
   // collection's query (view/filter/sort) survives the jump onto the canonical page.
   const pageSearch = useCallback(() => {
@@ -244,21 +253,22 @@ export function TasksWorkspace({
       <TaskOverlayContent
         taskId={recordId}
         onClose={() => { void host.close() }}
-        onOpenPage={() => { void host.openPage(pageTo, entry.pageState) }}
+        onOpenPage={() => { void openTaskPage(pageTo, entry.pageState) }}
         onTaskChanged={onTaskChanged}
         onTaskArchived={onTaskArchived}
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
       />
     )
     return entry
-  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, t])
+  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, openTaskPage, t])
 
   // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
   // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
   useEffect(() => {
     if (!taskEntry) {
-      openedRecordRef.current = null
-      suppressNextOpen.current = false
+      // During a guarded browser POP the route marker and task entry can disappear for one
+      // render before the host replays the decision. Keep the identity so ?record= cannot
+      // resurrect the drawer after Discard completes the original Back.
       return
     }
     if (suppressNextOpen.current) return
@@ -557,7 +567,17 @@ export function TasksWorkspace({
             OverlayHostSlot owns panel geometry, focus, Back, Escape, and canonical promotion. The
             ?record= query is dropped by the session-tracking effect above whenever the host session
             closes (explicit close or a browser POP), so no onClose override is needed here. */}
-        <OverlayHostSlot owner="tasks" />
+        <OverlayHostSlot
+          owner="tasks"
+          onOpenPage={(to, openPage) => {
+            // The host chrome owns the actual promotion button. Keep the collection's
+            // ?record= cleanup from racing the canonical route replacement.
+            suppressNextOpen.current = true
+            void openPage(to, { taskSurface: 'page' }).then((result) => {
+              if (result.status === 'denied') suppressNextOpen.current = false
+            })
+          }}
+        />
       </div>
     </PageFamilyFrame>
   )

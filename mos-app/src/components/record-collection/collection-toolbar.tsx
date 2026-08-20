@@ -5,6 +5,7 @@ import { ViewTabs } from '@/components/ui/view-tabs'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
+import { useViewOptionsKeyboard } from '@/shell/view-options-keyboard'
 import './collection-toolbar.css'
 
 export interface CollectionToolbarOption<T extends string = string> {
@@ -106,7 +107,9 @@ export function CollectionToolbar<
   const [viewName, setViewName] = useState('')
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
   const optionsTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const optionsPanelRef = useRef<HTMLDivElement | null>(null)
   const optionsRowId = useId()
+  const onOptionsKeyDown = useViewOptionsKeyboard(optionsOpen, optionsPanelRef)
 
   useEffect(() => {
     savedViews?.onLoad?.()
@@ -284,12 +287,14 @@ export function CollectionToolbar<
           // Phone gate: on phone this panel is the always-expanded CONTENT of the host's outer
           // ViewOptionsDisclosure door — Escape must bubble up to close THAT door, not be eaten
           // here (innermost-owner-wins across the two doors).
+          ref={optionsPanelRef}
           onKeyDown={isDesktop ? (event) => {
+            onOptionsKeyDown(event)
             if (event.key !== 'Escape') return
             event.preventDefault()
             event.stopPropagation()
             closeOptions()
-          } : undefined}
+          } : onOptionsKeyDown}
         >
           {filters.map((filter) => (
             <label key={filter.id} className="collection-toolbar__option-field">
@@ -329,34 +334,30 @@ export function CollectionToolbar<
             </Button>
           ) : null}
           {toggles}
-        </div>
-      ) : null}
-
-      {savedViews && saveOpen ? (
-        <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>
-          <label className="collection-toolbar__save-field">
-            <span>{t('common.viewName')}</span>
-            <input
-              autoFocus
-              value={viewName}
-              onChange={(event) => setViewName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  // I5 field isolation + I3 nesting (#379): the input's Escape closes the save row
-                  // ONLY. stopPropagation shields enclosing disclosures (the phone
-                  // ViewOptionsDisclosure panel) so one Escape performs one action.
-                  event.preventDefault()
-                  event.stopPropagation()
-                  closeSaveView()
-                }
-                if (event.key === 'Enter') void saveView()
-              }}
-            />
-          </label>
-          <Button variant="primary" disabled={!canSave} onClick={() => void saveView()}>
-            {saving ? t('common.saving') : t('common.save')}
-          </Button>
-          <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>
+          {savedViews && saveOpen ? (
+            <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>
+              <label className="collection-toolbar__save-field">
+                <span>{t('common.viewName')}</span>
+                <input
+                  autoFocus
+                  value={viewName}
+                  onChange={(event) => setViewName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      closeSaveView()
+                    }
+                    if (event.key === 'Enter') void saveView()
+                  }}
+                />
+              </label>
+              <Button variant="primary" disabled={!canSave} onClick={() => void saveView()}>
+                {saving ? t('common.saving') : t('common.save')}
+              </Button>
+              <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
