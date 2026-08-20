@@ -24,7 +24,11 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
+import type { RolesRow } from '@/lib/database.types'
 import { I18nProvider } from '@/i18n/I18nProvider'
+// The real per-person arrangement store (not a stub): the AC-204 (4) block below switches
+// arrangement the same way /profile does, so the door is proven on more than the default one.
+import { setHomeLayout } from '@/lib/home-layout'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -52,10 +56,11 @@ vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
 
-vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn(), getRoles: vi.fn() }))
+import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 const mockGetBUs = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockGetRoles = vi.mocked(getRoles)
 
 vi.mock('../lib/db/notifications', () => ({
   listNotifications: vi.fn(),
@@ -162,6 +167,36 @@ const cafeViewer: AuthState = {
   },
 }
 
+// ── Role-chain fixtures for the AC-204 (4) block below (mirror supabase/seed.sql's shape) ──
+const ORG_ID = '10000000-0000-0000-0000-000000000001'
+const BU_FINANCE = '20000000-0000-0000-0000-000000000013'
+const roleStamps = { org_id: ORG_ID, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
+/** Top of the chain — no parent role. The owner-director. */
+const MD_ROLE: RolesRow = { id: '30000000-0000-0000-0000-000000000000', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, ...roleStamps }
+/** The apex of Finance: its parent is the MD, who sits in a DIFFERENT (null) BU. A function owner. */
+const FINANCE_LEAD_ROLE: RolesRow = { id: '30000000-0000-0000-0000-000000000005', business_unit_id: BU_FINANCE, name: 'Finance Lead', reports_to_role_id: MD_ROLE.id, ...roleStamps }
+/** Mid-chain inside Finance — reports to the lead, same BU, so NOT an apex. A plain member. */
+const ANALYST_ROLE: RolesRow = { id: '30000000-0000-0000-0000-000000000099', business_unit_id: BU_FINANCE, name: 'Finance Analyst', reports_to_role_id: FINANCE_LEAD_ROLE.id, ...roleStamps }
+/** What `getRoles()` returns: the org tree, projected to the seam role-scope detection reads. */
+const ORG_TREE = [MD_ROLE, FINANCE_LEAD_ROLE, ANALYST_ROLE].map(
+  ({ id, business_unit_id, reports_to_role_id }) => ({ id, business_unit_id, reports_to_role_id }))
+
+// The same person, holding the given org roles — the input the AC-204 (4) block varies to move a
+// viewer between "steers a scope" and "does not". Access roles stay at plain `member` throughout,
+// so what the door responds to is the ROLE CHAIN, never an access grant.
+const ownerDirectorViewer: AuthState = {
+  ...financeViewer,
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [MD_ROLE] },
+}
+const functionOwnerViewer: AuthState = {
+  ...financeViewer,
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [FINANCE_LEAD_ROLE] },
+}
+const noScopeViewer: AuthState = {
+  ...financeViewer,
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [ANALYST_ROLE] },
+}
+
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
@@ -193,6 +228,7 @@ beforeEach(() => {
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
+  mockGetRoles.mockResolvedValue([])
   mockListNotifications.mockResolvedValue([])
   mockLoadFailedChecks.mockResolvedValue([])
   mockListOpsAttentionEntries.mockResolvedValue([])
@@ -661,5 +697,66 @@ describe('AC-091 (restored, #302): an open needs-attention Daily Log entry surfa
       await Promise.resolve(); await Promise.resolve()
     })
     expect(mockListOpsAttentionEntries.mock.calls.length).toBe(callsBefore + 1)
+  })
+})
+
+// ── AC-204 (4): "Home's owner-cockpit section reads as intentional rather than as a surface with
+// something removed." #179 cut the cascade route and took Home's progress drill with it. The
+// successor door is the Objectives roll-up, and it must be on the Home people actually land on —
+// the index route — not only on the dev-only stacked composition where it was first built.
+//
+// The oracle is the JOB, not the markup: a viewer who steers a scope (the owner-director over the
+// whole company, a function owner over their business unit) can walk from Home to the roll-up; a
+// member, who comes to Home for what needs them today, is not handed a company-wide door they did
+// not ask for. Placeholder copy is what a removed surface leaves behind, so its ABSENCE from the
+// door is asserted too.
+describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () => {
+  const objectivesDoor = () => screen.getByRole('region', { name: 'Objectives' })
+
+  beforeEach(() => {
+    mockGetRoles.mockResolvedValue(ORG_TREE)
+  })
+
+  it('the owner-director can walk from Home to the Objectives roll-up', async () => {
+    await renderHome(ownerDirectorViewer)
+    await screen.findByRole('tablist')
+
+    const link = await screen.findByRole('link', { name: /see progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    expect(objectivesDoor()).toContainElement(link)
+    // The door states a fact rather than pointing away silently…
+    expect(objectivesDoor()).toHaveTextContent(/Progress rolls up from each Objective/i)
+    // …and it is not dressed as an unbuilt drop point: no "coming" language on it.
+    expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
+  })
+
+  it('a function owner gets the same door', async () => {
+    await renderHome(functionOwnerViewer)
+    await screen.findByRole('tablist')
+
+    const link = await screen.findByRole('link', { name: /see progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    expect(objectivesDoor()).toContainElement(link)
+  })
+
+  it('a member who steers no scope is handed no door', async () => {
+    await renderHome(noScopeViewer)
+    await screen.findByRole('tablist')
+    // The read the gate rides has LANDED — so this absence is a decision, not a race. Without
+    // this the test would pass just as well against a door that simply had not rendered yet.
+    await waitFor(() => expect(mockGetRoles).toHaveBeenCalled())
+
+    expect(screen.queryByRole('link', { name: /see progress/i })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
+  })
+
+  it('the door rides the shared aside, so every arrangement carries it (NFR-924)', async () => {
+    setHomeLayout(financeViewer.viewer.person.id, 'list')
+    await renderHome(ownerDirectorViewer)
+
+    const link = await screen.findByRole('link', { name: /see progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    // List, not Focused — the arrangement really did change under it.
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 })

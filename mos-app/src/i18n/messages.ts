@@ -100,6 +100,12 @@ export const messages = {
     'home.stream.reason.mention': 'Mentions you',
     'home.stream.allTasks': 'My open tasks · ${count} →',
     'home.stream.myWorkEmpty': 'Nothing else open — anything needing you is ranked above.',
+    // The Objectives roll-up door in Home's standing aside (AC-204 (4)). Its OWN keys, not the
+    // `home.stack.*` set the stacked-union surface uses: that surface is being deleted whole
+    // (#399), and a shipped page borrowing its catalog entries would go down with it.
+    'home.objectives.title': 'Objectives',
+    'home.objectives.drill': 'See progress →',
+    'home.objectives.rollup': 'Progress rolls up from each Objective through its Projects and Processes to their Tasks.',
     'home.region.more': '${count} more',
     'home.region.moreLink': '${count} more →',
     'home.region.moreAria': '${count} more in ${label}',
@@ -1277,6 +1283,9 @@ export const messages = {
     'home.stream.reason.mention': 'Menyebut Anda',
     'home.stream.allTasks': 'Tugas terbuka saya · ${count} →',
     'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
+    'home.objectives.title': 'Objective',
+    'home.objectives.drill': 'Lihat progres →',
+    'home.objectives.rollup': 'Progres bergulir dari tiap Objective lewat Proyek dan Prosesnya sampai ke Tugas.',
     'home.region.more': '${count} lagi',
     'home.region.moreLink': '${count} lagi →',
     'home.region.moreAria': '${count} lagi di ${label}',
