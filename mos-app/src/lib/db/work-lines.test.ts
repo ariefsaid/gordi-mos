@@ -64,7 +64,7 @@ describe('listWorkLines', () => {
 
     expect(result).toEqual(rows)
     expect(rec.fromTables).toContain('work_lines')
-    expect(rec.selects).toContain('id,name,type')
+    expect(rec.selects).toContain('id,name,type,objective_id')
   })
 
   it('filters archived (archived_at is null) and orders by name', async () => {
@@ -116,7 +116,7 @@ describe('listWorkLinesAll (management)', () => {
     const result = await listWorkLinesAll()
 
     expect(result).toEqual(rows)
-    expect(rec.selects).toContain('id,name,type,archived_at')
+    expect(rec.selects).toContain('id,name,type,objective_id,archived_at')
     expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
     expect(rec.orders).toContainEqual(['name', undefined])
   })

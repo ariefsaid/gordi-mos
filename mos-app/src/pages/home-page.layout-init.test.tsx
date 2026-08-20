@@ -36,8 +36,8 @@ const mockUseAuth = vi.mocked(useAuth)
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
 import { listTasks } from '@/lib/db/tasks'
 
-vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn(), getRoles: vi.fn() }))
+import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 
 vi.mock('../lib/db/notifications', () => ({
   listNotifications: vi.fn(),
@@ -114,6 +114,7 @@ beforeEach(() => {
   vi.mocked(listTasks).mockResolvedValue([])
   vi.mocked(getBusinessUnits).mockResolvedValue([])
   vi.mocked(getPeople).mockResolvedValue([])
+  vi.mocked(getRoles).mockResolvedValue([])
   vi.mocked(listNotifications).mockResolvedValue([])
   vi.mocked(loadFailedChecksForViewer).mockResolvedValue([])
   vi.mocked(listReadableSignals).mockResolvedValue([])

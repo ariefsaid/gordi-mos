@@ -110,7 +110,7 @@ export type CollectionViewValidationResult =
 
 const TASK_PRESENTATIONS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const TASK_SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
-const TASK_GROUP_FIELDS: readonly TaskCollectionGroup[] = ['status', 'pic', 'bu', 'workline', 'occurrence']
+const TASK_GROUP_FIELDS: readonly TaskCollectionGroup[] = ['status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const TASK_VISIBLE: readonly TaskCollectionVisibleField[] = [
   'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
 ]

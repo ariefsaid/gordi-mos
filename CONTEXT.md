@@ -184,9 +184,12 @@ _Avoid_: using "Outcome" as a cascade level at all; it is no longer part of the 
 
 **Project / Process** (the middle of the cascade — the work-system that moves a goal):
 One entity distinguished by **`type ∈ {project, process}`**; carries A/R ownership, a business unit, a
-lane, and a nullable Objective link. ⚑ **That Objective link does not exist in the schema yet** —
-`mos.work_lines` has no `objective_id`, and Tasks carry `objective_id` and `work_line_id` flat and
-independently. Without it the middle level cannot roll up. One nullable FK, tracked as `DD-WAY-15`.
+lane, and a nullable Objective link. **That Objective link is `mos.work_lines.objective_id`** —
+shipped in the squashed baseline (`DD-WAY-15`, closed). It is nullable, because a Project/Process
+need not belong to an Objective. **It is the edge, and it wins**: where a Task carries its own
+`objective_id` as well, the Objective is resolved through the Task's Project/Process first and the
+Task's own field is only the fallback, so a stale Task field cannot pull work out from under the
+roll-up. A Task with no Project/Process still reaches its Objective directly.
 
 It is a Task's permanent cascade parent. **No umbrella term is
 locked** (owner 2026-06-23 — "use the Project/Process pair for now"; the earlier "Initiative" is dropped);

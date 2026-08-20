@@ -39,6 +39,8 @@ export const messages = {
     'home.stack.owner.subtitle': 'Money, ops, and delivery across all functions',
     'home.stack.function.title': '${bu} — function cockpit',
     'home.stack.function.subtitle': 'Money, ops, and delivery for your function',
+    'home.stack.objectives.rollup': 'Progress rolls up from each Objective through its Projects and Processes to their Tasks',
+    'home.stack.objectivesProgress': 'See Objectives progress',
     'home.stack.myweek.title': 'My Week',
     'home.stack.capture.title': 'What needs you',
     'home.stack.capture.subtitle': 'Capture what you just did and see your next step',
@@ -98,6 +100,12 @@ export const messages = {
     'home.stream.reason.mention': 'Mentions you',
     'home.stream.allTasks': 'My open tasks · ${count} →',
     'home.stream.myWorkEmpty': 'Nothing else open — anything needing you is ranked above.',
+    // The Objectives roll-up door in Home's standing aside (AC-204 (4)). Its OWN keys, not the
+    // `home.stack.*` set the stacked-union surface uses: that surface is being deleted whole
+    // (#399), and a shipped page borrowing its catalog entries would go down with it.
+    'home.objectives.title': 'Objectives',
+    'home.objectives.drill': 'See progress →',
+    'home.objectives.rollup': 'Progress rolls up from each Objective through its Projects and Processes to their Tasks.',
     'home.region.more': '${count} more',
     'home.region.moreLink': '${count} more →',
     'home.region.moreAria': '${count} more in ${label}',
@@ -905,6 +913,7 @@ export const messages = {
     'catalog.renameAria': 'Rename ${name}',
     'catalog.archiveAria': 'Archive ${name}',
     'catalog.unarchiveAria': 'Unarchive ${name}',
+    'catalog.moreActionsFor': 'More actions for ${name}',
     'catalog.nameLabel': 'Name',
     'catalog.namePlaceholder': 'Name…',
     'catalog.nameRequired': 'Name is required',
@@ -940,7 +949,17 @@ export const messages = {
     'catalog.relations.heading.tasks': 'Tasks',
     'catalog.relations.empty.objective': 'No Projects, Processes, or Tasks linked yet.',
     'catalog.relations.empty.workLine': 'Not linked to an Objective or any Tasks yet.',
+    // Shared branch vocabulary (#204): the Objectives catalog, the Projects & Processes catalog
+    // and Tasks "Group by Objective" all name the two synthetic branches with THESE keys, so the
+    // same bucket cannot read as two different things depending on which surface you are on.
+    'rollup.group.noWorkLine': 'No Project/Process',
+    'rollup.group.unlinked': '(Unlinked)',
     'catalog.relations.moreTasks': '+${count} more — open Tasks',
+    // Several branches can overflow in one relations panel, so the visible copy repeats; the
+    // accessible name names the branch so the links are tellable apart.
+    'catalog.relations.moreTasksAria': '${name}: +${count} more — open Tasks',
+    // Count roll-up only (OD-WAY-32) — no measure, no target, no percentage.
+    'catalog.relations.progress': '${done} / ${total} done',
     // The record grammar's in-place save confirmation. Admin People reuses it for the
     // inline "Saved" at a person's row after an in-place edit (GAP-7), so the two never drift.
     'record.field.saved': 'Saved',
@@ -1206,6 +1225,8 @@ export const messages = {
     'home.stack.owner.subtitle': 'Uang, operasi, dan eksekusi di seluruh fungsi',
     'home.stack.function.title': '${bu} — cockpit fungsi',
     'home.stack.function.subtitle': 'Uang, operasi, dan eksekusi untuk fungsi Anda',
+    'home.stack.objectives.rollup': 'Progres bergulir dari tiap Objective lewat Proyek dan Prosesnya sampai ke Tugas',
+    'home.stack.objectivesProgress': 'Lihat progres Objectives',
     'home.stack.myweek.title': 'Minggu Saya',
     'home.stack.capture.title': 'Yang perlu Anda kerjakan',
     'home.stack.capture.subtitle': 'Catat yang baru saja Anda lakukan dan lihat langkah berikutnya',
@@ -1262,6 +1283,9 @@ export const messages = {
     'home.stream.reason.mention': 'Menyebut Anda',
     'home.stream.allTasks': 'Tugas terbuka saya · ${count} →',
     'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
+    'home.objectives.title': 'Objective',
+    'home.objectives.drill': 'Lihat progres →',
+    'home.objectives.rollup': 'Progres bergulir dari tiap Objective lewat Proyek dan Prosesnya sampai ke Tugas.',
     'home.region.more': '${count} lagi',
     'home.region.moreLink': '${count} lagi →',
     'home.region.moreAria': '${count} lagi di ${label}',
@@ -2022,6 +2046,7 @@ export const messages = {
     'catalog.renameAria': 'Ganti nama ${name}',
     'catalog.archiveAria': 'Arsipkan ${name}',
     'catalog.unarchiveAria': 'Kembalikan ${name}',
+    'catalog.moreActionsFor': 'Aksi lainnya untuk ${name}',
     'catalog.nameLabel': 'Nama',
     'catalog.namePlaceholder': 'Nama…',
     'catalog.nameRequired': 'Nama wajib diisi',
@@ -2057,7 +2082,11 @@ export const messages = {
     'catalog.relations.heading.tasks': 'Tugas',
     'catalog.relations.empty.objective': 'Belum ada Proyek, Proses, atau Tugas yang terhubung.',
     'catalog.relations.empty.workLine': 'Belum terhubung ke Objective atau Tugas apa pun.',
+    'rollup.group.noWorkLine': 'Tanpa Proyek/Proses',
+    'rollup.group.unlinked': '(Tidak terhubung)',
     'catalog.relations.moreTasks': '+${count} lainnya — buka Tugas',
+    'catalog.relations.moreTasksAria': '${name}: +${count} lainnya — buka Tugas',
+    'catalog.relations.progress': '${done} / ${total} selesai',
     // The record grammar's in-place save confirmation. Admin People reuses it for the
     // inline "Saved" at a person's row after an in-place edit (GAP-7), so the two never drift.
     'record.field.saved': 'Tersimpan',

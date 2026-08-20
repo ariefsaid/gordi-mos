@@ -1,0 +1,11 @@
+/* HomeObjectivesDoor — the Objectives roll-up band in Home's standing aside (AC-204 (4)).
+   The band SHELL is the shared grammar (home-stream.css `.stream-band` + head): hairline edge,
+   display-face label, trailing drill link. Only the caption below the head is new, and it takes
+   the same quiet caption rung the band's other sub-head fact already uses
+   (`.stream-band-more`: label size, `muted-foreground`) rather than inventing a second one. */
+.home-objectives-rollup {
+  margin: 0;
+  padding: 0 4px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}

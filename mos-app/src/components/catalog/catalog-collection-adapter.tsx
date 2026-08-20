@@ -17,6 +17,10 @@ import {
   listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
 } from '@/lib/db/work-lines'
 import { listTasks } from '@/lib/db/tasks'
+import {
+  buildCascadeGroups, rollUpCounts,
+  type CascadeGroupLabels, type CountRollup, type CascadeGroup,
+} from '@/lib/cascade/count-rollup'
 // clarify (2026-07-28): a collection descriptor's `load()` runs outside React, so `useT()` is
 // unavailable — which is exactly why the FR-422 trace strings were left as English template
 // literals and shipped untranslated onto the Indonesian Objectives page ("3 tasks · …").
@@ -76,6 +80,10 @@ export interface CatalogRelationGroup {
   id: string
   name: string
   taskCount: number
+  done: number
+  total: number
+  synthetic?: 'unlinked' | 'no-work-line'
+  tasks?: readonly CatalogRelationTask[]
 }
 
 /** One task a catalog row links to directly (real record door: /work/tasks/:id). */
@@ -103,6 +111,8 @@ export interface CatalogCollectionContext {
   traceById: ReadonlyMap<string, string>
   relationsById: ReadonlyMap<string, CatalogRelations>
   relationsKind: CatalogRelationsKind
+  /** Count-only roll-up per row id — `done` and `total`, never a target or a percentage. */
+  progressById: ReadonlyMap<string, CountRollup>
 }
 
 /** A projection group — a catalog renders a single flat group (the active view). */
@@ -170,147 +180,150 @@ export const catalogCollectionQuery: CollectionQuerySchema<CatalogCollectionQuer
   normalize: (query) => query,
 }
 
-// ── FR-422 trace builders (ported verbatim from the pre-redesign pages) ────────────────────────────
+// ── FR-422 trace builders ─────────────────────────────────────────────────────────────────────
+//
+// Both read the SHARED group projection (#204). They used to walk the raw tasks themselves, which
+// made them two more constructions of the Objective → Project/Process relation — and once the
+// roll-up started counting through `work_lines.objective_id`, the trace and the count sat on the
+// same row disagreeing ("2 tasks" beside "1 / 4 done"). One projection, one answer.
+
+/** `n tasks`, in the viewer's locale. */
+function traceTaskCount(t: Translate) {
+  return (n: number) => t(n === 1 ? 'catalog.trace.taskCount.one' : 'catalog.trace.taskCount.other', { count: n })
+}
 
 /**
  * Objective DOWN-trace: for each objective, its child work_lines + per-work_line task count, rendered
  * "<total> tasks · W1 (n1), W2 (n2)". An objective with zero tasks gets NO entry (no false zero).
  */
 function buildObjectiveDownTrace(
-  tasks: readonly TaskListRow[],
-  workLines: readonly WorkLineAdminRow[],
+  groups: readonly CascadeGroup<TaskListRow>[],
   t: Translate,
 ): Map<string, string> {
-  // clarify (2026-07-28): the two trace strings below were English template literals rendered
-  // verbatim into the UI, so the Indonesian Objectives page read "3 tasks · Daily IG Content (2)".
-  const taskCount = (n: number) =>
-    t(n === 1 ? 'catalog.trace.taskCount.one' : 'catalog.trace.taskCount.other', { count: n })
-  const wlName = new Map(workLines.map((w) => [w.id, w.name]))
-  // objectiveId → (workLineId → task count)
-  const byObjective = new Map<string, Map<string, number>>()
-  for (const task of tasks) {
-    if (!task.objective_id) continue
-    const inner = byObjective.get(task.objective_id) ?? new Map<string, number>()
-    const wlKey = task.work_line_id ?? '__none__'
-    inner.set(wlKey, (inner.get(wlKey) ?? 0) + 1)
-    byObjective.set(task.objective_id, inner)
+  const taskCount = traceTaskCount(t)
+  const byObjective = new Map<string, CascadeGroup<TaskListRow>[]>()
+  for (const group of groups) {
+    if (!group.objectiveId) continue
+    byObjective.set(group.objectiveId, [...(byObjective.get(group.objectiveId) ?? []), group])
   }
   const map = new Map<string, string>()
-  for (const [objectiveId, wlCounts] of byObjective) {
-    const total = [...wlCounts.values()].reduce((sum, n) => sum + n, 0)
+  for (const [objectiveId, list] of byObjective) {
+    const total = list.reduce((sum, group) => sum + group.total, 0)
     if (total === 0) continue
-    const named = [...wlCounts.entries()]
-      .filter(([wlKey]) => wlKey !== '__none__' && wlName.has(wlKey))
-      .map(([wlKey, n]) => `${wlName.get(wlKey)} (${n})`)
-    map.set(objectiveId, named.length > 0
-      ? `${taskCount(total)} · ${named.join(', ')}`
-      : taskCount(total))
+    // A child with no work yet is named on the row itself, never in the trace — the trace counts
+    // tasks, and "(0)" there would read as a task figure rather than as an empty child.
+    const named = list
+      .filter((group) => group.workLineId !== null && group.total > 0)
+      .map((group) => `${group.workLineName} (${group.total})`)
+    map.set(objectiveId, named.length > 0 ? `${taskCount(total)} · ${named.join(', ')}` : taskCount(total))
   }
   return map
 }
 
 /**
- * Work-line UP-trace: work_lines has no objective_id column, so each work_line's parent objective(s)
- * are inferred from task linkage, rendered "Under: Obj (n), …". Tasks with a work_line but no parent
- * objective are surfaced as "no parent objective (n)" rather than dropped (FR-422 edge case).
+ * Work-line UP-trace: each work_line's parent objective(s), rendered "Under: Obj (n), … · N tasks".
+ * Tasks under a work_line that resolve to NO objective are surfaced as "no parent objective (n)"
+ * rather than dropped (FR-422 edge case).
  */
 function buildWorkLineUpTrace(
-  tasks: readonly TaskListRow[],
-  objectives: readonly ObjectiveAdminRow[],
+  groups: readonly CascadeGroup<TaskListRow>[],
   t: Translate,
 ): Map<string, string> {
-  const taskCount = (n: number) =>
-    t(n === 1 ? 'catalog.trace.taskCount.one' : 'catalog.trace.taskCount.other', { count: n })
-  const objName = new Map(objectives.map((o) => [o.id, o.name]))
-  const NO_OBJ = ''
-  // workLineId → (objectiveId | '' → task count)
-  const byWorkLine = new Map<string, Map<string, number>>()
-  for (const task of tasks) {
-    if (!task.work_line_id) continue
-    const key = task.objective_id ?? NO_OBJ
-    const inner = byWorkLine.get(task.work_line_id) ?? new Map<string, number>()
-    inner.set(key, (inner.get(key) ?? 0) + 1)
-    byWorkLine.set(task.work_line_id, inner)
+  const taskCount = traceTaskCount(t)
+  const byWorkLine = new Map<string, CascadeGroup<TaskListRow>[]>()
+  for (const group of groups) {
+    if (!group.workLineId) continue
+    byWorkLine.set(group.workLineId, [...(byWorkLine.get(group.workLineId) ?? []), group])
   }
   const map = new Map<string, string>()
-  for (const [workLineId, objCounts] of byWorkLine) {
-    const segments = [...objCounts.entries()]
-      .filter(([objId]) => objId !== NO_OBJ && objName.has(objId))
-      .map(([objId, n]) => `${objName.get(objId)} (${n})`)
-    const orphan = objCounts.get(NO_OBJ) ?? 0
-    if (orphan > 0) segments.push(t('catalog.trace.noParent', { count: orphan }))
-    if (segments.length === 0) continue
+  for (const [workLineId, list] of byWorkLine) {
+    const withWork = list.filter((group) => group.total > 0)
+    if (withWork.length === 0) continue
+    const segments = withWork.map((group) => group.syntheticObjective
+      ? t('catalog.trace.noParent', { count: group.total })
+      : `${group.objectiveName} (${group.total})`)
     // Census R2 DO-20(a) (objectives F3): the up-trace units its counts exactly like the sibling
     // down-trace ("3 tasks · Menu launch (2)") — a trailing "· N tasks" total gives the bare
     // per-objective "(n)" figures their noun instead of leaving naked numbers (GUARD-R2 class).
-    const total = [...objCounts.values()].reduce((sum, n) => sum + n, 0)
+    const total = withWork.reduce((sum, group) => sum + group.total, 0)
     map.set(workLineId, t('catalog.trace.under', { segments: segments.join(', '), total: taskCount(total) }))
   }
   return map
 }
 
 // ── OD-V4-1 H4 relations (bidirectional, on the records themselves — NOT a separate cascade
-// route: docs/v4-inheritance.md INC-1). Computed independently from the trace builders above
-// (deliberate duplication, not a refactor of them) so the existing FR-422 trace-string tests keep
-// asserting the exact literal copy they already pin, unaffected by this additive feature. ───────────
+// route: docs/v4-inheritance.md INC-1). Built from the SAME `buildCascadeGroups` projection the
+// trace builders above read (#204). An earlier version of this comment declared the two a
+// "deliberate duplication, not a refactor" — that was true before #204 and is the opposite of the
+// shipped code now, so it is corrected here rather than left for the next reader to preserve: the
+// duplication WAS the drift, and re-introducing it puts the trace and the count back to
+// disagreeing on the same row ("2 tasks" beside "1 / 4 done"). The FR-422 trace strings are
+// unaffected — they are still assembled by the trace builders, off the shared groups. ─────────────
 
-/** Objective → its child Projects/Processes (by task co-occurrence) + its own tasks, each a real link. */
+/** Synthetic group copy, localized once and handed to the ONE shared projection. */
+function cascadeLabels(t: Translate): CascadeGroupLabels {
+  return { unlinked: t('rollup.group.unlinked'), noWorkLine: t('rollup.group.noWorkLine') }
+}
+
+const relationTask = (task: { id: string; title: string }) => ({ id: task.id, title: task.title })
+
+/**
+ * Objective → its child Projects/Processes via the direct work-line edge + its own tasks.
+ *
+ * Both this and the Tasks Objective grouping read `buildCascadeGroups` — the same construction,
+ * so the count a catalog row shows and the group a Tasks list shows cannot disagree.
+ */
 function buildObjectiveRelations(
-  tasks: readonly TaskListRow[],
-  workLines: readonly WorkLineAdminRow[],
+  groups: readonly CascadeGroup<TaskListRow>[],
+  objectives: readonly ObjectiveAdminRow[],
 ): Map<string, CatalogRelations> {
-  const wlName = new Map(workLines.map((w) => [w.id, w.name]))
-  const byObjective = new Map<string, TaskListRow[]>()
-  for (const task of tasks) {
-    if (!task.objective_id) continue
-    const list = byObjective.get(task.objective_id) ?? []
-    list.push(task)
-    byObjective.set(task.objective_id, list)
-  }
-  const map = new Map<string, CatalogRelations>()
-  for (const [objectiveId, objTasks] of byObjective) {
-    const counts = new Map<string, number>()
-    for (const task of objTasks) {
-      if (!task.work_line_id) continue
-      counts.set(task.work_line_id, (counts.get(task.work_line_id) ?? 0) + 1)
-    }
-    const groups: CatalogRelationGroup[] = [...counts.entries()]
-      .filter(([wlId]) => wlName.has(wlId))
-      .map(([wlId, taskCount]) => ({ id: wlId, name: wlName.get(wlId)!, taskCount }))
-    map.set(objectiveId, {
-      groups,
-      tasks: objTasks.map((t) => ({ id: t.id, title: t.title })),
+  const map = new Map<string, CatalogRelations>(
+    objectives.map((objective) => [objective.id, { groups: [], tasks: [] }]),
+  )
+  for (const group of groups) {
+    if (group.objectiveId === null) continue // the (Unlinked) bucket belongs to no catalog row
+    const existing = map.get(group.objectiveId) ?? { groups: [], tasks: [] }
+    map.set(group.objectiveId, {
+      groups: [...existing.groups, {
+        id: group.workLineId ?? group.key,
+        name: group.workLineName,
+        taskCount: group.total,
+        done: group.done,
+        total: group.total,
+        ...(group.syntheticWorkLine ? { synthetic: 'no-work-line' as const } : {}),
+        tasks: group.tasks.map(relationTask),
+      }],
+      tasks: [...existing.tasks, ...group.tasks.map(relationTask)],
     })
   }
   return map
 }
 
-/** Project/Process → its parent Objective(s) (by task co-occurrence) + its own tasks, each a real link. */
+/** Project/Process → its parent Objective (from the direct work-line edge) + its own tasks. */
 function buildWorkLineRelations(
-  tasks: readonly TaskListRow[],
-  objectives: readonly ObjectiveAdminRow[],
+  groups: readonly CascadeGroup<TaskListRow>[],
+  workLines: readonly WorkLineAdminRow[],
 ): Map<string, CatalogRelations> {
-  const objName = new Map(objectives.map((o) => [o.id, o.name]))
-  const byWorkLine = new Map<string, TaskListRow[]>()
-  for (const task of tasks) {
-    if (!task.work_line_id) continue
-    const list = byWorkLine.get(task.work_line_id) ?? []
-    list.push(task)
-    byWorkLine.set(task.work_line_id, list)
-  }
-  const map = new Map<string, CatalogRelations>()
-  for (const [workLineId, wlTasks] of byWorkLine) {
-    const counts = new Map<string, number>()
-    for (const task of wlTasks) {
-      if (!task.objective_id) continue
-      counts.set(task.objective_id, (counts.get(task.objective_id) ?? 0) + 1)
-    }
-    const groups: CatalogRelationGroup[] = [...counts.entries()]
-      .filter(([objId]) => objName.has(objId))
-      .map(([objId, taskCount]) => ({ id: objId, name: objName.get(objId)!, taskCount }))
-    map.set(workLineId, {
-      groups,
-      tasks: wlTasks.map((t) => ({ id: t.id, title: t.title })),
+  const map = new Map<string, CatalogRelations>(
+    workLines.map((workLine) => [workLine.id, { groups: [], tasks: [] }]),
+  )
+  for (const group of groups) {
+    if (group.workLineId === null) continue // an Objective's own tasks are not a work line's parent
+    // A work line with neither a parent Objective nor any task has nothing to drill into — it gets
+    // the empty state, not an "(Unlinked)" group announcing zero of zero.
+    if (group.syntheticObjective && group.total === 0) continue
+    const existing = map.get(group.workLineId) ?? { groups: [], tasks: [] }
+    map.set(group.workLineId, {
+      groups: [...existing.groups, {
+        id: group.objectiveId ?? group.key,
+        name: group.objectiveName,
+        taskCount: group.total,
+        done: group.done,
+        total: group.total,
+        ...(group.syntheticObjective ? { synthetic: 'unlinked' as const } : {}),
+        tasks: group.tasks.map(relationTask),
+      }],
+      tasks: [...existing.tasks, ...group.tasks.map(relationTask)],
     })
   }
   return map
@@ -432,12 +445,21 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
     const [objectives, tasks, workLines] = await Promise.all([
       listObjectivesAll(), listTasks({}), listWorkLinesAll(),
     ])
+    const t = translateFor(readPersistedLocale())
+    const labels = cascadeLabels(t)
+    // ONE construction per load (#204 review, finding 4): the groups are built once and everything
+    // on the row — the trace, the relations panel, and the row's own count — is derived from them.
+    // Building them twice and counting the tasks again separately is the drift this ticket exists
+    // to remove, one layer down.
+    const groups = buildCascadeGroups({ objectives, workLines, tasks, labels, includeEmptyWorkLines: true })
+    const counts = rollUpCounts(groups, { objectives, workLines, labels })
     return {
       records: objectives.map((o) => ({ id: o.id, name: o.name, archived_at: o.archived_at })),
       context: {
-        traceById: buildObjectiveDownTrace(tasks, workLines, translateFor(readPersistedLocale())),
-        relationsById: buildObjectiveRelations(tasks, workLines),
+        traceById: buildObjectiveDownTrace(groups, t),
+        relationsById: buildObjectiveRelations(groups, objectives),
         relationsKind: 'objective',
+        progressById: new Map(counts.objectives.map((row) => [row.id, row])),
       },
     }
   },
@@ -461,12 +483,18 @@ export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
     const [workLines, tasks, objectives] = await Promise.all([
       listWorkLinesAll(), listTasks({}), listObjectivesAll(),
     ])
+    const t = translateFor(readPersistedLocale())
+    const labels = cascadeLabels(t)
+    // One construction per load — see the sibling Objectives descriptor above.
+    const groups = buildCascadeGroups({ objectives, workLines, tasks, labels, includeEmptyWorkLines: true })
+    const counts = rollUpCounts(groups, { objectives, workLines, labels })
     return {
       records: workLines.map((w) => ({ id: w.id, name: w.name, archived_at: w.archived_at, type: w.type })),
       context: {
-        traceById: buildWorkLineUpTrace(tasks, objectives, translateFor(readPersistedLocale())),
-        relationsById: buildWorkLineRelations(tasks, objectives),
+        traceById: buildWorkLineUpTrace(groups, t),
+        relationsById: buildWorkLineRelations(groups, workLines),
         relationsKind: 'work_line',
+        progressById: new Map(counts.workLines.map((row) => [row.id, row])),
       },
     }
   },

@@ -51,6 +51,9 @@ vi.mock('@/lib/db/reporting-margin', () => ({
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([]),
   getPeople: vi.fn().mockResolvedValue([]),
+  // The org role tree rides Home's shared directory read (AC-204 (4) — who the Objectives door
+  // is for). Empty: this file pins retirements, never role scope.
+  getRoles: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/db/notifications', () => ({
   listNotifications: vi.fn().mockResolvedValue([]),

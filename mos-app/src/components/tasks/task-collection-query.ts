@@ -30,7 +30,7 @@ import type {
 } from '@/lib/record-collection/types'
 
 export type TaskCollectionPresentation = 'table' | 'card'
-export type TaskCollectionGroup = 'none' | 'status' | 'pic' | 'bu' | 'workline' | 'occurrence'
+export type TaskCollectionGroup = 'none' | 'status' | 'pic' | 'bu' | 'workline' | 'objective' | 'occurrence'
 export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
@@ -63,7 +63,7 @@ const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
   'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
 ]
-const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'occurrence']
+const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 
 /** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw. */

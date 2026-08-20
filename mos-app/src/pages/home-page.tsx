@@ -24,6 +24,12 @@
 // Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
 // floats those tiers to the top, so the ranking survives the difference. Should a Signals
 // attention band ever join `buildHomeRegions`, this becomes the FYI tail again.
+//
+// The standing aside carries one more thing for a viewer who steers a scope: the Objectives
+// roll-up door (AC-204 (4)). #179 cut the cascade route and took Home's progress drill with it,
+// and the criterion is that what is left reads deliberate. It lives in the aside rather than in
+// the region model on purpose — the regions are the attention ranking, and a standing reference
+// door is not something that needs the viewer today.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -41,7 +47,12 @@ import type { LogEntryRow } from '@/lib/db/ops-log.types'
 import { SHOW_DAILY_LOG } from '@/config/features'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
+import type { RoleScopeRow } from '@/lib/db/directory'
+// The tested role-scope predicates (pure, no I/O). Home asks them the SAME question the role tree
+// answers everywhere else — "does this viewer steer a scope" — rather than growing a second,
+// drifting idea of who heads a business unit.
+import { isOwnerDirector, buHeadsForViewer } from '@/lib/home-stack'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
@@ -58,6 +69,7 @@ import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { HelpTip } from '@/components/ui/help-tip'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
@@ -284,21 +296,42 @@ export function HomePage() {
   // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the app already
   // uses. Best-effort ENRICHMENT only: decorates task rows with the PIC (Responsible) + owning-BU
   // caption; its absence never blocks or errors a band (rows just render without the meta line).
+  // The org role tree rides the SAME read: it answers one question Home asks below (does this
+  // viewer steer a scope, and so does the Objectives door earn its place). One shared-schema
+  // round trip, not a second effect racing this one.
   const [directory, setDirectory] = useState<AttentionDirectory>({})
+  const [orgRoles, setOrgRoles] = useState<RoleScopeRow[]>([])
   useEffect(() => {
     if (!personId) return
     let live = true
-    Promise.all([getPeople(), getBusinessUnits()])
-      .then(([people, bus]) => {
+    Promise.all([getPeople(), getBusinessUnits(), getRoles()])
+      .then(([people, bus, roles]) => {
         if (!live || !isMountedRef.current) return
         setDirectory({
           people: new Map(people.map(p => [p.id, p.full_name])),
           businessUnits: new Map(bus.map(b => [b.id, b.name])),
         })
+        setOrgRoles(roles)
       })
-      .catch(() => { /* enrichment is optional — a failed directory read leaves rows undecorated */ })
+      // Enrichment is optional — a failed directory read leaves rows undecorated. It also leaves
+      // `orgRoles` empty, so the Objectives door fails CLOSED for a BU-head: an affordance we
+      // cannot justify is not offered, rather than offered on a guess.
+      .catch(() => { /* see above */ })
     return () => { live = false }
   }, [personId])
+
+  // ── Who the Objectives roll-up door is for (AC-204 (4)) ─────────────────────
+  // The people who come to Home to STEER a scope: the owner-director (whole company) and a
+  // function owner (the apex role of a business unit). For them "are we moving toward what we
+  // committed to" is a standing question, so the door earns its place in the aside beside the
+  // ambient feed. A member comes to Home for what needs them TODAY — one door into a
+  // company-wide roll-up is noise on that job, so they get none, exactly as the stacked
+  // composition gives them no cockpit. One door, gated once: the stacked surface repeated the
+  // slot per cockpit section because it renders one section per scope; Home has one aside.
+  const holdsCockpitScope = useMemo(() => {
+    const heldRoles = viewer?.roles ?? []
+    return isOwnerDirector(heldRoles) || buHeadsForViewer(heldRoles, orgRoles).length > 0
+  }, [viewer, orgRoles])
 
   // ── Ranked stream items (owner redirect) ────────────────────────────────────
   const today = useMemo(() => wibToday(), [])
@@ -447,19 +480,28 @@ export function HomePage() {
         // the section's ErrorState + Retry, so a failed load never reads as "No Signals yet".
         // Author names come from the shared best-effort directory: a missing name leaves a row
         // undecorated, it never blocks or errors the feed.
-        const feed = (
-          <SignalFeedSection
-            signals={signals}
-            authorNamesById={directory.people ?? NO_NAMES}
-            teamNamesById={teamNames}
-            loading={signalsState === 'loading'}
-            error={signalsState === 'error'}
-            onReload={loadSignals}
-          />
+        // The standing aside: the Objectives door (cockpit-scope viewers only) above the ambient
+        // Signals feed. ONE node, because `.home-layout` is a two-column grid and a second child
+        // here would drop out of the aside track into the work column's next row. The feed's own
+        // 24px group seam (signal-feed-section.css, DO-16(d)) separates the two — no new spacing
+        // rule. Both arrive through the arrangements' existing `feed` slot, so all three
+        // arrangements inherit the identical aside and none can grow its own (NFR-924).
+        const aside = (
+          <div>
+            {holdsCockpitScope && <HomeObjectivesDoor />}
+            <SignalFeedSection
+              signals={signals}
+              authorNamesById={directory.people ?? NO_NAMES}
+              teamNamesById={teamNames}
+              loading={signalsState === 'loading'}
+              error={signalsState === 'error'}
+              onReload={loadSignals}
+            />
+          </div>
         )
-        if (layout === 'overview') return <HomeOverview regions={regions} feed={feed} />
-        if (layout === 'list') return <HomeList regions={regions} feed={feed} />
-        return <HomeFocused regions={regions} feed={feed} />
+        if (layout === 'overview') return <HomeOverview regions={regions} feed={aside} />
+        if (layout === 'list') return <HomeList regions={regions} feed={aside} />
+        return <HomeFocused regions={regions} feed={aside} />
       })()}</div>
     </PageFamilyFrame>
   )
