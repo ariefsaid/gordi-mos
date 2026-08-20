@@ -95,6 +95,16 @@ export default async function globalTeardown() {
   await execSql(`DELETE FROM mos.tasks WHERE org_id = '${ORG}' AND (${JUNK_TITLE_SQL});`)
   console.log('[global-teardown] cleared e2e/test-fixture task rows')
 
+  // The AC-204 roll-up world is the one fixture that also creates catalog RECORDS (an Objective and
+  // two Projects/Processes), so clearing its tasks is not enough — the empty records would linger in
+  // the dev catalogs. Tasks first: work_lines.objective_id and tasks.work_line_id both point in.
+  await execSql(`
+    DELETE FROM mos.tasks      WHERE org_id = '${ORG}' AND title LIKE 'AC204 %';
+    DELETE FROM mos.work_lines WHERE org_id = '${ORG}' AND name  LIKE 'AC204 %';
+    DELETE FROM mos.objectives WHERE org_id = '${ORG}' AND name  LIKE 'AC204 %';
+  `)
+  console.log('[global-teardown] cleared the AC-204 roll-up fixtures')
+
   // Re-seed the realistic demo tasks (mirrors seed.dev-tasks.sql exactly — same titles, RACI,
   // relative due-dates, and its second block's links to the SAME fixed-id demo
   // objectives/work_lines, which e2e never touches). PER-TASK idempotent: each row is inserted

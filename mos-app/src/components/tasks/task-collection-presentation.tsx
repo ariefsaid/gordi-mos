@@ -14,6 +14,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
+import { NO_WORK_LINE_KEY } from '@/lib/cascade/count-rollup'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 import { EmptyState } from '@/components/ui/state-kit'
@@ -133,7 +134,7 @@ function readCollapseState(): CollapseState {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
     const result: CollapseState = {}
-    for (const key of ['none', 'status', 'pic', 'bu', 'workline', 'occurrence'] as const) {
+    for (const key of ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence'] as const) {
       const values = (parsed as Record<string, unknown>)[key]
       if (Array.isArray(values)) result[key] = values.filter((value): value is string => typeof value === 'string')
     }
@@ -216,6 +217,11 @@ function localizedGroupLabel(
 ): string {
   if (group.key === '__no_workline__') return t('tasks.group.noWorkLine')
   if (group.key === '__no_occurrence__') return t('tasks.group.noOccurrence')
+  // An Objective branch with no Project/Process. The key is the shared projection's, so the label
+  // here and the branch label on a catalog row are the same words in every locale.
+  if (query.groupBy === 'objective' && group.key.endsWith(`:${NO_WORK_LINE_KEY}`)) {
+    return t('rollup.branch.noWorkLine')
+  }
   if (query.groupBy === 'status') {
     const labels: Record<TaskStatus, string> = {
       Open: t('tasks.status.open'),
@@ -244,6 +250,12 @@ function buildRenderGroups(
     overdue: group.overdue,
     prefillParam: group.prefillParam,
     workLineType: group.workLineType,
+    // A branch whose Objective is the synthesised `(Unlinked)` bucket carries a null id — that is
+    // what makes it localizable here and unlinkable in the header (there is no record to open).
+    objectiveHint: group.objectiveHint && {
+      id: group.objectiveHint.id,
+      name: group.objectiveHint.id ? group.objectiveHint.name : t('rollup.branch.unlinked'),
+    },
     occurrenceRollup: group.occurrenceRollup,
   }))
 }
@@ -475,6 +487,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
+      objectiveHint={group.objectiveHint}
       occurrenceRollup={group.occurrenceRollup}
       onAssignPending={group.occurrenceRollup && runtime.canResolvePending
         ? () => occurrence.open(group.key)

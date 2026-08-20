@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
 import { useT } from '@/i18n/use-t'
@@ -30,6 +31,7 @@ type GroupHeaderRowProps = {
    * Text label is always present (never color-only) — WCAG 1.4.1 compliance.
    */
   workLineType?: 'project' | 'process' | null
+  objectiveHint?: { id: string | null; name: string }
   /**
    * @deprecated Not used — the table uses a single shared <tbody> (virtualization
    * requirement) so no element can carry a per-group id. Kept in the type for
@@ -91,7 +93,7 @@ function WorkLineTypeTag({ type }: { type: 'project' | 'process' }) {
  */
 export function GroupHeaderRow({
   label, count, overdue, collapsed, colSpan,
-  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, readOnly, occurrenceRollup,
+  onToggle, onAddTask, onOverdueFilter, prefill, workLineType, objectiveHint, readOnly, occurrenceRollup,
   onAssignPending,
 }: GroupHeaderRowProps) {
   const t = useT()
@@ -109,6 +111,11 @@ export function GroupHeaderRow({
             {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
             <Chevron className={`grp-chev${collapsed ? ' grp-chev-collapsed' : ''}`} />
           </button>
+          {objectiveHint && (
+            <span className="gobjective collection-grammar-group-hint">
+              {objectiveHint.id ? <Link to={`/work/objectives?q=${encodeURIComponent(objectiveHint.name)}`}>{objectiveHint.name}</Link> : objectiveHint.name}
+            </span>
+          )}
           <span className="glabel collection-grammar-group-label">{label}</span>
           {/* FR-233: work-line type label — text always present, never color-only (WCAG 1.4.1) */}
           {workLineType != null && (

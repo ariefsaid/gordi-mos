@@ -15,6 +15,7 @@ export type RenderGroup = {
    * null = the "No work-line" trailing group (no type tag rendered).
    */
   workLineType?: 'project' | 'process' | null
+  objectiveHint?: { id: string | null; name: string }
   /**
    * Step 6 (ADR-0051, C1): only present when groupBy === 'occurrence' AND this group is a spawned
    * occurrence (not the ad-hoc-tasks catch-all group) — its derived mos.process_run_rollup counts,

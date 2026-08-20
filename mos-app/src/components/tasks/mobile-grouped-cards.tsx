@@ -23,6 +23,7 @@ export type MobileRenderGroup = {
    * Text label is always present (never color-only) — WCAG 1.4.1.
    */
   workLineType?: 'project' | 'process' | null
+  objectiveHint?: { id: string | null; name: string }
   /**
    * Design fix wave item 3 (Rule 9 occurrence group parity) — mirrors RenderGroup's
    * occurrenceRollup (tasks-grouping.ts). Present only for an occurrence group; supersedes the
@@ -210,7 +211,18 @@ export function MobileGroupedCards({
               {/* IXD-1: ONE shared Chevron, rotated −90° when collapsed (down = expanded). */}
               <Chevron className={`mgc-chev${isCollapsed(group.key) ? ' mgc-chev-collapsed' : ''}`} />
             </button>
-            <span className="mgc-label">{group.label}</span>
+            {/* The Objective sits ABOVE the Project/Process title, in its own column — inline it
+                would take a third of a 390px header and break the title mid-word. */}
+            <span className="mgc-group-headings">
+              {group.objectiveHint && (
+                <span className="mgc-objective-hint">
+                  {group.objectiveHint.id
+                    ? <Link to={`/work/objectives?q=${encodeURIComponent(group.objectiveHint.name)}`}>{group.objectiveHint.name}</Link>
+                    : group.objectiveHint.name}
+                </span>
+              )}
+              <span className="mgc-label">{group.label}</span>
+            </span>
             {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
             {group.workLineType != null && (
               <MobileWorkLineTypeTag type={group.workLineType} />

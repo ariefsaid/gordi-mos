@@ -28,6 +28,34 @@ function phoneBlock(): string {
   return withIdentity!
 }
 
+describe('shared catalog row actions stay usable on phone', () => {
+  it('uses the viewport phone branch and compact menu floor', () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)/)
+    expect(css).toContain('.catalog-collection__actions--desktop')
+    expect(css).toContain('.catalog-collection__actions--mobile')
+    expect(css).toMatch(/\.catalog-collection__menu-trigger[\s\S]*?min-width:\s*44px/)
+    expect(css).toMatch(/\.catalog-collection__menu[\s\S]*?max-width:\s*calc\(100vw - 24px\)/)
+    expect(css).not.toMatch(/\.catalog-collection__actions--mobile[^{]*\{[^}]*width:\s*100%/)
+  })
+})
+
+describe('a relation branch nests its Tasks beneath it, never beside it', () => {
+  it('the branch row stacks while a leaf Task row stays inline', () => {
+    // The generic `…relations-list li` is a flex ROW (link + count on one line). A BRANCH row also
+    // holds a nested <ul> of its Tasks, so it must override that to a column — otherwise the
+    // nested list becomes a third column and, at 390px, one branch's tasks render beside the next
+    // branch's name. jsdom has no layout engine, so this pins the authored rule.
+    expect(css).toMatch(
+      /\.catalog-collection__relations-list li\.catalog-collection__relations-branch\s*\{[^}]*flex-direction:\s*column/,
+    )
+    expect(css).toMatch(/\.catalog-collection__relations-branch-head\s*\{[^}]*display:\s*flex/)
+    // …and the nested list is indented, so the nesting is visible and not just structural.
+    expect(css).toMatch(
+      /\.catalog-collection__relations-branch\s*>\s*\.catalog-collection__relations-list\s*\{[^}]*padding-left/,
+    )
+  })
+})
+
 describe('DO-2: catalog rows keep their full name on phone', () => {
   it('the phone block gives the identity the full row', () => {
     const block = phoneBlock()

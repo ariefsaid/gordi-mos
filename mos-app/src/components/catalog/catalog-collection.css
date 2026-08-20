@@ -88,6 +88,35 @@
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  min-width: 0;
+}
+
+.catalog-collection__actions--mobile {
+  display: none;
+  position: relative;
+}
+
+.catalog-collection__menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  box-shadow: var(--shadow-overlay);
+}
+
+.catalog-collection__menu .btn {
+  min-width: 44px;
+  min-height: 44px;
+  white-space: nowrap;
 }
 
 /* ── OD-V4-1 H4: per-row relations disclosure (a real drill target, not inert text) ──────────── */
@@ -181,6 +210,23 @@
   align-items: baseline;
   gap: 6px;
 }
+/* A relation BRANCH carries its own nested Task list, so it stacks: name + count on one line,
+   its Tasks indented beneath. The flex-row default above turned that nested list into a third
+   COLUMN, which at 390px read as one branch's tasks sitting beside another branch's name. */
+.catalog-collection__relations-list li.catalog-collection__relations-branch {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.catalog-collection__relations-branch-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.catalog-collection__relations-branch > .catalog-collection__relations-list {
+  padding-left: 12px;
+}
 
 .catalog-collection__relations-link {
   color: var(--primary);
@@ -188,6 +234,11 @@
   text-decoration: none;
 }
 
+/* A synthetic branch has no record behind it, so it must not wear the link colour — blue text
+   that does nothing on tap is an affordance the surface cannot honour. */
+.catalog-collection__relations-link--inert {
+  color: var(--muted-foreground);
+}
 .catalog-collection__relations-link:hover {
   text-decoration: underline;
 }
@@ -231,6 +282,22 @@
    On phone the identity takes the full row (the actions wrap onto their own line
    below, right-aligned as before) and the name WRAPS instead of ellipsizing, so
    a catalog row is always recognizable by its full name. */
+@media (max-width: 767.98px) {
+  .catalog-collection__actions--desktop {
+    display: none;
+  }
+
+  .catalog-collection__actions--mobile {
+    display: flex;
+  }
+
+  .catalog-collection__menu-trigger {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+}
+
 @media (max-width: 480px) {
   .catalog-collection__identity {
     flex-basis: 100%;

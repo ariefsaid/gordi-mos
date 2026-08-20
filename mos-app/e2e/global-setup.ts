@@ -22,7 +22,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { ORPHAN, RECOVERY_VIEWER, ADMIN, MEMBER, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
-import { TASKS } from './fixtures/tasks'
+import { AC204, TASKS } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -326,4 +326,55 @@ export default async function globalSetup() {
     );
   `)
   console.log(`[global-setup] seeded VIEWER_ACCOUNTABLE task (id=${t.id})`)
+
+  // ── 7. AC-204 — the Objective roll-up world (deterministic; the spec asserts exact counts) ────
+  // Runs AFTER the mos.tasks wipe above, so these are the only linked tasks in the org and the
+  // counts the spec pins cannot drift with whatever else the database happens to hold. Delete
+  // before insert (not ON CONFLICT DO NOTHING) so a re-run cannot leave a stale edge behind.
+  const a = AC204
+  const owner = ADMIN.personId
+  // The "not mine" owner is a DEDICATED e2e person, never a dev persona: pointing it at Cahya put
+  // an extra project task in her workload and broke AC-230's caption ("2 projects", expected 1).
+  // RECOVERY_VIEWER owns no other task and no caption asserts over it.
+  const other = RECOVERY_VIEWER.personId
+  const seedTask = (
+    task: { id: string; title: string },
+    status: string,
+    objectiveId: string | null,
+    workLineId: string | null,
+    personId: string,
+  ) => `
+    INSERT INTO mos.tasks (
+      id, org_id, title, business_unit_id, status,
+      responsible_person_id, accountable_person_id,
+      consulted_person_ids, informed_person_ids,
+      description, due_date, objective_id, work_line_id, created_by
+    ) VALUES (
+      '${task.id}', '${a.orgId}', '${task.title}', '${a.businessUnitId}', '${status}',
+      '${personId}', '${personId}', '{}', '{}',
+      'Seeded for the AC-204 Objective roll-up journey.', NULL,
+      ${objectiveId ? `'${objectiveId}'` : 'NULL'}, ${workLineId ? `'${workLineId}'` : 'NULL'},
+      '${personId}'
+    );`
+
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
+    DELETE FROM mos.tasks      WHERE org_id = '${a.orgId}' AND title LIKE 'AC204 %';
+    DELETE FROM mos.work_lines WHERE org_id = '${a.orgId}' AND name  LIKE 'AC204 %';
+    DELETE FROM mos.objectives WHERE org_id = '${a.orgId}' AND name  LIKE 'AC204 %';
+
+    INSERT INTO mos.objectives (id, org_id, name)
+    VALUES ('${a.objective.id}', '${a.orgId}', '${a.objective.name}');
+
+    INSERT INTO mos.work_lines (id, org_id, name, type, objective_id) VALUES
+      ('${a.launch.id}', '${a.orgId}', '${a.launch.name}', '${a.launch.type}', '${a.objective.id}'),
+      ('${a.loose.id}',  '${a.orgId}', '${a.loose.name}',  '${a.loose.type}',  NULL);
+
+    ${seedTask(a.tasks.launchDone, 'Done', a.objective.id, a.launch.id, owner)}
+    ${/* no objective_id: it can only reach the Objective through the work-line edge */ ''}
+    ${seedTask(a.tasks.launchOpen, 'Open', null, a.launch.id, owner)}
+    ${seedTask(a.tasks.directOnObj, 'Open', a.objective.id, null, owner)}
+    ${seedTask(a.tasks.orphanLine, 'Open', null, a.loose.id, owner)}
+    ${seedTask(a.tasks.someoneElse, 'Open', null, a.launch.id, other)}
+  `)
+  console.log(`[global-setup] seeded the AC-204 roll-up world (objective ${a.objective.id})`)
 }

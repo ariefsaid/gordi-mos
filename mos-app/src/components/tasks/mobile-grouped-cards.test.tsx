@@ -74,6 +74,16 @@ describe('MobileGroupedCards', () => {
     expect(openHead.textContent).toContain('1')
   })
 
+  it('renders Objective hint above the Project/Process group title at phone width', () => {
+    renderCards({ groups: [{
+      key: 'objective:project', label: 'Launch', rows: [makeTask({ title: 'Ship task' })], overdue: 0, prefillParam: '',
+      objectiveHint: { id: 'objective-1', name: 'Grow revenue' }, workLineType: 'project',
+    }] })
+    expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+    expect(screen.getByText('Launch')).toBeInTheDocument()
+    expect(screen.getByText('Ship task')).toBeInTheDocument()
+  })
+
   it('renders task cards for non-collapsed groups', () => {
     renderCards()
     expect(screen.getByText('Task A')).toBeInTheDocument()

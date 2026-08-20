@@ -20,16 +20,21 @@ import type {
   CatalogCollectionContext,
   CatalogCollectionQuery,
   CatalogRelations,
+  CatalogRelationTask,
   CatalogRelationsKind,
   CatalogRenderGroup,
   CatalogRow,
 } from './catalog-collection-adapter'
 import { useCatalogCollectionActions } from './catalog-collection-actions'
+import { CatalogRowActions } from './catalog-row-actions'
 import './catalog-collection.css'
 
 /** OD-V4-1 H4 cap: an objective/work_line with dozens of tasks gets a bounded inline list, not a
     runaway DOM — the row's disclosure is a real drill-in for the common case, not a full report. */
 const MAX_RELATIONS_TASKS = 12
+
+/** Where a capped branch's overflow goes: Tasks grouped by Objective, every branch in full. */
+const OVERFLOW_TASKS_DOOR = '/work/tasks?group=objective'
 
 // The disclosure marker is an SVG chevron, rotated by CSS when open — never a text triangle.
 // RI-IXD-1 (src/consistency.regression.test.tsx) fails the suite on a literal triangle character
@@ -65,8 +70,43 @@ function RelationsPanel({
     )
   }
 
-  const shownTasks = relations.tasks.slice(0, MAX_RELATIONS_TASKS)
-  const overflow = relations.tasks.length - shownTasks.length
+  const groupedTaskIds = new Set(relations.groups.flatMap((group) => (group.tasks ?? []).map((task) => task.id)))
+  const ungroupedTasks = relations.tasks.filter((task) => !groupedTaskIds.has(task.id))
+
+  /**
+   * A capped list AND its way through (#204 finding 1). The cap without a door is the defect: task
+   * 13 of a branch simply vanished, and the branches most likely to run long are the synthetic ones
+   * — `No Project/Process` and `(Unlinked)` — which hold exactly the work nobody is tracking. So
+   * the door is emitted by the same helper that does the capping; it cannot be forgotten for one
+   * branch and remembered for another. It lands on Tasks grouped by Objective, where every branch,
+   * synthetic included, is rendered in full.
+   */
+  const taskList = (tasks: readonly CatalogRelationTask[], branchName: string) => {
+    const overflow = tasks.length - MAX_RELATIONS_TASKS
+    return (
+      <ul className="catalog-collection__relations-list">
+        {tasks.slice(0, MAX_RELATIONS_TASKS).map((task) => (
+          <li key={task.id}>
+            <Link className="catalog-collection__relations-link" to={`/work/tasks/${task.id}`}>{task.title}</Link>
+          </li>
+        ))}
+        {overflow > 0 && (
+          <li>
+            <Link
+              className="catalog-collection__relations-link"
+              to={OVERFLOW_TASKS_DOOR}
+              /* Several branches can overflow in one panel, so the visible copy repeats. The
+                 accessible name carries the branch, or a screen-reader user gets a list of
+                 identical "+3 more" links with no way to tell them apart. */
+              aria-label={t('catalog.relations.moreTasksAria', { count: String(overflow), name: branchName })}
+            >
+              {t('catalog.relations.moreTasks', { count: String(overflow) })}
+            </Link>
+          </li>
+        )}
+      </ul>
+    )
+  }
 
   return (
     <div className="catalog-collection__relations-body">
@@ -77,38 +117,36 @@ function RelationsPanel({
           </span>
           <ul className="catalog-collection__relations-list">
             {relations.groups.map((group) => (
-              <li key={group.id}>
-                <Link
-                  className="catalog-collection__relations-link"
-                  to={{ pathname: groupPath, search: `?q=${encodeURIComponent(group.name)}` }}
-                >
-                  {group.name}
-                </Link>
-                <span className="catalog-collection__relations-count">({group.taskCount})</span>
+              <li key={group.id} className="catalog-collection__relations-branch">
+                {/* Name + count on their own line, the branch's Tasks nested beneath. The default
+                    row is a flex ROW, so without this the nested list became a third column and
+                    a branch's tasks read as if they belonged to the branch beside it (390px). */}
+                <span className="catalog-collection__relations-branch-head">
+                  {/* A synthetic branch is not a record, so it gets no record door — linking one
+                      into the catalog search would hunt for a name that does not exist there. */}
+                  {group.synthetic ? (
+                    <span className="catalog-collection__relations-link catalog-collection__relations-link--inert">
+                      {group.name}
+                    </span>
+                  ) : (
+                    <Link className="catalog-collection__relations-link" to={{ pathname: groupPath, search: `?q=${encodeURIComponent(group.name)}` }}>
+                      {group.name}
+                    </Link>
+                  )}
+                  <span className="catalog-collection__relations-count">
+                    {t('catalog.relations.progress', { done: String(group.done), total: String(group.total) })}
+                  </span>
+                </span>
+                {group.tasks && group.tasks.length > 0 && taskList(group.tasks, group.name)}
               </li>
             ))}
           </ul>
         </div>
       )}
-      {hasTasks && (
+      {ungroupedTasks.length > 0 && (
         <div className="catalog-collection__relations-group">
           <span className="catalog-collection__relations-heading">{t('catalog.relations.heading.tasks')}</span>
-          <ul className="catalog-collection__relations-list">
-            {shownTasks.map((task) => (
-              <li key={task.id}>
-                <Link className="catalog-collection__relations-link" to={`/work/tasks/${task.id}`}>
-                  {task.title}
-                </Link>
-              </li>
-            ))}
-            {overflow > 0 && (
-              <li>
-                <Link className="catalog-collection__relations-link" to="/work/tasks">
-                  {t('catalog.relations.moreTasks', { count: String(overflow) })}
-                </Link>
-              </li>
-            )}
-          </ul>
+          {taskList(ungroupedTasks, t('catalog.relations.heading.tasks'))}
         </div>
       )}
     </div>
@@ -180,6 +218,7 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
           </Tag>
         ) : null
         const trace = !archivedView ? context.traceById.get(row.id) : undefined
+        const progress = !archivedView ? context.progressById.get(row.id) : undefined
 
         if (editingId === row.id) {
           return (
@@ -251,38 +290,19 @@ export function CatalogListPresentation({ query, projection, context }: CatalogL
                 a door that is not theirs. Objectives is the surface this can happen on (OD-V4-1
                 removed its read gate); Projects/Processes is still route-gated, so its viewers
                 always hold the capability and always see these. */}
-            {actions.canManage && (
-            <div className="catalog-collection__actions">
-              {archivedView ? (
-                <Button
-                  variant="ghost"
-                  disabled={busy}
-                  aria-label={t('catalog.unarchiveAria', { name: row.name })}
-                  onClick={() => void runArchive(row, false)}
-                >
-                  {t('catalog.unarchive')}
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="ghost"
-                    disabled={busy}
-                    aria-label={t('catalog.renameAria', { name: row.name })}
-                    onClick={() => startEdit(row)}
-                  >
-                    {t('catalog.rename')}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy}
-                    aria-label={t('catalog.archiveAria', { name: row.name })}
-                    onClick={() => void runArchive(row, true)}
-                  >
-                    {t('catalog.archive')}
-                  </Button>
-                </>
-              )}
-            </div>
+            <CatalogRowActions
+              name={row.name}
+              archived={archivedView}
+              canManage={actions.canManage}
+              disabled={busy}
+              onRename={() => startEdit(row)}
+              onArchive={() => void runArchive(row, true)}
+              onUnarchive={() => void runArchive(row, false)}
+            />
+            {progress && (
+              <span className="catalog-collection__trace" data-testid="catalog-progress">
+                {t('catalog.relations.progress', { done: String(progress.done), total: String(progress.total) })}
+              </span>
             )}
             {trace && (
               <span className="catalog-collection__trace" data-testid="catalog-trace">{trace}</span>

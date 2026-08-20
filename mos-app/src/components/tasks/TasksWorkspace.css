@@ -574,6 +574,10 @@ tr.grp td { padding: 0; }
 @media (prefers-reduced-motion: reduce) {
   .gbar .caret .grp-chev { transition: none; }
 }
+/* The Objective a group's Project/Process rolls up to. Quiet and small beside the bold title:
+   it is context for the title, not a second title. */
+.gbar .gobjective { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+.gbar .gobjective a { color: var(--primary); }
 .gbar .glabel { font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .gbar .gcount { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .gbar .gsub {
@@ -608,7 +612,12 @@ tr.grp td { padding: 0; }
 @media (prefers-reduced-motion: reduce) {
   .mgc-caret .mgc-chev { transition: none; }
 }
-.mgc-label { font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
+/* Objective above, Project/Process title below — one column, so the header's remaining controls
+   keep their width and neither line has to break a word to fit a 390px phone. */
+.mgc-group-headings { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.mgc-objective-hint { min-width: 0; color: var(--muted-foreground); font-size: var(--font-size-label); }
+.mgc-objective-hint a { color: var(--primary); }
+.mgc-label { min-width: 0; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;

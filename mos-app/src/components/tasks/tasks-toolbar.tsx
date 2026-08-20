@@ -41,13 +41,14 @@ const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress
   { value: 'Done', key: 'done' },
 ]
 
-const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'status' | 'pic' | 'businessUnit' | 'projectProcess' | 'occurrence' }[] = [
+const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'status' | 'pic' | 'businessUnit' | 'projectProcess' | 'objective' | 'occurrence' }[] = [
   { value: 'none', key: 'none' },
   { value: 'status', key: 'status' },
   // `owner` remains a DOM compatibility alias for mature tests/bookmarks; the typed query is PIC.
   { value: 'owner', key: 'pic' },
   { value: 'bu', key: 'businessUnit' },
   { value: 'workline', key: 'projectProcess' },
+  { value: 'objective', key: 'objective' },
   { value: 'occurrence', key: 'occurrence' },
 ]
 
@@ -82,6 +83,7 @@ export function TasksToolbar({
     if (key === 'pic') return t('tasks.pic')
     if (key === 'businessUnit') return t('tasks.filter.businessUnit')
     if (key === 'projectProcess') return t('tasks.filter.projectProcess')
+    if (key === 'objective') return t('tasks.objective')
     return t('tasks.filter.occurrence')
   }
   const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) => {

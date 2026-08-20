@@ -10,6 +10,7 @@ import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { buildObjectiveBranches, type BranchTask } from '@/lib/cascade/count-rollup'
 import { isOverdue } from '@/lib/due-status'
 import { STATUS_ORDER } from './task-formatters'
 import { groupTasksByOccurrence } from '@/lib/processes/occurrence-grouping'
@@ -43,7 +44,7 @@ import type {
 } from '@/lib/record-collection/types'
 
 export type TaskCollectionPresentation = 'table' | 'card'
-export type TaskCollectionGroup = 'none' | 'status' | 'pic' | 'bu' | 'workline' | 'occurrence'
+export type TaskCollectionGroup = 'none' | 'status' | 'pic' | 'bu' | 'workline' | 'objective' | 'occurrence'
 export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
@@ -76,7 +77,7 @@ const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
   'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
 ]
-const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'occurrence']
+const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 
 /** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw. */
@@ -291,6 +292,8 @@ export interface TaskCollectionContext {
   personNamesById: ReadonlyMap<string, string>
   workLinesById: ReadonlyMap<string, string>
   workLineTypeById: ReadonlyMap<string, 'project' | 'process'>
+  /** Direct Objective edge carried by each work line; used when a Task omits objective_id. */
+  workLineObjectiveById?: ReadonlyMap<string, string | null>
   objectivesById: ReadonlyMap<string, string>
   /** Occurrence roll-ups keyed by process_run_id (only populated for occurrence grouping). */
   runRollupsByRunId: ReadonlyMap<string, ProcessRunRollup>
@@ -316,6 +319,8 @@ export interface TaskRenderGroup {
   prefillParam: string
   /** Only for `groupBy === 'workline'`: the type tag; null = the "No work-line" trailing group. */
   workLineType?: 'project' | 'process' | null
+  /** Objective context shown above an Objective grouping's work-line title. */
+  objectiveHint?: { id: string | null; name: string }
   /** Only for a spawned occurrence group: its derived roll-up counts. */
   occurrenceRollup?: { total: number; done: number; overdue: number; pendingUnresolved: number }
 }
@@ -452,6 +457,34 @@ export function buildTaskGroups(
     return named
   }
 
+  if (query.groupBy === 'objective') {
+    // The SHARED projection (#204), the same one the Objectives and Projects & Processes catalog
+    // rows read. Constructing these branches a second time here is precisely the drift this ticket
+    // exists to remove one layer up: the catalog's counts and this list's groups would diverge and
+    // nothing would go red. `includeEmptyWorkLines` stays off — a catalog row shows a child that
+    // holds no work yet, a list of tasks does not.
+    //
+    // No `minePersonId`: `rows` has already been through the view filter (my-work and friends), so
+    // re-applying ownership here would filter the same rule twice.
+    const branches = buildObjectiveBranches<TaskCollectionRecord & BranchTask>({
+      objectives: [...ctx.objectivesById].map(([id, name]) => ({ id, name })),
+      workLines: [...ctx.workLinesById].map(([id, name]) => ({
+        id, name,
+        type: ctx.workLineTypeById.get(id) ?? 'project',
+        objective_id: ctx.workLineObjectiveById?.get(id) ?? null,
+      })),
+      tasks: rows.map((row) => ({ ...row, objective_id: row.objectiveId, work_line_id: row.workLineId })),
+    })
+    return branches.map((branch) => ({
+      // The label and the hint stay in the projection's English fallback here; the presentation
+      // localizes both off the stable branch key, the same contract the other groupings use.
+      ...mk(branch.key, branch.workLineName, '', branch.tasks.map(stripBranchTask), {
+        workLineType: branch.workLineType,
+      }),
+      objectiveHint: { id: branch.objectiveId, name: branch.objectiveName },
+    }))
+  }
+
   if (query.groupBy === 'status') {
     // Status label is the raw status; the consumer localizes it. Fixed 4-status order (OD-P3-6).
     const byStatus = partition(rows, (r) => r.status)
@@ -491,6 +524,14 @@ export const NO_OCCURRENCE_GROUP_KEY = '__no_occurrence__'
 function stripGroupable(r: TaskCollectionRecord & { process_run_id: string | null }): TaskCollectionRecord {
   const { process_run_id: _drop, ...rest } = r
   void _drop
+  return rest
+}
+
+/** Drop the snake_case edge aliases the shared branch projection reads. */
+function stripBranchTask(r: TaskCollectionRecord & BranchTask): TaskCollectionRecord {
+  const { objective_id: _o, work_line_id: _w, ...rest } = r
+  void _o
+  void _w
   return rest
 }
 
@@ -720,6 +761,7 @@ async function loadTaskCollection(args: {
     personNamesById: toNameMap(people, (p) => p.full_name),
     workLinesById: toNameMap(workLines, (w) => w.name),
     workLineTypeById: new Map(workLines.map((w) => [w.id, w.type])),
+    workLineObjectiveById: new Map(workLines.map((w) => [w.id, w.objective_id ?? null])),
     objectivesById: toNameMap(objectives, (o) => o.name),
     runRollupsByRunId,
     provenanceByTaskDefId,

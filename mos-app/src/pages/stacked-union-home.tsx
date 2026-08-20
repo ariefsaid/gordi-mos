@@ -9,6 +9,7 @@
 // BU-scoped (§3.6): a BU-head's function-cockpit shows the BU money slot, never whole-company tiles;
 // a member gets no cockpit ⇒ no finance section. Every tile drills (anchor A4).
 import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
@@ -142,6 +143,9 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
           canSeeMargin={canSeeMargin}
         />
         <OpsKpiSection />
+        <Link className="home-stack-slot" to="/work/objectives">
+          {t('home.stack.objectivesProgress')}
+        </Link>
       </section>
     )
   }
@@ -161,6 +165,9 @@ function SectionView({ section, canSeeRevenue, canSeeMargin, personId, now }: Se
           canSeeMargin={canSeeMargin}
         />
         <OpsKpiSection />
+        <Link className="home-stack-slot" to="/work/objectives">
+          {t('home.stack.objectivesProgress')}
+        </Link>
       </section>
     )
   }

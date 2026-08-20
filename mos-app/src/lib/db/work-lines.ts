@@ -11,13 +11,14 @@ export interface WorkLineRow {
   id: string
   name: string
   type: 'project' | 'process'
+  objective_id?: string | null
 }
 
 /** List active (non-archived) work lines ordered by name (org-readable via RLS). */
 export async function listWorkLines(): Promise<WorkLineRow[]> {
   const { data, error } = await mos()
     .from('work_lines')
-    .select('id,name,type')
+    .select('id,name,type,objective_id')
     .is('archived_at', null)
     .order('name')
   if (error) throw new Error(`listWorkLines failed — ${error.message}`)
@@ -30,6 +31,7 @@ export interface WorkLineAdminRow {
   id: string
   name: string
   type: 'project' | 'process'
+  objective_id?: string | null
   archived_at: string | null
 }
 
@@ -37,7 +39,7 @@ export interface WorkLineAdminRow {
 export async function listWorkLinesAll(): Promise<WorkLineAdminRow[]> {
   const { data, error } = await mos()
     .from('work_lines')
-    .select('id,name,type,archived_at')
+    .select('id,name,type,objective_id,archived_at')
     .order('archived_at', { nullsFirst: true })
     .order('name')
   if (error) throw new Error(`listWorkLinesAll failed — ${error.message}`)
@@ -52,7 +54,7 @@ export async function createWorkLine(
   const { data, error } = await mos()
     .from('work_lines')
     .insert({ name, type })
-    .select('id,name,type,archived_at')
+    .select('id,name,type,objective_id,archived_at')
     .single()
   if (error) throw new Error(`createWorkLine failed — ${error.message}`)
   return data as unknown as WorkLineAdminRow
