@@ -5,7 +5,7 @@ import { ViewTabs } from '@/components/ui/view-tabs'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
-import { useViewOptionsKeyboard } from '@/shell/view-options-keyboard'
+import { viewOptionsTraversal } from '@/shell/view-options-keyboard'
 import './collection-toolbar.css'
 
 export interface CollectionToolbarOption<T extends string = string> {
@@ -107,9 +107,7 @@ export function CollectionToolbar<
   const [viewName, setViewName] = useState('')
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
   const optionsTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const optionsPanelRef = useRef<HTMLDivElement | null>(null)
   const optionsRowId = useId()
-  const onOptionsKeyDown = useViewOptionsKeyboard(optionsOpen, optionsPanelRef)
 
   useEffect(() => {
     savedViews?.onLoad?.()
@@ -286,15 +284,16 @@ export function CollectionToolbar<
           aria-label={t('common.viewAndFilters')}
           // Phone gate: on phone this panel is the always-expanded CONTENT of the host's outer
           // ViewOptionsDisclosure door — Escape must bubble up to close THAT door, not be eaten
-          // here (innermost-owner-wins across the two doors).
-          ref={optionsPanelRef}
+          // here (innermost-owner-wins across the two doors). That outer door also owns the
+          // Arrow/Home/End traversal (#382) for everything inside it, so a phone handler here
+          // would be a second owner of the same keys over the same DOM — two moves per press.
           onKeyDown={isDesktop ? (event) => {
-            onOptionsKeyDown(event)
+            viewOptionsTraversal(event)
             if (event.key !== 'Escape') return
             event.preventDefault()
             event.stopPropagation()
             closeOptions()
-          } : onOptionsKeyDown}
+          } : undefined}
         >
           {filters.map((filter) => (
             <label key={filter.id} className="collection-toolbar__option-field">

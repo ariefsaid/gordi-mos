@@ -248,7 +248,10 @@ describe('CollectionToolbar — I3 "View & filters" Escape (issue #379)', () => 
     )
   }
 
-  it('opening focuses the first filter and traversal includes dynamically opened Save-view controls', async () => {
+  // #382: Arrow/Home/End rove the panel's own controls. Two things the traversal must NOT do:
+  // take focus off the trigger when the door opens (that killed the collection's j/k row cursor,
+  // which suppresses itself for a focused control), and eat keys a native <select> already owns.
+  it('Arrow/Home/End rove the live control set; the door does not steal focus and a focused filter keeps its own keys', async () => {
     stubDesktop()
     renderToolbar({
       savedViews: {
@@ -258,11 +261,23 @@ describe('CollectionToolbar — I3 "View & filters" Escape (issue #379)', () => 
     })
     const trigger = screen.getByRole('button', { name: /view & filters/i })
     await userEvent.click(trigger)
+    // Opening discloses controls; it does not move the user's focus into them.
+    expect(trigger).toHaveFocus()
+
+    // A focused filter select owns Arrow/Home/End (option navigation) — traversal stands down.
     const team = screen.getByRole('combobox', { name: 'Team' })
-    expect(team).toHaveFocus()
+    team.focus()
     await userEvent.keyboard('{ArrowDown}')
+    expect(team).toHaveFocus()
+    await userEvent.keyboard('{End}')
+    expect(team).toHaveFocus()
+
+    // From a button, the arrows rove — and the Save-view row opened after the panel did is part
+    // of the set, because the control list is read live on every key.
     const saveTrigger = screen.getByRole('button', { name: /save view/i })
-    expect(saveTrigger).toHaveFocus()
+    saveTrigger.focus()
+    await userEvent.keyboard('{ArrowUp}')
+    expect(team).toHaveFocus()
     await userEvent.click(saveTrigger)
     saveTrigger.focus()
     await userEvent.keyboard('{ArrowDown}')
@@ -270,6 +285,8 @@ describe('CollectionToolbar — I3 "View & filters" Escape (issue #379)', () => 
     saveTrigger.focus()
     await userEvent.keyboard('{End}')
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    await userEvent.keyboard('{Home}')
+    expect(team).toHaveFocus()
   })
 
   it('Escape on the open trigger closes the disclosure; focus stays on the trigger', async () => {

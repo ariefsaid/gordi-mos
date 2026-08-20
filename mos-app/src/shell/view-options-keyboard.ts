@@ -1,47 +1,40 @@
-import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
+import type { KeyboardEvent } from 'react'
+import { focusableWithin } from '@/lib/focusable'
 
-const CONTROL_SELECTOR = 'button, a[href], select, input, textarea, [contenteditable="true"]'
+const TRAVERSAL_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End']
 
-function panelControls(panel: HTMLElement | null): HTMLElement[] {
-  if (!panel) return []
-  return Array.from(panel.querySelectorAll<HTMLElement>(CONTROL_SELECTOR)).filter((control) => {
-    if (control.hidden || control.getAttribute('aria-hidden') === 'true') return false
-    if (control.closest('[hidden], [aria-hidden="true"]')) return false
-    if (control.getAttribute('type') === 'hidden') return false
-    if ('disabled' in control && (control as HTMLButtonElement).disabled) return false
-    if (control.getAttribute('aria-disabled') === 'true') return false
-    if (control.getAttribute('tabindex') === '-1') return false
-    const style = window.getComputedStyle(control)
-    return style.display !== 'none' && style.visibility !== 'hidden'
-  })
-}
+// Controls that already own these keys natively — a <select>'s option list, a text caret, a
+// number/range/radio input — and composites that run their own roving handler (ViewTabs' tablist,
+// menus, listboxes). A traversal that fired on these would STEAL the key from the very control the
+// panel exists to operate, which is the defect this file was written to fix, not to re-commit.
+const OWNS_KEYS = 'select, textarea, input:not([type="checkbox"]), [contenteditable="true"]'
+const OWNS_KEYS_COMPOSITE = '[role="tablist"], [role="listbox"], [role="menu"], [role="radiogroup"]'
 
-/** Shared keyboard/focus behavior for the phone and desktop View & filters doors. */
-export function useViewOptionsKeyboard(open: boolean, panelRef: RefObject<HTMLElement | null>) {
-  const wasOpen = useRef(false)
-  useEffect(() => {
-    if (open && !wasOpen.current) {
-      // Defer one microtask so the trigger's click transaction can finish before focus
-      // enters the panel; the first control still receives focus on the open transition.
-      queueMicrotask(() => panelControls(panelRef.current)[0]?.focus())
-    }
-    wasOpen.current = open
-  }, [open, panelRef])
-
-  return (event: KeyboardEvent<HTMLElement>) => {
-    if (!open || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
-    const target = event.target as HTMLElement
-    if (target.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]')) return
-    const panel = panelRef.current
-    const controls = panelControls(panel)
-    const current = controls.indexOf(target)
-    if (current < 0) return
-    const next = event.key === 'Home'
-      ? 0
-      : event.key === 'End'
-        ? controls.length - 1
-        : (current + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) % controls.length
-    event.preventDefault()
-    controls[next]?.focus()
-  }
+/**
+ * Arrow/Home/End traversal between a View & filters panel's own controls (#382), shared by the
+ * desktop door (CollectionToolbar's trigger) and the phone door (ViewOptionsDisclosure).
+ *
+ * Attach it to the panel element: the live control set is read from `event.currentTarget` on every
+ * key, so controls that appear while the panel is open (the Save-view row) join the traversal
+ * without any registration.
+ *
+ * Focus is NOT moved into the panel on open. A disclosure is not an overlay — DESIGN.md requires
+ * focus entry of *real overlays* — and auto-focusing the first filter `<select>` killed the
+ * collection's j/k row cursor with no keyboard way back out (PR #394 review, blocking 1).
+ */
+export function viewOptionsTraversal(event: KeyboardEvent<HTMLElement>): void {
+  if (!TRAVERSAL_KEYS.includes(event.key)) return
+  if (event.metaKey || event.ctrlKey || event.altKey) return
+  const target = event.target as HTMLElement
+  if (target.matches(OWNS_KEYS) || target.closest(OWNS_KEYS_COMPOSITE)) return
+  const controls = focusableWithin(event.currentTarget)
+  const current = controls.indexOf(target)
+  if (current < 0) return
+  const next = event.key === 'Home'
+    ? 0
+    : event.key === 'End'
+      ? controls.length - 1
+      : (current + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) % controls.length
+  event.preventDefault()
+  controls[next]?.focus()
 }
