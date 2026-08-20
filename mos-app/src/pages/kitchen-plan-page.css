@@ -16,7 +16,7 @@
 }
 
 .kp-date {
-  font-size: 13px;
+  font-size: var(--font-size-control);
   color: var(--muted-foreground);
   background: var(--muted);
   padding: 2px 8px;
@@ -32,7 +32,7 @@
 }
 
 .kp-nothing-planned {
-  font-size: 13px;
+  font-size: var(--font-size-control);
   color: var(--muted-foreground);
   margin: 4px 0 8px;
 }
@@ -59,7 +59,7 @@
 .kp-banner {
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: var(--font-size-control);
   margin: 8px 0;
 }
 .kp-banner-offline {
@@ -88,12 +88,12 @@
   min-width: 0; /* allow the name to truncate rather than blow the cell width */
 }
 .kp-name {
-  font-size: 13.5px;
+  font-size: var(--font-size-control);
   font-weight: 500;
   color: var(--foreground);
 }
 .kp-cat {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
 }
 
@@ -131,7 +131,7 @@
 .kp-forbidden-msg {
   color: var(--muted-foreground);
   margin-bottom: 16px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 /* ── Mobile (<768px): the useIsDesktop() branch handles reflow at the component

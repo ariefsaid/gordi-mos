@@ -12,8 +12,8 @@
   gap: 5px;
   height: 20px;
   padding: 0 8px;
-  border-radius: 999px; /* rounded.full */
-  font-size: 11px;
+  border-radius: var(--radius-pill); /* rounded.full */
+  font-size: var(--font-size-overline);
   font-weight: 600;
   line-height: 1;
   width: fit-content;
@@ -21,7 +21,7 @@
 .dq-badge .dot {
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   flex: none;
 }
 

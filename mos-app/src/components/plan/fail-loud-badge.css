@@ -5,8 +5,8 @@
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  border-radius: var(--ds-border-radius-pill, 999px);
-  font-size: 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-label);
   font-weight: 600;
   line-height: 1.4;
   border: 1px solid transparent;

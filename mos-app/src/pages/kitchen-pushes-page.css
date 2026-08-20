@@ -39,7 +39,7 @@
 /* Mono for IDs (batch_id / esb_doc_num) — "Mono-For-IDs" rule (DESIGN.md) */
 .mono {
   font-family: var(--font-mono, "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   font-weight: 500;
   letter-spacing: 0;
 }
@@ -53,13 +53,13 @@
 /* Muted tertiary text for last_error and dash placeholders */
 .kpu-cell-muted {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
 }
 
 /* Escalate hint (dead-letter read-only cue) */
 .kpu-escalate-hint {
   display: block;
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--warning-foreground);
   margin-top: 4px;
 }
@@ -67,7 +67,7 @@
 /* Time cell */
 .kpu-time {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   white-space: nowrap;
 }
 
@@ -87,7 +87,7 @@
 }
 
 .kpu-forbidden-title {
-  font-size: 16px;
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 8px;
@@ -96,5 +96,5 @@
 .kpu-forbidden-msg {
   color: var(--muted-foreground);
   margin-bottom: 16px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }

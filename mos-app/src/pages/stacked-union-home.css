@@ -19,7 +19,7 @@
   margin: 4px 2px 12px;
 }
 .home-stack-section-title {
-  font-size: 18px;
+  font-size: var(--font-size-subheading);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--foreground);
@@ -27,7 +27,7 @@
   line-height: 1.25;
 }
 .home-stack-section-subtitle {
-  font-size: 13px;
+  font-size: var(--font-size-control);
   color: var(--muted-foreground);
   margin: 4px 0 0;
 }
@@ -37,7 +37,7 @@
   margin-bottom: 14px;
 }
 .home-stack-subsection-title {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -49,7 +49,7 @@
    ops-KPI coming). Dashed border signals "drop point / coming"; solid muted for read-only strips. */
 .home-stack-slot {
   border: 1px dashed var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--muted);
   padding: 12px 16px;
   margin: 8px 0;
@@ -66,13 +66,13 @@
   min-height: 48px;
 }
 .home-stack-slot-label {
-  font-size: 14px;
+  font-size: var(--font-size-body);
   color: var(--muted-foreground);
   flex: 1 1 160px;
   min-width: 0;
 }
 .home-stack-slot-link {
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: 600;
   color: var(--primary);
   text-decoration: none;
@@ -89,10 +89,10 @@
   width: 100%;
   padding: 14px 20px;
   margin-bottom: 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--primary);
   color: var(--primary-foreground);
-  font-size: 16px;
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   text-decoration: none;
   box-shadow: var(--shadow-rest);
@@ -106,10 +106,10 @@
   border: 1px solid var(--destructive);
   color: var(--destructive);
   background: color-mix(in srgb, var(--destructive) 6%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 12px 16px;
   margin-bottom: 16px;
-  font-size: 15px;
+  font-size: var(--font-size-body-lg);
 }
 
 /* Phone (≤380px): the KPI grid reflows 2-up (160px min × 2 + gap ≈ 332px < 380px); sections +
@@ -117,7 +117,7 @@
    handle it. This guard tightens the capture CTA + slots to the narrow viewport. */
 @media (max-width: 380px) {
   .home-stack-section-title {
-    font-size: 17px;
+    font-size: var(--font-size-subheading);
   }
   .home-stack-slot {
     padding: 10px 12px;

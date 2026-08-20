@@ -37,7 +37,7 @@
   border: none;
   outline: none;
   font-family: inherit;
-  font-size: var(--text-size-sm);
+  font-size: var(--font-size-control);
   color: var(--text-primary); /* explicit — see ADR-0013 D2 */
   background: transparent;
 }
@@ -62,7 +62,7 @@
 
 /* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */
 .cm-group {
-  font-size: var(--text-size-xxs);
+  font-size: var(--font-size-overline);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 500;
@@ -73,13 +73,13 @@
 .cm-empty {
   padding: 18px 12px;
   color: var(--text-secondary);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
 }
 
 .cm-records-error {
   padding: 8px 10px;
   color: var(--text-secondary);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
 }
 
 /* ── Item ── */
@@ -90,7 +90,7 @@
   height: 36px;
   padding: 0 10px;
   border-radius: var(--radius-sm);
-  font-size: var(--text-size-sm);
+  font-size: var(--font-size-control);
   cursor: pointer;
   color: var(--text-primary); /* explicit — see ADR-0013 D2 */
 }
@@ -115,7 +115,7 @@
   margin-left: auto;
   padding-left: 8px;
   color: var(--text-tertiary);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
   flex: none;
 }
 
@@ -134,7 +134,7 @@
   gap: 14px;
   padding: 8px 14px;
   border-top: 1px solid var(--border-light);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
   color: var(--text-tertiary);
 }
 .cm-foot-key { font-family: var(--ds-code-font-family); }
