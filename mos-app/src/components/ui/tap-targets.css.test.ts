@@ -120,4 +120,18 @@ describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch
   it('the UserChip Sign-out row carries the tap-target-phone marker', () => {
     expect(userChipTsx).toMatch(/tap-target-phone w-full text-left/)
   })
+
+  // ── #403 (port sweep): the auth cards — no primitives underneath, inline 32px heights ──────
+  it('auth-card phone floor (ticket 403): input/button/a ≥44px in shared CSS, <a> gets a box)', () => {
+    const authCss = readFileSync(resolve(process.cwd(), 'src/auth/auth.css'), 'utf8')
+    const body = mediaBody(authCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.auth-card :is\(input, button, a\)[\s\S]*min-height:\s*44px/)
+    // min-height is ignored on inline boxes — the "Back to sign in" <a> needs a real box.
+    expect(body).toMatch(/\.auth-card a[\s\S]*display:\s*inline-flex/)
+  })
+
+  it('auth-card marker (ticket 403): the shared AuthCard carries the class every auth page renders through)', () => {
+    const shellTsx = readFileSync(resolve(process.cwd(), 'src/auth/auth-shell.tsx'), 'utf8')
+    expect(shellTsx).toMatch(/className="auth-card /)
+  })
 })
