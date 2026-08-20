@@ -414,7 +414,7 @@ tr:focus-within .row-menu { visibility: visible; }
 
 /* ── Loading skeleton ── */
 .sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
-.sk { background: var(--secondary); border-radius: 6px; height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
+.sk { background: var(--secondary); border-radius: var(--radius-xs); height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: var(--radius-pill); display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: var(--radius-pill); display: block; }
 /* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
@@ -605,7 +605,7 @@ tr.grp td { padding: 0; }
   background: transparent; border: 0; padding: 0; cursor: pointer;
   color: var(--muted-foreground); font-size: var(--font-size-label); flex: none;
 }
-.mgc-caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
+.mgc-caret:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
 /* IXD-1: the mobile group caret is the shared Chevron, rotated −90° when collapsed (down = expanded). */
 .mgc-caret .mgc-chev { transition: transform var(--dur-med) ease; display: block; }
 .mgc-caret .mgc-chev.mgc-chev-collapsed { transform: rotate(-90deg); }
@@ -687,4 +687,4 @@ tr.grp td { padding: 0; }
   font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
   height: 100%; width: 100%;
 }
-.th-sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 2px; } /* item #6: dense sticky-header cell — inset ring */
+.th-sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius-xs); } /* item #6: dense sticky-header cell — inset ring */

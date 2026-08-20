@@ -11,7 +11,7 @@
    freshness-label.css.test.ts — jsdom computes no layout, so the CSS grammar
    is the assertable form of "this cannot overflow". */
 .freshness-label {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   font-weight: 600;
   color: var(--muted-foreground);
   white-space: normal;

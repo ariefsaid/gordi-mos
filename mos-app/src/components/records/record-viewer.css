@@ -29,7 +29,7 @@
 
 .record-field__label {
   padding-top: 11px;
-  font-size: var(--rec-kv-label-size, 12px);
+  font-size: var(--rec-kv-label-size);
   font-weight: 600;
   color: var(--muted-foreground);
   line-height: 1.3;
@@ -57,7 +57,7 @@
   margin: 0 0 0 -9px;
   padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   background: transparent;
   font: inherit;
   color: var(--foreground);
@@ -117,7 +117,7 @@
 /* Value renderings: prose · entity chip · status pill — all ONE size (item 17). */
 .record-field__value {
   min-width: 0;
-  font-size: var(--rec-kv-value-size, 13.5px);
+  font-size: var(--rec-kv-value-size);
   color: var(--foreground);
   overflow-wrap: anywhere;
 }
@@ -152,7 +152,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--card);
-  font-size: var(--rec-kv-value-size, 13.5px);
+  font-size: var(--rec-kv-value-size);
   color: var(--foreground);
 }
 
@@ -168,7 +168,7 @@
   border-radius: var(--radius-pill);
   background: var(--muted);
   color: var(--muted-foreground);
-  font-size: var(--rec-kv-value-size, 13.5px);
+  font-size: var(--rec-kv-value-size);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -203,7 +203,7 @@
   color: var(--foreground);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
 }
 
 .record-field__control:focus-visible {
@@ -350,7 +350,7 @@
    sized to the one label size (item 17). */
 .record-viewer__section-title {
   margin: 0;
-  font-size: var(--rec-kv-label-size, 12px);
+  font-size: var(--rec-kv-label-size);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -384,7 +384,7 @@
   width: 100%;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   color: var(--foreground);
   cursor: pointer;
 }

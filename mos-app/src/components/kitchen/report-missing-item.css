@@ -6,7 +6,7 @@
 }
 .kl-missing-cta {
   color: var(--muted-foreground);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
   padding-inline: 8px;
 }
 .kl-missing-form {
@@ -20,11 +20,11 @@
 .kl-missing-send { min-height: 32px; }
 .kl-missing-done {
   color: var(--muted-foreground);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
 }
 .kl-missing-error {
   flex-basis: 100%;
   margin: 0;
   color: var(--destructive);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
 }

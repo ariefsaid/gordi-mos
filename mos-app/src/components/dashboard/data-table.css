@@ -7,7 +7,7 @@
    (the action blue) — matches the kitchen table hover convention.
    ════════════════════════════════════════════════════════════════════════════ */
 
-.dt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dt-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-control); }
 
 .dt-caption {
   /* visually hidden but announced — the accessible table name lives on aria-label
@@ -26,7 +26,7 @@
 
 .dt-table thead th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -98,7 +98,7 @@
 .dt-empty {
   padding: 24px 12px;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: var(--font-size-control);
   text-align: center;
 }
 
@@ -115,7 +115,7 @@
   display: inline-block;
   width: 80%;
   height: 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--secondary);
 }
 
@@ -143,7 +143,7 @@
 .dt-card--compact { padding: 10px 12px; }
 
 .dt-card-title {
-  font-size: 13.5px;
+  font-size: var(--font-size-control);
   font-weight: 500;
   color: var(--foreground);
   margin-bottom: 8px;
@@ -160,12 +160,12 @@
 }
 .dt-card-detail dt {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
 }
 .dt-card-detail dd {
   margin: 0;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--font-size-control);
   text-align: right;
 }
 
@@ -187,7 +187,7 @@
 .dt-error-text {
   margin: 0;
   color: var(--status-lost-text);
-  font-size: 13px;
+  font-size: var(--font-size-control);
 }
 .dt-retry {
   height: 32px;
@@ -197,7 +197,7 @@
   border-radius: var(--radius-sm);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-control);
   cursor: pointer;
 }
 .dt-retry:hover {
@@ -251,18 +251,18 @@
 }
 
 .dt-group-label {
-  font-size: 13px;
+  font-size: var(--font-size-control);
   font-weight: 700;
   color: var(--brand-navy-text);
 }
 .dt-group-count {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
 .dt-group-hint {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 /* optional per-group actions (e.g. "Approve all") — pushed to the RIGHT edge of
@@ -302,18 +302,18 @@
   .dt-cards-group-chev { transition: none; }
 }
 .dt-cards-group-label {
-  font-size: 13px;
+  font-size: var(--font-size-control);
   font-weight: 700;
   color: var(--brand-navy-text);
 }
 .dt-cards-group-count {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
 .dt-cards-group-hint {
-  font-size: 12px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 /* optional per-group actions rendered UNDER the phone group heading. */
