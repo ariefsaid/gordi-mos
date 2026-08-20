@@ -224,7 +224,7 @@ function KitchenReviewDecision({
         <>
           <button
             type="button"
-            className="btn btn-primary krow-btn"
+            className="btn btn-outline krow-btn"
             aria-label={`Approve ${log.wip_item_name}`}
             disabled={approveDisabled || submitting}
             title={approveDisabled ? approveDisabledReason : undefined}
