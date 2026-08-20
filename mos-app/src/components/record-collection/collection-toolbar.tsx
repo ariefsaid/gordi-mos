@@ -105,6 +105,7 @@ export function CollectionToolbar<
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [viewName, setViewName] = useState('')
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const optionsTriggerRef = useRef<HTMLButtonElement | null>(null)
   const optionsRowId = useId()
 
   useEffect(() => {
@@ -129,6 +130,14 @@ export function CollectionToolbar<
   function closeSaveView() {
     setSaveOpen(false)
     saveTriggerRef.current?.focus()
+  }
+
+  // I3 (issue #379): Escape closes the "View & filters" door and leaves focus on the trigger —
+  // the disclosure's focus home. stopPropagation shields the window keyboard layer so an Escape
+  // here closes the door, never the record drawer behind it.
+  function closeOptions() {
+    setOptionsOpen(false)
+    optionsTriggerRef.current?.focus()
   }
 
   async function saveView() {
@@ -238,10 +247,17 @@ export function CollectionToolbar<
             <div className="collection-toolbar__query-spacer" />
             <button
               type="button"
+              ref={optionsTriggerRef}
               className="collection-toolbar__options-trigger"
               aria-expanded={optionsOpen}
               aria-controls={optionsRowId}
               onClick={() => setOptionsOpen(open => !open)}
+              onKeyDown={(event) => {
+                if (!optionsOpen || event.key !== 'Escape') return
+                event.preventDefault()
+                event.stopPropagation()
+                closeOptions()
+              }}
             >
               {t('common.viewAndFilters')}
               {viewOptionsActive ? (
@@ -265,6 +281,15 @@ export function CollectionToolbar<
           className="collection-toolbar__options"
           role="group"
           aria-label={t('common.viewAndFilters')}
+          // Phone gate: on phone this panel is the always-expanded CONTENT of the host's outer
+          // ViewOptionsDisclosure door — Escape must bubble up to close THAT door, not be eaten
+          // here (innermost-owner-wins across the two doors).
+          onKeyDown={isDesktop ? (event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            closeOptions()
+          } : undefined}
         >
           {filters.map((filter) => (
             <label key={filter.id} className="collection-toolbar__option-field">
@@ -291,6 +316,14 @@ export function CollectionToolbar<
                 if (saveOpen) closeSaveView()
                 else setSaveOpen(true)
               }}
+              onKeyDown={(event) => {
+                // Innermost OPEN disclosure wins: with the save row open, Escape closes THAT row
+                // only; a second Escape then closes the "View & filters" door.
+                if (!saveOpen || event.key !== 'Escape') return
+                event.preventDefault()
+                event.stopPropagation()
+                closeSaveView()
+              }}
             >
               {t('common.saveView')}
             </Button>
@@ -308,7 +341,14 @@ export function CollectionToolbar<
               value={viewName}
               onChange={(event) => setViewName(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') closeSaveView()
+                if (event.key === 'Escape') {
+                  // I5 field isolation + I3 nesting (#379): the input's Escape closes the save row
+                  // ONLY. stopPropagation shields enclosing disclosures (the phone
+                  // ViewOptionsDisclosure panel) so one Escape performs one action.
+                  event.preventDefault()
+                  event.stopPropagation()
+                  closeSaveView()
+                }
                 if (event.key === 'Enter') void saveView()
               }}
             />

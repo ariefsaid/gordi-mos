@@ -301,6 +301,7 @@ export function SignalsArchivePage() {
     <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
+      onClose={() => setMobileOptionsOpen(false)}
       label={t('signals.archive.viewAndFilters')}
       summary={signalViewLabel(query.view)}
       panelId="mobile-signal-options-panel"

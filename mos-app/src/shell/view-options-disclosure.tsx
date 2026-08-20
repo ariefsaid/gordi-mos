@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Chevron } from './icons'
 
 /**
@@ -11,17 +11,20 @@ import { Chevron } from './icons'
  * computed styles (a right-aligned pill vs a full-width header) are preserved — reuse of behavior,
  * skinned per context.
  *
- * NO CALLER YET (#190). v4's version of this note lists three hosts that "mount THIS component"
- * — Home's order radiogroup at ≤390px, the Tasks member phone filter stack (OD-REDESIGN-61), the
- * Signals collection toolbar. None of those surfaces has ported, so the list is dropped rather than
- * carried as a claim about code that is not here. It ships now because it is the primitive those
- * three would otherwise each re-invent, and its own suite holds the contract until they arrive.
+ * Live callers (#379): the Tasks workspace phone wrapper and the Signals archive phone wrapper —
+ * both host a CollectionToolbar inside this door. The desktop "View & filters" door is
+ * CollectionToolbar's own trigger, which carries the same Escape contract.
  */
 export interface ViewOptionsDisclosureProps {
   /** Whether the panel is expanded. */
   open: boolean
   /** Toggle handler (the host owns the open state + persistence, if any). */
   onToggle: () => void
+  /**
+   * Explicit close for the Escape key (I3: Esc closes + focus returns to the trigger). Falls
+   * back to `onToggle` — from `open` a toggle IS a close — so existing hosts keep working.
+   */
+  onClose?: () => void
   /** Visible trigger label, e.g. "View options". */
   label: string
   /** Optional decorative summary of the current selection (aria-hidden). */
@@ -40,6 +43,7 @@ export interface ViewOptionsDisclosureProps {
 export function ViewOptionsDisclosure({
   open,
   onToggle,
+  onClose,
   label,
   summary,
   panelId,
@@ -50,6 +54,18 @@ export function ViewOptionsDisclosure({
   panelClassName,
   children,
 }: ViewOptionsDisclosureProps) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  // I3 (issue #379): Escape closes the disclosure and leaves focus on the trigger — the
+  // disclosure's focus home. stopPropagation shields outer owners (the window keyboard layer's
+  // Escape) so one Escape performs one action; a nested owner inside the panel (a field with its
+  // own Escape, I5) stops propagation first and wins.
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (!open || event.key !== 'Escape') return
+    event.preventDefault()
+    event.stopPropagation()
+    ;(onClose ?? onToggle)()
+    triggerRef.current?.focus()
+  }
   const chevronCls = chevronClassName
     ? `${chevronClassName}${open ? ` ${chevronClassName}--open` : ''}`
     : undefined
@@ -57,10 +73,12 @@ export function ViewOptionsDisclosure({
     <div className={className}>
       <button
         type="button"
+        ref={triggerRef}
         className={triggerClassName}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={onToggle}
+        onKeyDown={onKeyDown}
       >
         <span>{label}</span>
         {summary != null && (
@@ -69,7 +87,7 @@ export function ViewOptionsDisclosure({
         <Chevron className={chevronCls} />
       </button>
       {open && (
-        <div id={panelId} className={panelClassName}>
+        <div id={panelId} className={panelClassName} onKeyDown={onKeyDown}>
           {children}
         </div>
       )}

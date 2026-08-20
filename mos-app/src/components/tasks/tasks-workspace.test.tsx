@@ -152,6 +152,30 @@ function renderTable(
   )
 }
 
+// D-A1 (fix work-order item 4) + I2 (#379) share this harness: render at an explicit route and
+// observe the location as the workspace navigates (?record= open/close journeys).
+function renderAt(entries: string[]) {
+  let current: ReturnType<typeof useLocation> | null = null
+  function LocationProbe() {
+    current = useLocation()
+    const navigate = useNavigate()
+    return <button type="button" onClick={() => navigate(-1)}>Back</button>
+  }
+  const utils = render(
+    <I18nProvider>
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={entries}>
+          <OverlayHostProvider>
+            <LocationProbe />
+            <TasksWorkspace savedView={makeSavedView('all')} onSavedViewChange={() => {}} />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </I18nProvider>,
+  )
+  return { ...utils, getLocation: () => current }
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
@@ -792,28 +816,6 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
   // (?record=<id>) exactly like a Signal, so a bookmark/refresh of "the task I'm working on"
   // restores it instead of dropping to a bare list. RULED by OD-REDESIGN-19/63 + I1/I7.
   describe('D-A1 — Task open is URL-addressable (?record=)', () => {
-    function renderAt(entries: string[]) {
-      let current: ReturnType<typeof useLocation> | null = null
-      function LocationProbe() {
-        current = useLocation()
-        const navigate = useNavigate()
-        return <button type="button" onClick={() => navigate(-1)}>Back</button>
-      }
-      const utils = render(
-        <I18nProvider>
-          <AuthContext.Provider value={authedState}>
-            <MemoryRouter initialEntries={entries}>
-              <OverlayHostProvider>
-                <LocationProbe />
-                <TasksWorkspace savedView={makeSavedView('all')} onSavedViewChange={() => {}} />
-              </OverlayHostProvider>
-            </MemoryRouter>
-          </AuthContext.Provider>
-        </I18nProvider>,
-      )
-      return { ...utils, getLocation: () => current }
-    }
-
     it('clicking a task row writes ?record=<id> into the URL (bookmarkable/shareable)', async () => {
       mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
       const { getLocation } = renderAt(['/work/tasks'])
@@ -858,6 +860,80 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
         ).toBeNull(),
       )
       expect(getLocation()?.search ?? '').not.toContain('record=')
+    })
+  })
+
+  // I2 (issue #379, audit 8e4c0e93 finding 4): ✕ and Esc → underlying page with focus returned to
+  // the OPENER. The opener of a Tasks row click is the row's title link; a click on a
+  // non-focusable cell leaves DOM focus on <body>, which the shared RecordPanelHost then captured
+  // as its invoker — so Escape returned focus to the page region. fireEvent deliberately does not
+  // move focus, mirroring the live body-focus case.
+  describe('I2 — record panel close returns focus to the invoking row (issue #379)', () => {
+    it('Escape after a row-click open returns focus to the invoking row link', async () => {
+      const task = makeTask({ id: 'task-i2', title: 'I2 focus row' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('I2 focus row'))
+      const row = document.querySelector('tr.task-row') as HTMLElement
+      fireEvent.click(row)
+      const panel = await waitFor(() =>
+        document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement,
+      )
+      fireEvent.keyDown(panel, { key: 'Escape' })
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull(),
+      )
+      expect(document.activeElement).toBe(row.querySelector('a.task-row-link'))
+    })
+
+    it('Escape after a j/k+Enter open returns focus to the cursor row link', async () => {
+      const first = makeTask({ id: 'task-c1', title: 'Cursor one' })
+      const second = makeTask({ id: 'task-c2', title: 'Cursor two' })
+      mockListTasks.mockResolvedValue([first, second])
+      mockGetTask.mockResolvedValue({ task: first, checklist: [], events: [] })
+      renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Cursor one'))
+      fireEvent.keyDown(window, { key: 'j' })
+      await waitFor(() => expect(document.querySelector('tr.task-row.kfocus')?.textContent).toContain('Cursor one'))
+      fireEvent.keyDown(window, { key: 'Enter' })
+      const panel = await waitFor(() =>
+        document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement,
+      )
+      fireEvent.keyDown(panel, { key: 'Escape' })
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull(),
+      )
+      const cursorRow = document.querySelector('tr.task-row.kfocus') as HTMLElement
+      expect(document.activeElement).toBe(cursorRow.querySelector('a.task-row-link'))
+    })
+
+    it('Issue #379 I3 phone: Escape on the open View & filters door closes it', async () => {
+      stubMatchMedia(false, false)
+      mockListTasks.mockResolvedValue([makeTask({ title: 'Phone escape work' })])
+      renderTable()
+      await waitFor(() => screen.getByText('Phone escape work'))
+      const options = screen.getByRole('button', { name: /view & filters/i })
+      fireEvent.click(options)
+      expect(options).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.keyDown(options, { key: 'Escape' })
+      expect(options).toHaveAttribute('aria-expanded', 'false')
+      expect(options).toHaveFocus()
+    })
+
+    it('Issue #379 I3 phone: Escape in the save-view input closes only the save row — the door stays open', async () => {
+      stubMatchMedia(false, false)
+      mockListTasks.mockResolvedValue([makeTask({ title: 'Phone save isolation' })])
+      renderTable()
+      await waitFor(() => screen.getByText('Phone save isolation'))
+      fireEvent.click(screen.getByRole('button', { name: /view & filters/i }))
+      fireEvent.click(screen.getByRole('button', { name: /save view/i }))
+      const input = screen.getByRole('textbox', { name: /view name/i })
+      input.focus()
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /view & filters/i })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('button', { name: /save view/i })).toHaveFocus()
     })
   })
 

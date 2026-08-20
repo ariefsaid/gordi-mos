@@ -280,6 +280,18 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
   })
 
+  it('Issue #379 I3: phone Escape on the open View & filters door closes it with focus on the trigger', async () => {
+    desktopState.value = false
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    const options = screen.getByRole('button', { name: /view & filters/i })
+    await userEvent.click(options)
+    expect(options).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.keyDown(options, { key: 'Escape' })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    expect(options).toHaveFocus()
+  })
+
   it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {
     renderPage('/work/signals?layout=feed&q=espresso&saved=view-1')
     await waitFor(() => expect(screen.getByText('Espresso machine repaired')).toBeInTheDocument())

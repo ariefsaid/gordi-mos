@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { CollectionToolbar } from './collection-toolbar'
@@ -223,5 +223,88 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     const group = screen.getByRole('group', { name: 'Views' })
     expect(within(group).getByText('View')).toBeInTheDocument()
     expect(screen.queryByText('Saved view')).not.toBeInTheDocument()
+  })
+})
+
+// I3 (issue #379): the ONE desktop "View & filters" door closes on Escape with focus on the
+// trigger. Covers every CollectionToolbar consumer (Tasks, Signals archive, the catalogs).
+describe('CollectionToolbar — I3 "View & filters" Escape (issue #379)', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function renderToolbar(extra?: Partial<React.ComponentProps<typeof CollectionToolbar>>) {
+    return render(
+      <I18nProvider>
+        <CollectionToolbar
+          presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+          views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+          filters={[{
+            id: 'team', label: 'Team', value: '',
+            options: [{ value: '', label: 'All teams' }, { value: 'ops', label: 'Operations' }],
+            onChange: vi.fn(),
+          }]}
+          savedViews={extra?.savedViews}
+        />
+      </I18nProvider>,
+    )
+  }
+
+  it('Escape on the open trigger closes the disclosure; focus stays on the trigger', async () => {
+    stubDesktop()
+    renderToolbar()
+    const trigger = screen.getByRole('button', { name: /view & filters/i })
+    await userEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('combobox', { name: 'Team' })).not.toBeInTheDocument()
+  })
+
+  it('Escape inside the disclosed panel closes it and returns focus to the trigger', async () => {
+    stubDesktop()
+    renderToolbar()
+    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
+    const select = screen.getByRole('combobox', { name: 'Team' })
+    select.focus()
+    fireEvent.keyDown(select, { key: 'Escape' })
+    const trigger = screen.getByRole('button', { name: /view & filters/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveFocus()
+  })
+
+  it('Escape in the save-view input closes ONLY the save row — the disclosure stays open', async () => {
+    stubDesktop()
+    renderToolbar({
+      savedViews: {
+        label: 'Saved views', selectedId: null, operation: 'idle',
+        items: [{ id: 'mine', name: 'My view' }], onApply: vi.fn(),
+        onSave: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
+    await userEvent.click(screen.getByRole('button', { name: /save view/i }))
+    const input = screen.getByRole('textbox', { name: /view name/i })
+    input.focus()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view & filters/i })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /save view/i })).toHaveFocus()
+  })
+
+  it('Escape on the Save view trigger while its row is open closes the row, not the disclosure', async () => {
+    stubDesktop()
+    renderToolbar({
+      savedViews: {
+        label: 'Saved views', selectedId: null, operation: 'idle',
+        items: [{ id: 'mine', name: 'My view' }], onApply: vi.fn(),
+        onSave: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
+    const saveTrigger = screen.getByRole('button', { name: /save view/i })
+    await userEvent.click(saveTrigger)
+    fireEvent.keyDown(saveTrigger, { key: 'Escape' })
+    expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view & filters/i })).toHaveAttribute('aria-expanded', 'true')
   })
 })
