@@ -17,29 +17,10 @@ vi.mock('./lib/db/tasks', () => ({
   listTasks: vi.fn(() => new Promise(() => {})),
   getTaskTitlesByIds: vi.fn(() => Promise.resolve([])),
 }))
-vi.mock('./lib/db/ops-log', () => ({
-  listLogEntries: vi.fn(() => new Promise(() => {})),
-  archiveLogEntry: vi.fn(),
-  unarchiveLogEntry: vi.fn(),
-  addLogEntry: vi.fn(),
-  editLogEntry: vi.fn(),
-  getTodayOpsSummary: vi.fn(() => new Promise(() => {})),
-}))
 vi.mock('./lib/db/directory', () => ({
   getBusinessUnits: vi.fn(() => new Promise(() => {})),
   getPeople: vi.fn(() => new Promise(() => {})),
 }))
-vi.mock('./lib/db/weekly-updates', () => ({
-  getMyUpdate: vi.fn(() => new Promise(() => {})),
-  upsertDraft: vi.fn(),
-  submit: vi.fn(),
-  reopen: vi.fn(),
-  addLine: vi.fn(),
-  updateLine: vi.fn(),
-  removeLine: vi.fn(),
-  listTeamUpdates: vi.fn(() => Promise.resolve([])),
-}))
-vi.mock('./lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
 // Ported for #192 (Tasks): TasksWorkspace's cascade catalogs — mocked pending so the unit test
 // never reaches the real supabase client (mirrors pages/tasks-layout.test.tsx).
 vi.mock('./lib/db/objectives', () => ({ listObjectives: vi.fn(() => new Promise(() => {})) }))
@@ -50,8 +31,6 @@ vi.mock('./lib/comments/postComment', () => ({
 }))
 
 import { MyWeek } from './pages/my-week'
-import { UpdatesPage } from './pages/updates-page'
-import { OpsPage } from './pages/ops-page'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
 import { OverlayHostProvider } from './shell/overlay-host'
@@ -72,8 +51,7 @@ const authedState: AuthState = {
 }
 
 function withAuth(node: React.ReactNode) {
-  // I18nProvider so pages whose subtrees call useT() (e.g. UpdatesPage → WeeklyUpdateWritePane)
-  // render without throwing outside a provider.
+  // I18nProvider keeps translated page subtrees from throwing outside a provider.
   return render(
     <I18nProvider>
       <AuthContext.Provider value={authedState}>{node}</AuthContext.Provider>
@@ -143,14 +121,6 @@ describe('RI-VIS-1: no avatar gradient contains the violet token', () => {
     }
   })
 
-  it('WeeklyUpdateReviewPane.css avatar gradient (.wup-review-avatar) uses navy→primary, never violet', () => {
-    const css = readSrc('components/weekly/WeeklyUpdateReviewPane.css')
-    const all = gradientsIn(css)
-    expect(all.length).toBeGreaterThan(0)
-    for (const g of all) {
-      expect(g).not.toMatch(/262 83% 58%|var\(--violet\)/)
-    }
-  })
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -158,15 +128,7 @@ describe('RI-VIS-1: no avatar gradient contains the violet token', () => {
 // as the text color. (Field outline + required asterisk may stay --destructive.)
 // ══════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-2: error text classes use --status-lost-text, not base --destructive', () => {
-  it('OpsAddForm inline .tc-field-error / .tc-submit-error text color is --status-lost-text', () => {
-    const src = readSrc('pages/ops-add-form.tsx')
-    for (const sel of ['.tc-field-error', '.tc-submit-error']) {
-      const body = ruleBody(src, sel)
-      // ADR-0009: tokens are now resolved color(display-p3 …) consumed as var(--token); hsl() wrapper retired.
-      expect(body).toMatch(/color:\s*var\(--status-lost-text\)/)
-      expect(body).not.toMatch(/color:\s*var\(--destructive\)\s*;/)
-    }
-  })
+
 
   it('LoginPage error text (form alert + inline email error) uses --status-lost-text, not --destructive', () => {
     const src = readSrc('pages/login-page.tsx')
@@ -218,17 +180,7 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     expect(container.querySelector('[class*="page-title"]')).toBeNull()
   })
 
-  it('/updates (UpdatesPage) renders the shared PageHead and no bespoke page-title element', () => {
-    const { container } = withAuth(<MemoryRouter><UpdatesPage /></MemoryRouter>)
-    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
-    expect(container.querySelector('[class*="page-title"]')).toBeNull()
-  })
 
-  it('/ops (OpsPage) renders the shared PageHead and no bespoke page-title element', () => {
-    const { container } = withAuth(<MemoryRouter><OpsPage /></MemoryRouter>)
-    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
-    expect(container.querySelector('[class*="page-title"]')).toBeNull()
-  })
 
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
     // Ported for #192: lives at /work/tasks now (not the retired /tasks), and TasksWorkspace
@@ -254,7 +206,6 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'pages/sales-dashboard-page.tsx',
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
-    'pages/updates-page.tsx',
     'components/catalog/catalog-manager.tsx',
   ]
 
@@ -368,25 +319,15 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // RI-VIS-4: ONE pill — no hand-rolled pillStyle / wup-state-* / ops-source-badge
-// raw pill shell outside the shared <Pill> (VIS-4, PR-2). The My Week strips +
-// the Ops source badge re-skin onto <Pill>; the weekly <StatePill> does too.
+// raw pill shell outside the shared <Pill> (VIS-4, PR-2).
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
-  // Home v1 (Task 4.1) extracted the My Week strips out of pages/my-week.tsx into
-  // components/weekly/my-week-panel.tsx — the <Pill> usage (and the "no bespoke
-  // pillStyle" guarantee) moved with them. my-week.tsx is now a thin frame wrapper
-  // with no pill usage of its own; the goal (no hand-rolled pillStyle) is asserted
-  // against the strips' new home.
-  it('my-week.tsx has no hand-rolled pillStyle object (it is a thin frame wrapper now)', () => {
+  it('my-week.tsx has no hand-rolled pillStyle object', () => {
     const src = readSrc('pages/my-week.tsx')
     expect(src).not.toMatch(/\bpillStyle\b/)
   })
 
-  it('my-week-panel.tsx no longer hand-rolls a pillStyle object (the strips use <Pill>)', () => {
-    const src = readSrc('components/weekly/my-week-panel.tsx')
-    expect(src).not.toMatch(/\bpillStyle\b/)
-    expect(src).toMatch(/from '@\/components\/ui\/pill'/)
-  })
+
 
   it('no non-test source renders a wup-state-* or ops-source-badge className (raw pill shells)', () => {
     const offenders: string[] = []
@@ -395,7 +336,6 @@ describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>',
       const body = readFileSync(f, 'utf8')
       if (/className=["'`{][^"'`}]*\b(?:wup-state-|ops-source-badge)\b/.test(body)) offenders.push(f)
     }
-    // ops-source-badge survives only as a data-testid (on the Pill wrapper), never a className
     expect(offenders).toEqual([])
   })
 })

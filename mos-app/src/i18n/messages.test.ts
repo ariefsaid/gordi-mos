@@ -70,7 +70,6 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
     'nav.home',
     'nav.inbox',
     'nav.updates',
-    'nav.dailyLog',
     'nav.sales',
     'nav.objectives',
     'nav.projectsProcesses',

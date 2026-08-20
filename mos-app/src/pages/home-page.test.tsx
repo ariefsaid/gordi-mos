@@ -76,16 +76,6 @@ vi.mock('../lib/db/home-attention-data', () => ({
 import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
 
-// Daily Log needs-attention read (AC-091 propagation, #302). OPS_LOG_ROUTE rides the stub
-// because home-stream (real, in this file) imports it from this module.
-vi.mock('../lib/db/ops-log', () => ({
-  listNeedsAttentionLogEntries: vi.fn(),
-  OPS_LOG_ROUTE: '/ops',
-}))
-import { listNeedsAttentionLogEntries } from '@/lib/db/ops-log'
-const mockListOpsAttentionEntries = vi.mocked(listNeedsAttentionLogEntries)
-import type { LogEntryRow } from '@/lib/db/ops-log.types'
-
 // The shared admission authority (#246) — the test asks it the same question Home asks, so the
 // expectation tracks the route, never a hand-copied role list.
 import { viewerAdmittedToRoute } from '@/shell/destinations'
@@ -231,7 +221,6 @@ beforeEach(() => {
   mockGetRoles.mockResolvedValue([])
   mockListNotifications.mockResolvedValue([])
   mockLoadFailedChecks.mockResolvedValue([])
-  mockListOpsAttentionEntries.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
 })
@@ -623,83 +612,6 @@ describe('the Home header carries the day’s state (motivational half of the br
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 })
-
-// ── AC-091 propagation, restored (#302) ─────────────────────────────────────────────────────
-// The criterion: an open needs-attention Daily Log entry produces a signal where the person
-// looks first — Home's needs-you region — and archiving it (archived_at, excluded by the read)
-// clears that signal. The /ops half of the journey stays owned by e2e/ops-log-needs-attention;
-// this test owns the propagation half. The DAL's query contract (incl. the archived exclusion)
-// is owned by lib/db/ops-log.test.ts.
-describe('AC-091 (restored, #302): an open needs-attention Daily Log entry surfaces in Needs-you — archiving clears it', () => {
-  const openFlag: LogEntryRow = {
-    id: 'ol-1', org_id: 'org-1', business_unit_id: 'bu-cafe', origin: 'manual',
-    event_type: 'qc', title: 'Chiller down — stock at risk', detail: null,
-    occurred_at: '2026-08-10T02:00:00Z', needs_attention: true, linked_task_id: null,
-    archived_at: null, created_by: 'p-flagger',
-    created_at: '2026-08-10T02:00:00Z', updated_at: '2026-08-10T02:00:00Z',
-  }
-
-  it('renders the flagged entry on the default tab (row → /ops, "Needs attention", flagger + BU)', async () => {
-    mockListOpsAttentionEntries.mockResolvedValue([openFlag])
-    mockGetBUs.mockResolvedValue([{ id: 'bu-cafe', name: 'Café' }])
-    mockGetPeople.mockResolvedValue([{ id: 'p-flagger', full_name: 'Riri Barista' }])
-
-    await renderHome(memberViewer)
-    const row = await screen.findByText('Chiller down — stock at risk')
-    const link = row.closest('a')!
-    expect(link.getAttribute('href')).toBe('/ops')
-    expect(within(link).getByText('Needs attention')).toBeInTheDocument()
-    await waitFor(() => expect(within(link).getByText('Riri Barista')).toBeInTheDocument())
-    expect(within(link).getByText('Café')).toBeInTheDocument()
-    // A plain member reads the org-visible set — the flag has no per-person assignee (FR-061).
-    expect(mockListOpsAttentionEntries).toHaveBeenCalled()
-    // The tab carries the true count (DIV-G5): 1, not an em-dash.
-    expect(screen.getByRole('tab', { name: /needs you now/i }).textContent).toMatch(/1/)
-  })
-
-  it('the CLEAR half is a transition: the signal shows, the entry is archived, the next read clears it', async () => {
-    // ONE mock implementation for the whole journey — it plays the server, applying the read's own
-    // archived_at exclusion (the query contract itself is owned by lib/db/ops-log.test.ts). The
-    // archive step below changes the ROW, never the mock: exactly what archiving on /ops does. A
-    // mock swapped to [] between renders would only prove empty-read rendering, not clearing.
-    const store: LogEntryRow[] = [{ ...openFlag }]
-    mockListOpsAttentionEntries.mockImplementation(async () =>
-      store.filter((row) => row.needs_attention && row.archived_at === null))
-
-    const { unmount } = await renderHome(memberViewer)
-    expect(await screen.findByText('Chiller down — stock at risk')).toBeInTheDocument()
-    const callsBefore = mockListOpsAttentionEntries.mock.calls.length
-
-    // The person follows the row to /ops and archives the entry there (that half of the journey is
-    // owned by e2e/ops-log-needs-attention.spec.ts): archived_at is stamped on the same row.
-    unmount()
-    store[0] = { ...store[0], archived_at: '2026-08-10T03:00:00Z' }
-
-    // Back on Home. Mounting IS Home's refetch path (there is no live push): the region re-reads,
-    // and the exclusion — not a swapped mock — clears the signal to all-clear.
-    await renderHome(memberViewer)
-    expect(mockListOpsAttentionEntries.mock.calls.length).toBeGreaterThan(callsBefore)
-    await waitFor(() => expect(screen.getByText(/all caught up/i)).toBeInTheDocument())
-    expect(screen.queryByText('Chiller down — stock at risk')).toBeNull()
-  })
-
-  it('DIV-G5: a failed ops read shows the region error + a working Retry — never an all-clear', async () => {
-    mockListOpsAttentionEntries.mockRejectedValue(new Error('offline'))
-    await renderHome(memberViewer)
-    await screen.findByRole('tablist')
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load this list. Refresh to try again."))
-
-    mockListOpsAttentionEntries.mockResolvedValue([])
-    const callsBefore = mockListOpsAttentionEntries.mock.calls.length
-    await act(async () => {
-      screen.getByRole('button', { name: /retry/i }).click()
-      await Promise.resolve(); await Promise.resolve()
-    })
-    expect(mockListOpsAttentionEntries.mock.calls.length).toBe(callsBefore + 1)
-  })
-})
-
 // ── AC-204 (4): "Home's owner-cockpit section reads as intentional rather than as a surface with
 // something removed." #179 cut the cascade route and took Home's progress drill with it. The
 // successor door is the Objectives roll-up, and it must be on the Home people actually land on —

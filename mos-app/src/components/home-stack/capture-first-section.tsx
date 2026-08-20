@@ -1,6 +1,6 @@
 // CaptureFirstSection — the contributor/member section of the stacked-union Home
 // (Issue E, docs/specs/home-stacked-union.spec.md §2.3/FR-HS30). A pure contributor (no owner/BU-head/
-// manager scope) lands on a capture-first surface: a fast-capture call to action (→ /ops/new, the
+// manager scope) lands on a capture-first surface: a fast-capture call to action (→ /cafe/log, the
 // Activity log/add form) + their assigned R/A task table (reused MyTasksCard — "assigned steps"). NO
 // finance row, NO cockpit. Reuses existing kit — not a tile rewrite.
 import { useT } from '@/i18n/use-t'
@@ -24,7 +24,7 @@ export function CaptureFirstSection({ viewerId, now }: CaptureFirstSectionProps)
       </div>
 
       {/* Fast-capture CTA — one tap from Home to the floor capture (dominant, first). */}
-      <Link to="/ops/new" className="home-stack-capture-cta">
+      <Link to="/cafe/log" className="home-stack-capture-cta">
         <span aria-hidden="true">＋</span> {t('home.stack.capture.cta')}
       </Link>
 

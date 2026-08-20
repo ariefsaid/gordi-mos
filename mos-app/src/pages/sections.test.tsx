@@ -1,16 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-vi.mock('../components/weekly/weekly-update-write-pane', () => ({
-  WeeklyUpdateWritePane: () => <section aria-label="My weekly update">Write pane</section>,
-}))
-vi.mock('../components/weekly/weekly-update-review-pane', () => ({
-  WeeklyUpdateReviewPane: () => <section aria-label="My team updates">Review pane</section>,
-}))
-vi.mock('../lib/db/team', () => ({ getTeamForManager: vi.fn(() => Promise.resolve([])) }))
-
-import { UpdatesPage } from './updates-page'
-import { OpsPage } from './ops-page'
 
 // The /tasks page-shell oracles below were re-homed from the deleted TasksPage host onto
 // the LIVE /tasks surface (TasksLayout → TasksWorkspace). AC-004 (document.title) +
@@ -29,15 +19,6 @@ vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn(() => new Promise(
 vi.mock('../lib/comments/postComment', () => ({
   listComments: vi.fn(() => new Promise(() => {})),
   postComment: vi.fn(),
-}))
-// OpsPage needs these mocked (P2-3b — real page, not placeholder)
-vi.mock('../lib/db/ops-log', () => ({
-  listLogEntries: vi.fn(() => new Promise(() => {})), // stays loading
-  addLogEntry: vi.fn(),
-  editLogEntry: vi.fn(),
-  archiveLogEntry: vi.fn(),
-  unarchiveLogEntry: vi.fn(),
-  getTodayOpsSummary: vi.fn(() => new Promise(() => {})),
 }))
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(() => new Promise(() => {})),
@@ -104,30 +85,7 @@ describe('AC-007: Section empty shells', () => {
     expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
   })
 
-  it('UpdatesPage: title "Weekly Updates" heading is present, no phase wording (P2-2b replaces placeholder)', () => {
-    // P2-2b: UpdatesPage is now the live write-pane; placeholder copy is gone.
-    render(
-      <MemoryRouter>
-        <UpdatesPage />
-      </MemoryRouter>,
-    )
-    expect(screen.getByRole('heading', { name: 'Weekly Updates' })).toBeInTheDocument()
-    expect(document.body.textContent).not.toMatch(/phase|roadmap|Phase 2/i)
-  })
 
-  it('OpsPage: title "Daily Log" heading is present, no phase wording (P2-3b replaces placeholder)', () => {
-    // OpsPage is now the live feed page (P2-3b); placeholder copy is gone.
-    // It starts loading — the heading is visible immediately.
-    render(
-      <MemoryRouter>
-        <OpsPage />
-      </MemoryRouter>,
-    )
-    expect(screen.getByRole('heading', { name: 'Daily Log' })).toBeInTheDocument()
-    expect(document.body.textContent).not.toMatch(/phase|roadmap|coming soon|Phase 2/i)
-    // Must not contain old placeholder text
-    expect(document.body.textContent).not.toMatch(/No ops events yet/)
-  })
 })
 
 // FIX-3: Empty states are NOT text-centered (left-aligned per mockup anti-slop note)
@@ -140,28 +98,7 @@ describe('FIX-3: Empty state containers are left-aligned (not text-center)', () 
     expect(assembly!.className).not.toMatch(/text-center/)
   })
 
-  it('UpdatesPage empty container does NOT have text-center class', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <UpdatesPage />
-      </MemoryRouter>,
-    )
-    const emptyDiv = container.querySelector('[aria-label="My weekly update"]')
-    expect(emptyDiv).toBeTruthy()
-    expect(emptyDiv!.className).not.toMatch(/text-center/)
-  })
 
-  it('OpsPage assembly container does NOT have text-center class (P2-3b live feed)', () => {
-    // OpsPage now renders an ops-assembly container (card assembly, left-aligned).
-    const { container } = render(
-      <MemoryRouter>
-        <OpsPage />
-      </MemoryRouter>,
-    )
-    const assembly = container.querySelector('.ops-assembly')
-    expect(assembly).toBeTruthy()
-    expect(assembly!.className).not.toMatch(/text-center/)
-  })
 })
 
 // AC-004 title portion: section pages set document.title
@@ -171,21 +108,5 @@ describe('AC-004: Document title per section page', () => {
     expect(document.title).toBe('Tasks — Gordi MOS')
   })
 
-  it('UpdatesPage sets document.title to "Weekly Updates — Gordi MOS" (P2-2b page title)', () => {
-    render(
-      <MemoryRouter>
-        <UpdatesPage />
-      </MemoryRouter>,
-    )
-    expect(document.title).toBe('Weekly Updates — Gordi MOS')
-  })
 
-  it('OpsPage sets document.title to "Daily Log — Gordi MOS" (P2-3b)', () => {
-    render(
-      <MemoryRouter>
-        <OpsPage />
-      </MemoryRouter>,
-    )
-    expect(document.title).toBe('Daily Log — Gordi MOS')
-  })
 })

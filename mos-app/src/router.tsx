@@ -7,7 +7,6 @@ import {
 } from 'react'
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
 import {
-  SHOW_DAILY_LOG,
   SHOW_USER_VIEWS,
   SHOW_FOLLOWUPS,
   SHOW_PLAN_BUDGET,
@@ -62,9 +61,7 @@ function withSuspense(element: ReactNode) {
 
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
 const TaskDrawer = lazyPage(() => import('./components/tasks/task-drawer').then((m) => ({ default: m.TaskDrawer })))
-// Signals replaces Weekly Updates (v4): `/updates` redirects here and `UpdatesPage` is routed
-// nowhere, so it is not imported. The page file stays — the weekly-update tables and the My Week
-// panel still exist — but it has no route, exactly as in v4's table.
+// Signals replaces Weekly Updates (v4): `/updates` redirects here and the retired page is not routed.
 const SignalsArchivePage = lazyPage(() =>
   import('./pages/signals-archive-page').then((m) => ({ default: m.SignalsArchivePage })),
 )
@@ -77,8 +74,7 @@ const ProjectsProcessesPage = lazyPage(() =>
   import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
 )
 const InboxPage = lazyPage(() => import('./pages/inbox-page').then((m) => ({ default: m.InboxPage })))
-const OpsPage = lazyPage(() => import('./pages/ops-page').then((m) => ({ default: m.OpsPage })))
-const OpsAddForm = lazyPage(() => import('./pages/ops-add-form').then((m) => ({ default: m.OpsAddForm })))
+
 const CafeOpeningPage = lazyPage(() =>
   import('./pages/cafe-opening-page').then((m) => ({ default: m.CafeOpeningPage })),
 )
@@ -120,7 +116,6 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /money[/detail|/budget|/pricing|/follow-ups]
 //     /inbox
 //     /cafe[/log|/plan|/stock|/review|/pushes]
-//     /ops[/new|/:id/edit]       Daily Log — still dev's surface, see the FR-018 note below
 //     /admin/people
 //     *                          not-found, INSIDE the shell (AC-021)
 //
@@ -216,14 +211,7 @@ export const routeConfig: RouteObject[] = [
             ],
           },
           // Signals is v4's replacement for Weekly Updates — v4's own map redirects /updates
-          // here, and routes this path at SignalsArchivePage with no UpdatesPage anywhere in its
-          // table. #193 ported the surface but never flipped these two elements, so the archive
-          // sat fully built and unreachable while the route kept serving UpdatesPage (#267).
-          //
-          // `signals-archive-page.test.tsx` mounts its own <Route> and so passed throughout —
-          // which is why nothing caught it. The guard that does resolve through THIS table is the
-          // AC-020 wiring ledger in `router-lazy.test.tsx`, and it had `UpdatesPage` written into
-          // it, so it agreed with the bug. Both rows are corrected there.
+          // here, and routes this path at SignalsArchivePage as the replacement archive surface.
           {
             path: 'work/signals',
             element: withSuspense(<SignalsArchivePage />),
@@ -439,27 +427,6 @@ export const routeConfig: RouteObject[] = [
             ],
           },
 
-          // ── Operate (Daily Log) ─────────────────────────────────────────────────────────
-          // v4 retires these to `/`. This table does NOT, and the difference is deliberate:
-          // Daily Log is a live `dev` surface with no v4 successor, and `dev`'s Home still links
-          // to it. AC-020 says an unported surface renders what `dev` serves — turning it into a
-          // redirect deletes a working screen, which is a surface ticket's call, not the route
-          // table's. Left flag-gated exactly as `dev` has it.
-          {
-            path: 'ops',
-            element: SHOW_DAILY_LOG ? withSuspense(<OpsPage />) : <Navigate to="/" replace />,
-            handle: pageHandle('workspace'),
-          },
-          {
-            path: 'ops/new',
-            element: SHOW_DAILY_LOG ? withSuspense(<OpsAddForm />) : <Navigate to="/" replace />,
-            handle: pageHandle('focused-record'),
-          },
-          {
-            path: 'ops/:id/edit',
-            element: SHOW_DAILY_LOG ? withSuspense(<OpsAddForm />) : <Navigate to="/" replace />,
-            handle: pageHandle('focused-record'),
-          },
 
           // ── Slices with no surface yet ──────────────────────────────────────────────────
           {

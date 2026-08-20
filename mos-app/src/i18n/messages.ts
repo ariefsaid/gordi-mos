@@ -17,7 +17,6 @@ export const messages = {
     'nav.home': 'Home',
     'nav.inbox': 'Inbox',
     'nav.updates': 'Weekly Updates',
-    'nav.dailyLog': 'Daily Log',
     'nav.sales': 'Sales',
     'nav.followUps': 'Follow-ups',
     'nav.planPricing': 'Pricing pre-flight',
@@ -52,7 +51,6 @@ export const messages = {
     'home.stack.money.apStrip': 'AP · unbilled · unearned — visibility coming',
     'home.stack.opskpi.title': 'Ops KPIs',
     'home.stack.opskpi.coming': 'Ops KPIs — coming. The metric set is owner-decided.',
-    'home.stack.opskpi.drill': "See today's floor activity on the Daily Log",
     'home.stack.error': "Couldn't load your Home. Refresh to try again.",
     // ── #191 (Home port) — v4's region/attention Home. Kept alongside the home.kpi.*/home.stack.*
     // keys above rather than replacing them: home-stack/* (StackedUnionHome, DEV-only preview
@@ -357,7 +355,6 @@ export const messages = {
     'kitchen.stock.col.stok': 'Stock',
     'kitchen.stock.col.tersedia': 'Available',
     // Weekly update placeholder (audit D7 fix)
-    'weekly.summaryPlaceholder': "This week's summary…",
     // ---- v4 shell chrome (#188) ----
     // Every string the ported app-shell chrome renders: destination + nav labels for the v4
     // rail/bottom-bar/drawer registries, the Rule-1 job sentences the ContextRow reads, the rail
@@ -1207,7 +1204,6 @@ export const messages = {
     'nav.home': 'Beranda',
     'nav.inbox': 'Kotak Masuk',
     'nav.updates': 'Update Mingguan',
-    'nav.dailyLog': 'Log Harian',
     'nav.sales': 'Penjualan',
     'nav.followUps': 'Follow-up',
     'nav.planPricing': 'Pracetak harga',
@@ -1242,7 +1238,6 @@ export const messages = {
     'home.stack.money.apStrip': 'AP · belum ditagih · belum dihasilkan — visibilitas segera hadir',
     'home.stack.opskpi.title': 'KPI Operasi',
     'home.stack.opskpi.coming': 'KPI Operasi — segera hadir. Set metrik ditentukan pemilik.',
-    'home.stack.opskpi.drill': 'Lihat aktivitas floor hari ini di Log Harian',
     'home.stack.error': 'Home Anda tidak dapat dimuat. Muat ulang untuk mencoba lagi.',
     'common.docTitle': '${page} — Gordi MOS',
     'events.title': 'Acara',
@@ -1527,7 +1522,6 @@ export const messages = {
     'kitchen.stock.col.stok': 'Stok',
     'kitchen.stock.col.tersedia': 'Tersedia',
     // Weekly update placeholder (audit D7 fix)
-    'weekly.summaryPlaceholder': 'Ringkasan minggu ini…',
     // ---- v4 shell chrome (#188) ----
     // Every string the ported app-shell chrome renders: destination + nav labels for the v4
     // rail/bottom-bar/drawer registries, the Rule-1 job sentences the ContextRow reads, the rail

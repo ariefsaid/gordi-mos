@@ -29,8 +29,6 @@ import {
 // `router-lazy.test.tsx`, which mocks the same module the other way.
 // SHOW_INBOX is absent: it is retired (#188/#189), Inbox is unconditionally live.
 vi.mock('./config/features', () => ({
-  SHOW_WEEKLY_UPDATES: true,
-  SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: false,
   SHOW_ASSISTANT: true,
   SHOW_FOLLOWUPS: false,
@@ -42,9 +40,9 @@ const mockUseAuth = vi.mocked(useAuth)
 import { ProtectedRoute } from './auth/protected-route'
 import { AppShell } from './shell/app-shell'
 import { TasksLayout } from './pages/tasks-layout'
-import { UpdatesPage } from './pages/updates-page'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { NotFoundPage } from './pages/not-found-page'
+import { SignalsArchivePage } from './pages/signals-archive-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>
@@ -84,7 +82,7 @@ describe('AC-008: guard on protected routes', () => {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route path="/work/tasks" element={<TasksLayout />} />
-                <Route path="/work/signals" element={<UpdatesPage />} />
+                <Route path="/work/signals" element={<SignalsArchivePage />} />
                 <Route path="/cafe/log" element={<KitchenLogPage />} />
               </Route>
             </Route>

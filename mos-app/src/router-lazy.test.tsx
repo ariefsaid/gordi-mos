@@ -9,8 +9,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { isValidElement } from 'react'
 
 vi.mock('./config/features', () => ({
-  SHOW_WEEKLY_UPDATES: true,
-  SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: true,
   SHOW_ASSISTANT: true,
   SHOW_FOLLOWUPS: true,
@@ -31,8 +29,6 @@ import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { InboxPage } from './pages/inbox-page'
-import { OpsPage } from './pages/ops-page'
-import { OpsAddForm } from './pages/ops-add-form'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
@@ -147,9 +143,6 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/review', KitchenReviewPage, 'dev'],
   ['/cafe/pushes', KitchenPushesPage, 'dev'],
-  ['/ops', OpsPage, 'dev'],
-  ['/ops/new', OpsAddForm, 'dev'],
-  ['/ops/:id/edit', OpsAddForm, 'dev'],
   ['/ecommerce', SliceStubPage, 'stub'],
   ['/roastery', SliceStubPage, 'stub'],
   // ProfilePage was built by #199 and the migration registry named it as this path's frame
