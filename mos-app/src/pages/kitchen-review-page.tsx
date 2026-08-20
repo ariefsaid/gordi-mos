@@ -232,9 +232,15 @@ function KitchenReviewDecision({
           >
             {submitting ? 'Working…' : 'Approve'}
           </button>
+          {/* #249 rank: Approve fires irreversibly on one click (on-plan rows commit
+              straight to the RPC — no confirm, no undo), while Reject only opens a
+              required-note gate. Two controls at the same weight beside each other make
+              the irreversible one a mis-click, so Reject drops to the quietest rank the
+              system has — `.btn-ghost` (DESIGN.md § Buttons: "a ghost is the quietest
+              rank in the hierarchy"). The solid primary stays with the bulk "Approve all". */}
           <button
             type="button"
-            className="btn btn-outline krow-btn"
+            className="btn btn-ghost krow-btn"
             aria-label={`Reject ${log.wip_item_name}`}
             disabled={submitting}
             onClick={startReject}

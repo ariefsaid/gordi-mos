@@ -15,9 +15,19 @@
  * `.ch-meta-line` whose text is a labeled sentence, NO `.ch-count` pill sibling, and no
  * descendant leaf anywhere in the head whose entire text is a bare number.
  *
- * The Money, Budget, and Pricing heads use this same grammar: one labeled `.ch-meta-line`,
- * with `—` while their source data is unknown. Their page-level suites cover the data journeys;
- * the shared guard below remains the Tasks census because the head grammar is intentionally shared.
+ * #192 (Tasks) scope note: v4's version of this file ALSO enumerates the same guard onto the
+ * Money (dashboard-page.tsx), Budget (budget-page.tsx) and Pricing (pricing-page.tsx) page heads
+ * (census R2 DO-7 and r5 F-1). Those three cases are dropped here — the pages themselves differ
+ * between `dev` and v4 by 300+ combined lines (a Money-domain redesign, not a one-line head fix),
+ * and fixing them is Money surface work — #200, not this PR (docs/specs/v4-port.spec.md "Staging
+ * and merge shape" — surface-by-surface, one PR per surface). Flagged on wayfinder map #150 for
+ * #200 to pick up. The Tasks-scoped case below is unaffected and stays; it already passes against
+ * `dev`'s unmodified Tasks page head.
+ *
+ * RESOLVED (#250): the Money, Budget and Pricing enumerations now exist — in
+ * `pages/guard-r2-naked-heads.test.tsx`, the page-head enumeration sweep, which documents itself
+ * as their home and already owns the oracle helpers. This file stays Tasks-only: it is the
+ * class's owning guard and oracle DEFINITION, not the register of every head that inherits it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -47,34 +57,14 @@ vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
-vi.mock('@/lib/db/reporting', async () => ({
-  ...(await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')),
-  listSalesDailyRevenue: vi.fn(),
-}))
-vi.mock('@/lib/db/reporting-margin', async () => ({
-  ...(await vi.importActual<typeof import('@/lib/db/reporting-margin')>('@/lib/db/reporting-margin')),
-  listSalesMarginDaily: vi.fn(),
-}))
-vi.mock('@/lib/db/plan-budget', () => ({
-  listIngredientCostLines: vi.fn(), listBomLines: vi.fn(), listBudgets: vi.fn(),
-  getCertifiedMetric: vi.fn(), captureBudget: vi.fn(),
-}))
-vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
-import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import { listBomLines, listIngredientCostLines, listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
-import { useAuth } from '@/auth/use-auth'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
-import { DashboardPage } from '@/pages/dashboard-page'
-import { BudgetPage } from '@/pages/budget-page'
-import { PricingPage } from '@/pages/pricing-page'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 
 const VIEWER_ID = 'viewer-id'
@@ -147,13 +137,6 @@ beforeEach(() => {
   stubMatchMedia()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Kitchen' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Arief Said' }])
-  vi.mocked(useAuth).mockReturnValue(authedState)
-  vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
-  vi.mocked(listSalesMarginDaily).mockResolvedValue([])
-  vi.mocked(listBomLines).mockResolvedValue([])
-  vi.mocked(listIngredientCostLines).mockResolvedValue([])
-  vi.mocked(listBudgets).mockResolvedValue([])
-  vi.mocked(getCertifiedMetric).mockResolvedValue({ key: 'cogs.budgeted', name: 'Budgeted COGS', certified: true })
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
 })
@@ -164,120 +147,6 @@ function bareNumberLeaves(root: Element): Element[] {
     (el) => el.children.length === 0 && /^\d+$/.test(el.textContent?.trim() ?? ''),
   )
 }
-
-const recentDate = new Date().toISOString().slice(0, 10)
-const moneyRevenue: SalesDailyRevenueRow[] = [
-  { revenue_date: recentDate, channel: 'POS', esb_code: 'A', branch_code: 'BR-1', branch_name: 'Main', transactions: 10, clean_revenue: 100000, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
-  { revenue_date: recentDate, channel: 'POS', esb_code: 'B', branch_code: 'BR-2', branch_name: 'Second', transactions: 8, clean_revenue: 80000, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
-]
-const moneyMargin: SalesMarginDailyRow[] = [
-  { margin_date: recentDate, esb_code: 'A', branch_code: 'BR-1', branch_name: 'Main', revenue: 100000, cogs_interim_sm: 50000, cogs_budget_bom: 50000, margin_interim: 50000, margin_interim_pct: 0.5, bom_coverage_pct: 1, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
-]
-const budgetFixture = (id: string, scenario_label: string) => ({
-  id, menu_item_esb_code: 'MENU-1', menu_item_name: 'Menu one', scenario_label,
-  scenario_type: 'baseline' as const, owning_bu_id: 'bu-1', total_budgeted_cogs: 1000,
-  cost_basis_as_of: new Date().toISOString(), certified_metric_key: 'cogs.budgeted', is_complete: true,
-})
-
-function renderMoney() {
-  return render(<I18nProvider><MemoryRouter initialEntries={['/money']}><DashboardPage /></MemoryRouter></I18nProvider>)
-}
-function renderBudget() {
-  return render(<I18nProvider><AuthContext.Provider value={authedState}><BudgetPage /></AuthContext.Provider></I18nProvider>)
-}
-function renderPricing() {
-  return render(<I18nProvider><PricingPage /></I18nProvider>)
-}
-
-/** GUARD-R2 enumerations for the already-shipped Money-family page heads. */
-describe('GUARD-R2 (DO-7): the Money page head never shows naked numbers', () => {
-  it('populated Money uses one labeled meta sentence', async () => {
-    vi.mocked(listSalesDailyRevenue).mockResolvedValue(moneyRevenue)
-    vi.mocked(listSalesMarginDaily).mockResolvedValue(moneyMargin)
-    renderMoney()
-    const head = await screen.findByTestId('page-head')
-    await waitFor(() => expect(head.querySelector('.ch-meta-line')?.textContent).toMatch(/^2 branches · as of /))
-    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(head)).toHaveLength(0)
-  })
-
-  it('Money loading and empty states use the dash placeholder', async () => {
-    vi.mocked(listSalesDailyRevenue).mockReturnValue(new Promise(() => {}))
-    vi.mocked(listSalesMarginDaily).mockReturnValue(new Promise(() => {}))
-    const loadingRender = renderMoney()
-    const head = await screen.findByTestId('page-head')
-    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—')
-    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(head)).toHaveLength(0)
-
-    loadingRender.unmount()
-    vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
-    vi.mocked(listSalesMarginDaily).mockResolvedValue([])
-    renderMoney()
-    const emptyHead = await screen.findByTestId('page-head')
-    await waitFor(() => expect(emptyHead.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—'))
-    expect(emptyHead.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(emptyHead.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(emptyHead)).toHaveLength(0)
-  })
-
-  it('Money error state uses one dash meta line without a count or bare number', async () => {
-    vi.mocked(listSalesDailyRevenue).mockRejectedValue(new Error('report unavailable'))
-    vi.mocked(listSalesMarginDaily).mockRejectedValue(new Error('report unavailable'))
-    renderMoney()
-    const head = await screen.findByTestId('page-head')
-    await waitFor(() => expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—'))
-    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(head)).toHaveLength(0)
-  })
-})
-
-describe('GUARD-R2 (r5 F-1): the Budget and Pricing page heads never show naked numbers', () => {
-  it('Budget populated head says scenarios and loading uses a dash', async () => {
-    vi.mocked(listBomLines).mockResolvedValue([{ menu_item_esb_code: 'MENU-1', ingredient_esb_code: 'ING-1', recipe_qty: 1, qty_unit: 'kg' }])
-    vi.mocked(listIngredientCostLines).mockResolvedValue([{ ingredient_esb_code: 'ING-1', name: 'Ingredient', unit_cost: 1000, unit: 'kg', as_of: new Date().toISOString() }])
-    vi.mocked(listBudgets).mockResolvedValue([budgetFixture('b1', 'Baseline'), budgetFixture('b2', 'Promo')])
-    const budgetRender = renderBudget()
-    const head = await screen.findByTestId('page-head')
-    await waitFor(() => expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('2 scenarios'))
-    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(head)).toHaveLength(0)
-
-    budgetRender.unmount()
-    vi.mocked(listBomLines).mockReturnValue(new Promise(() => {}))
-    renderBudget()
-    const loadingHead = await screen.findByTestId('page-head')
-    expect(loadingHead.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(loadingHead.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—')
-    expect(loadingHead.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(loadingHead)).toHaveLength(0)
-  })
-
-  it('Pricing populated head says checks and empty uses a dash', async () => {
-    vi.mocked(listBudgets).mockResolvedValue([
-      budgetFixture('b1', 'Baseline'), budgetFixture('b2', 'Promo'), budgetFixture('b3', 'Peak'),
-    ])
-    const pricingRender = renderPricing()
-    const head = await screen.findByTestId('page-head')
-    await waitFor(() => expect(head.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('3 checks'))
-    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(head)).toHaveLength(0)
-
-    pricingRender.unmount()
-    vi.mocked(listBudgets).mockResolvedValue([])
-    renderPricing()
-    const emptyHead = await screen.findByTestId('page-head')
-    await waitFor(() => expect(emptyHead.querySelector('.ch-meta-line')?.textContent?.trim()).toBe('—'))
-    expect(emptyHead.querySelectorAll('.ch-meta-line')).toHaveLength(1)
-    expect(emptyHead.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(emptyHead)).toHaveLength(0)
-  })
-})
 
 describe('GUARD-R2: the Tasks page head never shows a number without a label sentence', () => {
   it('GUARD-R2: head meta is exactly one .ch-meta-line labeled sentence — no .ch-count pill, no bare-number leaf', async () => {

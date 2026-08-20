@@ -553,6 +553,53 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
   })
 })
 
+// ═════════════════════════════════════════════════════════════════════════════
+// GUARD-PRIMARY (#249) — the queue's button rank.
+//
+// The law (DESIGN.md § Buttons; the toolbar's own guard is
+// components/record-collection/guard-one-solid-primary.test.tsx): the solid blue marks the
+// surface's real primary action and nothing else. This queue used to paint a solid Approve on
+// EVERY resting row, so ten rows offered ten equally loud primaries and the bulk action stopped
+// standing out.
+//
+// The invariant is per-SURFACE, not per-row: the page renders one solid "Approve all" per
+// action_type group, so a fixture pinned to a single group can never show more than one solid
+// primary and asserts nothing. The fixture below spans TWO groups (Production in one stream, a
+// Transfer in another so the production-first gate leaves it bulk-eligible) and the assertion is
+// that EVERY solid primary on the surface is a bulk approve — which a row painted solid breaks.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Every solid-primary button currently in the document. */
+const solidPrimaries = () => Array.from(document.querySelectorAll<HTMLElement>('.btn-primary'))
+
+describe('KitchenReviewPage — GUARD-PRIMARY: bulk approve is the only solid primary (#249)', () => {
+  it('across TWO action_type groups, every solid primary is an "Approve all" — the rows are quieter', async () => {
+    // Production lives in (Rumah Rames, kitchen); the Transfer lives in (Radiant, bar), whose
+    // stream has no pending production — so both groups are bulk-eligible and both render a
+    // solid "Approve all". Two groups is what makes the count assertion below non-trivial.
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Es Kopi')
+
+    const bulk = screen.getAllByRole('button', { name: /approve all/i })
+    expect(bulk).toHaveLength(2)
+
+    const solids = solidPrimaries()
+    expect(solids).toHaveLength(bulk.length)
+    expect(solids.map(el => el.getAttribute('aria-label'))).toEqual(
+      bulk.map(el => el.getAttribute('aria-label')),
+    )
+
+    // Row rank (#249): Approve steps down to outline, and Reject — which only opens a
+    // required-note gate, where Approve commits on one click — steps down again to the
+    // quietest rank the system has.
+    expect(screen.getByRole('button', { name: 'Approve Nasi Goreng' })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: 'Reject Nasi Goreng' })).toHaveClass('btn-ghost')
+    expect(screen.getByRole('button', { name: 'Approve Es Kopi' })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: 'Reject Es Kopi' })).toHaveClass('btn-ghost')
+  })
+})
+
 describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
   it('offline: shows the offline banner AND disables per-row + bulk approve/reject', async () => {
     const onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
