@@ -14,6 +14,7 @@
 // arm of the SQL CASE, and BRANCH_DISPLAY_ALIAS below.
 
 import type { Translate } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 import type {
   BranchOption,
   KitchenMovement,
@@ -110,6 +111,10 @@ export function isIntraBranch(
  * The other activity of the origin's branch — what an intra-branch movement is understood to
  * be moving to (bar → kitchen, kitchen → bar). DISPLAY ONLY: it names nothing stored, and
  * deriving it is what lets the surface stay legible without a destination-activity column.
+ *
+ * TWO-ACTIVITY ASSUMPTION (#392): well-defined only while a branch carries exactly
+ * the two catalog activities. A third activity needs an owner ruling on which
+ * counterpart its intra-branch gloss names — flagged to the Director, not designed here.
  */
 export function counterpartActivity(activity: ProductionActivity): ProductionActivity {
   return activity === 'bar' ? 'kitchen' : 'bar'
@@ -144,7 +149,18 @@ export function deriveActionShortLabel(
   })
 }
 
-/** Localized label for the activity half of a stream. */
+/**
+ * Localized label for the activity half of a stream. The key map is TOTAL over
+ * ProductionActivity via `satisfies` — adding an activity to the vocabulary without
+ * adding its label is a compile error, not a picker that renders the wrong name
+ * (#392). Adding 'prep' to PRODUCTION_ACTIVITIES without a 'kitchen.activity.prep'
+ * message fails `tsc` before it ever renders.
+ */
+const ACTIVITY_LABEL_KEY = {
+  kitchen: 'kitchen.activity.kitchen',
+  bar: 'kitchen.activity.bar',
+} satisfies Record<ProductionActivity, MessageKey>
+
 export function activityLabel(t: Translate, activity: ProductionActivity): string {
-  return activity === 'bar' ? t('kitchen.activity.bar') : t('kitchen.activity.kitchen')
+  return t(ACTIVITY_LABEL_KEY[activity])
 }

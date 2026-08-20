@@ -23,7 +23,9 @@ interface DefaultStreamRow {
  * Resolve the caller's default stream against an already-loaded branch catalog.
  * Null when the RPC yields no usable pair — no live primary membership, a non-stream
  * primary team (NULL halves), a branch missing from the active catalog (archived), or
- * an activity outside the production set. Throws only on a transport/RPC error, so a
+ * an activity outside the production set — a set asserted equal to the shared.activities
+ * catalog (production-activities-catalog-drift.test.ts, #392), so it cannot silently
+ * go stale. Throws only on a transport/RPC error, so a
  * caller can distinguish "no default" (pick a fallback) from "could not ask".
  */
 export async function fetchDefaultStream(

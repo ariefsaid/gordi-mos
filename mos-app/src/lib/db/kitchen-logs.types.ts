@@ -8,11 +8,19 @@
 // it is a constant, not a dimension; what varies is whose books the raw comes from and the
 // output goes to (the branch) and which activity produced it.
 
-/** The activity half of a production stream (`ops.kitchen_logs.activity`). */
-export type ProductionActivity = 'kitchen' | 'bar'
+/**
+ * The Activity vocabulary the client knows — the fourth copy of `shared.activities`
+ * (#392). Deliberately a compile-time literal: the vocabulary changes by migration,
+ * never by session (20260814000001 grants no write path). What makes this copy honest
+ * is the guard: production-activities-catalog-drift.test.ts asserts this array equals
+ * the catalog the migrations define, so drift is a CI red, never a silently dropped
+ * default stream. ONE literal feeds the union, the array, and every picker — edit one
+ * line to add an activity, and the guard forces exactly that edit.
+ */
+export const PRODUCTION_ACTIVITIES = ['kitchen', 'bar'] as const
 
-/** The two activities, in display order. */
-export const PRODUCTION_ACTIVITIES: readonly ProductionActivity[] = ['kitchen', 'bar']
+/** The activity half of a production stream (`ops.kitchen_logs.activity`). */
+export type ProductionActivity = (typeof PRODUCTION_ACTIVITIES)[number]
 
 /** A row of the canonical branch catalog (`shared.branches`, OD-WAY-39). */
 export interface BranchOption {
