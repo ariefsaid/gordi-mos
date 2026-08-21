@@ -137,7 +137,7 @@ SSSF_T="$TMP/sssf/.claude/skills/sssf/templates"
 # adws/-relative deviated paths. adws/PORT-MANIFEST.md is the source of truth; this list and
 # scripts/vendor-sssf.test.sh's must both match it (the self-test cross-checks). The MOS-owned
 # config and root .env.sample are handled below as bootstrap-only stamps, never overwritten.
-SSSF_DEVIATED="adw_modules/agents.py adw_modules/data_types.py adw_modules/quality.py \
+SSSF_DEVIATED="adw_modules/agents.py adw_modules/agent_pi.py adw_modules/data_types.py adw_modules/quality.py \
 adw_modules/git_helper.py adw_modules/gates.py adw_simple_sdlc.py adw_design_audit.py adw_modules/permissions.py \
 adw_plan_build.py adw_plan_build_test.py adw_plan_build_test_quality.py \
 adw_data/prompt_engineering/planner/system.md adw_data/prompt_engineering/planner/user.md \

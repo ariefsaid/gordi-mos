@@ -10,9 +10,15 @@
 # Runs the REAL adw_modules/quality.py and adws/adw_simple_sdlc.py with stub
 # siblings (python3 stdlib only — no pydantic/yaml installed here, on purpose:
 # the factory's deps are uv-managed at run time, never CI's concern).
+# ONE exception, the gate-unit block at the bottom: it imports adw_modules.gates,
+# whose import chain reaches pydantic via data_types.py, so a stub sibling cannot
+# stand in for it. That block provisions its own deps through the shared resolver
+# (scripts/lib/py-with-deps.sh) rather than skip — a skipped control is the
+# failure mode these self-tests exist to kill.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
@@ -508,7 +514,18 @@ else
 fi
 
 # ── gate unit: diff_matches_claims accepts real deletions, refuses phantoms (#348 live hit) ──
-GOUT="$(python3 - <<'PY'
+# This block imports adw_modules.gates, whose chain reaches pydantic via data_types.
+# CI's guard runner provisions no python deps, so resolve them through the resolver
+# scripts/sssf-config.test.sh shares (scripts/lib/py-with-deps.sh) — one dependency
+# list, so the two self-tests cannot drift apart. NEVER skip the block: a skipped
+# control is the failure mode these self-tests exist to kill. A provisioning failure
+# falls through to the check going red, never to a silent pass.
+. scripts/lib/py-with-deps.sh
+py_with_deps_init "$tmp/venv" \
+  || bad "could not provision gate-unit deps (no uv; venv/pip failed)"
+GPY() { py_with_deps "$@"; }
+
+GOUT="$(GPY - <<'PY'
 import subprocess, sys, tempfile, types
 from pathlib import Path
 sys.path.insert(0, str(Path("adws").resolve()))

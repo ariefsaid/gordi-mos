@@ -28,6 +28,16 @@ class GateFailure(RuntimeError):
     pass
 
 
+class ProviderFailure(RuntimeError):
+    """The provider refused the request — the agent never ran.
+
+    Kept distinct from the parse failure below it on purpose: bad output means
+    the brief or the roster slot is at fault, a refused request means neither
+    is. The two need opposite responses, so the error must never claim the one
+    it did not verify (#386).
+    """
+
+
 # ── config ───────────────────────────────────────────────────────────────────
 
 def load_config(path: str = "adws/adw_sssf_config/sssf.config.yaml") -> SSSFConfig:
@@ -275,8 +285,20 @@ def _extract_json(text: str) -> dict:
 
 def _parse_with_retries(run, phase: Phase, call: AgentCall, result, send):
     """Parse the final response against the declared output type; on failure,
-    continue the SAME session with a correction (bounded)."""
+    continue the SAME session with a correction (bounded).
+
+    A response the provider never delivered is refused before any of that: an
+    empty response with a provider error on it is a transport fault, and
+    correcting a rate-limited provider only burns the attempts against it.
+    """
+    owner = resolve(run.cfg, phase.params.owner)
     for attempt in range(1, JSON_FIX_ATTEMPTS + 2):
+        # Emptiness alone is the model's fault; emptiness WITH the provider's
+        # own error on it is not, and that is the whole distinction.
+        if result.provider_error and not result.text:
+            raise ProviderFailure(
+                f"{owner.name} never ran: {owner.model} returned no content — "
+                f"upstream said {result.provider_error}")
         try:
             payload = _extract_json(result.text)
             return call.output_type.model_validate(payload), attempt

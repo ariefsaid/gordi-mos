@@ -8,6 +8,9 @@ on:
       - 'scripts/agent-git-shim/**'
       - 'scripts/pre-pr-verify.sh'
       - 'scripts/*.test.sh'
+      # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
+      # a change there changes what those tests actually run, so re-run them.
+      - 'scripts/lib/**'
       - 'scripts/import-kitchen-history.py'
       - 'scripts/setup-hooks.sh'
       - '.github/workflows/guards.yml'
@@ -41,5 +44,7 @@ jobs:
         run: bash scripts/sssf-locks.test.sh
       - name: sssf design-audit chain self-test (#350)
         run: bash scripts/sssf-design-audit.test.sh
+      - name: sssf provider-fault vs model-fault self-test (#386)
+        run: bash scripts/sssf-provider-error.test.sh
       - name: kitchen history import self-test (#349)
         run: bash scripts/import-kitchen-history.test.sh

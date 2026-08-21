@@ -274,6 +274,17 @@ def run(request: PiRequest, on_event: Optional[Callable[[dict], None]] = None,
                     if turn and message.get("stopReason") not in ("aborted", "error"):
                         result.context_tokens = turn
                     result.cost += (usage.get("cost", {}) or {}).get("total", 0.0) or 0.0
+                    # An errored turn carries no content — the provider refused
+                    # the request and the model never ran. Its message is the
+                    # only account of why, so it rides the result instead of
+                    # being left in raw_output.jsonl for someone to go find.
+                    # pi's own auto-retries each emit a turn, so the LAST one
+                    # is the settled state: a later clean turn clears it.
+                    if message.get("stopReason") == "error":
+                        result.provider_error = (message.get("errorMessage")
+                                                 or "provider error with no message")
+                    else:
+                        result.provider_error = ""
             if on_event:
                 on_event(event)
 

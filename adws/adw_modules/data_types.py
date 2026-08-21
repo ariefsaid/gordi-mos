@@ -484,3 +484,8 @@ class PiResult(BaseModel):
     # visualizer's context bar measures against `context_window`.
     context_tokens: int = 0
     context_window: int = 0         # 0 when the registry declares no ceiling
+    # The provider's own account of a turn that settled with stopReason
+    # "error" — a rate limit, an outage, a refused request. Empty when the last
+    # turn settled cleanly, so `provider_error and not text` is exactly "the
+    # request never reached the model".
+    provider_error: str = ""
