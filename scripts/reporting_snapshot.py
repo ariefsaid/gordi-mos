@@ -130,15 +130,27 @@ def build_source_query() -> str:
 
 
 def build_org_scope_sql() -> str:
-    """Announce the org this run writes, for the whole connection.
+    """Declare the org this run writes, for the transaction that writes it.
 
-    `false` is SESSION scope, not transaction scope, and that is the point: the unit of "one
-    snapshot run" is the connection, not any single transaction on it. A transaction-local
-    announcement would be discarded at the first COMMIT, so a later statement landing in a fresh
-    transaction would write with no org declared. Session scope binds the declaration to the same
-    lifetime as the run itself.
+    The third set_config argument is is_local, and `true` — TRANSACTION scope — is deliberate.
+    Both callers below open a connection, declare, write, commit, close; psycopg is not in
+    autocommit, so the declaration and the writes it authorises already share one implicit
+    transaction. Transaction scope therefore does exactly the work session scope would, with a
+    strictly shorter lifetime, and that difference is the reason to prefer it:
+
+    * The production DSN is a POOLED one, so the backend is handed on when the run's connection
+      closes. A transaction-scoped declaration cannot survive to be inherited by whoever holds
+      that backend next; a session-scoped one is only cleaned up if the pooler chooses to.
+    * If a later change ever puts a write in a fresh transaction on the same connection, the
+      declaration is gone and the write is REFUSED — loud, non-zero exit, alerted — rather than
+      landing under a declaration that transaction never made. Same direction of failure as the
+      rest of this design.
+
+    The obligation this buys is small and local: the declaration must be executed in the same
+    transaction as the writes. Both call sites do, and scripts/test_reporting_snapshot.py asserts
+    the ordering with no commit in between.
     """
-    return "select set_config('app.reporting_org', %s, false)"
+    return "select set_config('app.reporting_org', %s, true)"
 
 
 def build_upsert_sql() -> str:
@@ -189,8 +201,9 @@ def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = No
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
-            # Declare the run's org BEFORE any write: reporting.* write policies admit only rows
-            # in the declared org, so an undeclared connection writes nothing.
+            # Declare the run's org BEFORE any write, and in the SAME transaction as the write:
+            # the reporting.* write policies admit only rows in the declared org, and the
+            # declaration is transaction-scoped. No commit may separate these two statements.
             reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_upsert_sql(), normalized_rows)
         reporting_conn.commit()
@@ -326,8 +339,8 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
-            # Second connection, second declaration — the setting rides the connection, and this
-            # run opens one per snapshot.
+            # Second connection, second declaration — a run opens one per snapshot, and each
+            # writing transaction must carry its own. Same ordering rule as the revenue path.
             reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_margin_upsert_sql(), normalized_rows)
         reporting_conn.commit()

@@ -17,6 +17,13 @@ on:
       # posted — so a change to any of the three re-runs it.
       - 'scripts/esb-worker.py'
       - 'scripts/*.test.py'
+      # the nightly snapshot job and its unit suite — the suite owns an acceptance criterion
+      # (a run declares the org it writes), so a change to either has to re-run it.
+      # NOTE: test_reporting_snapshot.py does NOT match 'scripts/*.test.py' above — the
+      # underscore form needs its own entry, which is why both lists are here.
+      - 'scripts/reporting_snapshot.py'
+      - 'scripts/reporting_local_env.py'
+      - 'scripts/test_reporting_snapshot.py'
       - 'scripts/setup-hooks.sh'
       - '.github/workflows/guards.yml'
       # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory
@@ -55,3 +62,5 @@ jobs:
         run: bash scripts/import-kitchen-history.test.sh
       - name: ESB push worker test-data + dispatch self-test (#134, FR-084, FR-053)
         run: bash scripts/esb-worker.test.sh   # section G runs esb-worker-dispatch.test.py
+      - name: reporting snapshot job self-test (#133)
+        run: bash scripts/reporting-snapshot.test.sh

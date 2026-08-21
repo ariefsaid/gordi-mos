@@ -20,6 +20,11 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+# The python side of the repo — the nightly snapshot job. CI's verify lane only ever exercises
+# mos-app/, so without this the job's unit suite would be absent from the battery that stamps a
+# commit as ready for a PR. It is hermetic and takes milliseconds.
+bash scripts/reporting-snapshot.test.sh
+
 cd mos-app
 npm run typecheck
 npm run lint

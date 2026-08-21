@@ -19,7 +19,7 @@ create extension if not exists pgtap with schema extensions;
 grant reporting_writer to postgres with set true;
 grant usage on schema extensions to reporting_writer;
 
-select plan(18);
+select plan(21);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -30,7 +30,10 @@ insert into reporting.sales_daily_revenue
   (org_id, revenue_date, channel, esb_code, branch_code, branch_name, transactions, clean_revenue, snapshot_as_of)
 values ('00000000-0000-0000-0000-0000000000b1','2026-08-01','POS','GKI','RRS','B''s own RRS',99,9900000.00,now());
 
--- ══ 1. Undeclared: the state a run is in before it announces anything ═══════════════════════
+-- ══ 1. Undeclared: the state a run is in before it declares anything ════════════════════════
+-- ALL FOUR fed tables are asserted here, not just the first: "no declaration, no writes" is a
+-- claim about every reporting write, and the undeclared state is the one the deploy sequencing
+-- rests on. It is also the only state this file gets one shot at — see the ordering note above.
 select is(reporting.current_writer_org(), null,
   'with no declaration in the session the writer org is NULL — and NULL is what no row''s org_id can equal');
 
@@ -40,7 +43,20 @@ select throws_ok($$
     (org_id, revenue_date, channel, esb_code, branch_code, branch_name, transactions, clean_revenue, snapshot_as_of)
   values ('00000000-0000-0000-0000-0000000000a1','2026-08-02','POS','GKI','RRS','Rumah Rames',1,1.00,now())
 $$, '42501', null,
-  'a run that has declared no org writes nothing — this is the fail-closed half, and it is why the job must be redeployed before this migration reaches an environment');
+  'sales_daily_revenue: a run that has declared no org writes nothing — this is the fail-closed half, and it is why the job must be redeployed before this migration reaches an environment');
+select throws_ok($$
+  insert into reporting.sales_margin_daily
+    (org_id, margin_date, esb_code, branch_code, revenue, cogs_interim_sm, cogs_budget_bom, margin_interim, snapshot_as_of)
+  values ('00000000-0000-0000-0000-0000000000a1','2026-08-02','GKI','RRS',1.00,1.00,1.00,0.00,now())
+$$, '42501', null, 'sales_margin_daily: undeclared writes nothing either — the margin half of the same nightly run');
+select throws_ok($$
+  insert into reporting.ingredient_cost_lines (org_id, ingredient_esb_code, name, unit_cost, unit, as_of)
+  values ('00000000-0000-0000-0000-0000000000a1','ING-SALT','Salt',9000.0000,'kg',now())
+$$, '42501', null, 'ingredient_cost_lines: undeclared writes nothing either');
+select throws_ok($$
+  insert into reporting.bom_lines (org_id, menu_item_esb_code, ingredient_esb_code, recipe_qty, qty_unit, as_of)
+  values ('00000000-0000-0000-0000-0000000000a1','MENU-X','ING-SALT',1.0000,'kg',now())
+$$, '42501', null, 'bom_lines: undeclared writes nothing either — all four fed tables refuse what they must');
 reset role;
 
 -- ══ 2. Empty and unparseable declarations are refusals, not cast errors ═════════════════════
