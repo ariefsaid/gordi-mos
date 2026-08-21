@@ -10,6 +10,7 @@
 // `groups` wins. Callers pass exactly one of `rows` (flat) / `groups` (grouped).
 import { Fragment, useState, type ReactNode } from 'react'
 import { Chevron } from '@/shell/icons'
+import { useT } from '@/i18n/use-t'
 import './data-table.css'
 
 export interface DataTableColumn<Row> {
@@ -71,6 +72,7 @@ export interface DataTableProps<Row> {
   /** caller passes useIsDesktop() — single-render, exactly one branch in the DOM */
   isDesktop: boolean
   state?: 'ready' | 'loading' | 'empty' | 'error'
+  /** empty-state label; defaults to the localized common.noRows */
   emptyLabel?: string
   onRetry?: () => void
   /** <caption> / aria — a11y table name */
@@ -113,10 +115,14 @@ export function DataTable<Row extends object>({
   footer,
   isDesktop,
   state = 'ready',
-  emptyLabel = 'No rows to show.',
+  emptyLabel,
   onRetry,
   caption,
 }: DataTableProps<Row>) {
+  // #400: the kit's default strings go through the catalog — a caller that passes its own
+  // emptyLabel keeps owning it, every other caller gets the localized default.
+  const t = useT()
+  const resolvedEmptyLabel = emptyLabel ?? t('common.noRows')
   // Collapse state lives at the top so it is shared by both branches — a re-render
   // with a different isDesktop keeps the same groups open/closed. All-expanded by
   // default. Internal UNLESS the caller supplies `collapsedGroupKeys`/`onToggleGroup`,
@@ -137,13 +143,15 @@ export function DataTable<Row extends object>({
   }
   const collapsed = collapsedGroupKeys ?? internalCollapsed
 
+  // #400: the failure copy joins the same `common.loadFailed` sentence every other load
+  // failure in the app already uses.
   if (state === 'error') {
     return (
       <div className="dt-error" role="alert">
-        <p className="dt-error-text">Couldn&apos;t load this table. Try again.</p>
+        <p className="dt-error-text">{t('common.loadFailed', { what: t('common.what.table') })}</p>
         {onRetry && (
           <button type="button" className="dt-retry" onClick={onRetry}>
-            Try again
+            {t('common.retry')}
           </button>
         )}
       </div>
@@ -162,7 +170,7 @@ export function DataTable<Row extends object>({
           onSortChange={onSortChange}
           footer={footer}
           state={state}
-          emptyLabel={emptyLabel}
+          emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
           onToggleGroup={toggleGroup}
@@ -176,7 +184,7 @@ export function DataTable<Row extends object>({
           groups={groups}
           rowClassName={rowClassName}
           state={state}
-          emptyLabel={emptyLabel}
+          emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
           onToggleGroup={toggleGroup}
@@ -243,6 +251,7 @@ function GroupHeaderRow<Row>({
   collapsed: boolean
   onToggle: () => void
 }) {
+  const t = useT()
   return (
     <tr className="dt-group-row">
       <th scope="colgroup" colSpan={columnCount} className="dt-group-cell">
@@ -251,7 +260,9 @@ function GroupHeaderRow<Row>({
             type="button"
             className="dt-group-toggle"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+            aria-label={collapsed
+              ? t('table.group.expand', { group: group.label ?? '' })
+              : t('table.group.collapse', { group: group.label ?? '' })}
             onClick={onToggle}
           >
             <Chevron className={`dt-group-chev${collapsed ? ' dt-group-chev-collapsed' : ''}`} />
@@ -462,6 +473,7 @@ function PhoneCards<Row>({
   collapsed,
   onToggleGroup,
 }: PhoneCardsProps<Row>) {
+  const t = useT()
   if (state === 'loading') {
     return (
       <div className="dt-cards" aria-label={caption}>
@@ -503,7 +515,9 @@ function PhoneCards<Row>({
                 type="button"
                 className="dt-cards-group-toggle"
                 aria-expanded={!collapsed.has(group.key)}
-                aria-label={collapsed.has(group.key) ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                aria-label={collapsed.has(group.key)
+                  ? t('table.group.expand', { group: group.label ?? '' })
+                  : t('table.group.collapse', { group: group.label ?? '' })}
                 onClick={() => onToggleGroup(group.key)}
               >
                 <Chevron className={`dt-cards-group-chev${collapsed.has(group.key) ? ' dt-cards-group-chev-collapsed' : ''}`} />

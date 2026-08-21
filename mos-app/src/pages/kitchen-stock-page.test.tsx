@@ -449,3 +449,51 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(numCell.closest('.tabular')).not.toBeNull()
   })
 })
+
+// #400 i18n port: the Stock KPI strip renders Indonesian under the id locale — AC "every
+// surface listed renders Indonesian". RED first: the strip computes English literals today.
+describe('KitchenStockPage — locale seam (#400)', () => {
+  beforeEach(() => {
+    setDesktop()
+    localStorage.setItem('mos.locale', 'id')
+    mockFetchStock.mockResolvedValue(STOCK_ROWS) // one negative row → 'perlu ditinjau'
+  })
+  afterEach(() => localStorage.clear())
+
+  it('renders the whole KPI strip in Bahasa Indonesia', async () => {
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('region', { name: 'Ringkasan stok' })).toBeInTheDocument()
+    expect(screen.getByText('Total stok fisik')).toBeInTheDocument()
+    expect(screen.getByText('Item bersisa stok')).toBeInTheDocument()
+    expect(screen.getByText('Saldo minus')).toBeInTheDocument()
+    expect(screen.getByText('Total tersedia')).toBeInTheDocument()
+    expect(screen.getByText('perlu ditinjau')).toBeInTheDocument()
+    expect(screen.getByText('siap ditransfer')).toBeInTheDocument()
+    expect(screen.getByText('1 kosong/minus')).toBeInTheDocument() // inStock.delta
+    // the English strip is gone
+    expect(screen.queryByText(/total on-hand/i)).toBeNull()
+    expect(screen.queryByText(/negative balances/i)).toBeNull()
+  })
+
+  it('phone summary line is Indonesian', async () => {
+    setPhone()
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const phone = document.querySelector('.kks-phone') as HTMLElement
+    expect(phone).not.toBeNull()
+    expect(phone.textContent).toMatch(/Stok/)
+    expect(phone.textContent).toMatch(/2 item/)
+    expect(phone.textContent).toMatch(/5 tersedia/) // Σ tersedia = 8 + (−3)
+  })
+
+  it('all-zero stock keeps the neutral “belum ada data stok” delta', async () => {
+    mockFetchStock.mockResolvedValue([
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const tile = screen.getByText('Saldo minus').closest('.kks-tile') as HTMLElement
+    expect(tile.textContent).toMatch(/belum ada data stok/)
+  })
+})

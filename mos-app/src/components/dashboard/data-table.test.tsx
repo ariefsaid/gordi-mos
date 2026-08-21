@@ -1,7 +1,8 @@
 // DataTable tests — design-plan §2.3 (general sortable, reflowing table primitive).
 // Generalises kitchen-table.css (.kt-*) grammar with a formal sort + card-reflow prop-shape.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DataTable, type DataTableColumn, type DataTableGroup } from './data-table'
@@ -442,5 +443,65 @@ describe('DataTable — grouping regression + glyph guard', () => {
     const src = readFileSync(resolve(SRC, 'components/dashboard/data-table.tsx'), 'utf8')
     expect(src).not.toMatch(/[▸▾▴]/)
     expect(src).toMatch(/from '@\/shell\/icons'/) // imports the ONE shared chevron
+  })
+})
+
+// #400: the kit's own strings — default empty label + group expand/collapse aria — go
+// through the catalog. Needs the provider wrapper (bare renders resolve the standalone
+// en default context).
+describe('DataTable — locale seam (#400)', () => {
+  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+  afterEach(() => localStorage.clear())
+
+  it('default empty label is Indonesian when the caller passes none', () => {
+    render(
+      <I18nProvider>
+        <DataTable columns={COLUMNS} rows={[]} isDesktop state="empty" caption="Tabel" />
+      </I18nProvider>,
+    )
+    expect(screen.getByText('Tidak ada baris untuk ditampilkan.')).toBeInTheDocument()
+    expect(screen.queryByText('No rows to show.')).toBeNull()
+  })
+
+  it('group toggle aria names are Indonesian (desktop + phone)', () => {
+    const { unmount } = render(
+      <I18nProvider>
+        <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop caption="Tabel" />
+      </I18nProvider>,
+    )
+    const collapse = screen.getByRole('button', { name: 'Tutup grup Hot Kitchen' })
+    fireEvent.click(collapse)
+    expect(screen.getByRole('button', { name: 'Buka grup Hot Kitchen' })).toBeInTheDocument()
+    unmount()
+
+    render(
+      <I18nProvider>
+        <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop={false} caption="Tabel" />
+      </I18nProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Tutup grup Hot Kitchen' }))
+    expect(screen.getByRole('button', { name: 'Buka grup Hot Kitchen' })).toBeInTheDocument()
+  })
+
+  // Same reasoning as ChartFrame: the failure state is where English hurts most, and it
+  // is the last string in the kit still bypassing `common.loadFailed`.
+  it('the error state and its retry control render Indonesian', () => {
+    render(
+      <I18nProvider>
+        <DataTable
+          columns={COLUMNS}
+          rows={[]}
+          isDesktop
+          state="error"
+          caption="Tabel"
+          onRetry={() => {}}
+        />
+      </I18nProvider>,
+    )
+    expect(
+      screen.getByText('Gagal memuat tabel ini. Periksa koneksi Anda lalu coba lagi.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
+    expect(screen.queryByText(/couldn’t load|couldn't load|try again/i)).toBeNull()
   })
 })

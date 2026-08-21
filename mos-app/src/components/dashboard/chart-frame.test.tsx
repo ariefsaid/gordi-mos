@@ -1,7 +1,8 @@
 // ChartFrame tests — design-plan §2.2 (titled chart surface + mandatory tableFallback).
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ChartFrame } from './chart-frame'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 const FALLBACK = <table><caption>Daily revenue table</caption></table>
 
@@ -123,5 +124,49 @@ describe('ChartFrame — error state', () => {
     const region = screen.getByRole('region', { name: 'Daily revenue chart' })
     const text = region.textContent ?? ''
     expect(text).not.toMatch(/postgres|supabase|select \*|stack|token|dsn/i)
+  })
+})
+
+// #400: the kit's own empty-cut string goes through the catalog — needs the provider
+// wrapper so the id locale resolves.
+describe('ChartFrame — locale seam (#400)', () => {
+  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+  afterEach(() => localStorage.clear())
+
+  it('the empty state renders Indonesian when the locale is id', () => {
+    render(
+      <I18nProvider>
+        <ChartFrame title="Pendapatan harian" ariaLabel="Grafik pendapatan harian" tableFallback={FALLBACK} state="empty">
+          <div data-testid="chart-body">chart</div>
+        </ChartFrame>
+      </I18nProvider>,
+    )
+    expect(screen.getByText('Tidak ada data untuk irisan ini.')).toBeInTheDocument()
+    expect(screen.queryByText(/no data for this cut/i)).toBeNull()
+  })
+
+  // The error state is the one a floor user meets on a bad connection — the state where
+  // English copy costs the most, because it is the copy that says what to do next. Every
+  // other load failure in the app already speaks through `common.loadFailed`; this frame
+  // was the last one still holding its own English literal.
+  it('the error state and its retry control render Indonesian', () => {
+    render(
+      <I18nProvider>
+        <ChartFrame
+          title="Pendapatan harian"
+          ariaLabel="Grafik pendapatan harian"
+          tableFallback={FALLBACK}
+          state="error"
+          onRetry={() => {}}
+        >
+          <div data-testid="chart-body">chart</div>
+        </ChartFrame>
+      </I18nProvider>,
+    )
+    expect(
+      screen.getByText('Gagal memuat grafik ini. Periksa koneksi Anda lalu coba lagi.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
+    expect(screen.queryByText(/couldn’t load|couldn't load|try again/i)).toBeNull()
   })
 })
