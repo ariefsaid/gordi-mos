@@ -623,3 +623,28 @@ describe('KitchenPushesPage — #402 AC-4: the batch id is one paste-able string
     expect(rule![1]).toContain('user-select: all')
   })
 })
+
+// ── #416: the one-line id must not widen the table out of its frame ───────────
+// The nowrap id only stays on one line WITHOUT pushing columns off screen because the
+// table is fixed-layout: in an auto-layout table `max-width: 100%` on cell content has no
+// definite width to resolve against, so the id's overflow never fires and the column grows
+// instead (measured: +93px, and 154px of whole-page horizontal scroll at an 820px
+// viewport). jsdom has no layout, so these assert the two things that produce it — the
+// class the page hands the table, and the rule that class carries.
+describe('KitchenPushesPage — #416: the table stays inside its frame', () => {
+  it('hands the table the fixed-layout class', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    render(<KitchenPushesPage />)
+    const table = await screen.findByRole('table')
+    expect(table.classList.contains('kpu-cols')).toBe(true)
+  })
+
+  it('and that class pins the column widths instead of letting content set them', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-pushes-page.css'), 'utf8')
+    const rule = css.match(/\.kpu-cols\s*\{([^}]*)\}/)
+    expect(rule, '.kpu-cols rule must exist in kitchen-pushes-page.css').toBeTruthy()
+    expect(rule![1]).toContain('table-layout: fixed')
+    // The Error column takes the slack, so no column can be squeezed to nothing.
+    expect(css).toMatch(/nth-child\(6\)\s*\{\s*width:\s*auto/)
+  })
+})

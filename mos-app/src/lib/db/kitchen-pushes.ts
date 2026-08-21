@@ -50,7 +50,27 @@ export interface EsbPushFilter {
 // ── Data layer ────────────────────────────────────────────────────────────────
 
 /**
- * List recent ESB push rows (newest first).
+ * Severity rank shared by the SQL read and the presentation sort (#402 / #416).
+ *
+ * dead_letter (retries exhausted — the row that wants a human) > failed (the machine is
+ * still retrying) > in_flight/pending (queued — healthy) > posted (done).
+ *
+ * The five status strings happen to sort ALPHABETICALLY into exactly this order
+ * (dead_letter < failed < in_flight < pending < posted), which is what lets the read
+ * rank server-side with a plain `.order('status')` — see listEsbPushes. That agreement is
+ * a coincidence of the vocabulary, so a test pins it: if a future status word breaks the
+ * alphabetical rank, the test fails rather than the surface quietly mis-ranking.
+ */
+export const SEVERITY_RANK: Record<EsbPushStatus, number> = {
+  dead_letter: 0,
+  failed: 1,
+  in_flight: 2,
+  pending: 2,
+  posted: 3,
+}
+
+/**
+ * List ESB push rows, worst first (severity in SQL, newest-first within a tier).
  * Reads from `integrations.esb_push` using the `integrations` schema accessor
  * (mirrors the `ops` accessor pattern in kitchen-logs.ts). RLS limits to the
  * caller's org (ops_lead/admin — AC-007); a member would get zero rows, not an
@@ -59,6 +79,13 @@ export interface EsbPushFilter {
  * @param filter  Optional status/module filter for narrowing the list.
  * @param limit   Max rows to return (default 100 — a monitoring surface).
  */
+// #416: the ordering has to be a property of WHAT IS FETCHED, not of what happened to
+// arrive. Ordering only by created_at and cutting at `limit` hides precisely the row this
+// screen exists for — a batch that got stuck last week is, by virtue of being stuck, old:
+// it sits below `limit` newer healthy pushes, never reaches the client, and no client-side
+// sort can rescue a row that was never sent. Ranking by status first makes the DB truncate
+// the HEALTHY tail instead: every dead_letter and failed row in the org is inside the
+// window, and the remaining slots go to the newest queued/posted rows.
 export async function listEsbPushes(
   filter?: EsbPushFilter,
   limit = 100,
@@ -70,6 +97,7 @@ export async function listEsbPushes(
     .select(
       'id,source_module,source_ref,endpoint,target_env,status,retry_count,last_error,esb_doc_num,created_at,posted_at',
     )
+    .order('status', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -97,20 +125,14 @@ export async function listEsbPushes(
  * (done). Held rows are pending-noop and rank with the healthy tier: held is a
  * permanent, fine state (FR-052), not a stuck one.
  *
- * Pure/local: the SQL read stays created_at DESC (the 100-row window); this
- * re-orders only what was fetched, mutates nothing, and breaks ties on id so
- * the order is stable across renders.
+ * The RANKING ITSELF is the read's (listEsbPushes orders by status server-side, so the
+ * attention tier is inside the window whatever its age — #416). This is the presentation
+ * tie-break on top of it: it collapses in_flight/pending into one healthy tier, mutates
+ * nothing, and breaks ties on id so the order is stable across renders.
  */
 export function sortPushRows(rows: EsbPushRow[]): EsbPushRow[] {
-  const RANK: Record<EsbPushStatus, number> = {
-    dead_letter: 0,
-    failed: 1,
-    in_flight: 2,
-    pending: 2,
-    posted: 3,
-  }
   return [...rows].sort((a, b) => {
-    const byRank = RANK[a.status] - RANK[b.status]
+    const byRank = SEVERITY_RANK[a.status] - SEVERITY_RANK[b.status]
     if (byRank !== 0) return byRank
     const byTime = Date.parse(b.created_at) - Date.parse(a.created_at)
     if (byTime !== 0) return byTime

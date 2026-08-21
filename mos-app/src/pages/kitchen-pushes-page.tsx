@@ -14,8 +14,10 @@
 //   amber=Failed·retrying, RED=Failed·stopped (#402 / OD-WAY-74 #4: red tag, amber
 //   row — red on the whole row would read "this data is wrong"; the row is fine,
 //   its delivery failed). target_env shown prominently (Dry run vs GOO/GKID).
-// - Rows sort severity-first (dead_letter > failed > healthy), newest within a tier
-//   (#402): a stuck batch must never hide below healthy ones.
+// - Rows are READ severity-first (dead_letter > failed > healthy), newest within a tier
+//   (#402/#416): a stuck batch must never hide below healthy ones — and since a stuck
+//   batch is usually an OLD one, the rank happens in SQL, before the row window is cut.
+//   sortPushRows is only the presentation tie-break on top of that read.
 // - Dead-letter rows: warning/7% fill + 2px warning left rule (the owner-approved
 //   side-stripe exception, DESIGN.md "Ops Log tokens").
 // - All states: loading / empty / error+retry / forbidden / populated.
@@ -203,7 +205,19 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
     {
       key: 'created_at',
       header: t('kitchen.pushes.col.created'),
-      render: row => <span className="kpu-time tabular">{formatDate(row.created_at)}</span>,
+      // #416: date and clock are two unbreakable parts. The intermediate band gives this
+      // column ~96px, and a cell allowed to wrap freely breaks "2026-08-21" at its own
+      // hyphen — which reads as two numbers, not a date. The only break the cell has is
+      // the space between the parts.
+      render: row => {
+        const [date, time] = formatDate(row.created_at).split(' ')
+        return (
+          <span className="kpu-time tabular">
+            <span className="kpu-nb">{date}</span>
+            {time ? <> <span className="kpu-nb">{time}</span></> : null}
+          </span>
+        )
+      },
     },
     {
       key: 'posted_at',
@@ -313,14 +327,24 @@ export function KitchenPushesPage() {
         </EmptyState>
       )}
 
+      {/* #416: the table adapts to the FRAME it is in, not to the viewport — available
+          content width is not monotonic in the viewport here (the rail is 0 / 72 / 232px
+          across 768→1280, DESIGN.md § Layout "The Container-Query Rule"), so a viewport
+          media query switches the column set at the wrong moments. This host is the
+          container the column rules query. */}
       {load.kind === 'ready' && rows.length > 0 && (
-        <DataTable
-          columns={pushColumns(t)}
-          rows={rows}
-          isDesktop={isDesktop}
-          rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
-          caption={t('kitchen.pushes.caption')}
-        />
+        <div className="kpu-cols-host">
+          <DataTable
+            columns={pushColumns(t)}
+            rows={rows}
+            isDesktop={isDesktop}
+            // #416: fixed-layout column widths — the table fits its frame instead of
+            // pushing Created/Posted off screen behind a page-wide scrollbar.
+            tableClassName="kpu-cols"
+            rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
+            caption={t('kitchen.pushes.caption')}
+          />
+        </div>
       )}
     </PageFamilyFrame>
   )
