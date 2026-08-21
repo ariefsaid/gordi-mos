@@ -16,7 +16,10 @@ bad()  { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 git init -q "$tmp/repo"
 git -C "$tmp/repo" config user.email t@t && git -C "$tmp/repo" config user.name t
 mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app" "$tmp/bin"
-cp "$SCRIPT" "$tmp/repo/scripts/"
+# The whole scripts/ dir, not just the script under test: the battery now also runs the python
+# side (scripts/reporting-snapshot.test.sh), and stubbing that away would make this self-test
+# green over a step it never exercised.
+cp -R "$(pwd)/scripts/." "$tmp/repo/scripts/"
 echo x > "$tmp/repo/f"; git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm init
 HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
 STAMP="$tmp/repo/.git/pre-pr-verify-ok"
@@ -36,6 +39,21 @@ rm -f "$STAMP"
 printf '#!/bin/sh\ncase "$*" in *test*) exit 1;; *) exit 0;; esac\n' > "$tmp/bin/npm"
 if run; then bad "red battery must refuse"; else ok "red battery refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after red battery" || bad "stamp written despite red battery"
+
+# A red PYTHON suite must refuse too — the snapshot job's tests are part of the battery, and a
+# battery that runs a step without propagating its failure is the same non-gate as not running it.
+printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"
+rm -f "$STAMP"
+cat >> "$tmp/repo/scripts/test_reporting_snapshot.py" <<'PY'
+
+
+class DeliberatelyRedForTheSelfTest(unittest.TestCase):
+    def test_this_must_sink_the_battery(self):
+        self.fail("planted by scripts/pre-pr-verify.test.sh")
+PY
+git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "plant a red python test"
+if run; then bad "red python suite must refuse"; else ok "red python suite refuses"; fi
+[ ! -f "$STAMP" ] && ok "no stamp after red python suite" || bad "stamp written despite red python suite"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

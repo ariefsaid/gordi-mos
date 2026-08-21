@@ -109,6 +109,11 @@ select is((select count(*)::int from reporting.list_revenue_branches()), 0,
 
 -- ══ 4. The snapshot writer ══════════════════════════════════════════════════════════════════
 reset role;
+-- A run declares the org it writes before it writes anything (migration 20260821000001). The
+-- declaration is what the writer policies scope to, so these three inserts are exercising the
+-- job's real shape rather than a session that skipped a step. The refusals when it is absent,
+-- empty, unparseable or names another org are owned by reporting_07_writer_org_scope.sql.
+select set_config('app.reporting_org', '00000000-0000-0000-0000-0000000000a1', true);
 set local role reporting_writer;
 select lives_ok($$
   insert into reporting.sales_daily_revenue
