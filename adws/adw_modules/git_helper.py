@@ -52,6 +52,7 @@ SUBSTRATE_ATTRIBUTION: dict[str, tuple[str, str]] = {
     "zai/glm-4.7": ("GLM-4.7", "noreply@z.ai"),
     "openai-codex/gpt-5.6-terra": ("GPT-5.6 Terra", "noreply@openai.com"),
     "openai-codex/gpt-5.6-luna": ("GPT-5.6 Luna", "noreply@openai.com"),
+    "bitdeer/deepseek-ai/DeepSeek-V4-Flash": ("DeepSeek-V4-Flash", "noreply@deepseek.com"),
 }
 FALLBACK_ATTRIBUTION = ("SSSF factory agent", "factory@sssf.invalid")
 
