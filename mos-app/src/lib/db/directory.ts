@@ -48,7 +48,7 @@ export async function getPeople(): Promise<PersonOption[]> {
 }
 
 /** Load all org roles with their BU + reports-to seam (for Home role-scope detection, Issue E).
- *  Reads the role tree the stacked-union selector needs to test BU apex (parent's business_unit_id).
+ *  Reads the role tree the role-scope selector needs to test BU apex (parent's business_unit_id).
  *  Org-readable per OD-P1-3 (RLS scopes it). Never sends org_id. */
 export async function getRoles(): Promise<RoleScopeRow[]> {
   const { data, error } = await shared()

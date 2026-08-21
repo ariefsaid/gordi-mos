@@ -42,10 +42,8 @@ import { AdminUsersPage } from './pages/admin-users-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
-// The two landing screens (AC-019's stated exemptions) plus the DEV-only preview of the stacked
-// Home, which renders the very component the index route already imports eagerly — splitting it
-// would split nothing.
-const EAGER_BY_DESIGN = new Set(['/', '/login', '/__home-stacked'])
+// The two landing screens (AC-019's stated exemptions).
+const EAGER_BY_DESIGN = new Set(['/', '/login'])
 
 function handleOf(handle: unknown): RouteHandle | undefined {
   return handle as RouteHandle | undefined

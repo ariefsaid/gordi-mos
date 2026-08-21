@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { weekLabel, fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange, toWibInputValue, wibInputToUTCISO, wibMonthKey, wibMonthRange } from './week'
-import type { WeekLabel } from './week'
+import { fridayLabel, weekStartISO, weeklyUpdateTiming, wibDayRange, toWibInputValue, wibInputToUTCISO, wibMonthKey, wibMonthRange } from './week'
 
-// AC-010: WIB week math — tests the pure weekLabel utility.
+// AC-010: WIB week math — tests the pure WIB week utilities.
 // All instants are expressed in UTC; the impl must use Asia/Jakarta (UTC+7) for the calendar.
 
 describe('AC-348: WIB month helpers', () => {
@@ -19,58 +18,6 @@ describe('AC-348: WIB month helpers', () => {
   })
 })
 
-describe('AC-010: weekLabel WIB week math', () => {
-  it('(a) Wed 10 Jun 2026 12:00 WIB → range 8–14 Jun 2026, today Wed 10 Jun', () => {
-    // 2026-06-10T05:00:00Z = Wed 12:00 WIB
-    const now = new Date('2026-06-10T05:00:00Z')
-    const result: WeekLabel = weekLabel(now)
-    expect(result.range).toBe('8–14 Jun 2026')
-    expect(result.today).toBe('Wed 10 Jun')
-  })
-
-  it('(b) Mon boundary: 2026-06-08T16:30:00Z = Mon 8 Jun 00:30 WIB → range 8–14 Jun 2026, today Mon 8 Jun', () => {
-    // This is Sun in UTC (16:30 UTC = Mon 23:30 UTC-1? No — UTC+7: 16:30+7=23:30 Mon 8 Jun WIB)
-    // 2026-06-08T16:30:00Z → WIB = 2026-06-08 23:30 — still Mon 8 Jun WIB
-    const now = new Date('2026-06-08T16:30:00Z')
-    const result: WeekLabel = weekLabel(now)
-    expect(result.range).toBe('8–14 Jun 2026')
-    expect(result.today).toBe('Mon 8 Jun')
-  })
-
-  it('(c) Sun 14 Jun 03:00 WIB: 2026-06-13T20:00:00Z → range 8–14 Jun 2026, today Sun 14 Jun', () => {
-    // 2026-06-13T20:00:00Z + 7h = 2026-06-14T03:00 WIB = Sun 14 Jun WIB
-    const now = new Date('2026-06-13T20:00:00Z')
-    const result: WeekLabel = weekLabel(now)
-    expect(result.range).toBe('8–14 Jun 2026')
-    expect(result.today).toBe('Sun 14 Jun')
-  })
-})
-
-// AC-010 cross-boundary: cross-month and cross-year week ranges
-describe('AC-010: weekLabel cross-month and cross-year ranges', () => {
-  it('(d) cross-month: Mon 29 Jun – Sun 5 Jul 2026 → range "29 Jun – 5 Jul 2026"', () => {
-    // 2026-06-29T05:00:00Z = Mon 29 Jun 12:00 WIB
-    const now = new Date('2026-06-29T05:00:00Z')
-    const result = weekLabel(now)
-    expect(result.range).toBe('29 Jun – 5 Jul 2026')
-  })
-
-  it('(e) cross-year: Mon 29 Dec 2025 – Sun 4 Jan 2026 → range "29 Dec 2025 – 4 Jan 2026"', () => {
-    // 2025-12-29T05:00:00Z = Mon 29 Dec 2025 12:00 WIB
-    const now = new Date('2025-12-29T05:00:00Z')
-    const result = weekLabel(now)
-    expect(result.range).toBe('29 Dec 2025 – 4 Jan 2026')
-  })
-
-  it('(f) same-month week remains unchanged: "8–14 Jun 2026"', () => {
-    const now = new Date('2026-06-10T05:00:00Z')
-    const result = weekLabel(now)
-    expect(result.range).toBe('8–14 Jun 2026')
-  })
-})
-
-// AC-030: weekStartISO returns the WIB Monday 'YYYY-MM-DD' of the week containing `now`,
-// offset by N weeks. Pure fixed-offset arithmetic — no host-tz leak.
 describe('AC-030: weekStartISO WIB Monday', () => {
   // Jun 2026: Mon=8, Sun=14. Week of 8–14 Jun → Monday '2026-06-08'.
   it('(a) Wed 10 Jun 2026 12:00 WIB → 2026-06-08', () => {

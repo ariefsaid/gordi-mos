@@ -21,7 +21,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { ORPHAN, RECOVERY_VIEWER, ADMIN, MEMBER, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
+import { ORPHAN, RECOVERY_VIEWER, ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -199,39 +199,12 @@ export default async function globalSetup() {
   )
   console.log(`[global-setup] created + linked ADMIN user → dedicated person ${ADMIN.personId} (admin role)`)
 
-  // ── 3c-bis. MEMBER (dedicated e2e person, member access, NO org role) — Issue E stacked-union ──
-  // A pure contributor (member access, no role-scope) whose stacked Home is capture-first only. Same
-  // dedicated-e2e pattern as ADMIN (never touches a dev persona).
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `INSERT INTO shared.people (id, org_id, full_name, email)
-     VALUES ('${MEMBER.personId}', '${ORG}', '${MEMBER.displayName}', '${MEMBER.email}')
-     ON CONFLICT (id) DO NOTHING;
-     INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
-     VALUES ('${ORG}', '${MEMBER.personId}', 'member')
-     ON CONFLICT (person_id, access_role) DO NOTHING`,
-  )
-  await deleteUserByEmail(adminClient, MEMBER.email)
-  const { data: memberData, error: memberErr } = await adminClient.auth.admin.createUser({
-    email: MEMBER.email,
-    password: MEMBER.password,
-    email_confirm: true,
-  })
-  if (memberErr) throw new Error(`[global-setup] createUser MEMBER failed: ${memberErr.message}`)
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `UPDATE shared.people SET user_id = '${memberData.user.id}' WHERE id = '${MEMBER.personId}'`,
-  )
-  console.log(`[global-setup] created + linked MEMBER user → dedicated person ${MEMBER.personId} (member, no role)`)
-
   // ── 3d. AC-014 (#238) — the bar-capture journey's two stream personas ─────────────────────────
   // A member and a supervisor whose LIVE PRIMARY Team is the (Rumah Rames, bar) stream Team. That
   // membership is the whole point: it is what makes the capture surface open on that stream by
   // default (FR-001, shared.default_stream) and what makes the supervisor that stream's reviewer
   // (FR-040, ops.is_stream_reviewer). No dev persona has a stream Team as its primary, so these
-  // two are dedicated e2e people — same isolation as ADMIN/MEMBER above, never a dev persona.
+  // two are dedicated e2e people — same isolation as ADMIN above, never a dev persona.
   //
   // The stream Team is resolved by BRANCH CODE: shared.seed_stream_teams() generates its ids, so
   // hardcoding one would break on any reseed. The membership insert carries ON CONFLICT DO NOTHING

@@ -25,7 +25,6 @@ import { LoadingShell } from './components/ui/state-kit'
 // screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
 // on. Code-splitting either trades a bundle-size win for a visible blank frame on first paint.
 import { HomePage } from './pages/home-page'
-import { StackedUnionHome } from './pages/stacked-union-home'
 import { LoginPage } from './pages/login-page'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 
@@ -166,27 +165,14 @@ export const routeConfig: RouteObject[] = [
         children: [
           // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
           // design: the region/attention model (needs-you, failed checks, mentions, my work
-          // today) in whichever of Focused/Overview/List the viewer has chosen, replacing both
-          // prior `dev` compositions this route used to switch between (SHOW_HOME_STACKED is
-          // retired — see config/features.ts). Eager, still, for the same reason as the import
-          // above: the index route is the first paint every session gets.
+          // today) in whichever of Focused/Overview/List the viewer has chosen. Eager, still,
+          // for the same reason as the import above: the index route is the first paint every
+          // session gets.
           {
             index: true,
             element: <HomePage />,
             handle: pageHandle('workspace'),
           },
-          // DEV-only preview of the stacked-union Home, reachable regardless of the flag so
-          // verification is deterministic. Stripped from the production build.
-          ...(import.meta.env.DEV
-            ? [
-                {
-                  path: '__home-stacked',
-                  element: <StackedUnionHome />,
-                  handle: infrastructureHandle('dev-only'),
-                },
-              ]
-            : []),
-
           // ── Work ────────────────────────────────────────────────────────────────────────
           {
             path: 'work',

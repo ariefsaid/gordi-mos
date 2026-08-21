@@ -1,4 +1,4 @@
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { Locale } from '@/i18n/messages'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 
@@ -40,21 +40,4 @@ export function formatDate(d: string, locale: Locale = 'en'): string {
 /** Resolve the human-facing provenance label for a Task row or record. */
 export function taskSourceLabel(workLineName: string, objectiveName: string, adHocLabel: string): string {
   return workLineName || objectiveName || adHocLabel
-}
-
-/**
- * Retained for Home's My-Tasks card (`components/weekly/my-tasks-card.tsx`) — that surface is
- * NOT ported by #192 (it belongs to #191, the Home port, not yet started) and still uses the RACI
- * vocabulary v4's Tasks components moved past (PIC/Supervisor). v4 dropped this export entirely
- * because v4 has no My-Tasks card in this shape; deleting it here would break a live `dev` screen
- * outside this PR's scope, so it stays until #191 either ports Home onto the new vocabulary or
- * retires the card.
- */
-export function otherRaciCount(task: TaskListRow): number {
-  const r = task.responsible_person_id
-  const seen = new Set<string>()
-  if (task.accountable_person_id !== r) seen.add(task.accountable_person_id)
-  for (const id of task.consulted_person_ids) if (id !== r) seen.add(id)
-  for (const id of task.informed_person_ids) if (id !== r) seen.add(id)
-  return seen.size
 }

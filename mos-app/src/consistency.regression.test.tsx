@@ -30,7 +30,6 @@ vi.mock('./lib/comments/postComment', () => ({
   postComment: vi.fn(),
 }))
 
-import { MyWeek } from './pages/my-week'
 import { TasksLayout } from './pages/tasks-layout'
 import { PageFrame } from './shell/page-frame'
 import { OverlayHostProvider } from './shell/overlay-host'
@@ -174,14 +173,6 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
     expect(offenders).toEqual([])
   })
 
-  it('/ (MyWeek) renders the shared PageHead and no bespoke page-title element', () => {
-    const { container } = withAuth(<MemoryRouter><MyWeek /></MemoryRouter>)
-    expect(container.querySelector('[data-testid="page-head"]')).toBeTruthy()
-    expect(container.querySelector('[class*="page-title"]')).toBeNull()
-  })
-
-
-
   it('/tasks (TasksLayout → TasksWorkspace) renders the shared PageHead and no bespoke page-title element', () => {
     // Ported for #192: lives at /work/tasks now (not the retired /tasks), and TasksWorkspace
     // requires OverlayHostProvider (Stage 2's shared record-panel host) — mirrors the render
@@ -322,12 +313,6 @@ describe('RI-LAYOUT-2: Tasks workspace is full-bleed (no 1280 cap)', () => {
 // raw pill shell outside the shared <Pill> (VIS-4, PR-2).
 // ════════════════════════════════════════════════════════════════════════════
 describe('RI-VIS-4: no bespoke pillStyle / wup-state-* raw pill outside <Pill>', () => {
-  it('my-week.tsx has no hand-rolled pillStyle object', () => {
-    const src = readSrc('pages/my-week.tsx')
-    expect(src).not.toMatch(/\bpillStyle\b/)
-  })
-
-
 
   it('no non-test source renders a wup-state-* or ops-source-badge className (raw pill shells)', () => {
     const offenders: string[] = []

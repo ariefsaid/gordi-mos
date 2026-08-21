@@ -24,14 +24,8 @@ export function wibMonthRange(month: string): WibMonthRange | null {
   return { month, startISO: new Date(start).toISOString(), endISO: new Date(end).toISOString() }
 }
 
-export interface WeekLabel {
-  range: string      // e.g. "8–14 Jun 2026" or "29 Jun – 5 Jul 2026" or "29 Dec 2025 – 4 Jan 2026"
-  rangeShort: string // same without the year, e.g. "8–14 Jun" or "29 Jun – 5 Jul"
-  today: string      // e.g. "Wed 10 Jun"
-  fridayShort: string // e.g. "12 Jun" (bare date, no "Fri " prefix)
-}
-
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+const SHORT_MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 /** Map JS day-of-week (0=Sun…6=Sat) to Mon-based index (Mon=0…Sun=6). */
 function toMonBased(jsDay: number): number {
@@ -60,61 +54,6 @@ function wibParts(now: Date): {
     day: shifted.getUTCDate(),
     jsDay: shifted.getUTCDay(),
   }
-}
-
-const SHORT_MONTH = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-const SHORT_DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-
-/**
- * Compute the Monday-start week range and today label, all in WIB (Asia/Jakarta).
- * Pure function — suitable for clock-mocked tests.
- */
-export function weekLabel(now: Date): WeekLabel {
-  const { year, month, day, jsDay } = wibParts(now)
-
-  // Derive Monday of this week in WIB calendar
-  const dow = toMonBased(jsDay) // Mon=0…Sun=6
-  // Create a UTC midnight Date that represents the WIB calendar date of "today"
-  // We need the actual UTC instant for Monday/Sunday of the WIB week
-  // Strategy: find the UTC instant for the start of the WIB calendar day
-  const todayWibMidnightUTC = new Date(
-    Date.UTC(year, month - 1, day) - WIB_OFFSET_MS,
-  )
-  const mondayUTC = addDays(todayWibMidnightUTC, -dow)
-  const sundayUTC = addDays(mondayUTC, 6)
-
-  const mon = wibParts(mondayUTC)
-  const sun = wibParts(sundayUTC)
-
-  // Format range: same-month → "8–14 Jun 2026"; cross-month → "29 Jun – 5 Jul 2026";
-  // cross-year → "29 Dec 2025 – 4 Jan 2026"
-  const sameMonth = mon.month === sun.month
-  const sameYear  = mon.year  === sun.year
-  let range: string
-  let rangeShort: string
-  if (sameMonth) {
-    // Both endpoints share month (and year)
-    range      = `${mon.day}–${sun.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year}`
-    rangeShort = `${mon.day}–${sun.day} ${SHORT_MONTH[mon.month - 1]}`
-  } else if (sameYear) {
-    // Cross-month, same year: show month on each side, year once at end
-    range      = `${mon.day} ${SHORT_MONTH[mon.month - 1]} – ${sun.day} ${SHORT_MONTH[sun.month - 1]} ${sun.year}`
-    rangeShort = `${mon.day} ${SHORT_MONTH[mon.month - 1]} – ${sun.day} ${SHORT_MONTH[sun.month - 1]}`
-  } else {
-    // Cross-year: show month+year on each side
-    range      = `${mon.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year} – ${sun.day} ${SHORT_MONTH[sun.month - 1]} ${sun.year}`
-    rangeShort = `${mon.day} ${SHORT_MONTH[mon.month - 1]} ${mon.year} – ${sun.day} ${SHORT_MONTH[sun.month - 1]}`
-  }
-
-  // Format today: "<Ddd> <d> <Mon>"
-  const today = `${SHORT_DAY[jsDay]} ${day} ${SHORT_MONTH[month - 1]}`
-
-  // Compute Friday of this week for the update-strip due label
-  const fridayUTC  = addDays(todayWibMidnightUTC, 4 - dow)
-  const fri        = wibParts(fridayUTC)
-  const fridayShort = `${fri.day} ${SHORT_MONTH[fri.month - 1]}`
-
-  return { range, rangeShort, today, fridayShort }
 }
 
 /**
