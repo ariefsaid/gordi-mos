@@ -508,7 +508,23 @@ else
 fi
 
 # ── gate unit: diff_matches_claims accepts real deletions, refuses phantoms (#348 live hit) ──
-GOUT="$(python3 - <<'PY'
+# This block imports adw_modules.gates, whose chain reaches pydantic via data_types.
+# CI's guard runner provisions no python deps, so resolve them here the same way
+# scripts/sssf-config.test.sh does (#357). NEVER skip the block: a skipped control is
+# the failure mode these self-tests exist to kill. A provisioning failure falls through
+# to the check going red, never to a silent pass.
+if python3 -c 'import pydantic' 2>/dev/null; then
+  GPY() { python3 "$@"; }
+elif command -v uv >/dev/null 2>&1; then
+  GPY() { uv run --no-project --quiet --with pydantic --with pyyaml python "$@"; }
+else
+  gvenv="$(mktemp -d)"
+  python3 -m venv "$gvenv" && "$gvenv/bin/pip" install --quiet pydantic pyyaml \
+    || bad "could not provision gate-unit deps (no uv; venv/pip failed) (#357)"
+  GPY() { "$gvenv/bin/python" "$@"; }
+fi
+
+GOUT="$(GPY - <<'PY'
 import subprocess, sys, tempfile, types
 from pathlib import Path
 sys.path.insert(0, str(Path("adws").resolve()))
