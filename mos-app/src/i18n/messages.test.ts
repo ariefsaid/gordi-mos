@@ -49,7 +49,7 @@ describe('i18n messages catalog', () => {
 
   it('useT resolves a catalog string unchanged when no vars are passed', () => {
     const { result } = renderHook(() => useT(), { wrapper })
-    expect(result.current('home.kpi.tasks')).toBe('My open tasks')
+    expect(result.current('home.title')).toBe('Home')
   })
 
   it('interpolate() replaces ${name} placeholders with the provided vars', () => {
@@ -159,9 +159,4 @@ describe('cascade i18n is retired with the surface (#179)', () => {
     }
   })
 
-  it('the Home cascade-drill label is gone from both locales', () => {
-    for (const locale of ['en', 'id'] as const) {
-      expect(Object.keys(messages[locale])).not.toContain('home.stack.cascade.drill')
-    }
-  })
 })

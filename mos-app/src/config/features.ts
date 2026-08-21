@@ -15,13 +15,6 @@ export const SHOW_ASSISTANT = true
 // unconditionally live. #188 made the rail entry, the bottom tab and the header bell
 // unconditional; #189 did the same for the /inbox route, which was the flag's last reader.
 
-// Issue E — Home stacked-union cockpit (docs/specs/home-stacked-union.spec.md). RETIRED by #191:
-// the `/` index route now always renders the ported (v4) HomePage — the region/attention design
-// that superseded both the Home v1 KPI-row composition this flag used to gate off and the
-// stacked-union composition it used to gate on. `StackedUnionHome` is unchanged and still reachable
-// at the DEV-only `/__home-stacked` preview route for reference; it is simply no longer a candidate
-// for `/`.
-// Follow-up settlement bridge v1 ships dark until the owner backup/restore go-live gate.
 export const SHOW_FOLLOWUPS = false
 // ADR-0022 (Issue D) — the Plan destination's budget/COGS capture + pricing pre-flight surfaces
 // (/plan/budget, /plan/pricing) and their Plan-destination nav links. Hide-first (default false):

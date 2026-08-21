@@ -242,7 +242,6 @@ const NOT_A_SURFACE: Record<string, string> = {
   '/dev/ui': 'DEV-only primitives gallery, stripped from the production build',
   '/dev/views': 'DEV-only view-composition harness',
   '/dev/views/:viewId': 'DEV-only view-composition harness',
-  '/__home-stacked': 'DEV-only preview of the stacked Home composition',
   '/*': 'the not-found catch-all — a fallback, not a destination; nothing should ever link to it',
   // Also carries a NO_NAV_ENTRY_BY_DESIGN entry. That one is inert (this route is classified
   // infrastructure, so the sweep never reaches it) and is left in place deliberately: the rot
@@ -255,7 +254,7 @@ function surfaceRoutes() {
   return flattenRoutes().filter(({ path, route }) => {
     if (route.element === undefined || isRedirect(route.element)) return false
     if ((route.handle as RouteHandle | undefined)?.kind !== 'page') return false
-    return path !== '/' && !path.startsWith('/dev/') && !path.startsWith('/__')
+    return path !== '/' && !path.startsWith('/dev/')
   })
 }
 

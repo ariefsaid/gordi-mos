@@ -48,7 +48,7 @@ import type { RoleScopeRow } from '@/lib/db/directory'
 // The tested role-scope predicates (pure, no I/O). Home asks them the SAME question the role tree
 // answers everywhere else — "does this viewer steer a scope" — rather than growing a second,
 // drifting idea of who heads a business unit.
-import { isOwnerDirector, buHeadsForViewer } from '@/lib/home-stack'
+import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,

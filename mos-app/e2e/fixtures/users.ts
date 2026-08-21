@@ -52,23 +52,12 @@ export const ADMIN = {
   displayName: 'E2E Admin',
 }
 
-// MEMBER (Issue E — Home stacked-union): a dedicated e2e-only user + dedicated e2e person with the
-// `member` access role and NO org role (not a manager/BU-head/owner) → a pure contributor whose
-// stacked Home is capture-first only. Same dedicated-e2e isolation pattern as ADMIN/RECOVERY so it
-// never touches a dev persona (all dev personas are BU-heads). Used by home-stacked-union.spec.ts.
-export const MEMBER = {
-  email: 'e2e.member@example.test',
-  password: 'e2e-password-123',
-  personId: '4e000000-0000-0000-0000-0000000000e1', // dedicated e2e person (E2E Member)
-  displayName: 'E2E Member',
-}
-
 // ── AC-014 (#238) — the bar-capture journey's two personas ────────────────────────────────────
 // A BAR STREAM is what this journey needs and no dev persona is one: every dev persona's primary
 // Team is org structure, not a (branch, activity). So these two are dedicated e2e people, granted
 // a live primary membership of the (Rumah Rames, bar) stream Team in global-setup — which makes
 // BAR_MEMBER's capture surface open on that stream by default (FR-001) and BAR_SUPERVISOR its
-// stream reviewer (FR-040). Same dedicated-e2e isolation as ADMIN/MEMBER: e2e-namespaced person
+// stream reviewer (FR-040). Same dedicated-e2e isolation as ADMIN: e2e-namespaced person
 // ids (4e00…), so no dev persona's team, roles or login is touched.
 //
 // NFR-005 (public repo): role-shaped display names only — never a staff name.
