@@ -179,12 +179,38 @@
   font-size: var(--font-size-label);
   color: var(--status-lost-text);
 }
+/* The confirm names the dish ("Konfirmasi tolak ${dish}"), so its width is set by data, not by
+   copy. Without `flex-wrap` a long name grew the confirm until Cancel — the ONLY way back out
+   of an irreversible decision — left the card and the viewport. The row wraps instead. */
 .krow-decide-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 .krow-decide-actions .krow-btn {
   margin-left: 0;
+}
+/* The one wrapping button in the system. `.btn` is deliberately `white-space: nowrap` at a
+   fixed 32px, which is right for every label the design system writes; this one is written by
+   the kitchen's item list. Truncating it is not an option — naming the dish is the whole point
+   of the label, and a clipped name hides WHICH dish is being rejected. So the label sets over
+   two lines and the height follows it. Selector is (0,2,0) so it beats `.btn` on specificity,
+   never on import order; the phone floor is restated below at the same weight because a media
+   query adds no specificity of its own. */
+.krow-decide-actions .krow-confirm {
+  max-width: 100%;
+  white-space: normal;
+  height: auto;
+  min-height: 32px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  text-align: center;
+}
+@media (max-width: 767.98px) {
+  /* DESIGN.md § Density: phone targets are at least 44px (Button.css owns the shared rule). */
+  .krow-decide-actions .krow-confirm {
+    min-height: 44px;
+  }
 }
 
 /* ── Forbidden (non-lead) panel ── */

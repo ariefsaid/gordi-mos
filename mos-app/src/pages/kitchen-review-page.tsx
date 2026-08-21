@@ -181,6 +181,7 @@ function KitchenReviewDecision({
   onApprove,
   onReject,
 }: KitchenReviewDecisionProps): ReactNode {
+  const t = useT()
   const [pending, setPending] = useState<Pending>('none')
   const [note, setNote] = useState('')
   const [noteError, setNoteError] = useState(false)
@@ -225,10 +226,21 @@ function KitchenReviewDecision({
 
   const noteLabel =
     pending === 'reject'
-      ? `Reject note for ${log.wip_item_name}`
-      : `Approve note for ${log.wip_item_name}`
+      ? t('kitchen.review.noteAriaReject', { dish: log.wip_item_name })
+      : t('kitchen.review.noteAriaApprove', { dish: log.wip_item_name })
   const notePlaceholder =
-    pending === 'reject' ? 'Reason for rejection (required)' : 'Reason for the off-plan qty (required)'
+    pending === 'reject'
+      ? t('kitchen.review.notePlaceholder.reject')
+      : t('kitchen.review.notePlaceholder.approve')
+  // ONE expression for the commit label, and no aria-label beside it (#411). An aria-label on
+  // a button that has visible text REPLACES that text in the accessible name, so the copy of
+  // this ternary that used to sit in `aria-label` pinned the idle label for the whole RPC —
+  // a screen-reader user never heard "Working…"/"Memproses…" while the decision was in flight.
+  // With the label rendered once as content, the busy state reaches both readings for free.
+  const confirmLabel = t(
+    pending === 'reject' ? 'kitchen.review.confirm.reject' : 'kitchen.review.confirm.approve',
+    { dish: log.wip_item_name },
+  )
 
   return (
     <div className="krow-actions">
@@ -237,12 +249,12 @@ function KitchenReviewDecision({
           <button
             type="button"
             className="btn btn-outline krow-btn"
-            aria-label={`Approve ${log.wip_item_name}`}
+            aria-label={t('kitchen.review.approveAria', { dish: log.wip_item_name })}
             disabled={approveDisabled || submitting}
             title={approveDisabled ? approveDisabledReason : undefined}
             onClick={startApprove}
           >
-            {submitting ? 'Working…' : 'Approve'}
+            {submitting ? t('common.working') : t('kitchen.review.approve')}
           </button>
           {/* #249 rank: Approve fires irreversibly on one click (on-plan rows commit
               straight to the RPC — no confirm, no undo), while Reject only opens a
@@ -253,17 +265,17 @@ function KitchenReviewDecision({
           <button
             type="button"
             className="btn btn-ghost krow-btn"
-            aria-label={`Reject ${log.wip_item_name}`}
+            aria-label={t('kitchen.review.rejectAria', { dish: log.wip_item_name })}
             disabled={submitting}
             onClick={startReject}
           >
-            Reject
+            {t('kitchen.review.reject')}
           </button>
         </>
       ) : (
         <div className="krow-decide">
           <label className="krow-note-label" htmlFor={`krow-note-${log.id}`}>
-            {pending === 'reject' ? 'Reject note' : 'Approve note'}
+            {pending === 'reject' ? t('kitchen.review.note.reject') : t('kitchen.review.note.approve')}
           </label>
           <textarea
             id={`krow-note-${log.id}`}
@@ -276,26 +288,28 @@ function KitchenReviewDecision({
             onChange={(e) => { setNote(e.target.value); if (e.target.value.trim()) setNoteError(false) }}
           />
           {noteError && (
-            <span role="alert" className="krow-note-cue">A note is required.</span>
+            <span role="alert" className="krow-note-cue">{t('kitchen.review.note.required')}</span>
           )}
           <div className="krow-decide-actions">
+            {/* `krow-confirm`: the commit is the one control in the system whose label carries
+                an unbounded interpolated name, so it — and only it — is allowed to set that
+                label over two lines rather than push Cancel out of the card on a phone. The
+                rules, and why truncation is not an option here, live beside the CSS. */}
             <button
               type="button"
-              className={`btn krow-btn ${pending === 'reject' ? 'btn-destructive' : 'btn-primary'}`}
-              aria-label={pending === 'reject' ? 'Confirm reject' : 'Confirm approve'}
+              className={`btn krow-btn krow-confirm ${pending === 'reject' ? 'btn-destructive' : 'btn-primary'}`}
               disabled={submitting}
               onClick={confirm}
             >
-              {submitting ? 'Working…' : pending === 'reject' ? 'Confirm reject' : 'Confirm approve'}
+              {submitting ? t('common.working') : confirmLabel}
             </button>
             <button
               type="button"
               className="btn btn-ghost krow-btn"
-              aria-label="Cancel"
               disabled={submitting}
               onClick={cancel}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -499,7 +513,7 @@ export function KitchenReviewPage() {
     try {
       const { batch_id } = await approveKitchenLog(logId, reviewNote)
       removeRow(logId)
-      setNotice(`Approved · batch ${batch_id}`)
+      setNotice(t('kitchen.review.notice.approved', { batchId: batch_id }))
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -514,7 +528,7 @@ export function KitchenReviewPage() {
     try {
       await rejectKitchenLog(logId, reviewNote)
       removeRow(logId)
-      setNotice('Rejected — removed from the queue.')
+      setNotice(t('kitchen.review.notice.rejected'))
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -583,22 +597,22 @@ export function KitchenReviewPage() {
     }
     setBulkAction(null)
     if (failed > 0) {
-      setNotice(`${approved} approved · ${failed} failed — the failed rows remain in the queue.`)
+      setNotice(t('kitchen.review.notice.bulkPartial', { approved, failed }))
     } else if (approved > 0) {
       setNotice(
         approved === 1
-          ? `Approved · batch ${lastBatch}`
-          : `${approved} approved · last batch ${lastBatch}`,
+          ? t('kitchen.review.notice.approved', { batchId: lastBatch })
+          : t('kitchen.review.notice.bulkApproved', { approved, batchId: lastBatch }),
       )
     } else if (stale.length > 0) {
-      setNotice('Already reviewed by someone else — refreshing the queue…')
+      setNotice(t('kitchen.review.notice.staleRefresh'))
       setRetryKey(k => k + 1)
     }
   }
 
   function handleDecisionError(err: unknown) {
     if (err instanceof KitchenRpcError && err.code === 'P0003') {
-      setNotice('Already reviewed by someone else — refreshing the queue…')
+      setNotice(t('kitchen.review.notice.staleRefresh'))
       setRetryKey(k => k + 1)
       return
     }
@@ -609,10 +623,10 @@ export function KitchenReviewPage() {
       return
     }
     if (err instanceof KitchenRpcError && err.code === '42501') {
-      setActionError('You are not permitted to review this log.')
+      setActionError(t('kitchen.review.error.forbidden'))
       return
     }
-    setActionError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    setActionError(err instanceof Error ? err.message : t('kitchen.review.error.generic'))
   }
 
   // ── ONE DataTable: one group per action_type (Production, Transfer to …),

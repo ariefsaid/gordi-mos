@@ -26,7 +26,6 @@ function DataTableWidgetView({ widget }: { widget: DataTableWidget }) {
         rows={widget.rows}
         isDesktop={isDesktop}
         caption={widget.title}
-        emptyLabel="No rows to show."
       />
     </div>
   )

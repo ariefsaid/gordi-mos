@@ -469,6 +469,11 @@ export const messages = {
     'common.what.queue': 'the queue',
     'common.what.stock': 'stock',
     'common.what.upcomingPlan': 'the upcoming plan',
+    // #400 — the dashboard kit's own two subjects. Every other load failure in the app
+    // already speaks through `common.loadFailed`; DataTable and ChartFrame were the last
+    // two holding a private English literal instead.
+    'common.what.chart': 'this chart',
+    'common.what.table': 'this table',
     'doc.cafeOps': 'Café Operations',
     'kitchen.actionType.aria': 'Action type',
     // The intra-branch cross-activity movement (FR-013): destination = the origin's OWN
@@ -1166,6 +1171,79 @@ export const messages = {
     'admin.reveal.copiedAnnounce': 'Password copied to clipboard',
     'admin.reveal.clipboardBlocked': 'Select and copy manually — clipboard access is unavailable.',
     'admin.reveal.done': 'Done',
+    // ── i18n port sweep (#400, first slice of #290) ─────────────────────────────────────
+    // Carried verbatim from the v4 catalog, both locales — v4's Indonesian is the accepted
+    // copy, never re-translated. Scope rule: only keys with a LIVE dev call site, so the
+    // orphan guard (#206) stays green. v4 keys dev does not render stay behind.
+    //
+    // Café · Stock — the KPI strip (lib/kitchen-stock-kpis.ts), the surface kitchen staff
+    // read daily. `t` is injected into the pure compute so it stays unit-testable.
+    'kitchen.stock.kpi.ariaLabel': 'Stock summary',
+    'kitchen.stock.kpi.phoneLabel': 'Stock',
+    'kitchen.stock.kpi.itemCount': '${count} items',
+    'kitchen.stock.kpi.availableCount': '${count} available',
+    'kitchen.stock.kpi.onHand': 'Total on-hand',
+    // The UNIT of the headline number (Σ qty_porsi), not a qualifier — it is the only place
+    // the tile says what it is counting (#411).
+    'kitchen.stock.kpi.onHand.sub': 'portions',
+    'kitchen.stock.kpi.inStock': 'Items in stock',
+    'kitchen.stock.kpi.inStock.delta': '${count} empty/negative',
+    'kitchen.stock.kpi.inStock.sub': 'with usable stock',
+    'kitchen.stock.kpi.negative': 'Negative balances',
+    'kitchen.stock.kpi.negative.review': 'needs review',
+    'kitchen.stock.kpi.negative.clear': 'clear',
+    'kitchen.stock.kpi.negative.noData': 'no stock data yet',
+    'kitchen.stock.kpi.available': 'Available total',
+    // `availableTotal` is Σ row.tersedia across items for the SELECTED DATE — a cross-item
+    // total for one day, never a running one. It said 'read-only' / 'transfer-ready' before
+    // the port and says the same two things now (#411): a translation may not change what a
+    // number means.
+    'kitchen.stock.kpi.available.delta': 'read-only',
+    'kitchen.stock.kpi.available.sub': 'transfer-ready',
+    // Café · Review — the per-row approve/reject decision flow, its outcome banners and its
+    // action errors. The confirm buttons NAME THE OBJECT (v4 clarify) — a destructive
+    // confirm never says only "Confirm reject". It keeps the word "Confirm" all the same
+    // (#411): the trigger and the commit are one press apart, and dropping it made their
+    // accessible names byte-identical, so nothing announced that the second press is the
+    // irreversible one. The dish name makes these labels unbounded — the row that holds them
+    // wraps (guard-review-confirm-wrap.css.test.ts); it is never truncated, because the point
+    // of naming the dish is that the reviewer can see WHICH one they are rejecting.
+    'kitchen.review.approve': 'Approve',
+    'kitchen.review.reject': 'Reject',
+    'kitchen.review.approveAria': 'Approve ${dish}',
+    'kitchen.review.rejectAria': 'Reject ${dish}',
+    'kitchen.review.note.approve': 'Approve note',
+    'kitchen.review.note.reject': 'Reject note',
+    'kitchen.review.note.required': 'A note is required.',
+    'kitchen.review.confirm.approve': 'Confirm approve ${dish}',
+    'kitchen.review.confirm.reject': 'Confirm reject ${dish}',
+    'kitchen.review.noteAriaApprove': 'Approve note for ${dish}',
+    'kitchen.review.noteAriaReject': 'Reject note for ${dish}',
+    'kitchen.review.notePlaceholder.approve': 'Why the quantity differs from plan (required)',
+    'kitchen.review.notePlaceholder.reject': 'Reason for rejection (required)',
+    'kitchen.review.notice.approved': 'Approved · batch ${batchId}',
+    'kitchen.review.notice.rejected': 'Rejected — removed from the queue.',
+    'kitchen.review.notice.bulkPartial': '${approved} approved · ${failed} failed — the failed rows remain in the queue.',
+    'kitchen.review.notice.bulkApproved': '${approved} approved · last batch ${batchId}',
+    'kitchen.review.notice.staleRefresh': 'Already reviewed by someone else — refreshing the queue…',
+    'kitchen.review.error.forbidden': 'You are not permitted to review this log.',
+    'kitchen.review.error.generic': 'Something went wrong. Please try again.',
+    // The crash screen. ErrorFallback mounts ABOVE I18nProvider (top-level boundary), so it
+    // resolves the catalog via translateFor(readPersistedLocale()) — never useT().
+    'errorBoundary.title': 'This screen stopped working',
+    'errorBoundary.copy': 'Reloading usually fixes it. If it keeps happening, tell your lead what you were doing — nothing about this error is sent anywhere automatically.',
+    'errorBoundary.reload': 'Reload the app',
+    // The 404 surface.
+    'doc.notFound': 'Page not found',
+    'notFound.title': 'That page isn’t here',
+    'notFound.copy': 'The link may be out of date, or the record may have been archived. Going back usually works.',
+    'notFound.back': 'Go back',
+    'notFound.home': 'Go to Home',
+    // The dashboard kit — DataTable + ChartFrame shared strings.
+    'common.noRows': 'No rows to show.',
+    'table.group.expand': 'Expand ${group}',
+    'table.group.collapse': 'Collapse ${group}',
+    'chart.empty': 'No data for this cut.',
   },
   id: {
     'dest.home': 'Beranda',
@@ -1596,6 +1674,9 @@ export const messages = {
     'common.what.queue': 'antrean',
     'common.what.stock': 'stok',
     'common.what.upcomingPlan': 'rencana mendatang',
+    // #400 — subjek milik kit dasbor sendiri.
+    'common.what.chart': 'grafik ini',
+    'common.what.table': 'tabel ini',
     'doc.cafeOps': 'Operasi Kafe',
     'kitchen.actionType.aria': 'Jenis aksi',
     'kitchen.actionType.intraBranch': 'dalam cabang · ${activity}',
@@ -2261,6 +2342,60 @@ export const messages = {
     'admin.reveal.copiedAnnounce': 'Kata sandi sudah disalin',
     'admin.reveal.clipboardBlocked': 'Pilih lalu salin manual — akses clipboard tidak tersedia.',
     'admin.reveal.done': 'Selesai',
+    // ── i18n port sweep (#400, first slice of #290) — verbatim dari katalog v4 ───────────
+    // Café · Stock — pita KPI (lib/kitchen-stock-kpis.ts).
+    'kitchen.stock.kpi.ariaLabel': 'Ringkasan stok',
+    'kitchen.stock.kpi.phoneLabel': 'Stok',
+    'kitchen.stock.kpi.itemCount': '${count} item',
+    'kitchen.stock.kpi.availableCount': '${count} tersedia',
+    'kitchen.stock.kpi.onHand': 'Total stok fisik',
+    'kitchen.stock.kpi.onHand.sub': 'porsi',
+    'kitchen.stock.kpi.inStock': 'Item bersisa stok',
+    'kitchen.stock.kpi.inStock.delta': '${count} kosong/minus',
+    'kitchen.stock.kpi.inStock.sub': 'masih bisa dipakai',
+    'kitchen.stock.kpi.negative': 'Saldo minus',
+    'kitchen.stock.kpi.negative.review': 'perlu ditinjau',
+    'kitchen.stock.kpi.negative.clear': 'aman',
+    'kitchen.stock.kpi.negative.noData': 'belum ada data stok',
+    'kitchen.stock.kpi.available': 'Total tersedia',
+    'kitchen.stock.kpi.available.delta': 'hanya baca',
+    'kitchen.stock.kpi.available.sub': 'siap ditransfer',
+    // Café · Review — alur keputusan setujui/tolak per baris + banner hasilnya.
+    'kitchen.review.approve': 'Setujui',
+    'kitchen.review.reject': 'Tolak',
+    'kitchen.review.approveAria': 'Setujui ${dish}',
+    'kitchen.review.rejectAria': 'Tolak ${dish}',
+    'kitchen.review.note.approve': 'Catatan persetujuan',
+    'kitchen.review.note.reject': 'Catatan penolakan',
+    'kitchen.review.note.required': 'Catatan wajib diisi.',
+    'kitchen.review.confirm.approve': 'Konfirmasi setujui ${dish}',
+    'kitchen.review.confirm.reject': 'Konfirmasi tolak ${dish}',
+    'kitchen.review.noteAriaApprove': 'Catatan persetujuan untuk ${dish}',
+    'kitchen.review.noteAriaReject': 'Catatan penolakan untuk ${dish}',
+    'kitchen.review.notePlaceholder.approve': 'Alasan jumlahnya berbeda dari rencana (wajib)',
+    'kitchen.review.notePlaceholder.reject': 'Alasan penolakan (wajib)',
+    'kitchen.review.notice.approved': 'Disetujui · batch ${batchId}',
+    'kitchen.review.notice.rejected': 'Ditolak — dihapus dari antrean.',
+    'kitchen.review.notice.bulkPartial': '${approved} disetujui · ${failed} gagal — baris yang gagal tetap di antrean.',
+    'kitchen.review.notice.bulkApproved': '${approved} disetujui · batch terakhir ${batchId}',
+    'kitchen.review.notice.staleRefresh': 'Sudah ditinjau oleh orang lain — memuat ulang antrean…',
+    'kitchen.review.error.forbidden': 'Anda tidak memiliki izin untuk meninjau log ini.',
+    'kitchen.review.error.generic': 'Terjadi kesalahan. Silakan coba lagi.',
+    // Layar crash — dibaca langsung dari katalog, bukan lewat hook.
+    'errorBoundary.title': 'Layar ini berhenti bekerja',
+    'errorBoundary.copy': 'Biasanya memuat ulang sudah cukup. Kalau terus terjadi, beri tahu atasan Anda apa yang sedang Anda kerjakan — tidak ada data kesalahan ini yang terkirim otomatis ke mana pun.',
+    'errorBoundary.reload': 'Muat ulang aplikasi',
+    // Halaman 404.
+    'doc.notFound': 'Halaman tidak ditemukan',
+    'notFound.title': 'Halaman ini tidak ada',
+    'notFound.copy': 'Tautannya mungkin sudah usang, atau catatannya sudah diarsipkan. Biasanya kembali ke halaman sebelumnya sudah cukup.',
+    'notFound.back': 'Kembali',
+    'notFound.home': 'Ke Beranda',
+    // Kit dasbor — DataTable + ChartFrame.
+    'common.noRows': 'Tidak ada baris untuk ditampilkan.',
+    'table.group.expand': 'Buka grup ${group}',
+    'table.group.collapse': 'Tutup grup ${group}',
+    'chart.empty': 'Tidak ada data untuk irisan ini.',
   },
 } as const
 

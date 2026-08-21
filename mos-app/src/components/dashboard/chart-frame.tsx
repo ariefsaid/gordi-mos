@@ -3,6 +3,7 @@
 // tableFallback is MANDATORY (NFR-accessibility): the a11y table equivalent, and
 // doubles as the phone primary view when the chart is unreadable.
 import type { ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
 import './chart-frame.css'
 
 export interface ChartFrameProps {
@@ -27,6 +28,7 @@ export function ChartFrame({
   onRetry,
   ariaLabel,
 }: ChartFrameProps) {
+  const t = useT()
   return (
     <section className="chart-frame" role="region" aria-label={ariaLabel}>
       <div className="chart-frame-head">
@@ -42,15 +44,20 @@ export function ChartFrame({
         )}
         {state === 'empty' && (
           <div className="chart-frame-empty" role="status">
-            No data for this cut.
+            {t('chart.empty')}
           </div>
         )}
+        {/* #400: the failure copy joins the same `common.loadFailed` sentence every other
+            load failure in the app already uses, so the one state a user meets on a bad
+            connection stops being the one state that answers them in English. */}
         {state === 'error' && (
           <div className="chart-frame-error">
-            <p className="chart-frame-error-text">Couldn&apos;t load this chart. Try again.</p>
+            <p className="chart-frame-error-text">
+              {t('common.loadFailed', { what: t('common.what.chart') })}
+            </p>
             {onRetry && (
               <button type="button" className="chart-frame-retry" onClick={onRetry}>
-                Try again
+                {t('common.retry')}
               </button>
             )}
           </div>

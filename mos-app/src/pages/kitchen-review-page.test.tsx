@@ -13,7 +13,7 @@
 // contract (a PlanMap keyed by MOVEMENT — 'produce' | 'transfer:<destinationBranchId>' —
 // never by the derived label string).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -340,7 +340,9 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     expect(mockApprove).not.toHaveBeenCalled()
     const note = screen.getByRole('textbox', { name: /approve note for nasi goreng/i })
     fireEvent.change(note, { target: { value: 'short on stock' } })
-    fireEvent.click(screen.getByRole('button', { name: /confirm approve/i }))
+    // #400 v4 copy: the confirm names the OBJECT ("Approve Nasi Goreng"), never a bare
+    // "Confirm approve" — same matcher as the idle button because the gate replaces it.
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
   })
 })
@@ -355,7 +357,8 @@ describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
     fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
     const note = screen.getByRole('textbox', { name: /reject note for nasi goreng/i })
     fireEvent.change(note, { target: { value: 'wrong item' } })
-    fireEvent.click(screen.getByRole('button', { name: /confirm reject/i }))
+    // #400 v4 copy: the destructive confirm names the OBJECT ("Reject Nasi Goreng").
+    fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
     await waitFor(() => expect(mockReject).toHaveBeenCalledWith('log-prod', 'wrong item'))
     await waitFor(() => expect(screen.queryByText('Nasi Goreng')).not.toBeInTheDocument())
   })
@@ -728,5 +731,108 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     })
     expect(await screen.findByRole('group', { name: /item list completeness/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeInTheDocument()
+  })
+})
+
+// #400 i18n port: AC "the confirm dialog has no mixed-language state at any point in its
+// flow" — open the reject gate, check every visible/aria string, ride the in-flight state,
+// and read the outcome banner, all under id. RED first: the flow renders English today.
+describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
+  beforeEach(() => {
+    localStorage.setItem('mos.locale', 'id')
+    mockList.mockResolvedValue([PROD_LOG]) // on-plan (plan 8, logged 8)
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+  })
+  afterEach(() => localStorage.clear())
+
+  it('idle row: Approve/Reject buttons and their aria names are Indonesian', async () => {
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByRole('button', { name: 'Setujui Nasi Goreng' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tolak Nasi Goreng' })).toBeInTheDocument()
+    expect(screen.queryByText('Approve')).toBeNull()
+    expect(screen.queryByText('Reject')).toBeNull()
+  })
+
+  it('reject flow: note gate, placeholders, cue, confirm — Indonesian end to end', async () => {
+    mockReject.mockResolvedValue(undefined)
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
+    expect(screen.getByText('Catatan penolakan')).toBeInTheDocument()
+    const note = screen.getByLabelText('Catatan penolakan untuk Nasi Goreng')
+    expect(note).toHaveAttribute('placeholder', 'Alasan penolakan (wajib)')
+
+    // empty note → the required cue, in Indonesian
+    fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi tolak Nasi Goreng' }))
+    expect(screen.getByText('Catatan wajib diisi.')).toBeInTheDocument()
+
+    fireEvent.change(note, { target: { value: 'salah item' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi tolak Nasi Goreng' }))
+
+    await waitFor(() => expect(mockReject).toHaveBeenCalledWith('log-prod', 'salah item'))
+    expect(await screen.findByText('Ditolak — dihapus dari antrean.')).toBeInTheDocument()
+    // no English fragment survives anywhere on the surface
+    expect(screen.queryByText('Rejected — removed from the queue.')).toBeNull()
+  })
+
+  it('in-flight: the busy label is Memproses…, never Working…', async () => {
+    mockReject.mockReturnValue(new Promise(() => {})) // never resolves
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
+    fireEvent.change(screen.getByLabelText('Catatan penolakan untuk Nasi Goreng'), {
+      target: { value: 'x' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi tolak Nasi Goreng' }))
+    expect(await screen.findByText('Memproses…')).toBeInTheDocument()
+    expect(screen.queryByText('Working…')).toBeNull()
+    // #411 review: the busy state must reach the ACCESSIBLE name too. A static aria-label on
+    // a button with visible text wins over its content, so a screen-reader user heard the
+    // idle label for the whole round-trip while the sighted label read "Memproses…".
+    expect(screen.getByRole('button', { name: 'Memproses…' })).toBeInTheDocument()
+  })
+
+  // #411 review: the trigger opens a gate; the confirm commits irreversibly. Two controls one
+  // press apart must not announce identically, or a screen-reader/keyboard user gets no signal
+  // that the second press is the one that cannot be undone.
+  it('the destructive confirm does not announce the same name as the trigger that opened it', async () => {
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    const trigger = screen.getByRole('button', { name: 'Tolak Nasi Goreng' })
+    const triggerName = trigger.textContent
+    fireEvent.click(trigger)
+    const confirmButton = screen.getByRole('button', { name: /^Konfirmasi tolak/ })
+    expect(confirmButton).toHaveTextContent('Konfirmasi tolak Nasi Goreng')
+    expect(confirmButton.textContent).not.toBe(triggerName)
+    expect(screen.queryByRole('button', { name: 'Tolak Nasi Goreng' })).toBeNull()
+    // the object of the decision stays named on the commit control
+    expect(confirmButton).toHaveTextContent('Nasi Goreng')
+    // …and carries the hook the wrap rules key off (guard-review-confirm-wrap.css.test.ts)
+    expect(confirmButton.className).toMatch(/\bkrow-confirm\b/)
+  })
+
+  it('approve flow (off-plan): note gate + outcome banner in Indonesian', async () => {
+    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // 8 ≠ 12 → off-plan → note gate
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
+    expect(screen.getByText('Catatan persetujuan')).toBeInTheDocument()
+    const note = screen.getByLabelText('Catatan persetujuan untuk Nasi Goreng')
+    expect(note).toHaveAttribute('placeholder', 'Alasan jumlahnya berbeda dari rencana (wajib)')
+    fireEvent.change(note, { target: { value: 'kurang bahan' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi setujui Nasi Goreng' }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'kurang bahan'))
+    expect(await screen.findByText(/Disetujui · batch PR-20260620-010/)).toBeInTheDocument()
+  })
+
+  it('action errors: forbidden and generic RPC failures surface Indonesian banners', async () => {
+    mockApprove.mockRejectedValue(new KitchenRpcError('42501', 'forbidden'))
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
+    expect(await screen.findByText('Anda tidak memiliki izin untuk meninjau log ini.')).toBeInTheDocument()
   })
 })
