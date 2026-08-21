@@ -254,7 +254,7 @@ function surfaceRoutes() {
   return flattenRoutes().filter(({ path, route }) => {
     if (route.element === undefined || isRedirect(route.element)) return false
     if ((route.handle as RouteHandle | undefined)?.kind !== 'page') return false
-    return path !== '/' && !path.startsWith('/dev/') && !path.startsWith('/__')
+    return path !== '/' && !path.startsWith('/dev/')
   })
 }
 

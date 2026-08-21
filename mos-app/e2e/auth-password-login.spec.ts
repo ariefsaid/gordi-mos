@@ -19,8 +19,8 @@ test('AC-001: password login journey', async ({ page }) => {
   // Goal-oracle: Home renders (FR-013 page head) + chip shows viewer's name (FR-006).
   // STALE (v4): Home's h1 is a time-dependent greeting ("Good afternoon, Cahya" — see
   // src/i18n/messages.ts home.greeting.*), so no fixed heading name can match it. The stable
-  // anchor is the document title, set unconditionally by useDocumentTitle('Home — Gordi MOS')
-  // in src/pages/stacked-union-home.tsx.
+  // anchor is the document title, set unconditionally by useDocumentTitle(t('common.docTitle'))
+  // in src/pages/home-page.tsx.
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
   // user-chip.tsx:71: the viewer identity is the accessible name of the chip button.
   await expect(page.getByRole('button', { name: 'Cahya Cafe' })).toBeVisible({ timeout: 10_000 })

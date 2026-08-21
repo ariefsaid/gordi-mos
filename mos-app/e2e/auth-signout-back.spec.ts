@@ -14,8 +14,8 @@ test('AC-002: sign-out and back-button guard', async ({ page }) => {
   // Wait for home — the document title confirms successful auth (FR-013).
   // STALE (v4): Home's h1 is a time-dependent greeting ("Good afternoon/evening, <name>" — see
   // src/i18n/messages.ts home.greeting.*), so no fixed heading name can match it. The stable
-  // anchor is the document title, set unconditionally by useDocumentTitle('Home — Gordi MOS')
-  // in src/pages/stacked-union-home.tsx.
+  // anchor is the document title, set unconditionally by useDocumentTitle(t('common.docTitle'))
+  // in src/pages/home-page.tsx.
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
 
   // Sign out via the user chip menu (FR-006 — sign-out now in chip menu, T-031)
