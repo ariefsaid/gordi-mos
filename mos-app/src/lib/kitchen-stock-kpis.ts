@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import type { KitchenKpis, KitchenKpiStripData } from '@/lib/kitchen-kpis'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
-import { useT, interpolate, type Translate } from '@/i18n/use-t'
-import { messages } from '@/i18n/messages'
+import { useT, type Translate } from '@/i18n/use-t'
 
 export function computeStockKpis(rows: KitchenStockRow[]): KitchenKpis {
   let onHandTotal = 0
@@ -33,14 +32,17 @@ export function computeStockKpis(rows: KitchenStockRow[]): KitchenKpis {
 // #400 (ported from v4): every label, delta and sub-line below was a hardcoded English
 // literal, so Café · Stock's whole KPI band stayed English in the Indonesian locale — on
 // the module whose primary reader is floor staff. `t` is injected rather than read from
-// context so the function stays pure and unit-testable; it is optional purely so the
-// existing pure-compute tests keep their single-argument call shape (they then assert
-// the en fallback).
+// context so the function stays pure and unit-testable.
+//
+// #411: `t` is REQUIRED. It shipped optional with an inline `messages.en` fallback, justified
+// by a claim about single-argument tests that did not exist — every caller passes `t`, and the
+// fallback was a hand-rolled copy of `translateFor('en')` minus its never-throws guarantee. A
+// caller that genuinely wants an English strip outside React passes `translateFor('en')`, which
+// is what `kitchen-stock-kpis.test.ts` now does.
 export function computeStockKpiStripData(
   rows: KitchenStockRow[],
-  t?: Translate,
+  tr: Translate,
 ): KitchenKpiStripData {
-  const tr: Translate = t ?? ((key, vars) => interpolate(messages.en[key], vars))
   let onHandTotal = 0
   let availableTotal = 0
   let inStockCount = 0

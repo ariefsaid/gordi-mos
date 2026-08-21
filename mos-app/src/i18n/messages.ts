@@ -1183,7 +1183,9 @@ export const messages = {
     'kitchen.stock.kpi.itemCount': '${count} items',
     'kitchen.stock.kpi.availableCount': '${count} available',
     'kitchen.stock.kpi.onHand': 'Total on-hand',
-    'kitchen.stock.kpi.onHand.sub': 'usable now',
+    // The UNIT of the headline number (Σ qty_porsi), not a qualifier — it is the only place
+    // the tile says what it is counting (#411).
+    'kitchen.stock.kpi.onHand.sub': 'portions',
     'kitchen.stock.kpi.inStock': 'Items in stock',
     'kitchen.stock.kpi.inStock.delta': '${count} empty/negative',
     'kitchen.stock.kpi.inStock.sub': 'with usable stock',
@@ -1192,11 +1194,20 @@ export const messages = {
     'kitchen.stock.kpi.negative.clear': 'clear',
     'kitchen.stock.kpi.negative.noData': 'no stock data yet',
     'kitchen.stock.kpi.available': 'Available total',
-    'kitchen.stock.kpi.available.delta': 'transfer-ready',
-    'kitchen.stock.kpi.available.sub': 'cumulative',
+    // `availableTotal` is Σ row.tersedia across items for the SELECTED DATE — a cross-item
+    // total for one day, never a running one. It said 'read-only' / 'transfer-ready' before
+    // the port and says the same two things now (#411): a translation may not change what a
+    // number means.
+    'kitchen.stock.kpi.available.delta': 'read-only',
+    'kitchen.stock.kpi.available.sub': 'transfer-ready',
     // Café · Review — the per-row approve/reject decision flow, its outcome banners and its
     // action errors. The confirm buttons NAME THE OBJECT (v4 clarify) — a destructive
-    // confirm never says only "Confirm reject".
+    // confirm never says only "Confirm reject". It keeps the word "Confirm" all the same
+    // (#411): the trigger and the commit are one press apart, and dropping it made their
+    // accessible names byte-identical, so nothing announced that the second press is the
+    // irreversible one. The dish name makes these labels unbounded — the row that holds them
+    // wraps (guard-review-confirm-wrap.css.test.ts); it is never truncated, because the point
+    // of naming the dish is that the reviewer can see WHICH one they are rejecting.
     'kitchen.review.approve': 'Approve',
     'kitchen.review.reject': 'Reject',
     'kitchen.review.approveAria': 'Approve ${dish}',
@@ -1204,8 +1215,8 @@ export const messages = {
     'kitchen.review.note.approve': 'Approve note',
     'kitchen.review.note.reject': 'Reject note',
     'kitchen.review.note.required': 'A note is required.',
-    'kitchen.review.confirm.approve': 'Approve ${dish}',
-    'kitchen.review.confirm.reject': 'Reject ${dish}',
+    'kitchen.review.confirm.approve': 'Confirm approve ${dish}',
+    'kitchen.review.confirm.reject': 'Confirm reject ${dish}',
     'kitchen.review.noteAriaApprove': 'Approve note for ${dish}',
     'kitchen.review.noteAriaReject': 'Reject note for ${dish}',
     'kitchen.review.notePlaceholder.approve': 'Why the quantity differs from plan (required)',
@@ -2338,7 +2349,7 @@ export const messages = {
     'kitchen.stock.kpi.itemCount': '${count} item',
     'kitchen.stock.kpi.availableCount': '${count} tersedia',
     'kitchen.stock.kpi.onHand': 'Total stok fisik',
-    'kitchen.stock.kpi.onHand.sub': 'siap dipakai sekarang',
+    'kitchen.stock.kpi.onHand.sub': 'porsi',
     'kitchen.stock.kpi.inStock': 'Item bersisa stok',
     'kitchen.stock.kpi.inStock.delta': '${count} kosong/minus',
     'kitchen.stock.kpi.inStock.sub': 'masih bisa dipakai',
@@ -2347,8 +2358,8 @@ export const messages = {
     'kitchen.stock.kpi.negative.clear': 'aman',
     'kitchen.stock.kpi.negative.noData': 'belum ada data stok',
     'kitchen.stock.kpi.available': 'Total tersedia',
-    'kitchen.stock.kpi.available.delta': 'siap ditransfer',
-    'kitchen.stock.kpi.available.sub': 'kumulatif',
+    'kitchen.stock.kpi.available.delta': 'hanya baca',
+    'kitchen.stock.kpi.available.sub': 'siap ditransfer',
     // Café · Review — alur keputusan setujui/tolak per baris + banner hasilnya.
     'kitchen.review.approve': 'Setujui',
     'kitchen.review.reject': 'Tolak',
@@ -2357,8 +2368,8 @@ export const messages = {
     'kitchen.review.note.approve': 'Catatan persetujuan',
     'kitchen.review.note.reject': 'Catatan penolakan',
     'kitchen.review.note.required': 'Catatan wajib diisi.',
-    'kitchen.review.confirm.approve': 'Setujui ${dish}',
-    'kitchen.review.confirm.reject': 'Tolak ${dish}',
+    'kitchen.review.confirm.approve': 'Konfirmasi setujui ${dish}',
+    'kitchen.review.confirm.reject': 'Konfirmasi tolak ${dish}',
     'kitchen.review.noteAriaApprove': 'Catatan persetujuan untuk ${dish}',
     'kitchen.review.noteAriaReject': 'Catatan penolakan untuk ${dish}',
     'kitchen.review.notePlaceholder.approve': 'Alasan jumlahnya berbeda dari rencana (wajib)',

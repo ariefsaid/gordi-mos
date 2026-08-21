@@ -7,6 +7,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { PageFrame } from '@/shell/page-frame'
+import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState } from '@/components/ui/state-kit'
 
@@ -18,6 +19,13 @@ export function NotFoundPage() {
 
   return (
     <PageFrame>
+      {/* #411: the v4 port replaced this route's hand-rolled h1 with the EmptyState's h2 and
+          put nothing above it, so the 404 was the one route whose heading tree started at
+          level 2. DESIGN.md § Accessibility, "Heading levels (v4)": "The page frame owns the
+          page's only <h1>." The head carries the page's NAME (the same string the document
+          title uses); the EmptyState below keeps the message, the failed path and the two
+          recoveries. Same shape as `slice-stub-page.tsx`, the sibling standalone surface. */}
+      <PageHead title={t('doc.notFound')} />
       <EmptyState
         variant="blank"
         headingLevel={2}

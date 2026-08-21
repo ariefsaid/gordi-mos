@@ -1,16 +1,30 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { NotFoundPage } from './not-found-page'
 
 // #400 (v4 port): the 404 is fully localized, names the failed path, and offers BOTH
 // recoveries — go back (one segment is usually all that's wrong) and Home.
+
+// Reads the router's live location so a navigation claim can actually be checked. The
+// value is prefixed so it can never collide with the page's own `note={pathname}` render.
+function LocationProbe() {
+  const { pathname } = useLocation()
+  return <span data-testid="loc">{`at ${pathname}`}</span>
+}
+
+/**
+ * Two history entries with the 404 on top, so `navigate(-1)` has somewhere to go. The
+ * previous shape (a single entry) made the back button a guaranteed no-op — which is
+ * how a test named for the navigation ended up unable to observe it.
+ */
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/mos/no/such/path']}>
+    <MemoryRouter initialEntries={['/mos/work/tasks', '/mos/no/such/path']} initialIndex={1}>
       <I18nProvider>
         <NotFoundPage />
+        <LocationProbe />
       </I18nProvider>
     </MemoryRouter>,
   )
@@ -49,8 +63,28 @@ describe('NotFoundPage — locale id (#400)', () => {
 
   it('Go back navigates history backwards', () => {
     renderPage()
-    // navigate(-1) is a no-op against a fresh history stack; the control's contract is
-    // asserted by presence + the router's own suite. Clicking must not throw.
+    expect(screen.getByTestId('loc')).toHaveTextContent('at /mos/no/such/path')
     fireEvent.click(screen.getByRole('button', { name: 'Kembali' }))
+    expect(screen.getByTestId('loc')).toHaveTextContent('at /mos/work/tasks')
+  })
+})
+
+// #411 review: DESIGN.md § Accessibility, "Heading levels (v4)" — "The page frame owns the
+// page's only <h1>." The v4 port replaced the hand-rolled h1 with an EmptyState h2 and added
+// no PageHead, so the route's heading tree started at level 2 with nothing above it.
+describe('NotFoundPage — heading contract (#411)', () => {
+  afterEach(() => localStorage.clear())
+
+  it('the route has exactly one h1, and it names the surface', () => {
+    renderPage()
+    const h1s = screen.getAllByRole('heading', { level: 1 })
+    expect(h1s).toHaveLength(1)
+    expect(h1s[0]).toHaveTextContent('Page not found')
+  })
+
+  it('the h1 is localized with the rest of the surface', () => {
+    localStorage.setItem('mos.locale', 'id')
+    renderPage()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Halaman tidak ditemukan')
   })
 })

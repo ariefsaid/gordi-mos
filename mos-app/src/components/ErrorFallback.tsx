@@ -17,10 +17,18 @@
  *     the top-level boundary catches, so useT() would silently fall back to English there.
  *     It therefore resolves the catalog against the persisted locale via translateFor —
  *     correct in BOTH mount positions and cannot throw inside an already-crashed tree.
- *  3. 32px controls on a phone-first product whose floor is >=44px (PRODUCT.md
+ *  3. Sub-44px controls on a phone-first product whose floor is >=44px on phone (PRODUCT.md
  *     Accessibility). The recovery buttons were the smallest targets in the app, on the
- *     screen reached with the least patience. Now >=44px via minHeight + the shared
- *     data-touch-target seam the rest of the app uses.
+ *     screen reached with the least patience. Now >=44px on phone via the shared
+ *     `data-touch-target` seam the rest of the app uses (Button.css's
+ *     `@media (max-width: 767.98px)` block), and 32px on desktop like every other control.
+ *
+ *     #411: this used to ALSO inline `minHeight: '44px'` alongside the seam, plus five other
+ *     properties `.btn` already sets. An inline min-height wins at every width, so the crash
+ *     screen shipped 44px desktop buttons no other surface has — and made the seam it had just
+ *     added unobservable. DESIGN.md § Density is the authority ("Standard controls are 32px;
+ *     phone targets are at least 44px"), and it is the media query, not the markup, that knows
+ *     which width it is. The class + the attribute deliver the documented behaviour on their own.
  */
 import { readPersistedLocale } from '@/i18n/I18nProvider'
 import { translateFor } from '@/i18n/use-t'
@@ -31,15 +39,6 @@ export interface ErrorFallbackProps {
 
 export function ErrorFallback({ onReset }: ErrorFallbackProps) {
   const tr = translateFor(readPersistedLocale())
-
-  const buttonStyle = {
-    minHeight: '44px',
-    padding: '0 16px',
-    borderRadius: 'var(--radius-sm)', // 8px control radius
-    fontSize: 'var(--font-size-body-lg)',
-    fontWeight: 600,
-    cursor: 'pointer',
-  } as const
 
   return (
     <div
@@ -91,10 +90,14 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
         >
           {tr('errorBoundary.copy')}
         </p>
+        {/* `alignItems: center` — without it the column stretches both buttons to the card's
+            full 352px, which is the phone submit-bar treatment (`.btn-touch`), not the crash
+            screen's. They keep their intrinsic width and stay centred under the copy. */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
+            alignItems: 'center',
             gap: '12px',
           }}
         >
@@ -102,7 +105,6 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
             <button
               onClick={onReset}
               className="btn btn-outline"
-              style={buttonStyle}
               data-touch-target="true"
               type="button"
             >
@@ -112,7 +114,6 @@ export function ErrorFallback({ onReset }: ErrorFallbackProps) {
           <button
             onClick={() => window.location.reload()}
             className="btn btn-primary"
-            style={buttonStyle}
             data-touch-target="true"
             type="button"
           >

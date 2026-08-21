@@ -232,6 +232,15 @@ function KitchenReviewDecision({
     pending === 'reject'
       ? t('kitchen.review.notePlaceholder.reject')
       : t('kitchen.review.notePlaceholder.approve')
+  // ONE expression for the commit label, and no aria-label beside it (#411). An aria-label on
+  // a button that has visible text REPLACES that text in the accessible name, so the copy of
+  // this ternary that used to sit in `aria-label` pinned the idle label for the whole RPC —
+  // a screen-reader user never heard "Working…"/"Memproses…" while the decision was in flight.
+  // With the label rendered once as content, the busy state reaches both readings for free.
+  const confirmLabel = t(
+    pending === 'reject' ? 'kitchen.review.confirm.reject' : 'kitchen.review.confirm.approve',
+    { dish: log.wip_item_name },
+  )
 
   return (
     <div className="krow-actions">
@@ -282,25 +291,21 @@ function KitchenReviewDecision({
             <span role="alert" className="krow-note-cue">{t('kitchen.review.note.required')}</span>
           )}
           <div className="krow-decide-actions">
+            {/* `krow-confirm`: the commit is the one control in the system whose label carries
+                an unbounded interpolated name, so it — and only it — is allowed to set that
+                label over two lines rather than push Cancel out of the card on a phone. The
+                rules, and why truncation is not an option here, live beside the CSS. */}
             <button
               type="button"
-              className={`btn krow-btn ${pending === 'reject' ? 'btn-destructive' : 'btn-primary'}`}
-              aria-label={pending === 'reject'
-                ? t('kitchen.review.confirm.reject', { dish: log.wip_item_name })
-                : t('kitchen.review.confirm.approve', { dish: log.wip_item_name })}
+              className={`btn krow-btn krow-confirm ${pending === 'reject' ? 'btn-destructive' : 'btn-primary'}`}
               disabled={submitting}
               onClick={confirm}
             >
-              {submitting
-                ? t('common.working')
-                : pending === 'reject'
-                  ? t('kitchen.review.confirm.reject', { dish: log.wip_item_name })
-                  : t('kitchen.review.confirm.approve', { dish: log.wip_item_name })}
+              {submitting ? t('common.working') : confirmLabel}
             </button>
             <button
               type="button"
               className="btn btn-ghost krow-btn"
-              aria-label={t('common.cancel')}
               disabled={submitting}
               onClick={cancel}
             >

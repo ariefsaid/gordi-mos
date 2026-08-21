@@ -476,6 +476,23 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     expect(screen.queryByText(/negative balances/i)).toBeNull()
   })
 
+  // #411 review: a translation must not change what a number MEANS. The port replaced the
+  // on-hand tile's only unit ('portions') with a qualifier, leaving a bare count with no unit
+  // anywhere; and it moved 'transfer-ready' onto the delta while the sub-line started claiming
+  // the figure is 'cumulative' — it is a cross-item total for ONE day (Σ tersedia), not a
+  // running total. Both tiles now say in Indonesian exactly what they said in English.
+  it('keeps the unit on the on-hand tile and does not restate what the available total means', async () => {
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const onHand = screen.getByText('Total stok fisik').closest('.kks-tile') as HTMLElement
+    expect(onHand.textContent).toMatch(/porsi/)
+
+    const available = screen.getByText('Total tersedia').closest('.kks-tile') as HTMLElement
+    expect(available.textContent).toMatch(/siap ditransfer/)
+    expect(available.textContent).not.toMatch(/kumulatif/)
+  })
+
   it('phone summary line is Indonesian', async () => {
     setPhone()
     render(<KitchenStockPage />, { wrapper })
