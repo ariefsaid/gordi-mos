@@ -1,11 +1,16 @@
 # sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
 # v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
 #
-# MOS roster ruling (owner 2026-08-19, OD-WAY-64; supersedes 2026-08-15's builder half):
-# planner zai/glm-5.3 · standard builder openai-codex/gpt-5.6-luna · reviewer gpt-5.6-terra.
-# The standard chain's inner review is therefore SAME-FAMILY (luna→terra); the PR-gate three-lens
-# roster carries the cross-family check. fe_builder stays glm-5.3 (fe_reviewer is luna — one model
-# on both sides is no review). openrouter and fireworks are NOT valid substrates in this roster.
+# MOS roster ruling (owner 2026-08-20, OD-WAY-71; amends the builder half of OD-WAY-64):
+# planner zai/glm-5.3 · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
+# reviewer gpt-5.6-terra · fe_reviewer gpt-5.6-luna.
+#
+# Three families now sit on the roster, so build and review are cross-family by CONSTRUCTION
+# rather than by the careful pairing OD-WAY-64 had to settle for. Escalation ladders by
+# availability and required capability live in docs/agents/pi-delegation.md; the one invariant
+# that survives every fall-through: A SLICE BUILT BY GLM MUST NOT THEN BE REVIEWED BY GLM, so a
+# dispatch that falls through to the GLM rung has to SAY SO in its report.
+# openrouter and fireworks are NOT valid substrates in this roster.
 #
 # ⚑ Two places, always: a substrate ruling lands in docs/agents/pi-delegation.md AND here —
 # one ruling applied twice, never a drift.
@@ -121,7 +126,7 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: openai-codex/gpt-5.6-luna  # owner roster ruling 2026-08-19 (OD-WAY-64): builder on luna; same-family vs terra review — cross-family restored at the PR gate
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71, amends OD-WAY-64): DeepSeek-V4-Flash BUILDS. Escalation ladder deepseek -> luna -> glm lives in docs/agents/pi-delegation.md; a fall-through must be REPORTED, because a slice built by GLM must not then be reviewed by GLM. resolve_model splits at the FIRST '/', so the slashed model id survives.
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     contract: agents/implementer.md
@@ -166,7 +171,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-terra   # code review — same family as the luna builder (OD-WAY-64); the PR-gate three-lens roster carries the cross-family check
+    model: openai-codex/gpt-5.6-terra   # code review. CROSS-FAMILY by construction since OD-WAY-71: the builder is DeepSeek (bitdeer), so codex reviewing it is a genuinely different family — the compromise OD-WAY-64 accepted is gone. Review ladder glm -> luna -> terra by availability; see docs/agents/pi-delegation.md.
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -185,7 +190,7 @@ agents:
       - write
 
   - name: fe_builder
-    model: zai/glm-5.3             # DELIBERATELY kept on GLM (OD-WAY-64): fe_reviewer is luna, and a luna fe_builder would collapse build+review onto one model
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71): FE builds on DeepSeek too. fe_reviewer stays luna, so build and review are different FAMILIES again, not merely different models. fe_builder is TEXT-ONLY - its self-check is the a11y tree via agent-browser; pixel judgment stays with fe_reviewer, which MUST remain a vision model.
     color: "#34d399"
     purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
     contract: agents/ui-implementer.md
@@ -203,7 +208,7 @@ agents:
       - write
 
   - name: fe_reviewer
-    model: openai-codex/gpt-5.6-luna    # design/FE review — cross-family vs the GLM fe_builder
+    model: openai-codex/gpt-5.6-luna    # design/FE review — cross-family vs the DeepSeek fe_builder (OD-WAY-71). MUST stay a VISION model: fe_builder is text-only and self-checks the a11y tree, so pixel judgment lives here and nowhere else.
     thinking: high
     color: "#f472b6"
     purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.

@@ -27,7 +27,7 @@ check_config() {
   #    provider (openrouter, fireworks, upstream's google default, …) is caught here
   while read -r m; do
     case "$m" in
-      zai/glm-5.3|zai/glm-4.7|openai-codex/gpt-5.6-terra|openai-codex/gpt-5.6-luna) ;;
+      zai/glm-5.3|zai/glm-4.7|openai-codex/gpt-5.6-terra|openai-codex/gpt-5.6-luna|bitdeer/deepseek-ai/DeepSeek-V4-Flash) ;;
       *) bad_out+="model not in the ruled substrate set: $m\n" ;;
     esac
   done < <(grep -E '^ *model: ' "$cfg" | awk '{print $2}')
@@ -248,14 +248,20 @@ PYEOF
 
 # The harness drives the REAL permissions.py, whose import chain reaches
 # pydantic (via data_types.py), and the harness itself needs yaml. CI's guard
-# runner provisions no python deps, so resolve them via the shared resolver —
-# NEVER skip the harness: a skipped control is exactly the failure mode this
-# test exists to kill. A provisioning failure falls through to the harness
-# checks going red, never to a silent pass.
-. scripts/lib/py-with-deps.sh
-py_with_deps_init "$tmp/venv" \
-  || bad "could not provision harness deps (no uv; venv/pip failed) (#357)"
-PY() { py_with_deps "$@"; }
+# runner provisions no python deps, so resolve them here — NEVER skip the
+# harness: a skipped control is exactly the failure mode this test exists to
+# kill. Plain python3 when it already has the deps (dev machines), else uv
+# with inline deps, else a scratch venv via pip. A provisioning failure falls
+# through to the harness checks going red, never to a silent pass.
+if python3 -c 'import pydantic, yaml' 2>/dev/null; then
+  PY() { python3 "$@"; }
+elif command -v uv >/dev/null 2>&1; then
+  PY() { uv run --no-project --quiet --with pydantic --with pyyaml python "$@"; }
+else
+  python3 -m venv "$tmp/venv" && "$tmp/venv/bin/pip" install --quiet pydantic pyyaml \
+    || bad "could not provision harness deps (no uv; venv/pip failed) (#357)"
+  PY() { "$tmp/venv/bin/python" "$@"; }
+fi
 
 PY "$tmp/harness.py" "$PWD" "$CONFIG" allowed >/dev/null \
   && ok "builder deliverables in general scripts//mos-app/ + lockfile allowed by enforce() (#357)" \
