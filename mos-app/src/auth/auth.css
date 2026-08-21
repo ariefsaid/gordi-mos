@@ -1,0 +1,34 @@
+/* Auth phone tap floor — #403 (v4 port-sweep, #290 slice).
+ *
+ * The auth cards author their controls inline at the 32px desktop density (height: 32) with
+ * none of the app primitives underneath, so — unlike every surface behind the login — they
+ * carried no phone floor: the sign-in/reset/set-password inputs, the submits, and both
+ * "back to sign in" links rendered 19–34px on a phone. DESIGN.md §Responsive: "Phone (390px
+ * and ≤767px) … every required tap target is at least 44×44px"; "at 390px and below, controls
+ * may wrap or stack but must not shrink below the tap-target contract." Ruled: no exemption
+ * for auth — it is the first surface a new person touches, often on a phone.
+ *
+ * Same seam and idiom as DO-15(a) (TextInput.css): min-height/min-width in the phone media
+ * block beat the smaller inline heights, so the 32px desktop density is untouched while EVERY
+ * auth card (login, recovery, the #131 set-password gate, orphan) inherits the floor from this
+ * ONE rule set — fixed once at the shared chrome, never re-authored per page, no v4 page port.
+ * Both axes are floored because DESIGN.md says 44×44 — the demo persona chips proved a control
+ * can be 44 tall and still only 37 wide.
+ *
+ * The bare "Back to sign in" <a> needs its own line: min-height is ignored on inline boxes,
+ * so the link gets a real box via display: inline-flex.
+ *
+ * "Fixed once at the shared chrome" is literal: the per-control `minHeight: 44` inline styles
+ * this rule supersedes (fix-3's forgot-password + magic-link links, and the demo persona chips)
+ * were REMOVED when it landed, so the floor is stated in exactly one place. Removing them also
+ * un-did fix-3's side effect of forcing 44px on DESKTOP, where DESIGN.md's density is 32px and
+ * the floor does not apply — this rule is phone-only by construction.
+ *
+ * The floor's other half is SEPARATION, and it is not stated here: DESIGN.md pairs "44px" with
+ * "8px between adjacent targets", and the two crowded seams on these cards are Tailwind margins
+ * on the pages that own them (login-page.tsx `mt-2`, demo-login.tsx `gap-y-2`). Both halves are
+ * measured together by GUARD-TAP in e2e/guards.geometry.spec.ts. */
+@media (max-width: 767.98px) {
+  .auth-card :is(input, button, a) { min-height: 44px; min-width: 44px; }
+  .auth-card a { display: inline-flex; align-items: center; }
+}

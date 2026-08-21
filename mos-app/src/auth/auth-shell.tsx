@@ -1,6 +1,8 @@
 // Shared auth chrome used by LoginPage, RecoveryPage, and OrphanScreen.
 // Design-plan §2: centered viewport + brand block + foot line.
 
+import './auth.css'
+
 // Inline spinner — aria-hidden; button label carries meaning (design-plan §5)
 export function Spinner({ className }: { className?: string }) {
   return (
@@ -80,7 +82,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 export function AuthCard({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="w-full max-w-[360px] bg-card border border-border rounded-lg shadow-rest"
+      className="auth-card w-full max-w-[360px] bg-card border border-border rounded-lg shadow-rest"
       style={{ padding: 24 }}
     >
       {children}

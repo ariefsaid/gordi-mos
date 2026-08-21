@@ -340,16 +340,16 @@ export function LoginPage() {
               aria-describedby={error ? errorId : undefined}
             />
             {/* fix-4: Forgot password link AFTER the password field (DOM order = tab order) */}
-            {/* fix-3: same min-height:44px touch-target treatment as magic-link */}
-            <div className="flex justify-end mt-1">
+            {/* #403: the 44px floor now comes from the shared auth.css seam (phone only), so no
+                inline min-height here. mt-2 (not mt-1) because the floor's other half is
+                SEPARATION — DESIGN.md pairs "44px" with "8px between adjacent targets", and a
+                mistap here costs the person everything they just typed into the password field. */}
+            <div className="flex justify-end mt-2">
               <button
                 type="button"
                 className="text-primary font-medium hover:underline focus-visible:underline"
                 style={{
                   fontSize: 12,
-                  minHeight: 44,
-                  display: 'inline-flex',
-                  alignItems: 'center',
                 }}
                 disabled={isDisabled}
                 onClick={handleForgotPassword}
@@ -407,7 +407,7 @@ export function LoginPage() {
           className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
           style={{
             fontSize: 16,
-            minHeight: 44, // fix-3 / touch target ≥44px (design-plan §4)
+            // #403: the ≥44px touch floor is the shared auth.css seam's job, phone-only.
             opacity: (isDisabled && loading !== 'magic') ? 0.5 : 1,
             cursor: isDisabled ? 'not-allowed' : undefined,
           }}

@@ -12,6 +12,7 @@
 import { test, expect } from '@playwright/test'
 import { RECOVERY_VIEWER } from './fixtures/users'
 import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
+import { assertTapFloor, AUTH_CONTROLS, TAP_GAP } from './helpers/tap-floor'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
 const NEW_PASSWORD = `E2eRecovery${Date.now()}`
@@ -45,6 +46,18 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
     page.getByRole('heading', { name: /set a new password/i }),
   ).toBeVisible({ timeout: 15_000 })
   await expect(page).toHaveURL(/\/recovery/, { timeout: 5_000 })
+
+  // ── GUARD-TAP (#403): the set-password card's phone tap floor ────────────
+  // This form is reachable ONLY through the mailpit round-trip above, so its 44×44 + 8px-gap
+  // census is measured here rather than in a second copy of this journey (CLAUDE.md § Test
+  // pyramid). Sibling auth surfaces are guarded in e2e/guards.geometry.spec.ts.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await assertTapFloor(page, AUTH_CONTROLS, 'Set-password (recovery link) @390', {
+    axes: 'both',
+    minGap: TAP_GAP,
+    noOverflow: true,
+  })
+  await page.setViewportSize({ width: 1280, height: 720 })
 
   // ── Step 5: set the new password ─────────────────────────────────────────
   await page.getByLabel('New password').fill(NEW_PASSWORD)

@@ -440,26 +440,34 @@ describe('LoginPage — email client-validation (fix-2)', () => {
   })
 })
 
-// ── fix-3 ── "Forgot password?" touch target ≥44px (design-plan §4) ─────────
-
-describe('LoginPage — forgot-password touch target (fix-3)', () => {
-  it('"Forgot password?" button has min-height class matching magic-link ≥44px treatment', () => {
+// ── #403 (supersedes fix-3) ── the phone tap contract on this card ──────────
+//
+// fix-3's test asserted the MECHANISM — an inline `minHeight: 44` on each link — and so it could
+// only ever pass while the floor was re-authored per control. #403 moved the floor to the shared
+// auth.css seam, and DESIGN.md scopes it to phone; an unconditional inline 44 also inflated these
+// links on DESKTOP, where the density is 32px. The GOAL that replaced it is owned at two levels:
+//   • the floor itself      → src/components/ui/tap-targets.css.test.ts (CSS source, BOTH axes,
+//                             in `verify` — the only lane that gates a PR→dev merge)
+//   • the rendered box+gap  → GUARD-TAP in e2e/guards.geometry.spec.ts (real pixels at 390px)
+// What is left for THIS level is the drift this PR's review actually caught: the floor being
+// stated twice, and the separation half being a Tailwind class jsdom can see.
+describe('LoginPage — phone tap contract lives at the shared seam (#403)', () => {
+  it('neither auth link re-authors the 44px floor inline — auth.css owns it', () => {
     render(<LoginPage />)
     const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
     const magicBtn = screen.getByRole('button', { name: /email me a sign-in link/i })
 
-    // Both should carry the touch-target min-height treatment
-    // Magic-link already has inline minHeight:44 or class; forgot-password must match
-    const forgotStyle = window.getComputedStyle(forgotBtn)
-    const magicStyle = window.getComputedStyle(magicBtn)
+    expect(forgotBtn.style.minHeight).toBe('')
+    expect(magicBtn.style.minHeight).toBe('')
+  })
 
-    // Assert that the forgot button has at least min-height set (via class or inline)
-    const forgotMinH = forgotBtn.style.minHeight || forgotStyle.minHeight
-    const magicMinH = magicBtn.style.minHeight || magicStyle.minHeight
-
-    // Both must have a 44px min-height
-    expect(forgotMinH).toBe('44px')
-    expect(magicMinH).toBe('44px')
+  it('the "Forgot password?" row keeps 8px (mt-2) off the password field it sits under', () => {
+    // DESIGN.md pairs the 44px floor with "8px between adjacent targets". At mt-1 the two 44px
+    // boxes sat 4.0px apart and a mistap cost the person their typed password. Structural twin of
+    // the measured gap assertion in GUARD-TAP.
+    render(<LoginPage />)
+    const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
+    expect(forgotBtn.parentElement?.className).toContain('mt-2')
   })
 })
 

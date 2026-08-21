@@ -1,0 +1,153 @@
+name: geometry
+
+# ─── WHY THIS LANE EXISTS ──────────────────────────────────────────────────────────────────
+# The rendered-geometry guards (mos-app/e2e/guards.geometry.spec.ts) are the only checks in the
+# repo that measure a REAL box — split-view parity, the 44×44 phone tap floor, the 8px separation
+# between adjacent targets, the café search's usable measure. Until now they ran ONLY in
+# integration.yml's `db` job, which is gated `github.event_name == 'push' || base_ref == 'main'`.
+# So on a PR → dev — where nearly all work lands — they never executed. #403 shipped an auth tap
+# floor whose whole claim was "guarded by rendered geometry" and the guard could not run in the
+# lane the merge went through. Same failure guards.yml already names: "a guard whose test never
+# runs is a control everyone believes is running."
+#
+# This lane is deliberately NARROW — one spec file plus the one journey that owns the fifth auth
+# surface — not the full e2e suite. The heavy suite stays PR → main (integration.yml's tiering
+# note explains why); this buys the geometry signal at the point the code actually lands.
+#
+# ⚠️ NOT YET A REQUIRED CHECK. `dev`'s only required status check is `verify`. Until an admin adds
+# `geometry` to dev's branch protection this reports but does not block. The structural twin that
+# DOES gate — mos-app/src/components/ui/tap-targets.css.test.ts, in `verify` — asserts both axes
+# of the 44px floor against the CSS source, so the floor is never resting on this lane alone.
+
+on:
+  # Deliberately NOT path-filtered, for the same reason verify.yml is not: a check skipped by a
+  # path filter never reports, so the day this becomes required a docs-only PR would block
+  # forever. PR-side savings come from the `scope` step below, which still reports green.
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geometry-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  geometry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # FAIL-CLOSED BY CONSTRUCTION, copied from verify.yml's reasoning: skip only when EVERY
+      # changed path is on the inert allowlist. Anything unrecognised — including any new
+      # top-level directory — boots the stack. An out-of-date allowlist costs a wasted run, never
+      # an unrun gate. Note what is NOT inert here and IS inert in verify.yml: supabase/, because
+      # these guards render the seeded app and a seed/migration change can move real pixels.
+      - name: Scope — can this change move a rendered pixel?
+        id: scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --quiet --no-tags origin \
+              "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            RANGE="$(git merge-base "origin/${BASE_REF}" HEAD)..HEAD"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+          INERT='^(docs/|review/|adws/|\.claude/|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
+          CHANGED="$(git diff --name-only "$RANGE")"
+          NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+          if [ -n "$NOT_INERT" ]; then
+            echo "render=true" >> "$GITHUB_OUTPUT"
+            echo "Running the geometry guards — these paths are not inert:"
+            printf '%s\n' "$NOT_INERT" | sed 's/^/  /'
+          else
+            echo "render=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### geometry: guards skipped"
+              echo ""
+              echo "Every changed path is inert (prose/config that cannot move a rendered pixel),"
+              echo "so the geometry guards were **not run**. A green check here means *nothing"
+              echo "renderable changed* — not that the geometry is green."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install Supabase CLI
+        if: steps.scope.outputs.render == 'true'
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.104.0
+
+      - name: Start local Supabase stack (applies migrations + seed)
+        if: steps.scope.outputs.render == 'true'
+        # Same exclusion list as integration.yml — proven to boot. auth/rest/kong are needed to
+        # log the guards in; inbucket is needed by the AC-005 recovery round-trip.
+        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      - name: Export Supabase env to GITHUB_ENV
+        if: steps.scope.outputs.render == 'true'
+        run: |
+          supabase status -o env | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' | tr -d '"' >> "$GITHUB_ENV"
+          grep -q '^SERVICE_ROLE_KEY=eyJ' "$GITHUB_ENV"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.scope.outputs.render == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mos-app/package-lock.json
+
+      - name: Install app dependencies
+        if: steps.scope.outputs.render == 'true'
+        working-directory: mos-app
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        if: steps.scope.outputs.render == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('mos-app/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.scope.outputs.render == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: mos-app
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.scope.outputs.render == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: mos-app
+        run: npx playwright install-deps chromium
+
+      - name: Rendered-geometry guards
+        if: steps.scope.outputs.render == 'true'
+        working-directory: mos-app
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:44321
+          VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+          VITE_SHOW_PLAN_BUDGET: 'true'
+        # auth-recovery.spec.ts is here for ONE reason: the set-password card is reachable only
+        # through its mailpit round-trip, so the fifth auth surface's tap floor is asserted inside
+        # AC-005 rather than in a second copy of that journey. Adding it costs one already-written
+        # test on an already-booted stack.
+        run: npx playwright test e2e/guards.geometry.spec.ts e2e/auth-recovery.spec.ts
+
+      - name: Upload Playwright report on failure
+        if: failure() && steps.scope.outputs.render == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: geometry-playwright-report
+          path: mos-app/playwright-report/
+          retention-days: 7
+
+      - name: Stop stack
+        if: always() && steps.scope.outputs.render == 'true'
+        run: supabase stop
