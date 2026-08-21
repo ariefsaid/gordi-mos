@@ -9,8 +9,13 @@
 //   RLS is the authority; the UI gate is a courtesy (design-plan §0).
 // - READ-ONLY v1: no retry/resend/reset actions. Dead-letter manual retry is
 //   DEFERRED. The surface reads + shows status so the lead can escalate.
-// - Status badges via Tag (green=posted, neutral=pending/in_flight,
-//   amber=failed/dead_letter). target_env shown prominently (dry_run vs goo/gkid).
+// - Status badges via Tag, every state a person word from the i18n catalog — no raw
+//   database enum reaches the screen (#402). green=Posted, neutral=Queued/Sending,
+//   amber=Failed·retrying, RED=Failed·stopped (#402 / OD-WAY-74 #4: red tag, amber
+//   row — red on the whole row would read "this data is wrong"; the row is fine,
+//   its delivery failed). target_env shown prominently (Dry run vs GOO/GKID).
+// - Rows sort severity-first (dead_letter > failed > healthy), newest within a tier
+//   (#402): a stuck batch must never hide below healthy ones.
 // - Dead-letter rows: warning/7% fill + 2px warning left rule (the owner-approved
 //   side-stripe exception, DESIGN.md "Ops Log tokens").
 // - All states: loading / empty / error+retry / forbidden / populated.
@@ -23,15 +28,17 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { Tag } from '@/components/ui/tag'
+import type { TagColor } from '@/components/ui/tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { listEsbPushes } from '@/lib/db/kitchen-pushes'
-import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
+import { listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
+import type { EsbPushRow, EsbPushStatus, EsbTargetEnv, EsbEndpoint } from '@/lib/db/kitchen-pushes'
+import type { MessageKey } from '@/i18n/messages'
 import './kitchen-pushes-page.css'
 
 // ── Status tag configuration (Tinted-Status pattern — dot + text, never color-alone) ──
 
-type StatusTagConfig = { color: 'green' | 'gray' | 'amber' | 'red'; label: string }
+type StatusTagConfig = { color: TagColor; key: MessageKey; textVar?: string }
 
 /**
  * HELD — the intra-branch arm, made visible (FR-050/052).
@@ -55,28 +62,35 @@ function isHeld(row: EsbPushRow): boolean {
   return row.endpoint === 'noop' && row.status !== 'failed' && row.status !== 'dead_letter'
 }
 
-function statusConfig(status: EsbPushStatus): StatusTagConfig {
-  switch (status) {
-    case 'posted':    return { color: 'green',  label: 'posted' }
-    case 'pending':   return { color: 'gray',   label: 'pending' }
-    case 'in_flight': return { color: 'gray',   label: 'in_flight' }
-    case 'failed':    return { color: 'amber',  label: 'failed' }
-    case 'dead_letter': return { color: 'amber', label: 'dead_letter' }
-  }
+// #402: labels come from the catalog — never the database's word. dead_letter is the
+// RED tag on the AMBER row (OD-WAY-74 #4); its text uses the ratified AA-darkened red
+// (--status-lost-text — same fix as StatusPill 'Blocked'), not the kit's tag-text-red.
+const STATUS_TAG: Record<EsbPushStatus, StatusTagConfig> = {
+  posted:      { color: 'green', key: 'kitchen.pushes.status.posted' },
+  pending:     { color: 'gray',  key: 'kitchen.pushes.status.pending' },
+  in_flight:   { color: 'gray',  key: 'kitchen.pushes.status.inFlight' },
+  failed:      { color: 'amber', key: 'kitchen.pushes.status.failed' },
+  dead_letter: { color: 'red',   key: 'kitchen.pushes.status.deadLetter', textVar: 'var(--status-lost-text)' },
 }
 
 // ── target_env tag configuration ──
 // gkid = calm blue (live target — not an alarm, OQ-6 owner choice: calm blue chosen).
-// goo / dry_run = neutral gray.
+// goo / dry_run = neutral gray. Company codes render uppercased — how people write them.
+type EnvTagConfig = { color: 'blue' | 'gray'; key: MessageKey }
 
-type EnvTagConfig = { color: 'blue' | 'gray'; label: string }
+const ENV_TAG: Record<EsbTargetEnv, EnvTagConfig> = {
+  gkid:    { color: 'blue', key: 'kitchen.pushes.env.gkid' },
+  goo:     { color: 'gray', key: 'kitchen.pushes.env.goo' },
+  dry_run: { color: 'gray', key: 'kitchen.pushes.env.dryRun' },
+}
 
-function envConfig(env: EsbTargetEnv): EnvTagConfig {
-  switch (env) {
-    case 'gkid':    return { color: 'blue', label: 'gkid' }
-    case 'goo':     return { color: 'gray', label: 'goo' }
-    case 'dry_run': return { color: 'gray', label: 'dry_run' }
-  }
+// #402: endpoint is a person word too — 'assembly-actual' is not something a lead says.
+// noop → None for held AND failed noop rows: "held" belongs to the status column, and a
+// failed noop row must never be re-described as held (FR-052 ruling preserved).
+const ENDPOINT_LABEL: Record<EsbEndpoint, MessageKey> = {
+  'assembly-actual': 'kitchen.pushes.endpoint.assembly',
+  'simple-transfer': 'kitchen.pushes.endpoint.transfer',
+  'noop': 'kitchen.pushes.endpoint.noop',
 }
 
 // ── Time formatting (WIB-aware display, tabular digits) ──
@@ -116,19 +130,21 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
       key: 'source_ref',
       header: t('kitchen.pushes.col.batch'),
       cardLabel: '',
-      render: row => <span className="mono">{row.source_ref}</span>,
+      // #402: the one string a lead pastes into a support conversation — mono, one
+      // line (scrolls if ever longer than the cell), select-all on one click.
+      render: row => <code className="kpu-ref mono">{row.source_ref}</code>,
     },
     {
       key: 'endpoint',
       header: t('kitchen.pushes.col.endpoint'),
-      render: row => <span className="kpu-cell-muted">{row.endpoint}</span>,
+      render: row => <span className="kpu-cell-muted">{t(ENDPOINT_LABEL[row.endpoint])}</span>,
     },
     {
       key: 'target_env',
       header: t('kitchen.pushes.col.target'),
       render: row => {
-        const cfg = envConfig(row.target_env)
-        return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+        const cfg = ENV_TAG[row.target_env]
+        return <Tag color={cfg.color} weight="medium">{t(cfg.key)}</Tag>
       },
     },
     {
@@ -140,8 +156,16 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
         if (isHeld(row)) {
           return <Tag color="sand" weight="medium">{t('kitchen.pushes.status.held')}</Tag>
         }
-        const cfg = statusConfig(row.status)
-        return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+        const cfg = STATUS_TAG[row.status]
+        return (
+          <Tag
+            color={cfg.color}
+            weight="medium"
+            style={cfg.textVar ? { color: cfg.textVar } : undefined}
+          >
+            {t(cfg.key)}
+          </Tag>
+        )
       },
     },
     { key: 'retry_count', header: t('kitchen.pushes.col.retries'), numeric: true },
@@ -171,7 +195,7 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
       // not waiting for one — an em dash would read as "not yet", which is the misreading
       // FR-053 exists to close.
       render: row => row.esb_doc_num
-        ? <span className="mono">{row.esb_doc_num}</span>
+        ? <code className="kpu-ref mono">{row.esb_doc_num}</code>
         : isHeld(row)
           ? <span className="kpu-cell-muted">{t('kitchen.pushes.noErpDoc')}</span>
           : <span className="kpu-dash">—</span>,
@@ -210,7 +234,7 @@ export function KitchenPushesPage() {
     setLoad({ kind: 'loading' })
     try {
       const data = await listEsbPushes()
-      setRows(data)
+      setRows(sortPushRows(data))
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })

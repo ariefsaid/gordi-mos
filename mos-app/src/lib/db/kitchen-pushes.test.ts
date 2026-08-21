@@ -14,7 +14,7 @@ vi.mock('../supabase', () => {
 })
 
 import { supabase } from '@/lib/supabase'
-import { listEsbPushes } from './kitchen-pushes'
+import { listEsbPushes, sortPushRows } from './kitchen-pushes'
 import type { EsbPushRow } from './kitchen-pushes'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -175,5 +175,59 @@ describe('listEsbPushes', () => {
     const rows = await listEsbPushes()
     expect(Array.isArray(rows)).toBe(true)
     expect(rows).toHaveLength(0)
+  })
+})
+
+// ── sortPushRows (#402 AC-3): severity outranks recency ──────────────────────
+describe('sortPushRows (#402 AC-3 — rows needing attention sort above healthy ones)', () => {
+  const base: EsbPushRow = {
+    id: 'push-s0',
+    source_module: 'kitchen',
+    source_ref: 'PR-20260621-000',
+    endpoint: 'assembly-actual',
+    target_env: 'dry_run',
+    status: 'posted',
+    retry_count: 0,
+    last_error: null,
+    esb_doc_num: 'SMA-2026-0001',
+    created_at: '2026-06-21T00:00:00Z',
+    posted_at: '2026-06-21T00:00:10Z',
+  }
+  const row = (over: Partial<EsbPushRow>): EsbPushRow => ({ ...base, ...over })
+
+  it('a dead_letter row sorts above every newer healthy row', () => {
+    const sorted = sortPushRows([
+      row({ id: 'a', status: 'posted',      created_at: '2026-06-21T05:00:00Z' }),
+      row({ id: 'b', status: 'pending',     created_at: '2026-06-21T04:00:00Z' }),
+      row({ id: 'c', status: 'dead_letter', created_at: '2026-06-21T01:00:00Z' }),
+    ])
+    expect(sorted.map(r => r.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('failed sits between dead_letter and the healthy tier', () => {
+    const sorted = sortPushRows([
+      row({ id: 'a', status: 'posted',      created_at: '2026-06-21T05:00:00Z' }),
+      row({ id: 'b', status: 'failed',      created_at: '2026-06-21T03:00:00Z' }),
+      row({ id: 'c', status: 'dead_letter', created_at: '2026-06-21T02:00:00Z' }),
+    ])
+    expect(sorted.map(r => r.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('within one tier, newest first', () => {
+    const sorted = sortPushRows([
+      row({ id: 'old', status: 'posted', created_at: '2026-06-21T01:00:00Z' }),
+      row({ id: 'new', status: 'posted', created_at: '2026-06-21T05:00:00Z' }),
+    ])
+    expect(sorted.map(r => r.id)).toEqual(['new', 'old'])
+  })
+
+  it('does not mutate the input array', () => {
+    const input = [
+      row({ id: 'a', status: 'posted',      created_at: '2026-06-21T05:00:00Z' }),
+      row({ id: 'b', status: 'dead_letter', created_at: '2026-06-21T01:00:00Z' }),
+    ]
+    const snapshot = input.map(r => r.id)
+    sortPushRows(input)
+    expect(input.map(r => r.id)).toEqual(snapshot)
   })
 })

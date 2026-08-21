@@ -44,6 +44,19 @@
   letter-spacing: 0;
 }
 
+/* ── #402: batch / ESB doc ids — one paste-able line ──
+   The mono id never wraps (hyphen line-breaks were folding ids across three lines),
+   scrolls horizontally if ever longer than its cell, and one click selects the whole
+   identifier — it is the one string a lead pastes into a support conversation. */
+.kpu-ref {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow-x: auto;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
 /* Tabular digits for retry_count and time columns */
 .tabular {
   font-variant-numeric: tabular-nums;

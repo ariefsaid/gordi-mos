@@ -85,3 +85,35 @@ export async function listEsbPushes(
   if (error) throw new Error(`listEsbPushes failed — ${error.message}`)
   return (data ?? []) as EsbPushRow[]
 }
+
+// ── Presentation ordering (#402 AC-3) ────────────────────────────────────────
+
+/**
+ * Severity-first ordering for the Pushes surface: rows needing attention sort
+ * above healthy ones, newest first within a tier.
+ *
+ * dead_letter (retries exhausted — the row that wants a human) > failed (the
+ * machine is still retrying) > in_flight/pending (queued — healthy) > posted
+ * (done). Held rows are pending-noop and rank with the healthy tier: held is a
+ * permanent, fine state (FR-052), not a stuck one.
+ *
+ * Pure/local: the SQL read stays created_at DESC (the 100-row window); this
+ * re-orders only what was fetched, mutates nothing, and breaks ties on id so
+ * the order is stable across renders.
+ */
+export function sortPushRows(rows: EsbPushRow[]): EsbPushRow[] {
+  const RANK: Record<EsbPushStatus, number> = {
+    dead_letter: 0,
+    failed: 1,
+    in_flight: 2,
+    pending: 2,
+    posted: 3,
+  }
+  return [...rows].sort((a, b) => {
+    const byRank = RANK[a.status] - RANK[b.status]
+    if (byRank !== 0) return byRank
+    const byTime = Date.parse(b.created_at) - Date.parse(a.created_at)
+    if (byTime !== 0) return byTime
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  })
+}
