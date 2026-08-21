@@ -129,6 +129,18 @@ def build_source_query() -> str:
     """
 
 
+def build_org_scope_sql() -> str:
+    """Announce the org this run writes, for the whole connection.
+
+    `false` is SESSION scope, not transaction scope, and that is the point: the unit of "one
+    snapshot run" is the connection, not any single transaction on it. A transaction-local
+    announcement would be discarded at the first COMMIT, so a later statement landing in a fresh
+    transaction would write with no org declared. Session scope binds the declaration to the same
+    lifetime as the run itself.
+    """
+    return "select set_config('app.reporting_org', %s, false)"
+
+
 def build_upsert_sql() -> str:
     return """
         insert into reporting.sales_daily_revenue (
@@ -177,6 +189,9 @@ def run_snapshot(config: SnapshotConfig, *, snapshot_as_of: datetime | None = No
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
+            # Declare the run's org BEFORE any write: reporting.* write policies admit only rows
+            # in the declared org, so an undeclared connection writes nothing.
+            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_upsert_sql(), normalized_rows)
         reporting_conn.commit()
 
@@ -311,6 +326,9 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
 
     with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
         with reporting_conn.cursor() as reporting_cur:
+            # Second connection, second declaration — the setting rides the connection, and this
+            # run opens one per snapshot.
+            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_margin_upsert_sql(), normalized_rows)
         reporting_conn.commit()
 

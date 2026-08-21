@@ -5,6 +5,7 @@ from reporting_snapshot import (
     REQUIRED_ENV,
     SnapshotConfig,
     build_margin_source_query,
+    build_org_scope_sql,
     build_margin_upsert_sql,
     build_source_query,
     build_upsert_sql,
@@ -26,6 +27,25 @@ class ReportingSnapshotTests(unittest.TestCase):
 
         self.assertEqual(config.window_days, 60)
         self.assertEqual(config.source_contract_version, "v_daily_revenue_unified.v1")
+
+    def test_org_scope_is_announced_for_the_session_not_the_transaction(self):
+        """Given a run, when it announces its org, then the announcement is SESSION scoped.
+
+        The third set_config argument is is_local. `false` binds the setting to the connection —
+        the same lifetime as one snapshot run — so it survives the run's COMMIT. `true` would
+        discard it at the first commit, leaving any later statement writing with no org declared.
+        """
+        sql = build_org_scope_sql()
+
+        self.assertIn("set_config('app.reporting_org'", sql)
+        self.assertTrue(sql.rstrip().endswith("false)"), sql)
+        self.assertNotIn("true)", sql)
+
+    def test_org_scope_binds_the_org_as_a_parameter_never_by_interpolation(self):
+        """Given an org id, when the announcement is built, then the id rides as a bound parameter."""
+        sql = build_org_scope_sql()
+
+        self.assertIn("%s", sql)
 
     def test_config_fails_before_connections_when_required_env_is_missing(self):
         """AC-010: Given missing required environment, when config loads, then the job fails before
