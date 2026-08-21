@@ -12,6 +12,9 @@ on:
       # a change there changes what those tests actually run, so re-run them.
       - 'scripts/lib/**'
       - 'scripts/import-kitchen-history.py'
+      # the ESB push worker (#134): its self-test is what proves a real ERP identifier
+      # cannot reach the shared vendor sandbox, so a change to either re-runs it.
+      - 'scripts/esb-worker.py'
       - 'scripts/setup-hooks.sh'
       - '.github/workflows/guards.yml'
       # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory
@@ -48,3 +51,5 @@ jobs:
         run: bash scripts/sssf-provider-error.test.sh
       - name: kitchen history import self-test (#349)
         run: bash scripts/import-kitchen-history.test.sh
+      - name: ESB push worker test-data + dispatch self-test (#134, FR-084)
+        run: bash scripts/esb-worker.test.sh
