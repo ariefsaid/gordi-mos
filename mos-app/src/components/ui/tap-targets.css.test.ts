@@ -122,12 +122,21 @@ describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch
   })
 
   // ── #403 (port sweep): the auth cards — no primitives underneath, inline 32px heights ──────
-  it('auth-card phone floor (ticket 403): input/button/a ≥44px in shared CSS, <a> gets a box)', () => {
+  // THIS IS THE ONLY LANE THAT GATES A PR→dev MERGE (`verify` is dev's sole required check), so
+  // it must carry BOTH axes of DESIGN.md's 44×44 phone floor, not just the height. The rendered
+  // twin — e2e/guards.geometry.spec.ts, run by .github/workflows/geometry.yml — measures the real
+  // box, but it is not a required check, so it cannot be the only thing standing behind the claim.
+  // Every pattern below is anchored with [^}]* rather than [\s\S]*: [\s\S]* spans the whole media
+  // body, so it proves only that the text appears SOMEWHERE after the selector, not that the
+  // declaration belongs to that rule. [^}]* cannot cross the closing brace of the block.
+  it('auth-card phone floor (ticket 403): input/button/a ≥44×44 in shared CSS, <a> gets a box)', () => {
     const authCss = readFileSync(resolve(process.cwd(), 'src/auth/auth.css'), 'utf8')
     const body = mediaBody(authCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.auth-card :is\(input, button, a\)[\s\S]*min-height:\s*44px/)
+    expect(body).toMatch(/\.auth-card :is\(input, button, a\)[^}]*min-height:\s*44px/)
+    // Both axes: the demo persona chips proved a control can be 44 tall and still only 37 wide.
+    expect(body).toMatch(/\.auth-card :is\(input, button, a\)[^}]*min-width:\s*44px/)
     // min-height is ignored on inline boxes — the "Back to sign in" <a> needs a real box.
-    expect(body).toMatch(/\.auth-card a[\s\S]*display:\s*inline-flex/)
+    expect(body).toMatch(/\.auth-card a[^}]*display:\s*inline-flex/)
   })
 
   it('auth-card marker (ticket 403): the shared AuthCard carries the class every auth page renders through)', () => {

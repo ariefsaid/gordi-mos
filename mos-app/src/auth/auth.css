@@ -16,8 +16,18 @@
  * can be 44 tall and still only 37 wide.
  *
  * The bare "Back to sign in" <a> needs its own line: min-height is ignored on inline boxes,
- * so the link gets a real box via display: inline-flex — the same treatment fix-3 already
- * gave the forgot-password link on this surface. */
+ * so the link gets a real box via display: inline-flex.
+ *
+ * "Fixed once at the shared chrome" is literal: the per-control `minHeight: 44` inline styles
+ * this rule supersedes (fix-3's forgot-password + magic-link links, and the demo persona chips)
+ * were REMOVED when it landed, so the floor is stated in exactly one place. Removing them also
+ * un-did fix-3's side effect of forcing 44px on DESKTOP, where DESIGN.md's density is 32px and
+ * the floor does not apply — this rule is phone-only by construction.
+ *
+ * The floor's other half is SEPARATION, and it is not stated here: DESIGN.md pairs "44px" with
+ * "8px between adjacent targets", and the two crowded seams on these cards are Tailwind margins
+ * on the pages that own them (login-page.tsx `mt-2`, demo-login.tsx `gap-y-2`). Both halves are
+ * measured together by GUARD-TAP in e2e/guards.geometry.spec.ts. */
 @media (max-width: 767.98px) {
   .auth-card :is(input, button, a) { min-height: 44px; min-width: 44px; }
   .auth-card a { display: inline-flex; align-items: center; }

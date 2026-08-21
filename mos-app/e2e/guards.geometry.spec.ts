@@ -10,7 +10,9 @@
  *                 — impeccable distill "Clear hierarchy: ONE primary action"
  *   GUARD-R3      the saved-view label sits a real (≥8px) gap from the chip strip
  *                 — uupm ux-guidelines "minimum 8px gap between adjacent targets"
- *   GUARD-TAP     interactive controls ≥44px on phone/coarse viewports (P1-4 fix)
+ *   GUARD-TAP     interactive controls ≥44px on phone/coarse viewports (P1-4 fix), and —
+ *                 on the auth cards (#403) — the full 44×44 census plus the 8px separation
+ *                 between adjacent targets that DESIGN.md pairs the floor with
  *                 — uupm ux-guidelines "Touch Target Size: minimum 44×44px" (High)
  *   GUARD-SEARCH   the dish search keeps its usable measure (≥160px) and composes WITH the
  *                 category filter on one row (Café · Log + Plan, desktop + phone) — #378
@@ -18,12 +20,14 @@
  * Structural twins (jsdom, always-on): guard-r1-split-parity.css.test.ts,
  * guard-one-solid-primary.test.tsx, guard-r3-toolbar-label-gap.css.test.ts,
  * tap-targets.css.test.ts, guard-r2-naked-numbers.test.tsx, guard-r4-permission-notes.test.tsx.
+ * The rendered-geometry lane itself is .github/workflows/geometry.yml.
  * Requires the live local stack (supabase on 44321) + the global-setup seed.
  */
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
-import { MANAGER, VIEWER } from './fixtures/users'
+import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
+import { MANAGER, ORPHAN, VIEWER } from './fixtures/users'
 
 async function box(locator: Locator) {
   const b = await locator.boundingBox()
@@ -111,24 +115,6 @@ const TAP_SAMPLE = [
   '.collection-mobile-options-trigger', // the phone "View & filters" door
 ].join(', ')
 
-async function assertTapTargets(page: Page, surface: string) {
-  const controls = page.locator(TAP_SAMPLE).locator('visible=true')
-  const count = await controls.count()
-  expect(count, `${surface}: expected sampled interactive controls to exist`).toBeGreaterThan(0)
-  const offenders: string[] = []
-  for (let i = 0; i < count; i += 1) {
-    const el = controls.nth(i)
-    const b = await el.boundingBox()
-    if (!b) continue
-    // 43.5 tolerates sub-pixel rounding of the 44px floor; anything lower is a real regression.
-    if (b.height < 43.5) {
-      const text = (await el.innerText().catch(() => '')).slice(0, 40).replace(/\s+/g, ' ')
-      offenders.push(`${surface} "${text}" → ${Math.round(b.height)}px tall`)
-    }
-  }
-  expect(offenders, `${surface}: every sampled control must be ≥44px tall on phone`).toEqual([])
-}
-
 test.describe('phone tap-target guards (GUARD-TAP)', () => {
   test.use({ viewport: { width: 375, height: 812 }, hasTouch: true })
 
@@ -139,19 +125,61 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
   test('GUARD-TAP: Tasks phone controls are ≥44px', async ({ page }) => {
     await page.goto('work/tasks')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapTargets(page, 'Tasks')
+    await assertTapFloor(page, TAP_SAMPLE, 'Tasks')
   })
 
   test('GUARD-TAP: Home phone controls are ≥44px', async ({ page }) => {
     await page.goto('')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapTargets(page, 'Home')
+    await assertTapFloor(page, TAP_SAMPLE, 'Home')
   })
 
   test('GUARD-TAP: Signals phone controls are ≥44px', async ({ page }) => {
     await page.goto('work/signals')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapTargets(page, 'Signals')
+    await assertTapFloor(page, TAP_SAMPLE, 'Signals')
+  })
+})
+
+// ── The auth cards (GUARD-TAP, #403 — v4 port-sweep slice of #290) ─────────────────────
+// The auth cards author their controls inline at the 32px desktop density with no primitive
+// underneath, so the phone floor never reached them. Unlike the sampled surfaces above this is
+// a CENSUS (every visible control in the card, not a selector sample) measured on BOTH axes,
+// because DESIGN.md's phone rule is 44×44 — the demo persona chips proved a control can be 44
+// tall and still only 37 wide. Structural twin (jsdom, always-on, and the only lane that gates
+// a PR→dev merge): src/components/ui/tap-targets.css.test.ts.
+// The fifth auth surface — the set-password form — is only reachable through the mailpit
+// recovery round-trip, so it is measured inside AC-005 rather than in a second copy of that
+// journey (CLAUDE.md § Test pyramid: one test at the lowest sufficient layer).
+test.describe('auth-card tap-target guards (GUARD-TAP, #403)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true }) // the ≤390px phone measure
+
+  const AUTH_OPTS = { axes: 'both', minGap: TAP_GAP, noOverflow: true } as const
+
+  test('GUARD-TAP: sign-in form controls are ≥44×44 at 390', async ({ page }) => {
+    await page.goto('login')
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await assertTapFloor(page, AUTH_CONTROLS, 'Sign-in', AUTH_OPTS)
+  })
+
+  test('GUARD-TAP: reset-confirm "Back to sign in" is ≥44×44 at 390', async ({ page }) => {
+    await page.goto('login')
+    await page.getByLabel('Email').fill(VIEWER.email)
+    await page.getByRole('button', { name: /forgot password/i }).click()
+    await expect(page.getByText(/check your email to reset your password/i)).toBeVisible({ timeout: 10_000 })
+    await assertTapFloor(page, AUTH_CONTROLS, 'Reset-confirm', AUTH_OPTS)
+  })
+
+  test('GUARD-TAP: recovery link-invalid "Back to sign in" <a> is ≥44×44 at 390', async ({ page }) => {
+    await page.goto('recovery')
+    await expect(page.getByRole('link', { name: /back to sign in/i })).toBeVisible({ timeout: 10_000 })
+    await assertTapFloor(page, AUTH_CONTROLS, 'Recovery (no link)', AUTH_OPTS)
+  })
+
+  test('GUARD-TAP: the orphan blocked screen inherits the same floor at 390', async ({ page }) => {
+    await loginAs(page, ORPHAN.email, ORPHAN.password)
+    await expect(page.getByText(/your account isn't set up yet/i)).toBeVisible({ timeout: 10_000 })
+    await assertTapFloor(page, AUTH_CONTROLS, 'Orphan', AUTH_OPTS)
   })
 })
 
@@ -168,7 +196,7 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 // controls are perfectly centered on one row. Same-rowness is judged on CENTER LINES —
 // height-agnostic (36px search beside 32/44px select centers-align by flex align-items).
 
-const SEARCH_FLOOR = 159.5 // 160px usable-measure floor, 0.5px sub-pixel tolerance (GUARD-TAP idiom)
+const SEARCH_FLOOR = 159.5 // 160px usable-measure floor, 0.5px sub-pixel tolerance (TAP_FLOOR idiom)
 
 async function assertSearchComposed(page: Page, surface: string) {
   const search = await box(page.locator('.ktb-search'))
@@ -217,7 +245,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     await page.goto('cafe/log')
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Log @390')
-    expect(search.height, 'Café · Log @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(43.5)
+    expect(search.height, 'Café · Log @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
     // #378 review: same-row checks can pass while the category runs off-viewport — assert it cannot.
     const logOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
     expect(logOverflow, 'Café · Log @390: the toolbar never pushes the document wider than the viewport').toBe(false)
@@ -227,7 +255,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     await page.goto('cafe/plan')
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Plan @390')
-    expect(search.height, 'Café · Plan @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(43.5)
+    expect(search.height, 'Café · Plan @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
     const planOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
     expect(planOverflow, 'Café · Plan @390: the toolbar never pushes the document wider than the viewport').toBe(false)
   })
