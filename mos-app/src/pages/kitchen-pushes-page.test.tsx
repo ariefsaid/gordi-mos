@@ -10,8 +10,11 @@
 //   a11y: semantic table, tabular numbers on counts/dates, status as text not color-only
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -329,8 +332,8 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     // goo and dry_run are both present
     const rows = screen.getAllByRole('row')
     const rowText = rows.map(r => r.textContent ?? '')
-    expect(rowText.some(t => t.includes('goo'))).toBe(true)
-    expect(rowText.some(t => t.includes('dry_run'))).toBe(true)
+    expect(rowText.some(t => t.includes('GOO'))).toBe(true)
+    expect(rowText.some(t => t.includes('Dry run'))).toBe(true)
   })
 
   it('source_ref (batch_id) rendered in a mono font class', async () => {
@@ -422,11 +425,14 @@ describe('KitchenPushesPage — all status values render', () => {
     render(<KitchenPushesPage />)
     await screen.findByText('PR-20260621-001')
 
-    // Each status appears as visible text (not color-only — WCAG 1.4.1)
-    expect(screen.getByText('posted')).toBeInTheDocument()
-    expect(screen.getByText('dead_letter')).toBeInTheDocument()
-    expect(screen.getByText('failed')).toBeInTheDocument()
-    expect(screen.getByText('pending')).toBeInTheDocument()
+    // Each status appears as visible text (not color-only — WCAG 1.4.1); row-text
+    // scanning because 'Posted' now also names the column header (#402).
+    const rows = within(screen.getByRole('table')).getAllByRole('row')
+    const rowText = rows.map(r => r.textContent ?? '')
+    expect(rowText.some(t => t.includes('Posted'))).toBe(true)
+    expect(rowText.some(t => t.includes('Failed · stopped'))).toBe(true)
+    expect(rowText.some(t => t.includes('Failed · retrying'))).toBe(true)
+    expect(rowText.some(t => t.includes('Queued'))).toBe(true)
   })
 })
 
@@ -471,7 +477,7 @@ describe('KitchenPushesPage — held vs posted (FR-052)', () => {
     await screen.findByText('TB-20260621-002')
 
     // Both words present as text, not as tint alone (WCAG 1.4.1).
-    expect(screen.getByText('posted')).toBeInTheDocument()
+    expect(screen.getAllByText('Posted').length).toBeGreaterThan(0)
     expect(screen.getByText('held')).toBeInTheDocument()
     // And the document column says which of the two HAS a document: the posted row's number,
     // and for the held row a statement rather than an em dash, which reads as "not yet".
@@ -487,7 +493,158 @@ describe('KitchenPushesPage — held vs posted (FR-052)', () => {
     render(<KitchenPushesPage />)
     await screen.findByText('TB-20260621-001')
 
-    expect(screen.getByText('failed')).toBeInTheDocument()
+    expect(screen.getAllByText('Failed · retrying').length).toBeGreaterThan(0)
     expect(screen.queryByText('held')).toBeNull()
+  })
+})
+
+// ── #402 — human words, red tag on amber row, severity-first order, one-line ids ──
+
+const IN_FLIGHT_ROW: EsbPushRow = {
+  ...PENDING_ROW,
+  id: 'push-6',
+  source_ref: 'TR-20260621-002',
+  status: 'in_flight',
+  target_env: 'gkid',
+}
+
+describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the screen', () => {
+  it('every state reads as a word a person would say (status, target_env, endpoint)', async () => {
+    mockListPushes.mockResolvedValue([
+      POSTED_ROW, DEAD_LETTER_ROW, FAILED_ROW, PENDING_ROW, IN_FLIGHT_ROW, HELD_ROW,
+    ])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-001')
+
+    // The database's words are gone from the screen (exact-match: 'Posted' ≠ 'posted').
+    for (const raw of [
+      'dead_letter', 'in_flight', 'dry_run',
+      'assembly-actual', 'simple-transfer', 'noop',
+    ]) {
+      expect(screen.queryByText(raw), `raw enum "${raw}" must not reach the screen`).toBeNull()
+    }
+    // What a person would say is there instead.
+    for (const word of [
+      'Posted', 'Failed · stopped', 'Failed · retrying', 'Queued', 'Sending', 'held',
+      'Dry run', 'GOO', 'GKID',
+      'Assembly actuals', 'Stock transfer', 'None',
+    ]) {
+      expect(screen.getAllByText(word).length, `person word "${word}" must be visible`).toBeGreaterThan(0)
+    }
+  })
+
+  it('AC-1 id locale (#402): the outbox speaks Indonesian', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      mockListPushes.mockResolvedValue([POSTED_ROW, DEAD_LETTER_ROW, FAILED_ROW, PENDING_ROW])
+      render(
+        <MemoryRouter>
+          <I18nProvider>
+            <KitchenPushesPage />
+          </I18nProvider>
+        </MemoryRouter>,
+      )
+      await screen.findByText('PR-20260621-001')
+
+      expect(screen.getAllByText('Terkirim').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Gagal · berhenti').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
+      expect(screen.queryByText('dead_letter')).toBeNull()
+    } finally {
+      localStorage.clear()
+    }
+  })
+})
+
+describe('KitchenPushesPage — #402 AC-2 (OD-WAY-74 #4): red tag, amber row', () => {
+  it('dead_letter wears the RED tag on the AMBER row; retryable failed keeps amber', async () => {
+    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW, FAILED_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-002')
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row')
+    const deadRow = rows.find(r => r.textContent?.includes('PR-20260621-002'))!
+    const failedRow = rows.find(r => r.textContent?.includes('TB-20260621-001'))!
+
+    // Red on the TAG (color set via the palette token + AA-darkened text, StatusPill precedent)
+    const deadTag = within(deadRow).getByText('Failed · stopped').closest('.mk-tag') as HTMLElement
+    expect(deadTag.getAttribute('style') ?? '').toContain('--ds-tag-background-red')
+    expect(deadTag).toHaveStyle({ color: 'var(--status-lost-text)' })
+    // …amber on the ROW (the row is fine; its delivery failed — never red on the row)
+    expect(deadRow.classList.contains('kpu-row-dead-letter')).toBe(true)
+
+    const failedTag = within(failedRow).getByText('Failed · retrying').closest('.mk-tag') as HTMLElement
+    expect(failedTag.getAttribute('style') ?? '').toContain('--ds-tag-background-amber')
+    expect(failedRow.classList.contains('kpu-row-dead-letter')).toBe(false)
+  })
+})
+
+describe('KitchenPushesPage — #402 AC-3: rows needing attention sort above healthy ones', () => {
+  it('a dead_letter batch sorts above newer healthy rows (severity outranks recency)', async () => {
+    // API returns newest-first: POSTED_ROW (05:00) is NEWER than DEAD_LETTER_ROW (04:00).
+    mockListPushes.mockResolvedValue([POSTED_ROW, PENDING_ROW, DEAD_LETTER_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-002')
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row')
+    const idx = (ref: string) => rows.findIndex(r => r.textContent?.includes(ref))
+    expect(idx('PR-20260621-002')).toBeLessThan(idx('PR-20260621-001')) // above newer posted
+    expect(idx('PR-20260621-002')).toBeLessThan(idx('TR-20260621-001')) // above newer pending
+  })
+})
+
+describe('KitchenPushesPage — #402 AC-4: the batch id is one paste-able string', () => {
+  it('source_ref renders as code.kpu-ref.mono — one line, select-all', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    render(<KitchenPushesPage />)
+    const batch = await screen.findByText('PR-20260621-001')
+    expect(batch.tagName).toBe('CODE')
+    expect(batch.classList.contains('kpu-ref')).toBe(true)
+    expect(batch.classList.contains('mono')).toBe(true)
+  })
+
+  it('same treatment on the phone card branch', async () => {
+    setViewport(false)
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    render(<KitchenPushesPage />)
+    const batch = await screen.findByText('PR-20260621-001')
+    expect(batch.tagName).toBe('CODE')
+    expect(batch.classList.contains('kpu-ref')).toBe(true)
+  })
+
+  it('the CSS keeps the id on one line and makes the whole id one selection', () => {
+    // Repo idiom for reading a sibling source file in a test (cohesion-chrome
+    // regression tests do the same): resolve from cwd — vitest runs with cwd = mos-app.
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-pushes-page.css'), 'utf8')
+    const rule = css.match(/\.kpu-ref\s*\{([^}]*)\}/)
+    expect(rule, '.kpu-ref rule must exist in kitchen-pushes-page.css').toBeTruthy()
+    expect(rule![1]).toContain('white-space: nowrap')
+    expect(rule![1]).toContain('user-select: all')
+  })
+})
+
+// ── #416: the one-line id must not widen the table out of its frame ───────────
+// The nowrap id only stays on one line WITHOUT pushing columns off screen because the
+// table is fixed-layout: in an auto-layout table `max-width: 100%` on cell content has no
+// definite width to resolve against, so the id's overflow never fires and the column grows
+// instead (measured: +93px, and 154px of whole-page horizontal scroll at an 820px
+// viewport). jsdom has no layout, so these assert the two things that produce it — the
+// class the page hands the table, and the rule that class carries.
+describe('KitchenPushesPage — #416: the table stays inside its frame', () => {
+  it('hands the table the fixed-layout class', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    render(<KitchenPushesPage />)
+    const table = await screen.findByRole('table')
+    expect(table.classList.contains('kpu-cols')).toBe(true)
+  })
+
+  it('and that class pins the column widths instead of letting content set them', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-pushes-page.css'), 'utf8')
+    const rule = css.match(/\.kpu-cols\s*\{([^}]*)\}/)
+    expect(rule, '.kpu-cols rule must exist in kitchen-pushes-page.css').toBeTruthy()
+    expect(rule![1]).toContain('table-layout: fixed')
+    // The Error column takes the slack, so no column can be squeezed to nothing.
+    expect(css).toMatch(/nth-child\(6\)\s*\{\s*width:\s*auto/)
   })
 })
