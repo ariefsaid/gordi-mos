@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Self-test for scripts/esb-worker.py — the ESB push worker (#134).
 #
-# Hermetic: no database, no network, no ERP. Every case runs `--plan --rows-from`, which
-# composes and guards a row and prints what it WOULD send. The hosts handed to it are
-# .invalid on purpose: if any case ever reached the network it would fail loudly rather
-# than quietly succeed against something real.
+# Hermetic: no database, no network, no ERP. The hosts handed to every case are .invalid
+# on purpose — if one ever reached the network it would fail loudly rather than quietly
+# succeed against something real.
+#
+# Sections A–F run `--plan --rows-from`, which composes and guards a row and prints what
+# it WOULD send. That is only half the worker: --plan returns before any write path
+# executes, so for a while this file's 38 green assertions said nothing about dispatch,
+# the retry budget or the write-backs — and two safety defects lived underneath them.
+# Section G runs scripts/esb-worker-dispatch.test.py, which drives that half against a
+# fake transport, and rolls its tally into this file's.
 #
 # THE CASE THIS FILE EXISTS FOR is section D. The pre-flip ERP target is a shared,
 # multi-tenant vendor sandbox holding test data only (FR-084), and the worker's guarantee
@@ -200,6 +206,12 @@ run "${GOO_ENV[@]}" -- --plan --rows-from "$tmp/noop-goo.json"
 expect_rc   "an intra-branch movement is clean" 0
 expect_has  "...and owes the ERP no document" "no ERP document"
 expect_lacks "...so nothing is posted for it" "POST /"
+# FR-053: the hold is permanent, so the row is not work — it is excluded from the drain,
+# and no sentinel is written where an ERP document number belongs. The incumbent's
+# "N/A (no ERP document)" string is what the pushes surface would render in the mono
+# document column of a row whose status tag still said "held".
+expect_has   "...and is not drained at all" "not drained"
+expect_lacks "...with no sentinel standing in for a document number" "N/A ("
 
 run "${GOO_ENV[@]}" -- --plan --rows-from "$tmp/unknown-goo.json"
 expect_rc   "an endpoint this worker does not know is refused" 3
@@ -215,6 +227,47 @@ run "${GOO_ENV[@]}" ESB_BASE_URL=https://erp.example.invalid \
     MOS_SUPABASE_URL=https://db.example.invalid MOS_SUPABASE_SERVICE_ROLE_KEY=not-a-key \
     -- --plan --rows-from "$tmp/produce-goo.json"
 expect_rc   "--plan with unreachable hosts still succeeds — it never dialled them" 0
+
+# The dangerous reading of --rows-from has to be said out loud. Without --plan it used to
+# CLAIM the file's rows, POST them for real and CLOSE them — transmitting the file's
+# payload while the outbox row recorded the database's own, from a flag whose help text
+# calls it a rehearsal path. Note the coordinates below are complete and unreachable: the
+# refusal has to come from the argument check, not from a host that failed to resolve.
+run "${GOO_ENV[@]}" ESB_PUSH_ENABLED=1 ESB_BASE_URL=https://erp.example.invalid \
+    ESB_USERNAME=nobody ESB_PASSWORD=nothing \
+    MOS_SUPABASE_URL=https://db.example.invalid MOS_SUPABASE_SERVICE_ROLE_KEY=not-a-key \
+    -- --rows-from "$tmp/produce-goo.json"
+expect_rc    "--rows-from without --plan is refused, not quietly run for real" 2
+expect_has   "...saying the outbox is the authority for what gets drained" "never a file"
+expect_lacks "...and nothing is drained on the way to saying so" "posted ->"
+
+# The same refusal from the other side, and the one this file exists for after the safety
+# line itself: a tick against the ERP OF RECORD with the push off is a rehearsal, and a
+# rehearsal that drains has to invent a document number — which stamps
+# ops.kitchen_logs.posted_to_esb and blocks the genuine post at the flip. Refused before
+# anything is claimed.
+run "${GKID_ENV[@]}" MOS_SUPABASE_URL=https://db.example.invalid \
+    MOS_SUPABASE_SERVICE_ROLE_KEY=not-a-key --
+expect_rc   "a real tick with the push off is refused before it reaches the database" 2
+expect_has  "...pointing at --plan as the way to rehearse" "Rehearse with --plan"
+expect_lacks "...and never dialled the outbox" "outbox unreachable"
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+echo "G. the write half — dispatch, retry budget, write-back (scripts/esb-worker-dispatch.test.py)"
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Everything above runs --plan, which returns before a single write path executes. The
+# driver below replaces the module's one HTTP helper with a fake transport and drives the
+# other half: the posting mirror, the held row, the retry budget, the write-back faults
+# and the re-login decision. Same hermeticity rule — no database, no ERP, .invalid hosts.
+drv=$(python3 "$(pwd)/scripts/esb-worker-dispatch.test.py" 2>&1); drv_rc=$?
+printf '%s\n' "$drv"
+# Roll the driver's own tally into this file's, so the number this script prints is the
+# number of assertions that actually ran. A driver that died before printing its summary
+# counts as one failure rather than as nothing.
+tally=$(printf '%s\n' "$drv" | sed -n 's/^\([0-9][0-9]*\) passed, \([0-9][0-9]*\) failed$/\1 \2/p')
+[ "$drv_rc" -eq 0 ] || [ -n "$tally" ] || printf '  FAIL  the dispatch self-test did not finish (rc=%s)\n' "$drv_rc"
+set -- ${tally:-0 1}
+pass=$((pass + $1)); fail=$((fail + $2))
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
