@@ -109,6 +109,11 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
             env=env,
             capture_output=True,
             text=True,
+            # Review finding on #389: text=True decodes the NORMAL return with strict
+            # errors, so a check that exits cleanly while emitting one non-UTF-8 byte
+            # raised UnicodeDecodeError inside subprocess.run — caught by neither except
+            # clause, runner dead. Same handler as _text and permissions.py: lossless.
+            errors="surrogateescape",
             timeout=spec.timeout_seconds,
         )
         returncode = completed.returncode

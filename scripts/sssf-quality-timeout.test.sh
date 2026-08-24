@@ -143,6 +143,32 @@ check("a passing check still passes",
       error is None and result.passed is True and result.output_tail == "fine\n",
       repr((error, result and result.output_tail)))
 
+# ── review finding: a check that exits NORMALLY while emitting non-UTF-8 ─────
+# text=True alone decodes the normal return with strict errors, so this raised
+# UnicodeDecodeError INSIDE subprocess.run — caught by neither except clause,
+# runner dead with no result. errors="surrogateescape" on the run call is the fix.
+result, error = run(quality, "typecheck", 'printf "caf\\xe9-done"; exit 1', 30)
+check("a normal exit with a non-UTF-8 byte returns a RESULT, not a dead runner",
+      error is None and result is not None, repr(error))
+if result is not None:
+    check("its exit code and partial text survive the escape",
+          result.returncode == 1 and "-done" in result.output_tail,
+          repr((result.returncode, result.output_tail)))
+
+# can-fail control for it: strip errors="surrogateescape" from the run call and
+# the same command must kill the runner again (the check could have missed it).
+src_esc = (root / "adws/adw_modules/quality.py").read_text()
+stripped_esc = src_esc.replace('errors="surrogateescape",\n            timeout=spec.timeout_seconds', 'timeout=spec.timeout_seconds')
+check("the escape control actually perturbs the run call", stripped_esc != src_esc)
+(pkg / "quality_noescape.py").write_text(stripped_esc)
+noescape_module = importlib.import_module("adw_modules.quality_noescape")
+try:
+    result, error = run(noescape_module, "typecheck", 'printf "caf\\xe9-done"; exit 1', 30)
+    died = error is not None and "UnicodeDecodeError" in (type(error).__name__ + str(error))
+except UnicodeDecodeError:
+    died = True
+check("control: without the escape, the normal-exit path dies again (the check can fail)", died)
+
 # ── can-fail control: strip the normalisation, the reported defect returns ───
 source = (root / "adws/adw_modules/quality.py").read_text()
 stripped = source.replace("isinstance", "False and isinstance")
