@@ -674,6 +674,8 @@ export const messages = {
     // drawer/create/detail, processes due-runs, and shared record/collection primitives. Copied
     // verbatim (same key, same value) from v4-redesign's messages.ts.
     'assistant.askAbout.task': "About Task: ${title}",
+    // #426: Signals gets the same record-scoped Ask Deputy seed as every other record kind.
+    'assistant.askAbout.signal': "About Signal: ${title}",
     'assistant.askAboutRecord': "Ask Deputy",
     'common.clearFilters': "Clear filters",
     // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
@@ -1881,6 +1883,8 @@ export const messages = {
     // drawer/create/detail, processes due-runs, and shared record/collection primitives. Copied
     // verbatim (same key, same value) from v4-redesign's messages.ts.
     'assistant.askAbout.task': "Tentang tugas: ${title}",
+    // #426: Signals gets the same record-scoped Ask Deputy seed as every other record kind.
+    'assistant.askAbout.signal': "Tentang sinyal: ${title}",
     'assistant.askAboutRecord': "Tanya Deputi",
     'common.clearFilters': "Hapus filter",
     // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —

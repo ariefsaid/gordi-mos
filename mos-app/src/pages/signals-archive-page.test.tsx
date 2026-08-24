@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { PersonOption } from '@/lib/db/directory'
 
@@ -30,13 +32,23 @@ vi.mock('@/shell/signal-composer-host', () => ({
 // fetch/mutate wiring in full) — mock it here so this page's test only asserts the URL-state
 // wiring: which id it's given, and that closing it clears ?record=. Chrome (✕ Close / Open full
 // page) now belongs to the shared RecordPanelHost that wraps it (spec FR-3), NOT to this stub.
-vi.mock('@/components/signals/signal-record-host', () => ({
-  SignalRecordHost: vi.fn(({ signalId, mode }: { signalId: string; mode?: string }) => (
-    <div data-testid="signal-record-host-stub" data-signal-id={signalId} data-mode={mode}>
-      Signal record content
-    </div>
-  )),
-}))
+vi.mock('@/components/signals/signal-record-host', async () => {
+  const { useEffect } = await import('react')
+  return {
+    SignalRecordHost: vi.fn(
+      ({ signalId, mode, onTitleResolved }: { signalId: string; mode?: string; onTitleResolved?: (title: string) => void }) => {
+        // The real host resolves the record's title (its body's first line) one render after
+        // mount — mirrored here so the canonical page's deputyDraft seam is exercised (#426).
+        useEffect(() => { onTitleResolved?.('The freezer alarm went off') }, [onTitleResolved])
+        return (
+          <div data-testid="signal-record-host-stub" data-signal-id={signalId} data-mode={mode}>
+            Signal record content
+          </div>
+        )
+      },
+    ),
+  }
+})
 
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
@@ -59,23 +71,46 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
 
 const PEOPLE: PersonOption[] = [{ id: 'person-author-a', full_name: 'Author One' }]
 
-function pageTree(initialPath = '/work/signals') {
+// #426: a fake Deputy runtime so the record-scoped Ask Deputy affordance actually renders
+// (AskDeputyAction renders nothing with the default null-runtime context — see
+// ask-deputy-action.tsx). Mirrors tasks-layout.test.tsx's makeFakeRuntime.
+function makeFakeRuntime(): AgentRuntime {
+  return {
+    createRun: vi.fn(async (input: { goal: string }) => ({ id: 'r1', title: input.goal.slice(0, 60), status: 'running' as const })),
+    followUp: vi.fn(async () => {}),
+    openThread: vi.fn(),
+    control: vi.fn(async () => {}),
+    subscribe: vi.fn(async function* (): AsyncGenerator<AgentEvent> {}),
+  }
+}
+
+// Surfaces the composer seed set by an Ask Deputy click (pendingDraft) without mounting the full
+// AssistantPanel — the seed's open/adopt/single-shot round trip is ask-deputy-action.test.tsx's job.
+function DraftProbe() {
+  const { pendingDraft } = useAgentRuntime()
+  return <output data-testid="pending-draft">{pendingDraft ?? ''}</output>
+}
+
+function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null) {
   return (
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
-        <OverlayHostProvider>
-          <LocationProbe />
-          <Routes>
-            <Route path="/work/signals" element={<SignalsArchivePage />} />
-          </Routes>
-        </OverlayHostProvider>
+        <AgentRuntimeProvider runtime={runtime}>
+          <OverlayHostProvider>
+            <LocationProbe />
+            <DraftProbe />
+            <Routes>
+              <Route path="/work/signals" element={<SignalsArchivePage />} />
+            </Routes>
+          </OverlayHostProvider>
+        </AgentRuntimeProvider>
       </MemoryRouter>
     </I18nProvider>
   )
 }
 
-function renderPage(initialPath = '/work/signals') {
-  return render(pageTree(initialPath))
+function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null) {
+  return render(pageTree(initialPath, runtime))
 }
 
 // OD-REDESIGN-84.1: the filters/group/sort/toggles (incl. Show retracted) live behind the one
@@ -485,5 +520,74 @@ describe('SignalRecordPage — canonical full page (AC-RPH-3)', () => {
     // the record's own identity header (SR-8 — the record host owns the sole "Signal" chrome).
     expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Signal' })).toBeNull()
+  })
+})
+
+// #426: Signals carries the record-scoped Ask Deputy on BOTH its doors — the panel entry (the
+// `actions` chrome slot) and the canonical page (RecordPageChrome's deputyDraft) — like every
+// other record kind. The full open/seed/single-shot round trip is ask-deputy-action.test.tsx's
+// job; these cases prove the Signal wiring and the seed's content.
+describe('issue 426 — record-scoped Ask Deputy on both Signal doors', () => {
+  it('the panel entry carries Ask Deputy in the shared chrome, seeded from the signal body', async () => {
+    renderPage('/work/signals', makeFakeRuntime())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    // An in-list open — the loaded row carries the body, so the seed is the record reference.
+    await userEvent.click(screen.getByText('The freezer alarm went off'))
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    const chrome = document.querySelector('.record-panel-chrome') as HTMLElement
+    const ask = within(chrome).getByRole('button', { name: 'Ask Deputy' })
+    await userEvent.click(ask)
+
+    // The composer seed is the record reference built from the signal's own body — set as the
+    // runtime's pendingDraft; nothing sent.
+    expect(screen.getByTestId('pending-draft')).toHaveTextContent('About Signal: The freezer alarm went off')
+  })
+
+  it('truncates a long signal body to ~72 chars so the seed reads as a reference, not a paste', async () => {
+    const longBody = 'The espresso machine at Cafe 2 has been running eight degrees too hot since the morning open and nobody can find the manual'
+    mockListReadableSignals.mockResolvedValue([row({ id: 'signal-long', body: longBody })])
+    renderPage('/work/signals', makeFakeRuntime())
+    await waitFor(() => expect(screen.getByText(longBody)).toBeInTheDocument())
+    await userEvent.click(screen.getByText(longBody))
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ask Deputy' }))
+    const draft = screen.getByTestId('pending-draft').textContent ?? ''
+    expect(draft.startsWith('About Signal: The espresso machine at Cafe 2')).toBe(true)
+    expect(draft.endsWith('…')).toBe(true)
+    // "About Signal: " + ≤72 seed chars + ellipsis.
+    expect(draft.length).toBeLessThanOrEqual('About Signal: '.length + 73)
+    expect(draft).not.toContain('manual')
+  })
+
+  it('falls back to the generic record noun when the record is not in the loaded collection (deep link)', async () => {
+    renderPage('/work/signals?record=signal-not-in-list', makeFakeRuntime())
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ask Deputy' }))
+    expect(screen.getByTestId('pending-draft')).toHaveTextContent('About Signal: Signal')
+  })
+
+  it('the canonical page passes the resolved deputyDraft to the shared RecordPageChrome', async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals/signal-1']}>
+          <AgentRuntimeProvider runtime={makeFakeRuntime()}>
+            <DraftProbe />
+            <Routes>
+              <Route path="/work/signals/:signalId" element={<SignalRecordPage />} />
+            </Routes>
+          </AgentRuntimeProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    // The seed resolves from the record (onTitleResolved), one render after mount — await it.
+    const ask = await screen.findByRole('button', { name: 'Ask Deputy' })
+    expect(ask.closest('.record-page-chrome')).toBeTruthy()
+    await userEvent.click(ask)
+    expect(screen.getByTestId('pending-draft')).toHaveTextContent('About Signal: The freezer alarm went off')
   })
 })
