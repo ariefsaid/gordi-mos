@@ -34,15 +34,16 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { fetchKitchenStock, defaultStreamFrom } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
 import { listActiveBranches } from '@/lib/db/branches'
-import type { BranchOption, KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
-import { activityLabel } from '@/lib/kitchen-action-label'
+import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
+import { streamLabel } from '@/lib/kitchen-action-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { StreamScopePicker } from '@/components/kitchen/stream-scope-picker'
+import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
@@ -61,17 +62,9 @@ type LoadState =
   | { kind: 'error' }
   | { kind: 'ready' }
 
-/**
- * Names the stream this surface is showing — so, per the #238 owner ruling (CONTEXT.md,
- * Production stream), by the branch's CANONICAL catalog name. The 'Bungur' alias names a
- * transfer DESTINATION and the derived action label, never a stream. Still never "HQ"/"Stok HQ"
- * for the central kitchen either (FR-061, CONTEXT.md trap — that collides with the GHQ branch);
- * the canonical name is what keeps that true, since it is the catalog's own.
- */
-function streamLabel(t: ReturnType<typeof useT>, stream: ProductionStream | null): string {
-  if (!stream) return '—'
-  return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
-}
+// The stream label lives in `lib/kitchen-action-label` now (#440) — the same words on every
+// Café surface, and the #238 naming ruling (canonical catalog name, never the 'Bungur'
+// alias, never "HQ") stated once instead of once per page.
 
 export function KitchenStockPage() {
   const t = useT()
@@ -80,7 +73,10 @@ export function KitchenStockPage() {
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  const [branches, setBranches] = useState<BranchOption[]>([])
+  // The enumerable six-stream catalog (FR-005) — the picker's options. Not the branch ×
+  // activity cross-product this page used to build: that offered pairs that are not streams
+  // at all (the roastery is a branch and never a stream), and the module now has ONE picker.
+  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
   const [stream, setStream] = useState<ProductionStream | null>(null)
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -129,20 +125,22 @@ export function KitchenStockPage() {
   // bootstrap and applyStream so a slow bootstrap can't clobber a later switch either.
   const requestGen = useRef(0)
 
-  // Initial load: catalog → default stream → that stream's rows. The default comes from
-  // shared.default_stream() (FR-001 — the viewer's live primary stream Team); a viewer
-  // with no stream default (FR-002 shape) falls back to the catalog default — this is a
-  // read surface, so an explicit-choice wall would only cost a glance, and the picker
-  // stays one tap away either way (FR-003).
+  // Initial load: catalog → stream → that stream's rows. #440: the stream is the MODULE's
+  // selection — whatever the person chose on Log/Plan/Review this session wins, then their own
+  // stream from shared.default_stream() (FR-001). No default (FR-002) now means the same here
+  // as on capture: an explicit choice, never a silent fallback to the catalog's first branch.
+  // A read surface that guesses is worse than one that asks — it answers "how much stock is
+  // there" about books the person never picked.
   const bootstrap = useCallback(async () => {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
-      const branchRows = await listActiveBranches()
-      const resolved = (await fetchDefaultStream(branchRows)) ?? defaultStreamFrom(branchRows)
+      const [branchRows, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
+      const catalog = streamCatalogFrom(pairs, branchRows)
+      const resolved = resolveCafeStream(catalog, await fetchDefaultStream(branchRows))
       const data = resolved ? await fetchKitchenStock(asOf, resolved) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      setBranches(branchRows)
+      setStreamOptions(catalog)
       setStream(resolved)
       setRows(data)
       setLoad({ kind: 'ready' })
@@ -158,6 +156,7 @@ export function KitchenStockPage() {
   const applyStream = useCallback(async (next: ProductionStream) => {
     const gen = ++requestGen.current
     setStream(next)
+    rememberStream(next) // the whole Café module follows this choice (#440)
     setLoad({ kind: 'loading' })
     try {
       const data = await fetchKitchenStock(asOf, next)
@@ -195,11 +194,24 @@ export function KitchenStockPage() {
     )
   }
 
+  // #440: the head states the stream in EVERY state — the empty one and the mid-switch one
+  // included. A stream with no picker is an implicit wall (the viewer would be stuck in the
+  // very stream that has nothing to show) and a picker that unmounts during the re-read makes
+  // rapid correction impossible — both violate FR-003. The generation guard above is what
+  // makes rapid switching safe to allow.
+  const streamHead = (
+    <CafeStreamBar
+      options={streamOptions}
+      stream={stream}
+      onChange={next => { void applyStream(next) }}
+    />
+  )
+
   return (
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      jobSentence={t('job.cafe')}
+      statusRow={streamHead}
       meta={<span className="ks-date tabular">{asOf}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
@@ -215,7 +227,7 @@ export function KitchenStockPage() {
         </>
       )}
 
-      {load.kind === 'loading' && branches.length === 0 && <LoadingShell count={3} />}
+      {load.kind === 'loading' && streamOptions.length === 0 && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
@@ -224,28 +236,21 @@ export function KitchenStockPage() {
         />
       )}
 
-      {/* The stream picker renders in EVERY loaded state — the empty state AND while a
-          stream switch is in flight. An empty stream with no picker is an implicit wall
-          (the viewer would be stuck in the very stream that has nothing to show), and a
-          picker that unmounts during the re-read makes rapid correction impossible —
-          both violate FR-003 (switchable default, never a wall). The generation guard
-          above is what makes rapid switching safe to allow. */}
-      {(load.kind === 'ready' || (load.kind === 'loading' && branches.length > 0)) && (
+      {/* No stream resolved (FR-002 — no live primary stream Team, nothing chosen yet): the
+          head's picker is the whole next step, so say that instead of rendering a table of
+          nothing under an em dash. */}
+      {load.kind === 'ready' && stream === null && (
+        <EmptyState variant="blank" title={t('cafe.stream.none')} />
+      )}
+
+      {((load.kind === 'ready' && stream !== null) || (load.kind === 'loading' && streamOptions.length > 0)) && (
         <div className="ks-block">
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t('kitchen.stock.searchPlaceholder')}
             ariaLabel={t('kitchen.stock.toolbarAria')}
-          >
-            <StreamScopePicker
-              branches={branches}
-              stream={stream}
-              onChange={next => { void applyStream(next) }}
-              branchAriaLabel={t('kitchen.stock.stream.branchAria')}
-              activityAriaLabel={t('kitchen.stock.stream.activityAria')}
-            />
-          </KitchenToolbar>
+          />
           {load.kind === 'loading' ? (
             <LoadingShell count={3} />
           ) : rows.length === 0 ? (

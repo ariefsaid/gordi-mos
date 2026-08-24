@@ -33,6 +33,10 @@ import {
   streamCatalogFrom,
 } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+// #440: the stream is the MODULE's selection, not this page's — resolveCafeStream records it so
+// Plan/Stock/Review open on the same books, and rememberStream carries every switch across.
+import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
+import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import { listActiveBranches } from '@/lib/db/branches'
 import type {
   ActualsMap,
@@ -45,11 +49,10 @@ import type {
   StockMap,
 } from '@/lib/db/kitchen-logs.types'
 import {
-  activityLabel,
   deriveActionLabel,
   movementKey,
   movementsForStream,
-  streamKey,
+  streamLabel,
   PRODUCE,
 } from '@/lib/kitchen-action-label'
 import {
@@ -61,7 +64,6 @@ import {
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
-import { Select } from '@/components/ui/select'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
@@ -236,13 +238,11 @@ export function KitchenLogPage() {
       // after the parallel batch. The default must then BE a catalog stream — a stale
       // pair pointing outside the live six-stream catalog resolves to "choose", never to
       // a guess (FR-002).
+      // …unless the person already chose a stream elsewhere in the Café module this session
+      // (#440): that choice outranks the default, so walking Log → Plan → Stock never changes
+      // books underfoot. resolveCafeStream applies both rules and records the result.
       const defaultStream = await fetchDefaultStream(branchRows)
-      const resolvedStream = defaultStream
-        ? catalog.find(
-            s =>
-              s.branch.id === defaultStream.branch.id && s.activity === defaultStream.activity,
-          ) ?? null
-        : null
+      const resolvedStream = resolveCafeStream(catalog, defaultStream)
       const resolvedMovement = PRODUCE
       const [plan, stock, actuals] = resolvedStream
         ? await Promise.all([
@@ -308,6 +308,7 @@ export function KitchenLogPage() {
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     const gen = ++requestGen.current
     setStream(nextStream)
+    rememberStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
     try {
@@ -329,38 +330,19 @@ export function KitchenLogPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logDate, wipItems])
 
-  // The six-stream picker (FR-003/005) — ONE definition, rendered in the ready form AND
-  // while a switch's read is in flight: a slow stream's fetch must never unmount the
-  // control that lets the person leave that stream (default-not-wall; same shape as the
-  // stock page's fix). CANONICAL branch names here (OD-WAY-39), never the 'Bungur'
-  // display alias: 'Bungur' is the incumbent's label for the same-branch DESTINATION
-  // ("Transfer to Bungur") and stays in action/destination labeling only — a Rumah
-  // Rames barista picking their own stream must read the branch by its catalog name.
+  // The six-stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
+  // state including while a switch's read is in flight: a slow stream's fetch must never
+  // unmount the control that lets the person leave that stream (default-not-wall).
+  // #440: it is the shared <CafeStreamBar> now — the same statement-and-switch every Café
+  // surface carries, in the same place, so a person who walks Log → Plan → Stock reads the
+  // stream in one spot instead of guessing on two thirds of the module.
   const streamPicker = (
-    <Select
-      className="kl-scope-stream"
-      aria-label={t('kitchen.log.stream.pickerAria')}
-      value={stream ? streamKey(stream.branch.id, stream.activity) : ''}
-      disabled={status.kind === 'submitting' || streamOptions.length === 0}
-      onChange={e => {
-        const next = streamOptions.find(
-          s => streamKey(s.branch.id, s.activity) === e.target.value,
-        )
-        if (next) void applyStream(next)
-      }}
-    >
-      {stream === null && (
-        <option value="" disabled>{t('kitchen.log.stream.choose')}</option>
-      )}
-      {streamOptions.map(s => (
-        <option
-          key={streamKey(s.branch.id, s.activity)}
-          value={streamKey(s.branch.id, s.activity)}
-        >
-          {s.branch.name} · {activityLabel(t, s.activity)}
-        </option>
-      ))}
-    </Select>
+    <CafeStreamBar
+      options={streamOptions}
+      stream={stream}
+      onChange={next => { void applyStream(next) }}
+      disabled={status.kind === 'submitting'}
+    />
   )
 
   function handleQtyChange(itemId: string, qty: number) {
@@ -499,17 +481,14 @@ export function KitchenLogPage() {
   }
 
   // ── Data loading state — offline indicator surfaced here too (#2, RI-2) ──────
-  // Once the stream catalog is loaded (i.e. this is a stream SWITCH, not bootstrap),
-  // the picker stays mounted above the shell: a slow stream's read must never take
-  // away the control that switches off it (FR-003 default-not-wall — stock-page shape).
+  // The picker rides in the page head in every state, bootstrap included: a slow stream's
+  // read must never take away the control that switches off it (FR-003 default-not-wall),
+  // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="loading" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          {streamOptions.length > 0 && (
-            <div className="kl-scope kl-block">{streamPicker}</div>
-          )}
           <LoadingShell count={3} />
         </div>
       </PageFamilyFrame>
@@ -519,7 +498,7 @@ export function KitchenLogPage() {
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="error" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="error" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -541,7 +520,7 @@ export function KitchenLogPage() {
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
@@ -735,7 +714,10 @@ export function KitchenLogPage() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      jobSentence={t('job.cafe')}
+      /* #440: the head's orientation signal is the stream this capture files into — which books
+         a row lands in decides what the row MEANS, so it outranks the static job sentence the
+         shared head would otherwise carry (PageHead renders one or the other). */
+      statusRow={streamPicker}
       /* v4 (owner-directed): the date chip and the planned-total band were two stacked lines
          saying very little. They are now one compacted meta line, in separate columns. */
       meta={
@@ -789,9 +771,12 @@ export function KitchenLogPage() {
           {/* v4 chrome merge: the scope seg used to be its own bordered band stacked
               directly above this one — two utility strips, two paddings, two rules, for one
               row of controls. It is now the toolbar's LEADING scope slot, so the surface
-              opens with one band and the dish list starts higher. The stream picker joins
-              it there: which books a movement lands in decides what every row in the list
-              means, exactly as the movement does, so the two belong in one scope block. */}
+              opens with one band and the dish list starts higher.
+              #440: the STREAM picker left this block for the page head. The two controls
+              looked alike but answer different questions — the movement is a property of the
+              rows you are about to write, the stream is which books the whole surface is
+              written in, and that second one has to be readable from every Café screen, not
+              only from the ones with a toolbar. */}
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
@@ -802,13 +787,6 @@ export function KitchenLogPage() {
             ariaLabel={t('kitchen.log.toolbarAria')}
           >
             <div className="kl-scope">
-              {/* ONE stream picker over the six-stream catalog (FR-003/005, #233) — a
-                  default, never a wall: it opens on the person's own stream (FR-001) and
-                  is always switchable to any other. It replaced a branch × activity pair
-                  of selects that offered the whole branch catalog — including the
-                  roastery, which is a branch but never a stream. With no default (FR-002)
-                  the placeholder holds the empty value until a stream is chosen. */}
-              {streamPicker}
               {/* The movement control IS the destination picker (FR-013): produce, then a
                   transfer to every branch in the catalog — cross-branch to any other, and
                   intra-branch cross-activity to the origin's own, offered the same way from
@@ -844,11 +822,7 @@ export function KitchenLogPage() {
           {buId && (
             <ReportMissingItem
               businessUnitId={buId}
-              streamLabel={
-                stream
-                  ? `${stream.branch.name} / ${activityLabel(t, stream.activity)}`
-                  : undefined
-              }
+              streamLabel={stream ? streamLabel(t, stream) : undefined}
             />
           )}
 

@@ -17,6 +17,15 @@ import { listAuthorTeams } from '@/lib/db/signals'
 import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canReviewCafe } from '@/lib/kitchen-gates'
+// #440: the module ROOT is where the stream context belongs first — the doors below lead into
+// five stream-scoped surfaces, and a person who lands here should be able to read (and set)
+// which books they are about to work in before they walk through one.
+import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
+import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
+import { listActiveBranches } from '@/lib/db/branches'
+import { fetchDefaultStream } from '@/lib/db/default-stream'
+import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
@@ -53,6 +62,29 @@ export function CafeOpeningPage() {
   const [processId, setProcessId] = useState<string | null>(null)
   const [team, setTeam] = useState<BranchTeam | null>(null)
   const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
+  // The module's stream (#440). Read on its own so a failure here never takes the opening
+  // surface down with it: the opening itself is Team-scoped, not stream-scoped, so the head's
+  // statement is context for the doors below, not a precondition for the panel.
+  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
+  const [stream, setStream] = useState<ProductionStream | null>(null)
+
+  useEffect(() => {
+    if (!viewerId) return
+    let live = true
+    void (async () => {
+      try {
+        const [branches, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
+        const catalog = streamCatalogFrom(pairs, branches)
+        const resolved = resolveCafeStream(catalog, await fetchDefaultStream(branches))
+        if (!live) return
+        setStreamOptions(catalog)
+        setStream(resolved)
+      } catch {
+        if (live) setStreamOptions([]) // the head then reads "—": no stream known, nothing claimed
+      }
+    })()
+    return () => { live = false }
+  }, [viewerId])
 
   const load = useCallback(() => {
     if (!viewerId) return
@@ -113,7 +145,13 @@ export function CafeOpeningPage() {
     <PageFamilyFrame
       family="workspace"
       title={t('nav.cafe')}
-      jobSentence={t('job.cafe')}
+      statusRow={
+        <CafeStreamBar
+          options={streamOptions}
+          stream={stream}
+          onChange={next => { setStream(next); rememberStream(next) }}
+        />
+      }
       meta={wibToday()}
       state={frameState}
     >

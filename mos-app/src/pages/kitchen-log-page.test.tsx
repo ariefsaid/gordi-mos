@@ -182,9 +182,13 @@ async function renderPage(auth: AuthState = VIEWER_MEMBER, initialPath = '/mos/k
 }
 
 import { KitchenLogPage } from './kitchen-log-page'
+import { rememberStream } from '@/lib/cafe-stream'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
+  // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
+  rememberStream(null)
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -1335,6 +1339,21 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     expect(mockFetchPlanMap).toHaveBeenCalledWith(expect.any(String), expected)
     expect(mockFetchStockMap).toHaveBeenCalledWith(expect.any(String), expected)
     expect(mockFetchActualsMap).toHaveBeenCalledWith(expect.any(String), expected)
+  })
+
+  it('issue 440: the stream reads in the PAGE HEAD — the one place every Café surface states it', async () => {
+    // The picker used to live in the toolbar's scope block, beside the movement control, on the
+    // two surfaces that had one at all. #440 moved it into the shared head so a person walking
+    // Log → Plan → Stock reads which books they are in from the same spot every time.
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
+    const { container } = await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    // and nowhere else on the surface — two pickers for one fact is how they come to disagree
+    expect(screen.getAllByRole('combobox', { name: /production stream/i })).toHaveLength(1)
   })
 
   it('AC-002/AC-012b (frontend half): switching streams re-scopes plan/stock/actuals and the submitted rows carry the SWITCHED pair', async () => {

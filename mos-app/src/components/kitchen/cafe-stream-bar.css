@@ -1,0 +1,36 @@
+/* CafeStreamBar — cafe-stream- namespace (C1: disjoint from kl-/kp-/kpu-/kr-/ks-/kpe-).
+   Lives in the page head's status row, so it stays one quiet line: an overline-rank label
+   ("Stream") against the 32px kit Select. On a phone the select takes the full width — a
+   half-width <select> truncates a branch name to the point where two branches read the
+   same, the exact ambiguity the catalog exists to end. */
+.cafe-stream {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cafe-stream__label {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The read-only statement (a surface that names its stream but cannot switch it) carries the
+   same rank as the control's own text, so the two surfaces read as one grammar. */
+.cafe-stream__value {
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 390px) {
+  .cafe-stream { width: 100%; }
+  .cafe-stream__select { flex: 1 1 100%; min-width: 0; }
+}
