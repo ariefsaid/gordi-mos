@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { ADMIN, VIEWER } from './fixtures/users'
+import { isShipGated } from './helpers/ship-gate'
 
-const desktopRoutes = [
+// Every route a viewer can actually land on. issue 444 drops the ship-gated ones (work/projects,
+// work/objectives, work/events, money): each forwards to Home, so visiting one measures Home's
+// aria-current twice rather than that route's. Filtered through the gate rather than deleted, so
+// un-gating a surface puts it straight back into the sweep.
+const desktopRoutes = ([
   '',
   'work/tasks',
   'work/signals',
@@ -14,7 +19,7 @@ const desktopRoutes = [
   'cafe/log',
   'admin/people',
   'profile',
-] as const
+] as const).filter((path) => !isShipGated(`/${path}`))
 
 async function pageCurrentCount(page: import('@playwright/test').Page) {
   return page.evaluate(() => document.querySelectorAll('[aria-current="page"]').length)
@@ -55,7 +60,9 @@ test.describe('shell aria-current', () => {
       // instead, since the bottom-tab-bar doesn't cover it. This supersedes the old "non-primary
       // destinations mark More" rule. The poll above already proves exactly one aria-current="page"
       // exists per route; here we additionally prove it's on the breadcrumb, not on More.
-      const nonPrimaryCases = ['cafe/log', 'money', 'profile']
+      // 'money' was here until issue 444 gated it — a gated path forwards to Home, which IS a
+      // primary tab, so it can no longer stand for "a destination the bottom bar does not cover".
+      const nonPrimaryCases = ['cafe/log', 'profile'].filter((path) => !isShipGated(`/${path}`))
       for (const path of nonPrimaryCases) {
         await page.goto(path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)

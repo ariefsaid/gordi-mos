@@ -61,18 +61,22 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   // ruling) replaces that model: navigation mirrors what the ROUTE admits, and the module routes
   // are ungated. The drawer is the phone's only route to a module's screens, so hiding them here
   // is precisely what left kitchen staff with no phone nav (#242).
-  it('an org-wide admin sees Work Events, Admin Settings, Profile — and the module links their routes admit', () => {
+  it('an org-wide admin sees Signals, Admin Settings, Profile — and the module links their routes admit', () => {
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(screen.getByRole('link', { name: /Events/ })).toHaveAttribute('href', '/work/events')
+    expect(screen.getByRole('link', { name: /Signals/ })).toHaveAttribute('href', '/work/signals')
     expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
     expect(screen.getByRole('link', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
-    expect(screen.getByRole('link', { name: /Ecommerce/ })).toHaveAttribute('href', '/ecommerce')
-    expect(screen.getByRole('link', { name: /Roastery/ })).toHaveAttribute('href', '/roastery')
     // Café's screens, which are the reason the drawer matters on a phone.
     expect(screen.getByRole('link', { name: /^Log$/ })).toHaveAttribute('href', '/cafe/log')
     expect(screen.getByRole('link', { name: /^Review$/ })).toHaveAttribute('href', '/cafe/review')
+    // #444: Events, Ecommerce and Roastery were each asserted PRESENT here. All three are
+    // ship-gated (outside the MVP payload), and the gate is above roles — so the viewer holding
+    // every role there is gets no link to any of them, on the one nav surface a phone has.
+    for (const name of [/^Events$/, /^Ecommerce$/, /^Roastery$/]) {
+      expect(screen.queryByRole('link', { name }), `${name} is ship-gated`).toBeNull()
+    }
   })
 
   it('a plain member sees Café\'s ungated screens but not Review or Pushes', () => {
@@ -83,9 +87,12 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })
 
-  it('admin also sees Money (finance/admin)', () => {
+  // Was "admin also sees Money (finance/admin)". #444 ship-gates Money, so no viewer does — see
+  // the AC-022 block below, which now carries that claim for every role including admin.
+  it('admin sees the Inbox root, which is the workspace destination that still ships', () => {
     renderDrawer({ accessRoles: ['admin'] })
-    expect(screen.getByRole('link', { name: /Money/ })).toHaveAttribute('href', '/money')
+    expect(screen.getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
+    expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 })
 
@@ -100,11 +107,19 @@ describe('AC-022: Money absent for non-finance/admin (from More)', () => {
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
   })
 
-  it('finance sees Money but not Admin Settings', () => {
-    renderDrawer({ accessRoles: ['finance'] })
-    expect(screen.getByRole('link', { name: /Money/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
-  })
+  // #444 widened this from "non-finance/admin" to EVERYONE: the ship gate sits above the role
+  // gate, so a finance or admin viewer sees exactly what a plain member sees here. The role
+  // policy itself stays asserted on the registry in destinations.test.ts, and comes back the
+  // moment /money leaves SHIP_GATED_PATHS.
+  it.each([['finance', ['finance']], ['admin', ['admin']], ['manager', ['manager']]])(
+    '%s sees no Money link either — the ship gate is above the role gate',
+    (_who, accessRoles) => {
+      renderDrawer({ accessRoles })
+      expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
+      // …and the drawer rendered, so this is not passing on nothing.
+      expect(screen.getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
+    },
+  )
 })
 
 // Security audit HIGH-1 (2026-07-17): the phone drawer is the only nav surface at <920px, so the
@@ -149,8 +164,10 @@ describe('More menu navigation + a11y', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     renderDrawer({ onClose, accessRoles: ['admin'] })
-    await user.click(screen.getByRole('link', { name: /Events/ }))
-    expect(screen.getByTestId('location').textContent).toBe('/work/events')
+    // Was the Events link — ship-gated by #444, so it no longer renders. Signals is the Work
+    // child that ships, and it exercises the identical close-and-navigate path.
+    await user.click(screen.getByRole('link', { name: /Signals/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/work/signals')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -177,8 +194,10 @@ describe('More menu navigation + a11y', () => {
         </I18nProvider>
       </ThemeProvider>,
     )
-    await user.click(screen.getByRole('link', { name: /Events/ }))
-    expect(screen.getByTestId('location').textContent).toBe('/work/events')
+    // Was the Events link — ship-gated by #444, so it no longer renders. Signals is the Work
+    // child that ships, and it exercises the identical close-and-navigate path.
+    await user.click(screen.getByRole('link', { name: /Signals/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/work/signals')
     expect(onClose).toHaveBeenCalled()
     expect(focusOpener).toHaveBeenCalled()
   })

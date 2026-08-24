@@ -1,6 +1,15 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { ADMIN, VIEWER } from './fixtures/users'
+import { isShipGated } from './helpers/ship-gate'
+
+// Label -> the path behind it, so the assertions below ask the gate rather than re-listing it.
+const GATED_BY_LABEL: Record<string, string> = {
+  Events: '/work/events',
+  Money: '/money',
+  Ecommerce: '/ecommerce',
+  Roastery: '/roastery',
+}
 
 test.describe('shell phone nav', () => {
   test.use({ viewport: { width: 390, height: 844 } })
@@ -19,18 +28,18 @@ test.describe('shell phone nav', () => {
 
     await nav.getByRole('button', { name: 'More' }).click()
     const more = page.getByRole('dialog', { name: 'More' })
-    await expect(more.getByRole('link', { name: 'Events' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'Money' })).toBeVisible()
-    // OD-WAY-51 supersedes OD-68's "modules are hidden from an org-wide admin's More" rule.
-    // mobile-drawer.tsx Zone 2 now lists every viewer-scoped module regardless of promotion, and
-    // bottom-tab-bar.tsx's own comment documents the reversal directly: "The line here used to say
-    // 'module routes stay reachable via ⌘K / direct URL'. That was false ... It is deleted rather
-    // than replaced — under OD-WAY-51 no justification is needed, because nothing is being
-    // hidden." Navigation now mirrors what the route admits: Ecommerce/Roastery are live in More.
-    await expect(more.getByRole('link', { name: 'Ecommerce' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'Roastery' })).toBeVisible()
+    // OD-WAY-51 supersedes OD-68's "modules are hidden from an org-wide admin's More" rule:
+    // mobile-drawer.tsx Zone 2 lists every module the ROUTE admits, regardless of promotion. What
+    // ships on day one is Cafe (issue 444 gates Ecommerce and Roastery as post-MVP).
     await expect(more.getByRole('link', { name: 'Admin Settings' })).toBeVisible()
     await expect(more.getByRole('link', { name: 'Personal Profile' })).toBeVisible()
+    // issue 444 — Events, Money, Ecommerce and Roastery were each asserted VISIBLE here. All four
+    // are ship-gated, and the gate is above roles, so the viewer holding every role gets no link
+    // to any of them on the one nav surface a phone has.
+    for (const [label, path] of Object.entries(GATED_BY_LABEL)) {
+      if (!isShipGated(path)) continue
+      await expect(more.getByRole('link', { name: label, exact: true })).toHaveCount(0)
+    }
   })
 
   test('AC-021b (OD-68): a café-affiliated viewer GETS the Café tab (their work is promoted)', async ({ page }) => {
@@ -39,7 +48,10 @@ test.describe('shell phone nav', () => {
     await expect(nav.getByRole('link', { name: 'Café' })).toBeVisible()
   })
 
-  test('AC-022: non-finance/admin viewers never see Money in the phone nav or More menu', async ({ page }) => {
+  // issue 444 widened this from "non-finance/admin" to EVERY viewer — see the admin case above,
+  // which now covers the same ground for the role that used to see Money. Kept for the phone-bar
+  // half of the claim, which the admin case does not make.
+  test('AC-022: viewers never see Money in the phone nav or More menu', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
 
     const nav = page.getByRole('navigation', { name: 'Primary' })

@@ -54,30 +54,19 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('Work · Signals')
   })
 
-  it('/work/projects → "Work · Projects & Processes"', () => {
-    renderBC('/work/projects')
-    expect(crumbText()).toBe('Work · Projects & Processes')
-  })
-
-  it('/work/objectives → "Work · Objectives"', () => {
-    renderBC('/work/objectives')
-    expect(crumbText()).toBe('Work · Objectives')
-  })
-
-  it('/work/events → "Work · Events"', () => {
-    renderBC('/work/events')
-    expect(crumbText()).toBe('Work · Events')
-  })
-
-  it('/money → "Money"', () => {
-    renderBC('/money')
-    expect(crumbText()).toBe('Money')
-  })
-
-  it('/money/detail → "Money · Detail"', () => {
-    renderBC('/money/detail')
-    expect(crumbText()).toBe('Money · Detail')
-  })
+  // #444 — a ship-gated path resolves to NOTHING, the same answer an unknown path gets, and for
+  // the same reason: nothing routes there. `/work/projects`, `/work/objectives`, `/work/events`,
+  // `/money` and `/money/detail` each read "Work · …" / "Money · …" here until the gate closed
+  // them. Printing a crumb for a surface the router forwards away from would name a page the
+  // viewer is not on. Delete a path from SHIP_GATED_PATHS and its crumb comes back with no edit
+  // to breadcrumb.tsx.
+  it.each(['/work/projects', '/work/objectives', '/work/events', '/money', '/money/detail'])(
+    'the ship-gated %s renders no crumb at all',
+    (path) => {
+      renderBC(path)
+      expect(crumbText()).toBe('')
+    },
+  )
 
   it('/inbox → "Inbox"', () => {
     renderBC('/inbox')

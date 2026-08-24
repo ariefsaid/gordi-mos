@@ -11,6 +11,13 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { isShipGated } from './helpers/ship-gate'
+
+// issue 444 — this journey's surface is ship-gated (outside the MVP payload), so every entry point
+// forwards home and there is no door to walk through. Skipped on the gate itself, not deleted: the
+// journey is still true of the built surface and comes back the moment /work/objectives leaves
+// SHIP_GATED_PATHS.
+test.skip(isShipGated('/work/objectives'), 'ship-gated surface (issue 444) — no route, no nav')
 
 function loadEnvFile(filePath: string): Record<string, string> {
   try {

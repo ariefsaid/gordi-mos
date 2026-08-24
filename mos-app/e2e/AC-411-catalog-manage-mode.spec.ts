@@ -13,6 +13,7 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { loginAs } from './helpers/login'
 import { ADMIN } from './fixtures/users'
+import { isShipGated } from './helpers/ship-gate'
 
 const ORG = '10000000-0000-0000-0000-000000000001'
 const TRACE_OBJ = 'c1000000-0000-0000-0000-000000000010'
@@ -58,6 +59,11 @@ test.beforeAll(async () => {
 test.afterAll(async () => { await execSql(`DELETE FROM mos.tasks WHERE id IN ('${TRACE_T1}', '${TRACE_T2}'); DELETE FROM mos.work_lines WHERE id='${TRACE_WL}'; DELETE FROM mos.objectives WHERE id='${TRACE_OBJ}';`) })
 
 test.describe('AC-411: catalog is Work\'s manage-mode', () => {
+  // issue 444 — this journey's surface is ship-gated (outside the MVP payload), so every entry
+  // point forwards home and there is no door to walk through. Skipped on the gate itself, not
+  // deleted: the journey is still true of the built surface and comes back the moment /work/objectives
+  // leaves SHIP_GATED_PATHS.
+  test.skip(isShipGated('/work/objectives'), 'ship-gated surface (issue 444) — no route, no nav')
   test.use({ viewport: { width: 390, height: 844 } })
 
   test('admin: Work → Objectives → /work/objectives with down-trace', async ({ page }) => {

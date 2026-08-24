@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { can } from '@/lib/capabilities'
+import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   EventsIcon, MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
@@ -90,13 +91,20 @@ export const CAFE_SECTIONS: Section[] = [
 export const CAFE_MODULE_SECTIONS: Section[] = CAFE_SECTIONS.filter((s) => s.path !== '/cafe')
 
 /**
- * The links a viewer may actually see: capability gates resolved through `can()`, access-role
- * gates through the viewer's roles. One helper so the rail and the phone drawer cannot disagree
- * about who sees what.
+ * The links a viewer may actually see: the ship gate first, then capability gates resolved through
+ * `can()`, then access-role gates through the viewer's roles. One helper so the rail and the phone
+ * drawer cannot disagree about who sees what.
+ *
+ * The ship gate (#444) takes no roles because it asks a different question. Capability and
+ * access-role gates ask "may THIS viewer reach it"; the ship gate asks "is this surface in the MVP
+ * payload at all", and a No there is a No for everyone. That is why it sits above the other two
+ * rather than beside them — and why the same array closes the route in `router.tsx`, so a link can
+ * never survive a path that stopped routing.
  */
 export function visibleSections(sections: readonly Section[], accessRoles: readonly string[]): Section[] {
   return sections.filter(
     (s) =>
+      !isShipGated(s.path) &&
       (!s.capability || can(accessRoles, s.capability)) &&
       (!s.anyOf || s.anyOf.some((r) => accessRoles.includes(r))),
   )
@@ -120,6 +128,11 @@ export const ADMIN_SECTIONS: Section[] = [
  * array position.
  */
 export function sectionForPath(pathname: string): Section | null {
+  // #444: a ship-gated path resolves to NO section. The router forwards it home, so the breadcrumb
+  // should never be asked — but a resolver that still names a hidden surface is a second source of
+  // truth waiting to leak one ("Money · Detail" over a page that is not Money). Fail closed here
+  // and the breadcrumb, `viewerAdmittedToRoute` and every other reader inherit the same answer.
+  if (isShipGated(pathname)) return null
   const allSections = [...CAFE_SECTIONS, ...ADMIN_SECTIONS, ...SECTIONS]
   const exact = allSections.find((section) =>
     section.path === '/' ? pathname === '/' : pathname === section.path,

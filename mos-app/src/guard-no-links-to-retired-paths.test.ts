@@ -102,7 +102,10 @@ describe('GUARD #225: no in-app navigation target matches a route-table redirect
     const retiredPaths = allRedirects()
       .filter((r) => r.kind === 'map')
       .map((r) => pathnameOf(r.from))
-    expect(retiredPaths.length, 'the redirect map is empty — this guard would pass on nothing').toBeGreaterThan(15)
+    // Floor lowered from 15 with the ship gate (#444): six retired paths whose replacement is now
+    // hidden name Home instead, which moves them from `map` into `flag-fallback`. The gate's own
+    // suite (`shell/ship-gate.test.tsx`) is what holds the links to those hidden surfaces.
+    expect(retiredPaths.length, 'the redirect map is empty — this guard would pass on nothing').toBeGreaterThan(10)
 
     const offenders: string[] = []
     for (const file of sourceFiles(SRC)) {

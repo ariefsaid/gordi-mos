@@ -67,16 +67,35 @@ describe('T5: ADMIN_SECTIONS — kept (People)', () => {
 })
 
 describe('T5: new destination sections resolve', () => {
-  it('sectionForPath resolves Work Events, /money, /profile, /work/signals', () => {
-    expect(sectionForPath('/work/events')!.label).toBe('Events')
+  it('sectionForPath resolves /profile and /work/signals', () => {
     expect(sectionForPath('/events')).toBeNull()
-    expect(sectionForPath('/money')!.label).toBe('Money')
     expect(sectionForPath('/profile')!.label).toBe('Personal Profile')
     expect(sectionForPath('/work/signals')!.label).toBe('Signals')
   })
 
-  it('sectionForPath resolves /money/detail by prefix', () => {
-    expect(sectionForPath('/money/detail')!.path).toBe('/money')
+  it('sectionForPath resolves a sub-route by prefix', () => {
+    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
+    // the PREFIX behaviour itself is proven on a path that is still live.
+    expect(sectionForPath('/cafe/log/anything')!.path).toBe('/cafe/log')
+  })
+
+  // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
+  // so the breadcrumb should never be asked; a resolver that still named the hidden surface would
+  // be a second source of truth waiting to leak one.
+  it.each(['/work/events', '/money', '/money/detail', '/work/objectives', '/ecommerce'])(
+    'sectionForPath finds nothing at the ship-gated %s',
+    (path) => {
+      expect(sectionForPath(path)).toBeNull()
+    },
+  )
+
+  it('…but the SECTIONS registry still holds them — hidden, not deleted', () => {
+    // Without this the cases above would pass just as well if the entries had been ripped out,
+    // and switch day would be a revert instead of one line deleted from SHIP_GATED_PATHS.
+    const paths = SECTIONS.map((s) => s.path)
+    for (const p of ['/work/events', '/money', '/work/objectives', '/ecommerce', '/roastery']) {
+      expect(paths, `${p} was deleted from SECTIONS rather than gated`).toContain(p)
+    }
   })
 })
 

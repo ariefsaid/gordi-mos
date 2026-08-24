@@ -55,6 +55,7 @@ import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
 import { flattenRoutes, isRedirect, routeAdmits } from '@/test/route-table'
+import { isShipGated } from '@/lib/ship-gate'
 import type { RouteHandle } from './route-classification'
 
 function setAuthAs(accessRoles: string[], roleNames: string[]) {
@@ -292,10 +293,13 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
   })
 
   it('the sweep renders real nav and enumerates the real table — it cannot pass on nothing', () => {
-    expect(surfaces.length).toBeGreaterThan(15)
+    // Floors lowered with the ship gate (#444): ten page routes now forward home instead of
+    // rendering, so they leave `surfaceRoutes()` and take their nav links with them. The sweep
+    // still measures the whole shipped table; there is simply less of it while the gate holds.
+    expect(surfaces.length).toBeGreaterThan(10)
     const { rail, phone } = allReachable()
-    expect(rail.size).toBeGreaterThan(8)
-    expect(phone.size).toBeGreaterThan(8)
+    expect(rail.size).toBeGreaterThan(6)
+    expect(phone.size).toBeGreaterThan(6)
   })
 
   // ── OD-WAY-51, the whole rule in two assertions ──────────────────────────────────────────
@@ -407,18 +411,27 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
 
   // ── The role half. Draft 1 ignored `anyOf` entirely, so the Money narrowing was invisible to it.
   describe('role gates: a viewer admitted by the ROUTE sees a link', () => {
-    it.each([['manager', persona('manager')], ['supervisor', persona('supervisor')]] as const)(
-      '%s holds financial VIEW visibility and sees a Money link (AC-128 / AC-327)',
-      (_name, persona) => {
-        expect(railLinks(persona)).toContain('/money')
-        expect(phoneLinks(persona)).toContain('/money')
-      },
-    )
+    // AC-128 / AC-327 used to be proven here: manager and supervisor hold a financial VIEW tier
+    // and must therefore see a Money link. #444 ship-gates `/money`, which sits ABOVE the role
+    // gate — so no viewer sees that link, and this surface can no longer distinguish the tiers.
+    // Their policy claim moved to `destinations.test.ts`, where it is asserted on the registry
+    // (`money.anyOf` still contains manager and supervisor) and so still fails if someone
+    // narrows it while the surface is hidden. What is held HERE is the ship gate's own shape:
+    // it closes for the role-holder exactly as it closes for the plain member.
+    it.each([
+      ['manager', persona('manager')],
+      ['supervisor', persona('supervisor')],
+      ['a plain member', persona('Café floor member')],
+    ] as const)('%s sees no Money link while /money is ship-gated', (_name, persona) => {
+      expect(railLinks(persona)).not.toContain('/money')
+      expect(phoneLinks(persona)).not.toContain('/money')
+    })
 
-    it('a plain member sees no Money link — the gate is real, not absent', () => {
-      // Without this the case above would pass just as well with no gate at all.
-      expect(railLinks(persona('Café floor member'))).not.toContain('/money')
-      expect(phoneLinks(persona('Café floor member'))).not.toContain('/money')
+    it('…and the same viewers DO get the surfaces that ship — the negatives are not vacuous', () => {
+      for (const name of ['manager', 'supervisor', 'Café floor member'] as const) {
+        expect(railLinks(persona(name)), name).toContain('/work/tasks')
+        expect(phoneLinks(persona(name)), name).toContain('/work/tasks')
+      }
     })
 
     it('only an admin sees the Admin link', () => {
@@ -444,12 +457,27 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     },
   )
 
-  it('AC-348: Events is reachable as a Work child, never through its retired root', () => {
+  // AC-348 asserted that Events is reachable as a Work CHILD and never through its retired
+  // `/events` root. #444 ship-gates Events entirely (OD-WAY-60 retired it; #348 replaces it at
+  // milestone 4), so neither spelling is reachable — the retired-root half of the claim is
+  // unchanged and the child half inverts. Delete `/work/events` from SHIP_GATED_PATHS and the
+  // child link returns; `/events` must stay gone either way.
+  it('AC-348 (issue 444): neither Events spelling is reachable while Events is ship-gated', () => {
     const { rail, phone } = allReachable()
-    expect(rail).toContain('/work/events')
-    expect(phone).toContain('/work/events')
+    expect(rail).not.toContain('/work/events')
+    expect(phone).not.toContain('/work/events')
     expect(rail).not.toContain('/events')
     expect(phone).not.toContain('/events')
+  })
+
+  it('issue 444: no rendered nav link, for any persona at either viewport, points at a gated surface', () => {
+    // The generalisation of the case above, over every persona the file defines. The sweep's own
+    // OD-WAY-51 assertions cannot catch this: they derive what SHOULD render from the route
+    // table, and a gated path leaves that table's surface list entirely, so a stale link to one
+    // would simply go unexamined.
+    const { rail, phone } = allReachable()
+    const offending = [...new Set([...rail, ...phone])].filter(isShipGated)
+    expect(offending, 'rendered nav links pointing at a ship-gated surface').toEqual([])
   })
 
   it('a rendered nav link never points at a path the route table does not serve', () => {

@@ -20,6 +20,7 @@
 import { test, expect } from '@playwright/test'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { isShipGated } from './helpers/ship-gate'
 // Weekly Updates is flag-hidden for the first rollout (src/config/features.ts). The Signals
 // destination itself is unconditional (#189), but the surface currently behind it is dev's weekly
 // update page, so the leg that asserts that surface's own content stays gated on the same flag.
@@ -57,10 +58,17 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // it proves the real Tasks surface rendered, not just the route.
   await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
 
-  // --- Work → Objectives (ungated read, OD-V4-1: every authenticated viewer reaches it) ---
-  await nav.getByRole('link', { name: 'Objectives' }).click()
-  await expect(page).toHaveURL(/\/work\/objectives$/, { timeout: 5_000 })
-  await expect(nav.getByRole('link', { name: 'Objectives' })).toHaveAttribute('aria-current', 'page')
+  // --- Work -> Objectives ---
+  // Was a rail click through to /work/objectives. issue 444 ship-gates that surface, so there is
+  // no link to click: what the rail owes at a gated path is nothing at all. The walk continues to
+  // Signals, which ships. Un-gate /work/objectives and the original leg belongs back here.
+  if (isShipGated('/work/objectives')) {
+    await expect(nav.getByRole('link', { name: 'Objectives' })).toHaveCount(0)
+  } else {
+    await nav.getByRole('link', { name: 'Objectives' }).click()
+    await expect(page).toHaveURL(/\/work\/objectives$/, { timeout: 5_000 })
+    await expect(nav.getByRole('link', { name: 'Objectives' })).toHaveAttribute('aria-current', 'page')
+  }
 
   // --- Work → Signals ---
   await nav.getByRole('link', { name: 'Signals' }).first().click()

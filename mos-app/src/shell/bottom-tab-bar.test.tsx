@@ -88,13 +88,18 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     expect(within(nav).getByRole('button', { name: /More/i })).toBeInTheDocument()
   })
 
-  it('the module slot follows the viewer role — a roastery viewer sees Roastery, not Café', () => {
+  // #444: this asserted that a roastery viewer's third slot is Roastery. Roastery is ship-gated
+  // (post-MVP), so it is not a module anyone can be promoted INTO — the slot is empty and the bar
+  // falls back to its three fixed tabs, which is the same "no matching module" path an org-wide
+  // role already takes. The promotion mechanism itself is still proven by the café case below,
+  // where the module does ship.
+  it('a roastery viewer gets no promoted module slot while Roastery is ship-gated', () => {
     setAuthAs([], ['Roastery Lead'])
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')
-    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Roastery', 'Inbox'])
-    expect(within(nav).getByRole('link', { name: /Roastery/ })).toHaveAttribute('href', '/roastery')
+    expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Inbox'])
+    expect(within(nav).queryByRole('link', { name: /Roastery/ })).toBeNull()
   })
 
   it('primary tabs link to /, /work/tasks, /cafe, /inbox (café viewer)', () => {

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { ADMIN } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
+import { isShipGated } from './helpers/ship-gate'
 
 const PLAN_BUDGET_ENABLED = process.env.VITE_SHOW_PLAN_BUDGET === 'true'
 
@@ -15,9 +16,9 @@ const redirectCases = [
   // refresh/share" (DESIGN.md "Navigation, canonical URLs, and overlay grammar"). Tasks is the one
   // exception (serializeTaskQuery omits `layout` when it's the neutral 'table'), which is why its
   // redirects above stay bare. The canonical one-hop landing for these three is WITH the param.
-  { oldPath: 'objectives', finalPath: /\/work\/objectives\?layout=list$/, needsAdmin: true },
-  { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
-  { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true },
+  { oldPath: 'objectives', finalPath: /\/work\/objectives\?layout=list$/, needsAdmin: true, replacement: '/work/objectives' },
+  { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
+  { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
   // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home (opening panel). Legacy bare
   // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
@@ -29,11 +30,11 @@ const redirectCases = [
   { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, needsAdmin: false },
   { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, needsAdmin: true },
   { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, needsAdmin: true },
-  { oldPath: 'dashboard', finalPath: /\/money$/, needsAdmin: true },
-  { oldPath: 'dashboard/detail', finalPath: /\/money\/detail$/, needsAdmin: true },
-  { oldPath: 'sales', finalPath: /\/money$/, needsAdmin: true },
-  { oldPath: 'plan/budget', finalPath: /\/money\/budget$/, needsAdmin: true, flag: 'plan-budget' },
-  { oldPath: 'plan/pricing', finalPath: /\/money\/pricing$/, needsAdmin: true, flag: 'plan-budget' },
+  { oldPath: 'dashboard', finalPath: /\/money$/, needsAdmin: true, replacement: '/money' },
+  { oldPath: 'dashboard/detail', finalPath: /\/money\/detail$/, needsAdmin: true, replacement: '/money/detail' },
+  { oldPath: 'sales', finalPath: /\/money$/, needsAdmin: true, replacement: '/money' },
+  { oldPath: 'plan/budget', finalPath: /\/money\/budget$/, needsAdmin: true, flag: 'plan-budget', replacement: '/money/budget' },
+  { oldPath: 'plan/pricing', finalPath: /\/money\/pricing$/, needsAdmin: true, flag: 'plan-budget', replacement: '/money/pricing' },
 ] as const
 
 async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
@@ -50,6 +51,15 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
   test.setTimeout(120_000)
   for (const routeCase of redirectCases) {
     if ('flag' in routeCase && routeCase.flag === 'plan-budget' && !PLAN_BUDGET_ENABLED) continue
+    // issue 444 — a retired path whose canonical replacement is ship-gated no longer forwards to
+    // that replacement: doing so would hand the viewer a second hop onto a route that forwards
+    // them home. What this walk asserts is the MAP (retired spelling -> canonical replacement),
+    // and that mapping is precisely what is suspended while the destination is hidden; the
+    // forward-home behaviour is held instead by `src/shell/ship-gate.test.tsx`. `replacement` is
+    // declared on the row itself rather than parsed out of `finalPath`, so the row states its own
+    // destination and the skip cannot silently mis-read a regex. Un-gate the destination and the
+    // row walks again with no edit here.
+    if ('replacement' in routeCase && isShipGated(routeCase.replacement)) continue
 
     await page.goto('')
     await expect(page).toHaveURL(/\/$|\/mos\/?$/)

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { AC204 } from './fixtures/tasks'
 import { loginAs } from './helpers/login'
+import { isShipGated } from './helpers/ship-gate'
 
 /** The app is served under a basename, so every rendered href carries it. */
 const href = (path: string) => `/mos${path}`
@@ -17,6 +18,11 @@ const href = (path: string) => `/mos${path}`
  * deterministic, not whatever the database happens to hold.
  */
 test.describe('AC-204: Objective roll-up and drill', () => {
+  // issue 444 — this journey's surface is ship-gated (outside the MVP payload), so every entry
+  // point forwards home and there is no door to walk through. Skipped on the gate itself, not
+  // deleted: the journey is still true of the built surface and comes back the moment /work/objectives
+  // leaves SHIP_GATED_PATHS.
+  test.skip(isShipGated('/work/objectives'), 'ship-gated surface (issue 444) — no route, no nav')
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await loginAs(page, ADMIN.email, ADMIN.password)

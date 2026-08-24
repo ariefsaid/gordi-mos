@@ -228,7 +228,9 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
     expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Money$/i })).toBeInTheDocument()
+    // #444: Money was asserted PRESENT here for this (admin) viewer. The palette is a navigation
+    // surface like the rail, so it must not offer a door the router has closed.
+    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
   })
 
   it('AC-016: old "My Week / Weekly updates / Daily Log" entries are absent', () => {
@@ -247,17 +249,19 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
   })
 
   // AC-127 (ADR-0050 D8) / AC-326 (ADR-0051) — the financial and revenue-only VIEW tiers. The
-  // /money route and the rail entry both admit REVENUE_VIEW_ROLES, so the palette must too: a
-  // narrower palette gate would hide a destination the viewer can actually open. This is the one
-  // deliberate divergence from v4's palette, which gated Money on finance|admin alone.
+  // palette used to offer Money to each of these four, matching the /money route and rail gate.
+  // #444 ship-gates /money above every role, and the rule the palette follows is unchanged: it
+  // offers exactly what the router admits, so the entry is gone for all four. The VIEW-tier
+  // policy itself stays asserted on the destination registry (`destinations.test.ts`), and
+  // deleting /money from SHIP_GATED_PATHS restores this entry with no edit to the palette.
   it.each(['manager', 'supervisor', 'finance', 'admin'])(
-    'AC-127/AC-326: %s holds a revenue VIEW tier, so Money is offered and navigates to /money',
+    'AC-127/AC-326 (issue 444): %s is offered no Money entry while /money is ship-gated',
     (role) => {
       setAuth([role])
       renderMenu()
-      const money = screen.getByRole('option', { name: /^Money$/i })
-      fireEvent.click(money)
-      expect(screen.getByTestId('location')).toHaveTextContent('/money')
+      expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+      // …and they still get a palette, so this is not passing on an empty render.
+      expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
     },
   )
 
@@ -270,47 +274,41 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
 
 // ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group is capability-gated ─────────────
 describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per capability', () => {
-  it('AC-804: admin sees both Projects & Processes and Objectives; activating each navigates and closes', () => {
-    setAuth(['admin'])
-    const { onClose } = renderMenu()
-    expect(screen.getByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: /^Projects & Processes$/i }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/work/projects')
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('AC-804: activating Objectives navigates to /work/objectives and closes', () => {
-    setAuth(['admin'])
-    const { onClose } = renderMenu()
-    fireEvent.click(screen.getByRole('option', { name: /^Objectives$/i }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives')
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('AC-805: ops_lead (workline.manage) sees Projects & Processes; Objectives is ungated (OD-V4-1)', () => {
-    setAuth(['ops_lead'])
-    renderMenu()
-    expect(screen.getByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
-  })
+  // AC-804/805 held that a capability holder is OFFERED the two catalog surfaces and that
+  // activating each navigates. #444 ship-gates both paths, so the palette offers neither — to
+  // anyone, capability or not. The capability model itself is untouched and still asserted in
+  // `capabilities.test.ts` + the rail; what is held here is that the palette closed with the
+  // router rather than keeping a door open to a path that forwards home.
+  it.each([['admin', ['admin']], ['ops_lead', ['ops_lead']], ['a plain member', [] as string[]]])(
+    'AC-804/805 (issue 444): %s is offered neither Projects & Processes nor Objectives while both are ship-gated',
+    (_who, roles) => {
+      setAuth(roles)
+      renderMenu()
+      expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
+      expect(screen.queryByRole('option', { name: /^Objectives$/i })).toBeNull()
+      // The Navigate group still exists and still carries what ships, so the nulls above are
+      // about the two gated entries and not about a palette that failed to build.
+      expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
+    },
+  )
 
   // OD-V4-1 (owner-ratified 2026-07-27): Objectives carry NO read gate — the SELECT policy on
   // mos.objectives has no role check, the rail dropped the gate in #188 and the router followed.
   // v4's own test file still asserted the retired gate here (its component already pushed the
   // entry ungated), so it was contradicting the component it tested. The ruling wins.
-  it('AC-806: a plain member sees no Projects & Processes but DOES see Objectives (OD-V4-1)', () => {
+  it('AC-806: a plain member gets exactly the day-one Navigate set', () => {
     setAuth([])
     renderMenu()
-    expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
-    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+    // Objectives was asserted PRESENT here (OD-V4-1: no read gate). #444 hides it along with
+    // Projects & Processes, Events and Money — visibility, not a re-imposed capability gate.
+    for (const name of [/^Projects & Processes$/i, /^Objectives$/i, /^Events$/i, /^Money$/i]) {
+      expect(screen.queryByRole('option', { name }), `${name} is ship-gated`).toBeNull()
+    }
   })
 })
 
@@ -439,19 +437,24 @@ describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
     expect(signal).toHaveTextContent('Signal')
   })
 
-  it('DD-WAY-36: a follow-up palette hit navigates to the Money queue, never the deleted Work path', async () => {
+  // DD-WAY-36 held that a follow-up hit lands on the Money queue rather than the deleted Work
+  // path. #444 ship-gates the whole /money subtree, so the hit has nowhere to land and the
+  // palette must not render it: a Records ROW pointing at a closed route is the same defect as a
+  // Navigate entry pointing at one, and the gate is applied at the seam every row passes through
+  // precisely so a record hit cannot slip past it.
+  it('issue 444: a follow-up hit is not offered at all while the Money queue is ship-gated', async () => {
     features.SHOW_FOLLOWUPS = true
     mockSearch.mockResolvedValue([])
     mockSearchSignals.mockResolvedValue([])
     mockSearchFollowUps.mockResolvedValue([{ id: 'fu-1', counterparty: 'PT Acme' }])
-    const { onClose } = renderMenu()
+    renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'acme' } })
-    const opt = await screen.findByRole('option', { name: /PT Acme/i })
-    expect(opt).toHaveTextContent('AR Follow-up')
-    expect(screen.getByText('Records')).toBeInTheDocument()
-    fireEvent.click(opt)
-    expect(screen.getByTestId('location')).toHaveTextContent('/money/follow-ups')
-    expect(onClose).toHaveBeenCalled()
+    // The search still FIRES (SHOW_FOLLOWUPS is on) — this is the palette declining to offer the
+    // result, not the read being switched off, which is a different flag and a different test.
+    await waitFor(() => expect(mockSearchFollowUps).toHaveBeenCalledWith('acme'))
+    await waitFor(() =>
+      expect(screen.queryByRole('option', { name: /PT Acme/i })).toBeNull(),
+    )
   })
 
   it('#B2/GAP-3: AR Follow-ups stay dark while SHOW_FOLLOWUPS is off — the search is never fired', async () => {
