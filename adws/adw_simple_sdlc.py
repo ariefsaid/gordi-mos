@@ -50,6 +50,18 @@ on the branch. A run that fails verification therefore commits NOTHING — the
 plan stays on the trace as the record of what was asked, and the unfinished
 code stays dirty in the working tree where the engineer can see it.
 
+Which is why a findings rerun commits more than its findings (MOS #390): it
+enters on the tree the failed run left behind, so `git add -A` picks up that
+whole change plus the fix-up, while the builder writes `commit_message` for
+the work it was asked to do — the findings. Five reruns, five messages that
+described the last edit and none of the commit; the worst filed a 7,937-line
+retirement under "Remove stale retired UI claims". The message is the only
+account of the change that travels with the code (the plan and the write-up
+are documentary and stay in the session dir), so the carried change is
+measured BEFORE the builder runs and named twice: in the prompt, so the
+subject describes the whole commit, and in the commit body in code, so the
+record is honest even when the subject is not.
+
 The documenter measures against the commit this run STARTED from, not against
 `main`, because by then the run has moved `main` itself. That baseline is
 pinned before the first commit phase and printed in the request phase.
@@ -79,6 +91,20 @@ FINDINGS_PROMPT = ("Close these findings against the existing plan (from run "
                    "{prior}). The plan is the previous envelope — read its "
                    "artifacts in full before changing anything; do not re-plan.\n\n"
                    "Findings:\n{findings}")
+
+# #390, both halves of naming the carried change. The prompt half asks for a
+# subject covering the whole commit; the body half is appended in code, so the
+# record stays honest whatever the builder writes.
+CARRIED_PROMPT = ("\n\nThis rerun commits more than these findings. The working tree "
+                  "already carries the change run {prior} left uncommitted when it "
+                  "failed verification ({carried}), and the commit at the end of this "
+                  "run contains that change AND your fix-up. Write `commit_message` "
+                  "for the whole commit: the subject a reader of `git log` needs for "
+                  "the diff they will actually find, not for the fix-up alone.")
+
+CARRIED_BODY = ("\n\nFindings rerun of run {prior} — this commit also contains the\n"
+                "change that run left uncommitted when it failed verification:\n"
+                "{carried}.")
 
 
 # The exact shape session.py mints (utils.new_id(8) -> token_hex): 8 lowercase
@@ -140,6 +166,24 @@ def _adopt_plan(run, plan: PlanOutput, prior_dir: Path) -> PlanOutput:
     return plan
 
 
+def _carried_change() -> str:
+    """The uncommitted change already in the tree, in one line — "" when clean.
+
+    A findings rerun starts on a dirty tree by construction: the run that
+    failed verification committed nothing and left its whole change there.
+    Measured HERE, before the builder edits anything, because afterwards the
+    carried change and the fix-up are one indistinguishable diff. Untracked
+    files are counted but contribute no line totals — `git diff` cannot see
+    them, and inventing numbers for them would be worse than saying so.
+    """
+    tracked, untracked = git_helper.diff_files("HEAD"), git_helper.untracked_files()
+    if not tracked and not untracked:
+        return ""
+    insertions, deletions = git_helper.diff_counts("HEAD")
+    new = f", {len(untracked)} new file(s)" if untracked else ""
+    return f"{len(tracked)} changed file(s), +{insertions} -{deletions}{new}"
+
+
 def main(prompt: str | None, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None,
          builder: str = "builder", reviewer: str = "reviewer",
          findings: str | None = None, from_adw_id: str | None = None) -> int:
@@ -158,10 +202,23 @@ def main(prompt: str | None, config: str = "adws/adw_sssf_config/sssf.config.yam
     builder_model = agents.resolve(cfg, builder).model   # commit attribution (#343)
     run = session.ensure(cfg, adw_id)
     baseline = git_helper.rev("HEAD")     # pinned before this run commits anything
+    # #390: what this run's commit will carry BESIDES the work it was asked to
+    # do. Only a findings rerun has any — a first pass starts clean, and one
+    # rerunning against an already-committed change finds nothing here either,
+    # so both keep the untouched message.
+    carried = _carried_change() if findings_mode else ""
+    if carried:
+        prompt += CARRIED_PROMPT.format(prior=from_adw_id, carried=carried)
 
     def commit(ph, envelope) -> None:
         """Commit what the preceding phase produced, in that agent's own words."""
         message = envelope.commit_message or f"sssf({run.adw_id}): {envelope.summary}"
+        # #390: the builder was asked for a whole-commit subject; this says what
+        # the commit holds regardless of what came back. Body text, not a
+        # trailer — commit_all's one derived Co-Authored-By line stays the last
+        # paragraph and the only one.
+        if carried:
+            message += CARRIED_BODY.format(prior=from_adw_id, carried=carried)
         # #343: the trailer names the model that built this — the executing
         # builder's roster model, never a hardcoded substrate.
         ph.log(sha=git_helper.commit_all(message, model=builder_model), message=message)
@@ -178,6 +235,7 @@ def main(prompt: str | None, config: str = "adws/adw_sssf_config/sssf.config.yam
             # The link between the two sessions lives here, on the request record.
             ph.log(input=prompt, baseline=git_helper.short_sha(baseline),
                    prior_adw_id=from_adw_id,
+                   carried=carried or "nothing — the tree was clean",
                    mode="findings rerun — plan reused from the prior session")
         else:
             ph.log(input=prompt, baseline=git_helper.short_sha(baseline))
