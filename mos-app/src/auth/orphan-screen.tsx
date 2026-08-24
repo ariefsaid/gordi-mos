@@ -20,7 +20,7 @@ export function OrphanScreen() {
             height: 40,
             backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
             color: 'var(--warning-foreground)',
-            fontSize: 20,
+            fontSize: 'var(--font-size-heading)',
           }}
           aria-hidden="true"
         >
@@ -30,7 +30,7 @@ export function OrphanScreen() {
         {/* Title — subheading (18px/600) */}
         <h1
           className="text-foreground font-semibold text-center mb-2"
-          style={{ fontSize: 20, lineHeight: 1.3 }}
+          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3 }}
         >
           Your account isn't set up yet
         </h1>

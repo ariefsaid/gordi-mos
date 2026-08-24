@@ -193,7 +193,7 @@ export function LoginPage() {
                 {confirmText}
               </p>
               {email && (
-                <p className="text-muted-foreground mt-1" style={{ fontSize: 15 }}>
+                <p className="text-muted-foreground mt-1" style={{ fontSize: 'var(--font-size-body-lg)' }}>
                   Sent to {email}
                 </p>
               )}
@@ -228,7 +228,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
             role="alert"
           >
@@ -240,7 +240,7 @@ export function LoginPage() {
         {/* Card title — subheading (18px/600) per design-plan §1 */}
         <h1
           className="text-foreground font-semibold"
-          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
+          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
         >
           Sign in
         </h1>
@@ -262,7 +262,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
               color: 'var(--status-lost-text)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
           >
             {error}
@@ -275,7 +275,7 @@ export function LoginPage() {
             <label
               htmlFor={emailId}
               className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 'var(--font-size-label)' }}
             >
               Email
             </label>
@@ -290,12 +290,13 @@ export function LoginPage() {
                 if (emailError) setEmailError('')
               }}
               disabled={isDisabled}
+              aria-required="true"
               aria-invalid={emailError ? 'true' : undefined}
               aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
               className="w-full bg-background text-foreground rounded-sm px-2.5 border"
               style={{
                 height: 32,
-                fontSize: 16,
+                fontSize: 'var(--font-size-touch-input)',
                 borderColor: emailError ? 'var(--destructive)' : 'var(--input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
@@ -306,7 +307,7 @@ export function LoginPage() {
               <p
                 id={emailErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'var(--status-lost-text)' }}
+                style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
               >
                 {emailError}
               </p>
@@ -319,7 +320,7 @@ export function LoginPage() {
             <label
               htmlFor={passwordId}
               className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 'var(--font-size-label)' }}
             >
               Password
             </label>
@@ -333,10 +334,11 @@ export function LoginPage() {
               className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
               style={{
                 height: 32,
-                fontSize: 16,
+                fontSize: 'var(--font-size-touch-input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
+              aria-required="true"
               aria-describedby={error ? errorId : undefined}
             />
             {/* fix-4: Forgot password link AFTER the password field (DOM order = tab order) */}
@@ -349,7 +351,7 @@ export function LoginPage() {
                 type="button"
                 className="text-primary font-medium hover:underline focus-visible:underline"
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--font-size-label)',
                 }}
                 disabled={isDisabled}
                 onClick={handleForgotPassword}
@@ -396,7 +398,7 @@ export function LoginPage() {
         {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
         <div className="my-5 flex items-center gap-3">
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
-          <span className="text-muted-foreground" style={{ fontSize: 15 }}>or</span>
+          <span className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body-lg)' }}>or</span>
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
         </div>
 

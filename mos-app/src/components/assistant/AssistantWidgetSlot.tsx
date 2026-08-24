@@ -20,7 +20,7 @@ function DataTableWidgetView({ widget }: { widget: DataTableWidget }) {
 
   return (
     <div className="flex flex-col gap-2" style={{ width: '100%' }}>
-      <h3 className="text-foreground font-semibold" style={{ fontSize: 14 }}>{widget.title}</h3>
+      <h3 className="text-foreground font-semibold" style={{ fontSize: 'var(--font-size-body)' }}>{widget.title}</h3>
       <DataTable
         columns={columns}
         rows={widget.rows}
