@@ -91,7 +91,7 @@ export const AvatarIdentity: Story = {
             <Avatar size="lg" placeholder="Aisyah Rahman" />
             <Avatar size="lg" placeholder="Putri Lestari" />
             <Avatar size="lg" placeholder="Budi Santoso" />
-            <Avatar size="lg" placeholder="Ibnu Hakim" />
+            <Avatar size="lg" placeholder="Bima Contoh" />
             <Avatar size="lg" type="rounded" placeholder="Nadia Pratama" />
           </div>
           <div className="v3-story-row">

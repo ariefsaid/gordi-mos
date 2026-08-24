@@ -35,6 +35,8 @@ const serviceBoundaryAliases = [
   { find: '@', replacement: srcPath },
 ]
 
+// Public repo, shared machines: no usage telemetry from ANY entry point,
+// not only the wrapper script that already set the env var.
 const config: StorybookConfig = {
   stories: ['../src/stories/v3/**/*.stories.@(ts|tsx)'],
   addons: ['@storybook/addon-a11y'],
@@ -43,6 +45,7 @@ const config: StorybookConfig = {
     name: '@storybook/react-vite',
     options: {},
   },
+  core: { disableTelemetry: true },
   viteFinal: async (viteConfig) => {
     const finalConfig = mergeConfig(viteConfig, {
       resolve: { alias: serviceBoundaryAliases },

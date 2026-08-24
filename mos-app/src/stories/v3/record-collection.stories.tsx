@@ -210,7 +210,7 @@ function makeDescriptor(opts: {
         label: record.title,
         content: null,
       }),
-      toCanonicalPage: (id) => ({ pathname: `/work/tasks/${id}` }),
+      toCanonicalPage: (id) => ({ pathname: `/work/tasks/${id}` /* port note: v4 linked the pre-v4 /tasks/:id; retired-paths guard caught it */ }),
     },
   }
 }

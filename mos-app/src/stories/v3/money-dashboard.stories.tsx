@@ -86,12 +86,12 @@ function KpiTileMatrixSpecimen() {
           (filter-in-place) whose selected state carries the primary ring and aria-current.
         </p>
         <div className="dash-kpi-grid">
-          <KPITile label="Trailing 7-day revenue" value="Rp 285,2 jt"
+          <KPITile label="Trailing 7-day revenue" value="Rp 123,4 jt"
             delta={{ text: '+4,2% vs prev', tone: 'success', dot: true }} />
-          <KPITile label="Trailing 30-day revenue" value="Rp 1,2 M"
+          <KPITile label="Trailing 30-day revenue" value="Rp 9,9 M"
             delta={{ text: '-6,1% vs prev', tone: 'destructive', dot: true }}
             onClick={() => setSelected(!selected)} selected={selected} />
-          <KPITile label="Avg check" value="Rp 58.775" sub="revenue + transactions"
+          <KPITile label="Avg check" value="Rp 12.345" sub="revenue + transactions"
             help="Trailing-window revenue ÷ transactions." />
           <KPITile label="Gross margin %" value="35,6%"
             delta={{ text: '±0,0% vs prev', tone: 'neutral' }}
@@ -151,10 +151,10 @@ function KpiMixSpanSpecimen() {
           only engages below ~371px viewports; the grammar never wraps.
         </p>
         <div className="dash-kpi-grid" data-testid="mix-span-grid">
-          <KPITile label="Trailing 7-day revenue" value="Rp 285,2 jt" />
-          <KPITile label="Trailing 30-day revenue" value="Rp 1,2 M" />
+          <KPITile label="Trailing 7-day revenue" value="Rp 123,4 jt" />
+          <KPITile label="Trailing 30-day revenue" value="Rp 9,9 M" />
           <KPITile label="Latest reporting-day revenue" value="Rp 39,8 jt" sub="2026-07-22" />
-          <KPITile label="Avg check" value="Rp 58.775" sub="revenue + transactions" />
+          <KPITile label="Avg check" value="Rp 12.345" sub="revenue + transactions" />
           <KPITile label="Channel mix" value="POS 83% · B2B 17%" sub="trailing window"
             className="dash-kpi-tile--mix" />
         </div>
