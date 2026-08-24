@@ -603,7 +603,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     const user = userEvent.setup()
     render(<KitchenPlanPage />, { wrapper })
     // PlanQtyField's aria is English in both locales (out-of-scope finding — see plan notes)
-    const input = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
     await user.type(input, '15{Enter}')
     expect(await screen.findByText('Menyimpan…')).toBeInTheDocument()
     expect(screen.queryByText(/saving/i)).toBeNull()
@@ -614,7 +614,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
   it('(#401) the saved tick reads from the catalog ("Tersimpan"), never hardcoded "Saved"', async () => {
     const user = userEvent.setup()
     render(<KitchenPlanPage />, { wrapper })
-    const input = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
     await user.type(input, '15{Enter}')
     expect(await screen.findByText(/tersimpan/i)).toBeInTheDocument()
     expect(screen.queryByText(/saved/i)).toBeNull()
