@@ -1,5 +1,13 @@
+// The review band's derivation, reshaped for the DESIGN.md "Metric summary rule"
+// (DD-WAY-40, ratified OD-WAY-74): the band is ONE inline line of label:value
+// metrics, not four KPI tiles. The old shape's 'Production gate' tile put a WORD
+// ('open'/'clear') in the number slot — the exact defect class DD-WAY-40 kills —
+// and its state already renders per-group as the FR-042 gate message, so the rule
+// would only restate it. Neutral deltas and restating captions are omitted by
+// construction: the only delta this derivation ever emits is the off-plan
+// note-gate, and only when an off-plan row exists to act on.
 import { useMemo } from 'react'
-import type { KitchenKpiStripData } from '@/lib/kitchen-kpis'
+import type { MessageKey } from '@/i18n/messages'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { movementKey, streamKey } from '@/lib/kitchen-action-label'
 
@@ -19,55 +27,47 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
   ] ?? 0
 }
 
-export function computeReviewKpis(logs: ReviewLogRow[], streamPlans: Map<string, PlanMap>): KitchenKpiStripData {
+export interface ReviewSummaryDelta {
+  key: MessageKey
+  tone: 'destructive' | 'success'
+}
+
+export interface ReviewSummaryMetric {
+  key: string
+  label: MessageKey
+  value: string
+  delta?: ReviewSummaryDelta
+}
+
+export interface ReviewSummary {
+  ariaLabel: MessageKey
+  metrics: ReviewSummaryMetric[]
+}
+
+export function computeReviewSummary(logs: ReviewLogRow[], streamPlans: Map<string, PlanMap>): ReviewSummary {
   let onPlanCount = 0
   let offPlanCount = 0
-  let transferWaiting = 0
-  const productionPending = logs.some(log => log.action === 'produce')
-
   for (const log of logs) {
     if (log.qty_porsi === planQtyFor(streamPlans, log)) onPlanCount += 1
     else offPlanCount += 1
-    if (productionPending && log.action === 'transfer') transferWaiting += 1
   }
-
   return {
-    ariaLabel: 'Review summary',
-    phoneLabel: 'Review',
-    phoneValue: `${logs.length} submitted`,
-    phoneMeta: `${offPlanCount} off-plan`,
-    tiles: [
+    ariaLabel: 'kitchen.review.summary.aria',
+    metrics: [
+      { key: 'submitted', label: 'kitchen.review.summary.submitted', value: String(logs.length) },
+      { key: 'onPlan', label: 'kitchen.review.summary.onPlan', value: String(onPlanCount) },
       {
-        label: 'Submitted',
-        value: String(logs.length),
-        delta: productionPending ? 'production first' : 'queue clear order',
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: 'awaiting decision',
-      },
-      {
-        label: 'On-plan',
-        value: String(onPlanCount),
-        delta: `${logs.length} in queue`,
-        deltaTone: 'success',
-        sub: 'ready to approve',
-      },
-      {
-        label: 'Off-plan',
+        key: 'offPlan',
+        label: 'kitchen.review.summary.offPlan',
         value: String(offPlanCount),
-        delta: offPlanCount > 0 ? 'note gate on approve' : 'none',
-        deltaTone: offPlanCount > 0 ? 'destructive' : 'success',
-      },
-      {
-        label: 'Production gate',
-        value: productionPending ? 'open' : 'clear',
-        delta: transferWaiting > 0 ? `${transferWaiting} transfer waiting` : 'no transfer blocked',
-        deltaTone: transferWaiting > 0 ? 'destructive' : 'success',
+        delta: offPlanCount > 0
+          ? { key: 'kitchen.review.summary.noteGate', tone: 'destructive' }
+          : undefined,
       },
     ],
   }
 }
 
-export function useReviewKpis(logs: ReviewLogRow[], streamPlans: Map<string, PlanMap>): KitchenKpiStripData {
-  return useMemo(() => computeReviewKpis(logs, streamPlans), [logs, streamPlans])
+export function useReviewSummary(logs: ReviewLogRow[], streamPlans: Map<string, PlanMap>): ReviewSummary {
+  return useMemo(() => computeReviewSummary(logs, streamPlans), [logs, streamPlans])
 }

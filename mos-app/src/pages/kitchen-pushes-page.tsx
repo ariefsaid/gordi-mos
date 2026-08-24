@@ -227,6 +227,53 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
   ]
 }
 
+// ── #422: the phone card ──────────────────────────────────────────────────────
+// The generic <dl> card stacked all ten columns as labelled rows (~10 lines) per
+// push — right for reading one record, wrong for running down a long outbox during
+// triage. Head line: batch ref + status; ONE muted meta line: env, endpoint,
+// retries, created/posted; the error + escalate block ONLY when the row carries one.
+function pushCardRenderer(t: ReturnType<typeof useT>) {
+  return function renderPushCard(row: EsbPushRow) {
+    const isDeadLetter = row.status === 'dead_letter'
+    const showError = (row.status === 'failed' || isDeadLetter) && row.last_error
+    const statusTag = isHeld(row)
+      ? <Tag color="sand" weight="medium">{t('kitchen.pushes.status.held')}</Tag>
+      : (() => {
+          const cfg = STATUS_TAG[row.status]
+          return (
+            <Tag color={cfg.color} weight="medium" style={cfg.textVar ? { color: cfg.textVar } : undefined}>
+              {t(cfg.key)}
+            </Tag>
+          )
+        })()
+    return (
+      <div className="kpu-card">
+        <div className="kpu-card-head">
+          <code className="kpu-ref mono">{row.source_ref}</code>
+          {statusTag}
+        </div>
+        <div className="kpu-card-meta">
+          <span>{t(ENV_TAG[row.target_env].key)}</span>
+          <span>{t(ENDPOINT_LABEL[row.endpoint])}</span>
+          {row.retry_count > 0 && <span className="tabular">{t('kitchen.pushes.col.retries')} {row.retry_count}</span>}
+          <span className="tabular">{formatDate(row.created_at)}</span>
+          {row.esb_doc_num && <code className="kpu-ref mono">{row.esb_doc_num}</code>}
+        </div>
+        {showError && (
+          <div className="kpu-card-error">
+            <span className="kpu-cell-muted">{row.last_error}</span>
+            {isDeadLetter && (
+              <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
+                {t('kitchen.pushes.escalate')}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function KitchenPushesPage() {
@@ -294,11 +341,25 @@ export function KitchenPushesPage() {
     )
   }
 
+  // #422: the page head answers "what is stuck", not only "how many" — the two counts a
+  // lead triages by, rendered only when non-zero so a healthy outbox head stays quiet.
+  const deadLetterCount = rows.filter(r => r.status === 'dead_letter').length
+  const failedCount = rows.filter(r => r.status === 'failed').length
+  const headMeta = (deadLetterCount > 0 || failedCount > 0)
+    ? (
+        <span className="kpu-meta-line">
+          {deadLetterCount > 0 && <span className="kpu-meta-dead">{t('kitchen.pushes.meta.deadLetter', { count: String(deadLetterCount) })}</span>}
+          {failedCount > 0 && <span className="kpu-meta-failed">{t('kitchen.pushes.meta.failed', { count: String(failedCount) })}</span>}
+        </span>
+      )
+    : undefined
+
   return (
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
       jobSentence={t('job.cafe')}
+      meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
       {load.kind === 'loading' && <LoadingShell count={3} />}
@@ -338,6 +399,7 @@ export function KitchenPushesPage() {
             columns={pushColumns(t)}
             rows={rows}
             isDesktop={isDesktop}
+            renderCard={pushCardRenderer(t)}
             // #416: fixed-layout column widths — the table fits its frame instead of
             // pushing Created/Posted off screen behind a page-wide scrollbar.
             tableClassName="kpu-cols"

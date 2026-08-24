@@ -14,7 +14,7 @@
 // never by the derived label string).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -834,5 +834,57 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(await screen.findByText('Anda tidak memiliki izin untuk meninjau log ini.')).toBeInTheDocument()
+  })
+})
+
+// ── #422 / DD-WAY-40: phone card + the summary rule ──────────────────────────
+// Default jsdom matchMedia is `matches: false` → phone, so DataTable takes the
+// card path. These assert the card's OWN anatomy (they fail against the generic
+// <dl> fallback — proven by removing the renderCard prop) and that the figures
+// band is the DESIGN.md Metric summary rule, never a tile strip.
+describe('KitchenReviewPage — phone card + summary rule (#422 / DD-WAY-40)', () => {
+  it('renders the purpose-built card: head, ONE meta line, decision controls reachable', async () => {
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    render(<KitchenReviewPage />)
+    const card = (await screen.findByText('Nasi Goreng')).closest('.krow-card')
+    expect(card).not.toBeNull()
+    expect(card!.querySelector('.krow-card-head')).not.toBeNull()
+    expect(card!.querySelector('.krow-card-meta')).not.toBeNull()
+    // the submit note renders only when the row carries one — PROD_LOG does
+    expect(card!.querySelector('.krow-card-note')?.textContent).toContain('kurang bahan')
+    // the SAME decision component the desktop table mounts, inside the card
+    expect(within(card as HTMLElement).getByRole('button', { name: /approve|setujui/i })).toBeInTheDocument()
+    expect(document.querySelector('.dt-card-detail')).toBeNull()
+  })
+
+  it('a row with no note renders NO note block', async () => {
+    mockList.mockResolvedValue([XFER_LOG])
+    mockPlan.mockResolvedValue({ w2: { [`transfer:${RADIANT_ID}`]: 42 } })
+    render(<KitchenReviewPage />)
+    const card = (await screen.findByText('Cold Brew')).closest('.krow-card')!
+    expect(card.querySelector('.krow-card-note')).toBeNull()
+  })
+
+  it('the figures band is the summary RULE (one line, no tiles), and the note-gate delta renders only when off-plan rows exist', async () => {
+    mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } }) // XFER off-plan (42 vs 40)
+    render(<KitchenReviewPage />)
+    await screen.findByText('Nasi Goreng')
+    const band = document.querySelector('.msr')
+    expect(band).not.toBeNull()
+    // never the retired tile strip
+    expect(document.querySelector('.kks-wrap, .kitchen-kpi-strip, [class*="kpi-tile"]')).toBeNull()
+    // the delta carries an actionable state: off-plan rows need a note to approve
+    expect(band!.querySelector('.msr-delta--destructive')).not.toBeNull()
+  })
+
+  it('with every row on plan, the band renders NO delta at all (no neutral noise)', async () => {
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    render(<KitchenReviewPage />)
+    await screen.findByText('Nasi Goreng')
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(document.querySelector('.msr-delta')).toBeNull()
   })
 })

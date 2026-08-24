@@ -168,3 +168,29 @@
   margin-bottom: 16px;
   font-size: var(--font-size-body);
 }
+
+/* ── #422: the phone card ─────────────────────────────────────────────────────
+   Ten columns as labelled <dl> rows read one record fine but bury the broken row
+   in a long outbox. Head: ref + status. ONE muted meta line. Error only when real. */
+.kpu-card { display: flex; flex-direction: column; gap: 6px; }
+.kpu-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kpu-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+.kpu-card-error { display: flex; flex-direction: column; gap: 2px; font-size: var(--font-size-label); }
+.kpu-meta-line { display: inline-flex; gap: 12px; font-size: var(--font-size-label); }
+/* needs-attention counts: amber for failed (retrying), the darkened destructive text
+   token for dead-letter — text on the page background, never a filled row treatment */
+.kpu-meta-dead { color: var(--status-lost-text); font-weight: 600; }
+.kpu-meta-failed { color: var(--status-open-text); font-weight: 600; }

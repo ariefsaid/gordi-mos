@@ -648,3 +648,52 @@ describe('KitchenPushesPage — #416: the table stays inside its frame', () => {
     expect(css).toMatch(/nth-child\(6\)\s*\{\s*width:\s*auto/)
   })
 })
+
+// ── #422: the phone card ─────────────────────────────────────────────────────
+// The generic <dl> fallback stacked all ten columns as labelled rows per push.
+// These assert the card's OWN anatomy, so they FAIL against that fallback (proven
+// by temporarily removing the renderCard prop): head = ref + status, ONE muted
+// meta line, and the error block only when the row actually carries one.
+describe('KitchenPushesPage — phone card (#422)', () => {
+  it('renders the purpose-built card: ref+status head, one meta line, no <dl> fallback', async () => {
+    setViewport(false)
+    mockListPushes.mockResolvedValue([
+      { ...POSTED_ROW, id: 'p1', source_ref: 'PR2606210001' },
+    ])
+    render(<KitchenPushesPage />)
+    const card = (await screen.findByText('PR2606210001')).closest('.kpu-card')
+    expect(card).not.toBeNull()
+    expect(card!.querySelector('.kpu-card-head')).not.toBeNull()
+    expect(card!.querySelector('.kpu-card-meta')).not.toBeNull()
+    // a healthy row carries NO error block — this is what kills the 10-line stack
+    expect(card!.querySelector('.kpu-card-error')).toBeNull()
+    expect(document.querySelector('.dt-card-detail')).toBeNull()
+  })
+
+  it('a dead-letter card shows the error + escalate hint; the page head counts it', async () => {
+    setViewport(false)
+    mockListPushes.mockResolvedValue([
+      { ...DEAD_LETTER_ROW, id: 'p1', source_ref: 'PR2606210001', last_error: 'EC031 rejected' },
+      { ...FAILED_ROW, id: 'p2', source_ref: 'PR2606210002' },
+      { ...POSTED_ROW, id: 'p3', source_ref: 'PR2606210003', esb_doc_num: 'SMF002' },
+    ])
+    render(<KitchenPushesPage />)
+    const dead = (await screen.findByText('PR2606210001')).closest('.kpu-card')!
+    expect(dead.querySelector('.kpu-card-error')).not.toBeNull()
+    expect(dead.textContent).toContain('EC031 rejected')
+    // the head meta answers "what is stuck", not only "how many"
+    expect(document.querySelector('.kpu-meta-dead')?.textContent).toContain('1')
+    expect(document.querySelector('.kpu-meta-failed')?.textContent).toContain('1')
+    // the healthy card stays quiet
+    const ok = (await screen.findByText('PR2606210003')).closest('.kpu-card')!
+    expect(ok.querySelector('.kpu-card-error')).toBeNull()
+  })
+
+  it('a healthy outbox renders NO head meta line at all', async () => {
+    setViewport(false)
+    mockListPushes.mockResolvedValue([{ ...POSTED_ROW, id: 'p1', source_ref: 'PR2606210001' }])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR2606210001')
+    expect(document.querySelector('.kpu-meta-line')).toBeNull()
+  })
+})
