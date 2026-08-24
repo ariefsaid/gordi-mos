@@ -5,6 +5,7 @@ import { useBreadcrumbTitle } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 
 // Shell breadcrumb — Redesign Step 2 (§9). `·` separator, last segment bold, no brand
 // prefix (brand lives in TopBar — OD-P4-11 dedup). Resolves the new destinations +
@@ -12,13 +13,15 @@ import { useT } from '@/i18n/use-t'
 // task title via BreadcrumbTitleProvider (AC-019). Unknown/404 routes render nothing.
 // §Task-11 (Issue-8 gate): no `team` leaf — the Team-work view was removed until Issue 8 lands the
 // real Task team_id contract.
-const VIEW_LEAF: Record<string, string> = {
-  mine: 'My work',
-  overdue: 'Overdue',
-  followups: 'AR Follow-ups',
+// #410: leaf labels are catalog KEYS (translated at render), never literals — the saved-view
+// chips these leaves mirror already resolve the same keys.
+const VIEW_LEAF: Record<string, MessageKey> = {
+  mine: 'tasks.saved.mine',
+  overdue: 'followUps.overdue',
+  followups: 'tasks.saved.followups',
 }
 
-function viewLeaf(search: string): string | null {
+function viewLeafKey(search: string): MessageKey | null {
   const params = new URLSearchParams(search)
   const v = params.get('view')
   if (!v || v === 'all') return null
@@ -68,15 +71,15 @@ export function Breadcrumb() {
     // Work child label (Signals/Tasks/Projects & Processes/Objectives) — record routes
     // resolve to their owning child (e.g. /work/tasks/123 → Tasks).
     const child = sectionForPath(pathname)
-    const childLabel = child ? (child.labelKey ? t(child.labelKey) : child.label) : 'Tasks'
+    const childLabel = child ? (child.labelKey ? t(child.labelKey) : child.label) : t('nav.tasks')
     crumbs.push(childLabel)
     if (pathname === '/work/tasks/new') {
-      crumbs.push('Create task') // OD-71i verb family
+      crumbs.push(t('tasks.create.new')) // OD-71i verb family
     } else if (dynamicTitle) {
       crumbs.push(dynamicTitle)
     } else {
-      const v = viewLeaf(search)
-      if (v) crumbs.push(v)
+      const v = viewLeafKey(search)
+      if (v) crumbs.push(t(v))
     }
   } else if (destination.id === 'money') {
     if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))

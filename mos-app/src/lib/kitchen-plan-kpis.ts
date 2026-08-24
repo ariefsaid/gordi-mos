@@ -2,12 +2,18 @@ import { useMemo } from 'react'
 import type { KitchenKpis, KitchenKpiStripData } from '@/lib/kitchen-kpis'
 import type { KitchenMovement, PlanCell } from '@/lib/db/kitchen-logs.types'
 import { movementKey } from '@/lib/kitchen-action-label'
+import { useT, type Translate } from '@/i18n/use-t'
 
 // #247: this module used to scope by the removed action_type column. A plan cell now
 // carries a KitchenMovement (DD-WAY-13); cells are compared by movementKey, the same
 // index the plan editor and the review queue key their maps on. The caller supplies the
-// movement's already-derived display label (deriveActionLabel) — this module stays pure
-// (no i18n `t`, no branch catalog) so it is unit-testable without either.
+// movement's already-derived display label (deriveActionLabel) — no branch catalog here.
+//
+// #410 (same lane as #400's stock strip): every label, delta and sub-line below was a
+// hardcoded English literal, so Café · Plan's KPI band stayed English in the Indonesian
+// locale. `tr` is injected per the #411 stock contract — REQUIRED, no inline-English
+// fallback; a caller outside React passes `translateFor(...)`, which is what the unit
+// test does. `usePlanKpiStripData` keeps its public signature and injects `useT()` itself.
 
 export function computePlanKpis(
   cells: PlanCell[],
@@ -41,47 +47,54 @@ export function computePlanKpiStripData(
   cells: PlanCell[],
   movement: KitchenMovement,
   movementLabel: string,
+  tr: Translate,
 ): KitchenKpiStripData {
   const kpis = computePlanKpis(cells, movement)
-  const statusLabel = kpis.plannedTotal > 0 ? 'Ready' : 'No plan created yet'
+  const statusLabel = kpis.plannedTotal > 0
+    ? tr('kitchen.plan.kpi.status.ready')
+    : tr('kitchen.plan.kpi.status.none')
 
   return {
-    ariaLabel: 'Planning summary',
-    phoneLabel: 'Plan',
-    phoneValue: `${kpis.plannedDishCount} dishes`,
+    ariaLabel: tr('kitchen.plan.kpi.ariaLabel'),
+    phoneLabel: tr('kitchen.plan.kpi.phoneLabel'),
+    phoneValue: tr('kitchen.plan.kpi.dishCount', { count: kpis.plannedDishCount }),
     phoneMeta: movementLabel,
     tiles: [
       {
-        label: 'Planned total',
+        label: tr('kitchen.plan.kpi.plannedTotal'),
         value: String(kpis.plannedTotal),
-        delta: `${kpis.plannedDishCount} dishes`,
+        delta: tr('kitchen.plan.kpi.dishCount', { count: kpis.plannedDishCount }),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'portions',
+        sub: tr('kitchen.plan.kpi.plannedTotal.sub'),
       },
       {
-        label: 'Dishes planned',
+        label: tr('kitchen.plan.kpi.dishesPlanned'),
         value: String(kpis.plannedDishCount),
         delta: movementLabel,
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'current action',
+        sub: tr('kitchen.plan.kpi.dishesPlanned.sub'),
       },
       {
-        label: 'Active action',
+        label: tr('kitchen.plan.kpi.activeAction'),
         value: movementLabel,
-        delta: kpis.plannedTotal > 0 ? `${kpis.plannedTotal} portions set` : 'set targets',
+        delta: kpis.plannedTotal > 0
+          ? tr('kitchen.plan.kpi.activeAction.delta', { count: kpis.plannedTotal })
+          : tr('kitchen.plan.kpi.activeAction.setTargets'),
         deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
         deltaDot: false,
-        sub: 'editing today',
+        sub: tr('kitchen.plan.kpi.activeAction.sub'),
       },
       {
-        label: 'Plan status',
+        label: tr('kitchen.plan.kpi.status'),
         value: statusLabel,
-        delta: kpis.plannedTotal > 0 ? 'targets set' : 'nothing planned',
+        delta: kpis.plannedTotal > 0
+          ? tr('kitchen.plan.kpi.status.targetsSet')
+          : tr('kitchen.plan.kpi.status.nothingPlanned'),
         deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
         deltaDot: false,
-        sub: 'write surface',
+        sub: tr('kitchen.plan.kpi.status.sub'),
       },
     ],
   }
@@ -99,8 +112,9 @@ export function usePlanKpiStripData(
   movement: KitchenMovement,
   movementLabel: string,
 ): KitchenKpiStripData {
+  const t = useT()
   return useMemo(
-    () => computePlanKpiStripData(cells, movement, movementLabel),
-    [cells, movement, movementLabel],
+    () => computePlanKpiStripData(cells, movement, movementLabel, t),
+    [cells, movement, movementLabel, t],
   )
 }
