@@ -442,6 +442,10 @@ export const messages = {
     'commandMenu.action.askDeputy': 'Ask Deputy',
     'commandMenu.action.shareSignal': 'Share Signal',
     'commandMenu.action.createTask': 'Create task',
+    // #407 — the floor's one-tap capture path: the launcher's Café log entry, shown to viewers
+    // the /cafe/log route admits. Same verb+object shape as the actions above; "Café … log"
+    // is the catalog's own vocabulary (dest.cafe / nav.cafe.log).
+    'commandMenu.action.logCafe': 'Log Café production',
     'commandMenu.error.searchRecords': "Couldn't search records.",
     'commandMenu.status.searchingRecords': 'Searching records',
     'commandMenu.empty.noMatches': 'No matches for “${query}”.',
@@ -1705,6 +1709,8 @@ export const messages = {
     'commandMenu.action.askDeputy': 'Tanya Deputi',
     'commandMenu.action.shareSignal': 'Bagikan Sinyal',
     'commandMenu.action.createTask': 'Buat tugas',
+    // #407 — jalur pencatatan satu-ketuk untuk staf lantai (lihat catatan di lokal en).
+    'commandMenu.action.logCafe': 'Catat produksi Kafe',
     'commandMenu.error.searchRecords': 'Tidak dapat mencari rekaman.',
     'commandMenu.status.searchingRecords': 'Mencari rekaman',
     'commandMenu.empty.noMatches': 'Tidak ada hasil untuk “${query}”.',
