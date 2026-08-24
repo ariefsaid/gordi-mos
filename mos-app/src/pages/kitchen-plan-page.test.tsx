@@ -315,7 +315,11 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
   })
 
-  it('renders the derived KPI strip with the planned total (Σ qty_porsi for the action)', async () => {
+  // ── #401 / DD-WAY-40 (OD-WAY-74 #2 "enforce"): the figures band is the Metric
+  // summary rule — one inline line of label:value, never a tile row. The retired
+  // word-tiles ('Active action'/'Plan status' with 'write surface'/'editing today'
+  // captions) are the exact defect class the rule kills on a capture surface.
+  it('the figures band is the summary RULE: two numbers, no tiles (#401/DD-WAY-40)', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -330,12 +334,17 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → planned total = 12
-    const region = screen.getByRole('region', { name: /planning summary/i })
-    expect(region).toHaveTextContent('12')
+    // PLAN_CELLS has one Production cell: Ayam Bakar qty 12 → total 12, dishes 1
+    const band = screen.getByRole('group', { name: /planning summary/i })
+    expect(document.querySelector('.msr')).not.toBeNull()
+    // never the retired tile strip (KitchenKpiStrip stays for Stock, not here)
+    expect(document.querySelector('.kks')).toBeNull()
+    const values = Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)
+    expect(values).toEqual(['12', '1'])
+    expect(values.every(v => /^\d+$/.test(v ?? ''))).toBe(true)
   })
 
-  it('renders plan-specific KPI labels (not Log labels)', async () => {
+  it('renders the two plan metrics under their catalog labels — never the retired word-tiles', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -350,16 +359,17 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-
     expect(screen.getByText(/planned total/i)).toBeInTheDocument()
     expect(screen.getByText(/dishes planned/i)).toBeInTheDocument()
-    expect(screen.getByText(/active action/i)).toBeInTheDocument()
-    expect(screen.getByText(/plan status/i)).toBeInTheDocument()
+    expect(screen.queryByText(/active action/i)).toBeNull()
+    expect(screen.queryByText(/plan status/i)).toBeNull()
+    expect(screen.queryByText(/write surface/i)).toBeNull()
+    expect(screen.queryByText(/editing today/i)).toBeNull()
     expect(screen.queryByText(/made so far/i)).toBeNull()
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
-  it('plan-status KPI shows human empty copy, never the literal token "empty"', async () => {
+  it('an empty plan keeps NUMBER slots (0/0) — the human sentence lives in the page note, not the band', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -375,9 +385,9 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     mockPlans.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-
-    expect(screen.getByText('No plan created yet')).toBeInTheDocument()
-    expect(screen.queryByText(/^empty$/i)).toBeNull()
+    const band = screen.getByRole('group', { name: /planning summary/i })
+    expect(Array.from(band.querySelectorAll('.msr-value')).map(el => el.textContent)).toEqual(['0', '0'])
+    expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
   it('explains an empty plan as a live-entered absence', async () => {
@@ -410,6 +420,22 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     // selector update, the goal (category group label renders) is unchanged.
     const labels = Array.from(container.querySelectorAll('.dt-cards-group-label')).map(el => el.textContent)
     expect(labels).toContain('Main')
+  })
+
+  it('(#401) the editor carries in-app help — HelpTip in the meta line (H10)', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.click(screen.getByRole('button', { name: /^help$/i }))
+    const panel = await screen.findByRole('note')
+    expect(panel.textContent).toContain('there is no submit button')
+  })
+
+  it('(#401) the editor dish name drills to the Café log (/cafe/log?q=<dish>)', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(
+      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
+    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
@@ -485,5 +511,112 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+  })
+
+  it('(#401) the pesanan item name drills to the Café log too', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(
+      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
+    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+  })
+
+  it('(#401) a member can find a dish by name — search narrows the horizon (Nielsen Café·Plan 16/32: ~231 rows, no way to narrow)', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: /find a dish in the plan/i }),
+      { target: { value: 'nasi' } },
+    )
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('(#401/I7) hydrates the pesanan search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?q=nasi']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByRole('searchbox', { name: /find a dish in the plan/i })).toHaveValue('nasi')
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('(#401) the category filter narrows the horizon too', async () => {
+    mockPesanan.mockResolvedValue([
+      { ...PESANAN[0], category: 'Main' },
+      { ...PESANAN[1], category: 'Rice' },
+    ])
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Rice' } })
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('(#401) a filter that matches nothing shows the shared no-match copy, not a broken table', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.change(
+      screen.getByRole('searchbox', { name: /find a dish in the plan/i }),
+      { target: { value: 'zzz' } },
+    )
+    expect(await screen.findByText(/no dishes match your filter/i)).toBeInTheDocument()
+  })
+
+  it('(#401) the read-only face explains itself and offers the log CTA', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText(/this is the 14-day order horizon/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute('href', '/cafe/log')
+    // AC-024 still held: the explainer adds no capture affordance
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
+})
+
+// ── #401 locale seam: the band and the save status render the active locale ──────
+describe('KitchenPlanPage — locale id (#401)', () => {
+  beforeEach(() => {
+    localStorage.setItem('mos.locale', 'id')
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+  })
+  afterEach(() => localStorage.clear())
+
+  it('the summary band renders Indonesian (reused plannedTotal key + the new label)', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('group', { name: 'Ringkasan perencanaan' })).toBeInTheDocument()
+    expect(screen.getByText('Total rencana')).toBeInTheDocument()
+    expect(screen.getByText('Menu direncanakan')).toBeInTheDocument()
+    expect(screen.queryByText(/planned total/i)).toBeNull()
+  })
+
+  it('(#401) the in-flight save status is catalog Indonesian, never hardcoded "Saving…"', async () => {
+    let release!: (id: string) => void
+    mockUpsert.mockImplementation(() => new Promise<string>(r => { release = r }))
+    const user = userEvent.setup()
+    render(<KitchenPlanPage />, { wrapper })
+    // PlanQtyField's aria is English in both locales (out-of-scope finding — see plan notes)
+    const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
+    await user.type(input, '15{Enter}')
+    expect(await screen.findByText('Menyimpan…')).toBeInTheDocument()
+    expect(screen.queryByText(/saving/i)).toBeNull()
+    release('new-id')
+    await waitFor(() => expect(input).not.toBeDisabled())
+  })
+
+  it('(#401) the saved tick reads from the catalog ("Tersimpan"), never hardcoded "Saved"', async () => {
+    const user = userEvent.setup()
+    render(<KitchenPlanPage />, { wrapper })
+    const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
+    await user.type(input, '15{Enter}')
+    expect(await screen.findByText(/tersimpan/i)).toBeInTheDocument()
+    expect(screen.queryByText(/saved/i)).toBeNull()
   })
 })

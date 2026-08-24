@@ -1,24 +1,37 @@
+// The Plan band's derivation, reshaped for the DESIGN.md "Metric summary rule"
+// (DD-WAY-40, ratified OD-WAY-74 #2 — #401): ONE inline line of label:value metrics,
+// never a KPI tile row. The old shape put WORDS in the number slots ('Active action' =
+// a movement label, 'Plan status' = 'Ready'/'No plan created yet') with dev-jargon
+// captions ('write surface', 'editing today') — exactly what the rule forbids on a
+// capture surface (OD-WAY-74 #2: "enforce"). Two numbers only: the planned-portion
+// total and the dish count for the current movement. The first label REUSES
+// kitchen.kpi.plannedTotal — the same concept Log's meta line already names. No delta
+// is ever emitted: deltas carry a state worth acting on (destructive/success) and a
+// plan band has none; neutral restating captions are omitted by construction.
+//
+// #247: cells carry a KitchenMovement (DD-WAY-13), not the removed action_type column
+// — comparisons go through movementKey, same as the plan editor and review queue. The
+// module stays pure (no i18n `t`, no branch catalog): labels are MessageKeys the page
+// translates.
 import { useMemo } from 'react'
-import type { KitchenKpis, KitchenKpiStripData } from '@/lib/kitchen-kpis'
+import type { MessageKey } from '@/i18n/messages'
 import type { KitchenMovement, PlanCell } from '@/lib/db/kitchen-logs.types'
 import { movementKey } from '@/lib/kitchen-action-label'
-import { useT, type Translate } from '@/i18n/use-t'
 
-// #247: this module used to scope by the removed action_type column. A plan cell now
-// carries a KitchenMovement (DD-WAY-13); cells are compared by movementKey, the same
-// index the plan editor and the review queue key their maps on. The caller supplies the
-// movement's already-derived display label (deriveActionLabel) — no branch catalog here.
-//
-// #410 (same lane as #400's stock strip): every label, delta and sub-line below was a
-// hardcoded English literal, so Café · Plan's KPI band stayed English in the Indonesian
-// locale. `tr` is injected per the #411 stock contract — REQUIRED, no inline-English
-// fallback; a caller outside React passes `translateFor(...)`, which is what the unit
-// test does. `usePlanKpiStripData` keeps its public signature and injects `useT()` itself.
+export interface PlanSummaryMetric {
+  key: string
+  label: MessageKey
+  value: string
+  /** never populated — the type seals the no-delta rule (DD-WAY-40) in the shape itself */
+  delta?: never
+}
 
-export function computePlanKpis(
-  cells: PlanCell[],
-  movement: KitchenMovement,
-): KitchenKpis {
+export interface PlanSummary {
+  ariaLabel: MessageKey
+  metrics: PlanSummaryMetric[]
+}
+
+export function computePlanSummary(cells: PlanCell[], movement: KitchenMovement): PlanSummary {
   let plannedTotal = 0
   let plannedDishCount = 0
   const key = movementKey(movement)
@@ -32,89 +45,14 @@ export function computePlanKpis(
   }
 
   return {
-    plannedTotal,
-    madeOfPlan: plannedTotal,
-    madeSoFar: plannedDishCount,
-    madeOffPlan: 0,
-    pctComplete: plannedTotal > 0 ? 100 : 0,
-    itemsRemaining: 0,
-    unitsShort: 0,
-    plannedDishCount,
-  }
-}
-
-export function computePlanKpiStripData(
-  cells: PlanCell[],
-  movement: KitchenMovement,
-  movementLabel: string,
-  tr: Translate,
-): KitchenKpiStripData {
-  const kpis = computePlanKpis(cells, movement)
-  const statusLabel = kpis.plannedTotal > 0
-    ? tr('kitchen.plan.kpi.status.ready')
-    : tr('kitchen.plan.kpi.status.none')
-
-  return {
-    ariaLabel: tr('kitchen.plan.kpi.ariaLabel'),
-    phoneLabel: tr('kitchen.plan.kpi.phoneLabel'),
-    phoneValue: tr('kitchen.plan.kpi.dishCount', { count: kpis.plannedDishCount }),
-    phoneMeta: movementLabel,
-    tiles: [
-      {
-        label: tr('kitchen.plan.kpi.plannedTotal'),
-        value: String(kpis.plannedTotal),
-        delta: tr('kitchen.plan.kpi.dishCount', { count: kpis.plannedDishCount }),
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: tr('kitchen.plan.kpi.plannedTotal.sub'),
-      },
-      {
-        label: tr('kitchen.plan.kpi.dishesPlanned'),
-        value: String(kpis.plannedDishCount),
-        delta: movementLabel,
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: tr('kitchen.plan.kpi.dishesPlanned.sub'),
-      },
-      {
-        label: tr('kitchen.plan.kpi.activeAction'),
-        value: movementLabel,
-        delta: kpis.plannedTotal > 0
-          ? tr('kitchen.plan.kpi.activeAction.delta', { count: kpis.plannedTotal })
-          : tr('kitchen.plan.kpi.activeAction.setTargets'),
-        deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
-        deltaDot: false,
-        sub: tr('kitchen.plan.kpi.activeAction.sub'),
-      },
-      {
-        label: tr('kitchen.plan.kpi.status'),
-        value: statusLabel,
-        delta: kpis.plannedTotal > 0
-          ? tr('kitchen.plan.kpi.status.targetsSet')
-          : tr('kitchen.plan.kpi.status.nothingPlanned'),
-        deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
-        deltaDot: false,
-        sub: tr('kitchen.plan.kpi.status.sub'),
-      },
+    ariaLabel: 'kitchen.plan.summary.aria',
+    metrics: [
+      { key: 'plannedTotal', label: 'kitchen.kpi.plannedTotal', value: String(plannedTotal) },
+      { key: 'dishesPlanned', label: 'kitchen.plan.summary.dishesPlanned', value: String(plannedDishCount) },
     ],
   }
 }
 
-export function usePlanKpis(
-  cells: PlanCell[],
-  movement: KitchenMovement,
-): KitchenKpis {
-  return useMemo(() => computePlanKpis(cells, movement), [cells, movement])
-}
-
-export function usePlanKpiStripData(
-  cells: PlanCell[],
-  movement: KitchenMovement,
-  movementLabel: string,
-): KitchenKpiStripData {
-  const t = useT()
-  return useMemo(
-    () => computePlanKpiStripData(cells, movement, movementLabel, t),
-    [cells, movement, movementLabel, t],
-  )
+export function usePlanSummary(cells: PlanCell[], movement: KitchenMovement): PlanSummary {
+  return useMemo(() => computePlanSummary(cells, movement), [cells, movement])
 }

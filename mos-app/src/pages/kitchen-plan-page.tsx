@@ -50,16 +50,17 @@ import {
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
+import { HelpTip } from '@/components/ui/help-tip'
 import { groupByCategory } from '@/lib/kitchen-category'
 import {
   DataTable,
   type DataTableColumn,
   type DataTableGroup,
 } from '@/components/dashboard/data-table'
-import { usePlanKpiStripData } from '@/lib/kitchen-plan-kpis'
+import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
@@ -128,9 +129,10 @@ function PlanEditor() {
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useSearchParamState('q', '')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Derived plan KPIs (P-1) — pure view over `cells` for the current movement.
-  const movementLabel = useMemo(() => deriveActionLabel(t, movement, branches), [t, movement, branches])
-  const kpiData = usePlanKpiStripData(cells, movement, movementLabel)
+  // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
+  // the current movement) — the retired word-tiles are gone. Pure derivation over
+  // `cells`; the human "nothing planned" sentence stays the page note below.
+  const summary = usePlanSummary(cells, movement)
   const hasPlannedItems = cells.some(
     cell => movementKey(cell.movement) === movementKey(movement) && cell.qty_porsi > 0,
   )
@@ -252,7 +254,16 @@ function PlanEditor() {
       cardLabel: '',
       render: item => (
         <span className="kp-dish">
-          <span className="kp-name">{item.name}</span>
+          {/* #401: plan and log are two disconnected screens without this — the name
+              drills into the capture surface, pre-searched. aria-label speaks the
+              destination; the visible text stays the dish name. */}
+          <Link
+            to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
+            className="kp-name kp-row-link"
+            aria-label={t('kitchen.plan.row.logAria', { dish: item.name })}
+          >
+            {item.name}
+          </Link>
           {item.category && <span className="kp-cat">{item.category}</span>}
         </span>
       ),
@@ -286,8 +297,8 @@ function PlanEditor() {
             {(saving || saved) && (
               <span className="kp-cell-status" role="status" aria-live="polite">
                 {saving
-                  ? 'Saving…'
-                  : <><span className="kp-cell-tick" aria-hidden="true">✓</span> Saved</>}
+                  ? t('record.field.saving')
+                  : <><span className="kp-cell-tick" aria-hidden="true">✓</span> {t('record.field.saved')}</>}
               </span>
             )}
           </div>
@@ -305,17 +316,25 @@ function PlanEditor() {
       jobSentence={t('job.cafe')}
       meta={
         <span className="kp-meta-line">
+          {/* #401: same H10 seam six surfaces already use; rides the meta line rather
+              than claiming new chrome on a capture surface. */}
+          <HelpTip label={t('kitchen.plan.help')} />
           <span className="kp-date tabular">{logDate}</span>
         </span>
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
-      {/* Derived KPI strip (P-1) — only when populated (plan §4.4) */}
       {load.kind === 'ready' && items.length > 0 && !hasPlannedItems && (
         <p className="kp-nothing-planned">{t('kitchen.plan.nothingPlannedYet')}</p>
       )}
+      {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
+          Metric summary rule: one inline line, no card, no width branch, never a tile
+          row (OD-WAY-74 #2). No delta: a capture band has no state worth acting on. */}
       {load.kind === 'ready' && items.length > 0 && (
-        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+        <MetricSummaryRule
+          ariaLabel={t(summary.ariaLabel)}
+          metrics={summary.metrics.map(m => ({ key: m.key, label: t(m.label), value: m.value }))}
+        />
       )}
 
       {!isOnline && (
@@ -427,6 +446,12 @@ function PesananView() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
+  // #401: URL-synced search + category over the ~231-row horizon (v4's KitchenToolbar
+  // port; Nielsen Café·Plan 16/32). Same keys as the editor face ('q'/'category') —
+  // the faces are role-exclusive, so they never share a URL. Refresh/share keeps the
+  // filtered view (I7 / D-E1).
+  const [search, setSearch] = useSearchParamState('q', '')
+  const [category, setCategory] = useSearchParamState('category', 'All')
 
   const fetchHorizon = useCallback(async () => {
     setLoad({ kind: 'loading' })
@@ -444,10 +469,20 @@ function PesananView() {
 
   useEffect(() => { fetchHorizon() }, [fetchHorizon, retryKey])
 
+  // #401: client-side search + category over the read horizon (mirrors the editor).
+  const q = search.trim().toLowerCase()
+  const visible = useMemo(
+    () => rows.filter(r =>
+      (!q || r.wip_item_name.toLowerCase().includes(q)) &&
+      (category === 'All' || (r.category ?? '') === category)),
+    [rows, q, category],
+  )
+  const categories = ['All', ...Array.from(new Set(rows.map(r => r.category ?? '').filter(Boolean))).sort()]
+
   // Group the flat rows by date (already date-sorted by the query) for the read view.
   const pesananGroups: DataTableGroup<PesananRow>[] = useMemo(() => {
     const byDate = new Map<string, PesananRow[]>()
-    for (const r of rows) {
+    for (const r of visible) {
       const list = byDate.get(r.log_date) ?? []
       list.push(r)
       byDate.set(r.log_date, list)
@@ -458,7 +493,7 @@ function PesananView() {
       count: dateRows.length,
       rows: dateRows,
     }))
-  }, [rows])
+  }, [visible])
 
   // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
   // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
@@ -469,7 +504,13 @@ function PesananView() {
       cardLabel: '',
       render: r => (
         <span className="kp-dish">
-          <span className="kp-name">{r.wip_item_name}</span>
+          <Link
+            to={`/cafe/log?q=${encodeURIComponent(r.wip_item_name)}`}
+            className="kp-name kp-row-link"
+            aria-label={t('kitchen.plan.row.logAria', { dish: r.wip_item_name })}
+          >
+            {r.wip_item_name}
+          </Link>
           {r.category && <span className="kp-cat">{r.category}</span>}
         </span>
       ),
@@ -494,6 +535,17 @@ function PesananView() {
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
+      {/* #401: the face floor staff actually get said nothing about why it cannot be
+          edited — one sentence + the CTA to the surface where their work happens. */}
+      <div className="kp-readonly kp-block">
+        <p className="kp-readonly-note">
+          {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
+        </p>
+        <Link to="/cafe/log" className="btn btn-outline kp-readonly-cta">
+          {t('kitchen.plan.pesanan.readOnlyCta')}
+        </Link>
+      </div>
+
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
@@ -512,13 +564,26 @@ function PesananView() {
       )}
 
       {load.kind === 'ready' && rows.length > 0 && (
-        <DataTable
-          columns={pesananColumns}
-          rows={rows}
-          groups={pesananGroups}
-          isDesktop={isDesktop}
-          caption={t('kitchen.plan.pesanan.caption')}
-        />
+        <div className="kp-block">
+          <KitchenToolbar
+            search={search}
+            onSearchChange={setSearch}
+            categories={categories}
+            category={category}
+            onCategoryChange={setCategory}
+            searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')}
+            ariaLabel={t('kitchen.plan.pesanan.toolbarAria')}
+          />
+          <DataTable
+            columns={pesananColumns}
+            rows={visible}
+            groups={pesananGroups}
+            isDesktop={isDesktop}
+            state={visible.length > 0 ? 'ready' : 'empty'}
+            emptyLabel={t('kitchen.filter.noMatch')}
+            caption={t('kitchen.plan.pesanan.caption')}
+          />
+        </div>
       )}
     </PageFamilyFrame>
   )
