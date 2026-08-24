@@ -1,6 +1,8 @@
 // KPITile tests — design-plan §2.1 (general KPI tile primitive, never says "revenue").
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { KPITile } from './kpi-tile'
 
 describe('KPITile — ready state', () => {
@@ -63,9 +65,32 @@ describe('KPITile — ready state', () => {
     expect(container.querySelector('.pill')).toBeNull()
   })
 
-  it('renders a help tooltip text when provided', () => {
+  it('the "?" help is the shared HelpTip — a REAL button whose tap discloses the text (#359)', () => {
+    // The old <span title> did nothing on touch — the primary device. HelpTip is a
+    // click-to-open disclosure.
     render(<KPITile label="Channel mix" value="POS 82% · B2B 18%" help="Share of trailing-7d revenue by channel" />)
-    expect(screen.getByLabelText(/share of trailing-7d revenue by channel/i)).toBeInTheDocument()
+    expect(screen.queryByText('Share of trailing-7d revenue by channel')).toBeNull()
+    const helpBtn = screen.getByRole('button', { name: 'Help' })
+    expect(helpBtn.tagName).toBe('BUTTON')
+    fireEvent.click(helpBtn)
+    expect(screen.getByText('Share of trailing-7d revenue by channel')).toBeInTheDocument()
+  })
+
+  it('on an interactive tile the help button NEVER nests inside the action button (#359, both independently reachable)', () => {
+    const onClick = vi.fn()
+    render(
+      <KPITile label="Trailing 7-day revenue" value="Rp 98,3 jt" onClick={onClick}
+        help="Sum of clean revenue over the 7 days." />,
+    )
+    const action = screen.getByRole('button', { name: 'Trailing 7-day revenue' })
+    const helpBtn = screen.getByRole('button', { name: 'Help' })
+    expect(action.contains(helpBtn)).toBe(false)
+    expect(helpBtn.contains(action)).toBe(false)
+    // Pressing the help button does NOT filter; the action still fires.
+    fireEvent.click(helpBtn)
+    expect(onClick).not.toHaveBeenCalled()
+    fireEvent.click(action)
+    expect(onClick).toHaveBeenCalledTimes(1)
   })
 
   it('the label is the accessible name of the tile (a11y)', () => {
@@ -168,6 +193,14 @@ describe('KPITile — basis label + DQ badge slots (AC-008)', () => {
     expect(container.querySelector('.kpi-tile-basis')).toBeNull()
     expect(container.querySelector('.dq-badge')).toBeNull()
   })
+
+  it('structural pin (#359): the delta pill hugs content — align-self: flex-start on .kpi-tile > .pill', () => {
+    // jsdom computes no flex layout — the stylesheet is the oracle. The stretch-aligned
+    // tile column must never stretch the pill into a full-width bar.
+    const css = readFileSync(resolve(__dirname, 'kpi-tile.css'), 'utf8')
+    const block = css.split('.kpi-tile > .pill')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('align-self: flex-start')
+  })
 })
 
 // census r3 + r5 F-5: grid placement is the COMPOSITION's concern, so the page hands the tile a
@@ -183,6 +216,8 @@ describe('KPITile — composition className hook', () => {
   })
 
   it('carries it on an INTERACTIVE tile without dropping the selected modifier', () => {
+    // #359: the button is now the stretched hit overlay; the composition/selected classes
+    // live on the outer .kpi-tile div that wraps it (grid placement stays on the grid child).
     render(
       <KPITile
         label="Trailing 7-day revenue"
@@ -192,7 +227,9 @@ describe('KPITile — composition className hook', () => {
         className="dash-kpi-tile--mix"
       />,
     )
-    const tile = screen.getByRole('button', { name: 'Trailing 7-day revenue' })
+    const hit = screen.getByRole('button', { name: 'Trailing 7-day revenue' })
+    const tile = hit.closest('.kpi-tile')
+    expect(tile).not.toBeNull()
     expect(tile).toHaveClass('dash-kpi-tile--mix')
     expect(tile).toHaveClass('kpi-tile--selected')
   })

@@ -276,7 +276,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockItems.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS)
     render(<KitchenPlanPage />, { wrapper })
-    const retry = await screen.findByRole('button', { name: /retry/i })
+    const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })
@@ -482,7 +482,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   it('member error + retry: re-fetches the horizon', async () => {
     mockPesanan.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
-    const retry = await screen.findByRole('button', { name: /retry/i })
+    const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })

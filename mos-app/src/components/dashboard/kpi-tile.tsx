@@ -9,6 +9,7 @@
 // Back-compat: Home v1 + revenue tiles omit all four and render unchanged.
 import type { ReactNode } from 'react'
 import { Pill, type PillTone } from '@/components/ui/pill'
+import { HelpTip } from '@/components/ui/help-tip'
 import { BasisChip } from './basis-chip'
 import { DQBadge, type DqState } from './dq-badge'
 import './kpi-tile.css'
@@ -81,11 +82,13 @@ export function KPITile({
     <>
       <span className="kpi-tile-label">
         {label}
-        {help && (
-          <span className="kpi-tile-help" aria-label={help} title={help}>
-            ?
-          </span>
-        )}
+        {/* #359: this was a second, hand-rolled copy of the "?" help control, carrying the
+            native-`title` defect — it did nothing when tapped, on the primary (touch) device.
+            Converged on the shared HelpTip primitive: tap-to-open, Escape-dismiss and viewport
+            clamping for free, and one thing to fix next time. `.kpi-tile-help` survives in
+            kpi-tile.css only as the tile-local positioning concern (stacking above the hit
+            overlay); the glyph now comes from help-tip.css. */}
+        {help && <HelpTip label={help} className="kpi-tile-help" />}
       </span>
       <span className="kpi-tile-value kpi-tile-value--nowrap tabular">{value}</span>
       {delta && (
@@ -104,21 +107,25 @@ export function KPITile({
   )
 
   const className =
-    `kpi-tile${selected ? ' kpi-tile--selected' : ''}${extraClassName ? ` ${extraClassName}` : ''}`
+    `kpi-tile${selected ? ' kpi-tile--selected' : ''}${onClick ? ' kpi-tile--interactive' : ''}${extraClassName ? ` ${extraClassName}` : ''}`
 
-  // onClick present → a real <button> for filter-in-place (FR-016/AC-016).
+  // onClick present → filter-in-place (FR-016/AC-016). #359: the tile itself is no longer a
+  // <button> WRAPPER — HelpTip is a <button>, and nesting interactive elements is invalid and
+  // AT-hostile. A stretched transparent hit button overlays the tile; the help button stacks
+  // above it (z-index), so both are independently reachable.
   if (onClick) {
     return (
-      <button
-        type="button"
-        className={className}
-        aria-label={label}
-        aria-current={selected ? 'true' : undefined}
-        data-touch-target="true"
-        onClick={onClick}
-      >
+      <div className={className}>
+        <button
+          type="button"
+          className="kpi-tile-hit"
+          aria-label={label}
+          aria-current={selected ? 'true' : undefined}
+          data-touch-target="true"
+          onClick={onClick}
+        />
         {inner}
-      </button>
+      </div>
     )
   }
 

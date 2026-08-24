@@ -12,6 +12,7 @@
 // tabular pill (the dashboard's "N rows"). The composition owns active-state + URL
 // persistence; this primitive just reports onChange.
 import { useRef, type ReactNode, type KeyboardEvent } from 'react'
+import { useT } from '@/i18n/use-t'
 import './view-tabs.css'
 
 export interface ViewTab {
@@ -36,6 +37,7 @@ export interface ViewTabsProps {
 }
 
 export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTabsProps) {
+  const t = useT()
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   // Keyboard nav roves across ENABLED tabs only — soon/disabled stubs are skipped.
   const enabledOrder = tabs
@@ -89,7 +91,7 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
             aria-selected={isActive}
             aria-disabled={inert ? 'true' : undefined}
             disabled={inert}
-            title={tab.soon ? 'Coming soon' : undefined}
+            title={tab.soon ? t('common.comingSoon') : undefined}
             tabIndex={isActive ? 0 : -1}
             data-touch-target="true"
             className={className}

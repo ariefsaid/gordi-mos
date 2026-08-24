@@ -221,8 +221,7 @@ describe('CHROME-DUR: transition-duration tokens', () => {
   // of these off must prune its entry.
   const DUR_EXCEPTIONS: Record<string, number> = {
     'components/tasks/TaskSurface.css': 1,
-    'components/dashboard/data-table.css': 2,
-    'components/dashboard/kpi-tile.css': 1,
+    // #359 paid down data-table.css (×2) and kpi-tile.css (×1) — now var(--dur-fast).
     'components/kitchen/qty-cell.css': 2,
   }
 

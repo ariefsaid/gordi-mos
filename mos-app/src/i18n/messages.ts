@@ -460,6 +460,8 @@ export const messages = {
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~371) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Try again',
+    // #359 — the ViewTabs "soon" placeholder tooltip (was a hardcoded English literal).
+    'common.comingSoon': 'Coming soon',
     'common.signIn': 'Sign in',
     'common.what.items': 'the dish list',
     // #197/#198 — plan, review, stock, pushes ported
@@ -1691,6 +1693,8 @@ export const messages = {
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~1214) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Coba lagi',
+    // #359 — tooltip placeholder "segera" di ViewTabs.
+    'common.comingSoon': 'Segera hadir',
     'common.signIn': 'Masuk',
     'common.what.items': 'daftar menu',
     'common.what.plan': 'rencana',

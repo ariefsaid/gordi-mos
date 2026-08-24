@@ -81,10 +81,12 @@ describe('OccurrenceAssignDialog (C2 — the pending-resolution host mounted fro
     expect(screen.queryByRole('button', { name: 'Twin A' })).not.toBeInTheDocument()
   })
 
-  it('shows an error banner with Retry when the pending fetch failed', () => {
+  it('shows an error banner with a retry control when the pending fetch failed', () => {
+    // #359: ErrorState's default retry label now comes from the catalog (common.retry
+    // = 'Try again'), no longer the untranslated literal 'Retry'.
     const onRetry = vi.fn()
     renderDialog({ error: true, onRetry })
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(onRetry).toHaveBeenCalled()
   })
 

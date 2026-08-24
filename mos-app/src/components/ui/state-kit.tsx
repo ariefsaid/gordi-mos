@@ -17,13 +17,16 @@ export interface ErrorStateProps {
   className?: string
 }
 
-export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }: ErrorStateProps) {
+export function ErrorState({ message, onRetry, retryLabel, className }: ErrorStateProps) {
+  // #359: the default label comes from the catalog, not a literal 'Retry' — 25 of 31 call
+  // sites pass nothing, so the literal was the app's most widespread untranslated string.
+  const t = useT()
   return (
     <div role="alert" className={`error-state${className ? ` ${className}` : ''}`}>
       <span className="error-state-text">{message}</span>
       {onRetry && (
         <Button variant="outline" onClick={onRetry}>
-          {retryLabel}
+          {retryLabel ?? t('common.retry')}
         </Button>
       )}
     </div>

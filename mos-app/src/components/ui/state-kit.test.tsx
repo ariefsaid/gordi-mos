@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { EmptyState, LoadingShell } from './state-kit'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { EmptyState, ErrorState, LoadingShell } from './state-kit'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 describe('EmptyState', () => {
@@ -112,5 +112,35 @@ describe('LoadingShell — the one loading grammar', () => {
     const status = screen.getByRole('status')
     expect(status).toHaveAccessibleName('Loading the review queue')
     expect(status.querySelectorAll('.skeleton-row')).toHaveLength(5)
+  })
+})
+
+// #359 — ErrorState's retry label comes from the catalog, not a literal 'Retry'.
+// 25 of 31 call sites pass no retryLabel, so the default IS the app's retry copy.
+describe('ErrorState — localized retry default (#359)', () => {
+  it('defaults the retry label to common.retry (en: "Try again", never the literal "Retry")', () => {
+    render(<ErrorState message="Something failed" onRetry={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('an explicit retryLabel still wins over the default', () => {
+    render(<ErrorState message="Something failed" onRetry={vi.fn()} retryLabel="Reload" />)
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+  })
+
+  describe('id locale', () => {
+    beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+    afterEach(() => localStorage.clear())
+
+    it('renders "Coba lagi" with no per-call-site work', () => {
+      render(
+        <I18nProvider>
+          <ErrorState message="Gagal" onRetry={vi.fn()} />
+        </I18nProvider>,
+      )
+      expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
+      expect(screen.queryByText(/try again|retry/i)).toBeNull()
+    })
   })
 })

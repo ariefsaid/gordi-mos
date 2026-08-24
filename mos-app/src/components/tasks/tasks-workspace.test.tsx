@@ -633,13 +633,15 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(document.querySelector('[role="status"]')).toBeTruthy()
   })
 
-  it('AC-133: error shows role=alert + Retry button', async () => {
+  it('AC-133: error shows role=alert + retry button', async () => {
+    // #359: ErrorState's default retry label now comes from the catalog (common.retry
+    // = 'Try again'), no longer the untranslated literal 'Retry'.
     mockListTasks.mockRejectedValue(new Error('network failure'))
     renderTable()
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 
   it('AC-133: empty (no tasks, no active filter) shows segment-aware empty copy + Create task CTA', async () => {

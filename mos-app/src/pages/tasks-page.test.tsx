@@ -254,7 +254,7 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
       expect(screen.getByRole('alert')).toBeTruthy()
     })
     expect(screen.getByText(/couldn't load tasks/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
   })
 
   it('AC-067: shows empty state with "+ New task" when list resolves empty', async () => {
@@ -893,7 +893,7 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
     mockListTasks.mockRejectedValue(new Error('network timeout'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
   })
 })
 

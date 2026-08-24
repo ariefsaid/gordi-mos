@@ -178,7 +178,8 @@ describe('RecordCollectionSurface', () => {
     const errored = createRecordCollectionController(failing, INITIAL)
     await ready(errored)
     render(<RecordCollectionSurface controller={errored} {...chrome} error={{ message: 'Could not load tasks', retry }} />)
-    const retryBtn = screen.getByRole('button', { name: /retry/i })
+    // #359: ErrorState's default retry label is now the catalog's common.retry ('Try again').
+    const retryBtn = screen.getByRole('button', { name: /try again/i })
     retryBtn.focus()
     await userEvent.keyboard('{Enter}')
     expect(retry).toHaveBeenCalled()

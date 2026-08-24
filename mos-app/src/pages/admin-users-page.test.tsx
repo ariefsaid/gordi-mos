@@ -208,7 +208,7 @@ describe('AdminUsersPage (AC-060)', () => {
     renderPage()
 
     await screen.findByText(/couldn't load people/i)
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 
   it('AC-060: page heading is "People" and has descriptive sub-caption', async () => {
@@ -321,7 +321,7 @@ describe('AdminUsersPage — V3 Management frame', () => {
     await screen.findByText(/couldn't load people/i)
     const main = document.querySelector('main')
     expect(main?.getAttribute('data-page-state')).toBe('error')
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 })
 

@@ -24,6 +24,10 @@
   border: 0;
 }
 
+/* Sticky header (DESIGN.md "Data Table (signature)": "Header cells: sticky, `card` bg…").
+   Sticks to the top of the nearest scrolling ancestor (the page's own scroll container);
+   `card` bg + a low z-index keep it opaque over rows that scroll underneath without
+   introducing a new stacking surface. */
 .dt-table thead th {
   text-align: left;
   font-size: var(--font-size-overline);
@@ -35,6 +39,9 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
 }
 .dt-table thead .dt-th-num { text-align: right; }
 
@@ -69,11 +76,13 @@
   border-top: 5px solid currentColor;
 }
 
-/* 50px dense body rows; divider = border/70% */
+/* Dense body rows — the SHARED list-row rhythm: row height, padding scale, and divider
+   colour come from the one --row-* token set (index.css) so every list surface reads at
+   the same rhythm, not a rival one. */
 .dt-table tbody td {
-  height: 50px;
-  padding: 10px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  height: var(--row-min-h);
+  padding: var(--row-pad-y) var(--row-pad-x);
+  border-bottom: 1px solid var(--row-divider);
   color: var(--foreground);
   vertical-align: middle;
 }
@@ -244,7 +253,7 @@
 .dt-group-toggle:hover { color: var(--foreground); }
 
 /* shared <Chevron>: down = expanded, rotated -90° (right) = collapsed */
-.dt-group-chev { transition: transform 120ms ease; }
+.dt-group-chev { transition: transform var(--dur-fast) ease; }
 .dt-group-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .dt-group-chev { transition: none; }
@@ -282,6 +291,7 @@
   padding: 12px 4px 2px;
 }
 .dt-cards-group-toggle {
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -295,8 +305,18 @@
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
+/* 44x44 hit area on a 24x24 glyph — the SAME technique `.help-tip` already proved
+   (help-tip.css: 14x14 visual, `::before{inset:-16px}`). This toggle collapses a group on
+   the phone capture surfaces, so a mis-tap costs a standing floor worker a scroll-and-retry.
+   24 + (2 x 10) = 44 — WCAG 2.5.8 / the 44px phone rule. The overlay is transparent and sits
+   under the glyph, so it steals no clicks from the non-interactive group label beside it. */
+.dt-cards-group-toggle::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
 .dt-cards-group-toggle:hover { color: var(--foreground); }
-.dt-cards-group-chev { transition: transform 120ms ease; }
+.dt-cards-group-chev { transition: transform var(--dur-fast) ease; }
 .dt-cards-group-chev-collapsed { transform: rotate(-90deg); }
 @media (prefers-reduced-motion: reduce) {
   .dt-cards-group-chev { transition: none; }
