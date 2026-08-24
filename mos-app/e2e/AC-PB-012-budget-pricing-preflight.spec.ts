@@ -8,8 +8,17 @@
 import { test, expect } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { isShipGated } from './helpers/ship-gate'
 
 test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
+  // issue 444 — this journey walks /money/budget and /money/pricing, both under the ship-gated
+  // /money subtree, so every entry point forwards home and there is no surface to capture on.
+  // Skipped on the gate itself, not deleted: the journey is still true of the built surface and
+  // comes back the moment /money leaves SHIP_GATED_PATHS. This sits ABOVE the SHOW_PLAN_BUDGET
+  // flag below — that flag decides whether the slice is switched on, the gate decides whether
+  // Money ships at all, and a No there is a No regardless of the flag.
+  test.skip(isShipGated('/money'), 'ship-gated surface (issue 444) — no route, no nav')
+
   test('AC-PB-012: capture a stale-cost budget scenario, then pricing shows margin + freshness warning', async ({ page }) => {
     test.skip(process.env.VITE_SHOW_PLAN_BUDGET !== 'true', 'SHOW_PLAN_BUDGET defaults false; rerun with VITE_SHOW_PLAN_BUDGET=true')
 

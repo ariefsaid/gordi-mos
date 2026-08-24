@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { GroupHeaderRow } from './group-header-row'
+import { isShipGated } from '@/lib/ship-gate'
 
 function renderRow(props: Partial<React.ComponentProps<typeof GroupHeaderRow>> = {}) {
   const base: React.ComponentProps<typeof GroupHeaderRow> = {
@@ -8,7 +10,11 @@ function renderRow(props: Partial<React.ComponentProps<typeof GroupHeaderRow>> =
     onToggle: () => {}, onAddTask: () => {}, onOverdueFilter: () => {},
     ...props,
   }
-  return render(<table><tbody><GroupHeaderRow {...base} /></tbody></table>)
+  // MemoryRouter because the Objective hint renders a <Link> whenever its destination is
+  // ungated; without a router that case throws instead of asserting.
+  return render(
+    <MemoryRouter><table><tbody><GroupHeaderRow {...base} /></tbody></table></MemoryRouter>,
+  )
 }
 
 describe('GroupHeaderRow', () => {
@@ -17,6 +23,25 @@ describe('GroupHeaderRow', () => {
     expect(screen.getByText('Blocked')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
     expect(screen.getByText(/2 overdue/i)).toBeInTheDocument()
+  })
+
+  // #444: Tasks ships, Objectives does not. The hint still has to say which Objective this group
+  // belongs to — losing the name would cost the reader real context — but it must not offer a
+  // drill the router has closed, which would look like a control and land back on Home.
+  it('issue 444: the Objective hint keeps its name, and drills only while Objectives is ungated', () => {
+    renderRow({ label: 'Launch', objectiveHint: { id: 'objective-1', name: 'Grow revenue' } })
+    expect(screen.getByText('Grow revenue')).toBeInTheDocument()
+    if (isShipGated('/work/objectives')) {
+      expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
+    } else {
+      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+    }
+  })
+
+  it('a hint with no id is plain text either way — the pre-existing degraded shape', () => {
+    renderRow({ label: 'Launch', objectiveHint: { id: null, name: 'Unlinked objective' } })
+    expect(screen.getByText('Unlinked objective')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Unlinked objective' })).toBeNull()
   })
 
   it('AC-128: the overdue subtotal is a button that triggers the overdue-only filter', () => {

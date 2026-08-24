@@ -13,6 +13,7 @@ import { AuthContext } from '@/auth/context'
 import type { PeopleRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
+import { isShipGated } from '@/lib/ship-gate'
 
 vi.mock('@/lib/db/tasks', () => ({
   listTasks: vi.fn(), getTask: vi.fn(), createTask: vi.fn(), updateTaskStatus: vi.fn(),
@@ -133,9 +134,18 @@ describe('AC-204: Tasks grouped by Objective, Mine, on a phone', () => {
     await screen.findByText('Brief the floor')
 
     const launch = branch('Menu launch')
-    // The Objective hint sits ABOVE the Project/Process title and is its own record door.
-    expect(within(launch).getByRole('link', { name: 'Grow revenue' }))
-      .toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+    // The Objective hint sits ABOVE the Project/Process title. Naming the Objective is the part
+    // this journey depends on — it is what makes the grouping legible — so the NAME is asserted
+    // unconditionally. Whether the hint is also a door depends on the ship gate (issue 444):
+    // while Objectives sits outside the MVP payload it must not offer a drill the router has
+    // closed, and the name carries the grouping on its own.
+    expect(within(launch).getByText('Grow revenue')).toBeInTheDocument()
+    if (isShipGated('/work/objectives')) {
+      expect(within(launch).queryByRole('link', { name: 'Grow revenue' })).toBeNull()
+    } else {
+      expect(within(launch).getByRole('link', { name: 'Grow revenue' }))
+        .toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+    }
     expect(within(launch).getByText('Brief the floor')).toBeInTheDocument()
     // The work-line-only task reaches this Objective through the direct edge, not its own field.
     expect(within(launch).getByText('Print the menus')).toBeInTheDocument()

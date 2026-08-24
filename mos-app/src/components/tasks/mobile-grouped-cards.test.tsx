@@ -10,6 +10,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import { isShipGated } from '@/lib/ship-gate'
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -79,7 +80,16 @@ describe('MobileGroupedCards', () => {
       key: 'objective:project', label: 'Launch', rows: [makeTask({ title: 'Ship task' })], overdue: 0, prefillParam: '',
       objectiveHint: { id: 'objective-1', name: 'Grow revenue' }, workLineType: 'project',
     }] })
-    expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+    // The hint's job is to say WHICH Objective this group of work belongs to, so the name is
+    // asserted unconditionally. Whether it is also a drill depends on the ship gate (#444): with
+    // Objectives outside the MVP payload the name stays and the link goes, because a phone tap
+    // that lands on a redirect back to Home is a dead end dressed as a control.
+    expect(screen.getByText('Grow revenue')).toBeInTheDocument()
+    if (isShipGated('/work/objectives')) {
+      expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
+    } else {
+      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+    }
     expect(screen.getByText('Launch')).toBeInTheDocument()
     expect(screen.getByText('Ship task')).toBeInTheDocument()
   })

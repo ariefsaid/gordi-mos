@@ -8,6 +8,7 @@ import { dueStatus, isOverdue } from '@/lib/due-status'
 import { formatDate } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
+import { ObjectiveHint } from './objective-hint'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 export type MobileRenderGroup = {
@@ -215,11 +216,7 @@ export function MobileGroupedCards({
                 would take a third of a 390px header and break the title mid-word. */}
             <span className="mgc-group-headings">
               {group.objectiveHint && (
-                <span className="mgc-objective-hint">
-                  {group.objectiveHint.id
-                    ? <Link to={`/work/objectives?q=${encodeURIComponent(group.objectiveHint.name)}`}>{group.objectiveHint.name}</Link>
-                    : group.objectiveHint.name}
-                </span>
+                <ObjectiveHint hint={group.objectiveHint} className="mgc-objective-hint" />
               )}
               <span className="mgc-label">{group.label}</span>
             </span>
