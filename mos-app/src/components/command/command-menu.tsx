@@ -7,6 +7,8 @@ import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { can, canViewRevenue } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
+import { viewerAdmittedToRoute } from '@/shell/destinations'
+import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
   HomeIcon, WorkIcon, SignalsIcon, TasksIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon,
@@ -119,18 +121,34 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   // (90%-employee-first) and were only reachable from the desktop rail. Mirrors the existing
   // Signals entry below — a Work child reachable via ⌘K, not the phone More menu.
   const projectsAuthorized = can(accessRoles, 'workline.manage')
+  // #407 — the floor's one-tap capture path. The Daily Log retirement (#226/#405) repointed
+  // Home's capture CTA at /cafe/log, but on a component only the DEV-only fossil Home mounted —
+  // the shipped shell offered no capture entry at all. The Actions group (and so the phone `+`
+  // launcher, whose reduced set IS this group) carries the Café log entry for viewers the
+  // /cafe/log ROUTE admits, read through the ONE route-admission seam Home's failed-checks band
+  // already uses (viewerAdmittedToRoute — OD-WAY-51: navigation mirrors what the route admits,
+  // never job-role-name matching).
+  const cafeLogAdmitted = viewerAdmittedToRoute(CAFE_LOG_ROUTE, accessRoles)
 
   const trimmed = query.trim()
   const isSearching = trimmed.length > 0
 
   // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
-  const universalActions = useMemo<CommandItem[]>(
-    () => [
-      { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
-      { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
-      { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks/new' },
-    ],
-    [openPanel, onShareSignal, t],
+  // The three universal actions keep their stable order (Rule 7); the gated Café log entry
+  // (#407) appends after them, present exactly when the /cafe/log route admits the viewer.
+  const actionItems = useMemo<CommandItem[]>(
+    () => {
+      const items: CommandItem[] = [
+        { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
+        { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
+        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks/new' },
+      ]
+      if (cafeLogAdmitted) {
+        items.push({ id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action', to: CAFE_LOG_ROUTE })
+      }
+      return items
+    },
+    [openPanel, onShareSignal, t, cafeLogAdmitted],
   )
 
   const navigateItems = useMemo<CommandItem[]>(() => {
@@ -210,7 +228,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       // create-set — the universal Actions only, NOT the full palette. No Recent, no Navigate.
       // (Typing still escalates to the shared search below — OD-46's "More opens the full palette".)
       if (mode === 'launcher') {
-        out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: universalActions })
+        out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actionItems })
         return out
       }
       const recent = readRecentTasks().map<CommandItem>((r) => ({
@@ -218,11 +236,11 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
       if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
-      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: universalActions })
+      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actionItems })
       out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: visibleNavigate })
       return out
     }
-    const actions = universalActions.filter((i) => matches(i.label, trimmed))
+    const actions = actionItems.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
     const recordItems = recordRows.map<CommandItem>((r) => {
       const cfg = RECORD_KIND_CONFIG[r.kind]
@@ -246,7 +264,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: nav })
     if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actions })
     return out
-  }, [isSearching, trimmed, records, universalActions, visibleNavigate, t, mode])
+  }, [isSearching, trimmed, records, actionItems, visibleNavigate, t, mode])
 
   // The ship gate (#444), applied at the ONE seam every palette row passes through, rather than
   // as a `gated` flag per entry. The palette is a navigation surface like the rail, and OD-WAY-51

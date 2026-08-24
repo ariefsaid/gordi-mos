@@ -68,7 +68,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
       {/* Card title */}
       <h1
         className="text-foreground font-semibold"
-        style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
+        style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
       >
         {title}
       </h1>
@@ -86,7 +86,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
             // DESIGN.md §Field-error tokens (RATIFIED OD-P3-5): error TEXT is the AA-darkened red,
             // never base --destructive, which is ~3.6:1 on white and fails AA at this size.
             color: 'var(--status-lost-text)',
-            fontSize: 15,
+            fontSize: 'var(--font-size-body-lg)',
           }}
         >
           {serverError}
@@ -99,7 +99,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
           <label
             htmlFor={newPasswordId}
             className="block text-foreground font-semibold mb-1"
-            style={{ fontSize: 12 }}
+            style={{ fontSize: 'var(--font-size-label)' }}
           >
             New password
           </label>
@@ -110,11 +110,12 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             disabled={loading}
+            aria-required="true"
             aria-describedby={serverError ? serverErrorId : undefined}
             className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
             style={{
               height: 32,
-              fontSize: 16,
+              fontSize: 'var(--font-size-touch-input)',
               opacity: loading ? 0.5 : 1,
               cursor: loading ? 'not-allowed' : undefined,
             }}
@@ -126,7 +127,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
           <label
             htmlFor={confirmPasswordId}
             className="block text-foreground font-semibold mb-1"
-            style={{ fontSize: 12 }}
+            style={{ fontSize: 'var(--font-size-label)' }}
           >
             Confirm password
           </label>
@@ -137,12 +138,13 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={loading}
+            aria-required="true"
             aria-invalid={mismatchError ? 'true' : undefined}
             aria-describedby={mismatchError ? mismatchErrorId : undefined}
             className="w-full bg-background text-foreground border rounded-sm px-2.5"
             style={{
               height: 32,
-              fontSize: 16,
+              fontSize: 'var(--font-size-touch-input)',
               borderColor: mismatchError ? 'var(--destructive)' : 'var(--input)',
               opacity: loading ? 0.5 : 1,
               cursor: loading ? 'not-allowed' : undefined,
@@ -153,7 +155,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
               id={mismatchErrorId}
               className="mt-1"
               // Base --destructive stays the field OUTLINE; the error TEXT is the AA-darkened red.
-              style={{ fontSize: 12, color: 'var(--status-lost-text)' }}
+              style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
             >
               {mismatchError}
             </p>

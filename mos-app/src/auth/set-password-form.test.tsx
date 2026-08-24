@@ -19,6 +19,13 @@ async function fill(newPw: string, confirmPw: string) {
 }
 
 describe('SetPasswordForm', () => {
+  // #425: the port dropped aria-required — recovery (#131 gate) required fields must say so
+  it('both password fields carry aria-required (#425)', () => {
+    renderForm(vi.fn())
+    expect(screen.getByLabelText(/new password/i)).toHaveAttribute('aria-required', 'true')
+    expect(screen.getByLabelText(/confirm password/i)).toHaveAttribute('aria-required', 'true')
+  })
+
   it('refuses to submit when the confirmation does not match', async () => {
     const onSubmit = vi.fn()
     renderForm(onSubmit)

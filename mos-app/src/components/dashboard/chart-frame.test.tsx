@@ -109,6 +109,25 @@ describe('ChartFrame — error state', () => {
     expect(onRetry).toHaveBeenCalled()
   })
 
+  it('the error branch composes the shared ErrorState — it ANNOUNCES via role="alert" (#359)', () => {
+    // This was the one dashboard error that never announced (the empty state has
+    // role="status", DataTable's error has role="alert").
+    render(
+      <ChartFrame
+        title="Daily revenue"
+        ariaLabel="Daily revenue chart"
+        tableFallback={FALLBACK}
+        state="error"
+        onRetry={vi.fn()}
+      >
+        <div>chart</div>
+      </ChartFrame>,
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveClass('error-state')
+    expect(alert).toHaveTextContent(/couldn’t load this chart/i)
+  })
+
   it('the error message text contains no DSN/token/SQL/stack indicators (AC-009)', () => {
     render(
       <ChartFrame

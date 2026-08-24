@@ -260,3 +260,52 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     expect(planOverflow, 'Café · Plan @390: the toolbar never pushes the document wider than the viewport').toBe(false)
   })
 })
+
+// ── Café · Plan capture-first guards (#401) ────────────────────────────────────────────
+// OD-WAY-74 #2 ("enforce") + DD-WAY-40: Plan is a capture surface — no KPI tile row may
+// sit above the first dish row at any width, and at the ≤390px phone measure the first
+// dish row must be INSIDE the fold: nothing above it (summary band, banners, toolbar)
+// may push it below 844px. The pesanan face gets its own GUARD-SEARCH pass — v4
+// measured ~231 horizon rows with no way to narrow (Nielsen Café·Plan 16/32).
+const FOLD_390 = 844
+
+test.describe('café plan capture-first guards (#401) — editor', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  test.beforeEach(async ({ page }) => {
+    await loginAs(page, MANAGER.email, MANAGER.password) // editor is ops_lead/admin-gated
+  })
+
+  test('GUARD-FOLD: @390 the figures band is the summary rule and the first dish row is inside the fold', async ({ page }) => {
+    await page.goto('cafe/plan')
+    await expect(page.locator('.msr')).toBeVisible()
+    expect(await page.locator('.kks').count()).toBe(0) // never the retired tile strip
+    await expect(page.locator('.dt-card').first()).toBeVisible()
+    const firstRow = await box(page.locator('.dt-card').first())
+    expect(firstRow.y + firstRow.height, '(#401) the first dish row must sit inside the 844px fold').toBeLessThanOrEqual(FOLD_390)
+  })
+})
+
+test.describe('café plan capture-first guards (#401) — pesanan (member)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  test.beforeEach(async ({ page }) => {
+    await loginAs(page, VIEWER.email, VIEWER.password) // member → the read-only horizon
+  })
+
+  test('GUARD-SEARCH+GUARD-FOLD: @390 the member toolbar composes and the first dish row is inside the fold', async ({ page }) => {
+    await page.goto('cafe/plan')
+    await expect(page.locator('.ktb-search')).toBeVisible()
+    await assertSearchComposed(page, 'Café · Plan pesanan @390')
+    await expect(page.locator('.dt-card').first()).toBeVisible()
+    const firstRow = await box(page.locator('.dt-card').first())
+    expect(firstRow.y + firstRow.height).toBeLessThanOrEqual(FOLD_390)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+    expect(overflow, '(#401) the toolbar never pushes the document wider than the viewport').toBe(false)
+  })
+
+  test('GUARD-SEARCH: @1440 the member toolbar keeps the usable search measure', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('cafe/plan')
+    await expect(page.locator('.ktb-search')).toBeVisible()
+    await assertSearchComposed(page, 'Café · Plan pesanan @1440')
+  })
+})

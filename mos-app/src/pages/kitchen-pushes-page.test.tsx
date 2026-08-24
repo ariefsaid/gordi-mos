@@ -264,13 +264,13 @@ describe('KitchenPushesPage — states', () => {
     // `.` matches either the straight or curly apostrophe — the i18n catalog uses ’ (U+2019).
     const errorMsg = await screen.findByText(/couldn.t load pushes/i)
     expect(errorMsg).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 
   it('error + retry: retry re-fetches successfully', async () => {
     mockListPushes.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce([POSTED_ROW])
     render(<KitchenPushesPage />)
-    const retry = await screen.findByRole('button', { name: /retry/i })
+    const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
     expect(await screen.findByText('PR-20260621-001')).toBeInTheDocument()
   })

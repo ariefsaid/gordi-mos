@@ -51,7 +51,9 @@ reference data + money follow-ups. Ships at `https://ops.gordi.id/mos`.
 
 ## Commands (run inside `mos-app/`)
 `npm run dev` · `npm run build` · `npm run typecheck` · `npm run lint -- --max-warnings=0` ·
-`npm test` (Vitest) · `npx playwright test` (e2e) · `supabase test db` (pgTAP).
+`npm test` (Vitest) · `npx playwright test` (e2e) · `supabase test db` (pgTAP) ·
+`npm run test-storybook` (component-states harness: phone-390 + a11y-error gates, on demand /
+at review — not a CI lane; see `mos-app/.storybook/main.ts`).
 
 `./scripts/setup-hooks.sh` installs the tracked git hooks (pre-commit + pre-push); `npm install`
 in `mos-app/` also runs it via `prepare`. Before any PR: `bash scripts/pre-pr-verify.sh` — it runs

@@ -245,6 +245,7 @@ class Envelope:
     def model_validate(cls, data): return cls(**data)
 
 committed = []
+BUILD_MESSAGE = "msg"   # what the builder puts on commit_message (#390)
 phases = []
 prompts_seen = []
 logs = []
@@ -261,7 +262,7 @@ class Ph:
             plan_file = fake_run.context_handoff_dir / "plan.md"
             review_time_plan.append(plan_file.read_text() if plan_file.is_file() else None)
             return Envelope(approved=REVIEW_APPROVED)
-        return Envelope()
+        return Envelope(commit_message=BUILD_MESSAGE)
     def log(self, **kw): logs.append((self.params.kw["name"], kw))
 class PhaseCtx:
     def __init__(self, run, params): self.run, self.params = run, params
@@ -292,8 +293,14 @@ stub_quality = mod("adw_modules.quality",
     run_tests=lambda run: types.SimpleNamespace(
         passed=QUALITY_GREEN, checks=[], failures=[] if QUALITY_GREEN else ["test: red"], artifacts=[]),
     as_envelope=lambda result, what: Envelope())
+# What the tree looks like when the chain measures it (#390). A findings rerun
+# enters on the change its failed run left behind; every other run enters clean.
+CARRIED = {"tracked": [], "untracked": [], "counts": (0, 0)}
 stub_git = mod("adw_modules.git_helper",
     rev=lambda ref="HEAD": "base", short_sha=lambda ref="HEAD": "abc1234",
+    diff_files=lambda base="HEAD": list(CARRIED["tracked"]),
+    untracked_files=lambda: list(CARRIED["untracked"]),
+    diff_counts=lambda base="HEAD": CARRIED["counts"],
     commit_all=lambda msg, model=None: (committed.append((msg, model)), "abc1234")[1])
 # a cfg with a real data_dir, so findings mode can read a prior session's plan
 datadir = work / "adw_data"
@@ -490,6 +497,74 @@ except SystemExit as e:
 check("missing-file refusal leaves the handoff EMPTY — valid first artifact NOT copied",
       list(cur_handoff.iterdir()) == [],
       str(sorted(p.name for p in cur_handoff.iterdir())))
+
+# ── #390: the rerun message accounts for the WHOLE commit, not the fix-up ─────
+# The failed run left its change in the tree (nothing commits on red), so the
+# rerun runs `git add -A` over that change plus the fix-up — while the builder
+# writes commit_message for the work it was just asked to do. Here the carried
+# change is a 63-file, 7,937-line retirement and the fix-up is a one-liner: the
+# real shape of the five wrong messages this fixes.
+CARRIED["tracked"] = [f"mos-app/src/retired/{i}.tsx" for i in range(63)]
+CARRIED["counts"] = (112, 7937)
+BUILD_MESSAGE = "Remove stale retired UI claims"
+phases.clear(); committed.clear(); prompts_seen.clear(); logs.clear()
+clear_handoff()
+rc = sdlc.main(None, findings="finding C: a retired surface still claims a route",
+               from_adw_id="ab12cd34")
+message = committed[0][0] if committed else ""
+check("rerun commits once over the carried change", rc == 0 and len(committed) == 1,
+      str(committed))
+check("committed message accounts for the whole commit, not only the fix-up (#390)",
+      "63 changed file(s), +112 -7937" in message and "ab12cd34" in message, message)
+check("the subject the builder wrote is kept — the chain adds an account, never rewrites",
+      message.splitlines()[0] == "Remove stale retired UI claims", message)
+check("the chain adds no trailer — the derived line from commit_all stays the only one",
+      "Co-Authored-By" not in message, message)
+build_prompts = [p for name, p in prompts_seen if name == "build"]
+check("build prompt tells the builder what the commit will actually contain",
+      build_prompts and "63 changed file(s), +112 -7937" in build_prompts[0]
+      and "whole commit" in build_prompts[0], str(build_prompts)[:400])
+request_logs = [kw for name, kw in logs if name == "request"]
+check("request record carries the measurement, taken before the builder edits anything",
+      request_logs and "63 changed file(s)" in str(request_logs[0].get("carried")),
+      str(request_logs))
+
+# control 1 — a normal first-pass run message is unchanged in shape, even on a
+# dirty tree: nothing is carried into it, because nothing failed before it.
+phases.clear(); committed.clear()
+sdlc.main("do a thing")
+check("first-pass message untouched: exactly the words the builder wrote (#390 AC2)",
+      committed and committed[0][0] == "Remove stale retired UI claims", str(committed))
+
+# control 2 — a rerun whose prior change WAS committed enters clean, so there is
+# nothing to carry and the message stays exactly what the builder wrote.
+CARRIED["tracked"], CARRIED["counts"] = [], (0, 0)
+phases.clear(); committed.clear()
+clear_handoff()
+sdlc.main(None, findings="finding D", from_adw_id="ab12cd34")
+check("rerun on a clean tree carries nothing and leaves the message alone",
+      committed and committed[0][0] == "Remove stale retired UI claims", str(committed))
+
+# proven-can-fail: a perturbed copy with the body append dropped commits the same
+# 7,937-line change under the message written for the fix-up — what this fixes.
+CARRIED["tracked"] = [f"mos-app/src/retired/{i}.tsx" for i in range(63)]
+CARRIED["counts"] = (112, 7937)
+src = (root / "adws/adw_simple_sdlc.py").read_text()
+needle = "message += CARRIED_BODY.format(prior=from_adw_id, carried=carried)"
+check("perturbation anchor present in the chain source", needle in src)
+perturbed_path = work / "adw_simple_sdlc_perturbed.py"
+perturbed_path.write_text(src.replace(needle, "message = message"))
+spec2 = importlib.util.spec_from_file_location("adw_simple_sdlc_perturbed", perturbed_path)
+pert = importlib.util.module_from_spec(spec2)
+spec2.loader.exec_module(pert)
+committed.clear()
+clear_handoff()
+pert.main(None, findings="finding C again", from_adw_id="ab12cd34")
+check("the #390 predicate can fail: without the append, the whole change lands "
+      "under the message written for the fix-up",
+      committed and committed[0][0] == "Remove stale retired UI claims", str(committed))
+CARRIED["tracked"], CARRIED["counts"] = [], (0, 0)
+BUILD_MESSAGE = "msg"
 
 # round caps unchanged: a red findings run still exhausts at 3 fix rounds, no commit
 QUALITY_GREEN = False

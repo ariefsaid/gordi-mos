@@ -62,35 +62,8 @@
   font-size: var(--font-size-control);
 }
 
-.chart-frame-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 160px;
-}
-
-.chart-frame-error-text {
-  margin: 0;
-  color: var(--status-lost-text);
-  font-size: var(--font-size-control);
-}
-
-.chart-frame-retry {
-  height: 32px;
-  padding: 0 14px;
-  background: var(--background);
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  color: var(--foreground);
-  font-family: inherit;
-  font-size: var(--font-size-control);
-  cursor: pointer;
-}
-.chart-frame-retry:hover {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
-}
+/* #359: `.chart-frame-error*` / `.chart-frame-retry` deleted — the error branch now
+   composes the shared ErrorState (state-kit), which owns its own shell + retry button. */
 
 /* Fallback table: hidden visually on desktop (a11y-only, screen-reader/no-JS
    equivalent) but promoted to the visible primary view on phone (design-plan

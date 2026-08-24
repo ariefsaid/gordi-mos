@@ -212,7 +212,7 @@ describe('KitchenReviewPage — states', () => {
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockList.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce([PROD_LOG])
     render(<KitchenReviewPage />, { wrapper })
-    const retry = await screen.findByRole('button', { name: /retry/i })
+    const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
   })
@@ -788,6 +788,53 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
   })
   afterEach(() => localStorage.clear())
+
+  // #410: the owner's named worst case, mirrored — the decision buttons were translated while
+  // the table AROUND them stayed English (headers, the on/off-plan tag, the plan/logged words).
+  it('table chrome around the decisions is Indonesian: headers, variance tag, qty words', async () => {
+    // Desktop branch for the column headers (jsdom matchMedia defaults to phone/cards).
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({
+      matches: true,
+      media: '(min-width: 768px)',
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList)
+    try {
+      render(<KitchenReviewPage />, { wrapper })
+      await screen.findByText('Nasi Goreng')
+      // column headers
+      const ths = Array.from(document.querySelectorAll('thead th'))
+      expect(ths.map((th) => th.textContent)).toEqual([
+        'Item', 'Rencana vs dicatat', 'Pengaju', 'Waktu', 'Catatan', 'Keputusan',
+      ])
+      // the variance tag (row is on-plan: plan 8, logged 8) and the qty words
+      expect(screen.getByText('sesuai rencana')).toBeInTheDocument()
+      expect(screen.getByText('rencana')).toBeInTheDocument()
+      expect(screen.getByText('· dicatat')).toBeInTheDocument()
+      // no English chrome survives
+      expect(screen.queryByText('Plan vs logged')).toBeNull()
+      expect(screen.queryByText('Submitter')).toBeNull()
+      expect(screen.queryByText('Decision')).toBeNull()
+      expect(screen.queryByText('on-plan')).toBeNull()
+    } finally {
+      matchMediaSpy.mockRestore()
+    }
+  })
+
+  it('phone card chrome is Indonesian too: variance tag and qty words', async () => {
+    // Default jsdom matchMedia (matches: false) → the phone-card branch (#436).
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByText('sesuai rencana')).toBeInTheDocument()
+    expect(screen.getByText('rencana')).toBeInTheDocument()
+    expect(screen.getByText(/dicatat/)).toBeInTheDocument()
+    expect(screen.queryByText('on-plan')).toBeNull()
+    expect(screen.queryByText(/· logged/)).toBeNull()
+  })
 
   it('idle row: Approve/Reject buttons and their aria names are Indonesian', async () => {
     render(<KitchenReviewPage />, { wrapper })

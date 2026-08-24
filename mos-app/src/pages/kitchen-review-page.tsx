@@ -680,7 +680,7 @@ export function KitchenReviewPage() {
   const columns: DataTableColumn<ReviewLogRow>[] = [
     {
       key: 'item',
-      header: 'Item',
+      header: t('kitchen.review.col.item'),
       cardLabel: '',
       render: (log) => {
         const offPlan = log.qty_porsi !== planQtyFor(streamPlans, log)
@@ -690,7 +690,7 @@ export function KitchenReviewPage() {
             <span className="krow-variance">
               <Tag color={offPlan ? 'amber' : 'green'}>
                 <span className="krow-dot" aria-hidden="true" />
-                {offPlan ? 'off-plan' : 'on-plan'}
+                {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
               </Tag>
             </span>
           </>
@@ -699,19 +699,19 @@ export function KitchenReviewPage() {
     },
     {
       key: 'planVsLogged',
-      header: 'Plan vs logged',
+      header: t('kitchen.review.col.planVsLogged'),
       render: (log) => (
         <span className="krow-qty">
-          <span className="krow-meta">plan</span>
+          <span className="krow-meta">{t('kitchen.review.qty.plan')}</span>
           <strong>{planQtyFor(streamPlans, log)}</strong>
-          <span className="krow-meta">· logged</span>
+          <span className="krow-meta">· {t('kitchen.review.qty.logged')}</span>
           <strong>{log.qty_porsi}</strong>
         </span>
       ),
     },
     {
       key: 'submitter',
-      header: 'Submitter',
+      header: t('kitchen.review.col.submitter'),
       render: (log) => {
         const name = peopleMap.get(log.submitted_by ?? '') ?? '—'
         return (
@@ -724,19 +724,19 @@ export function KitchenReviewPage() {
     },
     {
       key: 'time',
-      header: 'Time',
+      header: t('kitchen.review.col.time'),
       render: (log) => <span className="krow-time">{formatTime(log.created_at)}</span>,
     },
     {
       key: 'note',
-      header: 'Note',
+      header: t('kitchen.review.col.note'),
       render: (log) => log.notes
         ? <span className="krow-submitnote">“{log.notes}”</span>
         : <span className="krow-nonote">—</span>,
     },
     {
       key: 'decision',
-      header: 'Decision',
+      header: t('kitchen.review.col.decision'),
       render: (log) => {
         // #236 (FR-040): a row outside the supervisor's own stream carries no decision
         // controls — its stream's reviewer (or the ops lead) decides it. Display honesty
@@ -750,7 +750,7 @@ export function KitchenReviewPage() {
             log={log}
             planQty={planQtyFor(streamPlans, log)}
             approveDisabled={gated || !isOnline}
-            approveDisabledReason={gated ? 'Finish Production approvals first.' : ''}
+            approveDisabledReason={gated ? t('kitchen.review.gate.productionFirst') : ''}
             submitting={submittingId === log.id}
             onApprove={handleApprove}
             onReject={handleReject}
@@ -775,13 +775,13 @@ export function KitchenReviewPage() {
           <span className="krow-name">{log.wip_item_name}</span>
           <Tag color={offPlan ? 'amber' : 'green'}>
             <span className="krow-dot" aria-hidden="true" />
-            {offPlan ? 'off-plan' : 'on-plan'}
+            {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
           </Tag>
         </div>
         <div className="krow-card-meta">
           <span className="krow-qty">
-            <span className="krow-meta">plan</span> <strong>{planQty}</strong>
-            <span className="krow-meta"> · logged</span> <strong>{log.qty_porsi}</strong>
+            <span className="krow-meta">{t('kitchen.review.qty.plan')}</span> <strong>{planQty}</strong>
+            <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{log.qty_porsi}</strong>
           </span>
           <span className="krow-byname">{name}</span>
           <span className="krow-time">{formatTime(log.created_at)}</span>
@@ -793,7 +793,7 @@ export function KitchenReviewPage() {
                 log={log}
                 planQty={planQty}
                 approveDisabled={gated || !isOnline}
-                approveDisabledReason={gated ? 'Finish Production approvals first.' : ''}
+                approveDisabledReason={gated ? t('kitchen.review.gate.productionFirst') : ''}
                 submitting={submittingId === log.id}
                 onApprove={handleApprove}
                 onReject={handleReject}

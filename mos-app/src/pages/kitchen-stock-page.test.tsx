@@ -191,7 +191,7 @@ describe('KitchenStockPage — states', () => {
   it('error + retry: surfaces a retry that re-fetches', async () => {
     mockFetchStock.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
-    const retry = await screen.findByRole('button', { name: /retry/i })
+    const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })

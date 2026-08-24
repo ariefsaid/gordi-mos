@@ -116,3 +116,33 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('')
   })
 })
+
+// #410: the ?view= leaf map and the create-task leaf were hardcoded English (module-level
+// literals), so an Indonesian viewer read "Work · Tasks · My work" around a translated shell.
+describe('breadcrumb leaves resolve the id locale (#410)', () => {
+  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+  afterEach(() => localStorage.removeItem('mos.locale'))
+
+  it('?view=mine leaf renders Pekerjaan saya, not My work', () => {
+    renderBC('/work/tasks?view=mine')
+    expect(crumbText()).toContain('Pekerjaan saya')
+    expect(crumbText()).not.toContain('My work')
+  })
+
+  it('?view=overdue leaf renders Terlambat', () => {
+    renderBC('/work/tasks?view=overdue')
+    expect(crumbText()).toContain('Terlambat')
+    expect(crumbText()).not.toContain('Overdue')
+  })
+
+  it('?view=followups leaf renders the id AR Follow-up label', () => {
+    renderBC('/work/tasks?view=followups')
+    expect(crumbText()).not.toContain('AR Follow-ups') // id label is 'AR Follow-up' (no s)
+  })
+
+  it('/work/tasks/new leaf renders Buat tugas, not Create task', () => {
+    renderBC('/work/tasks/new')
+    expect(crumbText()).toContain('Buat tugas')
+    expect(crumbText()).not.toContain('Create task')
+  })
+})

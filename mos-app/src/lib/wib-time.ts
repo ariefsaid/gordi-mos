@@ -1,17 +1,6 @@
-export function formatWibDateTime(value: string | Date): string {
-  const date = value instanceof Date ? value : new Date(value)
-
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(date)
-
-  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? ''
-
-  return `${pick('day')} ${pick('month')} ${pick('year')}, ${pick('hour')}:${pick('minute')} WIB`
-}
+// #410: this module used to hold a second copy of the Jakarta formatter with 'en-GB' nailed in,
+// so every signal timestamp/freshness/provenance read English months in the Indonesian locale.
+// It is now the v4 shape again — a re-export of the locale-aware formatter (optional `locale`
+// param, falling back to the persisted viewer locale). The timezone was always correct; only
+// the display language was wrong. Existing import paths keep working unchanged.
+export { formatWibDateTime } from '@/lib/format/date'
