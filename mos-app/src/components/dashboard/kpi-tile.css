@@ -5,6 +5,7 @@
    Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
 .kpi-tile {
+  position: relative; /* #359: anchors the stretched hit overlay */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -20,20 +21,28 @@
   color: inherit;
 }
 
-/* Button variant (onClick set — filter-in-place, FR-016/AC-016): reset native button
-   chrome so the tile reads identically to the div, just interactive. The hover lift
-   is conveyed by the primary border-color transition (Soft-Elevation: rest shadow
-   stays; no separate hover-shadow token exists in DESIGN.md). */
-button.kpi-tile {
-  cursor: pointer;
-  width: 100%;
-  transition: border-color 120ms ease;
+/* Interactive variant (onClick set — filter-in-place, FR-016/AC-016). #359: the tile
+   is a div + a stretched transparent hit <button> (never a button WRAPPER — that would
+   nest the HelpTip button). The hover lift stays the primary border-color transition
+   (Soft-Elevation: rest shadow stays; no hover-shadow token). */
+.kpi-tile--interactive {
+  transition: border-color var(--dur-fast) ease;
 }
-button.kpi-tile:hover {
+.kpi-tile--interactive:hover {
   border-color: var(--primary);
 }
 @media (prefers-reduced-motion: reduce) {
-  button.kpi-tile { transition: none; }
+  .kpi-tile--interactive { transition: none; }
+}
+
+.kpi-tile-hit {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  border-radius: inherit;
+  padding: 0;
+  cursor: pointer;
 }
 
 /* selected = the tile driving the current filter-in-place window (FR-016/AC-016):
@@ -53,18 +62,15 @@ button.kpi-tile:hover {
   color: var(--muted-foreground);
 }
 
+/* #359: this rule used to be a full duplicate of the shared "?" glyph — a second hand-rolled
+   control carrying the same touch-dead `title` defect. The glyph is now the shared HelpTip
+   (help-tip.css owns its box, border, colour and 44px hit area); this class survives only as
+   the tile-local POSITIONING concern the shared primitive must not know about: stacking above
+   `.kpi-tile-hit`, the stretched transparent overlay that makes a filter-in-place tile
+   clickable. Without the z-index the overlay would swallow the help tap. */
 .kpi-tile-help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-size: var(--font-size-micro);
-  cursor: help;
-  flex: none;
+  position: relative;
+  z-index: 1;
 }
 
 .kpi-tile-value {
@@ -91,6 +97,13 @@ button.kpi-tile:hover {
   .kpi-tile-value--nowrap {
     font-size: var(--font-size-kpi-value);
   }
+}
+
+/* #359: the tile is a stretch-aligned flex column, so the delta Pill used to stretch
+   into a full-width bar on wide tiles and clip its long copy on narrow ones. The pill
+   hugs its content. */
+.kpi-tile > .pill {
+  align-self: flex-start;
 }
 
 .kpi-tile-sub {

@@ -505,3 +505,38 @@ describe('DataTable — locale seam (#400)', () => {
     expect(screen.queryByText(/couldn’t load|couldn't load|try again/i)).toBeNull()
   })
 })
+
+// #359 — stylesheet pins (jsdom computes no layout; the CSS file is the oracle, the same
+// pattern as the kpi-tile span pin and the freshness-label css test).
+describe('DataTable — #359 stylesheet pins', () => {
+  const css = readFileSync(resolve(SRC, 'components/dashboard/data-table.css'), 'utf8')
+
+  it('header cells are sticky with card bg + the low z-index token (DESIGN.md "Data Table (signature)")', () => {
+    const block = css.split('.dt-table thead th {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('position: sticky')
+    expect(block).toContain('top: 0')
+    expect(block).toContain('z-index: var(--z-sticky)')
+    expect(block).toContain('background: var(--card)')
+  })
+
+  it('the phone group-toggle reaches the 44px floor via the ::before overlay (24 + 2×10)', () => {
+    const block = css.split('.dt-cards-group-toggle::before {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('position: absolute')
+    expect(block).toContain('inset: -10px')
+    // the overlay only works if the toggle is its containing block
+    const toggle = css.split('.dt-cards-group-toggle {')[1]?.split('}')[0] ?? ''
+    expect(toggle).toContain('position: relative')
+  })
+
+  it('body rows read from the shared --row-* rhythm tokens, not raw literals', () => {
+    const block = css.split('.dt-table tbody td {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('height: var(--row-min-h)')
+    expect(block).toContain('padding: var(--row-pad-y) var(--row-pad-x)')
+    expect(block).toContain('var(--row-divider)')
+  })
+
+  it('chevron transitions use the --dur-fast token, never a raw 120ms', () => {
+    expect(css).not.toMatch(/120ms/)
+    expect(css).toContain('transition: transform var(--dur-fast) ease')
+  })
+})

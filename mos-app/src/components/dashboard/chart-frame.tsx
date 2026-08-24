@@ -4,6 +4,7 @@
 // doubles as the phone primary view when the chart is unreadable.
 import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
+import { ErrorState } from '@/components/ui/state-kit'
 import './chart-frame.css'
 
 export interface ChartFrameProps {
@@ -48,19 +49,15 @@ export function ChartFrame({
           </div>
         )}
         {/* #400: the failure copy joins the same `common.loadFailed` sentence every other
-            load failure in the app already uses, so the one state a user meets on a bad
-            connection stops being the one state that answers them in English. */}
+            load failure in the app already uses. #359: the shell itself is now the shared
+            ErrorState — it brings role="alert" (this was the one dashboard error that never
+            announced; the empty state has role="status" and DataTable's error has
+            role="alert") and collapses the third bespoke error implementation. */}
         {state === 'error' && (
-          <div className="chart-frame-error">
-            <p className="chart-frame-error-text">
-              {t('common.loadFailed', { what: t('common.what.chart') })}
-            </p>
-            {onRetry && (
-              <button type="button" className="chart-frame-retry" onClick={onRetry}>
-                {t('common.retry')}
-              </button>
-            )}
-          </div>
+          <ErrorState
+            message={t('common.loadFailed', { what: t('common.what.chart') })}
+            onRetry={onRetry}
+          />
         )}
         {state === 'ready' && children}
       </div>
