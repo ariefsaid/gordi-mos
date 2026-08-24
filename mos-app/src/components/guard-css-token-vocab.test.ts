@@ -134,6 +134,8 @@ function scannedFiles(): { rel: string; css: string }[] {
     ...cssFilesUnder(resolve(SRC, 'shell')),
     ...cssFilesUnder(resolve(SRC, 'pages')),
     ...cssFilesUnder(resolve(SRC, 'styles'), TOKENS_DIR),
+    // #447 review: the TSX scan covered src/auth but the CSS side skipped it — close the gap.
+    ...cssFilesUnder(resolve(SRC, 'auth')),
   ]
   return files.map((f) => ({
     rel: relative(process.cwd(), f),
