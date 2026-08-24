@@ -17,6 +17,18 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    # Majors the project has RULED on keep regenerating as grouped PRs (#324/#325 closed by the
+    # #412 audit, then #430/#431 arrived as the same bumps at newer versions — closed again,
+    # 2026-08-24). `ignore` is the lever that stops the churn; each entry names its ruling.
+    ignore:
+      # typescript is deliberately held at ~5.8 (mos-app/package.json): typescript-eslint's
+      # peer range caps below 6.1, so any major here just dead-locks npm install (#412 on #324).
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # react-table v9 is a breaking API rewrite of a heavily-used layer (tasks-workspace).
+      # Migrating is a real code ticket someone chooses, never a background bump (#412 on #325).
+      - dependency-name: '@tanstack/react-table'
+        update-types: ['version-update:semver-major']
     groups:
       # Build/test tooling never reaches production. One PR a week, not one per package.
       dev-dependencies:
