@@ -1,8 +1,12 @@
 /// <reference types="vitest/config" />
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server'
+
+const __dir = dirname(fileURLToPath(import.meta.url))
 
 // Dev/preview ergonomics: visiting bare "/" or "/mos" (no trailing slash) otherwise
 // shows Vite's "did you mean to visit /mos/ instead?" notice. Redirect those to the
@@ -28,10 +32,31 @@ function redirectToBase(base = '/mos/'): Plugin {
   }
 }
 
+// #419 — dev-server worktree identity. The browser suite must never measure another
+// worktree's app: playwright derives a per-worktree port, and e2e/global-setup.ts fetches
+// this fingerprint before any test, refusing a server that is not provably this tree's.
+// Dev-server-only (configureServer); builds and preview are unaffected.
+function mosDevIdentity(): Plugin {
+  const identity = worktreeFingerprint(__dir)
+  return {
+    name: 'mos-dev-identity',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? '').split('?')[0] === MOS_DEV_IDENTITY_PATH) {
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(identity)
+          return
+        }
+        next()
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/mos/',
-  plugins: [redirectToBase('/mos/'), react(), tailwindcss()],
+  plugins: [redirectToBase('/mos/'), mosDevIdentity(), react(), tailwindcss()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

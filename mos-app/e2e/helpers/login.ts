@@ -2,8 +2,8 @@
 import type { Page } from '@playwright/test'
 
 export async function loginAs(page: Page, email: string, password: string) {
-  // Use relative URL so Playwright resolves against baseURL (http://localhost:5173/mos/)
-  // page.goto('/login') would go to http://localhost:5173/login (404); 'login' → /mos/login
+  // Use relative URL so Playwright resolves against baseURL (worktree-derived port, #419)
+  // page.goto('/login') would go to http://localhost:<port>/login (404); 'login' → /mos/login
   await page.goto('login')
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(password)
