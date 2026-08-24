@@ -58,7 +58,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           {/* Overline: 11px/600, ls 0.06em, uppercase, muted-foreground */}
           <span
             className="text-muted-foreground font-semibold uppercase tracking-[0.06em]"
-            style={{ fontSize: 11 }}
+            style={{ fontSize: 'var(--font-size-overline)' }}
           >
             Management OS
           </span>
@@ -70,7 +70,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       {/* Foot line: body 13px, muted-foreground */}
       <p
         className="mt-6 text-muted-foreground text-center"
-        style={{ fontSize: 15 }}
+        style={{ fontSize: 'var(--font-size-body-lg)' }}
       >
         Trouble signing in? Contact Arief.
       </p>

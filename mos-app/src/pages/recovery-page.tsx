@@ -58,7 +58,7 @@ export function RecoveryPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
             role="alert"
           >
@@ -99,7 +99,7 @@ export function RecoveryPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
             role="alert"
           >

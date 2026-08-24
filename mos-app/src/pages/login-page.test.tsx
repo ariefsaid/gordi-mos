@@ -44,6 +44,13 @@ describe('LoginPage — credentials form', () => {
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
+  // #425: the port dropped aria-required — the sign-in fields are required and must say so
+  it('login required fields carry aria-required (#425)', () => {
+    render(<LoginPage />)
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-required', 'true')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-required', 'true')
+  })
+
   it('AC-011: error linked via aria-describedby after failed submit', async () => {
     mockSignIn.mockResolvedValue({
       data: { user: null, session: null },
