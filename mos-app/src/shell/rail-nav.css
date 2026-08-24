@@ -1,4 +1,84 @@
 /* ════════════════════════════════════════════════════════════════════════════
+   Rail — the three-rung type ladder (DD-WAY-33, #439).
+
+   Before this, a group overline, a destination and a child all rendered at one
+   visual weight, so Money and Inbox — which follow Work's children — read as
+   belonging to the group above them rather than as top-level destinations.
+
+   Three rungs, loudest first:
+
+     1. group overline  DESTINATIONS · RETAIL OPS · B2B OPS   .rail-item-overline
+     2. destination     Home · Work · Money · Inbox · Café     .rail-item--dest
+     3. child           Tasks · Signals · Log · Stock · …      .rail-item--child
+
+   Each rung sets its own size / weight / colour plus one icon dimension; the
+   active treatment is a COMPOUND selector (.rail-item--dest.rail-item--active)
+   so it outranks its rung on specificity rather than on source order — two
+   single-class rules on one element have no tie-break, which is the scar this
+   avoids. The ladder therefore holds at every rung, and active still wins.
+
+   Sizes come from the §Typography ramp; the icon dimensions and the indent
+   guide from the rail geometry tokens in index.css. No raw px, no literal
+   colour reaches a rule here (#425, #327).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Rung 1 — the group overline. DESIGN.md §Typography Overline: DM Sans 600, 11px,
+   ls 0.06em, UPPERCASE, muted-foreground. Was an inline `style={{ fontSize: 11 }}`
+   on RailGroupLabel; the value is identical, it just speaks tokens now. */
+.rail-item-overline {
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  user-select: none;
+}
+
+/* Rung 2 — a destination. Full `foreground` at 600: the rung a scanning eye lands on. */
+.rail-item--dest {
+  --rail-rung-icon: var(--rail-icon);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Rung 3 — a child. Quieter in size, weight AND colour, so the two rungs are told
+   apart by type, not only by the indent that used to be the sole cue.
+   `--font-size-mono` is the ramp's 13px step ("dense compact text"); the rail child
+   is that, not monospace — the ladder mints no new size of its own. */
+.rail-item--child {
+  --rail-rung-icon: var(--rail-icon-child);
+  font-size: var(--font-size-mono);
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* Active — unchanged treatment (blue tint + The One Blue + 600), now expressed once
+   and winning at BOTH rungs on specificity. */
+.rail-item--dest.rail-item--active,
+.rail-item--child.rail-item--active {
+  font-weight: 600;
+  color: var(--text-on-accent-tint);
+  background: var(--ds-color-blue3);
+}
+
+/* The rung's icon dimension. The nav glyphs carry width/height ATTRIBUTES (18px); a CSS
+   declaration beats a presentation attribute, so this is what actually sizes them. */
+.rail-item svg {
+  width: var(--rail-rung-icon);
+  height: var(--rail-rung-icon);
+}
+
+/* The child list's hairline indent guide (full-width rail only — the compact icon rail
+   has no indent to guide). Replaces the bare `pl-3`: the indent is now drawn, so a child
+   is visibly subordinate even where the type ladder is subtle. */
+.rail-item-children {
+  margin-left: var(--rail-child-guide-x);
+  padding-left: var(--rail-child-pad);
+  border-left: var(--rail-child-guide) solid var(--border);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
    Rail — compact icon-only regime (OD-REDESIGN-84.2 / P1-1, 920–1099.98px).
    The rail item keeps its icon; its label moves to `.sr-only` (still the
    element's accessible name) and this CSS-only tooltip surfaces it back on

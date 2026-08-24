@@ -151,7 +151,11 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
   })
 
-  it('AC-004: Work children retain E7 order and only the shared Cadence family has an overline', () => {
+  // DD-WAY-33 (#439): the Work sub-family eyebrows are DELETED, not suppressed. Only Cadence ever
+  // rendered (the old ≥2-items rule silenced the other three), so one unexplained word floated
+  // mid-list. This case used to assert 'Cadence' was PRESENT; the owner ruling reverses it. The
+  // E7 family ORDER survives — that half of the assertion is unchanged.
+  it('AC-004: Work children retain E7 order and NO sub-family eyebrow renders (DD-WAY-33)', () => {
     setAuthAs(['admin'])
     const { container } = renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
@@ -162,10 +166,9 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
-    for (const label of ['Execution', 'Work Systems', 'Direction']) {
+    for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
       expect(within(nav).queryByText(label)).toBeNull()
     }
-    expect(within(nav).getByText('Cadence')).toBeInTheDocument()
     // Children still render in E7 top-down order: Tasks → Projects → Objectives → Signals → Events.
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
@@ -545,5 +548,126 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(chip).toBeInTheDocument()
     // ...but the visible name text node is gone (avatar-only).
     expect(within(chip).queryByText('Cahya Cafe')).toBeNull()
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// DD-WAY-33 (#439) — the rail's three-rung type ladder.
+//
+// The defect: group overline, destination and child all rendered at one visual weight, so Money
+// and Inbox (which follow Work's children) read as belonging to the group above them. The fix is
+// a ladder — group overline / destination / child — each rung a distinct size + weight + colour.
+//
+// jsdom computes no layout and applies no stylesheet, so a rendered-DOM assertion can only prove
+// WHICH rung each row claims. The stylesheet is therefore read as source in the second half, which
+// is what makes "distinguishable by something other than indent" able to FAIL: collapse the two
+// rungs onto the same size/weight/colour and these break, even though the DOM is unchanged.
+// ════════════════════════════════════════════════════════════════════════════
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const railCss = readFileSync(resolve(__dirname, 'rail-nav.css'), 'utf8')
+
+/** The declarations inside one rule of rail-nav.css, as `prop: value` strings. */
+function ruleBody(selector: string): string[] {
+  const m = railCss.match(new RegExp(`(?:^|\\})\\s*\\${selector}\\s*\\{([^}]*)\\}`, 'm'))
+  if (!m) return []
+  return m[1]
+    .split(';')
+    .map((d) => d.replace(/\/\*[\s\S]*?\*\//g, '').trim())
+    .filter(Boolean)
+}
+const declared = (selector: string, prop: string): string | undefined =>
+  ruleBody(selector)
+    .find((d) => d.startsWith(`${prop}:`))
+    ?.slice(prop.length + 1)
+    .trim()
+
+describe('DD-WAY-33 (#439): the rail type ladder', () => {
+  it('no CADENCE — nor any other Work sub-family eyebrow — renders, at either rail width', () => {
+    for (const compact of [false, true]) {
+      setAuthAs(['admin'], 'Managing Director')
+      const { container, unmount } = renderRailNav('/work/tasks', { compact })
+      // Both catalogs: the four eyebrow strings are gone from the app entirely (their keys were
+      // deleted with the path, which the orphaned-key guard independently proves).
+      for (const word of ['Cadence', 'Irama', 'Execution', 'Eksekusi', 'Work Systems', 'Sistem Kerja', 'Direction', 'Arah']) {
+        expect(container.textContent).not.toContain(word)
+      }
+      unmount()
+    }
+  })
+
+  it('a destination and a child claim DIFFERENT rungs (the cue is the rung, not the indent)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const work = within(nav).getByRole('link', { name: 'Work' })
+    const tasks = within(nav).getByRole('link', { name: /^Tasks/ })
+    expect(work.className).toContain('rail-item--dest')
+    expect(work.className).not.toContain('rail-item--child')
+    expect(tasks.className).toContain('rail-item--child')
+    expect(tasks.className).not.toContain('rail-item--dest')
+    // Money and Inbox follow Work's children in document order — the defect this ticket names.
+    // They must claim the DESTINATION rung, or they read as more of Work's list.
+    for (const name of ['Money', 'Inbox']) {
+      expect(within(nav).getByRole('link', { name: new RegExp(`^${name}`) }).className).toContain('rail-item--dest')
+    }
+  })
+
+  it('the two item rungs differ in size, weight AND colour — not in indent alone', () => {
+    for (const prop of ['font-size', 'font-weight', 'color']) {
+      const dest = declared('.rail-item--dest', prop)
+      const child = declared('.rail-item--child', prop)
+      expect(dest, `.rail-item--dest declares no ${prop}`).toBeDefined()
+      expect(child, `.rail-item--child declares no ${prop}`).toBeDefined()
+      expect(child, `both rungs share one ${prop} — the ladder has collapsed`).not.toEqual(dest)
+    }
+    // …and their icons are sized apart too, so the ladder survives the icon-only compact regime.
+    expect(declared('.rail-item--child', '--rail-rung-icon')).not.toEqual(declared('.rail-item--dest', '--rail-rung-icon'))
+  })
+
+  it('the group overline is the third, quietest rung and is still aria-hidden', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/')
+    const overline = screen.getByText('Retail Ops')
+    expect(overline.className).toContain('rail-item-overline')
+    expect(overline).toHaveAttribute('aria-hidden', 'true')
+    expect(declared('.rail-item-overline', 'font-size')).toBe('var(--font-size-overline)')
+    // Smaller than either item rung — the ramp's overline step, not a rung of its own.
+    expect(declared('.rail-item-overline', 'font-size')).not.toEqual(declared('.rail-item--dest', 'font-size'))
+  })
+
+  it('every ladder value comes from a token — no raw px/hex/hsl in the rail stylesheet (#425, #327)', () => {
+    const withoutComments = railCss.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(withoutComments).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(withoutComments).not.toMatch(/\b(?:rgb|rgba|hsl|hsla)\(/)
+    for (const selector of ['.rail-item--dest', '.rail-item--child', '.rail-item-overline', '.rail-item-children']) {
+      const body = ruleBody(selector)
+      expect(body.length, `${selector} has no rule in rail-nav.css`).toBeGreaterThan(0)
+      for (const decl of body) {
+        expect(decl, `${selector} — ${decl} carries a raw px literal`).not.toMatch(/\d+(?:\.\d+)?px/)
+      }
+    }
+  })
+
+  it('the active treatment still wins at BOTH rungs (compound selector, not source order)', () => {
+    expect(railCss).toContain('.rail-item--dest.rail-item--active')
+    expect(railCss).toContain('.rail-item--child.rail-item--active')
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const tasks = within(nav).getByRole('link', { name: /^Tasks/ })
+    expect(tasks.className).toContain('rail-item--active')
+    expect(within(nav).getByRole('link', { name: 'Objectives' }).className).not.toContain('rail-item--active')
+  })
+
+  it('the compact icon rail keeps working: rungs still applied, indent guide dropped', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    const { container } = renderRailNav('/work/tasks', { compact: true })
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Work' }).className).toContain('rail-item--dest')
+    expect(within(nav).getByRole('link', { name: /^Tasks/ }).className).toContain('rail-item--child')
+    // No hairline indent guide when there is no indent to guide.
+    expect(container.querySelectorAll('.rail-item-children')).toHaveLength(0)
   })
 })

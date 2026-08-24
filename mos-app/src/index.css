@@ -89,6 +89,16 @@
 .dark {
   --rail-w: 232px;     /* DESIGN.md authority (§Rail/§Density): 232px desktop rail (R-T-5 geometry parity) */
   --rail-w-compact: 72px; /* OD-REDESIGN-84.2 (P1-1): 920–1099.98px icon-only rail (E7 tablet regime parity) */
+
+  /* ── Rail type-ladder geometry (DD-WAY-33 / #439). The ladder's three rungs — group
+     overline · destination · child — take their SIZES from the §Typography ramp
+     (rail-nav.css); only these four dimensions are geometry, which is what this block is
+     for. Declared here rather than inline so the rail never carries a raw px again (#425). */
+  --rail-icon:          17px; /* destination rung — DESIGN.md §Rail, "17px stroke-2 icon" */
+  --rail-icon-child:    15px; /* child rung — one step down, so the ladder reads at icon size too */
+  --rail-child-guide-x: 18px; /* the hairline indent guide sits on the destination icon's centre line */
+  --rail-child-pad:     12px; /* child label offset from that hairline */
+  --rail-child-guide:    1px; /* the hairline itself (coloured var(--border)) */
   --header-h: 56px;
   --ctx-row-h: 40px;   /* region 2 — the shell context row (scope crumb + job sentence) */
   --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */

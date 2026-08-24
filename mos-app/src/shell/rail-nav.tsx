@@ -10,20 +10,26 @@ import { useUnreadCount } from '@/hooks/useUnreadCount'
 import './rail-nav.css'
 
 // E7 Work sub-section grammar (e7-views.js `workNavModel`) ported to our ratified IA: OD-REDESIGN-1
-// fixes WHICH Work children exist (do not add/remove); E7 fixes the sub-section overlines + order
-// that group them. Each of our 4 children maps to the E7 family that owns it, and the families
-// render in E7's top-down order — Execution → Work systems → Direction → Cadence. (E7's Execution
-// also holds Process Runs, Work systems also holds Processes + Standards, Cadence also holds
-// Follow-ups; those entries are not in our IA, so each of our families carries only the child we
-// have.) Per-item counts (E7's `.e7-count` badges) are wired for TWO items only — Tasks (open
-// count) and Signals (needs-attention count) — from ONE cheap shell-level aggregate (rail.tsx →
-// useRailCounts, a single mount-time fetch, no polling). Every other child omits its badge: they
-// have no already-loaded source, and the owner-artifact note forbids a query per item.
-const WORK_SUBSECTIONS: { labelKey: MessageKey; paths: readonly string[] }[] = [
-  { labelKey: 'rail.work.execution', paths: ['/work/tasks'] },
-  { labelKey: 'rail.work.workSystems', paths: ['/work/projects'] },
-  { labelKey: 'rail.work.direction', paths: ['/work/objectives'] },
-  { labelKey: 'rail.work.cadence', paths: ['/work/signals', '/work/events'] }
+// fixes WHICH Work children exist (do not add/remove); E7 fixes the ORDER that groups them. Each of
+// our children maps to the E7 family that owns it, and the families render in E7's top-down order —
+// Execution → Work systems → Direction → Cadence. (E7's Execution also holds Process Runs, Work
+// systems also holds Processes + Standards, Cadence also holds Follow-ups; those entries are not in
+// our IA, so most families carry only the child we have.)
+//
+// DD-WAY-33 (#439): the families keep their ORDER and have LOST their labels — the sub-section
+// eyebrow is deleted, not merely suppressed. Two reasons, both from the ruling. Only Cadence ever
+// grouped ≥2 items, so exactly one unexplained word ("CADENCE") floated mid-list. And an eyebrow
+// inside an already-indented child list is a fourth rung the three-rung ladder does not need.
+//
+// Per-item counts (E7's `.e7-count` badges) are wired for TWO items only — Tasks (open count) and
+// Signals (needs-attention count) — from ONE cheap shell-level aggregate (rail.tsx → useRailCounts,
+// a single mount-time fetch, no polling). Every other child omits its badge: they have no
+// already-loaded source, and the owner-artifact note forbids a query per item.
+const WORK_SUBSECTION_ORDER: readonly (readonly string[])[] = [
+  ['/work/tasks'],
+  ['/work/projects'],
+  ['/work/objectives'],
+  ['/work/signals', '/work/events'],
 ]
 
 // The ONE render seam for the rail count badges: which path shows which count (undefined → no badge).
@@ -71,14 +77,20 @@ type RailNavProps = {
 // pointer (mouse) — that spec stays authoritative here, unchanged. `rail-item` is a stable
 // hook for a `(pointer: coarse)` override in rail-nav.css that raises touch laptops/tablets
 // to the >=44px target floor without touching the documented mouse-regime height.
-const itemBase = (isActive: boolean, compact = false) =>
+//
+// DD-WAY-33 (#439): the item's TYPE is no longer set here. `rung` picks one of the ladder's two
+// item rungs — `dest` (13.5px/600, foreground, 17px icon) or `child` (13px/500, muted-foreground,
+// 15px icon) — and rail-nav.css resolves size, weight, colour and icon dimension from that one
+// class. Keeping the ladder in one stylesheet rather than split across Tailwind classes here means
+// there is a single cascade to reason about, and the active treatment (unchanged: blue tint + The
+// One Blue + 600) wins at either rung on specificity rather than on source order.
+const itemBase = (isActive: boolean, compact = false, rung: 'dest' | 'child' = 'dest') =>
   [
     'rail-item',
-    'relative flex items-center gap-[10px] h-9 rounded-sm no-underline text-sm',
+    `rail-item--${rung}`,
+    'relative flex items-center gap-[10px] h-9 rounded-sm no-underline',
     compact ? 'justify-center px-0 rail-tooltip-target' : 'px-2.5',
-    isActive
-      ? 'bg-[color:var(--ds-color-blue3)] font-semibold text-[color:var(--text-on-accent-tint)]'
-      : 'font-normal text-muted-foreground hover:bg-accent/60',
+    isActive ? 'rail-item--active' : 'hover:bg-accent/60',
   ].join(' ')
 
 // A destination rail item: NavLink to its primaryPath, labelled by the destination
@@ -107,9 +119,12 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
       data-label={compact ? label : undefined}
       className={({ isActive }) => itemBase(isActive, compact)}
     >
-      {({ isActive }) => (
+      {() => (
+        /* DD-WAY-33: the icon carries no colour class of its own — it inherits the rung's
+           colour (destination = `foreground`, active = `--text-on-accent-tint`), so glyph and
+           label move together up and down the ladder instead of being pinned apart. */
         <>
-          <span className={isActive ? 'text-[color:var(--text-on-accent-tint)]' : 'text-muted-foreground'}>
+          <span>
             <d.Icon />
           </span>
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
@@ -128,27 +143,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
 function RailGroupLabel({ children, className }: { children: string; className?: string }) {
   return (
     <div
-      className={['px-2.5 text-muted-foreground select-none uppercase', className].filter(Boolean).join(' ')}
-      style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}
-      aria-hidden="true"
-    >
-      {children}
-    </div>
-  )
-}
-
-// Work sub-section overline (E7 `.e7-sub-label`) — quieter + smaller than the top-level rail
-// overline (10px vs 11px, lighter), so the sub-grouping reads as a level below Destinations.
-// aria-hidden for the same reason as RailGroupLabel: a visual divider, not a nav landmark; the
-// child links stay directly reachable in document order (no extra tab stop). Rendered ONLY when
-// its family groups ≥2 items (item 2 — impeccable ban-eyebrow-on-every-section); a lone-child
-// family shows the child with no eyebrow. Dormant under today's single-item IA, live once a
-// second sibling ships into any family.
-function WorkSubLabel({ children }: { children: string }) {
-  return (
-    <div
-      className="px-2.5 text-muted-foreground/80 select-none uppercase"
-      style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', paddingTop: 6, paddingBottom: 2 }}
+      className={['rail-item-overline px-2.5 pt-0.5 pb-1', className].filter(Boolean).join(' ')}
       aria-hidden="true"
     >
       {children}
@@ -199,7 +194,7 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
       onClick={onNavigate}
       aria-label={accessibleName}
       data-label={compact ? label : undefined}
-      className={({ isActive }) => itemBase(isActive, compact)}
+      className={({ isActive }) => itemBase(isActive, compact, 'child')}
     >
       {() => (
         /* B2 (owner sketch, ratified 2026-07-18): at full width, Work children are PLAIN
@@ -214,7 +209,7 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
            (ml-auto) at full width, or pinned to the icon's corner when compact. */
         <>
           {compact && (
-            <span className="text-muted-foreground">
+            <span>
               <section.Icon />
             </span>
           )}
@@ -289,39 +284,25 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                     data-label={compact ? workLabel : undefined}
                     className={itemBase(workActive, compact)}
                   >
-                    <span className={workActive ? 'text-[color:var(--text-on-accent-tint)]' : 'text-muted-foreground'}>
+                    <span>
                       <d.Icon />
                     </span>
                     <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>
                   </Link>
-                  {/* Always-expanded children, grouped by the E7 Work sub-section families
-                      (workNavModel grammar): Execution · Work systems · Direction · Cadence, in E7's
-                      top-down order. A family's overline is DECORATIVE unless it actually groups
-                      more than one item — item 2 (impeccable ban-eyebrow-on-every-section): a
-                      sub-section overline renders ONLY when its family holds ≥2 visible items. With
-                      today's IA each family carries exactly one child (the sibling entries — Process
-                      Runs, Processes/Standards, Follow-ups — aren't in our IA yet), so NO eyebrows
-                      render: the children read as one clean indented list. The grammar auto-returns
-                      the moment a family gains a second item. Order is preserved either way, and each
-                      child stays one reachable link (the overline, when shown, is an aria-hidden
-                      divider). A capability-gated child (Projects & Processes, Objectives) that
-                      filters out empties its family, which then renders nothing. */}
-                  <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list pl-3'}>
-                    {WORK_SUBSECTIONS.map((sub) => {
-                      const items = children.filter((c) => sub.paths.includes(c.path))
-                      if (items.length === 0) return null
-                      // Compact icon rail (P1-1): group overlines hide unconditionally — there is
-                      // no room for a sub-section eyebrow once the item itself is icon-only.
-                      const showOverline = !compact && items.length >= 2
-                      return (
-                        <div key={sub.labelKey} className="flex flex-col gap-[2px] rail-item-list">
-                          {showOverline && <WorkSubLabel>{t(sub.labelKey)}</WorkSubLabel>}
-                          {items.map((c) => (
-                            <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
-                          ))}
-                        </div>
-                      )
-                    })}
+                  {/* Always-expanded children in the E7 Work family ORDER (Execution → Work
+                      systems → Direction → Cadence) and nothing else: DD-WAY-33 (#439) deleted the
+                      sub-section eyebrows, so this is one clean indented list, drawn under the
+                      ladder's hairline indent guide. Each child stays one reachable link. A
+                      capability-gated child (Projects & Processes, Objectives) that filters out
+                      empties its family, which then contributes nothing. */}
+                  <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
+                    {WORK_SUBSECTION_ORDER.flatMap((paths) =>
+                      children
+                        .filter((c) => paths.includes(c.path))
+                        .map((c) => (
+                          <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
+                        )),
+                    )}
                   </div>
                 </div>
               )
@@ -346,8 +327,8 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
             <div className="flex flex-col gap-[2px] rail-item-list">
               {g.items.map((m) => {
                 // A module with children renders them the same way Work does — an always-expanded
-                // indented list — minus Work's E7 sub-section overlines, which are Work's own
-                // grammar. Café is the module that has them; the rest fall through to a single
+                // indented list on the ladder's child rung, under the same hairline indent guide.
+                // Café is the module that has them; the rest fall through to a single
                 // link exactly as before. Without this the module's `children` are dead data and
                 // its screens have no nav entry at all.
                 const kids = visibleSections(m.children ?? [], accessRoles)
@@ -355,7 +336,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                   <div key={m.id}>
                     <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} />
                     {kids.length > 0 && (
-                      <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list pl-3'}>
+                      <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                         {kids.map((c) => (
                           <WorkChild key={c.path} section={c} onNavigate={onNavigate} compact={compact} />
                         ))}
