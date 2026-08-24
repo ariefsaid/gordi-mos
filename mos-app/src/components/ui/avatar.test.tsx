@@ -25,3 +25,12 @@ describe('Avatar — image fallback (#359)', () => {
     expect(container.textContent).toBe('R')
   })
 })
+
+// Review finding on #443: the failure must be per-URL — a NEW url after a failure renders again.
+it('recovers when the url prop changes after a failure', () => {
+  const { rerender, container } = render(<Avatar placeholder="Riri" avatarUrl="https://x/dead.png" />)
+  fireEvent.error(container.querySelector('img')!)
+  expect(container.querySelector('img')).toBeNull() // fallback to initial
+  rerender(<Avatar placeholder="Riri" avatarUrl="https://x/alive.png" />)
+  expect(container.querySelector('img')).not.toBeNull() // new url gets its chance
+})

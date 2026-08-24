@@ -62,12 +62,14 @@ export function Avatar({
 }: AvatarProps) {
   // #359: a broken avatarUrl used to render as an empty box — the browser's broken-image
   // glyph on a bare span. On error, fall back to the seeded initial, same as no-url.
-  const [imgFailed, setImgFailed] = useState(false)
+  // Review finding on #443: a boolean never resets when the url PROP changes, so one failed
+  // image pinned the initial forever on a reconciled instance. Track WHICH url failed instead.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const px = SIZE_PX[size]
   const fam = seedFamily(placeholder ?? '')
   const seedBg = `var(--ds-color-${fam}3)`
   const seedText = `var(--ds-color-${fam}11)`
-  const showImg = Boolean(avatarUrl) && !imgFailed
+  const showImg = Boolean(avatarUrl) && failedUrl !== avatarUrl
   const inline: CSSProperties = {
     width: px,
     height: px,
@@ -80,7 +82,7 @@ export function Avatar({
 
   let content: ReactNode = null
   if (showImg) {
-    content = <img src={avatarUrl} alt="" onError={() => setImgFailed(true)} />
+    content = <img src={avatarUrl} alt="" onError={() => setFailedUrl(avatarUrl ?? null)} />
   } else if (placeholder && placeholder.trim()) {
     content = placeholder.trim().charAt(0).toUpperCase()
   } else if (Icon != null) {
