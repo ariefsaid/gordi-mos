@@ -37,8 +37,8 @@ import { Select } from '@/components/ui/select'
 import { Tag } from '@/components/ui/tag'
 import { DataTable } from '@/components/dashboard/data-table'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
-import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
-import { useReviewKpis } from '@/lib/kitchen-review-kpis'
+import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
+import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import './kitchen-review-page.css'
 
 function wibToday(): string {
@@ -485,7 +485,7 @@ export function KitchenReviewPage() {
   )
 
   // KPIs summarise the queue AS FILTERED — the numbers must describe the rows on screen.
-  const kpiData = useReviewKpis(visibleLogs, streamPlans)
+  const summary = useReviewSummary(visibleLogs, streamPlans)
 
   // #247/#196 fix: the prior grouping walked a hardcoded 3-literal ACTION_ORDER
   // (['Production', 'Transfer to Radiant', 'Transfer to Bungur']) — a log whose derived
@@ -750,6 +750,50 @@ export function KitchenReviewPage() {
     },
   ]
 
+  // #422: the phone card — the generic <dl> fallback stacked all six columns as labelled
+  // rows before the decision controls were reachable. Head line: identity + variance;
+  // ONE muted meta line: plan/logged, submitter, time; the submit note only when present;
+  // then the SAME KitchenReviewDecision the desktop table mounts.
+  const renderReviewCard = (log: ReviewLogRow) => {
+    const planQty = planQtyFor(streamPlans, log)
+    const offPlan = log.qty_porsi !== planQty
+    const name = peopleMap.get(log.submitted_by ?? '') ?? '—'
+    const gated = rowGated(log)
+    return (
+      <div className="krow-card">
+        <div className="krow-card-head">
+          <span className="krow-name">{log.wip_item_name}</span>
+          <Tag color={offPlan ? 'amber' : 'green'}>
+            <span className="krow-dot" aria-hidden="true" />
+            {offPlan ? 'off-plan' : 'on-plan'}
+          </Tag>
+        </div>
+        <div className="krow-card-meta">
+          <span className="krow-qty">
+            <span className="krow-meta">plan</span> <strong>{planQty}</strong>
+            <span className="krow-meta"> · logged</span> <strong>{log.qty_porsi}</strong>
+          </span>
+          <span className="krow-byname">{name}</span>
+          <span className="krow-time">{formatTime(log.created_at)}</span>
+        </div>
+        {log.notes && <div className="krow-card-note">“{log.notes}”</div>}
+        {canDecide(log)
+          ? (
+              <KitchenReviewDecision
+                log={log}
+                planQty={planQty}
+                approveDisabled={gated || !isOnline}
+                approveDisabledReason={gated ? 'Finish Production approvals first.' : ''}
+                submitting={submittingId === log.id}
+                onApprove={handleApprove}
+                onReject={handleReject}
+              />
+            )
+          : <span className="krow-othersstream">{t('kitchen.review.opsLeadOnly')}</span>}
+      </div>
+    )
+  }
+
   if (auth.status === 'loading') {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
@@ -856,8 +900,20 @@ export function KitchenReviewPage() {
         </div>
       )}
 
+      {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md
+          Metric summary rule — one inline line, no card, no width branch — never a tile row.
+          The delta ("note required to approve") renders only when off-plan rows exist, i.e.
+          only when it carries a state the reviewer must act on. */}
       {load.kind === 'ready' && submittedCount > 0 && (
-        <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
+        <MetricSummaryRule
+          ariaLabel={t(summary.ariaLabel)}
+          metrics={summary.metrics.map(m => ({
+            key: m.key,
+            label: t(m.label),
+            value: m.value,
+            delta: m.delta ? { text: t(m.delta.key), tone: m.delta.tone } : undefined,
+          }))}
+        />
       )}
 
       {!isOnline && (
@@ -910,6 +966,7 @@ export function KitchenReviewPage() {
           rows={[]}
           groups={tableGroups}
           isDesktop={isDesktop}
+          renderCard={renderReviewCard}
           caption={t('kitchen.review.caption')}
         />
       )}

@@ -291,3 +291,31 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ── #422: the phone card ─────────────────────────────────────────────────────
+   The generic dt-card-detail <dl> stacked all six columns as labelled rows before
+   the Approve/Reject controls were reachable. The card is the row, recomposed:
+   head line (identity + variance), ONE muted meta line, the note only when present,
+   then the decision block the desktop table mounts unchanged. */
+.krow-card { display: flex; flex-direction: column; gap: 6px; }
+.krow-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.krow-card-head .krow-name { font-weight: 600; line-height: 1.2; }
+.krow-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+.krow-card-note {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  font-style: italic;
+}

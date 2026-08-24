@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeReviewKpis } from './kitchen-review-kpis'
+import { computeReviewSummary } from './kitchen-review-kpis'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const BRANCH_ID = 'branch-rumah-rames'
@@ -39,43 +39,34 @@ const PLAN_MAP: PlanMap = {
 }
 const STREAM_PLANS = new Map<string, PlanMap>([[STREAM_KEY, PLAN_MAP]])
 
-describe('computeReviewKpis', () => {
-  it('returns review-specific labels and queue counts', () => {
-    const data = computeReviewKpis(LOGS, STREAM_PLANS)
-    expect(data.ariaLabel).toBe('Review summary')
-    expect(data.tiles.map(tile => tile.label)).toEqual([
-      'Submitted',
-      'On-plan',
-      'Off-plan',
-      'Production gate',
+describe('computeReviewSummary — the summary-rule derivation (DD-WAY-40)', () => {
+  it('derives Submitted / On-plan / Off-plan against each row’s own stream plan', () => {
+    const s = computeReviewSummary(LOGS, STREAM_PLANS)
+    expect(s.ariaLabel).toBe('kitchen.review.summary.aria')
+    expect(s.metrics.map(m => m.label)).toEqual([
+      'kitchen.review.summary.submitted',
+      'kitchen.review.summary.onPlan',
+      'kitchen.review.summary.offPlan',
     ])
-    expect(data.tiles.map(tile => tile.value)).toEqual(['3', '2', '1', 'open'])
+    // w1 on-plan (20==20), w2 off-plan (7 != 10), w3 on-plan (10==10)
+    expect(s.metrics.map(m => m.value)).toEqual(['3', '2', '1'])
   })
 
-  it('marks the production gate blocked when transfer rows are waiting behind production', () => {
-    const data = computeReviewKpis(LOGS, STREAM_PLANS)
-    expect(data.tiles[3].delta).toBe('1 transfer waiting')
-    expect(data.tiles[3].deltaTone).toBe('destructive')
+  it('off-plan > 0 → the destructive note-gate delta; no other metric carries one', () => {
+    const s = computeReviewSummary(LOGS, STREAM_PLANS)
+    expect(s.metrics[2].delta).toEqual({ key: 'kitchen.review.summary.noteGate', tone: 'destructive' })
+    expect(s.metrics[0].delta).toBeUndefined()
+    expect(s.metrics[1].delta).toBeUndefined()
   })
 
-  it('shows a clear queue-empty state', () => {
-    const data = computeReviewKpis([], new Map())
-    expect(data.tiles[0].value).toBe('0')
-    expect(data.tiles[3].value).toBe('clear')
-    expect(data.phoneValue).toBe('0 submitted')
+  it('a fully on-plan queue carries no delta at all (neutral deltas are omitted)', () => {
+    const s = computeReviewSummary([LOGS[0]], STREAM_PLANS) // 20 == 20
+    expect(s.metrics[2].value).toBe('0')
+    expect(s.metrics.every(m => m.delta === undefined)).toBe(true)
   })
 
-  it('defect 247/197: a row from a stream with no fetched plan reads off-plan (0), never bleeds another stream\'s plan', () => {
-    const OTHER_BRANCH_ID = 'branch-other'
-    const OTHER_LOG: ReviewLogRow = {
-      ...LOGS[0], id: 'r-other', branch_id: OTHER_BRANCH_ID, qty_porsi: 20,
-    }
-    // Only the ORIGINAL stream's plan was fetched — the second stream's plan is absent.
-    const data = computeReviewKpis([...LOGS, OTHER_LOG], STREAM_PLANS)
-    // Submitted count grows to 4; on-plan stays 2 (the new row from the unplanned stream
-    // reads off-plan, not accidentally on-plan via the first stream's plan map).
-    expect(data.tiles[0].value).toBe('4')
-    expect(data.tiles[1].value).toBe('2')
-    expect(data.tiles[2].value).toBe('2')
+  it('no metric puts a word in the number slot (DD-WAY-40 kills the open/clear tile)', () => {
+    const s = computeReviewSummary([], STREAM_PLANS)
+    expect(s.metrics.every(m => /^\d+$/.test(m.value))).toBe(true)
   })
 })

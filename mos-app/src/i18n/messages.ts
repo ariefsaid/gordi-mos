@@ -592,6 +592,13 @@ export const messages = {
     'kitchen.review.streamFilterAria': 'Filter the queue by stream',
     'kitchen.review.restrictedAria': 'Access restricted',
     'kitchen.review.signInMsg': 'You need to sign in to review kitchen logs.',
+    // #422 / DD-WAY-40: the review band is the DESIGN.md "Metric summary rule" — label:value
+    // pairs straight from the catalog (the retired tile strip was hardcoded English).
+    'kitchen.review.summary.aria': 'Review queue summary',
+    'kitchen.review.summary.submitted': 'Submitted',
+    'kitchen.review.summary.onPlan': 'On-plan',
+    'kitchen.review.summary.offPlan': 'Off-plan',
+    'kitchen.review.summary.noteGate': 'note required to approve',
     // ── Café stock + pushes (#198 — the v4 port of the read-only stock view and the
     // ERP push queue) ─────────────────────────────────────────────────────────────
     'kitchen.pushes.caption': 'Café ESB push outbox',
@@ -606,6 +613,8 @@ export const messages = {
     'kitchen.pushes.col.target': 'Target',
     'kitchen.pushes.empty.copy': 'The ESB outbox is empty right now.',
     'kitchen.pushes.empty.note': 'Pull again to check for new push activity.',
+    'kitchen.pushes.meta.deadLetter': '${count} dead-lettered',
+    'kitchen.pushes.meta.failed': '${count} failed, retrying',
     'kitchen.pushes.empty.title': 'No pushes yet',
     // #402 — the outbox speaks human: no raw database enum reaches the screen.
     // failed (retrying) vs dead_letter (stopped) differ in word AND tag color
@@ -1797,6 +1806,13 @@ export const messages = {
     'kitchen.review.streamFilterAria': 'Saring antrean berdasarkan stream',
     'kitchen.review.restrictedAria': 'Akses dibatasi',
     'kitchen.review.signInMsg': 'Anda perlu masuk untuk meninjau log dapur.',
+    // #422 / DD-WAY-40: pita tinjauan adalah "ringkasan metrik" DESIGN.md — pasangan label:nilai
+    // langsung dari katalog (strip tile lama dikode keras dalam bahasa Inggris).
+    'kitchen.review.summary.aria': 'Ringkasan antrean tinjauan',
+    'kitchen.review.summary.submitted': 'Diajukan',
+    'kitchen.review.summary.onPlan': 'Sesuai rencana',
+    'kitchen.review.summary.offPlan': 'Di luar rencana',
+    'kitchen.review.summary.noteGate': 'perlu catatan untuk menyetujui',
     'kitchen.pushes.caption': 'Antrean push ESB Kafe',
     'kitchen.pushes.col.batch': 'Batch',
     'kitchen.pushes.col.created': 'Dibuat',
@@ -1809,6 +1825,8 @@ export const messages = {
     'kitchen.pushes.col.target': 'Target',
     'kitchen.pushes.empty.copy': 'Antrean ESB sedang kosong.',
     'kitchen.pushes.empty.note': 'Tarik ulang untuk memeriksa aktivitas push baru.',
+    'kitchen.pushes.meta.deadLetter': '${count} gagal permanen',
+    'kitchen.pushes.meta.failed': '${count} gagal, dicoba ulang',
     'kitchen.pushes.empty.title': 'Belum ada push',
     'kitchen.pushes.endpoint.assembly': 'Aktual perakitan',
     'kitchen.pushes.endpoint.noop': 'Tanpa kirim',
