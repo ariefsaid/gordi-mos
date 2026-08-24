@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
+import { routeConfig } from '@/router'
+import { collectClassifiedRoutes } from './route-classification'
 
 const SRC = join(__dirname, '..')
 
@@ -97,5 +99,50 @@ describe('issue 270 — the registry describes the pages that really render the 
   it('no path is registered twice', () => {
     const paths = PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path)
     expect(paths).toEqual([...new Set(paths)])
+  })
+})
+
+// ── #424 — the registry describes the ROUTE TABLE, not just the files ────────────────────────
+//
+// The reverse scan above keys on the FILE: a new route path serving an ALREADY-registered page
+// file needs no registry row and fails nothing — while ContextRow prints the job sentence a
+// second time on that path (#270's defect class at route granularity). v4's check joined the
+// registry against the real classified route table; this restores that join, in both directions.
+// The file scan stays: it catches a page that renders the frame but is reachable by no route.
+const DEFERRED_PAGE_ROUTES = new Map<string, string>([
+  // Already silenced by the sibling dynamic pattern `/work/tasks/:taskId`: ContextRow matches
+  // registry rows with `matchPath`, and `:taskId` matches `new`. A dedicated row would be a
+  // second way to say the same thing.
+  ['/work/tasks/new', 'silenced by the /work/tasks/:taskId pattern'],
+  // follow-ups-page.tsx renders no PageFamilyFrame yet (#428 owns that cutover); a row would
+  // silence ContextRow with nothing filling the gap (pinned by the case above).
+  ['/money/follow-ups', 'no frame on the page yet — #428'],
+])
+
+describe('issue 424 — the registry and the real route table agree', () => {
+  const pagePaths = collectClassifiedRoutes(routeConfig)
+    .filter(({ handle }) => handle.kind === 'page')
+    .map(({ path }) => path)
+
+  it('every classified page route is registered or deliberately deferred', () => {
+    const registered = new Set(PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path))
+    const missing = pagePaths.filter(
+      (path) => !registered.has(path) && !DEFERRED_PAGE_ROUTES.has(path),
+    )
+    expect(
+      missing,
+      `these page routes render no registry row, so ContextRow prints the job sentence a second ` +
+        `time above the page head that already carries it: ${missing.join(', ')}`,
+    ).toEqual([])
+  })
+
+  it('every registry path is a real classified page route — a row for a deleted path is a lie', () => {
+    const real = new Set(pagePaths)
+    const orphaned = PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path).filter((path) => !real.has(path))
+    expect(
+      orphaned,
+      `these registry rows name no route in the real table (deleted? renamed? never served?): ` +
+        `${orphaned.join(', ')}`,
+    ).toEqual([])
   })
 })
