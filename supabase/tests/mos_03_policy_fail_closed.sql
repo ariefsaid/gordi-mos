@@ -168,12 +168,12 @@ select throws_ok($$
   insert into mos.process_cadences (work_line_id, cadence_kind)
   values ('00000000-0000-0000-0000-000000070003','weekly')
 $$, '42501', null,
-  'process_cadences_insert_ops: a plain member cannot configure a cadence');
+  'process_cadences_insert_ops_lead_or_admin: a plain member cannot configure a cadence');
 select throws_ok($$
   insert into mos.process_task_defs (work_line_id, title, pic_person_id)
   values ('00000000-0000-0000-0000-000000070004','Smuggled step','00000000-0000-0000-0000-0000000000d4')
 $$, '42501', null,
-  'process_task_defs_insert_ops: a plain member cannot add a generated-Task definition');
+  'process_task_defs_insert_ops_lead_or_admin: a plain member cannot add a generated-Task definition');
 
 update mos.process_cadences set cadence_kind = 'monthly' where id = '00000000-0000-0000-0000-000000070005';
 update mos.process_task_defs set title = 'Member Rewrite'  where id = '00000000-0000-0000-0000-000000070006';
@@ -361,9 +361,9 @@ select ok(not has_table_privilege('authenticated','mos.comments','UPDATE'),
 reset role;
 
 select is((select cadence_kind from mos.process_cadences where id = '00000000-0000-0000-0000-000000070005'),
-  'daily', 'process_cadences_update_ops: a plain member changed no cadence');
+  'daily', 'process_cadences_update_ops_lead_or_admin: a plain member changed no cadence');
 select is((select title from mos.process_task_defs where id = '00000000-0000-0000-0000-000000070006'),
-  'Seam Step 70', 'process_task_defs_update_ops: a plain member changed no task definition');
+  'Seam Step 70', 'process_task_defs_update_ops_lead_or_admin: a plain member changed no task definition');
 select is((select title from mos.tasks where id = '00000000-0000-0000-0000-000000070008'),
   'Seam Task 70', 'tasks_update_editor: a non-R/A/manager member changed no task — and neither did another org''s admin');
 select is((select label from mos.task_checklist_items where id = '00000000-0000-0000-0000-00000007000a'),

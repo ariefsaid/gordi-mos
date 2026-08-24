@@ -155,14 +155,14 @@ select is(
   0,
   'capture_form_items: another org''s confirmed item-unit never reaches this org''s form');
 
--- item_units_insert_ops
+-- item_units_insert_ops_lead_or_admin
 select throws_ok($$
   insert into ops.item_units (wip_item_id, unit_name, esb_product_detail_id)
   values ('00000000-0000-0000-0000-00000000ab01','member-added','PD-X')
   $$, '42501', 'new row violates row-level security policy for table "item_units"',
-  'item_units_insert_ops: a member without ops_lead cannot add master data — the confirmation decides what every capture surface can record');
+  'item_units_insert_ops_lead_or_admin: a member without ops_lead cannot add master data — the confirmation decides what every capture surface can record');
 
--- item_units_update_ops — USING excludes the member, so the UPDATE silently affects zero rows;
+-- item_units_update_ops_lead_or_admin — USING excludes the member, so the UPDATE silently affects zero rows;
 -- read the surviving state back as owner to prove nothing moved.
 update ops.item_units set unit_name = 'member renamed'
  where id = '00000000-0000-0000-0000-00000000de01';
@@ -170,7 +170,7 @@ reset role;
 select is(
   (select unit_name from ops.item_units where id = '00000000-0000-0000-0000-00000000de01'),
   'porsi',
-  'item_units_update_ops: a member''s edit affects zero rows — the unit name is unchanged');
+  'item_units_update_ops_lead_or_admin: a member''s edit affects zero rows — the unit name is unchanged');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
@@ -178,8 +178,8 @@ select lives_ok($$
   insert into ops.item_units (wip_item_id, unit_name, esb_product_detail_id)
   values ('00000000-0000-0000-0000-00000000ab01','botol','PD-BOTOL-001')
   $$,
-  'item_units_insert_ops (positive): ops_lead CAN add an item-unit, so the refusal above is the role gate and not a dead policy');
--- (item_units_update_ops' positive is the confirmation update in section A.)
+  'item_units_insert_ops_lead_or_admin (positive): ops_lead CAN add an item-unit, so the refusal above is the role gate and not a dead policy');
+-- (item_units_update_ops_lead_or_admin' positive is the confirmation update in section A.)
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- C. The guard and the shape constraints
