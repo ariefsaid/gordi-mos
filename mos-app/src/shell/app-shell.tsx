@@ -100,9 +100,9 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
   // marker restores the record through the registry-backed resolver. Collections that keep the open
   // record in their OWN `?record=` query restore through their page effect first — a child effect
   // runs before this parent one, which then finds a session already open and no-ops. So this covers
-  // the route sessions whose id lives ONLY in the marker. `RECORD_KINDS` is empty until a record
-  // surface ports, which is why the resolver currently restores nothing (asserted, not assumed —
-  // record-deep-link-resolver.test.tsx).
+  // the route sessions whose id lives ONLY in the marker. `RECORD_KINDS` carries the two shipped
+  // kinds — the Home-feed Signal and the queue Follow-up (#424) — so a marker-only deep link reopens
+  // them both (asserted, not assumed — record-deep-link-resolver.test.tsx).
   const deepLinkResolver = useMemo(() => createRecordDeepLinkResolver(t, RECORD_KINDS), [t])
   return (
     <OverlayHostProvider historyDriver={historyDriver} deepLinkResolver={deepLinkResolver}>
