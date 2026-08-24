@@ -46,6 +46,36 @@ from .utils import now_iso, operator_env
 TAIL_CHARS = 4_000
 
 
+def _text(stream: str | bytes | None) -> str:
+    """Whatever a captured stream came back as, as str.
+
+    `text=True` decodes only on the normal return: when the timeout fires,
+    `TimeoutExpired` carries the RAW bytes read before the kill, and a stream
+    that produced nothing carries None — so the two halves arrive as different
+    types and concatenating them killed the runner instead of reporting the
+    timeout (#389). Decoded the way permissions.py decodes git output,
+    utf-8/surrogateescape: lossless even on the half-written multi-byte
+    sequence a kill can leave behind, so the partial output still travels back
+    to the builder.
+    """
+    if isinstance(stream, bytes):
+        return stream.decode("utf-8", "surrogateescape")
+    return stream or ""
+
+
+def _envelope_safe(text: str) -> str:
+    """The same text, encodable — the copy an agent has to be able to receive.
+
+    `_text` keeps an undecodable byte as a surrogate, which is what makes the
+    artifact byte-exact, but a lone surrogate cannot be serialized to JSON and
+    the tail rides an envelope that is (agents.py hands `previous` to the next
+    agent as JSON). Re-encoding through the original bytes puts the loss here,
+    on the travelling copy, instead of moving the #389 crash one file
+    downstream. The byte-exact copy stays in the artifact.
+    """
+    return text.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+
+
 def _placeholder(name: str) -> list[str]:
     """A command that does nothing and admits it. Replace every call to this."""
     return ["echo", f"PLACEHOLDER {name}: edit adws/adw_modules/quality.py and "
@@ -71,6 +101,7 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
     clock = time.monotonic()
     stdout = ""
     stderr = ""
+    timed_out = False
     try:
         completed = subprocess.run(
             spec.argv,
@@ -78,15 +109,26 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
             env=env,
             capture_output=True,
             text=True,
+            # Review finding on #389: text=True decodes the NORMAL return with strict
+            # errors, so a check that exits cleanly while emitting one non-UTF-8 byte
+            # raised UnicodeDecodeError inside subprocess.run — caught by neither except
+            # clause, runner dead. Same handler as _text and permissions.py: lossless.
+            errors="surrogateescape",
             timeout=spec.timeout_seconds,
         )
         returncode = completed.returncode
-        stdout = completed.stdout
-        stderr = completed.stderr
+        stdout = _text(completed.stdout)
+        stderr = _text(completed.stderr)
     except subprocess.TimeoutExpired as error:
+        # A timeout is a RESULT, not a runner fault: the check is killed, its
+        # partial output is kept, and the reason names the budget that killed
+        # it — "exit 124" alone sends the reader hunting for a crash.
+        timed_out = True
         returncode = 124
-        stdout = error.stdout or ""
-        stderr = (error.stderr or "") + f"\nTimed out after {spec.timeout_seconds}s."
+        stdout = _text(error.stdout)
+        stderr = (_text(error.stderr) + f"\n{spec.name} exceeded its "
+                  f"{spec.timeout_seconds}s budget and was killed (exit 124). "
+                  f"Everything above is what it emitted before the kill.")
     except OSError as error:
         # A missing binary lands here as exit 127 with the real message — no
         # pre-flight probe needed, and none wanted.
@@ -94,9 +136,12 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
         stderr = str(error)
 
     duration = time.monotonic() - clock
+    # surrogateescape on the way out too: the log is the byte-exact record of
+    # what the command emitted, undecodable bytes included.
     output_artifact.write_text(
         f"$ {command}\nexit: {returncode}\nduration_seconds: {duration:.3f}\n"
-        f"\n--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n"
+        f"\n--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}\n",
+        encoding="utf-8", errors="surrogateescape",
     )
     passed = returncode == 0
     run.tracer.event(EventRecord(
@@ -115,10 +160,10 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
         started_at=started_at,
         ended_at=now_iso(),
     ))
-    run.console.note(
-        f"quality {spec.name}: {'passed' if passed else 'failed'} "
-        f"(exit {returncode}, {duration:.1f}s)"
-    )
+    outcome = ("passed" if passed else
+               f"timed out at its {spec.timeout_seconds}s budget" if timed_out
+               else "failed")
+    run.console.note(f"quality {spec.name}: {outcome} (exit {returncode}, {duration:.1f}s)")
     return QualityCheckResult(
         name=spec.name,
         area=spec.area,
@@ -128,7 +173,7 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
         passed=passed,
         duration_seconds=duration,
         output_artifact=str(output_artifact),
-        output_tail=(stdout + stderr)[-TAIL_CHARS:],
+        output_tail=_envelope_safe((stdout + stderr)[-TAIL_CHARS:]),
     )
 
 
