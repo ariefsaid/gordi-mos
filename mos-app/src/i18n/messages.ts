@@ -453,6 +453,13 @@ export const messages = {
     'cafe.opening.notStartedMember': 'Not started yet — no one has started today’s opening.',
     'cafe.opening.start': "Start today's opening",
     'cafe.opening.viewTasks': 'View opening tasks',
+    // #440: the axis the whole Café module turns on, named in every Café page head. One word,
+    // because the value beside it ("Rumah Rames · Kitchen") is what carries the meaning.
+    'cafe.stream.label': 'Stream',
+    // Shown where a Café surface has no stream to read against — the person has no live primary
+    // stream Team, so there is no default (FR-002) and the head's picker is the whole next step.
+    // Says WHERE the control is, because it is in the page head, not in the body.
+    'cafe.stream.none': 'Choose a stream in the page head to see this screen.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~371) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Try again',
@@ -529,8 +536,6 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Note required — off plan',
     'kitchen.log.unit.changeAria': 'Change unit for ${dish}',
     'kitchen.log.unit.selectAria': 'Unit for ${dish}',
-    'kitchen.log.stream.activityAria': 'Activity',
-    'kitchen.log.stream.branchAria': 'Branch',
     'kitchen.log.stream.choose': 'Choose stream…',
     'kitchen.log.stream.missing': 'Choose a production stream before submitting.',
     'kitchen.log.stream.pickerAria': 'Production stream',
@@ -585,7 +590,6 @@ export const messages = {
     'kitchen.review.opsLeadOnly': 'Ops lead decides',
     'kitchen.review.productionPendingErr': 'This stream still has production awaiting review — decide it before approving transfers.',
     'kitchen.review.refresh': 'Refresh',
-    'kitchen.review.streamFilterAria': 'Filter the queue by stream',
     'kitchen.review.restrictedAria': 'Access restricted',
     'kitchen.review.signInMsg': 'You need to sign in to review kitchen logs.',
     // #422 / DD-WAY-40: the review band is the DESIGN.md "Metric summary rule" — label:value
@@ -650,8 +654,6 @@ export const messages = {
     'kitchen.stock.noEntriesToday': 'No entries logged yet today',
     'kitchen.stock.searchPlaceholder': 'Find a dish',
     'kitchen.stock.signInMsg': 'You need to sign in to view kitchen stock.',
-    'kitchen.stock.stream.activityAria': 'Activity',
-    'kitchen.stock.stream.branchAria': 'Branch',
     'kitchen.stock.toolbarAria': 'Stock filters',
     'kitchen.toolbar.category.ariaLabel': 'Category',
     'kitchen.unit.porsi': 'porsi',
@@ -1680,6 +1682,8 @@ export const messages = {
     'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
+    'cafe.stream.label': 'Stream',
+    'cafe.stream.none': 'Pilih stream di kepala halaman untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~1214) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Coba lagi',
@@ -1747,8 +1751,6 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
     'kitchen.log.unit.changeAria': 'Ganti satuan untuk ${dish}',
     'kitchen.log.unit.selectAria': 'Satuan untuk ${dish}',
-    'kitchen.log.stream.activityAria': 'Aktivitas',
-    'kitchen.log.stream.branchAria': 'Cabang',
     'kitchen.log.stream.choose': 'Pilih arus…',
     'kitchen.log.stream.missing': 'Pilih arus produksi sebelum mengirim.',
     'kitchen.log.stream.pickerAria': 'Arus produksi',
@@ -1797,7 +1799,6 @@ export const messages = {
     'kitchen.review.opsLeadOnly': 'Diputuskan ops lead',
     'kitchen.review.productionPendingErr': 'Produksi stream ini masih menunggu tinjauan — putuskan dulu sebelum menyetujui transfer.',
     'kitchen.review.refresh': 'Segarkan',
-    'kitchen.review.streamFilterAria': 'Saring antrean berdasarkan stream',
     'kitchen.review.restrictedAria': 'Akses dibatasi',
     'kitchen.review.signInMsg': 'Anda perlu masuk untuk meninjau log dapur.',
     // #422 / DD-WAY-40: pita tinjauan adalah "ringkasan metrik" DESIGN.md — pasangan label:nilai
@@ -1855,8 +1856,6 @@ export const messages = {
     'kitchen.stock.noEntriesToday': 'Belum ada entri tercatat hari ini',
     'kitchen.stock.searchPlaceholder': 'Cari menu',
     'kitchen.stock.signInMsg': 'Anda perlu masuk untuk melihat stok dapur.',
-    'kitchen.stock.stream.activityAria': 'Aktivitas',
-    'kitchen.stock.stream.branchAria': 'Cabang',
     'kitchen.stock.toolbarAria': 'Filter stok',
     'kitchen.toolbar.category.ariaLabel': 'Kategori',
     'kitchen.unit.porsi': 'porsi',

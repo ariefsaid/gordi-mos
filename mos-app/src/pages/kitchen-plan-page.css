@@ -37,8 +37,8 @@
   margin: 4px 0 8px;
 }
 
-/* ── Scope block: the (branch, activity) stream + the movement (#197 — mirrors
-   kitchen-log-page.css .kl-scope) ── */
+/* ── Scope block: the movement (mirrors kitchen-log-page.css .kl-scope). The stream
+   moved to the page head with #440 — same reasoning, stated there. ── */
 .kp-scope {
   display: flex;
   flex-wrap: wrap;
@@ -47,12 +47,8 @@
   min-width: 0;
   max-width: 100%;
 }
-.kp-scope-branch,
-.kp-scope-activity { flex: 0 1 auto; min-width: 0; }
 @media (max-width: 390px) {
   .kp-scope { width: 100%; }
-  .kp-scope-branch,
-  .kp-scope-activity { flex: 1 1 100%; min-height: 44px; }
 }
 
 /* ── Banners (offline / saved / error) ── */

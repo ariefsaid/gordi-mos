@@ -26,7 +26,9 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { listActiveWipItems, defaultStreamFrom } from '@/lib/db/kitchen-logs'
+import { listActiveWipItems, listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
+import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
 import { listActiveBranches } from '@/lib/db/branches'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
@@ -37,10 +39,8 @@ import type {
   ProductionStream,
   WipItemOption,
 } from '@/lib/db/kitchen-logs.types'
-import { PESANAN_HORIZON_DAYS, PRODUCTION_ACTIVITIES } from '@/lib/db/kitchen-logs.types'
+import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import {
-  activityLabel,
-  branchDisplayName,
   deriveActionLabel,
   movementKey,
   movementsEqual,
@@ -48,7 +48,7 @@ import {
   PRODUCE,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
-import { Select } from '@/components/ui/select'
+import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -111,6 +111,10 @@ function PlanEditor() {
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   const [branches, setBranches] = useState<BranchOption[]>([])
+  // The enumerable six-stream catalog (FR-005) — the head picker's options (#440). The branch
+  // catalog stays too: the MOVEMENT control offers every branch as a destination, which is a
+  // different question from which stream this plan belongs to.
+  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
   const [stream, setStream] = useState<ProductionStream | null>(null)
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
@@ -146,17 +150,24 @@ function PlanEditor() {
   // Clear the transient ✓ Saved timer on unmount so it can't setState after teardown.
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
+  // #440: the plan editor used to open on `defaultStreamFrom` — the catalog's first branch,
+  // a guess that has nothing to do with the person or with what they were just looking at.
+  // It now resolves the module's stream: whatever was chosen elsewhere in Café this session,
+  // else the person's own stream (shared.default_stream(), FR-001), else an explicit choice.
   const fetchEditor = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [itemRows, branchRows] = await Promise.all([
+      const [itemRows, branchRows, pairs] = await Promise.all([
         listActiveWipItems(),
         listActiveBranches(),
+        listStreamPairs(),
       ])
-      const resolvedStream = defaultStreamFrom(branchRows)
+      const catalog = streamCatalogFrom(pairs, branchRows)
+      const resolvedStream = resolveCafeStream(catalog, await fetchDefaultStream(branchRows))
       const planCells = resolvedStream ? await listKitchenPlans(logDate, resolvedStream) : []
       setItems(itemRows)
       setBranches(branchRows)
+      setStreamOptions(catalog)
       setStream(resolvedStream)
       setMovement(PRODUCE)
       setCells(planCells)
@@ -172,6 +183,7 @@ function PlanEditor() {
   // plan rows entirely, same as the capture surface's applyStream (#196).
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     setStream(nextStream)
+    rememberStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
@@ -302,7 +314,17 @@ function PlanEditor() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      jobSentence={t('job.cafe')}
+      /* #440: the stream this plan is being written INTO, stated in the head and switched
+         there — the same statement-and-switch every other Café surface carries, in the same
+         place. It replaces the shared head's static job sentence (PageHead renders one or the
+         other): which books a planned quantity lands in is what the number means. */
+      statusRow={
+        <CafeStreamBar
+          options={streamOptions}
+          stream={stream}
+          onChange={next => { void applyStream(next) }}
+        />
+      }
       meta={
         <span className="kp-meta-line">
           <span className="kp-date tabular">{logDate}</span>
@@ -361,33 +383,11 @@ function PlanEditor() {
             ariaLabel={t('kitchen.plan.toolbarAria')}
           >
             <div className="kp-scope">
-              <Select
-                className="kp-scope-branch"
-                aria-label={t('kitchen.log.stream.branchAria')}
-                value={stream?.branch.id ?? ''}
-                disabled={branches.length === 0}
-                onChange={e => {
-                  const branch = branches.find(b => b.id === e.target.value)
-                  if (branch && stream) void applyStream({ ...stream, branch })
-                }}
-              >
-                {branches.map(branch => (
-                  <option key={branch.id} value={branch.id}>{branchDisplayName(branch)}</option>
-                ))}
-              </Select>
-              <Select
-                className="kp-scope-activity"
-                aria-label={t('kitchen.log.stream.activityAria')}
-                value={stream?.activity ?? ''}
-                disabled={!stream}
-                onChange={e => {
-                  if (stream) void applyStream({ ...stream, activity: e.target.value as typeof stream.activity })
-                }}
-              >
-                {PRODUCTION_ACTIVITIES.map(activity => (
-                  <option key={activity} value={activity}>{activityLabel(t, activity)}</option>
-                ))}
-              </Select>
+              {/* #440: the branch × activity pair of selects that used to lead this block is
+                  gone — it named the stream a SECOND way (and named Rumah Rames by the
+                  'Bungur' alias, which names a transfer destination and never a stream), while
+                  the head now names it once for the whole module. What stays is the movement:
+                  a property of the rows, not of the books. */}
               {/* Same destination picker as capture (FR-013), including the origin so the
                   intra-branch entry reads the same here as it does on the log surface —
                   a plan for a movement the capture form cannot name is a plan nobody fills. */}
@@ -424,18 +424,40 @@ function PesananView() {
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananRow[]>([])
   const [branches, setBranches] = useState<BranchOption[]>([])
+  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
+  const [stream, setStream] = useState<ProductionStream | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
 
+  // #440: the horizon a floor member reads is THEIR stream's — it used to be
+  // `defaultStreamFrom`, the catalog's first branch, so a Radiant barista read Gordi HQ's
+  // pesanan and had no way to tell. Same resolution and same head control as every other
+  // Café surface; switching is offered here too, because "what is the OTHER stream
+  // planning" is a question the floor asks and reading a plan changes nothing.
   const fetchHorizon = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const branchRows = await listActiveBranches()
-      const stream = defaultStreamFrom(branchRows)
-      const data = stream ? await listPesanan(from, PESANAN_HORIZON_DAYS, stream) : []
+      const [branchRows, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
+      const catalog = streamCatalogFrom(pairs, branchRows)
+      const resolved = resolveCafeStream(catalog, await fetchDefaultStream(branchRows))
+      const data = resolved ? await listPesanan(from, PESANAN_HORIZON_DAYS, resolved) : []
       setBranches(branchRows)
+      setStreamOptions(catalog)
+      setStream(resolved)
       setRows(data)
+      setLoad({ kind: 'ready' })
+    } catch {
+      setLoad({ kind: 'error' })
+    }
+  }, [from])
+
+  const applyStream = useCallback(async (next: ProductionStream) => {
+    setStream(next)
+    rememberStream(next) // the whole Café module follows this choice (#440)
+    setLoad({ kind: 'loading' })
+    try {
+      setRows(await listPesanan(from, PESANAN_HORIZON_DAYS, next))
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -486,7 +508,13 @@ function PesananView() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      jobSentence={t('job.cafe')}
+      statusRow={
+        <CafeStreamBar
+          options={streamOptions}
+          stream={stream}
+          onChange={next => { void applyStream(next) }}
+        />
+      }
       meta={
         <span className="kp-date tabular">
           {t('kitchen.plan.pesanan.meta.horizon', { days: PESANAN_HORIZON_DAYS })}
@@ -503,7 +531,14 @@ function PesananView() {
         />
       )}
 
-      {load.kind === 'ready' && rows.length === 0 && (
+      {/* #440: "nothing planned" and "no stream to read a plan against" are different facts, and
+          the first one told as the second is how a person concludes the kitchen has no plan when
+          they simply have no stream yet (FR-002). */}
+      {load.kind === 'ready' && stream === null && (
+        <EmptyState variant="blank" title={t('cafe.stream.none')} />
+      )}
+
+      {load.kind === 'ready' && stream !== null && rows.length === 0 && (
         <EmptyState
           variant="awaiting"
           title={t('kitchen.plan.pesanan.empty.title')}

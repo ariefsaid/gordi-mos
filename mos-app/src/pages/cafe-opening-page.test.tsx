@@ -22,19 +22,38 @@ vi.mock('@/lib/db/cafe-opening', () => ({
 vi.mock('@/lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({ listPendingTasks: vi.fn(), resolvePendingTask: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
+// #440: the module ROOT states the stream its five doors lead into. Mocked at the same seams
+// the capture surfaces use — un-mocked these hit Supabase and the head would silently read '—'.
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
+vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+vi.mock('@/lib/db/kitchen-logs', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
+  return { ...actual, listStreamPairs: vi.fn() }
+})
 
 import {
   getCafeOpeningProcessId, listStartableCafeTeams, getTodayOpeningForTeam,
 } from '@/lib/db/cafe-opening'
 import { listAuthorTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
+import { listActiveBranches } from '@/lib/db/branches'
+import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import { CafeOpeningPage } from './cafe-opening-page'
+import { rememberStream } from '@/lib/cafe-stream'
 
 const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
 const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockGetPeople = vi.mocked(getPeople)
+const mockBranches = vi.mocked(listActiveBranches)
+const mockStreamPairs = vi.mocked(listStreamPairs)
+const mockDefaultStream = vi.mocked(fetchDefaultStream)
+
+const BRANCH_RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
+const BRANCH_RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
 
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
@@ -69,7 +88,31 @@ function renderPage(accessRoles: string[] = ['ops_lead']) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  rememberStream(null) // the Café stream is remembered module-wide (#440) — isolate per test
   mockGetPeople.mockResolvedValue([])
+  mockBranches.mockResolvedValue([BRANCH_RAD, BRANCH_RR])
+  mockStreamPairs.mockResolvedValue([BRANCH_RAD, BRANCH_RR].flatMap(b => [
+    { branch_id: b.id, activity: 'kitchen' as const },
+    { branch_id: b.id, activity: 'bar' as const },
+  ]))
+  mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+})
+
+describe('issue 440 — the Café root states the stream its doors lead into', () => {
+  it('names the stream in the page head, canonically, and lets it be set for the module', async () => {
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    mockListStartableCafeTeams.mockResolvedValue([])
+    mockListAuthorTeams.mockResolvedValue([])
+    const { container } = renderPage()
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    const picker = await waitFor(() => {
+      const el = head.querySelector('select') as HTMLSelectElement | null
+      expect(el?.value).toBeTruthy()
+      return el as HTMLSelectElement
+    })
+    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    expect(head.textContent).toMatch(/stream/i)
+  })
 })
 
 describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture links', () => {

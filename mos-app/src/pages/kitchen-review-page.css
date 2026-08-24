@@ -230,7 +230,9 @@
   font-size: var(--font-size-body);
 }
 
-/* ── #236: stream filter (FR-041) + the not-your-stream decision placeholder ── */
+/* ── The per-stream completeness row + the not-your-stream decision placeholder.
+   The stream filter itself moved to the page head with #440 (the shared Café stream
+   statement), leaving this row to the confirmation block it used to sit beside. ── */
 .kr-filter {
   display: flex;
   justify-content: flex-end;
@@ -241,10 +243,6 @@
   align-items: center;
   gap: 8px 12px;
 }
-.kr-filter-select {
-  max-width: 260px;
-}
-
 /* ── #238 (FR-031): per-stream completeness confirmation ──────────────────────
    Deliberately QUIET. This states a tracked fact and gates nothing, so it must not
    read as a warning or an error when a stream is unconfirmed — an unconfirmed

@@ -33,6 +33,7 @@ import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import { listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv, EsbEndpoint } from '@/lib/db/kitchen-pushes'
 import type { MessageKey } from '@/i18n/messages'
@@ -358,7 +359,13 @@ export function KitchenPushesPage() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      jobSentence={t('job.cafe')}
+      /* #440: the outbox is the ONE Café surface with no stream axis of its own. An
+         `integrations.esb_push` row carries a source module and a batch reference — no branch,
+         no activity — so this queue is org-wide by construction and a per-stream statement here
+         would be a lie about which rows are on screen. It states the scope it actually has, in
+         the same head slot and the same words as its siblings: All streams. If the outbox ever
+         carries the stream forward from the batch, this becomes a real picker. */
+      statusRow={<CafeStreamBar options={[]} stream={null} allStreams />}
       meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
