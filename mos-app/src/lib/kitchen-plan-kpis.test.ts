@@ -17,7 +17,10 @@
 
 import { describe, it, expect } from 'vitest'
 import { computePlanKpis, computePlanKpiStripData } from './kitchen-plan-kpis'
+import { translateFor } from '@/i18n/use-t'
 import type { KitchenMovement, PlanCell } from '@/lib/db/kitchen-logs.types'
+
+const trEn = translateFor('en')
 
 const RADIANT_ID = '30000000-0000-0000-0000-0000000000b2'
 const BUNGUR_ID = '30000000-0000-0000-0000-0000000000b1'
@@ -134,10 +137,38 @@ describe('computePlanKpis — edge: no plan for the movement (zero-plan roster)'
 })
 
 describe('computePlanKpiStripData — the caller-supplied movement label, never re-derived here', () => {
-  it('threads the given label into value/delta/phoneMeta, so the module stays i18n-free', () => {
-    const strip = computePlanKpiStripData([cell('w1', PRODUCE, 50)], PRODUCE, 'Produksi')
+  it('threads the given label into value/delta/phoneMeta, never re-deriving it from the catalog', () => {
+    const strip = computePlanKpiStripData([cell('w1', PRODUCE, 50)], PRODUCE, 'Produksi', trEn)
     expect(strip.phoneMeta).toBe('Produksi')
     expect(strip.tiles[2].value).toBe('Produksi')
     expect(strip.tiles[1].delta).toBe('Produksi')
+  })
+})
+
+// #410 (same lane as #400's stock strip): every label/delta/sub below was a hardcoded English
+// literal, so Café · Plan's KPI band stayed English in the Indonesian locale. `tr` is injected
+// (the #411 stock contract): required, no inline-English fallback.
+describe('the plan strip chrome resolves the viewer locale (#410)', () => {
+  it('id locale: labels, subs and the status value are Indonesian', () => {
+    const strip = computePlanKpiStripData(
+      [cell('w1', PRODUCE, 50)], PRODUCE, 'Produksi', translateFor('id'),
+    )
+    expect(strip.ariaLabel).toBe('Ringkasan perencanaan')
+    expect(strip.phoneLabel).toBe('Rencana')
+    expect(strip.tiles[0].label).toBe('Total rencana')
+    expect(strip.tiles[0].sub).toBe('porsi')
+    expect(strip.tiles[0].delta).toBe('1 menu')
+    expect(strip.tiles[3].value).toBe('Siap')
+    expect(strip.tiles[3].delta).toBe('target ditetapkan')
+  })
+
+  it('en locale: the English strip is unchanged', () => {
+    const strip = computePlanKpiStripData(
+      [cell('w1', PRODUCE, 50)], PRODUCE, 'Production', translateFor('en'),
+    )
+    expect(strip.ariaLabel).toBe('Planning summary')
+    expect(strip.phoneLabel).toBe('Plan')
+    expect(strip.tiles[0].label).toBe('Planned total')
+    expect(strip.tiles[3].value).toBe('Ready')
   })
 })

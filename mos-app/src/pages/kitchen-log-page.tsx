@@ -491,8 +491,8 @@ export function KitchenLogPage() {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kl-page kl-unauth kl-block">
-          <p className="kl-unauth-msg">You need to sign in to use the Café Log.</p>
-          <Link to="/login" className="btn btn-primary btn-touch kl-touch">Sign in</Link>
+          <p className="kl-unauth-msg">{t('kitchen.log.signInMsg')}</p>
+          <Link to="/login" className="btn btn-primary btn-touch kl-touch">{t('common.signIn')}</Link>
         </div>
       </PageFamilyFrame>
     )
