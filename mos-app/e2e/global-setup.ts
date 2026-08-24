@@ -23,6 +23,13 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { ORPHAN, RECOVERY_VIEWER, ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
+import {
+  MOS_DEV_PORT_ENV,
+  assertDevServerOwnership,
+  devServerIdentityUrl,
+  devServerPort,
+  worktreeFingerprint,
+} from '../src/lib/dev-server'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -111,6 +118,26 @@ async function execSql(url: string, serviceKey: string, query: string): Promise<
 }
 
 export default async function globalSetup() {
+  // ── #419 ownership gate ──────────────────────────────────────────────────────
+  // Playwright's reuseExistingServer adopts ANY listener answering webServer.url —
+  // silently (it logs only under DEBUG=pw:webserver). The port is worktree-derived so
+  // a sibling tree cannot sit on it, but adoption must still be EARNED: the dev server
+  // publishes this worktree's fingerprint (vite plugin mos-dev-identity) and a listener
+  // that cannot present it — foreign process, or a stale server from before #419 —
+  // aborts the run HERE, before a single test can measure the wrong application.
+  const appDir = resolve(__dir, '..')
+  const devPort = devServerPort(appDir, process.env[MOS_DEV_PORT_ENV])
+  const expectedIdentity = worktreeFingerprint(appDir)
+  let actualIdentity: string | null = null
+  try {
+    const res = await fetch(devServerIdentityUrl(appDir, process.env[MOS_DEV_PORT_ENV]))
+    actualIdentity = res.ok ? (await res.text()).trim() : null
+  } catch {
+    actualIdentity = null
+  }
+  assertDevServerOwnership(expectedIdentity, actualIdentity, devPort)
+  console.log(`[global-setup] dev server verified as ${expectedIdentity} on localhost:${devPort}`)
+
   if (!SERVICE_ROLE_KEY) {
     throw new Error('[global-setup] SUPABASE_SERVICE_ROLE_KEY not set — ensure .env.e2e exists or stack is up')
   }

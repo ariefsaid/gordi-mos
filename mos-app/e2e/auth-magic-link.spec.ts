@@ -12,7 +12,7 @@ test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
   // Clear inbox to avoid stale mail from prior tests
   await clearMailpit()
 
-  // Use relative URL so Playwright resolves against baseURL (http://localhost:5173/mos/)
+  // Use relative URL so Playwright resolves against baseURL (worktree-derived port, #419)
   await page.goto('login')
 
   // Enter email and request magic link
