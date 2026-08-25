@@ -75,7 +75,12 @@ set -euo pipefail
 S="$FAKE_DB"
 [ "$1" = "inspect" ] && { echo true; exit 0; }
 [ "$1" = "exec" ] || { echo "fake docker: unsupported: $*" >&2; exit 64; }
-for a in "$@"; do [ "$a" = "-c" ] && { sort "$S/versions"; exit 0; }; done
+for a in "$@"; do [ "$a" = "-c" ] && {
+  # G5 knob: withhold the NEWEST recorded version, so the chain looks like it failed to record
+  # a migration it applied. Dropping the oldest instead would shrink the pending set and prove
+  # nothing — the first attempt at this knob did exactly that.
+  if [ "${STUB_DROP_VERSION:-0}" = "1" ]; then sort "$S/versions" | sed '$d'; else sort "$S/versions"; fi
+  exit 0; }; done
 cat > /dev/null   # swallow the fingerprint SQL on stdin
 [ "${FAKE_EMPTY_FINGERPRINT:-0}" = "1" ] && exit 0
 {
@@ -90,7 +95,7 @@ cat > /dev/null   # swallow the fingerprint SQL on stdin
   done
   echo "CATALOG|filler.vocab|code, name|<row><code>a</code></row>"
   if grep -qxF "t_cat_fkey" "$S/cons"; then echo "CATALOG|cat|code|<row><code>x</code></row>"; fi
-} | sort
+} | sort | { if [ -n "${STUB_DROP_KIND:-}" ]; then grep -v "^${STUB_DROP_KIND}|"; else cat; fi; }
 STUB
 chmod +x "$T/bin/supabase" "$T/bin/docker"
 
@@ -247,6 +252,50 @@ if [ "$rc" = "1" ] && grep -qF "t_legacy_check" "$T/out-h/drift.diff" 2>/dev/nul
 else
   ok "control: a stub harness fails the red assertion (rc=$rc, no drift artifact)"
 fi
+
+echo "── I. control: --prove's OWN verdict must be able to fail"
+# Review of PR #471 proved the gap: neutering --prove's red assertion, or its fresh-invisibility
+# gate, left this suite at 21/21. Section H covers the harness being gutted; nothing covered the
+# PROOF layer being gutted — the same defect as v1, scoped to AC-3. These two do.
+for mutation in red_assertion fresh_gate; do
+  R8="$T/prove-$mutation"; mkrepo "$R8"
+  cp "$HARNESS" "$R8/scripts/applied-path-check.sh"
+  case "$mutation" in
+    red_assertion)
+      # make the RED branch unconditionally satisfied: a proof that cannot fail
+      perl -0pi -e 's/\[ "\$RED_RC" -eq 1 \]/[ 1 -eq 1 ]/' "$R8/scripts/applied-path-check.sh" ;;
+    fresh_gate)
+      # skip the "a fresh reset cannot tell the difference" gate entirely
+      perl -0pi -e 's/if ! diff -q "\$OUT\/fresh\.txt"/if false \&\& ! diff -q "$OUT\/fresh.txt"/' \
+        "$R8/scripts/applied-path-check.sh" ;;
+  esac
+  chmod +x "$R8/scripts/applied-path-check.sh"
+  # break the conditional so a HONEST --prove would still be able to reach its verdict
+  grep -v 'drop constraint if exists' "$R8/supabase/migrations/002_catalog.sql" > "$R8/x" \
+    && mv "$R8/x" "$R8/supabase/migrations/002_catalog.sql"
+  ( cd "$R8" && git add -A && git -c user.email=t@t -c user.name=t commit -qm mutate >/dev/null )
+  rm -rf "$T/db"; rm -rf "$T/out-i-$mutation"; mkdir -p "$T/out-i-$mutation"
+  run "$R8" "$T/out-i-$mutation" --prove; rc=$?
+  if [ "$rc" = "0" ]; then
+    bad "control: --prove passed with its $mutation neutered — the proof layer proves nothing"
+  else
+    ok "control: --prove fails when its $mutation is neutered (rc=$rc)"
+  fi
+done
+
+echo "── J. the refusal guards G5 and G6 are themselves proven"
+# Both were unproven: removing either left the suite green (review finding).
+R9="$T/g5"; mkrepo "$R9"; cp "$HARNESS" "$R9/scripts/applied-path-check.sh"; chmod +x "$R9/scripts/applied-path-check.sh"
+rm -rf "$T/db"; rm -rf "$T/out-j5"; mkdir -p "$T/out-j5"
+STUB_DROP_VERSION=1 run "$R9" "$T/out-j5"; rc=$?
+[ "$rc" = "2" ] && ok "G5 refuses when the chain did not record a pending version (rc=2)" \
+  || bad "G5 did not refuse a chain missing a recorded version (rc=$rc)"
+
+R10="$T/g6"; mkrepo "$R10"; cp "$HARNESS" "$R10/scripts/applied-path-check.sh"; chmod +x "$R10/scripts/applied-path-check.sh"
+rm -rf "$T/db"; rm -rf "$T/out-j6"; mkdir -p "$T/out-j6"
+STUB_DROP_KIND=POLICY run "$R10" "$T/out-j6"; rc=$?
+[ "$rc" = "2" ] && ok "G6 refuses when a whole fact class vanished from the fingerprint (rc=2)" \
+  || bad "G6 did not refuse a fingerprint missing a fact class (rc=$rc)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -84,15 +84,24 @@ union all
 select 'RLS', r.rel, '-', 'enabled=' || r.relrowsecurity::text || ' forced=' || r.relforcerowsecurity::text
   from rel r
 union all
+-- The PREDICATE is hashed, never printed. Reviewed on this PR: name/cmd/roles alone let a
+-- deployed policy carrying a DIFFERENT using/with-check clause converge GREEN — the drift class
+-- this harness exists to catch, applied to the project's hard gate. The artifact is downloadable,
+-- so the clause itself must not appear; md5 catches the change without publishing it.
 select 'POLICY', r.rel, p.polname::text,
        'cmd=' || p.polcmd::text || ' permissive=' || p.polpermissive::text || ' roles=' ||
        coalesce((select string_agg(pg_get_userbyid(x), ',' order by pg_get_userbyid(x))
-                   from unnest(p.polroles) as x), 'public')
+                   from unnest(p.polroles) as x), 'public') ||
+       ' using=' || coalesce(md5(pg_get_expr(p.polqual, p.polrelid)), '-') ||
+       ' check=' || coalesce(md5(pg_get_expr(p.polwithcheck, p.polrelid)), '-')
   from pg_policy p join rel r on r.oid = p.polrelid
 union all
 select 'FUNCTION', b.nspname, p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')',
+       -- body hashed for the same reason as the policy predicate: a definer function whose body
+       -- changed while its signature did not is exactly the drift a signature-only fact misses.
        'secdef=' || p.prosecdef::text || ' volatility=' || p.provolatile::text ||
-       ' config=' || coalesce(array_to_string(p.proconfig, ','), '-')
+       ' config=' || coalesce(array_to_string(p.proconfig, ','), '-') ||
+       ' body=' || md5(coalesce(p.prosrc, ''))
   from pg_proc p join biz b on b.oid = p.pronamespace
 union all
 -- Contents of the migration-owned tables, rendered by query_to_xml so an unknown table list

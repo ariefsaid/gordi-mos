@@ -224,7 +224,12 @@ if [ "$GREEN_RC" -ne 0 ]; then
   exit 1
 fi
 rm -f "$OUT/drift.diff"
-DB_DIRTY=0   # proven identical to a fresh reset — nothing to put back
+# ⚠ DO NOT set DB_DIRTY=0 here (review of this PR caught it). "Identical" is identical in the
+# FINGERPRINT, which covers migration-owned tables only and excludes volatile columns outright —
+# it says nothing about seed data. The database in hand was seeded from the BASELINE commit's
+# seed*.sql, so on this very branch a green run would hand back Café plans dated at UTC
+# current_date: the pre-#469 state whose whole problem was that nothing on screen explains it.
+# The trap restores; leaving it armed costs one reset and removes a class of haunting.
 echo "✓ the applied path converges: a migrated database is indistinguishable from a fresh one"
 
 if [ "$PROVE" -eq 0 ]; then
@@ -286,10 +291,15 @@ note() { printf '  %-5s %s\n' "$1" "$2"; }
 echo
 [ "$RED_RC" -eq 1 ] && note "ok" "with the conditional broken, the applied path goes RED" \
   || { note "FAIL" "the broken conditional did NOT go red — this check cannot fail"; FAILED=1; }
-if grep -q '^[+-]CONSTRAINT|' "$OUT/red/drift.diff" 2>/dev/null; then
-  note "ok" "the red run names the facts that survived"
+# Assert against the class actually sabotaged, not a fixed one: a baseline whose pending
+# migrations carry only policy drops produces a correct RED naming POLICY rows, and a hardcoded
+# CONSTRAINT check would call that a failure — a false red on the gate before a staging deploy.
+SABOTAGED_KIND=$(sed 's/.*:\([a-z_]*\)$/\1/' "$OUT/red/sabotage.txt" >/dev/null 2>&1; \
+  grep -qi 'drop policy' "$OUT/red/sabotage.sql" 2>/dev/null && echo POLICY || echo CONSTRAINT)
+if grep -qE "^[+-]${SABOTAGED_KIND}\|" "$OUT/red/drift.diff" 2>/dev/null; then
+  note "ok" "the red run names the ${SABOTAGED_KIND} facts that survived"
 else
-  note "FAIL" "the red run reported drift without naming a constraint"; FAILED=1
+  note "FAIL" "the red run reported drift without naming a ${SABOTAGED_KIND}"; FAILED=1
 fi
 note "ok" "the green run converged and the mutation was invisible to a fresh reset"
 
