@@ -1,50 +1,20 @@
 /* ════════════════════════════════════════════════════════════════════════════
    WindowSelector — the window control (design-plan §2.6, FR-013/014).
-   Reuses the `seg` grammar (secondary track, white on-pill + lift) for the
-   [7d|30d|60d|Custom] presets. The custom date-pair is two native <input type=date>
-   in an input-bordered chip shell, bounded to the snapshot window. Token-only.
-   ════════════════════════════════════════════════════════════════════════════ */
-.window-selector-seg {
-  display: inline-flex;
-  gap: 4px;
-  height: 32px;
-  padding: 3px;
-  background: var(--secondary);
-  border-radius: var(--radius-sm);
-  box-sizing: border-box;
-}
 
-.window-selector-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px; /* phone tap target floor */
-  height: 100%;
-  padding: 0 12px;
-  border: none;
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-family: inherit;
-  font-size: var(--font-size-mono);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease, color var(--dur-fast) ease;
-}
-.window-selector-tab:hover:not([aria-selected='true']) {
-  color: var(--foreground);
-}
-.window-selector-tab[aria-selected='true'] {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
-  cursor: default;
-}
-@media (prefers-reduced-motion: reduce) {
-  .window-selector-tab { transition: none; }
-}
+   The `seg` grammar (32px track on `secondary`, white on-pill + lift) comes from
+   styles/segmented-track.css — imported, not re-authored (#283, 2026-08-25). This
+   file's own job is WindowSelector's own concerns: the per-option phone min-width
+   floor, and the custom date-pair chip, which CutToggle has no equivalent of.
+   ════════════════════════════════════════════════════════════════════════════ */
+@import '../../styles/segmented-track.css';
 
 @media (max-width: 767.98px) {
+  .window-selector-tab {
+    min-width: 44px; /* phone tap target floor — a toolbar control can sit in a narrow slot */
+  }
+  /* Also stated here, redundant with segmented-track.css's shared rule: tap-targets.css.test.ts
+     reads this file's OWN source text for the 44px floor, so the declaration must be physically
+     present in both files. Same value in both places — never drifts, never conflicts. */
   .window-selector-seg,
   .window-selector-range,
   .window-selector-field,
@@ -53,9 +23,7 @@
     min-height: 44px;
   }
 
-  .window-selector-seg,
-  .window-selector-range,
-  .window-selector-tab {
+  .window-selector-range {
     height: auto;
   }
 }
