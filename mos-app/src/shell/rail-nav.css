@@ -18,8 +18,9 @@
    avoids. The ladder therefore holds at every rung, and active still wins.
 
    Sizes come from the §Typography ramp; the icon dimensions and the indent
-   guide from the rail geometry tokens in index.css. No raw px, no literal
-   colour reaches a rule here (#425, #327).
+   guide from the rail geometry tokens in index.css. No raw px or literal
+   colour in the LADDER rules below (#425, #327); the pre-ladder blocks
+   (tooltip, compact badge, coarse-pointer) still carry #425 ledger debt.
    ════════════════════════════════════════════════════════════════════════════ */
 
 /* Rung 1 — the group overline. DESIGN.md §Typography Overline: DM Sans 600, 11px,

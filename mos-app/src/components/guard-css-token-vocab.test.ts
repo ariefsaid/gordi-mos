@@ -107,10 +107,8 @@ function rawInlineDeclarations(): Map<string, Map<string, number>> {
  * root this lane owns is pinned at zero (absent) — new debt anywhere fails immediately. */
 const TSX_EXCEPTIONS: Record<string, Record<string, number>> = {
   'src/shell/context-row.tsx': { 'fontSize: 13': 2 },
-  'src/shell/rail-nav.tsx': { 'fontSize: 11': 1, 'fontSize: 10': 1 },
   'src/shell/page-head.tsx': { 'fontSize: 24': 1, 'fontSize: 14': 1 },
   'src/shell/user-chip.tsx': { 'fontSize: 11': 2 },
-  'src/shell/mobile-drawer.tsx': { 'fontSize: 11': 1 },
   'src/shell/top-bar.tsx': { 'fontSize: 11': 1 },
 }
 

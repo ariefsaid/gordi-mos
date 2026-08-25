@@ -16,7 +16,7 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-overline);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em; /* §Typography Overline — one tracked voice, no per-surface drift */
   text-transform: uppercase;
 }
 

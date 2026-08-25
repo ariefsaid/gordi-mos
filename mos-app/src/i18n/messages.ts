@@ -1711,7 +1711,7 @@ export const messages = {
     'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
-    'cafe.stream.label': 'Stream',
+    'cafe.stream.label': 'Alur produksi',
     'cafe.stream.none': 'Pilih stream di kepala halaman untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~1214) — dropped here rather than duplicated (TS1117).
