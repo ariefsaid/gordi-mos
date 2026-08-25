@@ -8,10 +8,15 @@
    ════════════════════════════════════════════════════════════════════════════ */
 @import '../../styles/segmented-track.css';
 
+.window-selector-tab {
+  /* Unconditional, as before the fold (#283 review): CutToggle scopes its own floor to phone
+     because a view-switcher can sit in a narrow toolbar slot, but WindowSelector's options are
+     fixed-width presets — narrowing "7d" to ~40px on desktop would be a metric change wearing
+     an extraction's clothes. Kept here because it is this control's own concern, not grammar. */
+  min-width: 44px;
+}
+
 @media (max-width: 767.98px) {
-  .window-selector-tab {
-    min-width: 44px; /* phone tap target floor — a toolbar control can sit in a narrow slot */
-  }
   /* Also stated here, redundant with segmented-track.css's shared rule: tap-targets.css.test.ts
      reads this file's OWN source text for the 44px floor, so the declaration must be physically
      present in both files. Same value in both places — never drifts, never conflicts. */
