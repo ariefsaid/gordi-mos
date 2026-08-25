@@ -35,6 +35,10 @@ test-results
 # Codex-harness vendored skill mirror (same convention — regenerated, not committed)
 .agents/
 
+# Applied-path check evidence (#393): fingerprints, diffs and SUMMARY.md, regenerated per run.
+# CI keeps them as a build artifact; locally they are scratch.
+/artifacts/
+
 # Transient design-review artifacts (screenshots, Playwright-MCP dumps, audit scratch — regenerated per review)
 .playwright-mcp/
 /review/

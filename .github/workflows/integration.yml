@@ -17,6 +17,11 @@ on:
       - 'mos-app/e2e/**'
       - 'mos-app/playwright.config.*'
       - 'mos-app/package-lock.json'
+      # The deployed-database harness (#393). `scripts/**` is otherwise absent from this filter,
+      # which is how the first version of this check shipped without ever running: the workflow
+      # simply did not trigger on it.
+      - 'scripts/applied-path-check.sh'
+      - 'scripts/lib/applied-path-fingerprint.sql'
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
@@ -54,6 +59,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The applied-path check (#393) builds a database from the supabase/ tree at the
+          # commit named in supabase/applied-path-baseline. A shallow clone does not have it.
+          fetch-depth: 0
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
@@ -94,6 +103,13 @@ jobs:
       - name: pgTAP suite
         run: supabase test db
 
+      # #393. Everything above starts from nothing, so every conditional migration has a branch
+      # CI structurally cannot reach. This builds a database from the DEPLOYED commit's tree,
+      # runs the real migration chain over it, and asserts the result is indistinguishable from
+      # a fresh reset. Exit 2 means the check could not run meaningfully — treat it as red.
+      - name: Applied-path check — a migrated database matches a fresh one (#393)
+        run: bash scripts/applied-path-check.sh --out artifacts/applied-path
+
       - name: Stop stack
         if: always()
         run: supabase stop
@@ -106,6 +122,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The applied-path check (#393) builds a database from the supabase/ tree at the
+          # commit named in supabase/applied-path-baseline. A shallow clone does not have it.
+          fetch-depth: 0
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
@@ -150,6 +170,26 @@ jobs:
 
       - name: pgTAP suite
         run: supabase test db
+
+      # #393. THE GATE IMMEDIATELY BEFORE A STAGING DEPLOY, which is the entire point of the
+      # check: staging and production are the only environments that run a conditional
+      # migration's other branch. `--prove` also breaks the conditional on purpose and requires
+      # the applied path to go red while a fresh reset stays byte-identical — so the run itself
+      # is the evidence that this check can fail, not a claim in a PR body.
+      - name: Applied-path check + proof it can fail (#393)
+        run: bash scripts/applied-path-check.sh --prove --out artifacts/applied-path
+
+      - name: Publish the green/red contrast to the run summary
+        if: always()
+        run: cat artifacts/applied-path/SUMMARY.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Keep the fingerprints and diffs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: applied-path-${{ github.run_id }}
+          path: artifacts/applied-path
+          retention-days: 14
 
       # ── E2E against the live stack ────────────────────────────────────────────
       # e2e lives here (not verify.yml) because journeys need auth + DB (T-027).
