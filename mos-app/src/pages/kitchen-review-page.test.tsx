@@ -31,6 +31,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchPlanMap: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
+    approveKitchenLogsBulk: vi.fn(),
     rejectKitchenLog: vi.fn(),
   }
 })
@@ -39,6 +40,7 @@ import {
   fetchPlanMap,
   listStreamPairs,
   approveKitchenLog,
+  approveKitchenLogsBulk,
   rejectKitchenLog,
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
@@ -78,6 +80,7 @@ const mockPlan = vi.mocked(fetchPlanMap)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
 const mockStreamPairs = vi.mocked(listStreamPairs)
 const mockApprove = vi.mocked(approveKitchenLog)
+const mockApproveBulk = vi.mocked(approveKitchenLogsBulk)
 const mockReject = vi.mocked(rejectKitchenLog)
 const mockGetPeople = vi.mocked(getPeople)
 const mockBranches = vi.mocked(listActiveBranches)
@@ -421,6 +424,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B, PROD_OFFPLAN])
     mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 }, wC: { produce: 10 } })
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-007' })
+    mockApproveBulk.mockResolvedValue({ push_group_id: 'group-20260620-007', batch_ids: [] })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
@@ -431,11 +435,10 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     expect(screen.queryByRole('button', { name: /approve all on-plan \(3\)/i })).not.toBeInTheDocument()
     fireEvent.click(bulk)
 
-    // only the two on-plan rows are approved; the off-plan row is never handed a null note
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2))
-    expect(mockApprove).toHaveBeenCalledWith('log-a', null)
-    expect(mockApprove).toHaveBeenCalledWith('log-b', null)
-    expect(mockApprove).not.toHaveBeenCalledWith('log-c', null)
+    // only the two on-plan rows use the grouped seam; the off-plan row is never handed to it
+    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledTimes(1))
+    expect(mockApproveBulk).toHaveBeenCalledWith(['log-a', 'log-b'], null)
+    expect(mockApprove).not.toHaveBeenCalled()
 
     // the on-plan rows leave the queue; the off-plan row stays, and its per-row Approve
     // still opens the required-note gate (AC-040) rather than committing
@@ -444,7 +447,8 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     expect(screen.getByText('Tahu')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /approve tahu/i }))
     expect(await screen.findByRole('textbox', { name: /approve note for tahu/i })).toBeInTheDocument()
-    expect(mockApprove).toHaveBeenCalledTimes(2)
+    expect(mockApproveBulk).toHaveBeenCalledTimes(1)
+    expect(mockApprove).not.toHaveBeenCalled()
   })
 
   it('AC-042: a Transfer group bulk-approve is blocked while a Production log is still Submitted', async () => {
@@ -463,24 +467,63 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     expect(screen.queryByRole('button', { name: /approve all transfer to radiant/i })).not.toBeInTheDocument()
   })
 
-  it('partial failure: P0003 rows drop, other errors keep the row + a succeeded/failed notice', async () => {
+  it('grouped approval success names every minted batch reference', async () => {
     mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B])
     mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 } })
-    // A succeeds; B fails with a generic error (kept in queue)
-    mockApprove
-      .mockResolvedValueOnce({ batch_id: 'PR-20260620-009' })
-      .mockRejectedValueOnce(new KitchenRpcError('XX000', 'db down'))
+    mockApproveBulk.mockResolvedValue({ push_group_id: 'group-1', batch_ids: ['BATCH-A', 'BATCH-B'] } as never)
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
+    expect(await screen.findByText(/BATCH-A.*BATCH-B/)).toBeInTheDocument()
+    expect(screen.queryByText(/last batch/i)).not.toBeInTheDocument()
+  })
+
+  it('mixed noop and document rows use per-row noop approval plus grouped document approval', async () => {
+    const NOOP: ReviewLogRow = { ...XFER_LOG, id: 'log-noop', destination_branch_id: BRANCH_ID, wip_item_id: 'wN', wip_item_name: 'Noop' }
+    mockList.mockResolvedValue([NOOP, XFER_LOG])
+    mockPlan.mockResolvedValue({ wN: { [`transfer:${BRANCH_ID}`]: 42 }, w2: { [`transfer:${RADIANT_ID}`]: 42 } })
+    mockApprove.mockResolvedValue({ batch_id: 'NOOP-BATCH' })
+    mockApproveBulk.mockResolvedValue({ push_group_id: 'group-1', batch_ids: [] })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Noop')
+    fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-noop', null))
+    expect(mockApproveBulk).toHaveBeenCalledWith(['log-xfer'], null)
+  })
+
+  it('bulk P0003 retries eligible rows individually and reports only stale rows', async () => {
+    mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B, PROD_OFFPLAN])
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 }, wC: { produce: 7 } })
+    mockApproveBulk.mockRejectedValue(new KitchenRpcError('P0003', 'stale member'))
+    mockApprove.mockImplementation(async id => {
+      if (id === 'log-a') return { batch_id: 'BATCH-A' }
+      if (id === 'log-b') return { batch_id: 'BATCH-B' }
+      throw new KitchenRpcError('P0003', 'stale')
+    })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(3\)/i }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-a', null))
+    expect(mockApprove).toHaveBeenCalledWith('log-b', null)
+    expect(mockApprove).toHaveBeenCalledWith('log-c', null)
+    expect(await screen.findByText(/2 approved.*1 stale/i)).toBeInTheDocument()
+  })
+
+  it('partial group failure keeps every member + a failed notice', async () => {
+    mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B])
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 } })
+    // The grouped session fails atomically; the queue keeps both rows.
+    mockApproveBulk.mockRejectedValue(new KitchenRpcError('XX000', 'db down'))
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
 
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledTimes(2))
-    // A left the queue; B is kept (generic failure)
-    await waitFor(() => expect(screen.queryByText('Ayam Bakar')).not.toBeInTheDocument())
+    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledWith(['log-a', 'log-b'], null))
+    // The whole session stays visible on a group error.
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByText('Sambal')).toBeInTheDocument()
-    // a concise outcome notice names succeeded/failed
-    expect(await screen.findByText(/1 approved.*1 failed|approved 1.*failed 1/i)).toBeInTheDocument()
+    expect(await screen.findByText(/0 approved.*2 failed|approved 0.*failed 2/i)).toBeInTheDocument()
   })
 
   it('issue 398: an off-plan-only group offers NO bulk button — every row keeps its note gate', async () => {

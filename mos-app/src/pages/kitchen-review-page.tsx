@@ -12,6 +12,7 @@ import {
   listStreamPairs,
   streamCatalogFrom,
   approveKitchenLog,
+  approveKitchenLogsBulk,
   rejectKitchenLog,
   KitchenRpcError,
 } from '@/lib/db/kitchen-logs'
@@ -588,36 +589,67 @@ export function KitchenReviewPage() {
     setNotice('')
     let approved = 0
     let failed = 0
-    let lastBatch = ''
+    const batches: string[] = []
     const stale: string[] = []
-    for (const log of eligible) {
+    // Noop is a real approval with no ERP document. Keep it on the proven per-row seam;
+    // only non-noop rows may enter the grouping RPC.
+    const noop = eligible.filter(log => log.action === 'transfer' && log.destination_branch_id === log.branch_id)
+    const documentRows = eligible.filter(log => !noop.includes(log))
+    for (const log of noop) {
       try {
-        const { batch_id } = await approveKitchenLog(log.id, null)
-        approved += 1
-        lastBatch = batch_id
+        const result = await approveKitchenLog(log.id, null)
+        approved++
+        if (result.batch_id) batches.push(result.batch_id)
         removeRow(log.id)
       } catch (err) {
+        if (err instanceof KitchenRpcError && err.code === 'P0003') { stale.push(log.id); removeRow(log.id) }
+        else failed++
+      }
+    }
+    // The RPC deliberately mints one document only for a uniform stream/date. The UI keeps
+    // the single visible action while partitioning rows into the server's document grain.
+    const sessions = new Map<string, ReviewLogRow[]>()
+    for (const log of documentRows) {
+      const key = `${log.branch_id}|${log.activity}|${log.log_date}|${log.destination_branch_id ?? ''}`
+      const session = sessions.get(key) ?? []
+      session.push(log)
+      sessions.set(key, session)
+    }
+    for (const session of sessions.values()) {
+      try {
+        const result = await approveKitchenLogsBulk(session.map(log => log.id), null)
+        approved += session.length
+        for (const batchId of result.batch_ids ?? []) batches.push(batchId)
+        session.forEach(log => removeRow(log.id))
+      } catch (err) {
         if (err instanceof KitchenRpcError && err.code === 'P0003') {
-          stale.push(log.id)
-          removeRow(log.id)
-        } else {
-          failed += 1
-        }
+          // A stale member must not discard the rest of a live session. Retry each row;
+          // the RPC then approves eligible rows and identifies only the stale ones.
+          for (const log of session) {
+            try {
+              const result = await approveKitchenLog(log.id, null)
+              approved++
+              if (result.batch_id) batches.push(result.batch_id)
+              removeRow(log.id)
+            } catch (rowErr) {
+              if (rowErr instanceof KitchenRpcError && rowErr.code === 'P0003') { stale.push(log.id); removeRow(log.id) }
+              else failed++
+            }
+          }
+        } else failed += session.length
       }
     }
     setBulkAction(null)
-    if (failed > 0) {
-      setNotice(t('kitchen.review.notice.bulkPartial', { approved, failed }))
+    if (failed > 0 || stale.length > 0) {
+      setNotice(t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }))
     } else if (approved > 0) {
       setNotice(
         approved === 1
-          ? t('kitchen.review.notice.approved', { batchId: lastBatch })
-          : t('kitchen.review.notice.bulkApproved', { approved, batchId: lastBatch }),
+          ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
+          : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
       )
-    } else if (stale.length > 0) {
-      setNotice(t('kitchen.review.notice.staleRefresh'))
-      setRetryKey(k => k + 1)
     }
+    if (stale.length > 0) setRetryKey(k => k + 1)
   }
 
   function handleDecisionError(err: unknown) {

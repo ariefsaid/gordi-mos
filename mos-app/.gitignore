@@ -27,7 +27,6 @@ dist-ssr
 coverage
 playwright-report
 test-results
-storybook-static/
 .tmp
 
 # Local env (never committed)

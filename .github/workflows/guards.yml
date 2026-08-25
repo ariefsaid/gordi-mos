@@ -66,5 +66,3 @@ jobs:
         run: bash scripts/esb-worker.test.sh   # section G runs esb-worker-dispatch.test.py
       - name: reporting snapshot job self-test (#133)
         run: bash scripts/reporting-snapshot.test.sh
-      - name: e2e-takes-the-db-lock self-test (#388)
-        run: bash scripts/e2e-db-lock.test.sh

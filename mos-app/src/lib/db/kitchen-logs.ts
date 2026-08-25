@@ -447,7 +447,7 @@ export class KitchenRpcError extends Error {
 // added so the review queue can look up each row's plan baseline against ITS stream
 // rather than one hardcoded stream (the #247/#196 defect this port fixes).
 const REVIEW_SELECT =
-  'id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+  'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
 
 /**
  * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
@@ -471,6 +471,7 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
 
   type RawRow = {
     id: string
+    batch_id: string | null
     log_date: string
     action: KitchenAction
     destination_branch_id: string | null
@@ -492,6 +493,7 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     const embed = Array.isArray(r.wip_items) ? r.wip_items[0] : r.wip_items
     return {
       id: r.id,
+      batch_id: r.batch_id ?? null,
       log_date: r.log_date,
       action_type: r.action_label ?? '',
       action: r.action,
@@ -535,6 +537,32 @@ export async function approveKitchenLog(
     throw new KitchenRpcError(code, `approveKitchenLog failed — ${error.message}`)
   }
   return { batch_id: data as string }
+}
+
+/** Approve one endpoint-homogeneous session as one ERP document. */
+export async function approveKitchenLogsBulk(
+  logIds: string[],
+  reviewNote?: string | null,
+): Promise<{ push_group_id: string; batch_ids: string[] }> {
+  const { data, error } = await ops().rpc('approve_kitchen_logs', {
+    p_log_ids: logIds,
+    p_review_note: reviewNote ?? null,
+  })
+  if (error) {
+    const code = (error as { code?: string }).code ?? 'UNKNOWN'
+    throw new KitchenRpcError(code, `approveKitchenLogsBulk failed — ${error.message}`)
+  }
+  // The RPC returns a one-row table: { group_id, batch_ids }. No legacy shape exists in any
+  // deployed environment (the return-type change ships with a DROP in its own migration), so a
+  // missing key here is a real fault, not skew to paper over.
+  const result = Array.isArray(data) ? data[0] : data
+  if (!result?.group_id) {
+    throw new KitchenRpcError('SHAPE', 'approveKitchenLogsBulk returned no group_id — RPC/migration mismatch')
+  }
+  return {
+    push_group_id: result.group_id,
+    batch_ids: Array.isArray(result.batch_ids) ? result.batch_ids : [],
+  }
 }
 
 /**

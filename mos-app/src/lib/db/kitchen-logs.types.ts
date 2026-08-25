@@ -233,6 +233,7 @@ export interface KitchenLogRow {
 // tasks.ts. This keeps the data fn a single ops-schema read.
 export interface ReviewLogRow {
   id: string
+  batch_id?: string | null
   log_date: string
   /**
    * The DERIVED action label, read from the database's own `ops.action_label` virtual
