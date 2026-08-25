@@ -1,5 +1,5 @@
 -- integrations, squashed baseline — the posture of the whole schema, and the fail-closed proof of
--- its one policy.
+-- its policies (the outbox row's, and the approval group's since #432).
 --
 -- AC-005: RLS is enabled on every table in `integrations`. Asserted as a CATCH-ALL over the catalog
 -- rather than against a list of names, so a table added by a later ticket without RLS fails THIS
@@ -15,7 +15,7 @@
 -- deliberate and is the cheaper of the two mistakes available.
 --
 -- The other half of this file is the VERIFY-DON'T-RE-CREATE criterion, discharged as assertions
--- rather than as a claim: the schema holds exactly one table, and the enqueue refusal really does
+-- rather than as a claim: the schema holds exactly the two tables asserted below, and the enqueue refusal really does
 -- fire on INSERT *and* on an UPDATE that re-points source_ref, and really is revoked.
 --
 -- Personas, from the shared fixture:
@@ -95,7 +95,7 @@ select ok(has_table_privilege('service_role','integrations.esb_push','SELECT')
   'the worker may read outbox rows and flip their status, and may NOT create one — enqueue belongs to the approval path alone');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- C. There is one policy, and it is a read policy
+-- C. Each table carries exactly one policy, and each is a read policy
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Asserted structurally as well as behaviourally: "there is no INSERT or UPDATE policy" is a claim
 -- about what does NOT exist, and the catalog is the only place that can answer it.
