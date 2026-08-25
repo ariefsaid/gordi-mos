@@ -28,6 +28,7 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
 import { MANAGER, ORPHAN, VIEWER } from './fixtures/users'
+import { ensureStream } from './helpers/cafe-stream'
 
 async function box(locator: Locator) {
   const b = await locator.boundingBox()
@@ -221,6 +222,7 @@ test.describe('café toolbar desktop geometry guards (GUARD-SEARCH, #378)', () =
 
   test('GUARD-SEARCH: Café · Log at 1440 — usable search composed with the category', async ({ page }) => {
     await page.goto('cafe/log')
+    await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
     await expect(page.getByRole('combobox', { name: /^category$/i })).toBeVisible()
     await assertSearchComposed(page, 'Café · Log @1440')
@@ -228,6 +230,7 @@ test.describe('café toolbar desktop geometry guards (GUARD-SEARCH, #378)', () =
 
   test('GUARD-SEARCH: Café · Plan at 1440 — usable search composed with the category', async ({ page }) => {
     await page.goto('cafe/plan')
+    await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
     await expect(page.getByRole('combobox', { name: /^category$/i })).toBeVisible()
     await assertSearchComposed(page, 'Café · Plan @1440')
@@ -243,6 +246,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
 
   test('GUARD-SEARCH: Café · Log at 390 — phone composition not regressed by the fix', async ({ page }) => {
     await page.goto('cafe/log')
+    await ensureStream(page)
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Log @390')
     expect(search.height, 'Café · Log @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
@@ -253,6 +257,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
 
   test('GUARD-SEARCH: Café · Plan at 390 — phone composition not regressed by the fix', async ({ page }) => {
     await page.goto('cafe/plan')
+    await ensureStream(page)
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Plan @390')
     expect(search.height, 'Café · Plan @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
@@ -277,6 +282,7 @@ test.describe('café plan capture-first guards (#401) — editor', () => {
 
   test('GUARD-FOLD: @390 the figures band is the summary rule and the first dish row is inside the fold', async ({ page }) => {
     await page.goto('cafe/plan')
+    await ensureStream(page)
     await expect(page.locator('.msr')).toBeVisible()
     expect(await page.locator('.kks').count()).toBe(0) // never the retired tile strip
     await expect(page.locator('.dt-card').first()).toBeVisible()
@@ -293,6 +299,7 @@ test.describe('café plan capture-first guards (#401) — pesanan (member)', () 
 
   test('GUARD-SEARCH+GUARD-FOLD: @390 the member toolbar composes and the first dish row is inside the fold', async ({ page }) => {
     await page.goto('cafe/plan')
+    await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
     await assertSearchComposed(page, 'Café · Plan pesanan @390')
     await expect(page.locator('.dt-card').first()).toBeVisible()
@@ -305,6 +312,7 @@ test.describe('café plan capture-first guards (#401) — pesanan (member)', () 
   test('GUARD-SEARCH: @1440 the member toolbar keeps the usable search measure', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('cafe/plan')
+    await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
     await assertSearchComposed(page, 'Café · Plan pesanan @1440')
   })
