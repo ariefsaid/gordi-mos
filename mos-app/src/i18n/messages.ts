@@ -1275,9 +1275,9 @@ export const messages = {
     'kitchen.review.notePlaceholder.reject': 'Reason for rejection (required)',
     'kitchen.review.notice.approved': 'Approved · batch ${batchId}',
     'kitchen.review.notice.rejected': 'Rejected — removed from the queue.',
-    'kitchen.review.notice.bulkPartial': '${approved} approved · ${failed} failed — the failed rows remain in the queue.',
-    'kitchen.review.notice.bulkApproved': '${approved} approved · last batch ${batchId}',
+    'kitchen.review.notice.bulkApproved': '${approved} approved · batches ${batchId}',
     'kitchen.review.notice.staleRefresh': 'Already reviewed by someone else — refreshing the queue…',
+    'kitchen.review.notice.bulkTruth': '${approved} approved · ${failed} failed · ${stale} stale — refreshing the queue…',
     'kitchen.review.error.forbidden': 'You are not permitted to review this log.',
     'kitchen.review.error.generic': 'Something went wrong. Please try again.',
     // The crash screen. ErrorFallback mounts ABOVE I18nProvider (top-level boundary), so it
@@ -2475,9 +2475,9 @@ export const messages = {
     'kitchen.review.notePlaceholder.reject': 'Alasan penolakan (wajib)',
     'kitchen.review.notice.approved': 'Disetujui · batch ${batchId}',
     'kitchen.review.notice.rejected': 'Ditolak — dihapus dari antrean.',
-    'kitchen.review.notice.bulkPartial': '${approved} disetujui · ${failed} gagal — baris yang gagal tetap di antrean.',
-    'kitchen.review.notice.bulkApproved': '${approved} disetujui · batch terakhir ${batchId}',
+    'kitchen.review.notice.bulkApproved': '${approved} disetujui · batch ${batchId}',
     'kitchen.review.notice.staleRefresh': 'Sudah ditinjau oleh orang lain — memuat ulang antrean…',
+    'kitchen.review.notice.bulkTruth': '${approved} disetujui · ${failed} gagal · ${stale} kedaluwarsa — memuat ulang antrean…',
     'kitchen.review.error.forbidden': 'Anda tidak memiliki izin untuk meninjau log ini.',
     'kitchen.review.error.generic': 'Terjadi kesalahan. Silakan coba lagi.',
     // Layar crash — dibaca langsung dari katalog, bukan lewat hook.

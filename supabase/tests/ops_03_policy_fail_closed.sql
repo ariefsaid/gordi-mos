@@ -94,23 +94,23 @@ select isnt((select count(*)::int from ops.wip_items), 0,
 select throws_ok($$
   insert into ops.wip_items (name) values ('member added')
   $$, '42501', 'new row violates row-level security policy for table "wip_items"',
-  'wip_items_insert_ops_lead_or_admin: a member without ops_lead cannot add master data — the item list decides what every capture surface can record');
+  'wip_items_insert_ops: a member without ops_lead cannot add master data — the item list decides what every capture surface can record');
 
 update ops.wip_items set name = 'member renamed' where id = '00000000-0000-0000-0000-00000000ab01';
 reset role;
 select is((select name from ops.wip_items where id = '00000000-0000-0000-0000-00000000ab01'),
   'Nasi Goreng',
-  'wip_items_update_ops_lead_or_admin: a member''s rename affects zero rows — the name is unchanged');
+  'wip_items_update_ops: a member''s rename affects zero rows — the name is unchanged');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select lives_ok($$ insert into ops.wip_items (name) values ('ops_lead added') $$,
-  'wip_items_insert_ops_lead_or_admin (positive): ops_lead CAN add master data');
+  'wip_items_insert_ops (positive): ops_lead CAN add master data');
 update ops.wip_items set name = 'ops renamed' where id = '00000000-0000-0000-0000-00000000ab01';
 reset role;
 select is((select name from ops.wip_items where id = '00000000-0000-0000-0000-00000000ab01'),
   'ops renamed',
-  'wip_items_update_ops_lead_or_admin (positive): ops_lead CAN rename, so the zero above is the role gate');
+  'wip_items_update_ops (positive): ops_lead CAN rename, so the zero above is the role gate');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- C. ops.kitchen_plans
@@ -129,13 +129,13 @@ select throws_ok($$
   values ('2026-06-28','00000000-0000-0000-0000-00000000ab01',
           '00000000-0000-0000-0000-00000000bf02','kitchen','produce',5)
   $$, '42501', 'new row violates row-level security policy for table "kitchen_plans"',
-  'kitchen_plans_insert_ops_lead_or_admin: a member without ops_lead cannot write the plan');
+  'kitchen_plans_insert_ops: a member without ops_lead cannot write the plan');
 
 update ops.kitchen_plans set qty_porsi = 999 where id = '00000000-0000-0000-0000-00000000ae01';
 reset role;
 select is((select qty_porsi from ops.kitchen_plans where id = '00000000-0000-0000-0000-00000000ae01'),
   20::numeric(12,2),
-  'kitchen_plans_update_ops_lead_or_admin: a member''s plan edit affects zero rows — the variance baseline is unchanged');
+  'kitchen_plans_update_ops: a member''s plan edit affects zero rows — the variance baseline is unchanged');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
@@ -143,7 +143,7 @@ select lives_ok($$
   insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi)
   values ('2026-06-28','00000000-0000-0000-0000-00000000ab01',
           '00000000-0000-0000-0000-00000000bf02','kitchen','produce',5)
-  $$, 'kitchen_plans_insert_ops_lead_or_admin (positive): ops_lead CAN write the plan');
+  $$, 'kitchen_plans_insert_ops (positive): ops_lead CAN write the plan');
 
 -- The source pin: even ops_lead cannot author a plan row that claims to be imported Teable history.
 select throws_ok($$
@@ -151,13 +151,13 @@ select throws_ok($$
   values ('2026-06-29','00000000-0000-0000-0000-00000000ab01',
           '00000000-0000-0000-0000-00000000bf02','kitchen','produce',5,'teable_import')
   $$, '42501', 'new row violates row-level security policy for table "kitchen_plans"',
-  'kitchen_plans_insert_ops_lead_or_admin: the app tier cannot forge imported history — source is pinned to mos and the flip import runs as service_role');
+  'kitchen_plans_insert_ops: the app tier cannot forge imported history — source is pinned to mos and the flip import runs as service_role');
 
 update ops.kitchen_plans set qty_porsi = 21 where id = '00000000-0000-0000-0000-00000000ae01';
 reset role;
 select is((select qty_porsi from ops.kitchen_plans where id = '00000000-0000-0000-0000-00000000ae01'),
   21::numeric(12,2),
-  'kitchen_plans_update_ops_lead_or_admin (positive): ops_lead CAN edit the plan');
+  'kitchen_plans_update_ops (positive): ops_lead CAN edit the plan');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- D. ops.kitchen_logs — the production fact table
@@ -273,11 +273,11 @@ select throws_ok($$ select count(*) from ops.kitchen_batch_seq $$, '42501',
 -- The gate here is the ROLE, not only the org, so the negative subject has to be a member of the
 -- same org holding a real row — otherwise the zero would be the org seam over again.
 select is((select count(*)::int from integrations.esb_push), 0,
-  'esb_push_select_ops_lead_or_admin: a member without ops_lead or admin reads zero outbox rows, in their OWN org');
+  'esb_push_select_ops: a member without ops_lead or admin reads zero outbox rows, in their OWN org');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select isnt((select count(*)::int from integrations.esb_push), 0,
-  'esb_push_select_ops_lead_or_admin (positive): ops_lead does read them, so the zero above is the role gate and not an empty table');
+  'esb_push_select_ops (positive): ops_lead does read them, so the zero above is the role gate and not an empty table');
 
 select * from finish();
 rollback;
