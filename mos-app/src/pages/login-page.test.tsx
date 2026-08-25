@@ -203,7 +203,8 @@ describe('LoginPage — credentials form', () => {
     })
   })
 
-  // AC-006: magic-link shows neutral confirmation "Check your email for a link."
+  // AC-006: magic-link shows a neutral confirmation. The wording carries the neutrality —
+  // it must not assert that mail was sent to THIS address (#137 security review).
   it('AC-006: magic-link confirmation shows neutral message', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},
@@ -219,7 +220,9 @@ describe('LoginPage — credentials form', () => {
     await user.click(magicLinkBtn)
 
     await waitFor(() => {
-      expect(screen.getByText('Check your email for a sign-in link.')).toBeInTheDocument()
+      expect(
+        screen.getByText('If an account exists for that address, a sign-in link is on its way.'),
+      ).toBeInTheDocument()
     })
   })
 
@@ -261,14 +264,19 @@ describe('LoginPage — credentials form', () => {
     await user.click(forgotBtn)
 
     await waitFor(() => {
-      expect(screen.getByText('Check your email to reset your password.')).toBeInTheDocument()
+      expect(
+        screen.getByText('If an account exists for that address, a reset link is on its way.'),
+      ).toBeInTheDocument()
     })
   })
 
-  // #137: supabase-js reports a refused send (429, 5xx, transport failure) in `error` instead of
-  // throwing. Telling the user to check an inbox nothing was sent to is the bug that made the
-  // password-recovery e2e flake read as a mail-catcher timeout instead of a failed send.
-  it('a refused reset send shows the failure, not "check your email"', async () => {
+  // #137, as corrected by the PR's adversarial security review. The first attempt at this fix
+  // branched the user-visible outcome on `sendError` — and that IS an account-existence oracle:
+  // GoTrue answers 200 for an address it has never seen (it attempts no mail), so a send that
+  // FAILS is evidence the address exists. These two tests pin the property that replaced it:
+  // the outcome is identical whether the send succeeds or fails, and the copy never asserts that
+  // mail went to this address. If either regresses, an attacker learns who has an account.
+  it('a refused reset send is indistinguishable from a successful one (no existence oracle)', async () => {
     mockResetPassword.mockResolvedValue({
       data: {},
       error: { status: 500, message: 'Error sending recovery email' },
@@ -276,17 +284,21 @@ describe('LoginPage — credentials form', () => {
 
     const user = userEvent.setup()
     render(<LoginPage />)
-
     await user.type(screen.getByLabelText('Email'), 'user@example.test')
     await user.click(screen.getByRole('button', { name: /forgot password/i }))
 
+    // the SAME neutral panel a successful send produces
     await waitFor(() => {
-      expect(screen.getByText("Couldn't reach the server — try again.")).toBeInTheDocument()
+      expect(
+        screen.getByText('If an account exists for that address, a reset link is on its way.'),
+      ).toBeInTheDocument()
     })
-    expect(screen.queryByText('Check your email to reset your password.')).not.toBeInTheDocument()
+    // and nothing anywhere on screen betrays the failure
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/couldn't reach|too many attempts|error sending/i)
   })
 
-  it('a rate-limited magic-link send says so, and does not claim mail was sent', async () => {
+  it('a rate-limited magic-link send is likewise indistinguishable, and claims no send', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},
       error: { status: 429, message: 'over_email_send_rate_limit' },
@@ -294,14 +306,17 @@ describe('LoginPage — credentials form', () => {
 
     const user = userEvent.setup()
     render(<LoginPage />)
-
     await user.type(screen.getByLabelText('Email'), 'user@example.test')
     await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Too many attempts — try again in a minute.')).toBeInTheDocument()
+      expect(
+        screen.getByText('If an account exists for that address, a sign-in link is on its way.'),
+      ).toBeInTheDocument()
     })
-    expect(screen.queryByText('Check your email for a sign-in link.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    // the copy must not assert a send happened for THIS address — that was the original lie
+    expect(document.body.textContent).not.toMatch(/check your email/i)
   })
 
   it('AC-006: magic-link and reset confirmations both show back-to-sign-in link', async () => {

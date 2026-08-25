@@ -35,17 +35,6 @@ function mapAuthError(error: unknown): string {
   return ERR_CREDENTIAL
 }
 
-/**
- * Message for a magic-link / password-reset send that did not go through. Deliberately separate
- * from mapAuthError: nothing here is a credential problem, and "Invalid email or password" would
- * be a lie about a request that never reached the mail step.
- */
-function mapSendError(error: unknown): string {
-  if (error && typeof error === 'object' && 'status' in error) {
-    if ((error as { status: number }).status === 429) return ERR_RATE_LIMIT
-  }
-  return ERR_NETWORK
-}
 
 // Simple RFC-5322-inspired email check (same pattern used by most browsers)
 function isValidEmail(value: string): boolean {
@@ -148,16 +137,16 @@ export function LoginPage() {
         email,
         options: { shouldCreateUser: false },
       })
-      // A send that FAILED must not be reported as sent. supabase-js reports transport/5xx/429
-      // failures in `error` rather than throwing, so without this check the user is told to check
-      // an inbox nothing was ever sent to. This leaks no account information: GoTrue answers 200
-      // for known and unknown addresses alike, so anything in `error` is about the request, never
-      // about whether the account exists — the AC-006 neutrality below is untouched.
-      if (sendError) {
-        setError(mapSendError(sendError))
-        return
-      }
-      // Always show neutral confirmation (no enumeration — AC-006)
+      // ⚠ DO NOT branch the user-visible outcome on `sendError` (AC-006, and a review of #137
+      // caught exactly that). GoTrue answers 200 for an address it has never seen — it attempts
+      // no mail — so a send that FAILS is evidence the address EXISTS. Rendering a different
+      // message on failure therefore turns this form into an account-existence oracle for anyone
+      // who can read the screen. The outcome here is identical in all four cases (address known
+      // or not x mail sent or not); the confirmation copy is worded so it never asserts that mail
+      // was sent to THIS address, which is what made the old always-"check your inbox" a lie.
+      // The failure is still surfaced — to the console, where the network tab already shows it —
+      // never to the UI.
+      if (sendError) console.warn('[auth] magic-link send did not go through', sendError)
       setMode('magic-confirm')
     } catch {
       setError(ERR_NETWORK)
@@ -175,12 +164,9 @@ export function LoginPage() {
       // event is handled while the router is at the correct path (audit L1 fix).
       const redirectTo = `${window.location.origin}/mos/recovery`
       const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
-      // Same as the magic link above: never claim a mail was sent when the request failed.
-      if (sendError) {
-        setError(mapSendError(sendError))
-        return
-      }
-      // Always show neutral confirmation (no enumeration — AC-006)
+      // Same reasoning as the magic-link path above: the outcome must not vary with `sendError`,
+      // because a failed send implies the address exists. Console only, never the UI.
+      if (sendError) console.warn('[auth] password-reset send did not go through', sendError)
       setMode('reset-confirm')
     } catch {
       setError(ERR_NETWORK)
@@ -193,8 +179,10 @@ export function LoginPage() {
   if (mode === 'magic-confirm' || mode === 'reset-confirm') {
     const isReset = mode === 'reset-confirm'
     const confirmText = isReset
-      ? 'Check your email to reset your password.'
-      : 'Check your email for a sign-in link.'
+      // Worded to be true in every case, which is what makes the neutral outcome honest rather
+      // than a lie: it never asserts that mail was sent to THIS address (#137 review).
+      ? 'If an account exists for that address, a reset link is on its way.'
+      : 'If an account exists for that address, a sign-in link is on its way.'
 
     return (
       <AuthShell>
