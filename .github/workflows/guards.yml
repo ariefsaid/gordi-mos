@@ -68,3 +68,5 @@ jobs:
         run: bash scripts/reporting-snapshot.test.sh
       - name: e2e-takes-the-db-lock self-test (#388)
         run: bash scripts/e2e-db-lock.test.sh
+      - name: seed dates are WIB, not UTC self-test (#459)
+        run: bash scripts/seed-wib-dates.test.sh
