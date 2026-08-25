@@ -94,6 +94,13 @@ jobs:
       - name: pgTAP suite
         run: supabase test db
 
+      # #393: the pgTAP suite above always starts from nothing, so every conditional
+      # migration has a branch it structurally cannot reach — and the only environments
+      # that run that branch are staging and production. This rebuilds the deployed state
+      # and asserts a migrated database is INDISTINGUISHABLE from a fresh one.
+      - name: Applied-path check — a migrated database matches a fresh one
+        run: bash scripts/applied-path-check.sh
+
       - name: Stop stack
         if: always()
         run: supabase stop
