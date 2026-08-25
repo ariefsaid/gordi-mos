@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
+import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 
 // Breadcrumb reads useBreadcrumbTitle for the dynamic task title (AC-019).
 function renderBC(path: string) {
@@ -60,7 +61,7 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
   // them. Printing a crumb for a surface the router forwards away from would name a page the
   // viewer is not on. Delete a path from SHIP_GATED_PATHS and its crumb comes back with no edit
   // to breadcrumb.tsx.
-  it.each(['/work/projects', '/work/objectives', '/work/events', '/money', '/money/detail'])(
+  it.each([...SHIP_GATED_PATHS, '/money/detail'])(
     'the ship-gated %s renders no crumb at all',
     (path) => {
       renderBC(path)

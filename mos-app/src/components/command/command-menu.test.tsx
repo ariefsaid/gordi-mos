@@ -274,41 +274,47 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
 
 // ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group is capability-gated ─────────────
 describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per capability', () => {
-  // AC-804/805 held that a capability holder is OFFERED the two catalog surfaces and that
-  // activating each navigates. #444 ship-gates both paths, so the palette offers neither — to
-  // anyone, capability or not. The capability model itself is untouched and still asserted in
-  // `capabilities.test.ts` + the rail; what is held here is that the palette closed with the
-  // router rather than keeping a door open to a path that forwards home.
-  it.each([['admin', ['admin']], ['ops_lead', ['ops_lead']], ['a plain member', [] as string[]]])(
-    'AC-804/805 (issue 444): %s is offered neither Projects & Processes nor Objectives while both are ship-gated',
-    (_who, roles) => {
-      setAuth(roles)
-      renderMenu()
-      expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
-      expect(screen.queryByRole('option', { name: /^Objectives$/i })).toBeNull()
-      // The Navigate group still exists and still carries what ships, so the nulls above are
-      // about the two gated entries and not about a palette that failed to build.
-      expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
-    },
-  )
+  it('AC-804: admin sees both Projects & Processes and Objectives; activating each navigates and closes', () => {
+    setAuth(['admin'])
+    const { onClose } = renderMenu()
+    expect(screen.getByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: /^Projects & Processes$/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/projects')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('AC-804: activating Objectives navigates to /work/objectives and closes', () => {
+    setAuth(['admin'])
+    const { onClose } = renderMenu()
+    fireEvent.click(screen.getByRole('option', { name: /^Objectives$/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('AC-805: ops_lead (workline.manage) sees Projects & Processes; Objectives is ungated (OD-V4-1)', () => {
+    setAuth(['ops_lead'])
+    renderMenu()
+    expect(screen.getByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
+  })
 
   // OD-V4-1 (owner-ratified 2026-07-27): Objectives carry NO read gate — the SELECT policy on
   // mos.objectives has no role check, the rail dropped the gate in #188 and the router followed.
   // v4's own test file still asserted the retired gate here (its component already pushed the
   // entry ungated), so it was contradicting the component it tested. The ruling wins.
-  it('AC-806: a plain member gets exactly the day-one Navigate set', () => {
+  it('AC-806: a plain member sees no Projects & Processes but DOES see Objectives (OD-V4-1)', () => {
     setAuth([])
     renderMenu()
+    expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
+    expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
-    // Objectives was asserted PRESENT here (OD-V4-1: no read gate). #444 hides it along with
-    // Projects & Processes, Events and Money — visibility, not a re-imposed capability gate.
-    for (const name of [/^Projects & Processes$/i, /^Objectives$/i, /^Events$/i, /^Money$/i]) {
-      expect(screen.queryByRole('option', { name }), `${name} is ship-gated`).toBeNull()
-    }
+    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
   })
 })
 

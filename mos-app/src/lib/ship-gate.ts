@@ -30,9 +30,8 @@ export const SHIP_GATED_PATHS: readonly string[] = [
   // Outside the payload, and carrying known visual debt (#250). Covers the whole subtree —
   // /money/detail, /money/budget, /money/pricing, /money/follow-ups — via the prefix rule below.
   '/money',
-  // Objectives · Projects & Processes.
-  '/work/objectives',
-  '/work/projects',
+  // Objectives · Projects & Processes were here 2026-08-24 → 2026-08-25; the owner restored
+  // them to the MVP (OD-WAY-63): Tasks roll up through them, so Home's drill needs its target.
 ]
 
 /**

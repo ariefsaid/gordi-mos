@@ -29,6 +29,8 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 // The real per-person arrangement store (not a stub): the AC-204 (4) block below switches
 // arrangement the same way /profile does, so the door is proven on more than the default one.
 
+import { setHomeLayout } from '@/lib/home-layout'
+
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -617,53 +619,69 @@ describe('the Home header carries the day’s state (motivational half of the br
 // successor door is the Objectives roll-up, and it must be on the Home people actually land on —
 // the index route — not only on the dev-only stacked composition where it was first built.
 //
+// ── AC-204 (4): "Home's owner-cockpit section reads as intentional rather than as a surface with
+// something removed." #179 cut the cascade route and took Home's progress drill with it. The
+// successor door is the Objectives roll-up, and it must be on the Home people actually land on —
+// the index route — not only on the dev-only stacked composition where it was first built.
+//
 // The oracle is the JOB, not the markup: a viewer who steers a scope (the owner-director over the
 // whole company, a function owner over their business unit) can walk from Home to the roll-up; a
 // member, who comes to Home for what needs them today, is not handed a company-wide door they did
 // not ask for. Placeholder copy is what a removed surface leaves behind, so its ABSENCE from the
 // door is asserted too.
-// AC-204 (4) put an Objectives roll-up door on the cockpit viewer's Home, drilling to
-// /work/objectives. #444 ship-gates that path — so the door's only control now forwards home, and
-// a headed band whose drill goes nowhere is exactly the dead end the gate is supposed to remove.
-// The door follows its destination: hidden for everyone while the path is gated, restored for the
-// cockpit viewer the moment it is not, with no edit to home-page.tsx.
-describe('AC-204 (4) / issue 444: Home\'s Objectives door follows the Objectives ship gate', () => {
+describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () => {
+  const objectivesDoor = () => screen.getByRole('region', { name: 'Objectives' })
+
   beforeEach(() => {
     mockGetRoles.mockResolvedValue(ORG_TREE)
   })
 
-  it.each([
-    ['the owner-director', () => ownerDirectorViewer],
-    ['a function owner', () => functionOwnerViewer],
-    ['a member who steers no scope', () => noScopeViewer],
-  ])('%s is handed no Objectives door while /work/objectives is ship-gated', async (_who, viewer) => {
-    await renderHome(viewer())
+  it('the owner-director can walk from Home to the Objectives roll-up', async () => {
+    await renderHome(ownerDirectorViewer)
     await screen.findByRole('tablist')
-    // The role read the cockpit gate rides has LANDED — so this absence is a decision, not a
-    // race. Without it the case would pass just as well against a door that had not rendered yet.
+
+    const link = await screen.findByRole('link', { name: /see progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    expect(objectivesDoor()).toContainElement(link)
+    // The door states a fact rather than pointing away silently…
+    expect(objectivesDoor()).toHaveTextContent(/Progress rolls up from each Objective/i)
+    // …and it is not dressed as an unbuilt drop point: no "coming" language on it.
+    expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
+  })
+
+  it('a function owner gets the same door', async () => {
+    await renderHome(functionOwnerViewer)
+    await screen.findByRole('tablist')
+
+    const link = await screen.findByRole('link', { name: /see progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    expect(objectivesDoor()).toContainElement(link)
+  })
+
+  it('a member who steers no scope is handed no door', async () => {
+    await renderHome(noScopeViewer)
+    await screen.findByRole('tablist')
+    // The read the gate rides has LANDED — so this absence is a decision, not a race. Without
+    // this the test would pass just as well against a door that simply had not rendered yet.
     await waitFor(() => expect(mockGetRoles).toHaveBeenCalled())
 
     expect(screen.queryByRole('link', { name: /see progress/i })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
   })
 
-  it('and Home closes up around it — the aside still carries the Signals feed, with no hole', async () => {
-    // The half that makes this a hidden region rather than a gap: the door was the FIRST child of
-    // Home's one aside node, so removing it must leave the feed at the top of that column rather
-    // than an empty slot above it. Asserted on the rendered aside, not on the layout CSS.
+  it('the door rides the shared aside, so every arrangement carries it (NFR-924)', async () => {
+    setHomeLayout(financeViewer.viewer.person.id, 'list')
     await renderHome(ownerDirectorViewer)
-    await screen.findByRole('tablist')
-    await waitFor(() => expect(mockGetRoles).toHaveBeenCalled())
 
-    const feed = screen.getByRole('region', { name: /signals/i })
-    expect(feed).toBeInTheDocument()
-    const aside = feed.parentElement!
-    expect(aside.firstElementChild).toBe(feed)
+    const link = await screen.findByRole('link', { name: /see progress/i })
+    expect(link.getAttribute('href')).toBe('/work/objectives')
+    // List, not Focused — the arrangement really did change under it.
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
+})
 
-  it('the gate is what hides it — the door component is untouched and still drills to /work/objectives', () => {
-    // Rendered directly, so "hidden" cannot quietly become "deleted": switch day is one line out
-    // of SHIP_GATED_PATHS, not a rebuild of this section.
+describe('issue 444 mechanism: the door component itself never learned about the gate', () => {
+  it('rendered directly it still drills to /work/objectives — hidden never quietly became deleted', () => {
     render(
       <I18nProvider>
         <MemoryRouter>
@@ -673,9 +691,5 @@ describe('AC-204 (4) / issue 444: Home\'s Objectives door follows the Objectives
     )
     const link = screen.getByRole('link', { name: /see progress/i })
     expect(link.getAttribute('href')).toBe('/work/objectives')
-    const door = screen.getByRole('region', { name: 'Objectives' })
-    expect(door).toContainElement(link)
-    expect(door).toHaveTextContent(/Progress rolls up from each Objective/i)
-    expect(door).not.toHaveTextContent(/coming/i)
   })
 })
