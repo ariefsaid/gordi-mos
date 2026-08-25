@@ -259,7 +259,9 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
 
   return (
     <>
-      <nav aria-label="Primary" className="flex flex-1 flex-col px-2 pt-3">
+      {/* id: the #442 collapse toggle's `aria-controls` target — the nav is what its
+          `aria-expanded` describes. There is exactly one Rail per shell, so a static id is safe. */}
+      <nav id="rail-primary-nav" aria-label="Primary" className="flex flex-1 flex-col px-2 pt-3">
         {!compact && <RailGroupLabel>{t('rail.destinations')}</RailGroupLabel>}
         <div className="flex flex-col gap-[2px] rail-item-list">
           {liveDestinations.map((d) => {

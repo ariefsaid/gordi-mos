@@ -149,4 +149,74 @@
   .rail-item-list-item + .rail-item-list-item {
     margin-top: 8px;
   }
+  /* The collapse toggle (#442) is a target on the same surface, so it rises with the rows. */
+  .rail-collapse-toggle {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Rail — the user-controlled collapse toggle (#442).
+
+   The rail could always render icon-only, but until now only the VIEWPORT could
+   ask for it (the 920–1099.98px band). This is the user's own switch, and it
+   drives the SAME `compact` rendering path — there is no second collapsed style
+   here, only the control that turns the existing one on.
+
+   The control renders only where it can change something: at or above 1100px.
+   In the band below, width decides outright and the button is absent, because a
+   toggle that visibly does nothing when pressed is worse than no toggle.
+
+   Geometry comes from the `--rail-toggle-*` tokens minted alongside the ladder's
+   own in index.css, so the rail keeps carrying no raw px of its own (#425).
+   ════════════════════════════════════════════════════════════════════════════ */
+.rail-collapse-row {
+  display: flex;
+  justify-content: flex-end; /* the trailing edge, where the rail meets the content */
+  padding: var(--rail-toggle-inset) var(--rail-toggle-inset) 0;
+  flex: none;
+}
+
+/* Collapsed there is no trailing edge worth speaking of, so the control takes the icon
+   column's centre line — the same axis every compact nav item below it sits on. */
+.rail-collapse-row--compact {
+  justify-content: center;
+}
+
+.rail-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--rail-toggle-size);
+  height: var(--rail-toggle-size);
+  border: 0;
+  border-radius: var(--radius-sm); /* a control per §Shapes — the same 8px the nav items take */
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.rail-collapse-toggle:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+/* The ONE shared disclosure chevron (icons.tsx) points DOWN at rest. Expanded it turns to
+   point back INTO the rail ("fold this away"); collapsed, out of it ("bring it back"). */
+.rail-collapse-toggle__chevron {
+  transform: rotate(90deg);
+  transition: transform var(--dur-med) ease;
+}
+
+.rail-collapse-toggle[data-rail-collapsed='true'] .rail-collapse-toggle__chevron {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-collapse-toggle,
+  .rail-collapse-toggle__chevron {
+    transition: none;
+  }
 }
