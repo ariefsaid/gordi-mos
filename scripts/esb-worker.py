@@ -32,26 +32,18 @@ Two supporting refusals, same posture (fail closed, never fall back):
     fall back to another environment's credentials.
 
 ════════════════════════════════════════════════════════════════════════════════════════
-BATCH GRAIN — one outbox row is one ERP document
+BATCH GRAIN — one explicit bulk approval group is one ERP document
 ════════════════════════════════════════════════════════════════════════════════════════
-The incumbent grouped: its rows carried a shared batch_id and the poller reassembled
-the batch with `defaultdict(list)`, posting one ERP document per group. That grouping
-existed because the incumbent had no outbox — batch_id was the only thing holding a
-batch together.
+A bulk approval RPC mints `push_group_id` and attaches one outbox row per approved log.
+The worker groups those rows by that explicit id and posts one document whose detail array
+contains every line. Endpoint-homogeneous groups are required by the RPC; individual
+approvals remain single-line documents and are never inferred into a later group.
 
-Here the batch is already materialised. ops.approve_kitchen_log mints one batch_id and
-enqueues exactly one integrations.esb_push row per approved log; bulk approve is a loop
-over that same per-log RPC, so bulk and per-row produce identical outbox shapes. Every
-column the dispatch needs — endpoint, target_env, status, retry_count, esb_doc_num — is
-per row, and dedup_key is unique per row. Re-grouping across rows would re-introduce the
-many-rows-to-one-document mapping the schema removed, with nowhere to record it: N rows
-would share one document number and one partial failure would have to fail all N or lie
-about some of them.
-
-CONSEQUENCE, stated because it is a real behaviour change and not a detail: where the
-incumbent emitted one ERP document per approval session, this emits one per approved
-log. If that is unwanted it is a change to the batch_id mint in ops.approve_kitchen_log,
-not to this worker — the worker cannot merge what the schema keyed apart.
+The group owns its own target-specific dedup identity, while member rows retain their
+per-log dedup keys for the existing no-duplicate contract. A group failure marks every
+member failed/dead-lettered and sends no short document. On success the ERP document
+number is written to the group and fanned out to every kitchen log, keeping
+`posted_to_esb` load-bearing for future enqueue refusal.
 
 ════════════════════════════════════════════════════════════════════════════════════════
 Other decisions this ticket owed (raised, not settled, by the integrations squash)
@@ -479,17 +471,20 @@ def _pgrst_headers(cfg: Config, schema: str, *, write: bool = False) -> dict[str
 class Outbox:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
+        self._group_meta: dict[str, dict[str, Any]] = {}
+
+    def group_meta(self, group_id: str) -> dict[str, Any]:
+        return self._group_meta.get(str(group_id), {})
 
     def _headers(self, *, write: bool) -> dict[str, str]:
         return _pgrst_headers(self.cfg, "integrations", write=write)
 
     def pending(self) -> list[dict[str, Any]]:
-        """Rows this worker may drain: pending or failed, stamped with THIS worker's
-        environment, and owing the ERP a document at all. The target_env filter is a
-        guard, not an optimisation — see the safety note at the top about what dedup_key
-        does not guarantee. The endpoint filter is the same kind of guard: a 'noop' row
-        is HELD permanently (FR-053) and has no ERP counterpart to post to, so it is not
-        work — draining it could only ever close it as something it is not."""
+        """Rows this worker may drain. A grouped document is returned only when its
+        complete membership is present and every member is eligible; a page boundary
+        must never turn a group into a short ERP document. Singles retain the page limit.
+        The endpoint and target environment filters are guards, not optimisations; noop
+        rows have no ERP counterpart and are held permanently."""
         query = urllib.parse.urlencode({
             "status": "in.(pending,failed)",
             "target_env": f"eq.{self.cfg.target_env}",
@@ -500,7 +495,46 @@ class Outbox:
         })
         _, rows = _request("GET", f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
                            headers=self._headers(write=False), timeout=self.cfg.timeout)
-        return list(rows or [])
+        rows = list(rows or [])
+        group_ids = sorted({str(r['push_group_id']) for r in rows if r.get('push_group_id')})
+        if not group_ids:
+            return rows
+        # A group which already has an ERP number is a resumable fan-out, even when
+        # a prior tick left members in_flight or posted. Never strand accepted money.
+        group_query = urllib.parse.urlencode({'id': f"in.({','.join(group_ids)})",
+                                              'target_env': f'eq.{self.cfg.target_env}',
+                                              'select': 'id,esb_doc_num,status'})
+        _, group_rows = _request(
+            'GET', f"{self.cfg.supabase_url}/rest/v1/esb_push_groups?{group_query}",
+            headers=self._headers(write=False), timeout=self.cfg.timeout)
+        group_meta = {str(g['id']): g for g in list(group_rows or []) if g.get('id')}
+        self._group_meta.update(group_meta)
+        membership_query = urllib.parse.urlencode({
+            'push_group_id': f"in.({','.join(group_ids)})",
+            'target_env': f'eq.{self.cfg.target_env}', 'select': '*',
+            'order': 'created_at.asc',
+        })
+        _, membership = _request(
+            'GET', f"{self.cfg.supabase_url}/rest/v1/esb_push?{membership_query}",
+            headers=self._headers(write=False), timeout=self.cfg.timeout)
+        complete: dict[str, list[dict[str, Any]]] = {}
+        for member in list(membership or []):
+            gid = member.get('push_group_id')
+            if gid:
+                complete.setdefault(str(gid), []).append(member)
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            gid = row.get('push_group_id')
+            if not gid:
+                result.append(row)
+            elif str(gid) in complete and (
+                group_meta.get(str(gid), {}).get('esb_doc_num') or all(
+                    m.get('status') in ('pending', 'failed') and m.get('endpoint') != 'noop'
+                    for m in complete[str(gid)]
+                )
+            ):
+                result.extend(complete.pop(str(gid)))
+        return result
 
     def claim(self, row_id: str) -> bool:
         """pending|failed -> in_flight, conditionally. Two overlapping ticks cannot both
@@ -562,6 +596,11 @@ class Outbox:
                            body={"status": "pending", "retry_count": 0},
                            timeout=self.cfg.timeout)
         return bool(rows)
+
+    def patch_group(self, group_id: str, patch: dict[str, Any]) -> None:
+        query = urllib.parse.urlencode({"id": f"eq.{group_id}"})
+        _request("PATCH", f"{self.cfg.supabase_url}/rest/v1/esb_push_groups?{query}",
+                 headers=self._headers(write=True), body=patch, timeout=self.cfg.timeout)
 
     def stamp_log_posted(self, row: dict[str, Any], doc_num: str) -> None:
         """The kitchen log's posting mirror. Two conditions, and BOTH are about the same
@@ -713,7 +752,7 @@ class Request:
     path: str
     body: dict[str, Any]
     result_key: str
-    materials_from: int | None = None
+    materials_from: int | list[int] | None = None
 
 
 def compose(cfg: Config, row: dict[str, Any],
@@ -781,6 +820,48 @@ def compose(cfg: Config, row: dict[str, Any],
                     f"route for it")
 
 
+def compose_group(cfg: Config, rows: list[dict[str, Any]],
+                  wip_names: dict[str, str] | None = None) -> Request | None:
+    """Compose one ERP document for one explicit bulk-approval group.
+
+    A group is endpoint-homogeneous by the RPC. Any malformed or rejected member
+    fails the whole document; no short document is posted.
+    """
+    if not rows:
+        raise Permanent("empty approval group")
+    requests = [compose(cfg, row, wip_names) for row in rows]
+    if any(req is None for req in requests):
+        raise Permanent("approval group contains a held movement")
+    first = requests[0]
+    assert first is not None
+    if any(req.path != first.path for req in requests[1:]):
+        raise Permanent("approval group contains multiple ERP endpoints")
+    for req in requests[1:]:
+        assert req is not None
+        if first.path == '/simple-transfer' and req.body.get('destinationLocationID') != first.body.get('destinationLocationID'):
+            raise Permanent("approval group contains multiple destinations")
+        if (req.body.get('simpleManufacturingDate', req.body.get('simpleTransferDate'))
+                != first.body.get('simpleManufacturingDate', first.body.get('simpleTransferDate'))):
+            raise Permanent("approval group contains multiple log dates")
+        if req.path.endswith('assembly-actual') and (
+                req.body.get('branchID') != first.body.get('branchID') or
+                req.body.get('originLocationID') != first.body.get('originLocationID')):
+            raise Permanent("approval group contains multiple streams")
+    details_key = "simpleManufacturingDetails" if first.path.endswith("assembly-actual") else "simpleTransferDetails"
+    details = []
+    for req in requests:
+        assert req is not None
+        details.extend(req.body[details_key])
+    body = dict(first.body)
+    body[details_key] = details
+    if first.path == '/simple-transfer':
+        # The reconciler needs every member's batch reference, not only the first row.
+        body['additionalInfo'] = ' | '.join(str(row.get('source_ref') or '') for row in rows)
+    materials = [req.materials_from for req in requests if req.materials_from is not None]
+    return Request(path=first.path, body=body, result_key=first.result_key,
+                   materials_from=materials or None)
+
+
 def _assembly_notes(row: dict[str, Any], wip_names: dict[str, str] | None) -> str:
     """"<batch id> | <wip item name>" — the incumbent's note, restored. The name is what
     makes the note readable in the ERP by somebody who does not have MOS open; the batch
@@ -811,20 +892,19 @@ def dispatch(cfg: Config, client: ErpClient, req: Request) -> str:
     value this function can return is one the ERP handed back. A drain that cannot post
     never gets this far — load_config refuses it (see THE SAFETY LINE)."""
     if req.materials_from is not None:
-        qty = req.body["simpleManufacturingDetails"][0]["manufacturingQty"]
+        bom_ids = [req.materials_from] if isinstance(req.materials_from, int) else req.materials_from
         try:
-            materials = [
-                {"productDetailID": int(line["productDetailID"]),
-                 "systemQty": float(line["qty"]) * qty,
-                 "totalQty": float(line["qty"]) * qty}
-                for line in client.bom_materials(req.materials_from)
-            ]
+            for detail, bom_id in zip(req.body["simpleManufacturingDetails"], bom_ids):
+                qty = detail["manufacturingQty"]
+                materials = [
+                    {"productDetailID": int(line["productDetailID"]),
+                     "systemQty": float(line["qty"]) * qty,
+                     "totalQty": float(line["qty"]) * qty}
+                    for line in client.bom_materials(bom_id)
+                ]
+                detail["simpleManufacturingMaterials"] = materials
         except (AttributeError, KeyError, TypeError, ValueError) as exc:
-            # A BOM line missing a field or carrying a null quantity is the ERP's data
-            # being wrong, not this row's: classify it so the row fails and the tick lives.
-            raise Transient(f"ERP BOM {req.materials_from} has a line this worker cannot "
-                            f"read: {type(exc).__name__}: {exc}") from None
-        req.body["simpleManufacturingDetails"][0]["simpleManufacturingMaterials"] = materials
+            raise Transient(f"ERP BOM {bom_id} material data is invalid: {type(exc).__name__}: {exc}") from None
     doc = client.post(req.path, req.body, req.result_key)
     if not doc:
         raise Transient("ERP accepted the post but returned no document number")
@@ -851,12 +931,98 @@ def _drain_one(cfg: Config, client: ErpClient, outbox: Outbox, row: dict[str, An
     return f"posted -> {doc}", True
 
 
+def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
+                rows: list[dict[str, Any]], *, plan_only: bool, out,
+                wip_names: dict[str, str] | None) -> int:
+    """Run a group atomically from the worker's perspective: all lines claim and close,
+    and one failed ERP document marks every member failed. The ERP never receives a
+    short document."""
+    ref = rows[0].get("push_group_id") or rows[0].get("source_ref")
+    try:
+        req = compose_group(cfg, rows, wip_names)
+    except Permanent as exc:
+        print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
+        if not plan_only and outbox:
+            for row in rows:
+                outbox.close_failed(row, str(exc), permanent=True)
+            if rows[0].get('push_group_id'):
+                outbox.patch_group(str(rows[0]['push_group_id']), {
+                    'status': 'dead_letter', 'last_error': str(exc)[:2000]})
+        return len(rows)
+    if plan_only:
+        if req and req.materials_from:
+            ids = req.materials_from if isinstance(req.materials_from, list) else [req.materials_from]
+            print(f"{ref}: GET BOM materials via {', '.join('/product/bom/' + str(i) for i in ids)}", file=out)
+        print(f"{ref}: POST {req.path} {json.dumps(req.body, sort_keys=True)}", file=out)
+        return 0
+    assert outbox is not None and req is not None
+    assert rows[0].get('push_group_id')
+    gid = str(rows[0]['push_group_id'])
+    # If ERP accepted on a previous tick, this is fan-out resume: do not post again.
+    meta = outbox.group_meta(gid)
+    doc = meta.get('esb_doc_num')
+    try:
+        if not doc:
+            claimed = [row for row in rows if outbox.claim(row["id"])]
+            if len(claimed) != len(rows):
+                # Claim races are not failures of the document. Release our claims
+                # without spending retry budget, then let the next tick retry the group.
+                for row in claimed:
+                    outbox._patch(row["id"], {"status": "failed", "retry_count": int(row.get('retry_count') or 0),
+                                               "last_error": "approval group could not claim every member"})
+                outbox.patch_group(gid, {"status": "failed",
+                                         "last_error": "approval group could not claim every member"})
+                print(f"{ref}: group failed — could not claim every member", file=out)
+                return len(rows)
+            doc = dispatch(cfg, client, req)
+            # Persist the ERP receipt before fan-out. This is the resume checkpoint.
+            outbox.patch_group(gid, {"status": "in_flight", "esb_doc_num": doc})
+        for row in rows:
+            if row.get('status') == 'posted':
+                # A prior tick can close the outbox row before its kitchen-log mirror.
+                # Resume must still perform the missing stamp.
+                outbox.stamp_log_posted(row, doc)
+                continue
+            outbox.close_posted(row, doc)
+            row['status'] = 'posted'
+            outbox.stamp_log_posted(row, doc)
+        outbox.patch_group(gid, {"status": "posted", "esb_doc_num": doc, "posted_at": _now(), "last_error": None})
+    except Exception as exc:
+        # Includes PostgREST faults during any write-back. The group remains resumable
+        # when doc is known; only unposted members are failed for the next tick.
+        member_states = []
+        for row in rows:
+            if row.get('status') != 'posted':
+                try:
+                    member_states.append(outbox.close_failed(row, str(exc), permanent=isinstance(exc, Permanent)))
+                except Exception: pass
+        group_status = 'dead_letter' if member_states and all(s == 'dead_letter' for s in member_states) else 'failed'
+        try: outbox.patch_group(gid, {"status": group_status, "esb_doc_num": doc, "last_error": str(exc)[:2000]})
+        except Exception: pass
+        print(f"{ref}: group failed — {exc}", file=out)
+        return len(rows)
+    print(f"{ref}: posted -> {doc} ({len(rows)} lines)", file=out)
+    return 0
+
+
 def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
              outbox: Outbox | None, plan_only: bool, out,
              wip_names: dict[str, str] | None = None) -> int:
     """Returns the number of rows that did not come out clean."""
     client = ErpClient(cfg)
     bad = 0
+    groups: dict[str, list[dict[str, Any]]] = {}
+    singles: list[dict[str, Any]] = []
+    for row in rows:
+        gid = row.get("push_group_id")
+        if gid:
+            groups.setdefault(str(gid), []).append(row)
+        else:
+            singles.append(row)
+    for grouped in groups.values():
+        bad += _run_group(cfg, client, outbox, grouped, plan_only=plan_only, out=out,
+                          wip_names=wip_names)
+    rows = singles
     for row in rows:
         ref = row.get("source_ref") or row.get("id")
         try:
@@ -879,8 +1045,9 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
 
         if plan_only:
             if req.materials_from is not None:
-                print(f"{ref}: GET {req.path.rsplit('/', 1)[0]} materials via "
-                      f"/product/bom/{req.materials_from}", file=out)
+                ids = req.materials_from if isinstance(req.materials_from, list) else [req.materials_from]
+                print(f"{ref}: GET BOM materials via "
+                      f"{', '.join('/product/bom/' + str(i) for i in ids)}", file=out)
             print(f"{ref}: POST {req.path} {json.dumps(req.body, sort_keys=True)}",
                   file=out)
             continue

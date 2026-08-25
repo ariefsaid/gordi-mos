@@ -30,9 +30,7 @@ export interface PersonRolesRow {
   role_id: string
   created_at: string
 }
-// Mirrors the shared.access_role domain — the ONE database statement of the set (#216). Six
-// values; grows by migration there first, then here in the same change.
-export type AccessRole = 'admin' | 'ops_lead' | 'finance' | 'member' | 'manager' | 'supervisor'
+export type AccessRole = 'admin' | 'ops_lead' | 'finance' | 'member'
 export interface PersonAccessRolesRow {
   id: string
   org_id: string

@@ -97,7 +97,8 @@ TMP = tempfile.mkdtemp()
 
 with open(os.path.join(TMP, "goo.json"), "w", encoding="utf-8") as fh:
     json.dump({"target_env": "goo",
-               "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
+               "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510},
+                            "radiant": {"branch_id": 177, "location_id": 511}},
                "items": {WIP: {"bom_id": SANDBOX_BOM,
                                "product_detail_id": SANDBOX_PDID}}}, fh)
 with open(os.path.join(TMP, "dry_run.json"), "w", encoding="utf-8") as fh:
@@ -164,6 +165,10 @@ class Fake:
         self.calls.append({"method": method, "url": url, "headers": headers,
                            "body": body})
         for key, handler in self.routes.items():
+            # `esb_push` is a substring of `esb_push_groups`; keep the two reads
+            # independently routable so group-read faults exercise the worker branch.
+            if key == "esb_push" and "esb_push_groups" in url:
+                continue
             if key in url:
                 return 200, handler(self, method, url, body)
         raise AssertionError(f"unrouted call: {method} {url}")
@@ -203,12 +208,12 @@ def happy_routes(**over):
     return routes
 
 
-def tick(cfg, rows, fake, *, wip_names=None) -> tuple[int, str]:
+def tick(cfg, rows, fake, *, wip_names=None, outbox=None) -> tuple[int, str]:
     """One full non-plan tick against the fake transport. Returns (bad count, output)."""
     out = io.StringIO()
     saved, W._request = W._request, fake
     try:
-        n = W.run_tick(cfg, rows, outbox=W.Outbox(cfg), plan_only=False, out=out,
+        n = W.run_tick(cfg, rows, outbox=outbox or W.Outbox(cfg), plan_only=False, out=out,
                        wip_names=wip_names or {})
     finally:
         W._request = saved
@@ -455,6 +460,163 @@ n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [row()], f)
 check("...while a genuine 401 does re-login and retry — so the refusal above is real",
       n == 0 and len(f.to("auth/login")) == 2 and "SM-0002" in out,
       f"logins={len(f.to('auth/login'))} out={out}")
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("M. one bulk approval group is one ERP document (OD-WAY-76)")
+# The falsifier is structural: compose_group must put both approved lines in the endpoint's
+# details array, rather than silently posting two single-line documents.
+first = row(source_ref="PR-GROUP-001", push_group_id="bbbbbbbb-0000-0000-0000-000000000001")
+second = row(id="aaaaaaaa-0000-0000-0000-000000000002", source_ref="PR-GROUP-002",
+             push_group_id="bbbbbbbb-0000-0000-0000-000000000001", payload={**row()["payload"], "qty_porsi": 3})
+req = W.compose_group(cfg_for("goo"), [first, second], {WIP: WIP_NAME})
+check("a grouped production request has two manufacturing details",
+      req is not None and len(req.body["simpleManufacturingDetails"]) == 2,
+      repr(req.body if req else None))
+check("the grouped request keeps each line quantity and note",
+      req is not None and [d["manufacturingQty"] for d in req.body["simpleManufacturingDetails"]] == [12.0, 3.0],
+      repr(req.body if req else None))
+check("a grouped request has one ERP POST shape",
+      req is not None and req.path == "/production/simple-manufacturing/assembly-actual",
+      repr(req))
+
+# Transfers are endpoint-compatible but destination-sensitive: one document may never
+# silently book lines into the first member's location.
+transfer_a = row(endpoint="simple-transfer", source_ref="PR-DEST-001",
+                 payload={**row(endpoint="simple-transfer")["payload"],
+                          "action": "transfer", "destination_branch_code": "radiant"})
+transfer_b = row(endpoint="simple-transfer", source_ref="PR-DEST-002",
+                 id="aaaaaaaa-0000-0000-0000-000000000003",
+                 payload={**transfer_a["payload"], "destination_branch_code": "rumah_rames"})
+check_raises("a grouped transfer refuses mixed destination locations", W.Permanent,
+             lambda: W.compose_group(cfg_for("goo"), [transfer_a, transfer_b], {WIP: WIP_NAME}),
+             needle="multiple destinations")
+
+# A page boundary is not a document boundary: pending() expands a seen group and
+# refuses it unless every member is eligible. This falsifies the old LIMIT bug.
+gid = "bbbbbbbb-0000-0000-0000-000000000001"
+m1 = row(source_ref="PR-GROUP-001", push_group_id=gid)
+m2 = row(id="aaaaaaaa-0000-0000-0000-000000000002", source_ref="PR-GROUP-002", push_group_id=gid)
+def pending_routes(fake, method, url, body):
+    if "esb_push_groups" in url:
+        return []
+    return [m1, m2] if "push_group_id" in url else [m1]
+f = Fake(esb_push=pending_routes, esb_push_groups=pending_routes)
+saved, W._request = W._request, f
+try:
+    pending = W.Outbox(cfg_for("goo", ESB_MAX_ROWS="1")).pending()
+finally:
+    W._request = saved
+check("a group straddling the page is expanded to its full membership",
+      len(pending) == 2 and {r["source_ref"] for r in pending} == {"PR-GROUP-001", "PR-GROUP-002"},
+      repr(pending))
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("N. grouped ERP execution and resume (round 4 red-first)")
+# The group metadata read is a safety checkpoint: a transient read fault must hold an
+# accepted group, never fall back to doc-less dispatch.
+gid = "bbbbbbbb-0000-0000-0000-000000000009"
+grouped_a = row(source_ref="PR-GROUP-A", push_group_id=gid)
+grouped_b = row(id="aaaaaaaa-0000-0000-0000-000000000002", source_ref="PR-GROUP-B", push_group_id=gid)
+def group_read_fault(fake, method, url, body):
+    if "esb_push_groups" in url:
+        raise W.Transient("group metadata temporarily unavailable")
+    if "push_group_id" in url:
+        return [grouped_a, grouped_b]
+    return [grouped_a]
+f = Fake(esb_push=group_read_fault, **{"esb_push_groups": group_read_fault})
+ob = W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1"))
+try:
+    held = run(lambda: ob.pending(), f)
+    group_read_error = None
+except Exception as exc:
+    held, group_read_error = [], exc
+check("a group-read fault holds an accepted group and never redispatches",
+      isinstance(group_read_error, W.Transient) and not f.to("assembly-actual"), repr(f.calls) + repr(group_read_error))
+
+# The executor paths are all driven through tick, not direct helper calls.
+def group_claim(fake, method, url, body):
+    if method == "PATCH" and "status=in." in url:
+        rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
+        return [{"id": rid}]
+    return None
+
+def group_patch(fake, method, url, body):
+    return None
+def group_listing(fake, method, url, body):
+    if "push_group_id" in url: return [grouped_a, grouped_b]
+    return [grouped_a]
+f = Fake(**happy_routes(esb_push=group_claim, **{"esb_push_groups": group_patch,
+         "assembly-actual": _assembly_ok}))
+f.routes["esb_push"] = lambda fake, method, url, body: group_listing(fake, method, url, body) if method == "GET" else group_claim(fake, method, url, body)
+ob = W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1"))
+ready = run(lambda: ob.pending(), f)
+n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), ready, f,
+              wip_names={WIP: WIP_NAME})
+check("a happy grouped post dispatches once and fans out both members", n == 0
+      and len(f.to("assembly-actual")) == 1
+      and sum(1 for b in f.bodies("esb_push?") if isinstance(b, dict) and b.get("status") == "posted") == 2,
+      repr(f.calls) + out)
+
+# A persisted receipt resumes without another ERP POST.
+f = Fake(**happy_routes(esb_push=group_claim, **{"esb_push_groups": lambda *a: [{"id": gid, "esb_doc_num": "SM-RESUME"}],
+         "assembly-actual": _assembly_ok}))
+f.routes["esb_push"] = lambda fake, method, url, body: group_listing(fake, method, url, body) if method == "GET" else group_claim(fake, method, url, body)
+ob = W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1"))
+ready = run(lambda: ob.pending(), f)
+ob._group_meta[gid] = {"id": gid, "esb_doc_num": "SM-RESUME"}
+n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), ready, f,
+              wip_names={WIP: WIP_NAME}, outbox=ob)
+check("a group with an ERP receipt resumes without a second dispatch", n == 0
+      and len(f.to("assembly-actual")) == 0, repr(f.calls) + out)
+
+# If fan-out crashes after one member is posted, that member must not be downgraded.
+class FanoutCrash:
+    def __init__(self): self.n = 0
+    def __call__(self, fake, method, url, body):
+        if method == "PATCH" and "status=in." in url:
+            rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
+            return [{"id": rid}]
+        if method == "PATCH" and "esb_push?" in url and isinstance(body, dict) and body.get("status") == "posted":
+            self.n += 1
+            if self.n == 2: raise W.Transient("fan-out crash")
+        return None
+f = Fake(**happy_routes(esb_push=FanoutCrash(), **{"esb_push_groups": group_patch,
+         "assembly-actual": _assembly_ok}))
+n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
+              wip_names={WIP: WIP_NAME})
+posted_bodies = [b for b in f.bodies("esb_push") if isinstance(b, dict) and b.get("status") == "posted"]
+check("fan-out crash preserves already-posted members", any(b.get("esb_doc_num") == "SM-0001" for b in posted_bodies), repr(f.calls) + out)
+# The assertion that can actually fail (round-4 review: the one above is true by construction
+# BEFORE the crash fires): after the crash, NO failed/dead_letter PATCH may land on the id that
+# already posted — that downgrade is exactly the defect the local-status tracking prevents.
+def _patch_id(c):
+    return c["url"].split("id=eq.",1)[1].split("&",1)[0]
+_patches = [c for c in f.calls if c["method"]=="PATCH" and "esb_push?" in c["url"]
+            and "id=eq." in c["url"] and isinstance(c.get("body"),dict)]
+posted_ids = {_patch_id(c) for c in _patches if c["body"].get("status")=="posted"}
+downgraded = [c["url"] for c in _patches
+              if c["body"].get("status") in ("failed","dead_letter") and _patch_id(c) in posted_ids]
+check("no posted member is downgraded after the crash", downgraded == [], repr(downgraded))
+
+posted_member = {**grouped_a, "target_env": "gkid", "status": "posted", "esb_doc_num": "SM-RESUME"}
+f = Fake(**happy_routes(esb_push=lambda *a: None, **{"esb_push_groups": group_patch}))
+resume_ob = W.Outbox(cfg_for("gkid", ESB_PUSH_ENABLED="1"))
+resume_ob._group_meta[gid] = {"id": gid, "esb_doc_num": "SM-RESUME"}
+n, out = tick(cfg_for("gkid", ESB_PUSH_ENABLED="1"), [posted_member, {**grouped_b, "target_env": "gkid"}], f,
+              wip_names={WIP: WIP_NAME}, outbox=resume_ob)
+check("resume stamps a previously posted but unstamped member", bool(f.to("kitchen_logs")), repr(f.calls) + out)
+
+def one_claim(fake, method, url, body):
+    if method == "PATCH" and "status=in." in url:
+        rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
+        return [{"id": rid}] if rid.endswith("001") else []
+    return None
+f = Fake(**happy_routes(esb_push=one_claim, **{"esb_push_groups": group_patch,
+         "assembly-actual": _assembly_ok}))
+n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
+              wip_names={WIP: WIP_NAME})
+check("claim-race releases the partial claim and skips ERP dispatch", n == 2
+      and not f.to("assembly-actual"), repr(f.calls) + out)
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
