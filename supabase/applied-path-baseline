@@ -1,0 +1,13 @@
+# The commit whose supabase/ tree matches the schema currently DEPLOYED (staging / production).
+#
+# scripts/applied-path-check.sh builds one database from THIS tree and migrates it forward with
+# the real chain, then asserts it is indistinguishable from a freshly reset one. No script can
+# infer which commit is deployed, so this is the one fact the check is told.
+#
+# MOVE IT FORWARD after a deploy — to the commit that was deployed, never to HEAD. If it ever
+# reaches a point where nothing is pending, the check exits 2 and says so rather than passing
+# on air.
+#
+# Today it names the commit immediately before the Activity catalog landed (#215 / PR #391),
+# which is the oldest still-undeployed migration carrying a branch CI cannot reach.
+6f89a65c69434ed5f3ad41165fbd6d7851ac21cc
