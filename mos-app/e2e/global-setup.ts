@@ -118,6 +118,18 @@ async function execSql(url: string, serviceKey: string, query: string): Promise<
 }
 
 export default async function globalSetup() {
+  // #388: a pgTAP reset in a sibling worktree wipes the DB out from under a running e2e
+  // suite, and the failure masquerades as schema corruption. The shared lock is cooperative,
+  // so a naked run cannot be refused — but it can be made impossible to miss. CI has one
+  // runner and no contention, so it stays quiet.
+  if (!process.env.CI && !process.env.MOS_DB_LOCK_HELD) {
+    console.warn(
+      '\n[e2e] ⚠ RUNNING WITHOUT THE SHARED DB LOCK — a parallel pgTAP reset can wipe the DB\n' +
+      '[e2e] mid-run and the failure will NOT look like a lock problem. Results gathered this\n' +
+      '[e2e] way are not evidence (#388). Use: npm run e2e  (wraps scripts/with-db-lock.sh)\n',
+    )
+  }
+
   // ── #419 ownership gate ──────────────────────────────────────────────────────
   // Playwright's reuseExistingServer adopts ANY listener answering webServer.url —
   // silently (it logs only under DEBUG=pw:webserver). The port is worktree-derived so
