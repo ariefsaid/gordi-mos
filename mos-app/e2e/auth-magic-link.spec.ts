@@ -21,7 +21,7 @@ test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
   await page.getByRole('button', { name: /email me a sign-in link/i }).click()
 
   // Neutral confirmation must appear (FR-003 / AC-006)
-  await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText(/a sign-in link is on its way/i)).toBeVisible({ timeout: 5_000 })
 
   // Fetch the email from mailpit and extract the magic link
   const { html, text } = await magicMail(15_000)

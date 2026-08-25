@@ -167,7 +167,7 @@ test.describe('auth-card tap-target guards (GUARD-TAP, #403)', () => {
     await page.goto('login')
     await page.getByLabel('Email').fill(VIEWER.email)
     await page.getByRole('button', { name: /forgot password/i }).click()
-    await expect(page.getByText(/check your email to reset your password/i)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/a reset link is on its way/i)).toBeVisible({ timeout: 10_000 })
     await assertTapFloor(page, AUTH_CONTROLS, 'Reset-confirm', AUTH_OPTS)
   })
 

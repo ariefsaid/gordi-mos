@@ -298,6 +298,34 @@ describe('LoginPage — credentials form', () => {
     expect(document.body.textContent).not.toMatch(/couldn't reach|too many attempts|error sending/i)
   })
 
+  // The strongest form of the property: not "these phrases are absent" (which a differently-worded
+  // leak would slip past) but "the rendered panel is IDENTICAL". If any future change makes the
+  // success and failure renders differ by a single character, this fails (#137 security re-check).
+  it('the confirmation panel is byte-identical whether the send succeeded or failed', async () => {
+    async function renderPanel(sendError: unknown): Promise<string> {
+      mockResetPassword.mockResolvedValue({ data: {}, error: sendError } as unknown as Awaited<
+        ReturnType<typeof supabase.auth.resetPasswordForEmail>
+      >)
+      const user = userEvent.setup()
+      const view = render(<LoginPage />)
+      await user.type(screen.getByLabelText('Email'), 'user@example.test')
+      await user.click(screen.getByRole('button', { name: /forgot password/i }))
+      await waitFor(() => {
+        expect(screen.getByText(/a reset link is on its way/i)).toBeInTheDocument()
+      })
+      const html = view.container.innerHTML
+      view.unmount()
+      return html
+    }
+
+    const ok = await renderPanel(null)
+    const refused = await renderPanel({ status: 500, message: 'Error sending recovery email' })
+    const rateLimited = await renderPanel({ status: 429, message: 'over_email_send_rate_limit' })
+
+    expect(refused).toBe(ok)
+    expect(rateLimited).toBe(ok)
+  })
+
   it('a rate-limited magic-link send is likewise indistinguishable, and claims no send', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},

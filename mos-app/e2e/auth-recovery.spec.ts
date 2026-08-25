@@ -38,7 +38,7 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   // longer neutral about whether the request succeeded — the page used to show it even when the
   // send was refused, which is how a failed send spent 20s masquerading as a mail-catcher timeout
   // (#137). The status check below names that number outright instead of leaving it to a screenshot.
-  await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText(/a reset link is on its way/i)).toBeVisible({ timeout: 5_000 })
   const requestStatus = (await recoveryRequested).status()
   expect(requestStatus, 'the recovery email must actually have been accepted for sending').toBeLessThan(300)
 

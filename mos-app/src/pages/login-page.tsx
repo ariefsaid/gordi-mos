@@ -35,7 +35,6 @@ function mapAuthError(error: unknown): string {
   return ERR_CREDENTIAL
 }
 
-
 // Simple RFC-5322-inspired email check (same pattern used by most browsers)
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -207,8 +206,11 @@ export function LoginPage() {
                 {confirmText}
               </p>
               {email && (
+                /* Echoes the address the person typed so they can spot a typo — it must NOT say
+                   "Sent to", which asserts a delivery that may not have happened and would put
+                   the same lie one line below the hedged headline (#137 security re-check). */
                 <p className="text-muted-foreground mt-1" style={{ fontSize: 'var(--font-size-body-lg)' }}>
-                  Sent to {email}
+                  For {email}
                 </p>
               )}
             </div>
