@@ -5,7 +5,6 @@
 
 import { supabase } from '@/lib/supabase'
 import { movementKey } from '@/lib/kitchen-action-label'
-import { listActiveBranches } from './branches'
 import type {
   ActualsMap,
   BranchOption,
@@ -39,42 +38,16 @@ const shared = () => supabase.schema('shared')
 export const KITCHEN_BU_CODE = 'retail_ops'
 
 // ── The production stream a Café surface opens on ─────────────────────────────
-
-/**
- * The branch a Café surface opens on: the books the ONE physical kitchen's output is
- * credited to today, which is the single (branch, activity) stream currently captured
- * (DD-WAY-25). Beware the label trap while reading this — the incumbent's stock tab says
- * "Stok HQ", where HQ means the CENTRAL KITCHEN, which books here and not to the branch
- * whose ERP code is GHQ.
- *
- * It is a DEFAULT SELECTION, not a model constant: the stream is a real column on every
- * row, a capture surface can move it, and an org without this branch falls back to the
- * first row of its own catalog rather than refusing to open.
- */
-export const DEFAULT_CAPTURE_BRANCH_CODE = 'rumah_rames'
-export const DEFAULT_CAPTURE_ACTIVITY: ProductionActivity = 'kitchen'
-
-/** Pick the opening stream out of an already-loaded catalog. Null when it is empty. */
-export function defaultStreamFrom(branches: readonly BranchOption[]): ProductionStream | null {
-  const branch =
-    branches.find(b => b.code === DEFAULT_CAPTURE_BRANCH_CODE) ?? branches[0] ?? null
-  return branch ? { branch, activity: DEFAULT_CAPTURE_ACTIVITY } : null
-}
-
-/**
- * Resolve the opening stream against the live catalog. For surfaces that read one stream
- * and do not let the viewer move it yet; a capture surface loads the catalog itself so it
- * can offer the picker.
- *
- * NOT the capture surface's default any more (#233): capture opens on the person's OWN
- * stream via `fetchDefaultStream` in `default-stream.ts` (FR-001) — the ONE person-scoped
- * resolver (#234 consolidation) — and falls back to an explicit choice, never to a
- * hardcoded branch (FR-002). This stays for the read-only surfaces that have not grown a
- * person-scoped default yet (plan editor).
- */
-export async function resolveDefaultCaptureStream(): Promise<ProductionStream | null> {
-  return defaultStreamFrom(await listActiveBranches())
-}
+//
+// There is no hardcoded default here any more (#440). Every Café surface resolves the same
+// two facts in the same order — the stream chosen elsewhere in the module this session
+// (`lib/cafe-stream.ts`), then the person's OWN stream from `shared.default_stream()`
+// (`default-stream.ts`, FR-001) — and asks for an explicit choice when neither exists
+// (FR-002). What lived here was `defaultStreamFrom`: "the branch whose code is rumah_rames,
+// else the first row of the catalog". Its last two callers (the plan editor and the stock
+// page) were the two surfaces that opened on someone else's books without saying so, which
+// is the defect #440 is about — so the helper went with them rather than staying as a
+// tempting fallback for the next surface.
 
 /**
  * The enumerable stream catalog (FR-005, OD-WAY-42): the (branch_id, activity) pairs of

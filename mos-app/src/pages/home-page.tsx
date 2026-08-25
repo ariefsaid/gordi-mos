@@ -65,6 +65,7 @@ import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { isShipGated } from '@/lib/ship-gate'
 import { HelpTip } from '@/components/ui/help-tip'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
@@ -436,7 +437,13 @@ export function HomePage() {
         // arrangements inherit the identical aside and none can grow its own (NFR-924).
         const aside = (
           <div>
-            {holdsCockpitScope && <HomeObjectivesDoor />}
+            {/* #444: the door is the drill into /work/objectives, so it follows that path's ship
+                gate — asked through the SAME predicate the router and the rail ask, never a second
+                hardcoded check. Hiding the destination without hiding this leaves a headed band
+                whose only control forwards home: a dead end dressed as a finished section. The
+                aside is a single stacked node, so its absence closes up rather than leaving a
+                hole — the Signals feed simply starts at the top of the column. */}
+            {holdsCockpitScope && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
             <SignalFeedSection
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}

@@ -311,12 +311,14 @@
 .kl-plan-dishes { color: var(--muted-foreground); }
 
 
-/* ── Scope block: the (branch, activity) stream + the movement ─────────────────
-   The stream decides whose books every row in the list lands in, and the movement
-   decides what happened — both answer "what does this list mean", so they sit
-   together in the toolbar's leading scope slot rather than competing with the
-   filters. Wraps at phone width; the movement strip scrolls inside itself
-   (movement-seg.css), so the page never scrolls sideways (NFR-001). */
+/* ── Scope block: the movement ────────────────────────────────────────────────
+   The movement decides what happened to every row in the list, so it leads the
+   toolbar rather than competing with the filters. The (branch, activity) STREAM
+   used to sit beside it and now reads in the page head instead (#440): it is not
+   a property of these rows, it is which books the whole surface is written in, and
+   it has to be readable from every Café screen. Wraps at phone width; the movement
+   strip scrolls inside itself (movement-seg.css), so the page never scrolls
+   sideways (NFR-001). */
 .kl-scope {
   display: flex;
   flex-wrap: wrap;
@@ -325,11 +327,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.kl-scope-stream { flex: 0 1 auto; min-width: 0; }
 @media (max-width: 390px) {
-  /* Full-width picker on a phone: a half-width <select> truncates a stream name to
-     the point where two streams read the same, which is the exact ambiguity the
-     canonical catalog exists to end. */
   .kl-scope { width: 100%; }
-  .kl-scope-stream { flex: 1 1 100%; min-height: 44px; }
 }

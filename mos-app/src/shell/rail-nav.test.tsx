@@ -92,20 +92,22 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     // Work's 4 always-expanded children — nested under Work, not top-level peers
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Money' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
     // OD-WAY-51: the module routes admit this viewer, so their links render — under their BU
     // overlines, which is the part of the old contract that survives.
     expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
-    expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
     // Utility
     expect(within(nav).getByRole('link', { name: /Admin Settings/ })).toBeInTheDocument()
+    // #444 — the day-one rail. Projects & Processes, Objectives, Events, Money, Ecommerce and
+    // Roastery are BUILT and hidden: outside the MVP payload, so closed to everyone, admin
+    // included. This viewer holds every capability there is, which is what makes their absence a
+    // ship-gate result and not a capability one. The whole "B2B Ops" group goes with Roastery —
+    // an overline with nothing under it is not a rail entry, it is a hole.
+    for (const name of ['Projects & Processes', 'Objectives', 'Events', 'Money', 'Ecommerce', 'Roastery']) {
+      expect(within(nav).queryByRole('link', { name }), `${name} is ship-gated`).toBeNull()
+    }
+    expect(within(nav).queryByText('B2B Ops')).toBeNull()
   })
 
   it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus its five screens', () => {
@@ -120,9 +122,10 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     // …and NOT the ops_lead/admin ones: OD-WAY-51 widened nav to the route, it did not drop gates.
     expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
-    // OD-WAY-51: the other modules' routes admit this viewer too, so they render.
-    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
+    // …and NOT the other two modules: #444 gates Ecommerce and Roastery as post-MVP. They used
+    // to render here under OD-WAY-51 (their routes admitted everyone); now no route admits anyone.
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
   })
 
   it('AC-011d: an ops_lead sees every module, and Café\'s gated screens as well', () => {
@@ -135,47 +138,50 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Review' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Pushes' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Ecommerce' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
+    // #444: the other two modules are ship-gated, so "every module" is Café on day one.
+    expect(within(nav).queryByRole('link', { name: 'Ecommerce' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
   })
 
-  it('AC-011c: a roastery-role viewer gets Roastery under a "B2B Ops" BU overline', () => {
+  // #444: this case asserted Roastery under a "B2B Ops" overline. Roastery is ship-gated
+  // (post-MVP), so the module — and with it the only item in its BU group — is gone from the
+  // rail, and the group's overline goes too. Café still renders under Retail Ops, so the BU
+  // grouping itself is still proven here rather than merely assumed.
+  it('AC-011c: a roastery-role viewer gets no B2B Ops group while Roastery is ship-gated', () => {
     setAuthAs([], 'Roastery Lead')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(nav).getByText('B2B Ops')).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Roastery' })).toBeInTheDocument()
-    // OD-WAY-51: Café's routes admit them too, so Café is there as well — the BU overlines still
-    // tell them which is theirs. This case used to assert Café was ABSENT.
+    expect(within(nav).queryByText('B2B Ops')).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Roastery' })).toBeNull()
     expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
   })
 
-  it('AC-004: Work children retain E7 order and only the shared Cadence family has an overline', () => {
+  // DD-WAY-33 (#439): the Work sub-family eyebrows are DELETED, not suppressed. Only Cadence ever
+  // rendered (the old ≥2-items rule silenced the other three), so one unexplained word floated
+  // mid-list. This case used to assert 'Cadence' was PRESENT; the owner ruling reverses it. The
+  // E7 family ORDER survives — that half of the assertion is unchanged.
+  it('AC-004: Work children retain E7 order and NO sub-family eyebrow renders (DD-WAY-33)', () => {
     setAuthAs(['admin'])
     const { container } = renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // The 5 children are present and reachable.
+    // The day-one children are present and reachable. #444 gates the other three (Projects &
+    // Processes, Objectives, Events), so Work's list is Tasks then Signals — the E7 order of the
+    // families that still have an item in them.
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Events' })).toBeInTheDocument()
-    for (const label of ['Execution', 'Work Systems', 'Direction']) {
+    for (const name of ['Projects & Processes', 'Objectives', 'Events']) {
+      expect(within(nav).queryByRole('link', { name }), `${name} is ship-gated`).toBeNull()
+    }
+    for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
       expect(within(nav).queryByText(label)).toBeNull()
     }
-    expect(within(nav).getByText('Cadence')).toBeInTheDocument()
-    // Children still render in E7 top-down order: Tasks → Projects → Objectives → Signals → Events.
+    // Children still render in E7 top-down order: Execution (Tasks) before Cadence (Signals).
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    const links = ['Tasks', 'Projects & Processes', 'Objectives', 'Signals', 'Events'].map(
-      (l) => within(nav).getByRole('link', { name: l }),
-    )
+    const links = ['Tasks', 'Signals'].map((l) => within(nav).getByRole('link', { name: l }))
     expect(precedes(links[0], links[1])).toBe(true)
-    expect(precedes(links[1], links[2])).toBe(true)
-    expect(precedes(links[2], links[3])).toBe(true)
-    expect(precedes(links[3], links[4])).toBe(true)
     expect(container).toBeTruthy()
   })
 
@@ -201,11 +207,17 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
   })
 
-  it('AC-012: finance sees Money but not Admin Settings', () => {
+  // #444: finance USED to see Money here. The ship gate sits above roles, so while `/money` is
+  // gated the holder of the finance role sees no more of it than a plain member does — that is
+  // the case above. `destinations.test.ts` keeps the Money role policy itself asserted on the
+  // registry, so nothing about ADR-0050 D8 / ADR-0051 is lost while the surface is hidden.
+  it('AC-012: finance sees neither Money (ship-gated) nor Admin Settings (admin-gated)', () => {
     setAuthAs(['finance'])
-    renderRailNav('/money')
-    expect(screen.getByRole('link', { name: 'Money' })).toBeInTheDocument()
+    renderRailNav('/')
+    expect(screen.queryByRole('link', { name: 'Money' })).toBeNull()
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
+    // …and they still get a rail, so this is not passing on an empty render.
+    expect(screen.getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
   })
 
   // UPDATED, not relaxed. Objectives used to be expected absent here too. `OD-V4-1`
@@ -213,19 +225,23 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
   // the database, so the rail gate was hiding a screen RLS permits; the write gate is unchanged
   // and lives in the page's mutations. Projects & Processes stays gated, so this case still proves
   // a plain member is filtered out of the capability-gated child.
-  it('Work catalog children: Projects & Processes is absent for a plain member (capability-gated); Objectives is present (OD-V4-1)', () => {
-    setAuthAs([])
-    renderRailNav('/work/tasks')
-    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
-  })
-
-  it('admin sees Projects & Processes + Objectives (holds both capabilities)', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/work/tasks')
-    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects')
-    expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
-  })
+  // #444: both catalog children are ship-gated, so neither renders for anyone — the capability
+  // difference between these two viewers stops being observable in the rail while that holds.
+  // Asserted as ONE case over both viewers, so nobody reads a lone null on the admin as evidence
+  // that admin lost `workline.manage`.
+  it.each([['a plain member', [] as string[]], ['an admin', ['admin']]])(
+    'Work catalog children: %s is shown neither Projects & Processes nor Objectives while both are ship-gated',
+    (_who, roles) => {
+      setAuthAs(roles)
+      renderRailNav('/work/tasks')
+      expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
+      expect(screen.queryByRole('link', { name: 'Objectives' })).toBeNull()
+      // The Work children that DO ship still render, so the gate is closing two surfaces rather
+      // than emptying the list.
+      expect(screen.getByRole('link', { name: 'Tasks' })).toHaveAttribute('href', '/work/tasks')
+      expect(screen.getByRole('link', { name: 'Signals' })).toHaveAttribute('href', '/work/signals')
+    },
+  )
 })
 
 // AC-009/010: exactly-one aria-current="page"; Work parent = "location".
@@ -271,13 +287,16 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(within(nav).getByRole('link', { name: 'Work' }).getAttribute('aria-current')).toBeNull()
   })
 
-  it('at /money, Money link page (finance viewer), exactly one page', () => {
+  // Was "at /money, Money link page (finance viewer)". #444 gates Money, so there is no Money
+  // link to carry it — Inbox is the childless workspace root that still ships, and it holds the
+  // identical claim: at a destination root, that destination's own link is the sole "page".
+  it('at /inbox, Inbox link page, exactly one page', () => {
     setAuthAs(['finance'])
-    renderRailNav('/money')
+    renderRailNav('/inbox')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName('Money')
+    expect(pageLinks[0]).toHaveAccessibleName(/^Inbox/)
   })
 
   // Updated to the STATED contract, not relaxed. Rule 5 is "the parent is a location, the active
@@ -306,40 +325,44 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
   })
 })
 
-describe('AC-1004: aria-current — at /work/events, the Events link is the sole "page"', () => {
-  it('AC-1004: at /work/events, Events link has aria-current=page and is the only one', () => {
+// AC-1004 asserted that the Events link is the sole "page" at /work/events. #444 gates Events, so
+// there is no Events link and no page to be on: the router forwards /work/events to Home. What the
+// rail owes at a gated path is NOTHING — no link, and no "page" claimed by some other entry that
+// happens to prefix-match. That is what is asserted now.
+describe('AC-1004 (issue 444): /work/events is ship-gated — no Events link, and nothing claims "page"', () => {
+  it('renders no Events link and no aria-current="page" at the gated path', () => {
     renderRailNav('/work/events')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).queryByRole('link', { name: 'Events' })).toBeNull()
+    const hrefs = within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))
+    expect(hrefs).not.toContain('/work/events')
     const pageLinks = within(nav)
       .getAllByRole('link')
       .filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(pageLinks).toHaveLength(1)
-    expect(within(nav).getByRole('link', { name: 'Events' })).toHaveAttribute('aria-current', 'page')
+    expect(pageLinks).toHaveLength(0)
   })
 })
 
 // Step 8 (catalog re-home) — AC-807/808: aria-current uniqueness locked explicitly at the two
 // re-homed catalog routes (previously only proven generically / at /work/signals + via e2e).
 describe('Step 8/AC-807/808: aria-current uniqueness at /work/projects and /work/objectives', () => {
-  it('AC-807: at /work/projects, Projects & Processes carries page, Work parent carries location, exactly one page', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/work/projects')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName('Projects & Processes')
-    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
-  })
-
-  it('AC-808: at /work/objectives, Objectives carries page, Work parent carries location, exactly one page', () => {
-    setAuthAs(['admin'])
-    renderRailNav('/work/objectives')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName('Objectives')
-    expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
-  })
+  // #444: both catalog paths are ship-gated. Their links are gone, so nothing can carry "page"
+  // for them — but the Work PARENT still prefix-matches /work/*, and it must stay a location and
+  // never promote itself to "page" because its active child vanished. That is the real risk the
+  // gate introduces here, and it is what these now hold.
+  it.each(['/work/projects', '/work/objectives'])(
+    'at the ship-gated %s the rail offers no link and claims no "page"; Work stays a location',
+    (path) => {
+      setAuthAs(['admin'])
+      renderRailNav(path)
+      const nav = screen.getByRole('navigation', { name: 'Primary' })
+      const hrefs = within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))
+      expect(hrefs).not.toContain(path)
+      const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+      expect(pageLinks).toHaveLength(0)
+      expect(within(nav).getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+    },
+  )
 })
 
 // AC-015: every nav SVG is aria-hidden
@@ -430,12 +453,19 @@ describe('Rail count badges (Tasks · Signals)', () => {
     expect(within(signals).getByText('3')).toBeInTheDocument()
   })
 
-  it('shows a badge ONLY on Tasks and Signals — never on the other Work children', () => {
+  it('shows a badge ONLY on Tasks and Signals — never on any other rail item', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
-    // Projects & Processes / Objectives carry no already-loaded source → no numeric badge.
-    expect(within(screen.getByRole('link', { name: 'Projects & Processes' })).queryByText(/\d/)).toBeNull()
-    expect(within(screen.getByRole('link', { name: 'Objectives' })).queryByText(/\d/)).toBeNull()
+    // Was pinned on Projects & Processes / Objectives, which #444 ship-gates out of the rail.
+    // Widened rather than dropped: EVERY rendered link must carry no numeric badge except the two
+    // named, so a new item cannot grow one unnoticed and this cannot rot the way naming two
+    // specific children did. (Inbox's unread badge is its own read and is zero in this harness.)
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const badged = within(nav)
+      .getAllByRole('link')
+      .filter((l) => within(l).queryByText(/^\d+$/) !== null)
+      .map((l) => (l.textContent ?? '').replace(/\d+$/, ''))
+    expect(badged.sort()).toEqual(['Signals', 'Tasks'])
   })
 
   it('omits a badge when its count is zero (E7 quiet rule)', () => {
@@ -474,7 +504,9 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks', { compact: true })
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    for (const name of ['Home', 'Work', 'Tasks', 'Projects & Processes', 'Objectives', 'Signals', 'Events', 'Money', 'Inbox']) {
+    // The day-one set: #444's gated entries (Projects & Processes, Objectives, Events, Money) do
+    // not render at any width, so an icon-only rail cannot be asked to name them.
+    for (const name of ['Home', 'Work', 'Tasks', 'Signals', 'Inbox']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
   })
@@ -545,5 +577,127 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(chip).toBeInTheDocument()
     // ...but the visible name text node is gone (avatar-only).
     expect(within(chip).queryByText('Cahya Cafe')).toBeNull()
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// DD-WAY-33 (#439) — the rail's three-rung type ladder.
+//
+// The defect: group overline, destination and child all rendered at one visual weight, so Money
+// and Inbox (which follow Work's children) read as belonging to the group above them. The fix is
+// a ladder — group overline / destination / child — each rung a distinct size + weight + colour.
+//
+// jsdom computes no layout and applies no stylesheet, so a rendered-DOM assertion can only prove
+// WHICH rung each row claims. The stylesheet is therefore read as source in the second half, which
+// is what makes "distinguishable by something other than indent" able to FAIL: collapse the two
+// rungs onto the same size/weight/colour and these break, even though the DOM is unchanged.
+// ════════════════════════════════════════════════════════════════════════════
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const railCss = readFileSync(resolve(__dirname, 'rail-nav.css'), 'utf8')
+
+/** The declarations inside one rule of rail-nav.css, as `prop: value` strings. */
+function ruleBody(selector: string): string[] {
+  const m = railCss.match(new RegExp(`(?:^|\\})\\s*\\${selector}\\s*\\{([^}]*)\\}`, 'm'))
+  if (!m) return []
+  return m[1]
+    .split(';')
+    .map((d) => d.replace(/\/\*[\s\S]*?\*\//g, '').trim())
+    .filter(Boolean)
+}
+const declared = (selector: string, prop: string): string | undefined =>
+  ruleBody(selector)
+    .find((d) => d.startsWith(`${prop}:`))
+    ?.slice(prop.length + 1)
+    .trim()
+
+describe('DD-WAY-33 (#439): the rail type ladder', () => {
+  it('no CADENCE — nor any other Work sub-family eyebrow — renders, at either rail width', () => {
+    for (const compact of [false, true]) {
+      setAuthAs(['admin'], 'Managing Director')
+      const { container, unmount } = renderRailNav('/work/tasks', { compact })
+      // Both catalogs: the four eyebrow strings are gone from the app entirely (their keys were
+      // deleted with the path, which the orphaned-key guard independently proves).
+      for (const word of ['Cadence', 'Irama', 'Execution', 'Eksekusi', 'Work Systems', 'Sistem Kerja', 'Direction', 'Arah']) {
+        expect(container.textContent).not.toContain(word)
+      }
+      unmount()
+    }
+  })
+
+  it('a destination and a child claim DIFFERENT rungs (the cue is the rung, not the indent)', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const work = within(nav).getByRole('link', { name: 'Work' })
+    const tasks = within(nav).getByRole('link', { name: /^Tasks/ })
+    expect(work.className).toContain('rail-item--dest')
+    expect(work.className).not.toContain('rail-item--child')
+    expect(tasks.className).toContain('rail-item--child')
+    expect(tasks.className).not.toContain('rail-item--dest')
+    // Inbox follows Work's children in document order — the defect this ticket names. It must
+    // claim the DESTINATION rung, or it reads as more of Work's list. (Money sat here too until
+    // #444 gated it; the claim is about the rung, so one destination still proves it.)
+    expect(within(nav).getByRole('link', { name: /^Inbox/ }).className).toContain('rail-item--dest')
+  })
+
+  it('the two item rungs differ in size, weight AND colour — not in indent alone', () => {
+    for (const prop of ['font-size', 'font-weight', 'color']) {
+      const dest = declared('.rail-item--dest', prop)
+      const child = declared('.rail-item--child', prop)
+      expect(dest, `.rail-item--dest declares no ${prop}`).toBeDefined()
+      expect(child, `.rail-item--child declares no ${prop}`).toBeDefined()
+      expect(child, `both rungs share one ${prop} — the ladder has collapsed`).not.toEqual(dest)
+    }
+    // …and their icons are sized apart too, so the ladder survives the icon-only compact regime.
+    expect(declared('.rail-item--child', '--rail-rung-icon')).not.toEqual(declared('.rail-item--dest', '--rail-rung-icon'))
+  })
+
+  it('the group overline is the third, quietest rung and is still aria-hidden', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/')
+    const overline = screen.getByText('Retail Ops')
+    expect(overline.className).toContain('rail-item-overline')
+    expect(overline).toHaveAttribute('aria-hidden', 'true')
+    expect(declared('.rail-item-overline', 'font-size')).toBe('var(--font-size-overline)')
+    // Smaller than either item rung — the ramp's overline step, not a rung of its own.
+    expect(declared('.rail-item-overline', 'font-size')).not.toEqual(declared('.rail-item--dest', 'font-size'))
+  })
+
+  it('every ladder value comes from a token — no raw px/hex/hsl in the rail stylesheet (#425, #327)', () => {
+    const withoutComments = railCss.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(withoutComments).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(withoutComments).not.toMatch(/\b(?:rgb|rgba|hsl|hsla)\(/)
+    for (const selector of ['.rail-item--dest', '.rail-item--child', '.rail-item-overline', '.rail-item-children']) {
+      const body = ruleBody(selector)
+      expect(body.length, `${selector} has no rule in rail-nav.css`).toBeGreaterThan(0)
+      for (const decl of body) {
+        expect(decl, `${selector} — ${decl} carries a raw px literal`).not.toMatch(/\d+(?:\.\d+)?px/)
+      }
+    }
+  })
+
+  it('the active treatment still wins at BOTH rungs (compound selector, not source order)', () => {
+    expect(railCss).toContain('.rail-item--dest.rail-item--active')
+    expect(railCss).toContain('.rail-item--child.rail-item--active')
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const tasks = within(nav).getByRole('link', { name: /^Tasks/ })
+    expect(tasks.className).toContain('rail-item--active')
+    // Was Objectives — ship-gated by #444. Signals is the other child rung that still renders,
+    // and it is the inactive one here, which is the comparison this case needs.
+    expect(within(nav).getByRole('link', { name: /^Signals/ }).className).not.toContain('rail-item--active')
+  })
+
+  it('the compact icon rail keeps working: rungs still applied, indent guide dropped', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    const { container } = renderRailNav('/work/tasks', { compact: true })
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('link', { name: 'Work' }).className).toContain('rail-item--dest')
+    expect(within(nav).getByRole('link', { name: /^Tasks/ }).className).toContain('rail-item--child')
+    // No hairline indent guide when there is no indent to guide.
+    expect(container.querySelectorAll('.rail-item-children')).toHaveLength(0)
   })
 })

@@ -255,7 +255,12 @@ export function describeRedirectMap(configuration: string): void {
 
   describe(`AC-017 (${configuration}): every retired route reaches its replacement in one hop`, () => {
     it('the map is not empty — the enumeration itself has to be able to fail', () => {
-      expect(redirects.filter((r) => r.kind === 'map').length).toBeGreaterThan(15)
+      // The floor dropped from 15 with the ship gate (#444): six retired paths named a surface
+      // that is now hidden (`/dashboard` → `/money`, `/objectives` → `/work/objectives`, …), and
+      // rather than forward a viewer onto a route that forwards them again they now name Home,
+      // which moves them into the `flag-fallback` bucket. They are still enumerated and still
+      // held to one hop by the cases below — only this bucket count shrank.
+      expect(redirects.filter((r) => r.kind === 'map').length).toBeGreaterThan(10)
     })
 
     it.each(redirects.map((r) => [r.from, r.to, r.kind] as const))(

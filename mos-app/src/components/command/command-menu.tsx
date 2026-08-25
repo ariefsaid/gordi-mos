@@ -6,6 +6,7 @@ import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { can, canViewRevenue } from '@/lib/capabilities'
+import { isShipGated } from '@/lib/ship-gate'
 import { viewerAdmittedToRoute } from '@/shell/destinations'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
@@ -265,7 +266,21 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     return out
   }, [isSearching, trimmed, records, actionItems, visibleNavigate, t, mode])
 
-  const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  // The ship gate (#444), applied at the ONE seam every palette row passes through, rather than
+  // as a `gated` flag per entry. The palette is a navigation surface like the rail, and OD-WAY-51
+  // holds here too: it must never offer a door the router has closed. Applied to the assembled
+  // groups so it covers Navigate rows, record hits (an AR Follow-up hit points into /money) and
+  // anything a later entry adds — a new row cannot forget to ask. A group emptied by the gate is
+  // dropped whole, so no heading survives with nothing under it.
+  const visibleGroups = useMemo(
+    () =>
+      groups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.to == null || !isShipGated(i.to)) }))
+        .filter((g) => g.items.length > 0),
+    [groups],
+  )
+
+  const flatItems = useMemo(() => visibleGroups.flatMap((g) => g.items), [visibleGroups])
   const activeId = flatItems[active]?.id
 
   useEffect(() => { setActive(0) }, [trimmed])
@@ -350,7 +365,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                 <span className="sr-only">{t('commandMenu.status.searchingRecords')}</span>
               </div>
             )}
-            {flatItems.length > 0 ? groups.map((group) => (
+            {flatItems.length > 0 ? visibleGroups.map((group) => (
               <div key={group.key} role="group" aria-label={group.label}>
                 <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
                 <div className="cm-group-list">

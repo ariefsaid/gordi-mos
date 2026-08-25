@@ -1,4 +1,5 @@
 import {
+  isValidElement,
   lazy,
   Suspense,
   type ComponentType,
@@ -17,9 +18,10 @@ import { RequireAccessRole } from './auth/require-access-role'
 import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
+import { isShipGated } from './lib/ship-gate'
 import { AppShell } from './shell/app-shell'
 import { RouteRedirect } from './shell/route-redirect'
-import { pageHandle, redirectHandle, infrastructureHandle } from './shell/route-classification'
+import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
 import { LoadingShell } from './components/ui/state-kit'
 // Eager, deliberately: both are above-the-fold first paints. HomePage is the index route (the
 // screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
@@ -129,7 +131,12 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 // **No chained redirects.** Every retired path names its FINAL destination. A retired path whose
 // destination is gated is parked INSIDE that gate, so a viewer without the role is turned away
 // once at the source instead of being forwarded to a page that turns them away again.
-export const routeConfig: RouteObject[] = [
+//
+// **The ship gate is applied to this table, not written into it** (#444). See `applyShipGate`
+// below the array: the paths stay declared exactly as they are, with their real components,
+// gates and handles — one transform decides which of them route. That is what makes deleting a
+// path from `SHIP_GATED_PATHS` restore its surface with no edit here.
+const routeTable: RouteObject[] = [
   // DEV-only primitives gallery (AC-147). Bare route — no auth gate, no shell — for design
   // review. Stripped from the production build via import.meta.env.DEV.
   ...(import.meta.env.DEV
@@ -476,5 +483,75 @@ export const routeConfig: RouteObject[] = [
     ],
   },
 ]
+
+// ── The ship gate, applied (#444) ────────────────────────────────────────────────────────────
+//
+// A gated path does not route. Its entry keeps its place in the table above — same path, same
+// gates, same handle metadata, same lazy import sitting untouched in the bundle graph — but its
+// ELEMENT is swapped for a forward to Home, so the component behind it never mounts. That is the
+// difference between hiding a surface and deleting one, and it is why switch day is a one-line
+// edit to `SHIP_GATED_PATHS` rather than a revert.
+//
+// Two kinds of entry are rewritten, and the second is the one that is easy to miss:
+//
+//  1. the gated surface itself (`/money`, `/work/objectives`, …);
+//  2. every RETIRED path whose redirect names a gated surface (`/dashboard` → `/money`,
+//     `/objectives` → `/work/objectives`). Left alone, those forward a viewer onto a path that
+//     forwards them again — the chained redirect the whole table is built to avoid — so they
+//     name Home directly instead, and their `redirect` handle is re-declared to match. A handle
+//     that disagrees with its element is a comment that lies (route-classification.test.ts).
+//
+// A gated SURFACE keeps its `page` handle: it is still a page, still registered in the page-family
+// registry, still wired to a real component — it is merely closed. That is the same shape the
+// existing SHOW_PLAN_BUDGET fallbacks already have, so nothing downstream learns a new case.
+function joinRoutePath(parent: string, segment: string): string {
+  const joined = segment.startsWith('/') ? segment : `${parent}/${segment}`
+  const collapsed = joined.replace(/\/+/g, '/')
+  return collapsed === '/' ? collapsed : collapsed.replace(/\/$/, '')
+}
+
+/** The `to` of a redirect element (`<RouteRedirect>` / `<Navigate>`), or undefined. */
+function redirectTargetOf(element: ReactNode): string | undefined {
+  if (!isValidElement(element)) return undefined
+  const to = (element.props as { to?: unknown }).to
+  return typeof to === 'string' ? to : undefined
+}
+
+export function applyShipGate(routes: RouteObject[], parent = ''): RouteObject[] {
+  return routes.map((route): RouteObject => {
+    const path =
+      route.index || route.path === undefined ? parent || '/' : joinRoutePath(parent, route.path)
+    const target = redirectTargetOf(route.element)
+    const gated = isShipGated(path) || (target !== undefined && isShipGated(target))
+    // A `redirect` handle declares a target and must keep matching what the element does. A `page`
+    // handle declares no target and is left alone — a gated surface is still a page, merely closed
+    // (the shape the SHOW_PLAN_BUDGET fallbacks already have), and re-classifying it would drop it
+    // out of the page-family registry as though the screen had been deleted.
+    const declaresTarget = (route.handle as RouteHandle | undefined)?.kind === 'redirect'
+    const closed = gated
+      ? { element: <Navigate to="/" replace />, ...(declaresTarget ? { handle: redirectHandle('/') } : {}) }
+      : {}
+    // Index and non-index routes are a discriminated union (an index route may carry no
+    // `children`), so they are rebuilt on separate branches rather than through one spread.
+    if (route.index) return { ...route, ...closed }
+    return {
+      ...route,
+      ...(route.children ? { children: applyShipGate(route.children, path) } : {}),
+      ...closed,
+    }
+  })
+}
+
+/**
+ * The table as WRITTEN, before the gate — the app never routes through this.
+ *
+ * Exported for the wiring assertions (`router-lazy.test.tsx` AC-020), which prove each path is
+ * still pointed at the right page module. Those are the tests that make "hidden, not deleted"
+ * checkable: they keep failing if someone unwires or deletes a gated surface, which the gated
+ * table alone can no longer tell you — every gated entry forwards home there by design.
+ */
+export const ungatedRouteTable: RouteObject[] = routeTable
+
+export const routeConfig: RouteObject[] = applyShipGate(routeTable)
 
 export const router = createBrowserRouter(routeConfig, { basename: '/mos' })

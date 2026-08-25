@@ -14,7 +14,7 @@
 // OD-REDESIGN-22, via useInlineCommit).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -33,9 +33,16 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, listActiveWipItems: vi.fn() }
+  // #440: the head's stream picker offers the ENUMERATED stream catalog, so the page reads the
+  // live stream Teams. Un-mocked that hits Supabase and every bootstrap lands in the error state.
+  return { ...actual, listActiveWipItems: vi.fn(), listStreamPairs: vi.fn() }
 })
-import { listActiveWipItems } from '@/lib/db/kitchen-logs'
+import { listActiveWipItems, listStreamPairs } from '@/lib/db/kitchen-logs'
+
+// shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
+// their stream the way the capture surface always did, instead of guessing at the catalog.
+vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 vi.mock('@/lib/db/kitchen-plans', () => ({
   listKitchenPlans: vi.fn(),
@@ -48,6 +55,7 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
 import { KitchenPlanPage } from './kitchen-plan-page'
+import { rememberStream } from '@/lib/cafe-stream'
 import type { WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -56,10 +64,24 @@ const mockPlans = vi.mocked(listKitchenPlans)
 const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
 const mockBranches = vi.mocked(listActiveBranches)
+const mockStreamPairs = vi.mocked(listStreamPairs)
+const mockDefaultStream = vi.mocked(fetchDefaultStream)
 
-// The default capture stream (defaultStreamFrom picks the 'rumah_rames' code, or falls
-// back to branches[0] — mirrors kitchen-logs.ts DEFAULT_CAPTURE_BRANCH_CODE).
-const BRANCHES = [{ id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }]
+const BRANCHES = [
+  { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' },
+  { id: 'branch-2', code: 'radiant', name: 'Radiant' },
+]
+// The live stream Teams behind those branches — the enumerated catalog the head picker offers.
+const STREAM_PAIRS = BRANCHES.flatMap(b => [
+  { branch_id: b.id, activity: 'kitchen' as const },
+  { branch_id: b.id, activity: 'bar' as const },
+])
+const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const }
+const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const }
+/** The head picker's option value for a stream — what a switch fires. */
+function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
+  return `${branchId}|${activity}`
+}
 
 function viewer(accessRoles: string[]): AuthState {
   return {
@@ -91,9 +113,14 @@ const PESANAN: PesananRow[] = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
+  // switch never seeds the next test's default.
+  rememberStream(null)
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockItems.mockResolvedValue(ITEMS)
   mockBranches.mockResolvedValue(BRANCHES)
+  mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockDefaultStream.mockResolvedValue(OWN_STREAM)
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   mockUpsert.mockResolvedValue('new-id')
@@ -120,6 +147,48 @@ describe('KitchenPlanPage — auth', () => {
     expect(link).toHaveAttribute('href', '/mos/login')
     expect(mockPlans).not.toHaveBeenCalled()
     expect(mockPesanan).not.toHaveBeenCalled()
+  })
+})
+
+// ── #440: the stream this plan belongs to, stated in the head ─────────────────
+describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
+  it('the editor states the stream it is writing into, canonically', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    const { container } = render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
+  })
+
+  it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
+      target: { value: streamOption(BRANCHES[1].id, 'bar') },
+    })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    expect(mockPlans.mock.calls[1][1]).toEqual(RADIANT_BAR)
+  })
+
+  it('the member pesanan face states its stream too — a read-only surface still says which books', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member']))
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockPesanan.mockResolvedValue(PESANAN)
+    const { container } = render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+  })
+
+  it('issue 440: the branch × activity pair of selects is GONE — one control names the stream, once', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getAllByRole('combobox', { name: /production stream/i })).toHaveLength(1)
+    expect(screen.queryByRole('combobox', { name: /^branch$/i })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /^activity$/i })).toBeNull()
   })
 })
 

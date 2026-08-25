@@ -17,6 +17,8 @@ vi.mock('./config/features', () => ({
 
 import { describeRedirectMap, flattenRoutes, isRedirect, lazyPayloadOf, resolvePageAt } from './test/route-table'
 import type { RouteHandle } from './shell/route-classification'
+import { ungatedRouteTable } from './router'
+import { isShipGated } from './lib/ship-gate'
 
 import { HomePage } from './pages/home-page'
 import { LoginPage } from './pages/login-page'
@@ -73,7 +75,10 @@ describe('AC-019: every route but the index and login loads on demand, behind on
   const routes = surfaceRoutes()
 
   it('the sweep enumerates the whole table, so it cannot pass by finding nothing', () => {
-    expect(routes.length).toBeGreaterThan(25)
+    // Floor lowered from 25 with the ship gate (#444): ten page routes now forward home instead
+    // of rendering, so they are no longer split-loading anything and drop out of this sweep. The
+    // wiring ledger below still holds each of them to its page module in the written table.
+    expect(routes.length).toBeGreaterThan(18)
     // Each exemption is really in the table — otherwise the exemption set is silently dead.
     for (const path of EAGER_BY_DESIGN) {
       expect(routes.some((r) => r.path === path), `${path} is not in the table`).toBe(true)
@@ -163,10 +168,33 @@ describe('AC-020: a route whose surface is not yet ported serves the surface cur
     expect(missing).toEqual([])
   })
 
-  it.each(WIRING.map(([path, component, provenance]) => [path, provenance, component] as const))(
-    '%s renders the %s surface',
-    async (path, _provenance, component) => {
-      await expect(resolvePageAt(path)).resolves.toBe(component)
+  it.each(
+    WIRING.filter(([path]) => !isShipGated(path)).map(
+      ([path, component, provenance]) => [path, provenance, component] as const,
+    ),
+  )('%s renders the %s surface', async (path, _provenance, component) => {
+    await expect(resolvePageAt(path)).resolves.toBe(component)
+  })
+
+  // A ship-gated path (#444) forwards home in the SHIPPED table, so `resolvePageAt` finds no
+  // module there — that is the gate working, and `shell/ship-gate.test.tsx` asserts it from the
+  // other side. What still has to be true is that the surface was HIDDEN, not deleted: the entry
+  // as written is still pointed at its real page module, so removing the path from
+  // SHIP_GATED_PATHS restores the screen with no edit to the table. That is what these two
+  // assertions hold, read off the table BEFORE the gate is applied.
+  const gatedWiring = WIRING.filter(([path]) => isShipGated(path))
+
+  it('the gated set is non-empty — these assertions cannot pass by finding nothing', () => {
+    expect(gatedWiring.length).toBeGreaterThan(5)
+  })
+
+  it.each(gatedWiring.map(([path, component]) => [path, component] as const))(
+    '%s is hidden, not unwired — the table as written still points it at its page module',
+    async (path, component) => {
+      const leaf = flattenRoutes(ungatedRouteTable).find((f) => f.path === path)
+      const payload = lazyPayloadOf(leaf?.route.element)
+      expect(payload, `${path} is no longer a lazy page in the written table`).toBeDefined()
+      await expect(payload!.preload!().then((m) => m.default)).resolves.toBe(component)
     },
   )
 

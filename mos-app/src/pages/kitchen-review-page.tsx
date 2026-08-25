@@ -30,15 +30,17 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { activityLabel, movementKey, streamKey } from '@/lib/kitchen-action-label'
+import { movementKey, streamKey } from '@/lib/kitchen-action-label'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
-import { Select } from '@/components/ui/select'
 import { Tag } from '@/components/ui/tag'
 import { DataTable } from '@/components/dashboard/data-table'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
+// #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
+import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
+import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import './kitchen-review-page.css'
 
@@ -350,7 +352,7 @@ export function KitchenReviewPage() {
   // which rows carry decision controls.
   const [streamCatalog, setStreamCatalog] = useState<ProductionStream[]>([])
   const [ownStreamKey, setOwnStreamKey] = useState<string | null>(null)
-  const [streamFilter, setStreamFilter] = useState<string>('all')
+  const [streamFilter, setStreamFilter] = useState<string>(ALL_STREAMS)
   // #238 (FR-031): every stream's completeness state, keyed by streamKey. Read org-wide by
   // policy, so one fetch serves the filter wherever it moves.
   const [completeness, setCompleteness] = useState<Map<string, StreamCompleteness>>(new Map())
@@ -405,18 +407,26 @@ export function KitchenReviewPage() {
         ),
       )
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
+      const catalog = streamCatalogFrom(pairs, branchRows)
       setLogs(rows)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
-      setStreamCatalog(streamCatalogFrom(pairs, branchRows))
+      setStreamCatalog(catalog)
       setOwnStreamKey(ownKey)
       setCompleteness(new Map(confirmations.map(c => [streamKey(c.branch_id, c.activity), c])))
       // FR-041 filter defaults, applied once: a stream supervisor opens on THEIR stream;
       // ops_lead/admin open cross-stream. A supervisor with no stream (no live primary
       // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
+      // #440: a stream CHOSEN elsewhere in Café this session outranks both — it is an
+      // explicit act, where the role defaults are only a guess about what you meant.
+      const chosenKey = rememberedStreamKey()
+      const chosen = chosenKey && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
+        ? chosenKey
+        : null
       if (!filterInitialized.current) {
         filterInitialized.current = true
-        if (!isLeadOrAdmin && isSupervisor && ownKey) setStreamFilter(ownKey)
+        if (chosen) setStreamFilter(chosen)
+        else if (!isLeadOrAdmin && isSupervisor && ownKey) setStreamFilter(ownKey)
       }
       setLoad({ kind: 'ready' })
     } catch {
@@ -463,7 +473,7 @@ export function KitchenReviewPage() {
   // vouch for and the block does not render at all.
   const selectedStream = useMemo(
     () =>
-      streamFilter === 'all'
+      streamFilter === ALL_STREAMS
         ? null
         : streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null,
     [streamFilter, streamCatalog],
@@ -479,7 +489,7 @@ export function KitchenReviewPage() {
   // the rows a viewer may DECIDE are canDecide's (and ultimately the server's) business.
   const visibleLogs = useMemo(
     () =>
-      streamFilter === 'all'
+      streamFilter === ALL_STREAMS
         ? logs
         : logs.filter(l => streamKey(l.branch_id, l.activity) === streamFilter),
     [logs, streamFilter],
@@ -862,36 +872,30 @@ export function KitchenReviewPage() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      jobSentence={t('job.cafe')}
+      /* #236 (FR-041) + #440: the queue's stream — a supervisor opens on their own, ops_lead/
+         admin cross-stream, and a stream chosen elsewhere in Café outranks both; either can move
+         it. It reads in the head now, like every other Café surface, instead of as a filter chip
+         buried above the queue: WHOSE books these rows are is the first thing a reviewer needs.
+         "All streams" stays a first-class choice here — reviewing across streams is this
+         surface's job (OD-WAY-48), and it is the one Café surface that has one. Display scoping
+         only (NFR-002: the decision contract is the server's). */
+      statusRow={
+        <CafeStreamBar
+          options={streamCatalog}
+          stream={selectedStream}
+          allStreams={streamFilter === ALL_STREAMS}
+          onChange={next => {
+            setStreamFilter(streamKey(next.branch.id, next.activity))
+            rememberStream(next) // the whole Café module follows this choice (#440)
+          }}
+          onAllStreams={() => setStreamFilter(ALL_STREAMS)}
+        />
+      }
       meta={<span className="kr-date tabular">{logDate}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
-      {/* #236 (FR-041): the stream filter — a supervisor opens on their own stream,
-          ops_lead/admin on all; either can move it. Display scoping only (NFR-002:
-          the decision contract is the server's). */}
       {load.kind === 'ready' && streamCatalog.length > 0 && (
         <div className="kr-filter kr-block">
-          <Select
-            className="kr-filter-select"
-            aria-label={t('kitchen.review.streamFilterAria')}
-            value={streamFilter}
-            onChange={e => setStreamFilter(e.target.value)}
-          >
-            <option value="all">{t('kitchen.review.allStreams')}</option>
-            {streamCatalog.map(s => (
-              // CANONICAL branch names (OD-WAY-39, and the #238 owner ruling now in CONTEXT.md):
-              // a stream is named by its branch's catalog name everywhere it is named AS A
-              // STREAM; the 'Bungur' alias names a transfer DESTINATION and the derived action
-              // label, never a stream. This filter used the alias until #238's authenticated
-              // render found one stream reading "Rumah Rames · Bar" on capture and "Bungur · Bar"
-              // here — two names for one stream, on the two surfaces most likely to be open side
-              // by side.
-              <option key={streamKey(s.branch.id, s.activity)} value={streamKey(s.branch.id, s.activity)}>
-                {s.branch.name} · {activityLabel(t, s.activity)}
-              </option>
-            ))}
-          </Select>
-
           {/* #238 (FR-031): the stream lead's completeness confirmation, on the surface that is
               already theirs. It states what IS true — confirmed, by whom, when — and never what
               is blocked, because it blocks nothing: DD-WAY-29's coordinate gate alone decides

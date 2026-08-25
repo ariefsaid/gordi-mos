@@ -25,6 +25,7 @@ import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { allRedirects, pathnameOf } from './test/route-table'
+import { SHIP_GATED_PATHS, isShipGated } from './lib/ship-gate'
 
 const SRC = resolve(__dirname)
 
@@ -102,7 +103,10 @@ describe('GUARD #225: no in-app navigation target matches a route-table redirect
     const retiredPaths = allRedirects()
       .filter((r) => r.kind === 'map')
       .map((r) => pathnameOf(r.from))
-    expect(retiredPaths.length, 'the redirect map is empty — this guard would pass on nothing').toBeGreaterThan(15)
+    // Floor lowered from 15 with the ship gate (#444): six retired paths whose replacement is now
+    // hidden name Home instead, which moves them from `map` into `flag-fallback`. The gate's own
+    // suite (`shell/ship-gate.test.tsx`) is what holds the links to those hidden surfaces.
+    expect(retiredPaths.length, 'the redirect map is empty — this guard would pass on nothing').toBeGreaterThan(10)
 
     const offenders: string[] = []
     for (const file of sourceFiles(SRC)) {
@@ -116,5 +120,61 @@ describe('GUARD #225: no in-app navigation target matches a route-table redirect
     }
 
     expect(offenders, offenders.join('\n')).toEqual([])
+  })
+})
+
+/**
+ * MECH-GUARD — issue #444: an in-app link points INTO a ship-gated surface.
+ *
+ * `shell/ship-gate.test.tsx` renders the nav and proves no rail / drawer / bottom-tab link names a
+ * gated path. That is the surface the gate was written for, but it is not every surface: a Tasks
+ * group header drills into an Objective, a record row drills into Money. Those live far from
+ * `shell/` and would have to be remembered one by one. This sweeps the whole of `src/` for the
+ * same three target forms as the guard above, so a NEW link into a hidden surface fails here
+ * rather than waiting to be noticed by eye.
+ *
+ * Reuses that guard's machinery deliberately — same extractor, same comment stripping, same
+ * hole-aware matching — because "a link that goes nowhere" is one rule with two reasons.
+ */
+// The files allowed to spell a gated path. Two kinds, and neither is a dead end: a component that
+// only ever renders INSIDE a gated surface (its link is unreachable exactly while the gate is
+// closed), and the one component that asks the gate itself at render time (a text sweep cannot see
+// a runtime conditional). An exemption list rather than a code change, because every one of these
+// surfaces must come back whole when a path leaves SHIP_GATED_PATHS, with no edit here.
+const GATED_SURFACE_FILES = new Set([
+  // The Money workspace itself; its Follow-up queue link is a link within Money.
+  join('pages', 'dashboard-page.tsx'),
+  // Home's Objectives band — Home already asks the gate before mounting it (home-page.tsx).
+  join('components', 'home', 'home-objectives-door.tsx'),
+  // The Tasks group Objective hint. Not a gated surface but the one place allowed to spell the
+  // path conditionally: it asks the gate itself and renders plain text when the answer is No,
+  // which a text sweep cannot see. Its own tests hold that behaviour.
+  join('components', 'tasks', 'objective-hint.tsx'),
+])
+
+describe('GUARD #444: no in-app navigation target points into a ship-gated surface', () => {
+  it('GUARD: every to=/navigate()/pathname target outside a gated surface misses the gate', () => {
+    expect(
+      SHIP_GATED_PATHS.length,
+      'the ship gate is empty — this guard would pass on nothing',
+    ).toBeGreaterThan(0)
+
+    const offenders: string[] = []
+    for (const file of sourceFiles(SRC)) {
+      const rel = relative(SRC, file)
+      if (EXEMPT.has(rel) || GATED_SURFACE_FILES.has(rel)) continue
+      const source = readFileSync(file, 'utf-8')
+      for (const target of extractTargets(source)) {
+        if (isShipGated(target)) offenders.push(`${rel} → "${target}" is ship-gated (#444)`)
+      }
+    }
+
+    expect(offenders, offenders.join('\n')).toEqual([])
+  })
+
+  it('the exempt files are real, so the list cannot rot into a silent blanket', () => {
+    for (const rel of GATED_SURFACE_FILES) {
+      expect(sourceFiles(SRC).map((f) => relative(SRC, f))).toContain(rel)
+    }
   })
 })

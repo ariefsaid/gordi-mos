@@ -27,9 +27,12 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, fetchKitchenStock: vi.fn() }
+  // listStreamPairs is the six-stream catalog read (#440): the head's ONE picker offers the
+  // enumerated streams, never a branch × activity cross-product that can name a pair which is
+  // not a stream. Un-mocked it hits Supabase and every bootstrap lands in the error state.
+  return { ...actual, fetchKitchenStock: vi.fn(), listStreamPairs: vi.fn() }
 })
-import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, listStreamPairs } from '@/lib/db/kitchen-logs'
 
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
@@ -40,6 +43,7 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 import { KitchenStockPage } from './kitchen-stock-page'
+import { rememberStream } from '@/lib/cafe-stream'
 import { branchDisplayName } from '@/lib/kitchen-action-label'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
@@ -47,6 +51,7 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockFetchStock = vi.mocked(fetchKitchenStock)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
+const mockStreamPairs = vi.mocked(listStreamPairs)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -84,10 +89,26 @@ const STOCK_ROWS: KitchenStockRow[] = [
   { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: -3, tersedia: -3 },
 ]
 
+// The live stream Teams — six of them, {GHQ, Radiant, Rumah Rames} × {kitchen, bar}. The
+// roastery is deliberately absent from this list even where it is a branch: it is never a stream.
+const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
+  { branch_id: b.id, activity: 'kitchen' as const },
+  { branch_id: b.id, activity: 'bar' as const },
+])
+
+/** The head picker's option value for a stream — what a switch fires. */
+function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
+  return `${branchId}|${activity}`
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  // #440: the Café stream is remembered for the whole module, in sessionStorage — so a test
+  // that switches streams would otherwise seed the NEXT test's default. Clear it per test.
+  rememberStream(null)
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockBranches.mockResolvedValue([BRANCH_GHQ, BRANCH_RAD, BRANCH_RR])
+  mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
   mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
   mockFetchStock.mockResolvedValue([])
 })
@@ -187,14 +208,41 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     expect(stream).toEqual(RADIANT_BAR)
   })
 
-  it('falls back to the catalog default when the viewer has no stream default (FR-002 shape)', async () => {
+  // CHANGED by #440 (owner ruling): a viewer with no stream default gets an explicit choice
+  // here, exactly as the capture surface already gave them — not a silent fall back to the
+  // catalog's first branch. This surface answers "how much stock is there"; answering it about
+  // books the viewer never picked is worse than asking which books they mean.
+  it('FR-002 (#440): no stream default → asks for an explicit choice and reads NOTHING', async () => {
     mockDefaultStream.mockResolvedValue(null)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    expect(await screen.findByText(/choose a stream/i)).toBeInTheDocument()
+    expect(mockFetchStock).not.toHaveBeenCalled()
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.value).toBe('')
+  })
+
+  it('issue 440: the head STATES the stream in view — canonical branch · activity', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    const { container } = render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const head = container.querySelector('[data-testid="page-head"]')
+    expect(head?.textContent).toContain('Stream')
+    const picker = within(head as HTMLElement).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+  })
+
+  it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
+    // The person switched to Radiant · Bar on Log; Stock must open on the same books rather
+    // than snapping back to their own stream and showing a different branch's numbers.
+    rememberStream(RADIANT_BAR)
+    mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
     const [, stream] = mockFetchStock.mock.calls[0]
-    // defaultStreamFrom: the rumah_rames catalog default, kitchen activity
-    expect(stream).toEqual(CENTRAL_KITCHEN)
+    expect(stream).toEqual(RADIANT_BAR)
   })
 
   it('AC-011: switching the stream re-reads the net FOR THE SELECTED STREAM (never keeps another stream\'s rows)', async () => {
@@ -207,14 +255,13 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     ]
     mockFetchStock.mockResolvedValue(switched)
 
-    const branchSelect = screen.getByRole('combobox', { name: /branch/i })
-    fireEvent.change(branchSelect, { target: { value: BRANCH_RAD.id } })
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'kitchen') } })
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(2))
     const [, stream] = mockFetchStock.mock.calls[1]
     expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
 
-    const activitySelect = screen.getByRole('combobox', { name: /activity/i })
-    fireEvent.change(activitySelect, { target: { value: 'bar' } })
+    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'bar') } })
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(3))
     const [, streamAfterActivity] = mockFetchStock.mock.calls[2]
     expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar' })
@@ -232,15 +279,15 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     let resolveStale!: (rows: KitchenStockRow[]) => void
     const stalePromise = new Promise<KitchenStockRow[]>(res => { resolveStale = res })
     mockFetchStock.mockReturnValueOnce(stalePromise) // switch #1 — will resolve LAST
-    fireEvent.change(screen.getByRole('combobox', { name: /branch/i }), {
-      target: { value: BRANCH_RAD.id },
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
+      target: { value: streamOption(BRANCH_RAD.id, 'kitchen') },
     })
 
     mockFetchStock.mockResolvedValueOnce([
       { wip_item_id: 'w9', wip_item_name: 'Fresh Dish', category: null, stok: 7, tersedia: 7 },
     ]) // switch #2 — the latest read
-    fireEvent.change(screen.getByRole('combobox', { name: /activity/i }), {
-      target: { value: 'bar' },
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
+      target: { value: streamOption(BRANCH_RAD.id, 'bar') },
     })
     await screen.findByText('Fresh Dish')
 
@@ -259,12 +306,12 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     await screen.findByText(/no stock to show/i)
 
     // The picker is present in the empty state — an empty stream is not a dead end.
-    const branchSelect = screen.getByRole('combobox', { name: /branch/i })
-    expect(branchSelect).toBeInTheDocument()
-    expect(branchSelect).not.toBeDisabled()
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toBeInTheDocument()
+    expect(picker).not.toBeDisabled()
 
     mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
-    fireEvent.change(branchSelect, { target: { value: BRANCH_RAD.id } })
+    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'kitchen') } })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const [, stream] = mockFetchStock.mock.calls[1]
     expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
@@ -289,12 +336,12 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    // The selected branch option for the central kitchen reads the CATALOG name, matching the
+    // The selected stream option for the central kitchen reads the CATALOG name, matching the
     // capture surface exactly — the two are routinely open side by side.
-    const branchSelect = screen.getByRole('combobox', { name: /branch/i }) as HTMLSelectElement
-    expect(branchSelect.value).toBe(BRANCH_RR.id)
-    expect(branchSelect.selectedOptions[0].textContent).toBe('Rumah Rames')
-    expect(branchSelect.textContent).not.toMatch(/Bungur/)
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.value).toBe(streamOption(BRANCH_RR.id, 'kitchen'))
+    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
+    expect(picker.textContent).not.toMatch(/Bungur/)
 
     // The incumbent's trap label never renders, anywhere on the surface. Unchanged, and the
     // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.

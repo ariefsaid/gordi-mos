@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
 import { useT } from '@/i18n/use-t'
+import { ObjectiveHint } from './objective-hint'
 
 type GroupHeaderRowProps = {
   /** The group label (status name, person name, BU name, or work-line name). */
@@ -112,9 +112,7 @@ export function GroupHeaderRow({
             <Chevron className={`grp-chev${collapsed ? ' grp-chev-collapsed' : ''}`} />
           </button>
           {objectiveHint && (
-            <span className="gobjective collection-grammar-group-hint">
-              {objectiveHint.id ? <Link to={`/work/objectives?q=${encodeURIComponent(objectiveHint.name)}`}>{objectiveHint.name}</Link> : objectiveHint.name}
-            </span>
+            <ObjectiveHint hint={objectiveHint} className="gobjective collection-grammar-group-hint" />
           )}
           <span className="glabel collection-grammar-group-label">{label}</span>
           {/* FR-233: work-line type label — text always present, never color-only (WCAG 1.4.1) */}

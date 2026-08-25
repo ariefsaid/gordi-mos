@@ -15,6 +15,12 @@ import { CloseIcon } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import './mobile-drawer.css'
+// DD-WAY-33 (#439): the phone drawer wears the SAME three-rung ladder as the desktop rail
+// (rail-nav.css owns it). One ladder, two surfaces — a destination must not read as a child
+// just because the viewport shrank. Imported explicitly rather than relied on from rail-nav.tsx:
+// below 920px the rail does not mount, and a stylesheet that arrives only via someone else's
+// import is exactly how a class ends up resolving to nothing.
+import './rail-nav.css'
 
 interface MobileDrawerProps {
   open: boolean
@@ -31,34 +37,34 @@ function workChildren(d: Destination, accessRoles: string[]): Section[] {
 }
 
 // One row renderer shared by both Destination and Work-child (Section) rows — same visual
-// grammar, same touch-target floor, one place to change it.
-function DrawerRow({ to, label, Icon, onNavigate }: { to: string; label: string; Icon: React.FC; onNavigate: () => void }) {
+// grammar, same touch-target floor, one place to change it. `rung` picks which step of the
+// shared rail ladder (rail-nav.css) the row sits on: `dest` (13.5px/600, foreground, 17px icon)
+// or `child` (13px/500, muted-foreground, 15px icon). Neither the icon nor the label carries a
+// colour class of its own — both inherit the rung, so glyph and label move together.
+function DrawerRow({ to, label, Icon, onNavigate, rung = 'dest' }: { to: string; label: string; Icon: React.FC; onNavigate: () => void; rung?: 'dest' | 'child' }) {
   return (
     <Link
       to={to}
       onClick={onNavigate}
       // SYS-2: the More drawer is a phone-only surface, so its 36px rows fall below the
       // 44px touch floor. The shared tap-target-phone marker (Button.css) raises them.
-      className="tap-target-phone flex items-center gap-[10px] rounded-sm px-2 text-sm text-muted-foreground hover:bg-accent/60"
+      className={`rail-item rail-item--${rung} tap-target-phone flex items-center gap-[10px] rounded-sm px-2 hover:bg-accent/60`}
       style={{ height: 36 }}
     >
-      <span className="text-muted-foreground">
+      <span>
         <Icon />
       </span>
-      <span className="text-foreground">{label}</span>
+      <span>{label}</span>
     </Link>
   )
 }
 
-// Overline group label — mirrors RailGroupLabel (rail-nav.tsx): aria-hidden visual divider,
-// not a nav landmark; the group's rows stay directly reachable in document order.
+// Overline group label — the ladder's quietest rung, shared with the rail (.rail-item-overline).
+// aria-hidden visual divider, not a nav landmark; the group's rows stay directly reachable in
+// document order.
 function DrawerGroupLabel({ children }: { children: string }) {
   return (
-    <div
-      className="px-2 text-muted-foreground select-none uppercase"
-      style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 10 }}
-      aria-hidden="true"
-    >
+    <div className="rail-item-overline px-2 pt-2.5 pb-1" aria-hidden="true">
       {children}
     </div>
   )
@@ -205,7 +211,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                     <li key={d.id}>
                       <DrawerRow to={d.primaryPath ?? d.links[0].path} label={t(d.labelKey)} Icon={d.Icon} onNavigate={closeAndReturn} />
                       {children.length > 0 && (
-                        <ul className="flex flex-col gap-[2px] pl-4">
+                        <ul className="flex flex-col gap-[2px] rail-item-children">
                           {children.map((c) => (
                             <li key={c.path}>
                               <DrawerRow
@@ -213,6 +219,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                                 label={c.labelKey ? t(c.labelKey) : c.label}
                                 Icon={c.Icon}
                                 onNavigate={closeAndReturn}
+                                rung="child"
                               />
                             </li>
                           ))}
@@ -248,7 +255,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                         the same roles their route enforces. Indented under a parent row; flush
                         when the parent is the bottom tab and only the children render here. */}
                     {children.length > 0 && (
-                      <ul className={`flex flex-col gap-[2px] ${showParent ? 'pl-6' : ''}`}>
+                      <ul className={`flex flex-col gap-[2px] ${showParent ? 'rail-item-children' : ''}`}>
                         {children.map((c) => (
                           <li key={c.path}>
                             <DrawerRow
@@ -256,6 +263,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                               label={c.labelKey ? t(c.labelKey) : c.label}
                               Icon={c.Icon}
                               onNavigate={closeAndReturn}
+                              rung="child"
                             />
                           </li>
                         ))}

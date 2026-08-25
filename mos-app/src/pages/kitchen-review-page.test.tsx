@@ -71,6 +71,7 @@ vi.mock('@/lib/db/stream-completeness', () => ({
 import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
 
 import { KitchenReviewPage } from './kitchen-review-page'
+import { rememberStream } from '@/lib/cafe-stream'
 import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -131,6 +132,10 @@ const XFER_LOG: ReviewLogRow = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // #440: the stream chosen anywhere in Café is remembered module-wide (sessionStorage) and
+  // outranks the FR-041 role default — so clear it per test, or one test's switch decides the
+  // next test's opening filter.
+  rememberStream(null)
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
@@ -548,6 +553,45 @@ const XFER_OTHER_STREAM: ReviewLogRow = {
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T10:00:00Z',
 }
 
+describe('KitchenReviewPage — the stream reads in the page head (#440)', () => {
+  it('states the queue\'s stream in the head, canonically, and switching there re-scopes the queue', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    const { container } = render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
+
+    fireEvent.change(picker, { target: { value: `${RADIANT_ID}|bar` } })
+    await screen.findByText('Es Kopi')
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+  })
+
+  it('OD-WAY-48: "All streams" stays a first-class choice here — this is the cross-stream surface', async () => {
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    const { container } = render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker.value).toBe('all')
+    expect(screen.getByText('Es Kopi')).toBeInTheDocument()
+  })
+
+  it('issue 440: a stream chosen elsewhere in Café opens the queue on it, over the role default', async () => {
+    // An ops_lead who was just looking at Radiant · Bar on Log lands on that queue, not on
+    // the cross-stream default — an explicit choice outranks a guess about what they meant.
+    rememberStream({ branch: BRANCHES[1], activity: 'bar' })
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Es Kopi')
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue(`${RADIANT_ID}|bar`)
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+  })
+})
+
 describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
   it('FR-041: a supervisor is allowed in, and the filter defaults to THEIR stream — other streams\' rows are off-screen', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
@@ -555,7 +599,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const filter = screen.getByRole('combobox', { name: /filter the queue by stream/i })
+    const filter = screen.getByRole('combobox', { name: /production stream/i })
     expect(filter).toHaveValue(`${BRANCH_ID}|kitchen`)
     // own-stream row is shown; the other stream's row is not
     expect(screen.queryByText('Es Kopi')).not.toBeInTheDocument()
@@ -565,7 +609,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    expect(screen.getByRole('combobox', { name: /filter the queue by stream/i })).toHaveValue('all')
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue('all')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -575,7 +619,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    fireEvent.change(screen.getByRole('combobox', { name: /filter the queue by stream/i }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
       target: { value: 'all' },
     })
     await screen.findByText('Es Kopi')
@@ -748,7 +792,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     // Move the filter off their own stream, onto (Radiant, bar).
-    fireEvent.change(screen.getByRole('combobox', { name: /filter the queue by stream/i }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
       target: { value: `${RADIANT_ID}|bar` },
     })
     await screen.findByText('Es Kopi')
@@ -769,7 +813,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
     // ...and it comes back the moment one stream is named (so the absence above is the
     // filter's doing, not a block that never renders at all).
-    fireEvent.change(screen.getByRole('combobox', { name: /filter the queue by stream/i }), {
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
       target: { value: OWN_STREAM },
     })
     expect(await screen.findByRole('group', { name: /item list completeness/i })).toBeInTheDocument()

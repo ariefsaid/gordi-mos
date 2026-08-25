@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
+import { isShipGated } from '@/lib/ship-gate'
 import { CAFE_SECTIONS, CAFE_MODULE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
@@ -266,12 +267,20 @@ const ALL_DESTINATIONS: Destination[] = [
 ]
 
 /**
- * A destination renders (rail group / bottom tab) iff it has >=1 live link
- * AND (no anyOf gate, or the viewer holds one of the gated roles).
+ * A destination renders (rail group / bottom tab) iff the ship gate leaves it visible, it has
+ * >=1 live link, AND (no anyOf gate, or the viewer holds one of the gated roles).
+ *
+ * The ship gate (#444) is asked FIRST and asked for everyone. It is not another role gate sitting
+ * beside `anyOf` — it is above it: a gated surface is outside the MVP payload, so it is closed to
+ * every viewer regardless of what they hold, and the router closes the same path from the same
+ * array. Money keeps its REVENUE_VIEW_ROLES gate untouched underneath, so switch day restores the
+ * owner-locked VIEW tiers (ADR-0050 D8 / ADR-0051) by deleting one line from SHIP_GATED_PATHS.
  */
 export function isLive(d: Destination, accessRoles: string[]): boolean {
+  const entry = d.primaryPath ?? d.links[0]?.path
+  if (entry !== undefined && isShipGated(entry)) return false
   if (d.anyOf && !d.anyOf.some((r) => accessRoles.includes(r))) return false
-  return d.links.length > 0
+  return d.links.some((l) => !isShipGated(l.path))
 }
 
 /**
@@ -282,6 +291,11 @@ export function isLive(d: Destination, accessRoles: string[]): boolean {
  * breadcrumb + aria-current logic to see one owner per route.
  */
 export function destinationForPath(pathname: string): Destination | null {
+  // #444: a ship-gated path has no owning destination — the same answer an unknown path gets, and
+  // for the same reason (nothing routes there). Without this the breadcrumb would resolve
+  // `/work/projects` to the Work destination and, with `sectionForPath` already closed, print
+  // "Work · Tasks" over a surface that is neither.
+  if (isShipGated(pathname)) return null
   for (const d of ALL_DESTINATIONS) {
     const candidates = [...d.links, ...(d.children ?? [])]
     for (const link of candidates) {

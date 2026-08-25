@@ -14,6 +14,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { ADMIN } from './fixtures/users'
+import { isShipGated } from './helpers/ship-gate'
 
 const PHONE = { width: 390, height: 844 }
 
@@ -59,6 +60,9 @@ test.describe('AC-022: the shell at 390px', () => {
     // One entry per destination the ported rail can reach. Each is visited by URL rather than by
     // click so a failure names the route rather than a missing link — the click path is covered by
     // the bar test above and by shell-nav's AC-001.
+    // issue 444: a ship-gated destination forwards to Home, so visiting it would measure Home a
+    // second time under another name rather than that surface. Filtered through the gate, not
+    // deleted — un-gating a surface returns it to the sweep with no edit here.
     const destinations = [
       { path: '', label: 'Home' },
       { path: 'work/tasks', label: 'Tasks' },
@@ -70,7 +74,7 @@ test.describe('AC-022: the shell at 390px', () => {
       { path: 'cafe/log', label: 'Café log' },
       { path: 'money', label: 'Money' },
       { path: 'admin/people', label: 'Admin people' },
-    ]
+    ].filter(({ path }) => !isShipGated(`/${path}`))
 
     for (const { path, label } of destinations) {
       await page.goto(path)

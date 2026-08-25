@@ -210,6 +210,22 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
 
 // ── Load states ──────────────────────────────────────────────────────────────
 
+// #440: every Café surface says which production stream it is showing. The outbox is the one
+// that has none of its own — an integrations.esb_push row carries a source module and a batch
+// reference, no branch and no activity — so it states the scope it ACTUALLY has. Naming a
+// single stream here would be a claim about the rows on screen that is not true.
+describe('KitchenPushesPage — the head states its scope (#440)', () => {
+  it('states "All streams" in the page head, and offers no stream picker it could not honour', async () => {
+    mockListPushes.mockResolvedValue([])
+    const { container } = render(<KitchenPushesPage />)
+    await screen.findByText(/no pushes yet/i)
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    expect(head.textContent).toMatch(/stream/i)
+    expect(within(head).getByText(/all streams/i)).toBeInTheDocument()
+    expect(within(head).queryByRole('combobox')).toBeNull()
+  })
+})
+
 describe('KitchenPushesPage — states', () => {
   it('loading: shows a busy skeleton while pushes load', () => {
     mockListPushes.mockReturnValue(new Promise(() => {})) // never resolves

@@ -164,3 +164,20 @@ const ACTIVITY_LABEL_KEY = {
 export function activityLabel(t: Translate, activity: ProductionActivity): string {
   return t(ACTIVITY_LABEL_KEY[activity])
 }
+
+/**
+ * Names a (branch, activity) production stream the way every Café surface must name it: the
+ * branch's CANONICAL catalog name · the activity (#238 owner ruling, CONTEXT.md "Production
+ * stream"). Never `branchDisplayName` here — the 'Bungur' alias names a transfer DESTINATION
+ * and the derived action label, and an authenticated render once found one stream reading
+ * "Rumah Rames · Bar" on capture and "Bungur · Bar" on review: two names for one stream, on
+ * the two surfaces most likely to be open side by side. Never "HQ"/"Stok HQ" for the central
+ * kitchen either (FR-061) — the catalog's own name is what keeps that true.
+ *
+ * `null` renders the em dash rather than an empty gap: a surface with no resolved stream is
+ * saying something ("none chosen yet"), not nothing.
+ */
+export function streamLabel(t: Translate, stream: ProductionStream | null): string {
+  if (!stream) return '—'
+  return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
+}
