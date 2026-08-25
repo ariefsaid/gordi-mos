@@ -2,7 +2,7 @@
 -- grant guard, provenance, soft revoke, capabilities, and the no-lockout floor.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(44);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -32,6 +32,30 @@ select is(
   (select count(*)::int from shared.person_access_roles
     where person_id = '00000000-0000-0000-0000-0000000000d3' and access_role = 'manager'),
   0, 'the reporting-line manager is derived from the role chain, never stored as an access role');
+
+-- ── The vocabulary is stated ONCE (#216) ─────────────────────────────────────────────────────
+-- The grant table and the capability table both resolve against the shared.access_role domain —
+-- the single statement of the set. These two assertions are the drift guard: the only way the two
+-- tables' admitted sets can diverge again is a column quietly reverting to a private text+CHECK,
+-- and that is exactly what flips a domain_name lookup here to red.
+select is(
+  (select c.domain_schema || '.' || c.domain_name
+     from information_schema.columns c
+    where c.table_schema = 'shared' and c.table_name = 'person_access_roles'
+      and c.column_name = 'access_role'),
+  'shared.access_role',
+  'the grant table''s role column resolves against the shared.access_role domain — not a private CHECK of its own');
+select is(
+  (select c.domain_schema || '.' || c.domain_name
+     from information_schema.columns c
+    where c.table_schema = 'shared' and c.table_name = 'role_capabilities'
+      and c.column_name = 'role'),
+  'shared.access_role',
+  'the capability table''s role column resolves against the SAME domain — one statement of the set, so the two cannot drift');
+-- ...and the domain gates the capability table with the same error contract the grant table has:
+select throws_ok($$
+  insert into shared.role_capabilities (role, capability) values ('superuser','anything.at_all')
+$$, '23514', null, 'a value outside the vocabulary is rejected on the capability table too — by the one shared domain, 23514 like the grant table');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Read helpers — claim-sourced and fail-closed
