@@ -1,47 +1,57 @@
 #!/usr/bin/env bash
-# Self-test for #459: date-valued seed columns that the APP reads as "today" must be seeded in
-# Asia/Jakarta, never UTC `current_date`. The app's Café surfaces compute today via wibToday()
-# (fixed +7h, NFR-007); Postgres in these containers is UTC. For seven hours of every day
-# (00:00-07:00 WIB) the two disagree, and a `current_date` seed silently lands on yesterday —
-# every Café Plan surface renders empty with nothing on screen to explain it. That is what
-# reddened the geometry lane on passing code (#459).
+# Self-test for #459: seed columns the APP reads as "today" must be seeded in Asia/Jakarta, never
+# UTC `current_date`. The Café surfaces compute today via wibToday() (fixed +7h, NFR-007);
+# Postgres in these containers is UTC. For seven hours of every day (00:00-07:00 WIB) the two
+# disagree, so a `current_date` seed silently lands on yesterday and the surface renders empty
+# with nothing on screen to explain it.
 #
-# Static check: no docker, no DB, runs in the guards lane.
+# Static check: no docker, no DB, runs in the guards lane. guards.yml also lists supabase/seed*.sql
+# in its `paths:` filter — registering the step is only half the job, the trigger is the other half.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
-# The columns the app reads as "today WIB". Extend this list when a new one appears.
-WIB_TABLES='ops.kitchen_plans'
+# Files whose date columns the app reads as WIB "today". seed.dev-kitchen.sql is hand-loaded
+# (not in config.toml's sql_paths) but is exactly the "developer seeds before breakfast" case.
+SEED_FILES='supabase/seed.sql supabase/seed.dev-kitchen.sql'
 JKT="(now() at time zone 'Asia/Jakarta')::date"
 
-# 1. every insert into a WIB-read table uses the Jakarta expression for log_date
-for t in $WIB_TABLES; do
-  # the insert block: from the insert line to the terminating semicolon
-  block=$(awk "/insert into ${t//./\\.}/,/;/" supabase/seed.sql)
-  if [ -z "$block" ]; then bad "no seeded insert found for $t (list stale?)"; continue; fi
-  if printf '%s' "$block" | grep -qE "[^']current_date"; then
-    bad "$t is seeded at UTC current_date — the app reads it as WIB today"
-  else ok "$t is seeded at the Jakarta date, not UTC"; fi
-  if printf '%s' "$block" | grep -qF "$JKT"; then
-    ok "$t names the Jakarta expression explicitly"
-  else bad "$t does not carry the Jakarta date expression"; fi
+# `current_date` outside a quoted string. The (^|[^']) alternation matters: a bare [^'] cannot
+# match at column 0, so an unindented occurrence would have been invisible (review finding).
+BARE_UTC="(^|[^'])current_date"
+
+scan() { # $1 = file → prints offending lines (prose comments excluded)
+  grep -nE "$BARE_UTC" "$1" 2>/dev/null | grep -v '^[0-9]*:--' || true
+}
+
+for f in $SEED_FILES; do
+  [ -f "$f" ] || { bad "$f is missing (list stale?)"; continue; }
+  hits=$(scan "$f")
+  if [ -n "$hits" ]; then
+    bad "$f seeds at UTC current_date — the app reads these as WIB today:"
+    printf '        %s\n' "$hits"
+  else ok "$f carries no bare current_date"; fi
+  if grep -qF "$JKT" "$f"; then ok "$f names the Jakarta expression"
+  else bad "$f has no Jakarta date expression at all"; fi
 done
 
-# 2. can-fail control: the same check against a copy reverted to current_date must FAIL,
-#    proving the check tracks the file rather than grep semantics.
-reverted=$(sed "s|(now() at time zone 'Asia/Jakarta')::date|current_date|g" supabase/seed.sql)
-rblock=$(printf '%s' "$reverted" | awk '/insert into ops\.kitchen_plans/,/;/')
-if printf '%s' "$rblock" | grep -qE "[^']current_date"; then
-  ok "control: the reverted copy trips the check (it can fail)"
-else bad "control: the reverted copy did NOT trip the check — the check is vacuous"; fi
-
-# 3. the reasoning survives next to the code, not only in a ticket
-if grep -q "Asia/Jakarta" supabase/seed.sql && grep -qi "seven hours\|00:00-07:00" supabase/seed.sql; then
-  ok "the seed states WHY, at the seam"
-else bad "the seed carries no explanation of the WIB/UTC split"; fi
+# Can-fail control: run the REAL check over a copy of each real file reverted to current_date.
+# Exercises the same scan() the loop uses, over every listed file — not a hardcoded literal, and
+# not a second inline copy of the pattern that could drift from it (review finding).
+control_failures=0
+for f in $SEED_FILES; do
+  tmp=$(mktemp -t seedwib.XXXXXX)   # mktemp, not a fixed /tmp path: parallel runs must not collide
+  sed "s|$(printf '%s' "$JKT" | sed 's/[][\.*^$/]/\\&/g')|current_date|g" "$f" > "$tmp"
+  [ -n "$(scan "$tmp")" ] && control_failures=$((control_failures+1))
+  rm -f "$tmp"
+done
+if [ "$control_failures" -eq "$(printf '%s\n' $SEED_FILES | wc -w | tr -d ' ')" ]; then
+  ok "control: every listed file trips the check when reverted (it can fail)"
+else
+  bad "control: $control_failures of $(printf '%s\n' $SEED_FILES | wc -w | tr -d ' ') reverted files tripped the check — it is vacuous for the rest"
+fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
