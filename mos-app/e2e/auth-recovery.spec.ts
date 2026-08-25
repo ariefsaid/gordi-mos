@@ -11,7 +11,7 @@
 
 import { test, expect } from '@playwright/test'
 import { RECOVERY_VIEWER } from './fixtures/users'
-import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
+import { watchInbox, extractAuthLink } from './helpers/mailpit'
 import { assertTapFloor, AUTH_CONTROLS, TAP_GAP } from './helpers/tap-floor'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
@@ -21,20 +21,29 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   // This test performs a full email round-trip; allow extra time.
   test.setTimeout(120_000)
 
-  // Clear inbox so stale recovery emails from prior runs don't interfere.
-  await clearMailpit()
+  // The mail catcher is shared with every other spec, rerun and checkout on this stack, so take a
+  // snapshot of it BEFORE asking for the email — the waiter then accepts only a message that was
+  // not already there. No inbox clearing: wiping a shared box is what raced other suites (#137).
+  const recoveryMail = await watchInbox(RECOVERY_VIEWER.email)
 
   // ── Step 1: go to login, click "Forgot password?" ────────────────────────
   await page.goto('login')
   // Fill email first — the forgot-password handler validates the email field
   await page.getByLabel('Email').fill(RECOVERY_VIEWER.email)
+  const recoveryRequested = page.waitForResponse((r) => r.url().includes('/auth/v1/recover'))
   await page.getByRole('button', { name: /forgot password/i }).click()
 
   // ── Step 2: confirmation message must appear ──────────────────────────────
-  await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 5_000 })
+  // The confirmation is deliberately NEUTRAL about whether an account exists (AC-006). It is no
+  // longer neutral about whether the request succeeded — the page used to show it even when the
+  // send was refused, which is how a failed send spent 20s masquerading as a mail-catcher timeout
+  // (#137). The status check below names that number outright instead of leaving it to a screenshot.
+  await expect(page.getByText(/a reset link is on its way/i)).toBeVisible({ timeout: 5_000 })
+  const requestStatus = (await recoveryRequested).status()
+  expect(requestStatus, 'the recovery email must actually have been accepted for sending').toBeLessThan(300)
 
   // ── Step 3: fetch the recovery link from mailpit ──────────────────────────
-  const { html, text } = await waitForEmail(RECOVERY_VIEWER.email, 20_000)
+  const { html, text } = await recoveryMail(20_000)
   const recoveryUrl = extractAuthLink(html, text)
 
   // ── Step 4: open the recovery link — must land on the set-password form ──

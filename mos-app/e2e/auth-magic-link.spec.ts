@@ -6,11 +6,12 @@
 
 import { test, expect } from '@playwright/test'
 import { VIEWER } from './fixtures/users'
-import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
+import { watchInbox, extractAuthLink } from './helpers/mailpit'
 
 test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
-  // Clear inbox to avoid stale mail from prior tests
-  await clearMailpit()
+  // Snapshot the shared mail catcher before asking for the link, so this spec waits for ITS OWN
+  // message instead of clearing a box other suites are also using (#137).
+  const magicMail = await watchInbox(VIEWER.email)
 
   // Use relative URL so Playwright resolves against baseURL (worktree-derived port, #419)
   await page.goto('login')
@@ -20,10 +21,10 @@ test('AC-004: magic-link journey (mailpit :44324)', async ({ page }) => {
   await page.getByRole('button', { name: /email me a sign-in link/i }).click()
 
   // Neutral confirmation must appear (FR-003 / AC-006)
-  await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText(/a sign-in link is on its way/i)).toBeVisible({ timeout: 5_000 })
 
   // Fetch the email from mailpit and extract the magic link
-  const { html, text } = await waitForEmail(VIEWER.email, 15_000)
+  const { html, text } = await magicMail(15_000)
   const magicUrl = extractAuthLink(html, text)
 
   // Navigate to the magic link — Supabase processes it and redirects to the app

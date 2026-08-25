@@ -132,11 +132,20 @@ export function LoginPage() {
     if (!validateEmail()) return
     setLoading('magic')
     try {
-      await supabase.auth.signInWithOtp({
+      const { error: sendError } = await supabase.auth.signInWithOtp({
         email,
         options: { shouldCreateUser: false },
       })
-      // Always show neutral confirmation (no enumeration — AC-006)
+      // ⚠ DO NOT branch the user-visible outcome on `sendError` (AC-006, and a review of #137
+      // caught exactly that). GoTrue answers 200 for an address it has never seen — it attempts
+      // no mail — so a send that FAILS is evidence the address EXISTS. Rendering a different
+      // message on failure therefore turns this form into an account-existence oracle for anyone
+      // who can read the screen. The outcome here is identical in all four cases (address known
+      // or not x mail sent or not); the confirmation copy is worded so it never asserts that mail
+      // was sent to THIS address, which is what made the old always-"check your inbox" a lie.
+      // The failure is still surfaced — to the console, where the network tab already shows it —
+      // never to the UI.
+      if (sendError) console.warn('[auth] magic-link send did not go through', sendError)
       setMode('magic-confirm')
     } catch {
       setError(ERR_NETWORK)
@@ -153,8 +162,10 @@ export function LoginPage() {
       // redirectTo ensures the recovery link lands on /recovery so the PASSWORD_RECOVERY
       // event is handled while the router is at the correct path (audit L1 fix).
       const redirectTo = `${window.location.origin}/mos/recovery`
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo })
-      // Always show neutral confirmation (no enumeration — AC-006)
+      const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      // Same reasoning as the magic-link path above: the outcome must not vary with `sendError`,
+      // because a failed send implies the address exists. Console only, never the UI.
+      if (sendError) console.warn('[auth] password-reset send did not go through', sendError)
       setMode('reset-confirm')
     } catch {
       setError(ERR_NETWORK)
@@ -167,8 +178,10 @@ export function LoginPage() {
   if (mode === 'magic-confirm' || mode === 'reset-confirm') {
     const isReset = mode === 'reset-confirm'
     const confirmText = isReset
-      ? 'Check your email to reset your password.'
-      : 'Check your email for a sign-in link.'
+      // Worded to be true in every case, which is what makes the neutral outcome honest rather
+      // than a lie: it never asserts that mail was sent to THIS address (#137 review).
+      ? 'If an account exists for that address, a reset link is on its way.'
+      : 'If an account exists for that address, a sign-in link is on its way.'
 
     return (
       <AuthShell>
@@ -193,8 +206,11 @@ export function LoginPage() {
                 {confirmText}
               </p>
               {email && (
+                /* Echoes the address the person typed so they can spot a typo — it must NOT say
+                   "Sent to", which asserts a delivery that may not have happened and would put
+                   the same lie one line below the hedged headline (#137 security re-check). */
                 <p className="text-muted-foreground mt-1" style={{ fontSize: 'var(--font-size-body-lg)' }}>
-                  Sent to {email}
+                  For {email}
                 </p>
               )}
             </div>
