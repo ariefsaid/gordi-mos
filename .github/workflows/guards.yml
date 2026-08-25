@@ -12,6 +12,11 @@ on:
       # a change there changes what those tests actually run, so re-run them.
       - 'scripts/lib/**'
       - 'scripts/import-kitchen-history.py'
+      # the seeds themselves (#459): seed-wib-dates.test.sh exists to catch a seed reverting to
+      # UTC current_date, and that revert touches supabase/ ONLY — without this the lane would not
+      # even start for the exact regression the guard guards. Registering the step is half the job;
+      # the trigger is the other half.
+      - 'supabase/seed*.sql'
       # the ESB push worker (#134): its self-test is what proves a real ERP identifier
       # cannot reach the shared vendor sandbox, and that a rehearsal cannot mark a log
       # posted — so a change to any of the three re-runs it.
@@ -68,3 +73,5 @@ jobs:
         run: bash scripts/reporting-snapshot.test.sh
       - name: e2e-takes-the-db-lock self-test (#388)
         run: bash scripts/e2e-db-lock.test.sh
+      - name: seed dates are WIB, not UTC self-test (#459)
+        run: bash scripts/seed-wib-dates.test.sh

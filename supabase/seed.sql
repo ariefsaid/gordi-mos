@@ -235,13 +235,19 @@ on conflict (wip_item_id, unit_name) do nothing;
 -- (org, date, item, action_type). That column no longer exists: OD-WAY-28 replaced it with the
 -- (branch, activity) production stream plus a movement, so a plan now has to say WHOSE BOOKS it is
 -- for. These three are the Rumah Rames kitchen stream, which is the one the incumbent captures.
+-- ⚠ WIB, not UTC (#459). The app asks for "today" in Asia/Jakarta (kitchen-plan-page's wibToday,
+-- NFR-007); Postgres `current_date` in these containers is UTC. Between 17:00 and 24:00 UTC —
+-- 00:00-07:00 WIB, seven hours of every day — those are DIFFERENT DATES, so a seed written at
+-- `current_date` puts the plans on yesterday and every Café Plan surface renders empty for no
+-- visible reason. That is what reddened the geometry lane on passing code (CI ran at 23:58 UTC)
+-- and it would equally hit a developer seeding before breakfast.
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, plan_by) values
-  ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000001',
+  ('10000000-0000-0000-0000-000000000001', (now() at time zone 'Asia/Jakarta')::date, 'a1100000-0000-0000-0000-000000000001',
    '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 50, '40000000-0000-0000-0000-000000000002'),
-  ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000002',
+  ('10000000-0000-0000-0000-000000000001', (now() at time zone 'Asia/Jakarta')::date, 'a1100000-0000-0000-0000-000000000002',
    '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 30, '40000000-0000-0000-0000-000000000002'),
-  ('10000000-0000-0000-0000-000000000001', current_date, 'a1100000-0000-0000-0000-000000000006',
+  ('10000000-0000-0000-0000-000000000001', (now() at time zone 'Asia/Jakarta')::date, 'a1100000-0000-0000-0000-000000000006',
    '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', 25, '40000000-0000-0000-0000-000000000002')
 on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id) do nothing;
 

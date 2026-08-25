@@ -1,3 +1,8 @@
+-- ⚠ WIB, not UTC (#459). Every date below is a date the APP reads as "today" in Asia/Jakarta
+-- (wibToday, NFR-007). Postgres current_date in these containers is UTC, and for seven hours of
+-- every day (00:00-07:00 WIB) those are different dates — a seed written at current_date lands on
+-- yesterday and the Café surfaces render empty with nothing on screen to explain it. This file is
+-- the hand-loaded demo dataset, i.e. precisely the "developer seeds before breakfast" case.
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- seed.dev-kitchen.sql — DEV-ONLY Café/Kitchen activity so every kitchen screen
 -- renders FULL in local dev (the shipped module looks empty only when the local
@@ -83,7 +88,7 @@ delete from ops.kitchen_batch_seq where org_id = '10000000-0000-0000-0000-000000
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
 with days as (
-  select generate_series(current_date - 13, current_date + 13, interval '1 day')::date as d
+  select generate_series((now() at time zone 'Asia/Jakarta')::date - 13, (now() at time zone 'Asia/Jakarta')::date + 13, interval '1 day')::date as d
 ),
 -- Each planned item's base qty and HOME production stream (OD-WAY-28 spread).
 planned(sfx, base, branch_id, activity) as (values
@@ -137,7 +142,7 @@ on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destina
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
 with days as (
-  select generate_series(current_date - 13, current_date + 13, interval '1 day')::date as d
+  select generate_series((now() at time zone 'Asia/Jakarta')::date - 13, (now() at time zone 'Asia/Jakarta')::date + 13, interval '1 day')::date as d
 ),
 tf(sfx, dest) as (values
   ('01','25000000-0000-0000-0000-000000000002'::uuid),  -- intra-branch (held)
@@ -172,7 +177,7 @@ insert into ops.kitchen_logs (
   batch_id, created_at
 )
 with days as (
-  select generate_series(current_date - 13, current_date - 1, interval '1 day')::date as d
+  select generate_series((now() at time zone 'Asia/Jakarta')::date - 13, (now() at time zone 'Asia/Jakarta')::date - 1, interval '1 day')::date as d
 ),
 planned(sfx, base, branch_id, activity) as (values
   ('01',60,'25000000-0000-0000-0000-000000000002'::uuid,'kitchen'),
@@ -314,15 +319,15 @@ insert into ops.kitchen_logs (
 select
   '10000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000014',
-  current_date,
+  (now() at time zone 'Asia/Jakarta')::date,
   '25000000-0000-0000-0000-000000000002', 'kitchen', 'produce', null,
   ('a1100000-0000-0000-0000-0000000000' || v.sfx)::uuid, v.qty, null,
   'Approved',
   '40000000-0000-0000-0000-000000000002',
   '40000000-0000-0000-0000-000000000001',
-  (current_date + time '08:15')::timestamptz, 'ok',
-  'PR-' || to_char(current_date, 'YYYYMMDD') || '-' || lpad(v.n::text, 3, '0'),
-  (current_date + time '07:55')::timestamptz
+  ((now() at time zone 'Asia/Jakarta')::date + time '08:15')::timestamptz, 'ok',
+  'PR-' || to_char((now() at time zone 'Asia/Jakarta')::date, 'YYYYMMDD') || '-' || lpad(v.n::text, 3, '0'),
+  ((now() at time zone 'Asia/Jakarta')::date + time '07:55')::timestamptz
 from (values
   ('01', 58::numeric, 1), ('02', 33::numeric, 2), ('06', 28::numeric, 3), ('07', 42::numeric, 4)
 ) as v(sfx, qty, n);
@@ -339,12 +344,12 @@ insert into ops.kitchen_logs (
 select
   '10000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000014',
-  current_date,
+  (now() at time zone 'Asia/Jakarta')::date,
   v.branch_id::uuid, v.activity, v.action, v.dest::uuid,
   ('a1100000-0000-0000-0000-0000000000' || v.sfx)::uuid, v.qty, v.note,
   'Submitted',
   '40000000-0000-0000-0000-000000000002',
-  (current_date + time '09:05')::timestamptz + (v.n || ' minutes')::interval
+  ((now() at time zone 'Asia/Jakarta')::date + time '09:05')::timestamptz + (v.n || ' minutes')::interval
 from (values
   ('03','25000000-0000-0000-0000-000000000002','kitchen','produce',null,               31::numeric, null,                               1),
   ('04','25000000-0000-0000-0000-000000000002','kitchen','produce',null,               22::numeric, 'Kurang bahan, produksi dikurangi', 2),
@@ -367,14 +372,14 @@ insert into ops.kitchen_logs (
 select
   '10000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000014',
-  current_date,
+  (now() at time zone 'Asia/Jakarta')::date,
   v.branch_id::uuid, 'kitchen', 'produce', null,
   ('a1100000-0000-0000-0000-0000000000' || v.sfx)::uuid, v.qty, v.note,
   'Rejected',
   '40000000-0000-0000-0000-000000000002',
   '40000000-0000-0000-0000-000000000001',
-  (current_date + time '09:40')::timestamptz, v.rnote,
-  (current_date + time '09:10')::timestamptz
+  ((now() at time zone 'Asia/Jakarta')::date + time '09:40')::timestamptz, v.rnote,
+  ((now() at time zone 'Asia/Jakarta')::date + time '09:10')::timestamptz
 from (values
   ('08','25000000-0000-0000-0000-000000000002', 25::numeric, 'Produksi pagi', 'Qty tidak sesuai plan — mohon cek ulang'),
   ('14','25000000-0000-0000-0000-000000000003', 40::numeric, null,            'Duplikat — sudah dicatat di batch lain')
@@ -436,29 +441,29 @@ select
   'dry_run',
   'kitchen|' || batch_id || '|dry_run',
   case
-    when log_date = current_date and (abs(hashtext(batch_id)) % 3) = 0 then 'pending'
-    when log_date < current_date and (abs(hashtext(batch_id)) % 4) = 0 then 'pending'
+    when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then 'pending'
+    when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then 'pending'
     else 'posted'
   end,
   0,
   null,
   case
-    when log_date = current_date and (abs(hashtext(batch_id)) % 3) = 0 then null
-    when log_date < current_date and (abs(hashtext(batch_id)) % 4) = 0 then null
+    when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then null
+    when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then null
     else 'ESB-' || to_char(log_date, 'YYMMDD') || '-' || split_part(batch_id, '-', 3)
   end,
   created_at + interval '90 minutes',
   case
-    when log_date = current_date and (abs(hashtext(batch_id)) % 3) = 0 then null
-    when log_date < current_date and (abs(hashtext(batch_id)) % 4) = 0 then null
-    when log_date = current_date then (current_date + time '08:40')::timestamptz
+    when log_date = (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 3) = 0 then null
+    when log_date < (now() at time zone 'Asia/Jakarta')::date and (abs(hashtext(batch_id)) % 4) = 0 then null
+    when log_date = (now() at time zone 'Asia/Jakarta')::date then ((now() at time zone 'Asia/Jakarta')::date + time '08:40')::timestamptz
     else (log_date + time '17:05')::timestamptz
   end
 from ops.kitchen_logs
 where org_id = '10000000-0000-0000-0000-000000000001'
   and status = 'Approved'
   and batch_id is not null
-  and log_date >= current_date - 3
+  and log_date >= (now() at time zone 'Asia/Jakarta')::date - 3
   and ops.esb_endpoint_for(action, branch_id, destination_branch_id) <> 'noop';
 
 -- ── 7. NOW stamp the posted flags onto the logs (same predicate as step 6, plus
@@ -467,14 +472,14 @@ where org_id = '10000000-0000-0000-0000-000000000001'
 update ops.kitchen_logs
    set posted_to_esb = true,
        esb_doc_num   = 'ESB-' || to_char(log_date, 'YYMMDD') || '-' || split_part(batch_id, '-', 3),
-       posted_at     = case when log_date = current_date
-                            then (current_date + time '08:40')::timestamptz
+       posted_at     = case when log_date = (now() at time zone 'Asia/Jakarta')::date
+                            then ((now() at time zone 'Asia/Jakarta')::date + time '08:40')::timestamptz
                             else (log_date + time '17:05')::timestamptz end
  where org_id = '10000000-0000-0000-0000-000000000001'
    and status = 'Approved'
    and batch_id is not null
    and ops.esb_endpoint_for(action, branch_id, destination_branch_id) <> 'noop'
-   and case when log_date = current_date
+   and case when log_date = (now() at time zone 'Asia/Jakarta')::date
             then (abs(hashtext(batch_id)) % 3) <> 0
             else (abs(hashtext(batch_id)) % 4) <> 0 end;
 
