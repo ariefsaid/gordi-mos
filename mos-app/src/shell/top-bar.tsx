@@ -1,6 +1,6 @@
 import { Breadcrumb } from './breadcrumb'
 import { useIsNarrow } from './use-is-narrow'
-import { useIsSplitWidth } from './use-is-split-width'
+import { useRailCompact } from './use-rail-compact'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
@@ -194,12 +194,12 @@ function NotificationBell() {
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
 export function TopBar({ onOpenSearch }: TopBarProps) {
   const t = useT()
-  const isNarrow = useIsNarrow()
   // OD-REDESIGN-84.2 (P1-1): the brand column's width must track the rail's own compact
   // regime (920–1099.98px) so the divider still lands on the rail boundary; the wordmark
   // text is dropped at that width too (72px only has room for the mark).
-  const isSplit = useIsSplitWidth()
-  const railCompact = !isNarrow && !isSplit
+  // #442: "the rail's own compact regime" now includes the user's collapse choice, so this
+  // reads the SAME `useRailCompact` seam the shell grid does rather than recomputing it.
+  const { isNarrow, compact: railCompact } = useRailCompact()
 
   return (
     <header

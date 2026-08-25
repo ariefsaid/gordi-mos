@@ -5,8 +5,7 @@ import { TopBar } from './top-bar'
 import { ContextRow } from './context-row'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
-import { useIsNarrow } from './use-is-narrow'
-import { useIsSplitWidth } from './use-is-split-width'
+import { useRailCompact } from './use-rail-compact'
 import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
@@ -112,15 +111,16 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
 }
 
 function ShellContent() {
-  const isNarrow = useIsNarrow()
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
   // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
   // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
   // 1100px threshold `task-drawer`, `tasks-layout` and `record-panel-host` already key their own
   // regime off) rather than inventing a new query,
   // so the rail's compact boundary tracks the app's one documented "narrow vs split" breakpoint.
-  const isSplit = useIsSplitWidth()
-  const railCompact = !isNarrow && !isSplit
+  // #442: that width regime now shares one decision seam with the user's own collapse
+  // preference — `useRailCompact` — because the top bar's brand column reads the SAME answer to
+  // keep the header divider on the rail boundary, and two copies of the expression would drift.
+  const { isNarrow, compact: railCompact, collapsible: railCollapsible } = useRailCompact()
   // v4 shell rebuild (Task 1): the header hamburger is gone — the bottom-tab More button is
   // the drawer's sole opener now, so there's only ever one opener to track focus-return for.
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -174,7 +174,7 @@ function ShellContent() {
 
         {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
             icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}
-        {!isNarrow && <Rail compact={railCompact} />}
+        {!isNarrow && <Rail compact={railCompact} collapsible={railCollapsible} />}
 
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div

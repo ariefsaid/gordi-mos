@@ -24,6 +24,7 @@ const SHELL = __dirname
 // missing one of ours is the failure this test exists to prevent.
 const CHROME_CLASS_PREFIXES = [
   'bottom-tab', 'mobile-drawer', 'mobile-action', 'rail-item', 'rail-count', 'rail-tooltip',
+  'rail-collapse', // #442 — the user-controlled collapse toggle's row + button + chevron
   'content-header', 'ch-', 'page-head', 'page-frame', 'scrim', 'tap-target-phone',
   // The record overlay/page chrome (#190). `drawer` covers the shared modal regime the record
   // panel host applies — the exact class family that had no stylesheet at the shell root before

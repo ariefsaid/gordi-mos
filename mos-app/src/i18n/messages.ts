@@ -418,7 +418,11 @@ export const messages = {
     'rail.badge.attentionSignals': '${count} signals need attention',
     'rail.badge.openTasks': '${count} open tasks',
     'rail.badge.unreadInbox': '${count} unread',
+    // #442 — the collapse toggle's accessible name. It states the ACTION the press performs
+    // ("Collapse navigation"), not the current state; `aria-expanded` on the button carries state.
+    'rail.collapse': 'Collapse navigation',
     'rail.destinations': 'Destinations',
+    'rail.expand': 'Expand navigation',
     'rail.retailOps': 'Retail Ops',
     'topBar.inboxUnread': 'Inbox, ${count} unread',
     'topBar.search': 'Search',
@@ -1675,7 +1679,9 @@ export const messages = {
     'rail.badge.attentionSignals': '${count} sinyal perlu perhatian',
     'rail.badge.openTasks': '${count} tugas terbuka',
     'rail.badge.unreadInbox': '${count} belum dibaca',
+    'rail.collapse': 'Ciutkan navigasi',
     'rail.destinations': 'Destinasi',
+    'rail.expand': 'Bentangkan navigasi',
     'rail.retailOps': 'Retail Ops',
     'topBar.inboxUnread': 'Kotak Masuk, ${count} belum dibaca',
     'topBar.search': 'Cari',

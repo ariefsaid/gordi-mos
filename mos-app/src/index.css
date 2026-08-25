@@ -99,6 +99,11 @@
   --rail-child-guide-x: 18px; /* the hairline indent guide sits on the destination icon's centre line */
   --rail-child-pad:     12px; /* child label offset from that hairline */
   --rail-child-guide:    1px; /* the hairline itself (coloured var(--border)) */
+  /* #442 — the user-controlled collapse toggle. Geometry, like the four above, so the rail
+     stylesheet stays raw-px-free (#425). 28px square clears the icon-button footprint at a fine
+     pointer without out-shouting a 36px nav item; 8px inset keeps the row on the 4/8/12 scale. */
+  --rail-toggle-size:   28px;
+  --rail-toggle-inset:   8px;
   --header-h: 56px;
   --ctx-row-h: 40px;   /* region 2 — the shell context row (scope crumb + job sentence) */
   --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
