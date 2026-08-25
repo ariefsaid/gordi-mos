@@ -3,6 +3,7 @@
  * /cafe/* paths), events/money/signals/profile sections added, retired /updates
  * + /ops entries dropped. ADMIN_SECTIONS kept. FR-027 prep.
  */
+import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
 import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
 
@@ -82,7 +83,7 @@ describe('T5: new destination sections resolve', () => {
   // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
   // so the breadcrumb should never be asked; a resolver that still named the hidden surface would
   // be a second source of truth waiting to leak one.
-  it.each(['/work/events', '/money', '/money/detail', '/work/objectives', '/ecommerce'])(
+  it.each([...SHIP_GATED_PATHS])(
     'sectionForPath finds nothing at the ship-gated %s',
     (path) => {
       expect(sectionForPath(path)).toBeNull()

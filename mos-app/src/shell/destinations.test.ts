@@ -4,6 +4,7 @@
  * Work has exactly 4 always-expanded children, 0 family headings. Money is anyOf-gated.
  * FR-001..005, FR-020/021, AC-011/012 prep.
  */
+import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
 import {
   DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerAdmittedToRoute,
@@ -293,7 +294,7 @@ describe('viewerAdmittedToRoute — one admission authority, shared with the rai
     // The strictest viewer there is: every access role the app knows. If the gate held only for
     // a plain member it would be a role gate wearing a different name.
     const everything = ['admin', 'finance', 'manager', 'supervisor', 'ops_lead', 'member']
-    for (const path of ['/money', '/work/objectives', '/work/projects', '/work/events', '/ecommerce', '/roastery']) {
+    for (const path of SHIP_GATED_PATHS) {
       expect(viewerAdmittedToRoute(path, everything), path).toBe(false)
     }
     // …and an ungated route still admits them, so this is not passing on a broken helper.
@@ -349,7 +350,7 @@ describe('destinationForPath — resolution across all three zones', () => {
   // ('work' / 'money' / 'ecommerce' / 'roastery') until the ship gate hid the surface; a resolver
   // that still named it would let the breadcrumb print a page the viewer was forwarded away from.
   // Same answer an unknown path gets, for the same reason: nothing routes there.
-  it.each(['/work/projects', '/work/objectives', '/work/events', '/money', '/money/detail', '/ecommerce', '/roastery'])(
+  it.each([...SHIP_GATED_PATHS, '/money/detail'])(
     'the ship-gated %s has no owning destination',
     (path) => {
       expect(destinationForPath(path)).toBeNull()
