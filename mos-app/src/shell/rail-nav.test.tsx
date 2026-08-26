@@ -697,3 +697,4 @@ describe('DD-WAY-33 (#439): the rail type ladder', () => {
     expect(container.querySelectorAll('.rail-item-children')).toHaveLength(0)
   })
 })
+

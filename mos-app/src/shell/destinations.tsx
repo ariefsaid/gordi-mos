@@ -69,12 +69,20 @@ export const DESTINATIONS: Destination[] = [
     Icon: WorkIcon,
     primaryPath: '/work/tasks',
     links: [{ path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon }],
-    // Always-expanded 4 children, 0 family headings (Rule 3). Projects & Processes
-    // + Objectives are capability-gated (FR-424): rendered in the rail only for a
-    // holder of the named capability; RequireCapability is the real route gate.
+    // Always-expanded children, 0 family headings (Rule 3). Projects & Processes
+    // is capability-gated (FR-424): rendered in the rail only for a holder of the named
+    // capability; RequireCapability is the real route gate.
+    //
+    // **This array's ORDER is the canonical nav order — the only one (#446).** It is the E7 Work
+    // family sequence (Execution → Work systems → Direction → Cadence) flattened into the list it
+    // always behaviourally was: Tasks · Projects & Processes · Objectives · Signals · Events.
+    // OD-REDESIGN-1 fixes WHICH children exist; E7 fixed the order that groups them; DD-WAY-33
+    // (#439) deleted the family EYEBROWS, which left the nesting a pure re-sort with no rendered
+    // trace. Holding that re-sort in `rail-nav.tsx` (`WORK_SUBSECTION_ORDER`) made the desktop rail
+    // a second source of order, and the phone drawer — which renders this array as declared — a
+    // third surface disagreeing with it: a person who learned the list on a laptop had to relearn
+    // it on their phone. The re-sort is gone; every surface renders declaration order.
     children: [
-      { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
-      { path: '/work/events', label: 'Events', labelKey: 'nav.work.events', Icon: EventsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
       { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon, capability: 'workline.manage' },
       // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible
@@ -85,6 +93,8 @@ export const DESTINATIONS: Destination[] = [
       // already permitted (the defect this fixes). Write stays behind `can('objective.manage')`
       // inside ObjectivesPage's own mutations — that capability is a WRITE gate, not a read one.
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
+      { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
+      { path: '/work/events', label: 'Events', labelKey: 'nav.work.events', Icon: EventsIcon },
     ],
   },
   {

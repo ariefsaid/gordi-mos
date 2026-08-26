@@ -29,15 +29,28 @@ interface MobileDrawerProps {
   focusOpener?: () => void
 }
 
-// Work's four always-expanded children, capability-filtered exactly as the desktop rail
-// filters them (rail-nav.tsx) — a capability-gated child (Projects & Processes, Objectives)
-// renders only for a viewer whose access roles grant it.
+// Work's always-expanded children, capability-filtered exactly as the desktop rail filters them
+// (rail-nav.tsx) — a capability-gated child (Projects & Processes) renders only for a viewer whose
+// access roles grant it.
+//
+// #446: ORDER comes from `destinations.tsx` and from nowhere else. This surface always rendered
+// `children` as declared; the desktop rail used to re-sort them through a local table, so the same
+// five items were listed two ways and the phone contradicted the laptop. The rail's table is gone,
+// both surfaces render declaration order, and `work-child-order.test.tsx` fails if they diverge.
 function workChildren(d: Destination, accessRoles: string[]): Section[] {
   return visibleSections(d.children ?? [], accessRoles)
 }
 
 // One row renderer shared by both Destination and Work-child (Section) rows — same visual
-// grammar, same touch-target floor, one place to change it. `rung` picks which step of the
+// grammar, same touch-target floor, one place to change it.
+//
+// #446 asked why a child carries an icon here and not on the full-width rail. Decided, not
+// inherited: the drawer keeps its child icons. Every drawer row is an icon+label pair, so dropping
+// the glyph on children alone would leave a ragged column with a hole where the icons line up —
+// and on a phone the glyph is the part a thumb aims at. The full-width rail's icon-less children
+// are the owner-ratified B2 treatment (see rail-nav.tsx) and stay as they are. The two surfaces
+// agree on ORDER, which is what a person carries between them; they are allowed to differ on
+// density, which is what a 320px drawer and a 232px rail do not share. `rung` picks which step of the
 // shared rail ladder (rail-nav.css) the row sits on: `dest` (13.5px/600, foreground, 17px icon)
 // or `child` (13px/500, muted-foreground, 15px icon). Neither the icon nor the label carries a
 // colour class of its own — both inherit the rung, so glyph and label move together.
