@@ -28,31 +28,84 @@ mkdir -p "$T/bin"
 
 cat > "$T/bin/supabase" <<'STUB'
 #!/usr/bin/env bash
-# Fake Supabase CLI. Understands exactly two commands and one dialect of SQL:
-#   alter table X add constraint N ...      -> N exists
+# Fake Supabase CLI. Understands exactly two commands and one small dialect of SQL:
+#   alter table X add constraint N ...          -> constraint N exists
 #   alter table X drop constraint if exists N;  -> N gone, silently, whether or not it was there
-# State: $FAKE_DB/cons (constraint names) and $FAKE_DB/versions (applied migration versions).
+#   create policy N on X ...                    -> policy N exists
+#   drop policy if exists N on X;               -> N gone, silently
+# State: $FAKE_DB/cons, $FAKE_DB/pols, $FAKE_DB/versions (applied migration versions).
 set -euo pipefail
-S="$FAKE_DB"; mkdir -p "$S"; : >> "$S/cons"; : >> "$S/versions"
+S="$FAKE_DB"; mkdir -p "$S"; : >> "$S/cons"; : >> "$S/pols"; : >> "$S/versions"
+
+# Postgres FOLDS an unquoted identifier to lower case and keeps a "Quoted" one exactly as written.
+# A stub that folds both models a database that does not exist — and, worse, hides the harness's
+# own folding: with the stub folding too, deleting the fold from the selector changes nothing this
+# suite can see (#481 review). So: match keywords on a folded copy, read the identifier from the
+# ORIGINAL, and fold it only when it was unquoted.
+ident_after() {  # ident_after STATEMENT WORD1 WORD2 -> the word following "WORD1 WORD2"
+  printf '%s' "$1" | awk -v w1="$2" -v w2="$3" '
+    { for (i = 1; i <= NF - 2; i++)
+        if (tolower($i) == w1 && tolower($(i+1)) == w2) { print $(i+2); exit } }'
+}
+fold_ident() {  # fold_ident RAW -> the name Postgres would actually store
+  local raw="${1%;}"
+  case "$raw" in
+    '"'*) raw="${raw#\"}"; printf '%s' "${raw%\"}" ;;
+    *)    printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' ;;
+  esac
+}
+apply_stmt() {  # apply_stmt STATEMENT
+  local stmt="$1" lc n
+  case "$stmt" in *[![:space:]]*) ;; *) return 0 ;; esac
+  lc="$(printf '%s' "$stmt" | tr '[:upper:]' '[:lower:]')"
+  case "$lc" in
+    *"alter table"*"alter table"*)
+      # Two commands fused into one statement: a severed `alter table t` prefix ran on into its
+      # successor. Matching `add constraint` first would absorb it silently, which is how
+      # line-granular sabotage escaped notice; Postgres rejects the fusion outright.
+      echo "fake supabase: syntax error at or near \"alter\" -- two commands in one statement: $lc" >&2
+      exit 1 ;;
+    *"drop constraint if exists"*)
+      n="$(fold_ident "$(ident_after "$stmt" if exists)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the constraint name: $lc" >&2; exit 1; }
+      grep -vxF "$n" "$S/cons" > "$S/cons.tmp" 2>/dev/null || : > "$S/cons.tmp"
+      mv "$S/cons.tmp" "$S/cons" ;;
+    *"add constraint"*)
+      n="$(fold_ident "$(ident_after "$stmt" add constraint)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the constraint name: $lc" >&2; exit 1; }
+      grep -qxF "$n" "$S/cons" || echo "$n" >> "$S/cons" ;;
+    *"drop policy if exists"*)
+      n="$(fold_ident "$(ident_after "$stmt" if exists)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the policy name: $lc" >&2; exit 1; }
+      grep -vxF "$n" "$S/pols" > "$S/pols.tmp" 2>/dev/null || : > "$S/pols.tmp"
+      mv "$S/pols.tmp" "$S/pols" ;;
+    *"create policy"*)
+      n="$(fold_ident "$(ident_after "$stmt" create policy)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the policy name: $lc" >&2; exit 1; }
+      grep -qxF "$n" "$S/pols" || echo "$n" >> "$S/pols" ;;
+    *"alter table"*)
+      # Reached only when the statement carries no recognised action — i.e. a severed prefix.
+      echo "fake supabase: syntax error at or near \";\" -- ALTER TABLE requires an action: $lc" >&2
+      exit 1 ;;
+  esac
+}
 apply() {
   local f="$1" v; v="$(basename "$f" | sed -n 's/^\([0-9][0-9]*\)_.*/\1/p')"
-  local line n lc
+  local line stmt=""
+  # Accumulate lines until a `;` and apply the STATEMENT, not the line. A line-terminated stub
+  # shrugs at the orphaned `alter table t` that line-granular sabotage leaves behind, so every
+  # test of "the whole statement was commented out" passes whether the harness does that or not
+  # (#481 review). Postgres does not shrug: an ALTER TABLE with no action is a syntax error.
   while IFS= read -r line; do
-    # Postgres folds unquoted keywords and identifiers; a stub that only recognises lowercase SQL
-    # models a database that does not exist, and would make an uppercase fixture test the STUB
-    # rather than the harness (#475 review). Match on a folded copy, extract from the original.
-    lc="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
-    case "$lc" in
-      "--"*) continue ;;   # a commented-out statement is not a statement
-      *"drop constraint if exists"*)
-        n="$(printf '%s' "$lc" | sed -n 's/.*if exists \([^ ;]*\).*/\1/p' | tr -d '"')"
-        grep -vxF "$n" "$S/cons" > "$S/cons.tmp" 2>/dev/null || : > "$S/cons.tmp"
-        mv "$S/cons.tmp" "$S/cons" ;;
-      *"add constraint"*)
-        n="$(printf '%s' "$lc" | sed -n 's/.*add constraint \([^ ;]*\).*/\1/p' | tr -d '"')"
-        grep -qxF "$n" "$S/cons" || echo "$n" >> "$S/cons" ;;
-    esac
+    case "$line" in "--"*) continue ;; esac   # a commented-out line is not part of a statement
+    stmt="$stmt $line"
+    case "$stmt" in *";"*) ;; *) continue ;; esac
+    apply_stmt "$stmt"; stmt=""
   done < "$f"
+  # psql runs a final statement that carries no terminator, so this one does too. A SEVERED
+  # `alter table t` prefix — the continuation line commented out — has that same shape, and
+  # apply_stmt rejects it for the reason Postgres does: an ALTER TABLE with no action.
+  apply_stmt "$stmt"
   grep -qxF "$v" "$S/versions" || echo "$v" >> "$S/versions"
 }
 workdir() { local prev=""; for a in "$@"; do [ "$prev" = "--workdir" ] && { echo "$a"; return; }; prev="$a"; done; }
@@ -91,6 +144,13 @@ cat > /dev/null   # swallow the fingerprint SQL on stdin
   sort "$S/cons" | while read -r n; do
     [ -n "$n" ] && echo "CONSTRAINT|t|$n|c valid=true CHECK"
   done
+  # Real POLICY rows, alongside the fillers below. Without them the only object class this fake
+  # database can carry is CONSTRAINT, and the --prove verdict's ability to adapt to the class it
+  # actually broke is untestable — a literal `CONSTRAINT` would score the same (#481 review).
+  : >> "$S/pols"
+  sort "$S/pols" | while read -r n; do
+    [ -n "$n" ] && echo "POLICY|t|$n|cmd=r permissive=true roles=authenticated"
+  done
   for i in 1 2 3 4 5 6 7 8 9 10; do echo "CONSTRAINT|filler_$i|filler_${i}_pkey|p valid=true PRIMARY KEY (id)"; done
   for i in 1 2 3 4 5; do
     echo "RLS|filler_$i|-|enabled=true forced=true"
@@ -108,6 +168,14 @@ chmod +x "$T/bin/supabase" "$T/bin/docker"
 # GEN 2 (today's tree):          001 EDITED so fresh databases never get that CHECK, plus 002
 #                               which drops it conditionally and adds the catalog FK. Exactly the
 #                               shape that has a branch CI can never reach.
+# Four env knobs, set per fixture, all off by default so the shape above is what every existing
+# section still gets — and so 002_catalog.sql's first three lines keep their line NUMBERS, which
+# section L and section M assert on:
+#   MKREPO_GEN1_EXTRA   raw SQL appended to the BASELINE's 001 (an object only a deployed db has)
+#   MKREPO_GEN2_EXTRA   raw SQL appended to today's 002 (the conditional that repairs it)
+#   MKREPO_NO_LEGACY=1  omit the legacy CHECK pair entirely, for a fixture whose only conditional
+#                       drop is of some other object class
+#   MKREPO_SEEDLESS=1   the BASELINE COMMIT carries no seed*.sql at all
 mkrepo() {  # mkrepo DIR
   local R="$1"
   mkdir -p "$R/scripts/lib" "$R/supabase/migrations"
@@ -118,21 +186,29 @@ project_id = "fake-mos"
 [db]
 port = 55432
 CFG
-  echo "-- nothing to seed" > "$R/supabase/seed.sql"
-  cat > "$R/supabase/migrations/001_base.sql" <<'SQL'
-create table t (a text);
-alter table t add constraint t_legacy_check check (a in ('x'));
-SQL
+  # The seed file has to be absent from the BASELINE COMMIT, not merely deleted afterwards: the
+  # harness extracts the baseline TREE, so a seed written before gen1 is still in it and the
+  # seedless path is never exercised — K6 passed against a blind pathspec (#481 review).
+  [ "${MKREPO_SEEDLESS:-0}" = "1" ] || echo "-- nothing to seed" > "$R/supabase/seed.sql"
+  {
+    echo "create table t (a text);"
+    [ "${MKREPO_NO_LEGACY:-0}" = "1" ] \
+      || echo "alter table t add constraint t_legacy_check check (a in ('x'));"
+    [ -z "${MKREPO_GEN1_EXTRA:-}" ] || printf '%s\n' "$MKREPO_GEN1_EXTRA"
+  } > "$R/supabase/migrations/001_base.sql"
   ( cd "$R" && git init -q . && git add -A && git -c user.email=t@t -c user.name=t commit -qm gen1 )
   BASE_SHA="$( cd "$R" && git rev-parse HEAD )"
+  [ "${MKREPO_SEEDLESS:-0}" = "1" ] && echo "-- nothing to seed" > "$R/supabase/seed.sql"
   cat > "$R/supabase/migrations/001_base.sql" <<'SQL'
 create table t (a text);
 SQL
-  cat > "$R/supabase/migrations/002_catalog.sql" <<'SQL'
-create table cat (code text);
-alter table t drop constraint if exists t_legacy_check;
-alter table t add constraint t_cat_fkey foreign key (a) references cat(code);
-SQL
+  {
+    echo "create table cat (code text);"
+    [ "${MKREPO_NO_LEGACY:-0}" = "1" ] \
+      || echo "alter table t drop constraint if exists t_legacy_check;"
+    echo "alter table t add constraint t_cat_fkey foreign key (a) references cat(code);"
+    [ -z "${MKREPO_GEN2_EXTRA:-}" ] || printf '%s\n' "$MKREPO_GEN2_EXTRA"
+  } > "$R/supabase/migrations/002_catalog.sql"
   ( cd "$R" && git add -A && git -c user.email=t@t -c user.name=t commit -qm gen2 )
   echo "$BASE_SHA" > "$R/supabase/applied-path-baseline"
 }
@@ -332,19 +408,29 @@ else
   bad "thin coverage was not surfaced in both the run and the artifact"
 fi
 
-# K3 — an UPPERCASE conditional is selectable, and its identifier is folded to match the
-# fingerprint. Before this PR the selector missed it; with -i but no folding it was selected and
-# then aborted the run at step 5 — worse than missing it.
-RK3="$T/k-upper"; mkrepo "$RK3"
+# K3 — case folding follows Postgres, not the harness's convenience: an UNQUOTED identifier is
+# folded to lower case, a "Quoted" one keeps exactly the case it was written in, and the
+# fingerprint spells both that way. Both assertions are case-SENSITIVE — with `grep -i` neither
+# could see a fold at all, so deleting the fold from the selector cost nothing (#481 review).
+RK3="$T/k-upper"
+( export MKREPO_GEN1_EXTRA="alter table t add constraint \"T_Quoted_Check\" check (a in ('z'));"
+  export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists \"T_Quoted_Check\";"
+  mkrepo "$RK3" )
 perl -0pi -e 's/drop constraint if exists t_legacy_check/DROP CONSTRAINT IF EXISTS T_LEGACY_CHECK/' \
   "$RK3/supabase/migrations/002_catalog.sql"
 ( cd "$RK3" && git add -A && git -c user.email=t@t -c user.name=t commit -qm upper >/dev/null )
 rm -rf "$T/db"; rm -rf "$T/out-k3"; mkdir -p "$T/out-k3"
 run "$RK3" "$T/out-k3" --prove; rc=$?
-if [ "$rc" = "0" ] && grep -qi "t_legacy_check" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
-  ok "an uppercase conditional is selected and its identifier folded (rc=0)"
+K3SAB="$(tr '\n' ' ' < "$T/out-k3/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -q ":t_legacy_check:" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
+  ok "an UPPERCASE unquoted conditional is selected and folded to lower case (rc=0)"
 else
-  bad "uppercase conditional not handled (rc=$rc)"
+  bad "the unquoted identifier was not folded (rc=$rc, got: $K3SAB)"
+fi
+if grep -q ":T_Quoted_Check:" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
+  ok "a \"Quoted\" identifier keeps its case, exactly as Postgres stores it"
+else
+  bad "a quoted identifier was folded — it would never match the fingerprint (got: $K3SAB)"
 fi
 
 # K4 — the sabotage record carries the object CLASS, so the --prove verdict asserts against the
@@ -369,16 +455,17 @@ else
   bad "a comment was recorded in the evidence artifact as a real mutation"
 fi
 
-# K6 — a baseline carrying NO seed file extracts cleanly instead of dying on the glob.
-RK6="$T/k-seedless"; mkrepo "$RK6"
-( cd "$RK6" && git rm -q --cached supabase/seed.sql >/dev/null 2>&1; rm -f supabase/seed.sql; \
-  git add -A && git -c user.email=t@t -c user.name=t commit -qm seedless >/dev/null ) 2>/dev/null
+# K6 — a baseline carrying NO seed file extracts cleanly instead of dying on the glob. The
+# fixture has to be seedless in the BASELINE COMMIT: deleting supabase/seed.sql afterwards left
+# it in the tree git archive actually reads, so a blind `supabase/seed.sql` pathspec scored
+# exactly the same as the guard (#481 review).
+RK6="$T/k-seedless"; ( export MKREPO_SEEDLESS=1; mkrepo "$RK6" )
 rm -rf "$T/db"; rm -rf "$T/out-k6"; mkdir -p "$T/out-k6"
 run "$RK6" "$T/out-k6"; rc=$?
-if [ "$rc" != "2" ] || ! printf '%s' "$LAST_OUT" | grep -q "could not extract"; then
-  ok "a seedless baseline does not die on the seed glob (rc=$rc)"
+if [ "$rc" = "0" ]; then
+  ok "a seedless baseline does not die on the seed glob (rc=0)"
 else
-  bad "a seedless baseline still dies on the seed pathspec"
+  bad "a seedless baseline broke the run (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -2 | tr '\n' ' ')"
 fi
 
 echo "── L. a conditional split across lines is commented out WHOLE"
@@ -396,11 +483,97 @@ else
   bad "a multi-line conditional broke the run (rc=$rc) — orphaned prefix"
 fi
 
-# L2 — and the evidence artifact must not claim a mutation on a line it did not change.
-if [ -f "$T/out-l/red/sabotage.txt" ] && awk -F: 'NF>=4' "$T/out-l/red/sabotage.txt" | grep -q "t_legacy_check"; then
-  ok "the multi-line statement is recorded with its identifier and class"
+# L2 — and the evidence artifact must record the WHOLE range it commented out. Naming only the
+# first line names a mutation that did not happen: whoever reads red/sabotage.txt cannot
+# reconstruct what changed. `NF>=4` was satisfied either way (#481 review).
+if grep -qxF "002_catalog.sql:2-3:t_legacy_check:CONSTRAINT" "$T/out-l/red/sabotage.txt" 2>/dev/null; then
+  ok "the multi-line statement is recorded with its FULL line range, identifier and class"
 else
-  bad "the multi-line statement was not recorded properly"
+  bad "sabotage.txt did not record the whole range (got: $(tr '\n' ' ' < "$T/out-l/red/sabotage.txt" 2>/dev/null))"
+fi
+
+echo "── M. the statement lexer: dollar-quoted bodies, string literals, an unterminated tail"
+# Every one of these was a selector that read SQL as "text between semicolons". The first two are
+# false REDs on a gate that runs immediately before a staging deploy; the third is coverage that
+# is silently smaller than the proof claims.
+
+# M1 — a conditional drop inside a `do $$ … $$` body must NOT be selectable, which is exactly
+# what the harness's own header already promises. Without dollar-quote awareness the `;` inside
+# the body ends a statement that has none: the selector reports `4-7:t_do_check`, comments the
+# opening half of the block out and leaves `end if; end $$;` orphaned, and t_do_check is an
+# object no database ever had — absent from fresh.txt so always selected, absent from the red
+# diff so step 6 reports "the broken conditional did NOT go red" and exits 1 on a healthy
+# migration. That is a false RED on the gate that runs just before a staging deploy.
+RM1="$T/m-dollar"
+( export MKREPO_GEN2_EXTRA="do \$\$
+begin
+  if to_regclass('public.t') is not null then
+    alter table t drop constraint if exists t_do_check;
+  end if;
+end \$\$;"
+  mkrepo "$RM1" )
+rm -rf "$T/db"; rm -rf "$T/out-m1"; mkdir -p "$T/out-m1"
+run "$RM1" "$T/out-m1" --prove; rc=$?
+M1SAB="$(tr '\n' ' ' < "$T/out-m1/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && ! grep -q "t_do_check" "$T/out-m1/red/sabotage.txt" 2>/dev/null \
+   && grep -qxF "002_catalog.sql:2-2:t_legacy_check:CONSTRAINT" "$T/out-m1/red/sabotage.txt" 2>/dev/null; then
+  ok "a conditional drop inside a dollar-quoted body is not selectable (rc=0)"
+else
+  bad "the DO block leaked into the selection (rc=$rc, got: $M1SAB)"
+fi
+
+# M2 — a `--` inside a string literal must not blank the rest of the line. It erased the literal's
+# own `;`, merging the insert into the conditional below it, so the harness commented out a
+# statement it had no business touching and reported a range that never existed.
+RM2="$T/m-literal"
+( export MKREPO_GEN2_EXTRA="insert into cfg values ('a -- b');
+alter table t drop constraint if exists t_str_check;"
+  mkrepo "$RM2" )
+rm -rf "$T/db"; rm -rf "$T/out-m2"; mkdir -p "$T/out-m2"
+run "$RM2" "$T/out-m2" --prove; rc=$?
+M2SAB="$(tr '\n' ' ' < "$T/out-m2/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -qxF "002_catalog.sql:5-5:t_str_check:CONSTRAINT" "$T/out-m2/red/sabotage.txt" 2>/dev/null; then
+  ok "a -- inside a string literal does not merge two statements (rc=0)"
+else
+  bad "the literal's -- swallowed the statement above it (rc=$rc, got: $M2SAB)"
+fi
+
+# M3 — the last statement in a file need not carry a terminator; psql runs it either way.
+# `while ($shadow =~ /;/g)` never fired for the tail, so such a conditional was invisible.
+RM3="$T/m-tail"
+( export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_tail_check"
+  mkrepo "$RM3" )
+rm -rf "$T/db"; rm -rf "$T/out-m3"; mkdir -p "$T/out-m3"
+run "$RM3" "$T/out-m3" --prove; rc=$?
+M3SAB="$(tr '\n' ' ' < "$T/out-m3/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -qxF "002_catalog.sql:4-4:t_tail_check:CONSTRAINT" "$T/out-m3/red/sabotage.txt" 2>/dev/null; then
+  ok "a final statement with no trailing semicolon is still selectable (rc=0)"
+else
+  bad "the unterminated tail statement was invisible to the selector (rc=$rc, got: $M3SAB)"
+fi
+
+echo "── N. the verdict names the class actually broken, not a fixed one"
+# The class field existed but nothing could tell it from a literal: with a CONSTRAINT-only fixture
+# and a `${SABOTAGED_KIND:-CONSTRAINT}` fallback, replacing the awk with SABOTAGED_KIND=CONSTRAINT
+# scored the same (#481 review). This baseline's only CI-unreachable conditional drops a POLICY,
+# so the two now differ — and a hardcoded CONSTRAINT is a false red before a staging deploy.
+RN="$T/n-policy"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN1_EXTRA="create policy t_legacy_pol on t for select using (true);"
+  export MKREPO_GEN2_EXTRA="drop policy if exists t_legacy_pol on t;"
+  mkrepo "$RN" )
+rm -rf "$T/db"; rm -rf "$T/out-n"; mkdir -p "$T/out-n"
+run "$RN" "$T/out-n" --prove; rc=$?
+NSAB="$(tr '\n' ' ' < "$T/out-n/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -qxF "002_catalog.sql:3-3:t_legacy_pol:POLICY" "$T/out-n/red/sabotage.txt" 2>/dev/null; then
+  ok "a policy-only baseline is proven exactly as a constraint one is (rc=0)"
+else
+  bad "the policy-only baseline did not prove (rc=$rc, got: $NSAB)"
+fi
+if printf '%s' "$LAST_OUT" | grep -q "names the POLICY facts"; then
+  ok "the --prove verdict asserts against POLICY, the class it actually broke"
+else
+  bad "the verdict did not adapt: $(printf '%s' "$LAST_OUT" | grep -E '^  (ok|FAIL) ' | tr '\n' ' ')"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

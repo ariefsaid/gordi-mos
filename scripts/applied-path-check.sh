@@ -303,23 +303,68 @@ while read -r v; do
       # empirically at step 5 — a wrong pick there stops the run rather than weakening the proof.
       grep -qF "|$ident|" "$OUT/fresh.txt" && continue
       lines="${lines}${lines:+,}${first}-${last}"
-      printf '%s:%s:%s:%s\n' "$(basename "$f")" "$first" "$ident" "$kind" >> "$OUT/red/sabotage.txt"
+      # The whole RANGE, not just its first line. A reader of red/sabotage.txt has to be able to
+      # reconstruct exactly what was commented out, and "line 2" for a statement that occupied
+      # lines 2-3 is a record of something that did not happen.
+      printf '%s:%s-%s:%s:%s\n' "$(basename "$f")" "$first" "$last" "$ident" "$kind" >> "$OUT/red/sabotage.txt"
     done < <(perl -0777 -ne '
-      my $shadow = $_; $shadow =~ s{--[^\n]*}{ " " x length($&) }ge;
+      my $shadow = $_;
+      my $n = length($shadow);
+      # ONE left-to-right lex, the way Postgres reads a file: whichever of a `--` comment, a
+      # string literal or a dollar-quoted body STARTS first owns its whole extent, and that
+      # extent is blanked to spaces — newlines kept, so line numbers stay true. Without it a
+      # `--` inside a literal erases the rest of the line and merges two statements, and a `;`
+      # inside a `do $$ … $$` body splits a statement that has none, which yields a phantom
+      # identifier that is in neither fresh.txt nor the red diff: a FALSE RED on the gate that
+      # runs immediately before a staging deploy (#472). The header above promises a DO block
+      # cannot be selected; this is what makes that true.
+      my $i = 0;
+      while ($i < $n) {
+        my $c = substr($shadow, $i, 1);
+        my $j;
+        if ($c eq "-" && substr($shadow, $i + 1, 1) eq "-") {
+          $j = index($shadow, "\n", $i); $j = $n if $j < 0;
+        } elsif ($c eq "\x27" || $c eq "\"") {
+          $j = $i + 1;
+          while ($j < $n) {
+            if (substr($shadow, $j, 1) ne $c) { $j++; next }
+            if (substr($shadow, $j + 1, 1) eq $c) { $j += 2; next }
+            $j++; last;
+          }
+          # a quoted IDENTIFIER is stepped over, never blanked: the selector still has to read
+          # its case, because Postgres keeps it and the fingerprint therefore does too.
+          if ($c eq "\"") { $i = $j; next }
+        } elsif ($c eq "\$" && substr($shadow, $i) =~ /^(\$\$|\$[A-Za-z_][A-Za-z0-9_]*\$)/) {
+          my $tag = $1;
+          $j = index($shadow, $tag, $i + length($tag));
+          $j = ($j < 0) ? $n : $j + length($tag);
+        } else { $i++; next }
+        my $seg = substr($shadow, $i, $j - $i); $seg =~ s/[^\n]/ /g;
+        substr($shadow, $i, $j - $i) = $seg;
+        $i = $j;
+      }
       my @at; my $ln = 1;
-      for my $i (0 .. length($shadow) - 1) { $at[$i] = $ln; $ln++ if substr($shadow, $i, 1) eq "\n"; }
-      my $start = 0;
+      for my $k (0 .. $n - 1) { $at[$k] = $ln; $ln++ if substr($shadow, $k, 1) eq "\n"; }
+      my @stmts; my $start = 0;
       while ($shadow =~ /;/g) {
-        my $end = pos($shadow) - 1;
-        my $stmt = substr($shadow, $start, $end - $start + 1);
-        if ($stmt =~ /drop\s+(constraint|policy)\s+if\s+exists\s+("[^"]+"|[^\s;]+)/i) {
-          my ($k, $raw) = (uc($1), $2);
-          my $id = $raw; my $quoted = ($raw =~ /^"/);
-          $id =~ s/^"//; $id =~ s/"$//; $id = lc($id) unless $quoted;
-          my $fs = $start; $fs++ while $fs < length($shadow) && substr($shadow, $fs, 1) =~ /\s/;
-          print $at[$fs], ":", $at[$end], ":", $id, ":", $k, "\n";
-        }
-        $start = $end + 1;
+        my $e = pos($shadow) - 1; push @stmts, [$start, $e]; $start = $e + 1;
+      }
+      # A file whose LAST statement carries no terminator is still a statement — psql runs it.
+      # Without this the tail is invisible, so a conditional drop written without a trailing
+      # semicolon could never be selected and the proof would silently cover less than it says.
+      if ($start < $n && substr($shadow, $start) =~ /\S/) {
+        my $e = $n - 1; $e-- while $e > $start && substr($shadow, $e, 1) =~ /\s/;
+        push @stmts, [$start, $e];
+      }
+      for my $s (@stmts) {
+        my ($st, $end) = @$s;
+        my $stmt = substr($shadow, $st, $end - $st + 1);
+        next unless $stmt =~ /drop\s+(constraint|policy)\s+if\s+exists\s+("[^"]+"|[^\s;]+)/i;
+        my ($k, $raw) = (uc($1), $2);
+        my $id = $raw; my $quoted = ($raw =~ /^"/);
+        $id =~ s/^"//; $id =~ s/"$//; $id = lc($id) unless $quoted;
+        my $fs = $st; $fs++ while $fs < $end && substr($shadow, $fs, 1) =~ /\s/;
+        print $at[$fs], ":", $at[$end], ":", $id, ":", $k, "\n";
       }
     ' "$f" || true)
     [ -n "$lines" ] || continue
