@@ -1,6 +1,6 @@
 -- Grouped ERP approval sessions (OD-WAY-76 / OD-WAY-76 owner ruling).
 -- DOWN (reverse dependency order; execute explicitly): revoke execute on function ops.approve_kitchen_logs(uuid[],text);
--- drop function ops.approve_kitchen_logs(uuid[],text); drop policy esb_push_groups_select_ops on integrations.esb_push_groups;
+-- drop function ops.approve_kitchen_logs(uuid[],text); drop policy esb_push_groups_select_ops_lead_or_admin on integrations.esb_push_groups; -- renamed by 20260825000001 (#467)
 -- revoke all on integrations.esb_push_groups from authenticated, service_role;
 -- drop trigger esb_push_groups_set_updated_at on integrations.esb_push_groups;
 -- drop index esb_push_push_group_idx; drop index kitchen_logs_push_group_idx;
