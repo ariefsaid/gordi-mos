@@ -1,9 +1,11 @@
-// useFollowUpRecordOpener — the intended ONE follow-up record-open grammar. Today only the Work
+// useFollowUpRecordOpener — the INTENDED one follow-up record-open grammar. Today only the Work
 // Tasks saved-view embed uses it; pages/follow-ups-page.tsx opens records through its own inline
-// aside instead (#428, deferred with the AR rebuild). Interaction D-A4 / JQ-4: a
-// follow-up row opens the SAME shared record host through the SAME overlay host, in ROUTE mode, so
-// every door behaves identically — never a bare <Link> page-jump from one door and a panel from
-// another. The Work record page is DELETED (DD-WAY-36, #369) — the record is panel-only, so the
+// aside instead (#428; the rebuild is deferred, OD-WAY-34). Interaction D-A4 / JQ-4: a follow-up
+// row opens the SAME shared record host through the SAME overlay host, in ROUTE mode, so that
+// every door on THIS hook behaves identically — never a bare <Link> page-jump from one door and a
+// panel from another. Until #428 lands that is an intent, not a fact: the Money page does not use
+// this hook at all — it opens the record in an inline aside on the page instead.
+// The Work record page is DELETED (DD-WAY-36, #369) — the record is panel-only, so the
 // entry carries no pageTo and the host chrome hides its Open-full-page button (OverlayHostSlot only
 // wires onOpenPage when pageTo exists). ROUTE mode pushes a real `__mosOverlay` history marker so
 // browser Back closes the panel and returns to the queue (D-A3), never ejecting the section.

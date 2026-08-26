@@ -222,9 +222,10 @@ export const messages = {
     'inbox.target.type.followUp': 'AR Follow-up',
     'inbox.help': 'Everything addressed to you — mentions, approvals, task assignments — lands here. Opening a row marks it read and takes you to the record it came from. Use Unread to see only what you haven’t looked at yet.',
     // NFR-300/FR-321 — phone card grammar + overdue prefix + catalog-resilience fallbacks.
-    // Ported for #192 (Tasks): renamed by v4 to "AR" (Follow-ups is scoped to Accounts
-    // Receivable — the Task follow-ups view embeds the SAME table via FollowUpQueueEmbed, so both
-    // consumers share this one key). follow-ups-page.test.tsx updated to match.
+    // Ported for #192 (Tasks): renamed by v4 to "AR". Both the Money page and the Task follow-ups
+    // view (FollowUpQueueEmbed) read this ONE key, so the KEY is genuinely shared. Their TABLES are
+    // not: the embed renders the shared FollowUpQueueTable, the page its own (#428).
+    // follow-ups-page.test.tsx updated to match.
     'followUps.title': 'AR Follow-up queue',
     'followUps.overdue': 'Overdue',
     'followUps.loading': 'Loading follow-ups…',

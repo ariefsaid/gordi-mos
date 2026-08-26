@@ -1,7 +1,8 @@
 // Money-inbox-alignment (Step 9) — Door 1: the Tasks saved-view `?view=followups`
 // chip renders the LIVE Follow-up queue once SHOW_FOLLOWUPS is on (AC-904),
 // using the shared useFollowUpQueue + FollowUpQueueTable pair (AC-907/AC-908).
-// The canonical FollowUpsPage does NOT share that pair — see #428. Flag-variant file — tasks-workspace.test.tsx keeps proving the
+// The Money page (FollowUpsPage) does NOT share that pair — it renders its own bespoke table
+// (#428). Flag-variant file — tasks-workspace.test.tsx keeps proving the
 // flag-off placeholder path (AC-311) unmocked/unchanged.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
