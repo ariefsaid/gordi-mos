@@ -130,7 +130,17 @@ FP_SQL="$REPO/scripts/lib/applied-path-fingerprint.sql"
 # check has no business copying around.
 extract_tree() {  # REF DEST
   mkdir -p "$2"
-  git archive "$1" supabase/config.toml supabase/migrations 'supabase/seed*.sql' | tar -x -C "$2" \
+  # `git archive` treats a pathspec matching NOTHING as fatal, so passing the seed glob blindly
+  # makes a baseline that predates any seed*.sql exit 2 with "could not extract" — a refusal that
+  # reads like a broken harness rather than a fine one (#472). Ask git what exists at that ref
+  # first and pass only what does.
+  local paths=(supabase/config.toml supabase/migrations)
+  local seeds
+  seeds="$(git ls-tree -r --name-only "$1" -- supabase 2>/dev/null | grep -E '^supabase/seed[^/]*\.sql$' || true)"
+  if [ -n "$seeds" ]; then
+    while IFS= read -r f; do [ -n "$f" ] && paths+=("$f"); done <<< "$seeds"
+  fi
+  git archive "$1" "${paths[@]}" | tar -x -C "$2" \
     || skip "could not extract supabase/ at $1"
   [ -d "$2/supabase/migrations" ] || skip "$1 has no supabase/migrations"
 }
@@ -180,6 +190,22 @@ done
 comm -13 <(versions_in "$BASE_TREE") <(versions_in "$HEAD_TREE") > "$OUT/pending-versions.txt"
 PENDING_N=$(grep -c . "$OUT/pending-versions.txt" || true)
 [ "$PENDING_N" -gt 0 ] || skip "no migration is pending against $BASELINE — move supabase/applied-path-baseline back to a commit that is actually deployed"
+
+# G2b: the baseline must be an ANCESTOR of HEAD, and must not have crept so far forward that the
+# check covers almost nothing (#472). Neither condition can be seen from a green run: a baseline
+# advanced one commit behind HEAD still passes G2 with a single pending migration, and reports
+# GREEN having proven nearly nothing. Coverage shrinking silently is the failure mode this catches.
+git merge-base --is-ancestor "$BASELINE_SHA" HEAD 2>/dev/null \
+  || skip "the baseline $BASELINE is not an ancestor of HEAD — it names a commit this branch never had, so 'the deployed database' is a fiction here"
+# Coverage shrink is a WARNING, not a refusal: an arbitrary floor would refuse to run on a repo
+# that legitimately has one pending migration. The defect the review named is that it shrinks
+# SILENTLY — so say it, loudly and in the artifact, and let the run proceed.
+THIN_COVERAGE=""
+MIN_PENDING="${APPLIED_PATH_MIN_PENDING:-2}"
+if [ "$PENDING_N" -lt "$MIN_PENDING" ]; then
+  THIN_COVERAGE="only $PENDING_N migration(s) pending against $BASELINE — this check now covers very little. If the baseline has crept forward, move it back to what is actually deployed."
+  printf '  ⚠ %s\n' "$THIN_COVERAGE" >&2
+fi
 
 echo "── applied-path check"
 say "repo      $(git rev-parse --short HEAD)"
@@ -252,14 +278,19 @@ while read -r v; do
     lines=""
     while IFS=: read -r no text; do
       # The object this statement drops. Only classes the fingerprint covers can be judged.
-      ident="$(printf '%s' "$text" | sed -n 's/.*[Ii][Ff][[:space:]]*[Ee][Xx][Ii][Ss][Tt][Ss][[:space:]]*\([^ ;]*\).*/\1/p')"
+      # Strip surrounding quotes: a quoted identifier is the same object as its bare form, but
+      # the fingerprint prints it bare — leaving the quotes on makes the fresh-fingerprint lookup
+      # miss, the statement look CI-unreachable, and the run abort at step 5 (#472).
+      ident="$(printf '%s' "$text" | sed -n 's/.*[Ii][Ff][[:space:]]*[Ee][Xx][Ii][Ss][Tt][Ss][[:space:]]*\([^ ;]*\).*/\1/p' | tr -d '\"')"
       [ -n "$ident" ] || continue
       # Unreachable by CI iff the object is absent from a freshly reset database. Confirmed
       # empirically at step 5 — a wrong pick there stops the run rather than weakening the proof.
       grep -qF "|$ident|" "$OUT/fresh.txt" && continue
       lines="${lines}${lines:+,}$no"
       printf '%s:%s:%s\n' "$(basename "$f")" "$no" "$ident" >> "$OUT/red/sabotage.txt"
-    done < <(grep -nE 'drop[[:space:]]+(constraint|policy)[[:space:]]+if[[:space:]]+exists' "$f" || true)
+    # -i: the ident sed is already case-insensitive, so a case-sensitive selector here made an
+    # uppercase DROP CONSTRAINT IF EXISTS silently unselectable — inconsistent, and invisible (#472).
+    done < <(grep -niE 'drop[[:space:]]+(constraint|policy)[[:space:]]+if[[:space:]]+exists' "$f" || true)
     [ -n "$lines" ] || continue
     LINES="$lines" perl -i -pe 'BEGIN{%L = map { $_ => 1 } split /,/, $ENV{LINES}} $_ = "-- [applied-path sabotage] " . $_ if $L{$.}' "$f"
   done
@@ -312,6 +343,9 @@ note "ok" "the green run converged and the mutation was invisible to a fresh res
   echo "| deployed baseline | \`$BASELINE_SHA\` |"
   echo "| pending migrations | $PENDING_N |"
   echo "| facts compared | $(head_of "$OUT/fresh.txt") |"
+  # The review's point was that thin coverage shrinks SILENTLY — so it goes in the artifact a
+  # reader downloads, not only in a stderr line nobody keeps.
+  [ -n "$THIN_COVERAGE" ] && echo "| ⚠ coverage | $THIN_COVERAGE |"
   echo
   echo "## GREEN — the real migrations"
   echo
