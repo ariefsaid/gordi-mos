@@ -233,10 +233,11 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
   // Admin Settings (gated) is the only Utility rail link now. Personal Profile moved into the
-  // UserChip menu in the footer below (owner, 2026-08-26) — which still satisfies the security
-  // audit's Rule 11 point, because the requirement was that /profile keep a RENDERED way in, not
-  // that it keep a rail row. `navUtility()` is the nav-surface list; `UTILITY` stays the resolution
-  // registry so the breadcrumb can still name /profile's owner.
+  // UserChip menu in the footer below (OD-WAY-64). The requirement that carried over is AC-013's —
+  // /profile keeps a RENDERED way in — not that it keeps a rail ROW; the spec line predates the
+  // ruling and the ruling supersedes it. NOT "Rule 11", which is component reuse and says nothing
+  // about /profile. `navUtility()` is the nav-surface list; `UTILITY` stays the resolution registry
+  // so the breadcrumb can still name /profile's owner.
   const liveUtility = navUtility(accessRoles)
   // F2 fix (grouped IA spine, OD-REDESIGN-1 + DESIGN.md Navigation/Rail — "Grouped items under
   // Overline group labels"): the rail shows YOUR work, grouped by BU (Retail Ops / B2B Ops),

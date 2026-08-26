@@ -285,10 +285,8 @@ export const UTILITY: Destination[] = [
  * The reachability guard (`nav-reachability.test.tsx`) opens the chip menu and counts its links,
  * so "moved into a menu" cannot quietly become "no way in" — the defect that file exists to catch.
  *
- * A function, not an exported const: `react-refresh/only-export-components` reads an UPPER_CASE
- * export whose initializer is a call (`UTILITY.filter(...)`) as an HOC-wrapped component, and then
- * flags every other export in the file. It also matches how this file already exposes filtered
- * views — `allModules`, `modulesByBU`, `visibleSections`.
+ * A function because it takes the viewer's roles, like every other filtered view this file exposes
+ * — `allModules`, `modulesByBU`, `visibleSections`.
  */
 export function navUtility(accessRoles: string[]): Destination[] {
   return UTILITY.filter((u) => u.id !== 'profile' && isLive(u, accessRoles))
