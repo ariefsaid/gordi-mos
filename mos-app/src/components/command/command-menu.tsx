@@ -5,12 +5,13 @@ import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
-import { can, canViewRevenue } from '@/lib/capabilities'
+import { canViewRevenue } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
-import { viewerAdmittedToRoute } from '@/shell/destinations'
+import { DESTINATIONS, viewerAdmittedToRoute } from '@/shell/destinations'
+import { visibleSections, type Section } from '@/shell/sections'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
-  HomeIcon, WorkIcon, SignalsIcon, TasksIcon, WorkLineIcon, ObjectiveIcon,
+  HomeIcon, WorkIcon, SignalsIcon, TasksIcon,
   MoneyIcon, InboxIcon, CafeIcon,
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
@@ -53,9 +54,33 @@ type CommandItem = {
   meta?: string
   gated?: boolean
   record?: { id: string; title: string }
+  /**
+   * This row is a CHILD of the destination above it (Work's declared children). Rendered as
+   * `data-child`, the palette's counterpart of the rail/drawer's `rail-item--child` rung class:
+   * every nav surface has to say which of its rows are children, or a guard comparing their
+   * sequences reads the Work PARENT row (`/work/tasks`, same target as the Tasks child) as a
+   * child too and the lists stop being comparable (issue 479).
+   */
+  child?: boolean
 }
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
+
+/**
+ * Work's children, read from the ONE declared sequence (issue 446, issue 479).
+ *
+ * The palette used to re-type this list — Work, Signals, then Projects & Processes, then
+ * Objectives — which was fine while every surface re-typed its own. Issue 446 made the desktop
+ * rail and the phone drawer both render `destinations.tsx`'s `children` array as declared, and
+ * left the palette as the last place the sequence existed twice: a third order, disagreeing with
+ * the other two, that the issue-446 guard could not see because it rendered only the rail and the
+ * drawer. Reading the array is what makes a re-sort impossible rather than merely currently-absent.
+ *
+ * Order only. Per-row VISIBILITY is unchanged and still comes from `visibleSections` (capability
+ * gate + ship gate) below — the same filter the rail and the drawer apply, so Projects & Processes
+ * stays behind `workline.manage` and a ship-gated child (Events) stays absent.
+ */
+const WORK_CHILDREN: readonly Section[] = DESTINATIONS.find((d) => d.id === 'work')?.children ?? []
 
 // OD-REDESIGN-91 #4/B2: the palette searches ALL record kinds now — Tasks + Signals +
 // AR Follow-ups — so a hit carries its kind (drives the row icon, route, and kind label).
@@ -110,17 +135,18 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
 
   const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
-  const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  // Memoized so it is referentially stable across renders: `navigateItems` derives Work's child
+  // rows from it, and a fresh `[]` on every render would defeat that memo.
+  const accessRoles = useMemo<string[]>(
+    () => (auth.status === 'authenticated' ? auth.viewer.accessRoles : []),
+    [auth],
+  )
   // DELIBERATE DIVERGENCE FROM v4: v4 gated this entry on finance|admin. On this line the /money
   // route and the rail entry are both gated on REVENUE_VIEW_ROLES (ADR-0051 D4 — manager holds the
   // financial VIEW tier, supervisor the revenue-only one), so v4's narrower gate would hide from
   // the palette a destination the rail offers and the router admits. One gate, read through the
   // same helper destinations.tsx and the router read.
   const moneyAuthorized = canViewRevenue(accessRoles)
-  // Step 8 (catalog re-home, FR-802/803): the Work manage-mode screens are capability-gated
-  // (90%-employee-first) and were only reachable from the desktop rail. Mirrors the existing
-  // Signals entry below — a Work child reachable via ⌘K, not the phone More menu.
-  const projectsAuthorized = can(accessRoles, 'workline.manage')
   // #407 — the floor's one-tap capture path. The Daily Log retirement (#226/#405) repointed
   // Home's capture CTA at /cafe/log, but on a component only the DEV-only fossil Home mounted —
   // the shipped shell offered no capture entry at all. The Actions group (and so the phone `+`
@@ -154,23 +180,30 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   const navigateItems = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [
       { id: 'n-home', label: t('dest.home'), Icon: HomeIcon, kind: 'navigate', to: '/' },
+      // The Work PARENT row, exactly as the rail draws it: labelled "Work", targeting the same
+      // canonical `/work/tasks`. It stays so that typing "work" still finds the section; the
+      // children below are the rows that carry the sequence.
       { id: 'n-work', label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: '/work/tasks' },
-      { id: 'n-signals', label: t('nav.signals'), Icon: SignalsIcon, kind: 'navigate', to: '/work/signals' },
     ]
-    if (projectsAuthorized) {
-      items.push({ id: 'n-projects', label: t('nav.work.projects'), Icon: WorkLineIcon, kind: 'navigate', to: '/work/projects' })
+    // Work's children, in DECLARED order, gated by the same filter the rail and the drawer use.
+    // Nothing here decides sequence or visibility — both are read (issue 479).
+    for (const c of visibleSections(WORK_CHILDREN, accessRoles)) {
+      items.push({
+        id: `n${c.path.replace(/\//g, '-')}`,
+        label: c.labelKey ? t(c.labelKey) : c.label,
+        Icon: c.Icon,
+        kind: 'navigate',
+        to: c.path,
+        child: true,
+      })
     }
-    // OD-V4-1 (owner-ratified 2026-07-27): Objectives are visible to everyone — this NAVIGATE
-    // command carries no capability gate, mirroring the destinations.tsx rail and the router
-    // (mos.objectives SELECT RLS has no role check). Write stays gated inside the page.
-    items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
     items.push(
       { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
       { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
       { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },
     )
     return items
-  }, [t, projectsAuthorized])
+  }, [t, accessRoles])
 
   const visibleNavigate = useMemo(
     () => navigateItems.filter((i) => !i.gated || moneyAuthorized),
@@ -378,6 +411,11 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         ref={(element) => { optionRefs.current[item.id] = element }}
                         role="option"
                         aria-selected={isActive}
+                        /* The row's target and its rung, exposed the way an <a> exposes `href`:
+                           the palette renders divs, so a nav-order guard has nothing else to read
+                           (issue 479). Presentation is unchanged — no styles hang off either. */
+                        data-to={item.to}
+                        data-child={item.child ? 'true' : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
                         onClick={() => activate(item)}
                         onMouseMove={() => {

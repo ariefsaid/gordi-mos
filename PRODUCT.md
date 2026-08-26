@@ -72,7 +72,10 @@ Three things a neighboring internal tool could not truthfully copy:
 - **Navigation is a two-zone rail** (ADR-0025 D1, which superseded the earlier five-destination IA):
   workspace roots **Home · Work · Signals · Money** *(role-gated)* **· Inbox**, then **Modules grouped
   by Business Unit** (Retail Ops → Café, Ecommerce; B2B Ops → Roastery), then utility (Admin,
-  Profile). Work carries four flat children: Signals · Tasks · Projects & Processes · Objectives.
+  Profile). Work declares five flat children, in this one order — **Tasks · Projects & Processes ·
+  Objectives · Signals · Events** — and every surface that lists them (desktop rail, phone drawer,
+  ⌘K palette) renders that declared order rather than one of its own. Events is currently held
+  behind the ship gate, so four of the five are visible today.
   There is no "Plan" and no "Operate" destination — Plan folded into Work, Operate into the module
   zone. Kitchen and Bar are one **Café** module because they are one operating workflow. Home is a
   role-aware cockpit. Modules are scoped to the viewer's own affiliation: *the rail shows your work,

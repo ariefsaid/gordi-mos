@@ -10,6 +10,11 @@
  * This file is the guard that the two can never disagree again. It renders BOTH surfaces for the
  * same viewer and compares the hrefs they emit, in document order, against the single declared
  * source — so a re-sort reintroduced on either side goes red here rather than in someone's hands.
+ *
+ * Issue 479 adds the THIRD surface. The ⌘K palette was left holding its own re-typed sequence
+ * (Work, Signals, Projects & Processes, Objectives) — and the reason it drifted unseen is exactly
+ * that this guard rendered the rail and the drawer only. A guard that covers two of three surfaces
+ * licenses the third to drift. All three render here now, from the one declared array.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -21,8 +26,14 @@ import { visibleSections } from './sections'
 import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
 
+// The palette's debounced record search is irrelevant to nav order and would reach for a real
+// Supabase client at import time; stub the three readers it fans out to.
+vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
+import { CommandMenu } from '@/components/command/command-menu'
 const mockUseAuth = vi.mocked(useAuth)
 
 const ACCESS_ROLES = ['admin']
@@ -69,6 +80,25 @@ function workChildHrefs(root: HTMLElement): string[] {
   ).map((a) => a.getAttribute('href') ?? '')
 }
 
+/**
+ * Every Work CHILD row the ⌘K palette emits, in document order.
+ *
+ * The palette renders `role="option"` divs, not anchors, so there is no href to read; each row
+ * carries its target as `data-to` and its rung as `data-child` — the palette's counterpart of the
+ * `rail-item--child` class, and needed for the same reason: the Work PARENT row targets
+ * `/work/tasks` too, so a target-only scan would read it as a fifth child and the three lists
+ * would stop being comparable.
+ */
+function paletteWorkChildTargets(root: HTMLElement): string[] {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>('[data-child="true"][data-to^="/work/"]'),
+  ).map((el) => el.getAttribute('data-to') ?? '')
+}
+
+function palette() {
+  return shell(<CommandMenu open onClose={vi.fn()} onShareSignal={vi.fn()} />)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
@@ -106,7 +136,12 @@ describe('Work children: one declared order, every surface (issue 446)', () => {
     expect(workChildHrefs(nav)).toEqual(declaredOrder)
   })
 
-  it('rail and drawer agree — the same five items in the same sequence', () => {
+  it('the ⌘K palette renders Work children in the declared order (issue 479)', () => {
+    const view = palette()
+    expect(paletteWorkChildTargets(view.container)).toEqual(declaredOrder)
+  })
+
+  it('rail, drawer and palette agree — the same items in the same sequence', () => {
     const rail = shell(<RailNav />)
     const railOrder = workChildHrefs(rail.container.querySelector('nav')!)
     rail.unmount()
@@ -114,6 +149,16 @@ describe('Work children: one declared order, every surface (issue 446)', () => {
     const drawerOrder = workChildHrefs(
       drawer.container.querySelector('nav[aria-label="More destinations"]')!,
     )
+    drawer.unmount()
+    const view = palette()
+    const paletteOrder = paletteWorkChildTargets(view.container)
+
+    // Compared pairwise rather than all-to-declared, so this stays a genuine cross-surface
+    // agreement check: it goes red when any ONE surface re-sorts, including a case where two
+    // surfaces drifted together.
     expect(drawerOrder).toEqual(railOrder)
+    expect(paletteOrder).toEqual(railOrder)
+    // …and none of the three is passing on an empty list.
+    expect(railOrder.length).toBeGreaterThan(1)
   })
 })
