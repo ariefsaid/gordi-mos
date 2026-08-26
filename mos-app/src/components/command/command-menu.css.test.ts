@@ -38,3 +38,74 @@ describe('AC-D02: command-menu group labels use the muted/tertiary ramp, not the
     expect(body).not.toMatch(/font-color-light|--text-light/)
   })
 })
+
+/**
+ * The palette is a FLAT list, and it lists the Work PARENT row ("Work" → /work/tasks) directly
+ * above the Tasks CHILD row (→ /work/tasks). Two adjacent rows, one target: if they render at one
+ * weight with one indent, the second row has no visible reason to exist. The rail and the drawer
+ * are spared this only because their children sit inside a drawn indent guide.
+ *
+ * DESIGN.md § The Rail Type Ladder binds the answer — "the ladder is per-level, not per-surface":
+ * a child wears the Child rung wherever it is listed. So `data-child` must actually carry that
+ * rung here, expressed in the shared grammar (type ramp + `--rail-*` geometry tokens) rather than
+ * in numbers minted for this one stylesheet.
+ *
+ * Asserted at the CSS SOURCE, like AC-D01/AC-D02 above: jsdom applies no stylesheet, so a
+ * rendered-DOM assertion here would pass against an empty rule.
+ */
+describe('the ⌘K palette carries the ladder Child rung on data-child rows', () => {
+  const childRule = '.cm-item[data-child=\'true\'] {'
+
+  it('a child row is indented behind the hairline guide, not merely padded', () => {
+    const body = ruleBody(childRule)
+    expect(body).toMatch(/margin-left:\s*var\(--rail-child-guide-x\)/)
+    expect(body).toMatch(/border-left:\s*var\(--rail-child-guide\)\s+solid\s+var\(--border\)/)
+    expect(body).toMatch(/padding-left:\s*var\(--rail-child-pad\)/)
+  })
+
+  it('a child label steps down in size AND colour', () => {
+    const body = ruleBody(childRule)
+    expect(body).toMatch(/font-size:\s*var\(--font-size-mono\)/)
+    expect(body).toMatch(/color:\s*var\(--muted-foreground\)/)
+  })
+
+  /**
+   * The rung's own defect, caught by measuring the render rather than by reading DESIGN.md:
+   * the ladder's Child weight (500) is a step DOWN from its Destination weight (600), but the
+   * palette's rows declare no weight at all (400). Importing the 500 alone made Tasks BOLDER
+   * than the Work row above it — the hierarchy inverted by the rule meant to state it.
+   *
+   * So the invariant is the RELATIONSHIP, not the number: a child is never heavier than the
+   * row it hangs under. Asserted against `.cm-item`'s own declared weight, so raising the
+   * palette's destination voice later stays free while re-introducing the inversion does not.
+   */
+  it('a child is never heavier than the destination row it hangs under', () => {
+    const weightOf = (selector: string): number => {
+      const m = /font-weight:\s*(\d+)/.exec(ruleBody(selector))
+      return m ? Number(m[1]) : 400 // undeclared === the initial value
+    }
+    const child = weightOf(childRule)
+    const parent = weightOf('.cm-item {')
+    expect(child, `child weight ${child} vs destination row ${parent}`).toBeLessThanOrEqual(parent)
+  })
+
+  it('the rung mints no colour or length of its own — every value is a shared token', () => {
+    const body = ruleBody(childRule)
+    expect(body, 'child rung declares a literal colour').not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/i)
+    expect(body, 'child rung declares a raw length').not.toMatch(/\d+(\.\d+)?(px|rem|em)\b/)
+  })
+
+  it('the child glyph steps down too, so glyph and label move together', () => {
+    expect(ruleBody('.cm-item[data-child=\'true\'] .cm-item-glyph svg {')).toMatch(
+      /width:\s*var\(--rail-icon-child\)/,
+    )
+  })
+
+  it('active outranks the rung on SPECIFICITY, not on source order', () => {
+    // The scar: two single-class rules on one element have no tie-break. `.cm-item.active` and
+    // `.cm-item[data-child]` are both (0,2,0), and the rung is declared after it — so without a
+    // COMPOUND rule an active child would keep the muted colour against the active background.
+    expect(css).toContain('.cm-item[data-child=\'true\'].active')
+    expect(ruleBody('.cm-item[data-child=\'true\'].active {')).toMatch(/color:\s*var\(--text-primary\)/)
+  })
+})

@@ -14,14 +14,18 @@ import {
  * DESTINATIONS — Redesign Step 2 (D-PLN-4). Three registries map 1:1 to the
  * convergence rail's three zones (Workspace / Modules / Utility):
  *
- *  - `DESTINATIONS` — the 5 workspace roots (Home · Work · Signals · Money · Inbox).
+ *  - `DESTINATIONS` — the 4 workspace roots (Home · Work · Money · Inbox).
  *    Used by the rail Workspace zone + the phone bottom-nav primary tabs.
+ *    Signals is declared as a CHILD of Work below, not as a root. Whether it
+ *    should be promoted to a root is open (issue 483) — this line states what
+ *    the array declares today, and settles nothing.
  *  - `MODULES`     — 2 BU groups (Retail Ops [Café, Ecommerce], B2B Ops [Roastery]).
  *  - `UTILITY`     — 2 entries (Admin Settings [gated admin], Personal Profile). Nav
  *    surfaces draw `navUtility()` (Admin only); Personal Profile lives in the UserChip menu.
  *
- * Work owns exactly 4 always-expanded children (Signals · Tasks · Projects &
- * Processes · Objectives) with 0 family headings (Rule 3 caps). Money is
+ * Work declares 5 always-expanded children, in this order — Tasks · Projects &
+ * Processes · Objectives · Signals · Events — with 0 family headings (Rule 3
+ * caps). Events is ship-gated (#348), so 4 of the 5 render today. Money is
  * anyOf-gated on REVENUE_VIEW_ROLES; Admin is anyOf-gated (admin) — absent, not
  * disabled, when unauthorized (Rule 9 parity, SALVAGE #8). `isLive` and
  * `destinationForPath` resolve across all three zones so the breadcrumb and
@@ -40,7 +44,7 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Always-expanded sub-links rendered beneath the entry (Work's 4; Café's 5). Undefined for a
+  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 5). Undefined for a
    *  destination whose root IS the whole surface. */
   children?: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).

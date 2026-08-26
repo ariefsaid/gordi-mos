@@ -413,7 +413,10 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         aria-selected={isActive}
                         /* The row's target and its rung, exposed the way an <a> exposes `href`:
                            the palette renders divs, so a nav-order guard has nothing else to read
-                           (issue 479). Presentation is unchanged — no styles hang off either. */
+                           (issue 479). `data-child` is also the STYLE hook for the ladder's Child
+                           rung (command-menu.css) — the flat list's only way to say that Tasks
+                           sits under Work rather than beside it. `data-to` is read by the guard
+                           only; nothing hangs off it. */
                         data-to={item.to}
                         data-child={item.child ? 'true' : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}

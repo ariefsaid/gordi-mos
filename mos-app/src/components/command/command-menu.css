@@ -119,6 +119,54 @@
   flex: none;
 }
 
+/* ── Child rung (DESIGN.md § The Rail Type Ladder) ──────────────────────────
+   The palette lists Work's PARENT row ("Work" → /work/tasks) and its Tasks CHILD row
+   (→ /work/tasks) back to back. The rail and the drawer can carry that pair because the
+   parent is a section header there and the children sit inside a drawn indent guide; the
+   palette is a FLAT list, so without a rung the two rows are indistinguishable — same
+   target, same weight, no reason for a second one to exist.
+
+   DESIGN.md is explicit that "the ladder is per-level, not per-surface": a child wears the
+   same rung wherever it is listed. So this is the ladder's Child rung — 13px
+   (`--font-size-mono`, the ramp's dense-compact step, not a monospace face) /
+   `muted-foreground`, 15px icon, indented behind the 1px `border` hairline guide — read
+   from the same type ramp and `--rail-*` geometry tokens the rail rules read. No value is
+   minted here.
+
+   `data-child` is the marker (the palette renders divs, so it has no class ladder of its
+   own; the same attribute the cross-surface order guard reads).
+
+   ONE part of the rung is deliberately NOT imported: its `font-weight: 500`. That number is
+   a step DOWN from the rail's Destination rung at 600; the palette's rows carry no weight of
+   their own (400), so copying the child's 500 in isolation would render Tasks HEAVIER than
+   the Work row above it and invert the very hierarchy this rule exists to state. Size, colour,
+   icon and indent carry the rung here, and a child is never bolder than its parent
+   (`command-menu.css.test.ts` holds that). Whether the palette's destination rows should take
+   the ladder's 600 is a separate question about the whole surface, not about children.
+
+   The left corners lose their radius so consecutive child rows' hairlines join into one
+   continuous guide instead of a dotted column of rounded stubs. */
+.cm-item[data-child='true'] {
+  margin-left: var(--rail-child-guide-x);
+  border-left: var(--rail-child-guide) solid var(--border);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: var(--rail-child-pad);
+  font-size: var(--font-size-mono);
+  color: var(--muted-foreground);
+}
+.cm-item[data-child='true'] .cm-item-glyph svg {
+  width: var(--rail-icon-child);
+  height: var(--rail-icon-child);
+}
+/* Active outranks the rung, and does it on SPECIFICITY (compound selector), never on source
+   order — two single-class rules on one element have no tie-break. Only the COLOUR returns to
+   primary: size, weight and indent state where the row sits in the tree, which selection does
+   not change. */
+.cm-item[data-child='true'].active {
+  color: var(--text-primary);
+}
+
 /* Skeleton row while records are loading. */
 .cm-skeleton {
   background: var(--surface-tertiary);
