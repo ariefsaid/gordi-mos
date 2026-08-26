@@ -1,5 +1,6 @@
-// FollowUpQueueEmbed — Door 1's mount point (Step 9, AC-904/907/908). Proves it
-// composes the SAME hook + table pair the canonical FollowUpsPage uses.
+// FollowUpQueueEmbed — Door 1's mount point (Step 9, AC-904/907/908). Proves it composes the
+// shared useFollowUpQueue + FollowUpQueueTable pair. NOT "the same pair the canonical
+// FollowUpsPage uses" — that page imports neither (#428).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'

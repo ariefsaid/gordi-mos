@@ -1,5 +1,6 @@
-// useFollowUpRecordOpener — the ONE follow-up record-open grammar, shared by every follow-up door
-// (the canonical FollowUpsPage and the Work Tasks saved-view embed). Interaction D-A4 / JQ-4: a
+// useFollowUpRecordOpener — the intended ONE follow-up record-open grammar. Today only the Work
+// Tasks saved-view embed uses it; pages/follow-ups-page.tsx opens records through its own inline
+// aside instead (#428, deferred with the AR rebuild). Interaction D-A4 / JQ-4: a
 // follow-up row opens the SAME shared record host through the SAME overlay host, in ROUTE mode, so
 // every door behaves identically — never a bare <Link> page-jump from one door and a panel from
 // another. The Work record page is DELETED (DD-WAY-36, #369) — the record is panel-only, so the
