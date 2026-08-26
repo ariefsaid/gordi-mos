@@ -6,6 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   EventsIcon, MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon,
+  LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
 export interface Section {
@@ -63,17 +64,23 @@ export const SECTIONS: Section[] = [
  * (longest) prefix match for any /cafe/* sub-route, so Opening never shadows Log/Plan/etc.
  */
 export const CAFE_SECTIONS: Section[] = [
+  // The module's own cup stays on Opening — that leaf IS the module's front door, and the rail
+  // draws it as the Café parent. The five working screens each carry their OWN minted mark
+  // (icons.tsx, issue 457 part 1): drawing CafeIcon five more times made the icon-only compact
+  // rail a column of identical cups told apart by tooltip alone, and #439 made the icon the sole
+  // rung carrier in that regime. Not borrowed marks — a borrowed one is either a live duplicate
+  // or a duplicate waiting for its twin to leave SHIP_GATED_PATHS.
   { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: CafeIcon },
-  { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: CafeIcon },
-  { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: CafeIcon },
-  { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: CafeIcon },
+  { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
+  { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
+  { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
   // branches). Same list in both places or the rail offers a link that bounces — or, as #236
   // shipped it, withholds a link to a surface the person is entitled to.
   // Review admits the stream supervisor (#236's FR-040 reviewer, wired through by #238);
   // Pushes is the dispatch surface and stays ops_lead/admin.
-  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: CafeIcon, anyOf: ['ops_lead', 'admin', 'supervisor'] },
-  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: CafeIcon, anyOf: ['ops_lead', 'admin'] },
+  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: ReviewIcon, anyOf: ['ops_lead', 'admin', 'supervisor'] },
+  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, anyOf: ['ops_lead', 'admin'] },
 ]
 
 /**
