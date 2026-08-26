@@ -65,32 +65,64 @@ if run; then bad "red python suite must refuse"; else ok "red python suite refus
 # Copy the pristine file: the red test was COMMITTED, so `git checkout --` would restore the
 # red version and these cases would silently be measuring the refusal instead.
 cp "$(pwd)/scripts/test_reporting_snapshot.py" "$tmp/repo/scripts/test_reporting_snapshot.py"
-printf 'node_modules/\n' > "$tmp/repo/.gitignore"
+# __pycache__ too: the battery runs the python suite, which writes a .pyc on every run. Committed
+# once by `git add -A`, it then re-dirties the worktree and the script refuses — which reads as
+# "skipped the install" unless reached_battery() is watching.
+printf 'node_modules/\n__pycache__/\n' > "$tmp/repo/.gitignore"
+rm -rf "$tmp/repo/scripts/__pycache__"
 git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "restore python suite, ignore node_modules"
 HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
 
 npm_log="$tmp/npm-argv.log"
-printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexit 0\n' "$npm_log" > "$tmp/bin/npm"
+# The stub MODELS npm rather than saying yes to everything. `ci` creates node_modules/.bin/tsc and
+# stamps .package-lock.json, exactly as a real install does; every `run` that needs a binary from
+# node_modules dies 127 without it. That is what makes ORDERING observable: a guard placed after
+# `npm run typecheck` cannot heal it, so case (a) goes red. The previous version exited 0
+# unconditionally, so moving the guard below typecheck — the bug fully restored — scored 12/12.
+cat > "$tmp/bin/npm" <<STUB
+#!/bin/sh
+printf '%s\n' "\$*" >> "$npm_log"
+case "\$1" in
+  ci)
+    mkdir -p node_modules/.bin
+    printf '#!/bin/sh\nexit 0\n' > node_modules/.bin/tsc
+    chmod +x node_modules/.bin/tsc
+    : > node_modules/.package-lock.json
+    exit 0 ;;
+  run)
+    if [ ! -x node_modules/.bin/tsc ]; then
+      echo "sh: tsc: command not found" >&2
+      exit 127
+    fi
+    exit 0 ;;
+esac
+exit 0
+STUB
 chmod +x "$tmp/bin/npm"
-installed() { grep -qx 'ci --no-audit --no-fund' "$npm_log"; }   # exact: --dry-run installs nothing
+installed()       { grep -qx 'ci --no-audit --no-fund' "$npm_log"; }   # exact: --dry-run installs nothing
 # A run that REFUSED (dirty worktree, red battery) also never installs, so "did not install" is
-# only meaningful once we know the run got as far as the battery. Without this, an untracked
-# file was enough to make the skip case pass for the wrong reason — it did, on the first try.
+# only meaningful once we know the run got as far as the battery.
 reached_battery() { grep -q '^run typecheck' "$npm_log"; }
 
-# (a) no node_modules at all — the fresh-worktree case.
+# The lockfile must be TRACKED before any of this: an untracked file makes the scratch worktree
+# dirty and the script refuses, which is indistinguishable from "skipped the install" unless
+# reached_battery() is watching. It caught exactly that while this was being written.
+: > "$tmp/repo/mos-app/package-lock.json"
+git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "add a lockfile" >/dev/null
+HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
+
+# (a) no node_modules at all — the fresh-worktree case, and the ordering case: the stub's
+#     typecheck dies 127 unless the install genuinely preceded it.
 rm -rf "$tmp/repo/mos-app/node_modules"; : > "$npm_log"; rm -f "$STAMP"; run
-if installed; then ok "installs when the worktree has no node_modules"
-else bad "verify still dies on a fresh worktree instead of installing"; fi
+if installed && [ -f "$STAMP" ]; then ok "installs on a fresh worktree, BEFORE the first command that needs it"
+else bad "verify still dies on a fresh worktree instead of installing (stamp=$([ -f "$STAMP" ] && echo yes || echo no))"; fi
 
 # (b) dependencies present and current — installing again would cost minutes for nothing.
 mkdir -p "$tmp/repo/mos-app/node_modules/.bin"
-: > "$tmp/repo/mos-app/package-lock.json"
-git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "add a lockfile" >/dev/null
 printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/mos-app/node_modules/.bin/tsc"
 chmod +x "$tmp/repo/mos-app/node_modules/.bin/tsc"
-# Explicit timestamps, not two bare touches: both would land in the same second and `-nt` would
-# be false either way, so the ordering these two cases turn on would not actually be established.
+# Explicit timestamps, not two bare touches: both would land in the same second and `-nt` would be
+# false either way, so the ordering these two cases turn on would not actually be established.
 touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
 touch "$tmp/repo/mos-app/node_modules/.package-lock.json"   # written by npm ci; newer = current
 : > "$npm_log"; rm -f "$STAMP"; run
@@ -98,26 +130,36 @@ if installed; then bad "re-installs when dependencies are already current"
 elif ! reached_battery; then bad "the skip case never reached the battery — it refused instead"
 else ok "skips the install when dependencies are current"; fi
 
-# (c) dependencies present but STALE — the rebase-across-a-dependency-change case, which is the
-# other half of what the guard's comment claims to cover and the half a tsc-existence test misses.
-touch -t 202001010000 "$tmp/repo/mos-app/node_modules/.package-lock.json"   # tree now older
-touch "$tmp/repo/mos-app/package-lock.json"                 # lockfile now newer than the tree
+# (c) present but STALE — the rebase-across-a-dependency-change case.
+touch -t 202001010000 "$tmp/repo/mos-app/node_modules/.package-lock.json"
+touch "$tmp/repo/mos-app/package-lock.json"
 : > "$npm_log"; rm -f "$STAMP"; run
 if installed; then ok "installs when node_modules is older than the lockfile"
 else bad "a stale node_modules is stamped green over a tree CI would not build"; fi
 
-# It must run BEFORE the first command that needs a binary from node_modules, or it heals nothing.
-# Anchored on the first `npm run` line rather than on typecheck by name, so reordering the battery
-# cannot leave this green while the install lands after the command that needed it.
-guard_at=$(grep -n 'npm ci' "$SCRIPT" | head -1 | cut -d: -f1)
-first_run=$(grep -n '^npm run ' "$SCRIPT" | head -1 | cut -d: -f1)
-if [ -z "$guard_at" ] || [ -z "$first_run" ]; then
-  bad "cannot locate the guard or the first npm run line (guard=${guard_at:-none} first=${first_run:-none})"
-elif [ "$guard_at" -lt "$first_run" ]; then
-  ok "the install runs before the first command that needs it"
-else
-  bad "the install runs too late to help"
-fi
+# (d) HALF-INSTALLED — node_modules exists and is current by date, but the binary is gone. This is
+#     the state the body claims the guard handles and the pre-commit hook does not; without this
+#     case, weakening the guard to `[ ! -d node_modules ]` scored 12/12.
+rm -f "$tmp/repo/mos-app/node_modules/.bin/tsc"
+touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
+touch "$tmp/repo/mos-app/node_modules/.package-lock.json"
+: > "$npm_log"; rm -f "$STAMP"; run
+if installed; then ok "installs when node_modules exists but its binaries do not"
+else bad "a half-installed node_modules is not healed — the guard is only testing the directory"; fi
+
+# (e) the install ITSELF fails. The body claims the self-heal cannot mask a red; that path was the
+#     one the harness never exercised, in a file whose whole point is that a green must have been
+#     able to be red.
+cat > "$tmp/bin/npm" <<STUB
+#!/bin/sh
+printf '%s\n' "\$*" >> "$npm_log"
+case "\$1" in ci) echo "npm ERR! lockfile out of sync" >&2; exit 1 ;; esac
+exit 0
+STUB
+chmod +x "$tmp/bin/npm"
+rm -rf "$tmp/repo/mos-app/node_modules"; : > "$npm_log"; rm -f "$STAMP"
+if run; then bad "a failing npm ci must sink the battery"; else ok "a failing npm ci refuses"; fi
+[ ! -f "$STAMP" ] && ok "no stamp after a failing install" || bad "stamp written despite a failing install"
 
 # Restore the plain stub for anything below.
 printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
