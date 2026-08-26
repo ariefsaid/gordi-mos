@@ -37,7 +37,7 @@
 -- isolates the role axis exactly.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(41);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -48,57 +48,115 @@ select ops._test_seed_cafe();
 -- Created here, as the owner, before any role is assumed. Both are pg_temp functions: they live for
 -- this transaction only and leave nothing behind for another test to trip over.
 --
--- check_literals() hands back every literal of a printed CHECK's `= ANY (ARRAY[...])`. Both sweeps
+-- check_literals() hands back the set of values a printed CHECK admits — or it RAISES. Both sweeps
 -- below are built on it, and so are the two fixture-coverage assertions: a fixture is only honest
 -- if it covers the whole set its CHECK admits, and neither set may be restated by hand here.
 --
--- IT MUST NOT BE ABLE TO DROP A NAME, and the version this replaces could. That one scanned the
--- printed constraint with `regexp_matches(..., '''([a-z_]+)''', 'g')`, so any name carrying a
--- digit, a hyphen or a capital — `b2b_lead`, `tier2`, `Auditor` — matched nothing and was silently
--- left out. A dropped name does not shorten the harvest into a visible mismatch: it leaves the
--- swept set exactly six long, so both sweeps below stayed GREEN while the vocabulary had in fact
--- grown. A sweep that can lose its own subject matter is worse than no sweep, because it is also a
--- standing claim that the subject matter was covered.
+-- IT MUST NOT BE ABLE TO RETURN A SHORT SET, and BOTH of the versions this replaces could.
+--   • The first scanned the printed constraint with `regexp_matches(..., '''([a-z_]+)''', 'g')`, so
+--     any name carrying a digit, a hyphen or a capital — `b2b_lead`, `tier2`, `Auditor` — matched
+--     nothing and was silently dropped.
+--   • The second lifted the array out with an UNANCHORED `substring(p_def from 'ARRAY\[(.*)\]')`.
+--     A CHECK that states its set as an array PLUS an extra disjunct — `... = ANY (ARRAY[…]) or
+--     value = 'auditor'` — harvested as just the array, and `auditor` was invisible.
+-- Neither failure shortens the harvest into a visible mismatch: the swept set stays exactly as long
+-- as the fixture expects, so both sweeps below read GREEN while the vocabulary had in fact grown. A
+-- sweep that can lose its own subject matter is worse than no sweep, because it is also a standing
+-- claim that the subject matter was covered.
 --
--- So nothing here decides what a name may look like. The array expression is lifted out WHOLE and
--- handed back to the parser that printed it — whatever Postgres wrote as a literal, Postgres reads
--- back, digits, hyphens, capitals and embedded quotes alike. There is no character class left to be
--- wrong about, and the round trip is exact by construction rather than by enumerating the cases
--- someone happened to think of.
+-- So the harvest is now pinned by TWO independent nets, and a value the domain admits has to get
+-- past BOTH of them to go unreported. Either one alone refuses the disjunct shape above.
 --
--- The only two outcomes are "every element of the array" and an EXCEPTION. If a constraint is ever
--- re-spelled into a shape this cannot lift — a regex, a subquery, a lookup table — this raises and
--- the file dies loudly. It cannot return a SHORT list, which is the one failure that goes unnoticed.
+--   NET 1 — SHAPE, ANCHORED AT BOTH ENDS. The whole printed definition must be, end to end, one
+--   `<subject> = ANY (ARRAY[…])` test and nothing besides. `^CHECK \(\(` and `\]\)\)\)$` pin the
+--   two ends, and `[^()]+` for the subject is what refuses a LEADING disjunct: an OR prints its
+--   own parentheses, and parentheses cannot appear there. There is no partial understanding
+--   available — a shape this does not match whole is a shape it raises on. A regex re-spelling, a
+--   function call, a subquery, an AND-narrowing, two arrays OR'd together: none of them match, and
+--   all of them raise.
+--
+--   NET 2 — LITERAL CENSUS, over the WHOLE definition. Every SQL string literal written anywhere in
+--   the text is scanned out (quote-aware, so `''` inside a literal is read as one quote and no
+--   character class decides what a name may contain), and that census must equal the set lifted out
+--   of the array EXACTLY. A value admitted from outside the array — the `auditor` disjunct — is
+--   spelled in the definition but missing from the lift, and the two sets disagree. Net 2 needs no
+--   grammar at all: it only asks whether the harvest accounted for every name the constraint names.
+--
+-- Between the lift and the two nets, nothing here decides what a name may LOOK like. The array
+-- expression is handed back WHOLE to the parser that printed it — whatever Postgres wrote as a
+-- literal, Postgres reads back, digits, hyphens, capitals and embedded quotes alike. The round trip
+-- is exact by construction rather than by enumerating the cases someone happened to think of.
+--
+-- The only two outcomes are "every value the constraint admits" and an EXCEPTION. Section H at the
+-- foot of this file holds that contract as assertions rather than as this comment: the two disjunct
+-- shapes, the regex re-spelling and the two-array shape are each fed in by hand and each must
+-- raise, and a positive control proves the harvest is not simply a function that always raises.
 create function pg_temp.check_literals(p_def text) returns setof text
-language plpgsql stable as $$
+language plpgsql stable as $fn$
 declare
-  v_array_expr text := substring(p_def from 'ARRAY\[(.*)\]');
-  v_literal    text;
+  v_array  text;
+  v_lifted text[];
+  v_census text[];
 begin
-  if v_array_expr is null then
+  -- NET 1 — shape, anchored at both ends.
+  v_array := substring(p_def from '^CHECK \(\([^()]+ = ANY \(ARRAY\[(.*)\]\)\)\)$');
+  if v_array is null then
     raise exception
-      'check_literals(): this constraint no longer states its set as an array of literals, so it '
-      'cannot be harvested: %. Re-teach the harvest before trusting any sweep that runs on it.',
-      p_def;
+      'check_literals(): refuses this constraint. It is not, end to end, a single '
+      '`<subject> = ANY (ARRAY[...])` test, so the set it admits cannot be read off it, and a '
+      'partial reading would be a SHORT set that passes: %. Re-teach the harvest before trusting '
+      'any sweep that runs on it.', p_def;
   end if;
-  -- Postgres parses back what Postgres printed. An expression this cannot evaluate raises here
+
+  -- The values, from the parser that printed them. An expression this cannot evaluate raises here
   -- rather than yielding a shorter list.
-  for v_literal in execute format('select unnest(array[%s])::text', v_array_expr) loop
-    return next v_literal;
-  end loop;
-end $$;
+  execute format(
+    'select array_agg(x order by x) from (select distinct v::text as x from unnest(array[%s]) v) s',
+    v_array) into v_lifted;
+
+  if v_lifted is null or cardinality(v_lifted) = 0 then
+    raise exception
+      'check_literals(): harvested an EMPTY set, and an empty sweep passes: %', p_def;
+  end if;
+
+  -- NET 2 — literal census over the whole definition, quote-aware.
+  select array_agg(x order by x) into v_census
+    from (select distinct replace(m[1], $q$''$q$, $q$'$q$) as x
+            from regexp_matches(p_def, $rx$'((?:[^']|'')*)'$rx$, 'g') m) s;
+
+  if v_lifted is distinct from v_census then
+    raise exception
+      'check_literals(): refuses this constraint. The values it admits (%) are not the whole set '
+      'of literals spelled in it (%), so at least one admitted value sits outside the array this '
+      'harvest reads: %', v_lifted, v_census, p_def;
+  end if;
+
+  return query select unnest(v_lifted);
+end $fn$;
 
 -- access_role_vocabulary() reads the access-role set out of the shared.access_role domain's own
 -- CHECK rather than restating it here. #216 put that set in ONE place precisely because it grows —
 -- it has grown twice already — and a sweep carrying its own copy of the list would go stale in
 -- exactly the way a hand-written persona matrix does. A domain with no CHECK at all would harvest
 -- to nothing and sweep nothing, which passes, so that case raises too.
+--
+-- AND THEN IT ASKS THE DOMAIN. Everything above this point reads TEXT that Postgres printed; the
+-- last step hands each harvested name back to the live domain as a cast and requires the domain to
+-- accept it. That is the database answering for itself, and it cannot be misparsed the way a
+-- printed constraint can. It is a cross-check on the reading, not a second source for the set:
+-- a disagreement raises. Its own direction is proven live by the sentinel in section H, without
+-- which "the domain accepts every name we reported" would be satisfied by a domain that accepts
+-- everything.
+--
+-- A domain constraint can only ever NARROW what the domain admits (multiple CHECKs are ANDed), so
+-- taking the union across them cannot under-report; the loop is a superset by construction.
 create function pg_temp.access_role_vocabulary() returns setof text
-language plpgsql stable as $$
+language plpgsql stable as $fn$
 declare
-  v_def  text;
-  v_seen int := 0;
-  v_role text;
+  v_def   text;
+  v_seen  int := 0;
+  v_roles text[] := '{}';
+  v_role  text;
 begin
   for v_def in
     select pg_get_constraintdef(c.oid)
@@ -106,16 +164,28 @@ begin
      where c.contypid = 'shared.access_role'::regtype
   loop
     v_seen := v_seen + 1;
-    for v_role in select * from pg_temp.check_literals(v_def) loop
-      return next v_role;
-    end loop;
+    v_roles := v_roles || (select array_agg(s) from pg_temp.check_literals(v_def) s);
   end loop;
+
   if v_seen = 0 then
     raise exception
       'access_role_vocabulary(): shared.access_role carries no CHECK constraint — there is no '
       'vocabulary to sweep, and an empty sweep would pass.';
   end if;
-end $$;
+
+  foreach v_role in array v_roles loop
+    begin
+      perform cast(v_role as shared.access_role);
+    exception when others then
+      raise exception
+        'access_role_vocabulary(): the harvest reported %, which the live shared.access_role '
+        'domain itself REJECTS — the printed constraint and the domain disagree, and the set '
+        'swept below would be a reading of neither.', v_role;
+    end;
+  end loop;
+
+  return query select unnest(v_roles);
+end $fn$;
 
 -- reads_as() answers "how many rows of p_rel does a session claiming exactly p_role see?".
 -- SECURITY INVOKER, so the number is the CALLING session's count under RLS and not the owner's.
@@ -443,6 +513,17 @@ select is(
   array['admin=5','finance=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
   'esb_push_groups_select_ops_lead_or_admin admits EXACTLY ops_lead and admin out of the whole access-role vocabulary — every other role the domain allows reads zero approval groups');
 
+-- ...and this sweep put the caller's claim back too, proven the same way D8's is. The restore is
+-- what makes a sweep invisible to whatever follows it, and `order by v.role` orders the sweep's
+-- RESULTS, not the order the aggregate CALLS reads_as() in — so which claim would be left behind
+-- is not even determined, and only an assertion can settle whether one is. Asserted at BOTH sweep
+-- sites deliberately: an invariant proven at one call site is an invariant the other is free to
+-- break.
+select is(
+  current_setting('request.jwt.claims', true),
+  '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}',
+  'the group-table role sweep restores the caller''s claim as well: request.jwt.claims still holds the session that was in force before it');
+
 reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -473,6 +554,64 @@ select ok(not has_function_privilege('authenticated','integrations.current_esb_t
 
 select is(integrations.current_esb_target_env(), 'dry_run',
   'FR-080: with no GUC set the target environment is dry_run — the default is the safe one, not the live one');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- H. The harvest's own contract — the sweeps' foundation, tested rather than described
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- Every sweep above rests on check_literals() answering "what does this CHECK admit?" honestly, and
+-- the ONE answer it must never give is a SHORT SET: a short set does not fail anything, it just
+-- narrows what got swept while every count still matches. That defect shipped twice — first as a
+-- character class that dropped any name with a digit, a hyphen or a capital, then as an unanchored
+-- array lift that dropped any value stated outside the array. Both read as green.
+--
+-- So the contract is pinned here, on constraint text handed in BY HAND. Nothing below alters the
+-- live domain: these are strings, and the assertions are about the function, which is why they can
+-- sit at the foot of the file without disturbing the numbering of anything above.
+--
+-- H1 and H2 are the shape that shipped green in the last round, in both of the orders Postgres
+-- prints it. H3 is a set the harvest cannot read at all. H4 is the shape that would have to defeat
+-- the anchor for a greedy lift to succeed. H5 reaches past the shape net to exercise the census net
+-- on its own — that definition IS a single `= ANY (ARRAY[…])` test, so net 1 admits it, and only
+-- the census notices that the value it admits (`bc`) is not the set of names it spells.
+-- H6 is the positive control, and it is what makes H1–H5 mean anything: without it, a harvest that
+-- raised on absolutely everything would satisfy all five.
+select throws_like(
+  $q$select * from pg_temp.check_literals('CHECK (((VALUE = ANY (ARRAY[''admin''::text, ''ops_lead''::text])) OR (VALUE = ''auditor''::text)))')$q$,
+  '%refuses this constraint%',
+  'H1 the harvest REFUSES a CHECK stating its set as an array plus a TRAILING disjunct — the exact shape whose extra role was silently dropped, leaving both sweeps green');
+
+select throws_like(
+  $q$select * from pg_temp.check_literals('CHECK (((VALUE = ''auditor''::text) OR (VALUE = ANY (ARRAY[''admin''::text, ''ops_lead''::text]))))')$q$,
+  '%refuses this constraint%',
+  'H2 ...and with the extra disjunct LEADING, so the refusal is anchored at both ends and not just at the tail');
+
+select throws_like(
+  $q$select * from pg_temp.check_literals('CHECK ((VALUE ~ ''^(admin|ops_lead)$''::text))')$q$,
+  '%refuses this constraint%',
+  'H3 a constraint re-spelled as a regex RAISES rather than harvesting short: a set this cannot read is a set it refuses to guess at');
+
+select throws_like(
+  $q$select * from pg_temp.check_literals('CHECK (((VALUE = ANY (ARRAY[''a''::text])) OR (VALUE = ANY (ARRAY[''b''::text]))))')$q$,
+  '%refuses this constraint%',
+  'H4 two arrays OR''d together RAISE — the shape a lift anchored only at the tail would have swallowed whole, reporting the first array and losing the second');
+
+select throws_like(
+  $q$select * from pg_temp.check_literals('CHECK ((VALUE = ANY (ARRAY[''a''::text, (''b''::text || ''c''::text)])))')$q$,
+  '%are not the whole set of literals spelled in it%',
+  'H5 the literal census refuses a definition whose admitted values do not account for every name written in it — the second net, failing on its own where the shape net admitted the text');
+
+select is(
+  (select array_agg(s order by s collate "C")
+     from pg_temp.check_literals('CHECK ((VALUE = ANY (ARRAY[''b2b_lead''::text, ''tier-2''::text, ''Auditor''::text])))') s),
+  array['Auditor','b2b_lead','tier-2']::text[],
+  'H6 and it harvests a set whose names carry a digit, a hyphen and a capital EXACTLY — so the five refusals above are a harvest that discriminates, not one that always raises');
+
+-- The domain-probe cross-check in access_role_vocabulary() requires the live domain to accept every
+-- name the harvest reported. That requirement is only worth making if the domain can refuse, so:
+select throws_ok(
+  $q$select 'no_such_role_h7'::shared.access_role$q$,
+  '23514'::char(5), null,
+  'H7 shared.access_role REJECTS a name outside its vocabulary — so the domain probe above is a live check and not a cast that accepts anything handed to it');
 
 select * from finish();
 rollback;
