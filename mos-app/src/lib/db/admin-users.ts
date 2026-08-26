@@ -426,7 +426,13 @@ export async function setPrimaryTeam(personId: string, teamId: string): Promise<
     .update({ is_primary: true })
     .eq('person_id', personId)
     .eq('team_id', teamId)
+    // The SAME three clauses the read uses and the two gate functions carry. Tightening the read
+    // to three while leaving this at two is the inverted silent no-op: a not-yet-started row would
+    // be set primary successfully and then render as no home team at all. Unreachable through this
+    // UI — nothing sends effective_from — but a write guard looser than the read that judges it is
+    // the asymmetry this whole slice exists to remove.
     .is('effective_to', null)
+    .lte('effective_from', new Date().toISOString().slice(0, 10))
     .select('id')
   if (error) throw surface('set home team', error)
   if ((data ?? []).length === 0) {

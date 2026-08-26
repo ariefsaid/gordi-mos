@@ -46,6 +46,7 @@ function makeSharedSchema(tableResponses: Record<string, { data: unknown; error:
     // listAdminPeople reads team memberships with the GATES definition of live
     // (effective_to is null OR >= today), which PostgREST expresses as .or()
     builder.or = vi.fn(() => builder)
+    builder.lte = vi.fn(() => builder)
     builder.order = vi.fn(() => builder)
     builder.eq = vi.fn(() => builder)
     builder.in = vi.fn(() => builder)
@@ -631,6 +632,20 @@ describe('Team wrappers', () => {
     expect(clear.eq).toHaveBeenCalledWith('person_id', 'p1')
     expect(set.eq).toHaveBeenCalledWith('person_id', 'p1')
     expect(set.eq).toHaveBeenCalledWith('team_id', 't2')
+  })
+
+  it('setPrimaryTeam scopes its set to a membership that can actually BE the home team', async () => {
+    const schemaObj = makeSharedSchema({ team_memberships: { data: [{ id: 'm1' }], error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await setPrimaryTeam('p1', 't2')
+    const set = schemaObj.from.mock.results[1].value as {
+      is: ReturnType<typeof vi.fn>; lte: ReturnType<typeof vi.fn>
+    }
+    // Three clauses, matching the read and both gate functions. A write guard looser than the
+    // read that judges it sets a primary the screen then reports as no home team at all.
+    expect(set.is).toHaveBeenCalledWith('effective_to', null)
+    expect(set.lte).toHaveBeenCalledWith('effective_from', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
   })
 
   it('setPrimaryTeam refuses loudly when the target membership cannot be the home team', async () => {
