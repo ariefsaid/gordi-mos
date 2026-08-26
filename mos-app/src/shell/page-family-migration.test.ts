@@ -96,6 +96,30 @@ describe('issue 270 — the registry describes the pages that really render the 
     expect(paths).not.toContain('/work/follow-ups/:id')
   })
 
+  it('follow-ups still has TWO renderers — the marker #428 deletes when it lands', () => {
+    // A known-divergence marker, not a behaviour guard, and it is here because the divergence was
+    // rediscovered FOUR times: comments across ten sites asserted it away, and each reader believed
+    // them. A comment can be wrong forever; this cannot.
+    //
+    // The divergence: the Tasks embed composes useFollowUpQueue + FollowUpQueueTable +
+    // useFollowUpRecordOpener, and this page composes none of them — so the same record opens
+    // through the shared overlay from one door and a bespoke inline aside from the other.
+    //
+    // IF THIS FAILS BECAUSE THE PAGE GAINED THE SHARED TRIO, THAT IS THE CUTOVER (#428): delete
+    // this case and the ten comments it anchors, which all say "not yet". Deliberate edit, not
+    // silent drift — the same contract as the frame exclusion above.
+    //
+    // Why not lean on consistency.regression.test.tsx RI-IXD-8, which was proposed instead:
+    // checked by mutation, the cutover does turn it red — but the SAME cutover with one residual
+    // data-table import left behind scores 39/39 green with the divergence entirely gone. It pins
+    // direct-import composition, not the divergence, and its message would report a move TOWARD
+    // sharing as a regression away from it.
+    const src = readFileSync(join(SRC, 'pages/follow-ups-page.tsx'), 'utf8')
+    for (const shared of ['useFollowUpQueue', 'FollowUpQueueTable', 'useFollowUpRecordOpener']) {
+      expect(src).not.toContain(shared)
+    }
+  })
+
   it('no path is registered twice', () => {
     const paths = PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path)
     expect(paths).toEqual([...new Set(paths)])
