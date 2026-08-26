@@ -36,16 +36,20 @@ set -euo pipefail
 S="$FAKE_DB"; mkdir -p "$S"; : >> "$S/cons"; : >> "$S/versions"
 apply() {
   local f="$1" v; v="$(basename "$f" | sed -n 's/^\([0-9][0-9]*\)_.*/\1/p')"
-  local line n
+  local line n lc
   while IFS= read -r line; do
-    case "$line" in
+    # Postgres folds unquoted keywords and identifiers; a stub that only recognises lowercase SQL
+    # models a database that does not exist, and would make an uppercase fixture test the STUB
+    # rather than the harness (#475 review). Match on a folded copy, extract from the original.
+    lc="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+    case "$lc" in
       "--"*) continue ;;   # a commented-out statement is not a statement
       *"drop constraint if exists"*)
-        n="$(printf '%s' "$line" | sed -n 's/.*if exists \([^ ;]*\).*/\1/p')"
+        n="$(printf '%s' "$lc" | sed -n 's/.*if exists \([^ ;]*\).*/\1/p' | tr -d '"')"
         grep -vxF "$n" "$S/cons" > "$S/cons.tmp" 2>/dev/null || : > "$S/cons.tmp"
         mv "$S/cons.tmp" "$S/cons" ;;
       *"add constraint"*)
-        n="$(printf '%s' "$line" | sed -n 's/.*add constraint \([^ ;]*\).*/\1/p')"
+        n="$(printf '%s' "$lc" | sed -n 's/.*add constraint \([^ ;]*\).*/\1/p' | tr -d '"')"
         grep -qxF "$n" "$S/cons" || echo "$n" >> "$S/cons" ;;
     esac
   done < "$f"
@@ -143,6 +147,7 @@ run() {  # run REPO_DIR OUT_DIR [args…] -> exit code, output in $LAST_OUT
 echo "── A. the real shape: the applied path converges"
 R="$T/good"; mkrepo "$R"
 rm -rf "$T/db"; run "$R" "$T/out-a"; rc=$?
+LAST_OUT_A="$LAST_OUT"   # kept for section K2: later runs overwrite LAST_OUT
 eq "exits 0 when a migrated database matches a fresh one" "$rc" "0"
 [ -s "$T/out-a/fresh.txt" ] && [ -s "$T/out-a/migrated.txt" ] \
   && ok "wrote both fingerprints" || bad "fingerprints missing"
@@ -296,6 +301,107 @@ rm -rf "$T/db"; rm -rf "$T/out-j6"; mkdir -p "$T/out-j6"
 STUB_DROP_KIND=POLICY run "$R10" "$T/out-j6"; rc=$?
 [ "$rc" = "2" ] && ok "G6 refuses when a whole fact class vanished from the fingerprint (rc=2)" \
   || bad "G6 did not refuse a fingerprint missing a fact class (rc=$rc)"
+
+echo "── K. the guards THIS PR added must themselves be visible to this suite"
+# The review of PR #475 proved every change in it was invisible here: reverting the whole diff
+# still scored 25/25. That is the defect the file exists to prevent, so each new behaviour now
+# has a case that fails when the behaviour is removed.
+
+# K1 — the baseline must be an ancestor of HEAD (G2b). An unrelated commit makes "the deployed
+# database" a fiction; before this guard the run proceeded and compared against nonsense.
+RK1="$T/k-ancestor"; mkrepo "$RK1"
+( cd "$RK1" \
+  && git checkout -q --orphan stray && git commit -q --allow-empty -m stray \
+  && stray_sha="$(git rev-parse HEAD)" \
+  && git checkout -q - \
+  && printf '%s\n' "$stray_sha" > supabase/applied-path-baseline ) 2>/dev/null
+rm -rf "$T/db"; rm -rf "$T/out-k1"; mkdir -p "$T/out-k1"
+run "$RK1" "$T/out-k1"; rc=$?
+if [ "$rc" = "2" ] && printf '%s' "$LAST_OUT" | grep -q "not an ancestor"; then
+  ok "G2b refuses a baseline that is not an ancestor of HEAD (rc=2)"
+else
+  bad "G2b did not refuse a non-ancestor baseline (rc=$rc)"
+fi
+
+# K2 — thin coverage must be SAID, in the run and in the artifact. The fixture carries one
+# pending migration, so the warning fires on every ordinary run of this suite.
+if printf '%s' "$LAST_OUT_A" | grep -qi "covers very little" \
+   && grep -qi "coverage" "$T/out-a/SUMMARY.md" 2>/dev/null; then
+  ok "thin coverage is stated in the run AND in SUMMARY.md"
+else
+  bad "thin coverage was not surfaced in both the run and the artifact"
+fi
+
+# K3 — an UPPERCASE conditional is selectable, and its identifier is folded to match the
+# fingerprint. Before this PR the selector missed it; with -i but no folding it was selected and
+# then aborted the run at step 5 — worse than missing it.
+RK3="$T/k-upper"; mkrepo "$RK3"
+perl -0pi -e 's/drop constraint if exists t_legacy_check/DROP CONSTRAINT IF EXISTS T_LEGACY_CHECK/' \
+  "$RK3/supabase/migrations/002_catalog.sql"
+( cd "$RK3" && git add -A && git -c user.email=t@t -c user.name=t commit -qm upper >/dev/null )
+rm -rf "$T/db"; rm -rf "$T/out-k3"; mkdir -p "$T/out-k3"
+run "$RK3" "$T/out-k3" --prove; rc=$?
+if [ "$rc" = "0" ] && grep -qi "t_legacy_check" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
+  ok "an uppercase conditional is selected and its identifier folded (rc=0)"
+else
+  bad "uppercase conditional not handled (rc=$rc)"
+fi
+
+# K4 — the sabotage record carries the object CLASS, so the --prove verdict asserts against the
+# class actually broken. The previous attempt grepped a file nothing writes and always said
+# CONSTRAINT; a policy-only baseline would then have produced a false red.
+if awk -F: 'NF>=4 {found=1} END {exit !found}' "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
+  ok "the sabotage record names the object class it broke"
+else
+  bad "sabotage.txt carries no class field — the verdict cannot adapt"
+fi
+
+# K5 — a commented-out conditional is never counted as a mutation.
+RK5="$T/k-comment"; mkrepo "$RK5"
+perl -0pi -e 's/^(alter table t drop constraint if exists t_legacy_check;)/-- DROP CONSTRAINT IF EXISTS t_ghost_check;\n$1/m' \
+  "$RK5/supabase/migrations/002_catalog.sql"
+( cd "$RK5" && git add -A && git -c user.email=t@t -c user.name=t commit -qm comment >/dev/null )
+rm -rf "$T/db"; rm -rf "$T/out-k5"; mkdir -p "$T/out-k5"
+run "$RK5" "$T/out-k5" --prove >/dev/null 2>&1
+if ! grep -qi "t_ghost_check" "$T/out-k5/red/sabotage.txt" 2>/dev/null; then
+  ok "a commented-out conditional is not recorded as a mutation"
+else
+  bad "a comment was recorded in the evidence artifact as a real mutation"
+fi
+
+# K6 — a baseline carrying NO seed file extracts cleanly instead of dying on the glob.
+RK6="$T/k-seedless"; mkrepo "$RK6"
+( cd "$RK6" && git rm -q --cached supabase/seed.sql >/dev/null 2>&1; rm -f supabase/seed.sql; \
+  git add -A && git -c user.email=t@t -c user.name=t commit -qm seedless >/dev/null ) 2>/dev/null
+rm -rf "$T/db"; rm -rf "$T/out-k6"; mkdir -p "$T/out-k6"
+run "$RK6" "$T/out-k6"; rc=$?
+if [ "$rc" != "2" ] || ! printf '%s' "$LAST_OUT" | grep -q "could not extract"; then
+  ok "a seedless baseline does not die on the seed glob (rc=$rc)"
+else
+  bad "a seedless baseline still dies on the seed pathspec"
+fi
+
+echo "── L. a conditional split across lines is commented out WHOLE"
+# The line-granular selector commented out only the matching line, leaving an orphaned
+# `alter table t` prefix — which surfaces as "migration up failed" instead of a diagnosis (#472).
+RL="$T/l-multiline"; mkrepo "$RL"
+perl -0pi -e "s/^alter table t drop constraint if exists t_legacy_check;/alter table t\n  drop constraint if exists t_legacy_check;/m" \
+  "$RL/supabase/migrations/002_catalog.sql"
+( cd "$RL" && git add -A && git -c user.email=t@t -c user.name=t commit -qm multiline >/dev/null )
+rm -rf "$T/db"; rm -rf "$T/out-l"; mkdir -p "$T/out-l"
+run "$RL" "$T/out-l" --prove; rc=$?
+if [ "$rc" = "0" ]; then
+  ok "a statement spanning two lines is sabotaged whole (rc=0)"
+else
+  bad "a multi-line conditional broke the run (rc=$rc) — orphaned prefix"
+fi
+
+# L2 — and the evidence artifact must not claim a mutation on a line it did not change.
+if [ -f "$T/out-l/red/sabotage.txt" ] && awk -F: 'NF>=4' "$T/out-l/red/sabotage.txt" | grep -q "t_legacy_check"; then
+  ok "the multi-line statement is recorded with its identifier and class"
+else
+  bad "the multi-line statement was not recorded properly"
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

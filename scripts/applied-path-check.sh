@@ -258,6 +258,22 @@ rm -f "$OUT/drift.diff"
 # The trap restores; leaving it armed costs one reset and removes a class of haunting.
 echo "✓ the applied path converges: a migrated database is indistinguishable from a fresh one"
 
+# The base evidence table is written on EVERY run, not only under --prove: the fast lane runs
+# plain, and a coverage warning that only reaches the deploy lane's artifact is half a warning.
+{
+  echo "# Applied-path check (#393)"
+  echo
+  echo "| | |"
+  echo "|---|---|"
+  echo "| repo commit | \`$(git rev-parse HEAD)\` |"
+  echo "| deployed baseline | \`$BASELINE_SHA\` |"
+  echo "| pending migrations | $PENDING_N |"
+  echo "| facts compared | $(head_of "$OUT/fresh.txt") |"
+  [ -n "$THIN_COVERAGE" ] && echo "| ⚠ coverage | $THIN_COVERAGE |"
+  echo
+  echo "GREEN — a database migrated from the baseline is indistinguishable from a fresh one."
+} > "$OUT/SUMMARY.md"
+
 if [ "$PROVE" -eq 0 ]; then
   say "evidence: $OUT"
   exit 0
@@ -276,23 +292,42 @@ while read -r v; do
   for f in "$SAB_TREE"/supabase/migrations/"$v"_*.sql; do
     [ -e "$f" ] || continue
     lines=""
-    while IFS=: read -r no text; do
-      # The object this statement drops. Only classes the fingerprint covers can be judged.
-      # Strip surrounding quotes: a quoted identifier is the same object as its bare form, but
-      # the fingerprint prints it bare — leaving the quotes on makes the fresh-fingerprint lookup
-      # miss, the statement look CI-unreachable, and the run abort at step 5 (#472).
-      ident="$(printf '%s' "$text" | sed -n 's/.*[Ii][Ff][[:space:]]*[Ee][Xx][Ii][Ss][Tt][Ss][[:space:]]*\([^ ;]*\).*/\1/p' | tr -d '\"')"
+    # STATEMENT-aware, not line-aware (#472). Commenting out one LINE of a statement spanning
+    # several leaves an orphaned `alter table X` prefix, which surfaces as "migration up failed"
+    # rather than a diagnosis. Perl finds each statement's full line range, blanking `--` comments
+    # first so a commented-out conditional is never mistaken for a live one, and folding unquoted
+    # identifiers the way Postgres and the fingerprint both do.
+    while IFS=: read -r first last ident kind; do
       [ -n "$ident" ] || continue
       # Unreachable by CI iff the object is absent from a freshly reset database. Confirmed
       # empirically at step 5 — a wrong pick there stops the run rather than weakening the proof.
       grep -qF "|$ident|" "$OUT/fresh.txt" && continue
-      lines="${lines}${lines:+,}$no"
-      printf '%s:%s:%s\n' "$(basename "$f")" "$no" "$ident" >> "$OUT/red/sabotage.txt"
-    # -i: the ident sed is already case-insensitive, so a case-sensitive selector here made an
-    # uppercase DROP CONSTRAINT IF EXISTS silently unselectable — inconsistent, and invisible (#472).
-    done < <(grep -niE 'drop[[:space:]]+(constraint|policy)[[:space:]]+if[[:space:]]+exists' "$f" || true)
+      lines="${lines}${lines:+,}${first}-${last}"
+      printf '%s:%s:%s:%s\n' "$(basename "$f")" "$first" "$ident" "$kind" >> "$OUT/red/sabotage.txt"
+    done < <(perl -0777 -ne '
+      my $shadow = $_; $shadow =~ s{--[^\n]*}{ " " x length($&) }ge;
+      my @at; my $ln = 1;
+      for my $i (0 .. length($shadow) - 1) { $at[$i] = $ln; $ln++ if substr($shadow, $i, 1) eq "\n"; }
+      my $start = 0;
+      while ($shadow =~ /;/g) {
+        my $end = pos($shadow) - 1;
+        my $stmt = substr($shadow, $start, $end - $start + 1);
+        if ($stmt =~ /drop\s+(constraint|policy)\s+if\s+exists\s+("[^"]+"|[^\s;]+)/i) {
+          my ($k, $raw) = (uc($1), $2);
+          my $id = $raw; my $quoted = ($raw =~ /^"/);
+          $id =~ s/^"//; $id =~ s/"$//; $id = lc($id) unless $quoted;
+          my $fs = $start; $fs++ while $fs < length($shadow) && substr($shadow, $fs, 1) =~ /\s/;
+          print $at[$fs], ":", $at[$end], ":", $id, ":", $k, "\n";
+        }
+        $start = $end + 1;
+      }
+    ' "$f" || true)
     [ -n "$lines" ] || continue
-    LINES="$lines" perl -i -pe 'BEGIN{%L = map { $_ => 1 } split /,/, $ENV{LINES}} $_ = "-- [applied-path sabotage] " . $_ if $L{$.}' "$f"
+    # Comment out EVERY line of each selected statement, not only the matching one.
+    LINES="$lines" perl -i -pe '
+      BEGIN { @R = map { [ split /-/ ] } split /,/, $ENV{LINES}; }
+      for my $r (@R) { if ($. >= $r->[0] && $. <= $r->[1]) { $_ = "-- [applied-path sabotage] " . $_; last } }
+    ' "$f"
   done
 done < "$OUT/pending-versions.txt"
 SAB_N=$(grep -c . "$OUT/red/sabotage.txt" || true)
@@ -325,8 +360,8 @@ echo
 # Assert against the class actually sabotaged, not a fixed one: a baseline whose pending
 # migrations carry only policy drops produces a correct RED naming POLICY rows, and a hardcoded
 # CONSTRAINT check would call that a failure — a false red on the gate before a staging deploy.
-SABOTAGED_KIND=$(sed 's/.*:\([a-z_]*\)$/\1/' "$OUT/red/sabotage.txt" >/dev/null 2>&1; \
-  grep -qi 'drop policy' "$OUT/red/sabotage.sql" 2>/dev/null && echo POLICY || echo CONSTRAINT)
+SABOTAGED_KIND="$(awk -F: 'NF>=4 {print $4}' "$OUT/red/sabotage.txt" | sort -u | head -1)"
+SABOTAGED_KIND="${SABOTAGED_KIND:-CONSTRAINT}"
 if grep -qE "^[+-]${SABOTAGED_KIND}\|" "$OUT/red/drift.diff" 2>/dev/null; then
   note "ok" "the red run names the ${SABOTAGED_KIND} facts that survived"
 else
