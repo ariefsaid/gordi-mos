@@ -68,19 +68,14 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(result.current.options).toHaveLength(4)
   })
 
-  it('a superseded read cannot overwrite the newer one — the caller drops it, unadopted', async () => {
-    const { result } = renderHook(() => useCafeStream())
-    const stale = await act(async () => result.current.resolve())
+  // A test that claimed to prove supersession used to sit here. It did not: it resolved a stale
+  // read, adopted only the FRESH one, and dropped the stale with `void` — so it asserted exactly
+  // what the adopt() case above already asserts, and could not have gone red if the seam broke.
+  // Deleted rather than reworded. The hook cannot enforce what a caller does with a value it
+  // returns; what it guarantees is that resolve() alone never touches state (first case above).
+  // Supersession is genuinely proven where it actually happens, at the page layer, by interleaving
+  // a hung fetch: kitchen-stock-page.test.tsx and kitchen-log-page.test.tsx both do it.
 
-    vi.mocked(fetchDefaultStream).mockResolvedValue({ branch: BRANCH_RR, activity: 'kitchen' })
-    rememberStream(null)
-    const fresh = await act(async () => result.current.resolve())
-    act(() => result.current.adopt(fresh))
-    // …the stale read finishes last, and its caller's generation guard drops it on the floor.
-    void stale
-
-    expect(result.current.stream).toEqual({ branch: BRANCH_RR, activity: 'kitchen' })
-  })
 
   it('setStream records the choice for the whole module, not just this surface', () => {
     const { result } = renderHook(() => useCafeStream())
