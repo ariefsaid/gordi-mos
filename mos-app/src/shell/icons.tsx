@@ -505,8 +505,9 @@ export function LogIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M6 6v12M11 6v12M16 6v12" />
-      <path d="M4 16.5 18 7.5" />
+      <path d="M6.5 5v14M13 5v14" />
+      <path d="M19.5 5v14" />
+      <path d="M4 17 22 7" />
     </svg>
   )
 }
@@ -568,8 +569,8 @@ export function ReviewIcon() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M2.5 12.5 5.5 15.5 11 9" />
-      <path d="M15 9.5 21 15.5M21 9.5 15 15.5" />
+      <path d="M2.5 13 6 16.5 11 6.5" />
+      <path d="M14.5 7 21.5 17M21.5 7 14.5 17" />
     </svg>
   )
 }

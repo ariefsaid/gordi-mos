@@ -3,6 +3,8 @@ import { act, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
+import { DESTINATIONS, MODULES } from './destinations'
+import { CAFE_SECTIONS } from './sections'
 
 /**
  * THE COMPACT RAIL DRAWS NO GLYPH TWICE (issue 457, part 1).
@@ -118,11 +120,22 @@ describe('compact rail glyphs (issue 457 part 1)', () => {
     const links = await railGlyphs()
     const hrefs = links.map((l) => l.href)
 
-    // Workspace + Café's six + both other modules + both utility entries.
-    expect(links.length).toBeGreaterThanOrEqual(18)
+    // Derived from the declarations, not a magic number. A hardcoded floor goes red when an
+    // unrelated branch MOVES a row out of the rail — #480 moves Personal Profile into the identity
+    // menu — which is neither a duplicate nor this guard's business. What this guard must refuse is
+    // a rail that shrank to nothing, so it tracks the source of truth instead of a constant.
+    const MIN_LINKS =
+      DESTINATIONS.length +
+      DESTINATIONS.reduce((n, d) => n + (d.children?.length ?? 0), 0) +
+      MODULES.reduce((n, m) => n + m.items.length, 0) +
+      CAFE_SECTIONS.length
+    expect(links.length).toBeGreaterThanOrEqual(MIN_LINKS)
 
-    // Every zone is represented, so "unique" is a claim about the whole column.
-    expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox', '/cafe', '/profile']))
+    // Every zone is represented, so "unique" is a claim about the whole column. Named routes are
+    // limited to ones whose PRESENCE is the point; membership of the utility zone is in flux, so
+    // it is asserted by zone rather than by naming a row that may legitimately move.
+    expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox', '/cafe']))
+    expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
     expect(hrefs).toEqual(expect.arrayContaining(['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']))
 
     // THE GATE IS OFF. These four are in SHIP_GATED_PATHS today; each is the twin of a mark the
