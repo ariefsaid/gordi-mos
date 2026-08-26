@@ -561,3 +561,22 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     expect(tile.textContent).toMatch(/belum ada data stok/)
   })
 })
+
+// ── issue 455: the browser tab names the same module the rail and breadcrumb do ──────────
+// Asserted against the CATALOG, not a literal: pinning "Log · Café — Gordi MOS" here would
+// pass just as happily with the retired `nav.kitchen.*` strings copied into it.
+import { messages } from '@/i18n/messages'
+import { interpolate } from '@/i18n/use-t'
+
+function cafeDocTitle(leaf: keyof typeof messages.en): string {
+  return interpolate(messages.en['common.docTitle'], {
+    page: `${messages.en[leaf]} · ${messages.en['nav.cafe']}`,
+  })
+}
+
+describe('issue 455: document title', () => {
+  it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.stock')))
+  })
+})

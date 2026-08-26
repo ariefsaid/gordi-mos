@@ -34,10 +34,8 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { fetchKitchenStock, listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
-import { fetchDefaultStream } from '@/lib/db/default-stream'
-import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
-import { listActiveBranches } from '@/lib/db/branches'
+import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -68,16 +66,18 @@ type LoadState =
 
 export function KitchenStockPage() {
   const t = useT()
-  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.stock') }))
+  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
+  // the catalog's own docTitle convention (tasks-layout, signals-archive).
+  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.stock')} · ${t('nav.cafe')}` }))
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.stock')}`
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  // The enumerable six-stream catalog (FR-005) — the picker's options. Not the branch ×
-  // activity cross-product this page used to build: that offered pairs that are not streams
-  // at all (the roastery is a branch and never a stream), and the module now has ONE picker.
-  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
-  const [stream, setStream] = useState<ProductionStream | null>(null)
+  // The module's stream + the enumerable six-stream catalog it is chosen from (FR-005),
+  // through the ONE bootstrap every Café surface shares (issue 456).
+  const cafeStream = useCafeStream()
+  const { options: streamOptions, stream } = cafeStream
+  const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -135,28 +135,24 @@ export function KitchenStockPage() {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
-      const [branchRows, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
-      const catalog = streamCatalogFrom(pairs, branchRows)
-      const resolved = resolveCafeStream(catalog, await fetchDefaultStream(branchRows))
-      const data = resolved ? await fetchKitchenStock(asOf, resolved) : []
+      const catalog = await resolveStream()
+      const data = catalog.stream ? await fetchKitchenStock(asOf, catalog.stream) : []
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      setStreamOptions(catalog)
-      setStream(resolved)
+      adoptStream(catalog)
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
-  }, [asOf])
+  }, [asOf, resolveStream, adoptStream])
 
   // Switching the stream re-reads the rows: the same dish has a different balance in
   // another stream's books (OD-WAY-28) — a kept list would show one stream's numbers
   // under another stream's name, the exact confusion FR-061 exists to end.
   const applyStream = useCallback(async (next: ProductionStream) => {
     const gen = ++requestGen.current
-    setStream(next)
-    rememberStream(next) // the whole Café module follows this choice (#440)
+    chooseStream(next) // the whole Café module follows this choice (#440)
     setLoad({ kind: 'loading' })
     try {
       const data = await fetchKitchenStock(asOf, next)
@@ -167,7 +163,7 @@ export function KitchenStockPage() {
       if (gen !== requestGen.current) return
       setLoad({ kind: 'error' })
     }
-  }, [asOf])
+  }, [asOf, chooseStream])
 
   // Read once authenticated (an unauthenticated viewer never triggers the read).
   useEffect(() => {

@@ -50,6 +50,8 @@ function setAuthAs(accessRoles: string[]) {
   })
 }
 
+import { messages } from '@/i18n/messages'
+
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
 const RUN_ID = '00000000-0000-0000-0000-00000000r001'
@@ -241,5 +243,51 @@ describe('AC-715 — pending "to assign" resolution', () => {
     await screen.findByText('Café Opening · 17 Jul 2026')
     expect(mockListPendingTasks).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Twin A' })).not.toBeInTheDocument()
+  })
+})
+
+// ── issue 457: the team caption must not read as the chosen production stream ────────────
+// The Café root's head shows "Choose stream…" with this caption directly beneath it. A bare
+// team name in that slot ("Radiant") sits exactly where a stream name ("Radiant · Bar") is
+// expected, and is read as one. The panel is Team-scoped by design (DD-WAY-34 keeps the root
+// picker); the caption must therefore SAY what it scopes.
+describe('issue 457: the Café root team caption says what it scopes', () => {
+  it('is never the bare team name — in either opening state', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
+    const { container, unmount } = renderPanel()
+    const notStarted = await waitFor(() => {
+      const el = container.querySelector('.cafe-opening-team')
+      expect(el).not.toBeNull()
+      return el as HTMLElement
+    })
+    expect(notStarted.textContent?.trim()).not.toBe('Radiant')
+    expect(notStarted.textContent).toContain('Radiant')
+    unmount()
+
+    mockGetTodayOpeningForTeam.mockResolvedValue({
+      started: true,
+      runId: RUN_ID,
+      rollup: {
+        process_run_id: RUN_ID, caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+        status: 'open', total: 3, open: 2, in_progress: 0, blocked: 0, done: 1,
+        overdue: 0, pending_unresolved: 0, completion_pct: 33,
+      },
+    })
+    const started = renderPanel()
+    const caption = await waitFor(() => {
+      const el = started.container.querySelector('.cafe-opening-team')
+      expect(el).not.toBeNull()
+      return el as HTMLElement
+    })
+    expect(caption.textContent?.trim()).not.toBe('Radiant')
+  })
+
+  it('names the job it scopes, from the catalog, in both locales', () => {
+    // The English word is not the Indonesian one here — a single-locale add would ship the
+    // English caption to an Indonesian floor.
+    expect(messages.en['cafe.opening.teamCaption']).toContain('${team}')
+    expect(messages.id['cafe.opening.teamCaption']).toContain('${team}')
+    expect(messages.id['cafe.opening.teamCaption']).not.toBe(messages.en['cafe.opening.teamCaption'])
   })
 })

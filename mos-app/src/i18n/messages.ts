@@ -21,11 +21,7 @@ export const messages = {
     'nav.planPricing': 'Pricing pre-flight',
     'nav.objectives': 'Objectives',
     'nav.projectsProcesses': 'Projects & Processes',
-    'nav.kitchen.log': 'Kitchen Log',
-    'nav.kitchen.plan': 'Plan',
-    'nav.kitchen.stock': 'Stock',
-    'nav.kitchen.review': 'Review',
-    'nav.kitchen.pushes': 'Pushes',
+    // issue 455: `nav.kitchen.*` retired — the module is Café and its labels are `nav.cafe.*`.
     'home.title': 'Home',
     'common.docTitle': '${page} — Gordi MOS',
     'events.title': 'Events',
@@ -460,6 +456,10 @@ export const messages = {
     'cafe.opening.notStartedLead': "Not started yet — start today's opening.",
     'cafe.opening.notStartedMember': 'Not started yet — no one has started today’s opening.',
     'cafe.opening.start': "Start today's opening",
+    // issue 457: the panel is TEAM-scoped, and its caption sat directly under the head's
+    // "Choose stream…" where a stream name is expected — a bare team name there reads as
+    // the chosen stream. The caption now says what it scopes.
+    'cafe.opening.teamCaption': 'Opening · ${team}',
     'cafe.opening.viewTasks': 'View opening tasks',
     // #440: the axis the whole Café module turns on, named in every Café page head. One word,
     // because the value beside it ("Rumah Rames · Kitchen") is what carries the meaning.
@@ -493,7 +493,9 @@ export const messages = {
     // as a second entry for the person's own branch name. ${activity} is derived for
     // display; nothing stores a destination activity (OD-WAY-44).
     'kitchen.actionType.intraBranch': 'within branch · ${activity}',
-    'kitchen.actionType.intraBranch.short': '· ${activity}',
+    // issue 449: the qualifier is its own rung now, not an inline tail — so the phone form
+    // carries its own preposition instead of a bare separator dangling on a line of its own.
+    'kitchen.actionType.intraBranch.short': 'within · ${activity}',
     'kitchen.actionType.production': 'Production',
     // The DERIVED movement labels (DD-WAY-13). ${branch} is the destination branch's display
     // name, resolved through the same single alias the SQL derivation carries.
@@ -589,7 +591,7 @@ export const messages = {
     // per-row required note (AC-040) — and the label states the scope it actually covers.
     'kitchen.review.bulkApprove': 'Approve all on-plan (${count})',
     'kitchen.review.bulkApproving': 'Approving…',
-    'kitchen.review.caption': 'Submitted kitchen logs awaiting review',
+    'kitchen.review.caption': 'Submitted logs awaiting review',
     'kitchen.review.col.decision': 'Decision',
     'kitchen.review.col.item': 'Item',
     'kitchen.review.col.note': 'Note',
@@ -607,11 +609,11 @@ export const messages = {
     'kitchen.review.completeness.saving': 'Saving…',
     'kitchen.review.completeness.unconfirmed': 'Item list not confirmed complete yet',
     'kitchen.review.empty.copy': 'No submitted logs for ${date}.',
-    'kitchen.review.empty.note': 'Pull again to check for newly submitted kitchen logs.',
+    'kitchen.review.empty.note': 'Pull again to check for newly submitted logs.',
     'kitchen.review.empty.title': 'Nothing to review',
     'kitchen.review.gate.productionFirst': 'Finish Production approvals first.',
     'kitchen.review.leadsOnly': 'Review is available to stream supervisors and ops leads.',
-    'kitchen.review.leadsOnlyMsg': 'Ask your stream’s supervisor or an ops lead to review your submitted kitchen logs.',
+    'kitchen.review.leadsOnlyMsg': 'Ask your stream’s supervisor or an ops lead to review your submitted logs.',
     'kitchen.review.offline': 'You’re offline — reviewing needs a connection. Reconnect to approve or reject.',
     'kitchen.review.opsLeadOnly': 'Ops lead decides',
     'kitchen.review.productionPendingErr': 'This stream still has production awaiting review — decide it before approving transfers.',
@@ -619,7 +621,7 @@ export const messages = {
     'kitchen.review.qty.plan': 'plan',
     'kitchen.review.refresh': 'Refresh',
     'kitchen.review.restrictedAria': 'Access restricted',
-    'kitchen.review.signInMsg': 'You need to sign in to review kitchen logs.',
+    'kitchen.review.signInMsg': 'You need to sign in to review logs.',
     // #422 / DD-WAY-40: the review band is the DESIGN.md "Metric summary rule" — label:value
     // pairs straight from the catalog (the retired tile strip was hardcoded English).
     'kitchen.review.summary.aria': 'Review queue summary',
@@ -684,7 +686,7 @@ export const messages = {
     'kitchen.stock.erpPending': 'ERP inventory not connected yet — comparison column pending',
     'kitchen.stock.noEntriesToday': 'No entries logged yet today',
     'kitchen.stock.searchPlaceholder': 'Find a dish',
-    'kitchen.stock.signInMsg': 'You need to sign in to view kitchen stock.',
+    'kitchen.stock.signInMsg': 'You need to sign in to view stock.',
     'kitchen.stock.toolbarAria': 'Stock filters',
     'kitchen.toolbar.category.ariaLabel': 'Category',
     'kitchen.unit.porsi': 'porsi',
@@ -1313,11 +1315,7 @@ export const messages = {
     'nav.planPricing': 'Pracetak harga',
     'nav.objectives': 'Objective',
     'nav.projectsProcesses': 'Proyek & Proses',
-    'nav.kitchen.log': 'Log Dapur',
-    'nav.kitchen.plan': 'Rencana',
-    'nav.kitchen.stock': 'Stok',
-    'nav.kitchen.review': 'Tinjauan',
-    'nav.kitchen.pushes': 'Antrean',
+    // issue 455: `nav.kitchen.*` retired — the module is Café and its labels are `nav.cafe.*`.
     'home.title': 'Beranda',
     'common.docTitle': '${page} — Gordi MOS',
     'events.title': 'Acara',
@@ -1716,6 +1714,7 @@ export const messages = {
     'cafe.opening.notStartedLead': 'Belum dimulai — mulai pembukaan hari ini.',
     'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
     'cafe.opening.start': 'Mulai pembukaan hari ini',
+    'cafe.opening.teamCaption': 'Pembukaan · ${team}',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
     'cafe.stream.label': 'Alur produksi',
     'cafe.stream.none': 'Pilih stream di kepala halaman untuk melihat layar ini.',
@@ -1737,7 +1736,8 @@ export const messages = {
     'doc.cafeOps': 'Operasi Kafe',
     'kitchen.actionType.aria': 'Jenis aksi',
     'kitchen.actionType.intraBranch': 'dalam cabang · ${activity}',
-    'kitchen.actionType.intraBranch.short': '· ${activity}',
+    // issue 449: lihat catatan di katalog en — kualifikasi kini baris sendiri.
+    'kitchen.actionType.intraBranch.short': 'dalam · ${activity}',
     'kitchen.actionType.production': 'Produksi',
     'kitchen.actionType.transferTo': 'Transfer ke ${branch}',
     'kitchen.actionType.transferTo.fallback': 'cabang lain',
@@ -1827,7 +1827,7 @@ export const messages = {
     'kitchen.review.backToLog': 'Kembali ke Log',
     'kitchen.review.bulkApprove': 'Setujui semua sesuai rencana (${count})',
     'kitchen.review.bulkApproving': 'Menyetujui…',
-    'kitchen.review.caption': 'Log dapur yang diajukan menunggu tinjauan',
+    'kitchen.review.caption': 'Log yang diajukan menunggu tinjauan',
     'kitchen.review.col.decision': 'Keputusan',
     'kitchen.review.col.item': 'Item',
     'kitchen.review.col.note': 'Catatan',
@@ -1843,11 +1843,11 @@ export const messages = {
     'kitchen.review.completeness.saving': 'Menyimpan…',
     'kitchen.review.completeness.unconfirmed': 'Daftar item belum dikonfirmasi lengkap',
     'kitchen.review.empty.copy': 'Tidak ada log yang diajukan untuk ${date}.',
-    'kitchen.review.empty.note': 'Tarik ulang untuk memeriksa log dapur baru yang diajukan.',
+    'kitchen.review.empty.note': 'Tarik ulang untuk memeriksa log baru yang diajukan.',
     'kitchen.review.empty.title': 'Tidak ada yang perlu ditinjau',
     'kitchen.review.gate.productionFirst': 'Selesaikan persetujuan Produksi dulu.',
     'kitchen.review.leadsOnly': 'Tinjauan tersedia untuk supervisor stream dan ops lead.',
-    'kitchen.review.leadsOnlyMsg': 'Minta supervisor stream Anda atau ops lead untuk meninjau log dapur yang Anda ajukan.',
+    'kitchen.review.leadsOnlyMsg': 'Minta supervisor stream Anda atau ops lead untuk meninjau log yang Anda ajukan.',
     'kitchen.review.offline': 'Anda sedang offline — meninjau perlu koneksi. Sambungkan kembali untuk menyetujui atau menolak.',
     'kitchen.review.opsLeadOnly': 'Diputuskan ops lead',
     'kitchen.review.productionPendingErr': 'Produksi stream ini masih menunggu tinjauan — putuskan dulu sebelum menyetujui transfer.',
@@ -1855,7 +1855,7 @@ export const messages = {
     'kitchen.review.qty.plan': 'rencana',
     'kitchen.review.refresh': 'Segarkan',
     'kitchen.review.restrictedAria': 'Akses dibatasi',
-    'kitchen.review.signInMsg': 'Anda perlu masuk untuk meninjau log dapur.',
+    'kitchen.review.signInMsg': 'Anda perlu masuk untuk meninjau log.',
     // #422 / DD-WAY-40: pita tinjauan adalah "ringkasan metrik" DESIGN.md — pasangan label:nilai
     // langsung dari katalog (strip tile lama dikode keras dalam bahasa Inggris).
     'kitchen.review.summary.aria': 'Ringkasan antrean tinjauan',
@@ -1913,7 +1913,7 @@ export const messages = {
     'kitchen.stock.erpPending': 'Inventori ERP belum terhubung — kolom perbandingan menyusul',
     'kitchen.stock.noEntriesToday': 'Belum ada entri tercatat hari ini',
     'kitchen.stock.searchPlaceholder': 'Cari menu',
-    'kitchen.stock.signInMsg': 'Anda perlu masuk untuk melihat stok dapur.',
+    'kitchen.stock.signInMsg': 'Anda perlu masuk untuk melihat stok.',
     'kitchen.stock.toolbarAria': 'Filter stok',
     'kitchen.toolbar.category.ariaLabel': 'Kategori',
     'kitchen.unit.porsi': 'porsi',

@@ -24,7 +24,7 @@ type FetchState = 'loading' | 'ready' | 'error'
 export interface CafeOpeningPanelProps {
   processId: string
   teamId: string
-  /** Unused by the panel body directly; kept for a future per-branch heading (host may render it). */
+  /** The Team this opening belongs to — the panel's subject eyebrow names it (issue 457). */
   teamName: string
 }
 
@@ -107,7 +107,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
             (census DO-24a) — same header block as the started body below, so it doesn't read as
             an orphan that disappears on start. */}
         <header className="cafe-opening-head">
-          <p className="cafe-opening-team">{teamName}</p>
+          <p className="cafe-opening-team">{t('cafe.opening.teamCaption', { team: teamName })}</p>
         </header>
         {canStart ? (
           <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
@@ -138,7 +138,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
           section below — a single blanket gap between every child had made a title and an
           unrelated button read as equally related (layout.md "Rhythm"). */}
       <header className="cafe-opening-head">
-        <p className="cafe-opening-team">{teamName}</p>
+        <p className="cafe-opening-team">{t('cafe.opening.teamCaption', { team: teamName })}</p>
         <h2 className="cafe-opening-caption">{rollup.caption}</h2>
         <p className="cafe-opening-rollup tabular-nums">
           {/* Design fix wave item 6 — the café member dead-end minor: a non-capable member has no

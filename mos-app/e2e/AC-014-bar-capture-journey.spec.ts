@@ -222,7 +222,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // FR-040 — the row carries decision controls because it is their stream's. A supervisor is on
     // this surface at all only because #236 opened it past ops_lead.
     await expect(
-      page.getByRole('table', { name: /Submitted kitchen logs awaiting review/i }),
+      page.getByRole('table', { name: /Submitted logs awaiting review/i }),
     ).toBeVisible({ timeout: 20_000 })
     await expect(page.getByRole('cell', { name: new RegExp(ITEM_NAME, 'i') }).first()).toBeVisible()
 

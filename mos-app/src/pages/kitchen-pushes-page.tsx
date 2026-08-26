@@ -279,7 +279,9 @@ function pushCardRenderer(t: ReturnType<typeof useT>) {
 
 export function KitchenPushesPage() {
   const t = useT()
-  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.pushes') }))
+  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
+  // the catalog's own docTitle convention (tasks-layout, signals-archive).
+  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.pushes')} · ${t('nav.cafe')}` }))
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.pushes')}`
   const auth = useAuth()
   const isDesktop = useIsDesktop()

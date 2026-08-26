@@ -37,7 +37,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'nav.roastery', // Roastery
   'rail.b2bOps', // B2B Ops
   'rail.retailOps', // Retail Ops
-  'kitchen.actionType.intraBranch.short', // · ${activity} — symbol template
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
   'kitchen.log.col.status', // Status
