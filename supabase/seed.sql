@@ -16,6 +16,44 @@
 -- frontend chain shares this local stack and a missing dev login reads as a broken app rather than
 -- a missing seed (docs/gotchas.md).
 
+-- ── Dev-only, enforced rather than assumed ──────────────────────────────────────────────────
+-- This file is FIXTURE data and it is consequential: it grants `admin`, `ops_lead`, `supervisor`,
+-- `manager` and `finance`, and writes 46 team memberships — and membership is an authorization
+-- input for the Signal read gate, the team post/start gates and kitchen-log review authority.
+-- Everything here is `on conflict do nothing`, so pointed at the wrong database most of it lands
+-- quietly.
+--
+-- The guard asks the one question that separates dev from anything real: does this database
+-- already hold a person whose email is not `@example.test` (RFC 6761, unroutable)? `coalesce` so a
+-- real person with a NULL email trips it too.
+--
+-- THREE things make it actually stop the run, and it needs all three:
+--   * it is FIRST — ahead of the org insert, not in the middle. A guard below the rows it guards
+--     protects nothing above it, which is what the first cut did;
+--   * the file is bracketed `begin; … commit;`. A bare `raise exception` inside `do $$ … $$` does
+--     NOT stop `psql -f`: ON_ERROR_STOP is off by default, every statement is its own transaction,
+--     and psql prints the error and runs the next one. Measured, not assumed — a probe insert
+--     after the raise still landed. Inside a transaction the raise poisons it, every later
+--     statement fails "current transaction is aborted", and `commit` degrades to rollback;
+--   * `supabase db reset` already wraps the file in one implicit transaction, so the explicit
+--     `begin` is a no-op warning there and the abort behaves the same way.
+begin;
+
+do $$
+begin
+  if exists (
+    select 1 from shared.people
+     where coalesce(email, '') not like '%@example.test'
+  ) then
+    raise exception
+      'supabase/seed.sql: refusing to seed dev FIXTURES into a database that holds real people. '
+      'This file grants access roles and team memberships, which are authorization inputs. '
+      'Deployed databases take the gitignored deploy seed, never this one.'
+      using errcode = '42501';
+  end if;
+end
+$$;
+
 -- The single org (OD-P1-1).
 insert into shared.orgs (id, name, slug) values
   ('10000000-0000-0000-0000-000000000001', 'Gordi', 'gordi')
@@ -134,32 +172,6 @@ insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'finance')
 on conflict (person_id, access_role) do nothing;
-
--- ── Dev-only, enforced rather than assumed ───────────────────────────────────────────────────
--- Everything below is FIXTURE data, and this branch made it consequential: supervisor / manager /
--- ops_lead / finance grants plus 46 team memberships, and membership is an authorization input for
--- the Signal read gate, the team post/start gates and kitchen-log review authority. Until now the
--- file was dev-only by CONVENTION (config.toml wires it to the local `db reset`) — nothing stopped
--- anyone pointing it at staging, where `on conflict do nothing` would let most of it land quietly.
---
--- The guard asks the one question that separates the two: does this database already hold a REAL
--- person? Every fixture here is `@example.test` (RFC 6761, unroutable); a deployed database has
--- real addresses. So a dev reset proceeds and a deployed database refuses, loudly.
-do $$
-begin
-  if exists (
-    select 1 from shared.people
-     where org_id = '10000000-0000-0000-0000-000000000001'
-       and coalesce(email, '') not like '%@example.test'
-  ) then
-    raise exception
-      'supabase/seed.sql: refusing to seed dev FIXTURES into a database that holds real people. '
-      'This file grants access roles and team memberships, which are authorization inputs. '
-      'Deployed databases take the gitignored deploy seed, never this one.'
-      using errcode = '42501';
-  end if;
-end
-$$;
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- ── The wider dev roster — a floor, a bar, a kitchen and a back office ───────────────────────
@@ -528,3 +540,5 @@ insert into reporting.bom_lines (org_id, menu_item_esb_code, ingredient_esb_code
 on conflict (org_id, menu_item_esb_code, ingredient_esb_code) do update
   set recipe_qty = excluded.recipe_qty, qty_unit = excluded.qty_unit, as_of = excluded.as_of,
       loaded_at = excluded.loaded_at;
+
+commit;

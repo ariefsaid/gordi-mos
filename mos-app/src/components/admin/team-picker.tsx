@@ -48,6 +48,11 @@ export function TeamPicker({ person, teams, onDone, onShowToast }: TeamPickerPro
       onDone()
     } catch (err) {
       setError(err instanceof Error ? err.message : fallback)
+      // Reload on failure too. setPrimaryTeam clears the OLD primary before setting the new one,
+      // so a throw leaves the person with no home team — and without this the stale row keeps its
+      // "Home" pill and the no-home-team warning never appears, which is the screen asserting
+      // something the database no longer agrees with.
+      onDone()
     } finally {
       setBusy(false)
     }
@@ -145,16 +150,16 @@ export function TeamPicker({ person, teams, onDone, onShowToast }: TeamPickerPro
                       background AND pairs it with the AA-darkened text token that raw
                       var(--primary) misses at 12px on a light wash. */}
                   {membership?.is_primary === true && (
-                    <span className="flex-none">
-                      <Pill tone="primary" dot={false}>Home</Pill>
-                    </span>
+                    <Pill tone="primary" dot={false} className="flex-none">Home</Pill>
                   )}
                   {membership !== undefined && !membership.is_primary && (
                     <button
                       type="button"
                       disabled={busy}
-                      className="tap-target-phone flex-none rounded-sm px-2 text-xs underline disabled:opacity-50"
-                      style={{ color: 'var(--muted-foreground)' }}
+                      // The house form for an inline text action — the One Blue Rule (DESIGN.md),
+                      // and the same className every other one in the app uses. Never an inline
+                      // colour: nothing in this codebase sets an action colour that way.
+                      className="tap-target-phone flex-none rounded-sm px-2 text-xs text-primary font-medium hover:underline focus-visible:underline disabled:opacity-50"
                       onClick={() => handleMakeHome(team)}
                     >
                       Make home

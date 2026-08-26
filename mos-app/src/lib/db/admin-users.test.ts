@@ -509,9 +509,41 @@ describe('Team wrappers', () => {
     // can_read_signal R1 and every other gate. Filtering on `is null` alone is what let the
     // screen report someone removed while the gates still admitted them, and nothing pinned
     // it — reverting this line to `.is('effective_to', null)` left the whole suite green.
-    expect(builder.or).toHaveBeenCalledWith(
-      expect.stringMatching(/^effective_to\.is\.null,effective_to\.gte\.\d{4}-\d{2}-\d{2}$/),
-    )
+    // The literal date, not just its shape. A shape-only assertion stays green if `today` is
+    // hardcoded to 2000-01-01, which reads EVERY ended membership as live — the exact inverse of
+    // the defect this line fixed, and just as wrong.
+    const today = new Date().toISOString().slice(0, 10)
+    expect(builder.or).toHaveBeenCalledWith(`effective_to.is.null,effective_to.gte.${today}`)
+  })
+
+  it('attaches memberships to the right person, and only calls a live-and-open one Home', async () => {
+    const schemaObj = makeSharedSchema({
+      people: { data: [
+        { id: 'p1', full_name: 'A', email: 'a@example.test', archived_at: null },
+        { id: 'p2', full_name: 'B', email: 'b@example.test', archived_at: null },
+      ], error: null },
+      person_access_roles: { data: [], error: null },
+      person_roles: { data: [], error: null },
+      roles: { data: [], error: null },
+      team_memberships: { data: [
+        { person_id: 'p1', team_id: 't-bar', is_primary: true, effective_to: null },
+        // Gate-live (ends tomorrow) but NOT the home team: default_stream() and
+        // is_stream_reviewer both require `effective_to is null`, so rendering this as Home would
+        // promise a capture stream and a reviewer that neither function will resolve.
+        { person_id: 'p1', team_id: 't-kitchen', is_primary: true, effective_to: '2099-01-01' },
+        { person_id: 'p2', team_id: 't-hq', is_primary: false, effective_to: null },
+      ], error: null },
+      supervisor_revenue_scope: { data: [], error: null },
+    }, { data: [], error: null })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    const rows = await listAdminPeople()
+    expect(rows.find((r) => r.id === 'p1')!.teams).toEqual([
+      { team_id: 't-bar', is_primary: true },
+      { team_id: 't-kitchen', is_primary: false },
+    ])
+    // Keyed per person — a membership must never leak onto someone else's row.
+    expect(rows.find((r) => r.id === 'p2')!.teams).toEqual([{ team_id: 't-hq', is_primary: false }])
   })
 
   it('listTeams names the (branch, activity) pair on stream teams and leaves org teams bare', async () => {

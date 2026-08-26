@@ -233,7 +233,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
   // Admin Settings (gated) is the only Utility rail link now. Personal Profile moved into the
-  // UserChip menu in the footer below (OD-WAY-64). The requirement that carried over is AC-013's —
+  // UserChip menu in the footer below (OD-WAY-77). The requirement that carried over is AC-013's —
   // /profile keeps a RENDERED way in — not that it keeps a rail ROW; the spec line predates the
   // ruling and the ruling supersedes it. NOT "Rule 11", which is component reuse and says nothing
   // about /profile. `navUtility()` is the nav-surface list; `UTILITY` stays the resolution registry

@@ -90,6 +90,23 @@ describe('TeamPicker', () => {
     expect(screen.getByText('Gordi HQ · Kitchen')).toBeInTheDocument()
   })
 
+  it('says out loud when a join also set the home team, and when it did not', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    const { unmount } = renderPicker(PERSON_NO_TEAM, TEAMS, { onShowToast })
+    await user.click(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }))
+    // A first join silently sets a capture-stream default (and, for a supervisor, review
+    // authority). The toast is the only place that surfaces it.
+    await waitFor(() => expect(onShowToast).toHaveBeenCalledWith(expect.stringMatching(/home team/i)))
+    unmount()
+
+    onShowToast.mockClear()
+    renderPicker(PERSON_WITH_HOME, TEAMS, { onShowToast })
+    await user.click(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }))
+    await waitFor(() => expect(onShowToast).toHaveBeenCalled())
+    expect(onShowToast.mock.calls[0][0]).not.toMatch(/home team/i)
+  })
+
   it('the FIRST team a person joins becomes their home team', async () => {
     const user = userEvent.setup()
     renderPicker(PERSON_NO_TEAM)
@@ -148,13 +165,19 @@ describe('TeamPicker', () => {
     const user = userEvent.setup()
     mockAdd.mockRejectedValue(new Error('add to team failed: permission denied'))
     const onDone = vi.fn()
-    renderPicker(PERSON_NO_TEAM, TEAMS, { onDone })
+    const onShowToast = vi.fn()
+    renderPicker(PERSON_NO_TEAM, TEAMS, { onDone, onShowToast })
     await user.click(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }))
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('add to team failed: permission denied'),
     )
-    // A failed write must not trigger the caller's reload-and-carry-on path.
-    expect(onDone).not.toHaveBeenCalled()
+    // What must not happen is a CLAIM OF SUCCESS. This used to assert `onDone` was not called —
+    // reading "reload" as "carry on" — but reload is the opposite of carrying on: it re-reads the
+    // truth. And it is mandatory after a partial failure, because setPrimaryTeam clears the old
+    // primary BEFORE setting the new one, so a throw there leaves real state changed and a stale
+    // "Home" pill on screen asserting something the database no longer agrees with.
+    expect(onShowToast).not.toHaveBeenCalled()
+    expect(onDone).toHaveBeenCalled()
   })
 
   it('renders the empty case without crashing when no teams exist', () => {

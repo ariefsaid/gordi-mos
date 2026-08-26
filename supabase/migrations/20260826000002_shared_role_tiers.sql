@@ -16,6 +16,26 @@
 -- `supabase/seed.sql` calls again for the org a fresh `db reset` creates after migrations have run.
 -- Do not copy the list back into the seed; that is the drift this shape exists to prevent.
 --
+-- ⚠️ THIS REACHES PRODUCTION, AND THE ASK WAS SCOPED "LOCALLY".
+-- The owner asked to "update the seed users LOCALLY". This function runs `for o in select id from
+-- shared.orgs`, so on deploy every org — staging and production included — gains twelve Position
+-- names coined for a dev fixture: Bar Supervisor, Head Barista, Barista, Kitchen Supervisor,
+-- Kitchen Staff, Ecommerce Lead, Ecommerce Associate, Roaster, Account Executive, Marketing Lead,
+-- People Lead, Finance Associate. Real staff will see them in the Jabatan picker.
+--
+-- The MECHANISM is forced — `shared.roles` is a CATALOG table under the applied-path fingerprint
+-- (RLS on, no write policy, no write grant), so a seed-only list makes a migrated database differ
+-- from a fresh one and CI goes red. The DECISION is not forced, and is not the Director's to make:
+-- these are either Gordi's real positions or they are not. Recorded as DD-WAY-41; if the answer is
+-- "not ours", the fix is to narrow the function to the dev org rather than to move the list back
+-- into the seed.
+--
+-- Second-order, disclosed here because nothing else says it: granting insert/update on
+-- `shared.team_memberships` (20260826000001) takes THAT table out of the same fingerprint, so the
+-- 46 seeded membership rows stop being compared across the applied path. The check's fact count
+-- still rose — the two new policies and this function more than replace what was lost — so a
+-- rising number is not evidence that coverage grew.
+--
 -- Reversal:
 --   delete from shared.roles r where r.name in (
 --     'Bar Supervisor','Head Barista','Barista','Kitchen Supervisor','Kitchen Staff',
@@ -77,5 +97,13 @@ comment on function shared.seed_role_tiers() is
   'org, idempotently on (org_id, name). The ONE home for that list: called by its own migration '
   'for orgs existing at migration time, and by supabase/seed.sql for the org a fresh db reset '
   'creates afterwards. Inserts in dependency order so each tier resolves its parent by name.';
+
+-- Not an app RPC. `shared` is PostgREST-exposed, so without this the function is reachable at
+-- /rest/v1/rpc/seed_role_tiers by anon and authenticated. Nothing can be written through it today —
+-- neither role holds INSERT on shared.roles — but that is exactly one layer of depth, and it is the
+-- layer the codebase already plans to move (shared.role_capabilities' own comment: per-org role
+-- management "lands with the admin-editable-roles slice"). seed_stream_teams(), whose shape this
+-- copies, carries the same revoke; this file dropped the line while copying.
+revoke execute on function shared.seed_role_tiers() from public, anon, authenticated;
 
 select shared.seed_role_tiers();

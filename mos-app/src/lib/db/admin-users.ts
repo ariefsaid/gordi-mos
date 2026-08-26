@@ -124,8 +124,17 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     .or(`effective_to.is.null,effective_to.gte.${today}`)
   if (tmErr) throw surface('load people', tmErr)
   const teamsByPerson: Record<string, TeamMembership[]> = {}
-  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean }[]) {
-    ;(teamsByPerson[row.person_id] ??= []).push({ team_id: row.team_id, is_primary: row.is_primary })
+  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean; effective_to: string | null }[]) {
+    // MEMBERSHIP and HOME are different questions with different liveness rules, and conflating
+    // them is how the screen ends up asserting something the database disagrees with. A row ending
+    // today is still a membership to every gate — hence the `.or()` filter above. But
+    // shared.default_stream() and ops.is_stream_reviewer both require `effective_to is null`
+    // strictly, so a primary with ANY end date resolves neither a capture stream nor review
+    // authority, and must not render as Home.
+    ;(teamsByPerson[row.person_id] ??= []).push({
+      team_id: row.team_id,
+      is_primary: row.is_primary && row.effective_to === null,
+    })
   }
 
   // Build lookup maps
@@ -351,7 +360,7 @@ export async function listTeams(): Promise<TeamOption[]> {
  * caller decides, and the partial unique index refuses a second live primary, which is why
  * `setPrimaryTeam` below ends the old one first rather than racing it.
  */
-export async function addTeamMembership(personId: string, teamId: string, isPrimary = false): Promise<void> {
+export async function addTeamMembership(personId: string, teamId: string, isPrimary: boolean): Promise<void> {
   const { error } = await shared()
     .from('team_memberships')
     .insert({ person_id: personId, team_id: teamId, is_primary: isPrimary })
