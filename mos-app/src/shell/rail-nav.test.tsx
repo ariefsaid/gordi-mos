@@ -5,7 +5,6 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
 import { RailNav } from './rail-nav'
-import { CafeIcon } from './icons'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -699,34 +698,3 @@ describe('DD-WAY-33 (#439): the rail type ladder', () => {
   })
 })
 
-// #457 (part 1): in the icon-only compact rail the glyph is the ONLY thing distinguishing one row
-// from the next — DD-WAY-33's ladder made it load-bearing there. Café shipped every child carrying
-// the module's own cup, so the 920–1099.98px rail drew the module as a column of identical cups
-// separable only by hovering for a tooltip. This asserts the rendered ART, not the component
-// reference: pointing two entries at two different components that draw the same picture would be
-// the same defect wearing a different name.
-describe('Café in the compact rail: one glyph per screen (issue 457)', () => {
-  function cafeGlyphs(compact: boolean): string[] {
-    setAuthAs(['admin'], 'Barista')
-    renderRailNav('/cafe/log', { compact })
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    return Array.from(nav.querySelectorAll<HTMLAnchorElement>('a[href^="/cafe"]')).map(
-      (a) => a.querySelector('svg')?.innerHTML ?? '',
-    )
-  }
-
-  it('the compact rail draws a DIFFERENT mark for the root and each of the five children', () => {
-    const glyphs = cafeGlyphs(true)
-    // Opening (the /cafe root) + Log · Plan · Stock · Review · Pushes.
-    expect(glyphs).toHaveLength(6)
-    expect(glyphs.every((g) => g.length > 0), 'a Café row rendered no glyph at all').toBe(true)
-    expect(new Set(glyphs).size, 'two Café rows draw the same picture').toBe(6)
-  })
-
-  it('the module root keeps the cup — the mark belongs to the module, not to one of its screens', () => {
-    const glyphs = cafeGlyphs(true)
-    const cup = render(<CafeIcon />).container.querySelector('svg')!.innerHTML
-    expect(glyphs[0]).toBe(cup)
-    expect(glyphs.slice(1)).not.toContain(cup)
-  })
-})

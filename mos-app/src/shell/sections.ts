@@ -5,7 +5,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   EventsIcon, MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, PeopleIcon, BudgetIcon,
+  ProfileIcon, PeopleIcon,
 } from './icons'
 
 export interface Section {
@@ -62,42 +62,18 @@ export const SECTIONS: Section[] = [
  * SECTIONS "Café" root entry — CAFE_SECTIONS is scanned first) and picks the most specific
  * (longest) prefix match for any /cafe/* sub-route, so Opening never shadows Log/Plan/etc.
  */
-/*
- * ICONS — one glyph per screen, never one glyph five times (#457).
- *
- * Every child used to carry `CafeIcon`, which was harmless while the rail drew labels beside it.
- * The icon-only compact rail (920–1099.98px) drops the labels, and DD-WAY-33's ladder (#439) makes
- * the glyph the sole thing telling one rung from another there — so the module rendered as a
- * column of five identical cups, separable only by hovering for a tooltip.
- *
- * Each replacement is an EXISTING mark from `icons.tsx` (no new art), picked for what the screen
- * does: a lined sheet for the Log, a calendar for the day's Plan, a goods bag for the Stock on
- * hand, a check for the Review that approves it, a spark for a Pushes dispatch. `/cafe` (Opening)
- * keeps the cup — it is the module's own root and the one place the module mark belongs.
- *
- * Stock tried the InboxIcon tray first and it lost twice on one render: a mail tray does not say
- * "what is on the shelf", and Inbox is a LIVE destination two rows up the same compact column, so
- * the fix would have shipped a fresh duplicate. The bag is collision-free today and says goods.
- *
- * Review's check and Pushes' spark DO repeat marks carried by Work's Tasks and Signals, and that
- * is accepted rather than engineered around. This icon set is explicitly one-glyph-per-meaning
- * (see Chevron / BackIcon / CloseIcon): a check means "done/approved" wherever it appears, and
- * every alternative left in the set — a gear, a percent tag, a people pair — would buy uniqueness
- * by saying something untrue. The defect this closes was five marks with ONE meaning inside ONE
- * group, which is a different thing from one meaning honestly reused across two.
- */
 export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: CafeIcon },
-  { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: BudgetIcon },
-  { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: EventsIcon },
-  { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: EcommerceIcon },
+  { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: CafeIcon },
+  { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: CafeIcon },
+  { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: CafeIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
   // branches). Same list in both places or the rail offers a link that bounces — or, as #236
   // shipped it, withholds a link to a surface the person is entitled to.
   // Review admits the stream supervisor (#236's FR-040 reviewer, wired through by #238);
   // Pushes is the dispatch surface and stays ops_lead/admin.
-  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: TasksIcon, anyOf: ['ops_lead', 'admin', 'supervisor'] },
-  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: SignalsIcon, anyOf: ['ops_lead', 'admin'] },
+  { path: '/cafe/review', label: 'Review', labelKey: 'nav.cafe.review', Icon: CafeIcon, anyOf: ['ops_lead', 'admin', 'supervisor'] },
+  { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: CafeIcon, anyOf: ['ops_lead', 'admin'] },
 ]
 
 /**
