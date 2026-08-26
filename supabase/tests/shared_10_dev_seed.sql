@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(11);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -58,6 +58,36 @@ select cmp_ok((select count(*) from reporting.bom_lines), '>', 0::bigint,
 select is((select count(*)::int from mos.certified_metrics
             where org_id = '10000000-0000-0000-0000-000000000001'), 2,
   'the certified-metric registry lands for the dev org — the seed.sql half of the dual seed, which is the only half a fresh reset runs');
+
+-- ── Team memberships — the section that was never seeded at all ──────────────────────────────
+-- `shared.team_memberships` had no roster seed until 2026-08-26, while the table, its RLS, its
+-- same-org guard and its one-live-primary index had all existed since the squashed baseline. The
+-- only rows on a fresh reset were three NON-PRIMARY ones from seed.dev-signals, so "how many
+-- memberships exist" was already > 0 and would have passed as an assertion while every team still
+-- read as effectively empty. These two ask the questions that were actually false.
+
+-- Every seeded person has a home team. Before the roster seed this was 3 of 6 people with any
+-- membership at all and ZERO with a primary, so "which team is this person on" had no answer.
+select is(
+  (select count(*)::int from shared.people p
+    where p.org_id = '10000000-0000-0000-0000-000000000001'
+      and p.archived_at is null
+      and not exists (select 1 from shared.team_memberships m
+                       where m.person_id = p.id and m.is_primary and m.effective_to is null)),
+  0,
+  'every seeded person has exactly one live PRIMARY team — a person with no home team is what made every team surface read empty');
+
+-- The stream catalog is six teams; a catalog nobody is on cannot answer "which line is this person
+-- on", which is what shared.default_stream resolves. seed.dev-signals put its three memberships on
+-- ORG teams, so this was zero before the roster seed.
+select cmp_ok(
+  (select count(distinct t.id) from shared.team_memberships m
+     join shared.teams t on t.id = m.team_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.branch_id is not null and t.activity is not null
+      and m.effective_to is null),
+  '>', 0::bigint,
+  'and the (branch, activity) production streams have members — the stream catalog is not six empty rooms');
 
 select * from finish();
 rollback;
