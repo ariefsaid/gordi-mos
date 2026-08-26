@@ -17,6 +17,8 @@ export interface AdminPersonRow {
   access_roles: string[] // non-revoked
   jabatan: { role_id: string; role_name: string }[]
   revenue_scope: RevenueScopeGrant[]
+  /** Live team memberships (effective_to is null). At most one is_primary — the DB index holds it. */
+  teams: TeamMembership[]
 }
 
 export interface CreatePersonInput {
@@ -96,4 +98,35 @@ export interface RevenueScopeOption {
 export interface RevenueScopeGrant {
   channel: string
   branch_code: string | null
+}
+
+// ── Teams (shared.team_memberships) ───────────────────────────────────────────
+// A Team is org structure — a group under one Business Unit. A Team that also carries
+// (branch, activity) IS a production stream (OD-WAY-49), and a person's live PRIMARY team is what
+// resolves their default capture stream (AC-001) — which is why "home team" is a real control here
+// and not decoration.
+//
+// Membership is also an AUTHORIZATION INPUT: mos.can_read_signal's R1 arm and the team post/start
+// gates read it. Only `admin` may write it (20260826000001) — the picker below is admin-only
+// because the whole /admin/people route is.
+
+/** A team a person can be put on, from listTeams(). */
+export interface TeamOption {
+  id: string
+  name: string
+  /** Set together on a production-stream team; both null on an ordinary org team. */
+  branch_name: string | null
+  activity: string | null
+}
+
+/** One of a person's LIVE team memberships. */
+export interface TeamMembership {
+  team_id: string
+  team_name: string
+  is_primary: boolean
+}
+
+/** True when this team is a (branch, activity) production stream rather than plain org structure. */
+export function isStreamTeam(team: TeamOption): boolean {
+  return team.branch_name !== null && team.activity !== null
 }

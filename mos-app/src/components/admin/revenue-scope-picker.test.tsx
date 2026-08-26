@@ -33,11 +33,13 @@ const PERSON_NO_SCOPE: AdminPersonRow = {
   access_roles: ['supervisor'],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 const PERSON_WITH_SCOPE: AdminPersonRow = {
   ...PERSON_NO_SCOPE,
   revenue_scope: [{ channel: 'POS', branch_code: 'BGR' }],
+  teams: [],
 }
 
 beforeEach(() => {

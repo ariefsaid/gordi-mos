@@ -19,6 +19,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   listRoles: vi.fn(),
   listRevenueScopeOptions: vi.fn(),
+  listTeams: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -35,6 +36,7 @@ import {
   listAdminPeople,
   listRoles,
   listRevenueScopeOptions,
+  listTeams,
   resetPassword,
   setLoginEnabled,
   archivePerson,
@@ -48,6 +50,7 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockListAdminPeople = vi.mocked(listAdminPeople)
 const mockListRoles = vi.mocked(listRoles)
 const mockListRevenueScopeOptions = vi.mocked(listRevenueScopeOptions)
+const mockListTeams = vi.mocked(listTeams)
 const mockResetPassword = vi.mocked(resetPassword)
 const mockSetLoginEnabled = vi.mocked(setLoginEnabled)
 const mockArchivePerson = vi.mocked(archivePerson)
@@ -84,6 +87,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
     access_roles: ['admin'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
   {
     id: 'p-member',
@@ -94,6 +98,7 @@ const TWO_PEOPLE: AdminPersonRow[] = [
     access_roles: ['member'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
 ]
 
@@ -106,6 +111,7 @@ const ARCHIVED_PERSON: AdminPersonRow = {
   access_roles: [],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 beforeEach(() => {
@@ -114,6 +120,7 @@ beforeEach(() => {
   vi.mocked(useIsDesktop).mockReturnValue(true) // desktop view
   mockListRoles.mockResolvedValue([])
   mockListRevenueScopeOptions.mockResolvedValue([])
+  mockListTeams.mockResolvedValue([])
 })
 
 function renderPage() {

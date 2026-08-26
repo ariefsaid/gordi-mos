@@ -29,9 +29,10 @@ import { ModalShell } from '@/components/ui/modal-shell'
 import { CloseIcon } from '@/shell/icons'
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, localizedRoleMeta } from '@/lib/db/admin-users.types'
-import type { AdminPersonRow, RoleOption, RevenueScopeOption } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RoleOption, RevenueScopeOption, TeamOption } from '@/lib/db/admin-users.types'
 import { PositionPicker } from './position-picker'
 import { RevenueScopePicker } from './revenue-scope-picker'
+import { TeamPicker } from './team-picker'
 import { CheckboxRow, PickerError } from './checkbox-row'
 
 // Roles protected by self-assign guard (FR-023, ADR-0050 D4 + ADR-0051)
@@ -45,6 +46,8 @@ export interface RoleEditorProps {
   roles?: RoleOption[]
   /** Live revenue-branch options for the Revenue scope section, from listRevenueScopeOptions() (ADR-0051). */
   scopeOptions?: RevenueScopeOption[]
+  /** Every live team, for the Teams section, from listTeams(). */
+  teams?: TeamOption[]
   open: boolean
   onClose: () => void
   /** Called after a successful grant/revoke so the page can reload the list. */
@@ -70,6 +73,7 @@ export function RoleEditor({
   person,
   people = [],
   roles = [],
+  teams = [],
   scopeOptions,
   open,
   onClose,
@@ -212,6 +216,11 @@ export function RoleEditor({
 
           {/* Position section (Jabatan, ADR-0050) — bordered, same dialog, below Access level */}
           <PositionPicker person={person} roles={roles} onDone={onDone} onShowToast={onShowToast} />
+
+          {/* Teams section (owner, 2026-08-26) — below Position, because a Position is a title and
+              a Team is where someone actually works. Unconditional, unlike Revenue scope: everyone
+              belongs somewhere, and it is the empty case that has been the problem. */}
+          <TeamPicker person={person} teams={teams} onDone={onDone} onShowToast={onShowToast} />
 
           {/* Revenue scope section (ADR-0051) — only when the person holds supervisor */}
           {person.access_roles.includes('supervisor') && (

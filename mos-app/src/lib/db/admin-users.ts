@@ -4,7 +4,7 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
-import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption } from './admin-users.types'
+import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption, TeamOption, TeamMembership } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
 const reporting = () => supabase.schema('reporting')
@@ -111,6 +111,27 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     ;(scopeByPerson[row.person_id] ??= []).push({ channel: row.channel, branch_code: row.branch_code })
   }
 
+  // 6. Fetch LIVE team memberships + the team names they point at. Two reads, no cross-table embed
+  //    — same reason as the Jabatan pair above (PGRST200 on embeds this schema does not expose).
+  //    `effective_to is null` is the liveness filter: an ended membership is history, not a team
+  //    this person is on, and the admin screen must not offer to end it twice.
+  const { data: tmRows, error: tmErr } = await shared()
+    .from('team_memberships')
+    .select('person_id,team_id,is_primary,effective_to')
+    .is('effective_to', null)
+  if (tmErr) throw surface('load people', tmErr)
+  const { data: teamRows, error: tErr } = await shared().from('teams').select('id,name')
+  if (tErr) throw surface('load people', tErr)
+  const teamNameById = new Map((teamRows ?? []).map((t: { id: string; name: string }) => [t.id, t.name]))
+  const teamsByPerson: Record<string, TeamMembership[]> = {}
+  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean }[]) {
+    ;(teamsByPerson[row.person_id] ??= []).push({
+      team_id: row.team_id,
+      team_name: teamNameById.get(row.team_id) ?? row.team_id,
+      is_primary: row.is_primary,
+    })
+  }
+
   // Build lookup maps
   const rolesByPerson: Record<string, string[]> = {}
   for (const row of (roles ?? []) as { person_id: string; access_role: string }[]) {
@@ -138,6 +159,7 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
       access_roles: rolesByPerson[p.id] ?? [],
       jabatan: jabatanByPerson[p.id] ?? [],
       revenue_scope: scopeByPerson[p.id] ?? [],
+      teams: teamsByPerson[p.id] ?? [],
     }
   })
 }
@@ -291,4 +313,93 @@ export async function removeRevenueScope(personId: string, channel: string, bran
   q = branchCode === null ? q.is('branch_code', null) : q.eq('branch_code', branchCode)
   const { error } = await q
   if (error) throw surface('remove revenue scope', error)
+}
+
+// ── Teams (shared.team_memberships) ───────────────────────────────────────────
+// Admin-only at the database (20260826000001): membership is an authorization input for the Signal
+// read gate and the team post/start gates, so no other access role may write it. There is no DELETE
+// grant — removal is a soft end, which also frees the one-live-primary slot without losing history.
+
+/** Every live team, with the (branch, activity) pair spelled out for the stream ones. */
+export async function listTeams(): Promise<TeamOption[]> {
+  const { data, error } = await shared()
+    .from('teams')
+    .select('id,name,branch_id,activity,archived_at')
+    .is('archived_at', null)
+    .order('name', { ascending: true })
+  if (error) throw surface('load teams', error)
+  const rows = (data ?? []) as { id: string; name: string; branch_id: string | null; activity: string | null }[]
+
+  // Branch names only matter for the stream teams; skip the read entirely when there are none.
+  const branchIds = [...new Set(rows.map((r) => r.branch_id).filter((b): b is string => b !== null))]
+  const branchNameById = new Map<string, string>()
+  if (branchIds.length > 0) {
+    const { data: branches, error: bErr } = await shared().from('branches').select('id,name').in('id', branchIds)
+    if (bErr) throw surface('load teams', bErr)
+    for (const b of (branches ?? []) as { id: string; name: string }[]) branchNameById.set(b.id, b.name)
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    branch_name: r.branch_id === null ? null : branchNameById.get(r.branch_id) ?? null,
+    activity: r.activity,
+  }))
+}
+
+/**
+ * Put a person on a team.
+ *
+ * Never sends org_id — the column defaults to shared.current_org_id() and the policy re-checks it,
+ * so a client-supplied org is refused rather than trusted. `is_primary` is passed through: the
+ * caller decides, and the partial unique index refuses a second live primary, which is why
+ * `setPrimaryTeam` below ends the old one first rather than racing it.
+ */
+export async function addTeamMembership(personId: string, teamId: string, isPrimary = false): Promise<void> {
+  const { error } = await shared()
+    .from('team_memberships')
+    .insert({ person_id: personId, team_id: teamId, is_primary: isPrimary })
+  if (error) throw surface('add to team', error)
+}
+
+/**
+ * Take a person off a team — a soft end, not a delete. There is no DELETE grant to fall back on.
+ * Scoped to the LIVE row so re-ending an already-ended membership cannot rewrite its history.
+ */
+export async function endTeamMembership(personId: string, teamId: string): Promise<void> {
+  const { error } = await shared()
+    .from('team_memberships')
+    .update({ effective_to: new Date().toISOString().slice(0, 10) })
+    .eq('person_id', personId)
+    .eq('team_id', teamId)
+    .is('effective_to', null)
+  if (error) throw surface('remove from team', error)
+}
+
+/**
+ * Make one of a person's live teams their home team.
+ *
+ * Two writes, in this order: clear the old primary FIRST, then set the new one. The reverse order
+ * hits `team_memberships_one_primary` (unique on person_id where is_primary and effective_to is
+ * null) and fails, so the sequence is load-bearing, not stylistic. Not a transaction: PostgREST has
+ * no client-side one, and a failure between the two leaves the person with NO home team, which the
+ * picker renders honestly and the admin can fix with one more click — strictly better than the
+ * alternative of a definer RPC whose only job is to hide a two-step from a screen that shows it.
+ */
+export async function setPrimaryTeam(personId: string, teamId: string): Promise<void> {
+  const { error: clearErr } = await shared()
+    .from('team_memberships')
+    .update({ is_primary: false })
+    .eq('person_id', personId)
+    .is('effective_to', null)
+    .eq('is_primary', true)
+  if (clearErr) throw surface('set home team', clearErr)
+
+  const { error } = await shared()
+    .from('team_memberships')
+    .update({ is_primary: true })
+    .eq('person_id', personId)
+    .eq('team_id', teamId)
+    .is('effective_to', null)
+  if (error) throw surface('set home team', error)
 }

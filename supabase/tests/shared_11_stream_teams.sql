@@ -355,16 +355,30 @@ select is(
   '{}'::text[],
   'OD-WAY-49: ...and every one of them reaches the stream through the REVIEWER predicate — no policy compares a stream column to the caller''s own, which is what a member wall would look like');
 
--- The two substrate tables keep exactly the policy surface they had before this slice: one
--- org-scoped SELECT each, nothing added, nothing re-authored.
+-- The two substrate tables' whole policy surface, enumerated. It was SELECT-only when this slice
+-- landed; the two admin-write policies joined it on 2026-08-26 (20260826000001) so the admin screen
+-- can put people on teams instead of that being a SQL edit.
+--
+-- That addition does not touch OD-WAY-49, which is about the STREAM: the two assertions above are
+-- the ruling's teeth, and they still hold, because neither new policy mentions branch_id or
+-- activity or compares a stream column to the caller's own. What the new policies add is an
+-- admin-only maintenance surface over the org chart — which is the thing OD-WAY-49 says a Team
+-- already IS ("the owner is describing the org chart that already exists").
+--
+-- Keep this list exhaustive. It is the guard that makes a NEW write policy on either table an
+-- explicit decision rather than a diff nobody read — and on team_memberships that matters more
+-- than usual, because membership is an authorization input for the Signal read gate and the team
+-- post/start gates (shared_13_team_membership_writes.sql carries the who-is-refused assertions).
 select set_eq($$
   select tablename || ' :: ' || policyname || ' :: ' || cmd from pg_policies
    where schemaname = 'shared' and tablename in ('teams','team_memberships')
   $$, $$ values
     ('teams :: teams_select_org :: SELECT'),
-    ('team_memberships :: team_memberships_select_org :: SELECT')
+    ('team_memberships :: team_memberships_select_org :: SELECT'),
+    ('team_memberships :: team_memberships_insert_admin :: INSERT'),
+    ('team_memberships :: team_memberships_update_admin :: UPDATE')
   $$,
-  'OD-WAY-49: the team substrate''s policy set is UNCHANGED by this slice — org-scoped SELECT and nothing else');
+  'the team substrate''s policy set is exactly: org-scoped SELECT on both, plus admin-only INSERT/UPDATE on memberships');
 
 select ok(
   not has_table_privilege('authenticated','shared.teams','INSERT')

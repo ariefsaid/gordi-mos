@@ -41,6 +41,7 @@ const ACTIVE_ADMIN: AdminPersonRow = {
   access_roles: ['admin'],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 const ACTIVE_MEMBER: AdminPersonRow = {
@@ -52,6 +53,7 @@ const ACTIVE_MEMBER: AdminPersonRow = {
   access_roles: ['member'],
   jabatan: [{ role_id: 'r-barista', role_name: 'Barista' }],
   revenue_scope: [],
+  teams: [],
 }
 
 const NO_LOGIN_PERSON: AdminPersonRow = {
@@ -63,6 +65,7 @@ const NO_LOGIN_PERSON: AdminPersonRow = {
   access_roles: ['member'],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 const ARCHIVED_PERSON: AdminPersonRow = {
@@ -74,6 +77,7 @@ const ARCHIVED_PERSON: AdminPersonRow = {
   access_roles: [],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
@@ -85,6 +89,7 @@ const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   access_roles: ['member'],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 // Two admins (so last-admin guard does NOT apply)
@@ -127,11 +132,11 @@ function renderTable(
 describe('UserTable — URL-synced filter/search state (I7 / D-E1)', () => {
   const NO_LOGIN_ANDI: AdminPersonRow = {
     id: 'p-andi', full_name: 'Andi Wijaya', email: 'andi@example.test',
-    archived_at: null, login: 'none', access_roles: ['member'], jabatan: [], revenue_scope: [],
+    archived_at: null, login: 'none', access_roles: ['member'], jabatan: [], revenue_scope: [], teams: [],
   }
   const DISABLED_ANDI: AdminPersonRow = {
     id: 'p-andi2', full_name: 'Andi Disabled', email: 'andid@example.test',
-    archived_at: null, login: 'disabled', access_roles: ['member'], jabatan: [], revenue_scope: [],
+    archived_at: null, login: 'disabled', access_roles: ['member'], jabatan: [], revenue_scope: [], teams: [],
   }
 
   it('hydrates the status filter + search from the URL on load (a shared/refreshed link reproduces the view)', () => {
