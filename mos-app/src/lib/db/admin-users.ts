@@ -111,25 +111,21 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     ;(scopeByPerson[row.person_id] ??= []).push({ channel: row.channel, branch_code: row.branch_code })
   }
 
-  // 6. Fetch LIVE team memberships + the team names they point at. Two reads, no cross-table embed
-  //    — same reason as the Jabatan pair above (PGRST200 on embeds this schema does not expose).
-  //    `effective_to is null` is the liveness filter: an ended membership is history, not a team
-  //    this person is on, and the admin screen must not offer to end it twice.
+  // 6. LIVE team memberships. One read: the picker labels rows from listTeams(), so no team name
+  //    is needed here — carrying one cost a second full read of shared.teams for nothing.
+  //
+  //    Liveness matches what the AUTHORIZATION GATES mean by live (`effective_to is null or
+  //    effective_to >= current_date`), not `is null` alone. Two definitions of "live" is how the
+  //    screen came to report someone removed while the Signal read gate still admitted them.
+  const today = new Date().toISOString().slice(0, 10)
   const { data: tmRows, error: tmErr } = await shared()
     .from('team_memberships')
     .select('person_id,team_id,is_primary,effective_to')
-    .is('effective_to', null)
+    .or(`effective_to.is.null,effective_to.gte.${today}`)
   if (tmErr) throw surface('load people', tmErr)
-  const { data: teamRows, error: tErr } = await shared().from('teams').select('id,name')
-  if (tErr) throw surface('load people', tErr)
-  const teamNameById = new Map((teamRows ?? []).map((t: { id: string; name: string }) => [t.id, t.name]))
   const teamsByPerson: Record<string, TeamMembership[]> = {}
   for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean }[]) {
-    ;(teamsByPerson[row.person_id] ??= []).push({
-      team_id: row.team_id,
-      team_name: teamNameById.get(row.team_id) ?? row.team_id,
-      is_primary: row.is_primary,
-    })
+    ;(teamsByPerson[row.person_id] ??= []).push({ team_id: row.team_id, is_primary: row.is_primary })
   }
 
   // Build lookup maps
@@ -364,15 +360,18 @@ export async function addTeamMembership(personId: string, teamId: string, isPrim
 
 /**
  * Take a person off a team — a soft end, not a delete. There is no DELETE grant to fall back on.
- * Scoped to the LIVE row so re-ending an already-ended membership cannot rewrite its history.
+ *
+ * Goes through `shared.end_team_membership` rather than writing a date from here. `effective_to` is
+ * an INCLUSIVE last day, so `= today` leaves every authorization gate still admitting the person
+ * until tomorrow while this screen reports them removed; the cutoff also has to be the DATABASE's
+ * today, not a browser's. The function is SECURITY INVOKER, so the admin-only UPDATE policy is
+ * still what admits the caller.
  */
 export async function endTeamMembership(personId: string, teamId: string): Promise<void> {
-  const { error } = await shared()
-    .from('team_memberships')
-    .update({ effective_to: new Date().toISOString().slice(0, 10) })
-    .eq('person_id', personId)
-    .eq('team_id', teamId)
-    .is('effective_to', null)
+  const { error } = await shared().rpc('end_team_membership', {
+    p_person_id: personId,
+    p_team_id: teamId,
+  })
   if (error) throw surface('remove from team', error)
 }
 

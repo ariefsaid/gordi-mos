@@ -1,27 +1,19 @@
-// TeamPicker — "Teams" section mounted inside RoleEditor's dialog, below Position.
+// TeamPicker — "Teams" in RoleEditor's dialog, below Position. Owner, 2026-08-26.
 //
-// Owner, 2026-08-26: Admin Settings should manage "adding people to the different teams /
-// activity", not just adding people. Before this, shared.team_memberships was SELECT-only and the
-// only way to put someone on a team was to edit seed SQL.
+// Two things Position above does not carry:
+//  1. Membership is an authorization input, not a label — checking a box here can widen what
+//     someone READS. The database holds that line (admin-only, 20260826000001, which is where the
+//     reasoning lives); this is the screen in front of it.
+//  2. A Team carrying (branch, activity) IS a production stream, and the live PRIMARY membership
+//     resolves the person's default capture stream (OD-WAY-49 / AC-001). "Home team" therefore has
+//     a downstream effect, which is why it is a visible control and not check order.
 //
-// Two things a reader needs to know about this section that the Position section above does not
-// carry:
-//
-//  1. Membership is an AUTHORIZATION INPUT, not a label. mos.can_read_signal's R1 arm and the team
-//     post/start gates resolve rights by asking whether a membership row exists. Checking a box
-//     here can widen what someone can READ. The database holds the line (admin-only INSERT/UPDATE,
-//     20260826000001); this component is simply the screen in front of it.
-//  2. A Team that carries (branch, activity) IS a production stream (OD-WAY-49), and the person's
-//     live PRIMARY team resolves their default capture stream (AC-001). "Home team" is therefore a
-//     real control with a downstream effect, not decoration — which is why it is a visible radio
-//     rather than an implicit consequence of check order.
-//
-// Removal is a soft end (endTeamMembership sets effective_to), because there is no DELETE grant and
-// membership history is worth keeping.
+// Removal is a soft end (no DELETE grant, and membership history is worth keeping).
 
 import { useState } from 'react'
 import { addTeamMembership, endTeamMembership, setPrimaryTeam } from '@/lib/db/admin-users'
 import { isStreamTeam, type AdminPersonRow, type TeamOption } from '@/lib/db/admin-users.types'
+import { Pill } from '@/components/ui/pill'
 import { CheckboxRow, PickerError } from './checkbox-row'
 
 export interface TeamPickerProps {
@@ -145,15 +137,12 @@ export function TeamPicker({ person, teams, onDone, onShowToast }: TeamPickerPro
                   </span>
                   {/* Outside the <label>, never inside it: a button nested in a label is both a
                       nesting violation and a second click target for the checkbox. */}
+                  {/* The shared primitive, not a hand-rolled tint: Pill already owns this exact
+                      background AND pairs it with the AA-darkened text token that raw
+                      var(--primary) misses at 12px on a light wash. */}
                   {membership?.is_primary === true && (
-                    <span
-                      className="flex-none rounded-sm px-2 py-0.5 text-xs font-medium"
-                      style={{
-                        background: 'color-mix(in srgb, var(--primary) 12%, transparent)',
-                        color: 'var(--primary)',
-                      }}
-                    >
-                      Home
+                    <span className="flex-none">
+                      <Pill tone="primary" dot={false}>Home</Pill>
                     </span>
                   )}
                   {membership !== undefined && !membership.is_primary && (

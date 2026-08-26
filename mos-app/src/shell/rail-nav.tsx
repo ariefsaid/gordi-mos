@@ -356,7 +356,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
           on shared café/kitchen terminals a stale session became invisible AND unterminable. Reuses
           the existing UserChip (Rule 11 — no new component): the 'rail' variant shows the viewer's
           full NAME + role and opens a menu with Sign out (handleSignOut is unchanged). /profile
-          itself moved to a normal Utility rail link above (see liveUtility). Compact (P1-1): the
+          is a menuitem INSIDE that menu (owner, 2026-08-26), not a rail link. Compact (P1-1): the
           chip collapses to the avatar only (UserChip's existing `compact` prop, previously only
           wired for the <920px header variant). */}
       {viewer && (

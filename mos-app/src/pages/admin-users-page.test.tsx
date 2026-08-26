@@ -373,3 +373,32 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
     )
   })
 })
+
+// The Teams section is the one part of the RoleEditor dialog nothing asserted end to end: every
+// suite stubbed listTeams to [] and RoleEditor's `teams` prop defaults to [], so deleting
+// `teams={teams}` from the page left the whole suite green.
+describe('AdminUsersPage — the Teams section is actually wired through', () => {
+  it('passes listTeams() into the role editor, so a real team renders in the dialog', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue([
+      {
+        id: 'p-1', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null,
+        login: 'active', access_roles: ['member'], jabatan: [], revenue_scope: [],
+        teams: [{ team_id: 't-bar', is_primary: true }],
+      },
+    ])
+    mockListTeams.mockResolvedValue([
+      { id: 't-bar', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
+    ])
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /More actions for Budi Santoso/i }))
+    await user.click(await screen.findByText(/Manage access & position/i))
+
+    // The team the PAGE fetched, rendered by the picker, showing its (branch, activity) pair —
+    // and marked Home, which is what resolves this person's default capture stream.
+    expect(await screen.findByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
+    expect(screen.getByText('Gordi HQ · Bar')).toBeInTheDocument()
+    expect(screen.getByText('Home')).toBeInTheDocument()
+  })
+})

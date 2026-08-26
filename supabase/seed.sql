@@ -283,27 +283,27 @@ select '10000000-0000-0000-0000-000000000001', m.person_id::uuid, t.id, m.is_pri
 from (values
   -- Leadership + back office, on their unit's team.
   ('40000000-0000-0000-0000-000000000000', 'hq_operations',      true),   -- Dewi    Managing Director
-  ('40000000-0000-0000-0000-000000000001', 'hq_operations',      true),   -- Cahya   Cafe Ops Lead
-  ('40000000-0000-0000-0000-000000000002', 'hq_operations',      true),   -- Krishna Kitchen Lead
+  ('40000000-0000-0000-0000-000000000001', 'hq_operations',      false),   -- Cahya   Cafe Ops Lead
+  ('40000000-0000-0000-0000-000000000002', 'hq_operations',      false),   -- Krishna Kitchen Lead
   ('40000000-0000-0000-0000-000000000003', 'roastery_team',      true),   -- Rama    Roastery Lead
   ('40000000-0000-0000-0000-000000000004', 'b2b_sales_team',     true),   -- Sari    Sales Lead
   ('40000000-0000-0000-0000-000000000005', 'finance_team',       true),   -- Fitri   Finance Lead
   -- HQ floor.
-  ('40000000-0000-0000-0000-000000000006', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-000000000007', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-000000000008', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-000000000009', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-00000000000a', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-00000000000b', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-00000000000c', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-00000000000d', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-00000000000e', 'hq_operations',      true),
-  ('40000000-0000-0000-0000-00000000000f', 'hq_operations',      true),
+  ('40000000-0000-0000-0000-000000000006', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-000000000007', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-000000000008', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-000000000009', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000a', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000b', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000c', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000d', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000e', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000f', 'hq_operations',      false),
   -- Radiant floor.
-  ('40000000-0000-0000-0000-000000000010', 'radiant_operations', true),
-  ('40000000-0000-0000-0000-000000000011', 'radiant_operations', true),
-  ('40000000-0000-0000-0000-000000000012', 'radiant_operations', true),
-  ('40000000-0000-0000-0000-000000000013', 'radiant_operations', true),
+  ('40000000-0000-0000-0000-000000000010', 'radiant_operations', false),
+  ('40000000-0000-0000-0000-000000000011', 'radiant_operations', false),
+  ('40000000-0000-0000-0000-000000000012', 'radiant_operations', false),
+  ('40000000-0000-0000-0000-000000000013', 'radiant_operations', false),
   -- Everyone else.
   ('40000000-0000-0000-0000-000000000014', 'ecommerce_team',     true),
   ('40000000-0000-0000-0000-000000000015', 'ecommerce_team',     true),
@@ -315,25 +315,31 @@ from (values
   ('40000000-0000-0000-0000-00000000001b', 'marketing_team',     true),
   ('40000000-0000-0000-0000-00000000001c', 'hr_team',            true),
   ('40000000-0000-0000-0000-00000000001d', 'finance_team',       true),
-  -- Stream teams — {branch} x {kitchen, bar}, the production lines. Non-primary: this says which
-  -- line someone works, not where they report. Without these the stream catalog has six teams and
-  -- nobody on any of them, which is what `shared.default_stream` has to resolve against.
-  ('40000000-0000-0000-0000-000000000006', 'gordi_hq_bar',        false),
-  ('40000000-0000-0000-0000-000000000007', 'gordi_hq_bar',        false),
-  ('40000000-0000-0000-0000-000000000008', 'gordi_hq_bar',        false),
-  ('40000000-0000-0000-0000-00000000000a', 'gordi_hq_bar',        false),
-  ('40000000-0000-0000-0000-000000000001', 'gordi_hq_bar',        false),
-  ('40000000-0000-0000-0000-00000000000b', 'gordi_hq_kitchen',    false),
-  ('40000000-0000-0000-0000-00000000000c', 'gordi_hq_kitchen',    false),
-  ('40000000-0000-0000-0000-00000000000d', 'gordi_hq_kitchen',    false),
-  ('40000000-0000-0000-0000-000000000002', 'gordi_hq_kitchen',    false),
-  ('40000000-0000-0000-0000-00000000000e', 'rumah_rames_kitchen', false),
-  ('40000000-0000-0000-0000-00000000000f', 'rumah_rames_kitchen', false),
-  ('40000000-0000-0000-0000-000000000009', 'rumah_rames_bar',     false),
-  ('40000000-0000-0000-0000-000000000010', 'radiant_bar',         false),
-  ('40000000-0000-0000-0000-000000000011', 'radiant_bar',         false),
-  ('40000000-0000-0000-0000-000000000012', 'radiant_kitchen',     false),
-  ('40000000-0000-0000-0000-000000000013', 'radiant_kitchen',     false)
+  -- Stream teams — {branch} x {kitchen, bar}, the production lines. These are the PRIMARY rows for
+  -- everyone who works a line, and their org-team row above is the non-primary one.
+  --
+  -- That direction is OD-WAY-49's, not a preference: "the person's PRIMARY team defaults their
+  -- capture stream", and `shared.default_stream()` reads the live primary and nothing else. The
+  -- first cut of this seed had it backwards — primary = reporting line, stream = secondary — which
+  -- left all 30 seeded people resolving to NO stream, the exact state the seed exists to fix, while
+  -- the admin screen told the world "the home team sets this person's default capture stream".
+  -- Back-office people keep an org team as primary and correctly resolve to no stream.
+  ('40000000-0000-0000-0000-000000000006', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000007', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000008', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-00000000000a', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000001', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-00000000000b', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-00000000000c', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-00000000000d', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-000000000002', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-00000000000e', 'rumah_rames_kitchen', true),
+  ('40000000-0000-0000-0000-00000000000f', 'rumah_rames_kitchen', true),
+  ('40000000-0000-0000-0000-000000000009', 'rumah_rames_bar',     true),
+  ('40000000-0000-0000-0000-000000000010', 'radiant_bar',         true),
+  ('40000000-0000-0000-0000-000000000011', 'radiant_bar',         true),
+  ('40000000-0000-0000-0000-000000000012', 'radiant_kitchen',     true),
+  ('40000000-0000-0000-0000-000000000013', 'radiant_kitchen',     true)
 ) as m(person_id, team_code, is_primary)
 join shared.teams t
   on t.org_id = '10000000-0000-0000-0000-000000000001'

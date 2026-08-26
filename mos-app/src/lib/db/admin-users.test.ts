@@ -28,6 +28,10 @@ import {
   listRevenueScopeOptions,
   assignRevenueScope,
   removeRevenueScope,
+  listTeams,
+  addTeamMembership,
+  endTeamMembership,
+  setPrimaryTeam,
 } from './admin-users'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -39,6 +43,9 @@ function makeSharedSchema(tableResponses: Record<string, { data: unknown; error:
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn(() => builder)
     builder.is = vi.fn(() => builder)
+    // listAdminPeople reads team memberships with the GATES definition of live
+    // (effective_to is null OR >= today), which PostgREST expresses as .or()
+    builder.or = vi.fn(() => builder)
     builder.order = vi.fn(() => builder)
     builder.eq = vi.fn(() => builder)
     builder.in = vi.fn(() => builder)
@@ -475,5 +482,94 @@ describe('Revenue scope (supervisor) wrappers', () => {
 
     const result = await listAdminPeople()
     expect(result[0].revenue_scope).toEqual([{ channel: 'POS', branch_code: 'BGR' }])
+  })
+})
+
+// ── Teams (shared.team_memberships) ──────────────────────────────────────────
+// Membership is an authorization input, so these four wrappers decide who reads which Signals.
+// Each assertion below is about the CONSEQUENCE, not the call shape — the two that matter most are
+// that removal goes through the server-side cutoff, and that the home-team swap clears before it
+// sets. Both were claimed in a docblock and asserted nowhere.
+describe('Team wrappers', () => {
+  it('listTeams names the (branch, activity) pair on stream teams and leaves org teams bare', async () => {
+    const schemaObj = makeSharedSchema({
+      teams: { data: [
+        { id: 't1', name: 'HQ Operations', branch_id: null, activity: null },
+        { id: 't2', name: 'Gordi HQ Bar', branch_id: 'b1', activity: 'bar' },
+      ], error: null },
+      branches: { data: [{ id: 'b1', name: 'Gordi HQ' }], error: null },
+    })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    expect(await listTeams()).toEqual([
+      { id: 't1', name: 'HQ Operations', branch_name: null, activity: null },
+      { id: 't2', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
+    ])
+  })
+
+  it('listTeams skips the branch read entirely when no team is a stream', async () => {
+    const schemaObj = makeSharedSchema({
+      teams: { data: [{ id: 't1', name: 'HQ Operations', branch_id: null, activity: null }], error: null },
+    })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await listTeams()
+    expect(schemaObj.from).toHaveBeenCalledTimes(1)
+    expect(schemaObj.from).not.toHaveBeenCalledWith('branches')
+  })
+
+  it('throws on listTeams error', async () => {
+    const schemaObj = makeSharedSchema({ teams: { data: null, error: { message: 'rls denied' } } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(listTeams()).rejects.toThrow(/Couldn't load teams/)
+  })
+
+  it('addTeamMembership never sends org_id — the DB stamps it and the policy re-checks it', async () => {
+    const schemaObj = makeSharedSchema({ team_memberships: { data: null, error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await addTeamMembership('p1', 't1', true)
+    const builder = schemaObj.from.mock.results[0].value as { insert: ReturnType<typeof vi.fn> }
+    expect(builder.insert).toHaveBeenCalledWith({ person_id: 'p1', team_id: 't1', is_primary: true })
+    expect(builder.insert.mock.calls[0][0] as Record<string, unknown>).not.toHaveProperty('org_id')
+  })
+
+  it('endTeamMembership goes through the RPC, never a client-written date', async () => {
+    const schemaObj = makeSharedSchema({}, { data: null, error: null })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await endTeamMembership('p1', 't1')
+    // The whole point: `effective_to` is an inclusive last day, so a client writing today's date
+    // revokes TOMORROW while the screen says removed. The cutoff has to be the database's.
+    expect(schemaObj.rpc).toHaveBeenCalledWith('end_team_membership', { p_person_id: 'p1', p_team_id: 't1' })
+    expect(schemaObj.from).not.toHaveBeenCalled()
+  })
+
+  it('throws when the removal RPC refuses', async () => {
+    const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'permission denied' } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(endTeamMembership('p1', 't1')).rejects.toThrow(/Couldn't remove from team/)
+  })
+
+  it('setPrimaryTeam CLEARS the old primary before setting the new one', async () => {
+    const schemaObj = makeSharedSchema({ team_memberships: { data: null, error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await setPrimaryTeam('p1', 't2')
+    // Order is load-bearing, not stylistic: team_memberships_one_primary is unique on person_id
+    // where is_primary and effective_to is null, so setting before clearing hits the index and
+    // fails. Swap the two blocks in admin-users.ts and this assertion is what goes red.
+    const [clear, set] = schemaObj.from.mock.results.map(
+      (r) => r.value as { update: ReturnType<typeof vi.fn> },
+    )
+    expect(clear.update).toHaveBeenCalledWith({ is_primary: false })
+    expect(set.update).toHaveBeenCalledWith({ is_primary: true })
+  })
+
+  it('setPrimaryTeam stops at the clear step if it fails, rather than orphaning two primaries', async () => {
+    const schemaObj = makeSharedSchema({ team_memberships: { data: null, error: { message: 'rls denied' } } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(setPrimaryTeam('p1', 't2')).rejects.toThrow(/Couldn't set home team/)
+    expect(schemaObj.from).toHaveBeenCalledTimes(1)
   })
 })

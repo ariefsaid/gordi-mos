@@ -119,10 +119,9 @@ export interface TeamOption {
   activity: string | null
 }
 
-/** One of a person's LIVE team memberships. */
+/** One of a person's LIVE team memberships. Labels come from TeamOption, so no name is carried. */
 export interface TeamMembership {
   team_id: string
-  team_name: string
   is_primary: boolean
 }
 

@@ -49,12 +49,12 @@ const PERSON_NO_TEAM: AdminPersonRow = {
 
 const PERSON_WITH_HOME: AdminPersonRow = {
   ...PERSON_NO_TEAM,
-  teams: [{ team_id: 't-hq', team_name: 'HQ Operations', is_primary: true }],
+  teams: [{ team_id: 't-hq', is_primary: true }],
 }
 
 const PERSON_NO_HOME: AdminPersonRow = {
   ...PERSON_NO_TEAM,
-  teams: [{ team_id: 't-hq', team_name: 'HQ Operations', is_primary: false }],
+  teams: [{ team_id: 't-hq', is_primary: false }],
 }
 
 beforeEach(() => {
@@ -118,8 +118,8 @@ describe('TeamPicker', () => {
     const person: AdminPersonRow = {
       ...PERSON_NO_TEAM,
       teams: [
-        { team_id: 't-hq', team_name: 'HQ Operations', is_primary: true },
-        { team_id: 't-bar', team_name: 'Gordi HQ Bar', is_primary: false },
+        { team_id: 't-hq', is_primary: true },
+        { team_id: 't-bar', is_primary: false },
       ],
     }
     renderPicker(person)

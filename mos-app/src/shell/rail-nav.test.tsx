@@ -217,9 +217,12 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     // so this half guards against a later reshuffle, it does not prove today's fix.
     expect(railLinks[railLinks.length - 1]).toBe(admin)
     // The half that IS today's fix (owner, 2026-08-26: Admin pinned to the foot of the rail).
-    // jsdom computes no layout, so this asserts the MECHANISM — `mt-auto` eating the flex
-    // container's free space — not the pixels. The pixels were verified by rendering the rail at
-    // 1440px and 390px; that render, not this line, is the evidence the row actually sits low.
+    // jsdom computes no layout, so this asserts the MECHANISM, not the pixels — and the mechanism
+    // has TWO halves. Asserting `mt-auto` alone stayed green with `flex-1` stripped from the nav,
+    // which destroys the pinning outright: auto margins consume free space only in a container
+    // that grows. Both, or the test passes on a broken rail.
+    expect(nav).toHaveClass('flex-1')
+    expect(nav).toHaveClass('flex-col')
     expect(admin.closest('.rail-item-list-item')).toHaveClass('mt-auto')
   })
 

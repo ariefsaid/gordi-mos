@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -77,17 +77,30 @@ select is(
   0,
   'every seeded person has exactly one live PRIMARY team — a person with no home team is what made every team surface read empty');
 
--- The stream catalog is six teams; a catalog nobody is on cannot answer "which line is this person
--- on", which is what shared.default_stream resolves. seed.dev-signals put its three memberships on
--- ORG teams, so this was zero before the roster seed.
+-- AC-001 / OD-WAY-49: a person's live PRIMARY team is what resolves their capture stream, so the
+-- seed must put the line staff's primary ON a stream team. The first cut made every primary an
+-- ORG team and left all 30 people resolving to no stream at all — and the assertion written beside
+-- it ("some stream team has members") passed on exactly the non-primary rows default_stream() can
+-- never use. This asks the question that was false: does anyone actually resolve a stream?
 select cmp_ok(
-  (select count(distinct t.id) from shared.team_memberships m
+  (select count(*) from shared.team_memberships m
      join shared.teams t on t.id = m.team_id
-    where t.org_id = '10000000-0000-0000-0000-000000000001'
-      and t.branch_id is not null and t.activity is not null
-      and m.effective_to is null),
+    where m.org_id = '10000000-0000-0000-0000-000000000001'
+      and m.is_primary and m.effective_to is null
+      and t.branch_id is not null and t.activity is not null),
   '>', 0::bigint,
-  'and the (branch, activity) production streams have members — the stream catalog is not six empty rooms');
+  'seeded line staff have a PRODUCTION STREAM as their live primary team — without that shared.default_stream() resolves to nothing and every capture surface opens unset');
+
+-- ...and the back office correctly does NOT. A seed that gave everyone a stream would pass the
+-- assertion above while making the "no default stream" branch unreachable in dev.
+select cmp_ok(
+  (select count(*) from shared.team_memberships m
+     join shared.teams t on t.id = m.team_id
+    where m.org_id = '10000000-0000-0000-0000-000000000001'
+      and m.is_primary and m.effective_to is null
+      and t.branch_id is null),
+  '>', 0::bigint,
+  'and back-office people keep an ORG team as primary — the no-stream path stays exercisable in dev');
 
 select * from finish();
 rollback;

@@ -58,3 +58,33 @@ comment on policy team_memberships_insert_admin on shared.team_memberships is
 comment on policy team_memberships_update_admin on shared.team_memberships is
   'Admin-only, org-scoped. Carries the removal path too: ending a membership sets effective_to '
   'rather than deleting the row, which frees the one-live-primary slot and keeps the history.';
+
+-- ── Ending a membership NOW ──────────────────────────────────────────────────────────────────
+-- `effective_to` is an INCLUSIVE last day — every gate reads `effective_to >= current_date` as
+-- still live (can_read_signal R1, can_post_signal_for_team, can_start_process_for_team,
+-- _function_holders, the notification fan-out, ops.is_stream_reviewer). So `= current_date`
+-- revokes TOMORROW while the screen says removed; revoking now is `current_date - 1`.
+-- A function, not a client date: the cutoff must be the DATABASE's today, not a browser's.
+-- SECURITY INVOKER — RLS admits the caller; this adds no privilege.
+-- Same-day join+leave inverts the range, which is live on no day. That is the honest record.
+create or replace function shared.end_team_membership(p_person_id uuid, p_team_id uuid)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$
+  update shared.team_memberships
+     set effective_to = current_date - 1
+   where person_id = p_person_id
+     and team_id   = p_team_id
+     and effective_to is null;
+$$;
+
+comment on function shared.end_team_membership(uuid, uuid) is
+  'Ends a live team membership NOW: effective_to = current_date - 1, because the gates read '
+  'effective_to as an inclusive last day (>= current_date is still live). SECURITY INVOKER — RLS '
+  'admits the caller, this adds no privilege. Computed server-side so a skewed client clock cannot '
+  'hand back access it meant to revoke.';
+
+revoke execute on function shared.end_team_membership(uuid, uuid) from public, anon;
+grant  execute on function shared.end_team_membership(uuid, uuid) to authenticated;

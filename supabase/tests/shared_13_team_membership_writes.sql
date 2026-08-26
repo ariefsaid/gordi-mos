@@ -7,7 +7,7 @@
 -- refused, not just who is admitted.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(15);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -38,11 +38,18 @@ select is(
   1, 'and the row is really there — the lives_ok above is not passing on a silently-dropped insert');
 
 -- The org seam, spoofed explicitly rather than left to the default. WITH CHECK is what refuses it.
+-- Cross-org is refused, and this pins WHICH LAYER refuses it rather than accepting any 42501.
+-- Both layers raise that SQLSTATE, and the security review showed the trigger gets there first: it
+-- is SECURITY INVOKER, so its `select org_id from shared.people` is filtered by people_select_org,
+-- returns NULL for another org's person, and NULL is distinct from 'b1'. Matching only the code
+-- would therefore stay green with the policy's org_id clause deleted. Asserting the MESSAGE is what
+-- makes the claim falsifiable — and it makes the honest statement: the trigger is the active guard
+-- here and the policy clause is defence in depth behind it, not the thing doing the work.
 select throws_ok($$
   insert into shared.team_memberships (org_id, person_id, team_id)
   values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-0000000000e9')
-$$, '42501', null,
-  'an admin cannot write a membership into ANOTHER org by sending its org_id — the policy re-checks what the default would have stamped');
+$$, '42501', 'person_id must belong to the same org as the membership',
+  'an admin cannot write a membership into ANOTHER org — refused by the same-org trigger, which runs ahead of the policy and is what actually holds this seam');
 
 -- The trigger, not the policy, holds the person/team pairing: RLS only ever sees the membership's
 -- OWN org_id, so a row stamped with the caller's org that names a foreign team passes the policy
@@ -55,11 +62,24 @@ $$, '42501', null,
 
 -- Removal is a soft end. The partial unique index is over (is_primary and effective_to is null),
 -- so ending the row frees the primary slot without destroying the history.
+-- Through the FUNCTION, not a hand-written date. `effective_to` is an INCLUSIVE last day, so
+-- `= current_date` leaves every gate still admitting the person until tomorrow.
 select lives_ok($$
-  update shared.team_memberships set effective_to = current_date
-   where person_id = '00000000-0000-0000-0000-0000000000d1'
-     and team_id = '00000000-0000-0000-0000-0000000000e1'
-$$, 'an admin ends a membership by setting effective_to — removal is a soft end, per this schema''s convention');
+  select shared.end_team_membership(
+    '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e1')
+$$, 'an admin ends a membership — a soft end, per this schema''s convention, never a delete');
+
+-- THE POINT OF THE REMOVAL, not the column write. The first version of this file asserted only
+-- that the update succeeded, which is why it stayed green while the ended person kept every right
+-- the membership carried for the rest of the day. Ask the gate's own liveness predicate instead.
+select is(
+  (select count(*)::int from shared.team_memberships m
+    where m.person_id = '00000000-0000-0000-0000-0000000000d1'
+      and m.team_id = '00000000-0000-0000-0000-0000000000e1'
+      and m.effective_from <= current_date
+      and (m.effective_to is null or m.effective_to >= current_date)),
+  0,
+  'and the ended membership is DEAD TO THE GATES TODAY — the predicate mos.can_read_signal R1, can_post_signal_for_team and ops.is_stream_reviewer all use no longer matches it');
 
 select lives_ok($$
   insert into shared.team_memberships (person_id, team_id, is_primary)
@@ -113,6 +133,30 @@ select cmp_ok(
   (select count(*) from shared.team_memberships where org_id = '00000000-0000-0000-0000-0000000000a1'),
   '>', 0::bigint,
   'a non-admin still READS their org''s memberships — the authorization gates depend on it, so only the write surface is admin-only');
+
+-- The migration header names ops_lead, manager and supervisor as the roles whose admission would
+-- actually move a boundary — a team lead who could add themselves to a team could then read that
+-- team's Signals. `member` is the role LEAST likely to ever be admitted, so testing only member
+-- tested the easy case. Each of the three, refused explicitly.
+select throws_ok(
+  format($f$
+    set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["%s"]}';
+    insert into shared.team_memberships (person_id, team_id)
+    values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
+  $f$, 'ops_lead'), '42501', null,
+  'an ops_lead cannot write a membership — adding themselves to a team would widen what Signals they read');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select throws_ok($$
+  insert into shared.team_memberships (person_id, team_id)
+  values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
+$$, '42501', null, 'nor a manager');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}';
+select throws_ok($$
+  insert into shared.team_memberships (person_id, team_id)
+  values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
+$$, '42501', null, 'nor a supervisor — admin is the only access role on this write surface');
 
 select * from finish();
 rollback;
