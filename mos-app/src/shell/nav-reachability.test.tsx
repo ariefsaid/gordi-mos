@@ -147,15 +147,12 @@ function railLinks(p: Persona): string[] {
       </I18nProvider>
     </ThemeProvider>,
   )
-  // The rail is the nav PLUS the identity chip pinned under it — the chip is a sibling of the
-  // <nav>, not a child, so scoping the read to `navigation` would miss Personal Profile and report
-  // it unreachable on desktop.
-  openIdentityMenu()
   // The rail is the nav PLUS the identity chip pinned under it — the chip is a SIBLING of the
   // <nav>, so scoping the read to `navigation` would miss Personal Profile and report it
   // unreachable on desktop. Read the body once; a union with the nav-scoped read would be dead,
   // because the nav element is inside the body. The getByRole stays as its own assertion: it
   // throws if the rail did not render, so a measurement of nothing cannot pass as a measurement.
+  openIdentityMenu()
   expect(screen.getByRole('navigation', { name: 'Primary' })).toBeTruthy()
   const links = hrefsIn(document.body)
   unmount()

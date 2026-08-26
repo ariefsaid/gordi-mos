@@ -35,8 +35,9 @@
 --     and psql prints the error and runs the next one. Measured, not assumed — a probe insert
 --     after the raise still landed. Inside a transaction the raise poisons it, every later
 --     statement fails "current transaction is aborted", and `commit` degrades to rollback;
---   * `supabase db reset` already wraps the file in one implicit transaction, so the explicit
---     `begin` is a no-op warning there and the abort behaves the same way.
+--   * and `supabase db reset` still applies the file cleanly with the bracket in place — measured,
+--     no transaction warning in its output, so the CLI does NOT appear to wrap seed files itself
+--     and this `begin`/`commit` is the only transaction rather than a redundant inner one.
 begin;
 
 do $$

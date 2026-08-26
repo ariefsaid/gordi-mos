@@ -7,7 +7,7 @@
 -- refused, not just who is admitted.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(19);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -156,6 +156,24 @@ select throws_ok($$
   insert into shared.team_memberships (person_id, team_id)
   values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
 $$, '42501', null, 'nor a supervisor — admin is the only access role on this write surface');
+
+-- ── The seed helpers are not app RPCs ────────────────────────────────────────────────────────
+-- `shared` is PostgREST-exposed, so a function without an explicit revoke is reachable at
+-- /rest/v1/rpc/<name> by anon and authenticated. shared.seed_role_tiers() shipped that way in its
+-- first cut — the line was dropped while copying seed_stream_teams()' shape — and `create or
+-- replace` preserves ACLs, so the regression vector is someone copying the shape again. Pinned for
+-- both, because the one that was correct is the template for the one that was not.
+select ok(not has_function_privilege('anon', 'shared.seed_role_tiers()', 'EXECUTE'),
+  'anon cannot execute shared.seed_role_tiers() — a seed helper is not an app RPC');
+select ok(not has_function_privilege('authenticated', 'shared.seed_role_tiers()', 'EXECUTE'),
+  '...nor authenticated');
+select ok(not has_function_privilege('anon', 'shared.seed_stream_teams()', 'EXECUTE'),
+  'and the same holds for shared.seed_stream_teams(), whose shape it copies');
+
+-- The revocation helper IS an app RPC and must stay callable, or the admin screen loses its only
+-- way to take someone off a team.
+select ok(has_function_privilege('authenticated', 'shared.end_team_membership(uuid, uuid)', 'EXECUTE'),
+  'shared.end_team_membership stays executable by authenticated — RLS is what admits the caller, not the grant');
 
 select * from finish();
 rollback;

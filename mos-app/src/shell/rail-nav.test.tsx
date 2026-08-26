@@ -207,7 +207,10 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(screen.getByRole('menuitem', { name: /Personal Profile/i })).toHaveAttribute('href', '/profile')
   })
 
-  it('AC-013b: Admin Settings is the last rail row, and claims the rail\'s leftover space', () => {
+  // AC-011, not AC-013: the rail's ORDER — "…Admin Settings, and the profile footer — in that
+  // order" — is AC-011's subject. AC-013 is the profile footer plus its orientation signal. Filed
+  // under the wrong parent for four rounds; a reader chasing AC-013e lands on a different control.
+  it('AC-011e: Admin Settings is the last rail row, and claims the rail\'s leftover space', () => {
     setAuthAs(['admin'])
     renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })

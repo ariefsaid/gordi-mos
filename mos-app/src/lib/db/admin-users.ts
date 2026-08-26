@@ -120,11 +120,11 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
   const today = new Date().toISOString().slice(0, 10)
   const { data: tmRows, error: tmErr } = await shared()
     .from('team_memberships')
-    .select('person_id,team_id,is_primary,effective_to')
+    .select('person_id,team_id,is_primary,effective_from,effective_to')
     .or(`effective_to.is.null,effective_to.gte.${today}`)
   if (tmErr) throw surface('load people', tmErr)
   const teamsByPerson: Record<string, TeamMembership[]> = {}
-  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean; effective_to: string | null }[]) {
+  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean; effective_from: string; effective_to: string | null }[]) {
     // MEMBERSHIP and HOME are different questions with different liveness rules, and conflating
     // them is how the screen ends up asserting something the database disagrees with. A row ending
     // today is still a membership to every gate — hence the `.or()` filter above. But
@@ -133,7 +133,11 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     // authority, and must not render as Home.
     ;(teamsByPerson[row.person_id] ??= []).push({
       team_id: row.team_id,
-      is_primary: row.is_primary && row.effective_to === null,
+      // The FULL predicate both functions carry, `effective_from` included. Omitting the start
+      // date made a future-dated membership render as Home while the gates resolved nothing —
+      // fail-safe, and unreachable through this UI since addTeamMembership never sends
+      // effective_from, but the comment above claimed the predicates matched and they did not.
+      is_primary: row.is_primary && row.effective_to === null && row.effective_from <= today,
     })
   }
 

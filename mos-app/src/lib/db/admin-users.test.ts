@@ -526,12 +526,16 @@ describe('Team wrappers', () => {
       person_roles: { data: [], error: null },
       roles: { data: [], error: null },
       team_memberships: { data: [
-        { person_id: 'p1', team_id: 't-bar', is_primary: true, effective_to: null },
+        { person_id: 'p1', team_id: 't-bar', is_primary: true, effective_from: '2020-01-01', effective_to: null },
         // Gate-live (ends tomorrow) but NOT the home team: default_stream() and
         // is_stream_reviewer both require `effective_to is null`, so rendering this as Home would
         // promise a capture stream and a reviewer that neither function will resolve.
-        { person_id: 'p1', team_id: 't-kitchen', is_primary: true, effective_to: '2099-01-01' },
-        { person_id: 'p2', team_id: 't-hq', is_primary: false, effective_to: null },
+        { person_id: 'p1', team_id: 't-kitchen', is_primary: true, effective_from: '2020-01-01', effective_to: '2099-01-01' },
+        // Not started yet. Both functions also require `effective_from <= current_date`, so this
+        // is not the home team either — the third of the three ways a primary row can fail to be
+        // one, and the one the app's predicate was missing.
+        { person_id: 'p1', team_id: 't-future', is_primary: true, effective_from: '2099-01-01', effective_to: null },
+        { person_id: 'p2', team_id: 't-hq', is_primary: false, effective_from: '2020-01-01', effective_to: null },
       ], error: null },
       supervisor_revenue_scope: { data: [], error: null },
     }, { data: [], error: null })
@@ -541,6 +545,7 @@ describe('Team wrappers', () => {
     expect(rows.find((r) => r.id === 'p1')!.teams).toEqual([
       { team_id: 't-bar', is_primary: true },
       { team_id: 't-kitchen', is_primary: false },
+      { team_id: 't-future', is_primary: false },
     ])
     // Keyed per person — a membership must never leak onto someone else's row.
     expect(rows.find((r) => r.id === 'p2')!.teams).toEqual([{ team_id: 't-hq', is_primary: false }])
