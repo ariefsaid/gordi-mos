@@ -394,11 +394,22 @@ export async function setPrimaryTeam(personId: string, teamId: string): Promise<
     .eq('is_primary', true)
   if (clearErr) throw surface('set home team', clearErr)
 
-  const { error } = await shared()
+  // `.select()` so a zero-row match is visible. The primary slot is defined by
+  // `is_primary and effective_to is null` — that is what shared.default_stream() and
+  // ops.is_stream_reviewer read — so a membership the picker shows as live but which carries a
+  // future end date cannot become the home team. Without this the old primary is already cleared
+  // and the toast says success, which is the silent-no-op shape this whole slice exists to kill.
+  const { data, error } = await shared()
     .from('team_memberships')
     .update({ is_primary: true })
     .eq('person_id', personId)
     .eq('team_id', teamId)
     .is('effective_to', null)
+    .select('id')
   if (error) throw surface('set home team', error)
+  if ((data ?? []).length === 0) {
+    throw new Error(
+      "Couldn't set home team: that membership is already ending, so it can't be the home team. Remove it and add the team again.",
+    )
+  }
 }

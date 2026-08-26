@@ -77,7 +77,10 @@ as $$
      set effective_to = current_date - 1
    where person_id = p_person_id
      and team_id   = p_team_id
-     and effective_to is null;
+     -- The GATES' definition of live, not `is null` alone: a future-dated end is still a live
+     -- membership, the screen renders it as one, and this is the only way to remove it. Matching
+     -- `is null` alone made Remove a silent no-op on exactly those rows.
+     and (effective_to is null or effective_to >= current_date);
 $$;
 
 comment on function shared.end_team_membership(uuid, uuid) is

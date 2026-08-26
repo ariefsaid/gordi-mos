@@ -17,7 +17,8 @@ export interface AdminPersonRow {
   access_roles: string[] // non-revoked
   jabatan: { role_id: string; role_name: string }[]
   revenue_scope: RevenueScopeGrant[]
-  /** Live team memberships (effective_to is null). At most one is_primary — the DB index holds it. */
+  /** Live memberships, by the GATES' definition (`effective_to is null` OR `>= today` — it is an
+   *  inclusive last day). At most one is_primary; the partial unique index holds that. */
   teams: TeamMembership[]
 }
 

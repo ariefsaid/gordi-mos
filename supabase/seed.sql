@@ -135,6 +135,32 @@ insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'finance')
 on conflict (person_id, access_role) do nothing;
 
+-- ── Dev-only, enforced rather than assumed ───────────────────────────────────────────────────
+-- Everything below is FIXTURE data, and this branch made it consequential: supervisor / manager /
+-- ops_lead / finance grants plus 46 team memberships, and membership is an authorization input for
+-- the Signal read gate, the team post/start gates and kitchen-log review authority. Until now the
+-- file was dev-only by CONVENTION (config.toml wires it to the local `db reset`) — nothing stopped
+-- anyone pointing it at staging, where `on conflict do nothing` would let most of it land quietly.
+--
+-- The guard asks the one question that separates the two: does this database already hold a REAL
+-- person? Every fixture here is `@example.test` (RFC 6761, unroutable); a deployed database has
+-- real addresses. So a dev reset proceeds and a deployed database refuses, loudly.
+do $$
+begin
+  if exists (
+    select 1 from shared.people
+     where org_id = '10000000-0000-0000-0000-000000000001'
+       and coalesce(email, '') not like '%@example.test'
+  ) then
+    raise exception
+      'supabase/seed.sql: refusing to seed dev FIXTURES into a database that holds real people. '
+      'This file grants access roles and team memberships, which are authorization inputs. '
+      'Deployed databases take the gitignored deploy seed, never this one.'
+      using errcode = '42501';
+  end if;
+end
+$$;
+
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- ── The wider dev roster — a floor, a bar, a kitchen and a back office ───────────────────────
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
@@ -283,8 +309,8 @@ select '10000000-0000-0000-0000-000000000001', m.person_id::uuid, t.id, m.is_pri
 from (values
   -- Leadership + back office, on their unit's team.
   ('40000000-0000-0000-0000-000000000000', 'hq_operations',      true),   -- Dewi    Managing Director
-  ('40000000-0000-0000-0000-000000000001', 'hq_operations',      false),   -- Cahya   Cafe Ops Lead
-  ('40000000-0000-0000-0000-000000000002', 'hq_operations',      false),   -- Krishna Kitchen Lead
+  ('40000000-0000-0000-0000-000000000001', 'hq_operations',      true),   -- Cahya   Cafe Ops Lead
+  ('40000000-0000-0000-0000-000000000002', 'hq_operations',      true),   -- Krishna Kitchen Lead
   ('40000000-0000-0000-0000-000000000003', 'roastery_team',      true),   -- Rama    Roastery Lead
   ('40000000-0000-0000-0000-000000000004', 'b2b_sales_team',     true),   -- Sari    Sales Lead
   ('40000000-0000-0000-0000-000000000005', 'finance_team',       true),   -- Fitri   Finance Lead
@@ -324,15 +350,19 @@ from (values
   -- left all 30 seeded people resolving to NO stream, the exact state the seed exists to fix, while
   -- the admin screen told the world "the home team sets this person's default capture stream".
   -- Back-office people keep an org team as primary and correctly resolve to no stream.
+  --
+  -- So do the two unit LEADS (Cahya, Krishna): a lead who runs several lines is not line staff, and
+  -- seed.dev-cafe-opening.sql already says why in as many words — "a primary would re-point Cahya's
+  -- default context app-wide". Their stream rows stay secondary, which is all the gates need.
   ('40000000-0000-0000-0000-000000000006', 'gordi_hq_bar',        true),
   ('40000000-0000-0000-0000-000000000007', 'gordi_hq_bar',        true),
   ('40000000-0000-0000-0000-000000000008', 'gordi_hq_bar',        true),
   ('40000000-0000-0000-0000-00000000000a', 'gordi_hq_bar',        true),
-  ('40000000-0000-0000-0000-000000000001', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000001', 'gordi_hq_bar',        false),   -- Cahya: LEAD, not line staff
   ('40000000-0000-0000-0000-00000000000b', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-00000000000c', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-00000000000d', 'gordi_hq_kitchen',    true),
-  ('40000000-0000-0000-0000-000000000002', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-000000000002', 'gordi_hq_kitchen',    false),   -- Krishna: LEAD, not line staff
   ('40000000-0000-0000-0000-00000000000e', 'rumah_rames_kitchen', true),
   ('40000000-0000-0000-0000-00000000000f', 'rumah_rames_kitchen', true),
   ('40000000-0000-0000-0000-000000000009', 'rumah_rames_bar',     true),

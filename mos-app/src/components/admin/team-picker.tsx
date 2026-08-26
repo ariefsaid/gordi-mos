@@ -86,8 +86,12 @@ export function TeamPicker({ person, teams, onDone, onShowToast }: TeamPickerPro
       <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
         Teams
       </h3>
+      {/* Names BOTH consequences. The second is the one an admin cannot guess from the words
+          "home team": ops.is_stream_reviewer resolves review authority from the live primary
+          membership, so a supervisor's home team decides whose production they approve. */}
       <p className="mb-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        The home team sets this person&rsquo;s default capture stream.
+        The home team sets this person&rsquo;s default capture stream — and for a supervisor, which
+        stream&rsquo;s logs they approve.
       </p>
       {/* Ending someone's HOME team leaves them on teams with no home team, which resolves their
           capture stream to none (AC-001) — a downstream effect of an action that looks like it only

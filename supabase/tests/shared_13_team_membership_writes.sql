@@ -138,12 +138,11 @@ select cmp_ok(
 -- actually move a boundary — a team lead who could add themselves to a team could then read that
 -- team's Signals. `member` is the role LEAST likely to ever be admitted, so testing only member
 -- tested the easy case. Each of the three, refused explicitly.
-select throws_ok(
-  format($f$
-    set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["%s"]}';
-    insert into shared.team_memberships (person_id, team_id)
-    values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
-  $f$, 'ops_lead'), '42501', null,
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead"]}';
+select throws_ok($$
+  insert into shared.team_memberships (person_id, team_id)
+  values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
+$$, '42501', null,
   'an ops_lead cannot write a membership — adding themselves to a team would widen what Signals they read');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';

@@ -491,6 +491,29 @@ describe('Revenue scope (supervisor) wrappers', () => {
 // that removal goes through the server-side cutoff, and that the home-team swap clears before it
 // sets. Both were claimed in a docblock and asserted nowhere.
 describe('Team wrappers', () => {
+  it('reads memberships with the GATES definition of live, not `effective_to is null`', async () => {
+    const schemaObj = makeSharedSchema({
+      people: { data: [], error: null },
+      person_access_roles: { data: [], error: null },
+      person_roles: { data: [], error: null },
+      roles: { data: [], error: null },
+      team_memberships: { data: [], error: null },
+      supervisor_revenue_scope: { data: [], error: null },
+    }, { data: [], error: null })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await listAdminPeople()
+    const call = schemaObj.from.mock.calls.findIndex((c) => c[0] === 'team_memberships')
+    const builder = schemaObj.from.mock.results[call].value as { or: ReturnType<typeof vi.fn> }
+    // `effective_to` is an INCLUSIVE last day: a row ending today is still live to
+    // can_read_signal R1 and every other gate. Filtering on `is null` alone is what let the
+    // screen report someone removed while the gates still admitted them, and nothing pinned
+    // it — reverting this line to `.is('effective_to', null)` left the whole suite green.
+    expect(builder.or).toHaveBeenCalledWith(
+      expect.stringMatching(/^effective_to\.is\.null,effective_to\.gte\.\d{4}-\d{2}-\d{2}$/),
+    )
+  })
+
   it('listTeams names the (branch, activity) pair on stream teams and leaves org teams bare', async () => {
     const schemaObj = makeSharedSchema({
       teams: { data: [
@@ -552,7 +575,8 @@ describe('Team wrappers', () => {
   })
 
   it('setPrimaryTeam CLEARS the old primary before setting the new one', async () => {
-    const schemaObj = makeSharedSchema({ team_memberships: { data: null, error: null } })
+    // The set step `.select('id')`s so a zero-row match is visible, so the fixture returns a row.
+    const schemaObj = makeSharedSchema({ team_memberships: { data: [{ id: 'm1' }], error: null } })
     schemaMock.mockReturnValue(schemaObj as never)
 
     await setPrimaryTeam('p1', 't2')
@@ -560,10 +584,26 @@ describe('Team wrappers', () => {
     // where is_primary and effective_to is null, so setting before clearing hits the index and
     // fails. Swap the two blocks in admin-users.ts and this assertion is what goes red.
     const [clear, set] = schemaObj.from.mock.results.map(
-      (r) => r.value as { update: ReturnType<typeof vi.fn> },
+      (r) => r.value as { update: ReturnType<typeof vi.fn>; eq: ReturnType<typeof vi.fn> },
     )
     expect(clear.update).toHaveBeenCalledWith({ is_primary: false })
     expect(set.update).toHaveBeenCalledWith({ is_primary: true })
+    // ...and the clear is scoped to THIS person. Dropping that `.eq` clears every home team in the
+    // org on one click — RLS admits it, because the policy is admin-and-org scoped, never row
+    // scoped — and the two assertions above stay green while it happens.
+    expect(clear.eq).toHaveBeenCalledWith('person_id', 'p1')
+    expect(set.eq).toHaveBeenCalledWith('person_id', 'p1')
+    expect(set.eq).toHaveBeenCalledWith('team_id', 't2')
+  })
+
+  it('setPrimaryTeam refuses loudly when the target membership cannot be the home team', async () => {
+    // The primary slot is `is_primary and effective_to is null` — what default_stream() and
+    // ops.is_stream_reviewer read. A membership the picker shows as live but which carries a
+    // future end date matches zero rows, and the old primary is ALREADY cleared by then. Silent
+    // success there is the exact shape this slice exists to kill.
+    const schemaObj = makeSharedSchema({ team_memberships: { data: [], error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(setPrimaryTeam('p1', 't2')).rejects.toThrow(/already ending/)
   })
 
   it('setPrimaryTeam stops at the clear step if it fails, rather than orphaning two primaries', async () => {
