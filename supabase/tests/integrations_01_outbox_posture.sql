@@ -26,7 +26,7 @@
 --                     one of them would leave the other untested.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(27);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -106,10 +106,23 @@ select is(
   'integrations policies are SELECT-only — no write policy exists to be widened');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- D. esb_push_select_ops_lead_or_admin — fail closed, then the positives it is the negative of
+-- D. esb_push_select_ops_lead_or_admin — the four cells the predicate actually admits
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- The gate is the ROLE as well as the org, so the negative subject is a member of the SAME org while
--- a real row of that org exists. A cross-org subject would only re-prove the seam.
+-- The predicate is a conjunction — org AND (ops_lead OR admin) — so proving it takes both axes, and
+-- proving it takes the POSITIVE cell as much as the negatives: a policy that admitted nobody at all
+-- would satisfy every "reads zero" on its own. The four cells, per issue 474:
+--
+--                          own org (A)                       other org (B)
+--   admitted role          reads the row  (D2, D3)           reads NONE of A's  (D5)
+--   unadmitted role        reads zero     (D1)               reads zero         (D7)
+--
+-- Each negative is paired with a read that proves the session is not simply blind: D1 sits beside
+-- D2/D3 in the same org, and D5 sits beside D6, which is the same org-B session counting its OWN
+-- org's row. Without that pairing "reads zero" would be satisfied by a broken session, an empty
+-- table, or a policy that denies everyone.
+--
+-- The seeded population both axes are read against: one outbox row in org A (...ba01) and one in
+-- org B (...ba09), from ops._test_seed_cafe().
 set local role authenticated;
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
@@ -128,6 +141,64 @@ select is((select count(*)::int from integrations.esb_push), 1,
 select is((select count(*)::int from integrations.esb_push
             where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
   'esb_push_select_ops_lead_or_admin: an admin sees NONE of the other tenant''s outbox rows — the org half of the predicate holds under the strongest same-org persona');
+
+-- The other-org cells. The subject is a real person of org B (ForeignMgr ...0b04), because
+-- current_org_id() resolves NULL for a person_id claim that does not name a live directory row —
+-- an invented viewer would read zero for a reason that has nothing to do with this policy.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
+select is((select count(*)::int from integrations.esb_push
+            where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
+  'esb_push_select_ops_lead_or_admin (other org, admitted role): an ops_lead of the OTHER tenant reads none of org A''s outbox rows — holding the role is not enough');
+
+select is((select count(*)::int from integrations.esb_push), 1,
+  'esb_push_select_ops_lead_or_admin: ...and that same other-tenant session reads its OWN org''s one row, so the zero above is the org half of the predicate and not a blind session');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select is((select count(*)::int from integrations.esb_push), 0,
+  'esb_push_select_ops_lead_or_admin (other org, unadmitted role): the fourth cell reads zero — neither half of the conjunction is satisfied');
+
+reset role;
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- D2. esb_push_groups_select_ops_lead_or_admin — the same four cells, on the approval-group table
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The group table carries its own policy, so it needs its own behavioural proof: a widening of THIS
+-- predicate is invisible to every assertion made about the outbox row's. The fixtures seed no
+-- approval groups — a group is minted by a bulk approval, not by the catalog fixture — so one per
+-- org is inserted here, as the owner, before any role is assumed.
+insert into integrations.esb_push_groups (id, org_id, target_env, dedup_key) values
+  ('00000000-0000-0000-0000-00000000bd01','00000000-0000-0000-0000-0000000000a1','dry_run','kitchen-group|posture-org-a|dry_run'),
+  ('00000000-0000-0000-0000-00000000bd09','00000000-0000-0000-0000-0000000000b1','dry_run','kitchen-group|posture-org-b|dry_run');
+
+set local role authenticated;
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select is((select count(*)::int from integrations.esb_push_groups), 1,
+  'esb_push_groups_select_ops_lead_or_admin (own org, ops_lead): reads their own org''s one approval group — the positive cell the negatives below are the negatives OF');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select is((select count(*)::int from integrations.esb_push_groups), 1,
+  'esb_push_groups_select_ops_lead_or_admin (own org, admin): the policy names two roles and both are proven on the group table too');
+
+select is((select count(*)::int from integrations.esb_push_groups
+            where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
+  'esb_push_groups_select_ops_lead_or_admin: an admin sees NONE of the other tenant''s approval groups — the org half, under the strongest same-org persona');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select is((select count(*)::int from integrations.esb_push_groups), 0,
+  'esb_push_groups_select_ops_lead_or_admin fails closed (own org, unadmitted role): a member of the org without ops_lead or admin reads zero approval groups');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
+select is((select count(*)::int from integrations.esb_push_groups
+            where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
+  'esb_push_groups_select_ops_lead_or_admin (other org, admitted role): an ops_lead of the OTHER tenant reads none of org A''s approval groups');
+
+select is((select count(*)::int from integrations.esb_push_groups), 1,
+  'esb_push_groups_select_ops_lead_or_admin: ...and that same other-tenant session reads its OWN org''s one group — the zero above is the org half, not a blind session');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select is((select count(*)::int from integrations.esb_push_groups), 0,
+  'esb_push_groups_select_ops_lead_or_admin (other org, unadmitted role): the fourth cell reads zero on the group table as well');
 
 reset role;
 
