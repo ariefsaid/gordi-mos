@@ -37,7 +37,7 @@
  * viewer nobody designed for is a first-class case instead of a blind spot.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
@@ -118,6 +118,23 @@ function hrefsIn(container: HTMLElement): string[] {
   )
 }
 
+/**
+ * Open the UserChip identity menu, if this surface rendered one, so its links count as nav.
+ *
+ * Personal Profile moved out of the Utility rail row and into that menu (owner, 2026-08-26). A
+ * link one click behind a menu is still a rendered way in — but only if something proves it, and
+ * this file's whole thesis is that "written down somewhere" is not reachability. So the guard
+ * clicks the chip exactly the way a viewer does and reads what appears.
+ *
+ * The chip is labelled with the viewer's full name (`aria-label={viewer.person.full_name}`), which
+ * `setAuthAs` fixes at "Test Viewer". No chip (unauthenticated render) is not an error here — the
+ * personas are all authenticated, and a surface without an identity row simply contributes nothing.
+ */
+function openIdentityMenu(): void {
+  const chip = screen.queryAllByRole('button', { name: 'Test Viewer' })
+  chip.forEach((c) => fireEvent.click(c))
+}
+
 /** The links the DESKTOP rail actually renders for this viewer. */
 function railLinks(p: Persona): string[] {
   setAuthAs(p.accessRoles, p.roleNames)
@@ -130,9 +147,16 @@ function railLinks(p: Persona): string[] {
       </I18nProvider>
     </ThemeProvider>,
   )
-  const links = hrefsIn(screen.getByRole('navigation', { name: 'Primary' }))
+  // The rail is the nav PLUS the identity chip pinned under it — the chip is a sibling of the
+  // <nav>, not a child, so scoping the read to `navigation` would miss Personal Profile and report
+  // it unreachable on desktop.
+  openIdentityMenu()
+  const links = [
+    ...hrefsIn(screen.getByRole('navigation', { name: 'Primary' })),
+    ...hrefsIn(document.body),
+  ]
   unmount()
-  return links
+  return [...new Set(links)]
 }
 
 /**
@@ -197,6 +221,7 @@ function phoneLinksAtWidth(p: Persona): string[] {
       screen.getByRole('button', { name: /more/i }),
     'the bottom tab bar did not render — the phone measurement is incomplete',
   ).toBeTruthy()
+  openIdentityMenu()
   const links = hrefsIn(document.body)
   unmount()
   return [...new Set(links)]

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -188,14 +188,39 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(container).toBeTruthy()
   })
 
-  it('AC-013: profile footer row is the identity chip — shows the viewer\'s full name, and Personal Profile is reachable as a separate utility link', () => {
+  it('AC-013: profile footer row is the identity chip — shows the viewer\'s full name, and Personal Profile is reachable inside its menu', () => {
     setAuthAs(['admin'])
     renderRailNav('/work/tasks')
     // Security fix (HIGH-1): the footer must show the viewer's NAME (not just "{site} {role}")
     // so a stale/shared session is noticeable, and it must open the sign-out menu.
-    expect(screen.getByRole('button', { name: 'Cahya Cafe' })).toBeInTheDocument()
-    // /profile stays reachable — now as a normal Utility rail link (Rule 11: reuses DestLink).
-    expect(screen.getByRole('link', { name: /Personal Profile/i })).toHaveAttribute('href', '/profile')
+    const chip = screen.getByRole('button', { name: 'Cahya Cafe' })
+    expect(chip).toBeInTheDocument()
+    // Personal Profile moved OUT of the Utility rail row and INTO this menu (owner, 2026-08-26).
+    // The requirement it was carrying is unchanged and still asserted here — /profile keeps a
+    // RENDERED way in, not merely a route — only the surface holding it moved. Absent from the
+    // rail proper, present one click into the chip: both halves, or this reads as a pass while
+    // the surface is orphaned.
+    expect(
+      within(screen.getByRole('navigation', { name: 'Primary' })).queryByRole('link', { name: /Personal Profile/i }),
+    ).toBeNull()
+    fireEvent.click(chip)
+    expect(screen.getByRole('menuitem', { name: /Personal Profile/i })).toHaveAttribute('href', '/profile')
+  })
+
+  it('AC-013b: Admin Settings is the last rail row, and claims the rail\'s leftover space', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    const admin = within(nav).getByRole('link', { name: /Admin Settings/i })
+    const railLinks = within(nav).getAllByRole('link')
+    // Document order — true BEFORE this change too (Utility already rendered after the modules),
+    // so this half guards against a later reshuffle, it does not prove today's fix.
+    expect(railLinks[railLinks.length - 1]).toBe(admin)
+    // The half that IS today's fix (owner, 2026-08-26: Admin pinned to the foot of the rail).
+    // jsdom computes no layout, so this asserts the MECHANISM — `mt-auto` eating the flex
+    // container's free space — not the pixels. The pixels were verified by rendering the rail at
+    // 1440px and 390px; that render, not this line, is the evidence the row actually sits low.
+    expect(admin.closest('.rail-item-list-item')).toHaveClass('mt-auto')
   })
 
   it('AC-012: non-finance/admin → Money absent (not disabled, no stub)', () => {

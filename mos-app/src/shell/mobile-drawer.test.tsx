@@ -61,13 +61,19 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   // ruling) replaces that model: navigation mirrors what the ROUTE admits, and the module routes
   // are ungated. The drawer is the phone's only route to a module's screens, so hiding them here
   // is precisely what left kitchen staff with no phone nav (#242).
-  it('an org-wide admin sees Signals, Admin Settings, Profile — and the module links their routes admit', () => {
+  it('an org-wide admin sees Signals, Admin Settings, Profile — and the module links their routes admit', async () => {
+    const user = userEvent.setup()
     renderDrawer({ accessRoles: ['admin'] })
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(screen.getByRole('link', { name: /Signals/ })).toHaveAttribute('href', '/work/signals')
     expect(screen.getByRole('link', { name: /Admin Settings/ })).toHaveAttribute('href', '/admin/people')
-    expect(screen.getByRole('link', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
+    // Personal Profile moved out of the drawer's own link list and into the identity chip's menu
+    // (owner, 2026-08-26). Still reachable from this surface, one tap deeper — asserted from BOTH
+    // sides so "moved" cannot decay into "gone": absent from the list, present in the menu.
+    expect(screen.queryByRole('link', { name: /Personal Profile/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
+    expect(screen.getByRole('menuitem', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
     // Café's screens, which are the reason the drawer matters on a phone.
     expect(screen.getByRole('link', { name: /^Log$/ })).toHaveAttribute('href', '/cafe/log')
     expect(screen.getByRole('link', { name: /^Review$/ })).toHaveAttribute('href', '/cafe/review')
@@ -168,6 +174,21 @@ describe('More menu navigation + a11y', () => {
     // child that ships, and it exercises the identical close-and-navigate path.
     await user.click(screen.getByRole('link', { name: /Signals/ }))
     expect(screen.getByTestId('location').textContent).toBe('/work/signals')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  // The drawer covers the whole phone screen, so a link inside it that navigates without closing
+  // leaves the viewer staring at the drawer on top of the page they asked for. That is exactly how
+  // Personal Profile behaved the first time it was rendered into the chip menu: the menu closed,
+  // the drawer did not. Every other drawer link routes through `closeAndReturn` (DrawerRow's
+  // `onNavigate`); the chip now takes the same handler.
+  it('tapping Personal Profile in the chip menu navigates AND closes the drawer', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderDrawer({ onClose, accessRoles: ['admin'] })
+    await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
+    await user.click(screen.getByRole('menuitem', { name: /Personal Profile/ }))
+    expect(screen.getByTestId('location').textContent).toBe('/profile')
     expect(onClose).toHaveBeenCalled()
   })
 
