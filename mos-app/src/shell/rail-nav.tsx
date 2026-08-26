@@ -9,28 +9,18 @@ import { useT } from '@/i18n/use-t'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import './rail-nav.css'
 
-// E7 Work sub-section grammar (e7-views.js `workNavModel`) ported to our ratified IA: OD-REDESIGN-1
-// fixes WHICH Work children exist (do not add/remove); E7 fixes the ORDER that groups them. Each of
-// our children maps to the E7 family that owns it, and the families render in E7's top-down order —
-// Execution → Work systems → Direction → Cadence. (E7's Execution also holds Process Runs, Work
-// systems also holds Processes + Standards, Cadence also holds Follow-ups; those entries are not in
-// our IA, so most families carry only the child we have.)
-//
-// DD-WAY-33 (#439): the families keep their ORDER and have LOST their labels — the sub-section
-// eyebrow is deleted, not merely suppressed. Two reasons, both from the ruling. Only Cadence ever
-// grouped ≥2 items, so exactly one unexplained word ("CADENCE") floated mid-list. And an eyebrow
-// inside an already-indented child list is a fourth rung the three-rung ladder does not need.
+// #446: the rail no longer holds an order of its own. Work's children render in the order
+// `destinations.tsx` declares them — the E7 family sequence (Execution → Work systems → Direction
+// → Cadence), flattened there into the plain list it behaviourally already was once DD-WAY-33
+// (#439) deleted the family eyebrows. The rail used to re-sort `children` through a local
+// `WORK_SUBSECTION_ORDER`; the phone drawer rendered `children` as declared; the two surfaces
+// listed the same five items in two different orders, and a nav list is worth most when muscle
+// memory carries it. One declared order, every surface, asserted by `work-child-order.test.tsx`.
 //
 // Per-item counts (E7's `.e7-count` badges) are wired for TWO items only — Tasks (open count) and
 // Signals (needs-attention count) — from ONE cheap shell-level aggregate (rail.tsx → useRailCounts,
 // a single mount-time fetch, no polling). Every other child omits its badge: they have no
 // already-loaded source, and the owner-artifact note forbids a query per item.
-const WORK_SUBSECTION_ORDER: readonly (readonly string[])[] = [
-  ['/work/tasks'],
-  ['/work/projects'],
-  ['/work/objectives'],
-  ['/work/signals', '/work/events'],
-]
 
 // The ONE render seam for the rail count badges: which path shows which count (undefined → no badge).
 function badgeCountFor(path: string, counts?: RailCounts | null): number | undefined {
@@ -291,20 +281,15 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                     </span>
                     <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>
                   </Link>
-                  {/* Always-expanded children in the E7 Work family ORDER (Execution → Work
-                      systems → Direction → Cadence) and nothing else: DD-WAY-33 (#439) deleted the
-                      sub-section eyebrows, so this is one clean indented list, drawn under the
-                      ladder's hairline indent guide. Each child stays one reachable link. A
-                      capability-gated child (Projects & Processes, Objectives) that filters out
-                      empties its family, which then contributes nothing. */}
+                  {/* Always-expanded children in the ONE declared order (destinations.tsx) and
+                      nothing else: DD-WAY-33 (#439) deleted the sub-section eyebrows, so this is
+                      one clean indented list, drawn under the ladder's hairline indent guide. Each
+                      child stays one reachable link; a gated or ship-gated child is already absent
+                      from `children` by the time it gets here. */}
                   <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
-                    {WORK_SUBSECTION_ORDER.flatMap((paths) =>
-                      children
-                        .filter((c) => paths.includes(c.path))
-                        .map((c) => (
-                          <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
-                        )),
-                    )}
+                    {children.map((c) => (
+                      <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
+                    ))}
                   </div>
                 </div>
               )
