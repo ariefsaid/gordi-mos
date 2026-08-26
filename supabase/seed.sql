@@ -152,22 +152,14 @@ on conflict (person_id, access_role) do nothing;
 
 -- ── The tiers under each lead ────────────────────────────────────────────────────────────────
 -- The role tree stopped at "one lead per unit", so there was no Jabatan for the people who
--- actually run a shift. Each new role reports to the lead that owns it, which is what makes the
--- manager chain (and therefore the manager VIEW tiers) exercisable in dev at all.
-insert into shared.roles (id, org_id, business_unit_id, name, reports_to_role_id) values
-  ('30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Bar Supervisor',      '30000000-0000-0000-0000-000000000001'),
-  ('30000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Head Barista',        '30000000-0000-0000-0000-000000000006'),
-  ('30000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Barista',             '30000000-0000-0000-0000-000000000007'),
-  ('30000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Kitchen Supervisor',  '30000000-0000-0000-0000-000000000002'),
-  ('30000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Kitchen Staff',       '30000000-0000-0000-0000-000000000009'),
-  ('30000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Ecommerce Lead',      '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-00000000000c', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000014', 'Ecommerce Associate', '30000000-0000-0000-0000-00000000000b'),
-  ('30000000-0000-0000-0000-00000000000d', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000015', 'Roaster',             '30000000-0000-0000-0000-000000000003'),
-  ('30000000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000016', 'Account Executive',   '30000000-0000-0000-0000-000000000004'),
-  ('30000000-0000-0000-0000-00000000000f', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000011', 'Marketing Lead',      '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000012', 'People Lead',         '30000000-0000-0000-0000-000000000000'),
-  ('30000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000013', 'Finance Associate',   '30000000-0000-0000-0000-000000000005')
-on conflict (id) do nothing;
+-- actually run a shift and no manager chain below a lead to walk.
+--
+-- Called, not restated: the list lives in shared.seed_role_tiers() (20260826000002) and nowhere
+-- else. Same dual-seed reason as the branch catalog and the stream teams above — the migration
+-- seeds the orgs that exist AT MIGRATION TIME, and on a fresh `supabase db reset` the Gordi org is
+-- created by THIS file, after migrations have run. Copying the list back here is the drift that
+-- shape exists to prevent, and the applied-path check (#393) is what would catch it.
+select shared.seed_role_tiers();
 
 -- ── The rest of the fixture roster ───────────────────────────────────────────────────────────
 -- The original six (…0000–…0005) keep their ids and their alliterative fixture names — they are the
@@ -200,36 +192,39 @@ insert into shared.people (id, org_id, full_name, email) values
   ('40000000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Farid Finance',    'farid.dev@example.test')
 on conflict (id) do nothing;
 
--- Jabatan for the new roster. Resolved by id like the six above; `granted_by` stays NULL for the
--- same honest reason (a seed connection has no acting person).
+-- Jabatan for the new roster. Resolved by role NAME, not id: the tier roles are created by
+-- shared.seed_role_tiers() with generated ids, so there is no literal to pin. `granted_by` stays
+-- NULL for the same honest reason as the six above (a seed connection has no acting person).
 insert into shared.person_roles (org_id, person_id, role_id)
-select '10000000-0000-0000-0000-000000000001', p.person_id::uuid, p.role_id::uuid
+select '10000000-0000-0000-0000-000000000001', p.person_id::uuid, r.id
 from (values
-  ('40000000-0000-0000-0000-000000000006', '30000000-0000-0000-0000-000000000007'),  -- Bagas    Head Barista
-  ('40000000-0000-0000-0000-000000000007', '30000000-0000-0000-0000-000000000008'),  -- Bulan    Barista
-  ('40000000-0000-0000-0000-000000000008', '30000000-0000-0000-0000-000000000008'),  -- Bayu     Barista
-  ('40000000-0000-0000-0000-000000000009', '30000000-0000-0000-0000-000000000008'),  -- Bintang  Barista
-  ('40000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-000000000006'),  -- Sinta    Bar Supervisor
-  ('40000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-000000000009'),  -- Satria   Kitchen Supervisor
-  ('40000000-0000-0000-0000-00000000000c', '30000000-0000-0000-0000-00000000000a'),  -- Kirana   Kitchen Staff
-  ('40000000-0000-0000-0000-00000000000d', '30000000-0000-0000-0000-00000000000a'),  -- Kemal    Kitchen Staff
-  ('40000000-0000-0000-0000-00000000000e', '30000000-0000-0000-0000-00000000000a'),  -- Kartika  Kitchen Staff
-  ('40000000-0000-0000-0000-00000000000f', '30000000-0000-0000-0000-00000000000a'),  -- Kanaya   Kitchen Staff
-  ('40000000-0000-0000-0000-000000000010', '30000000-0000-0000-0000-000000000006'),  -- Rio      Bar Supervisor (Radiant)
-  ('40000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000008'),  -- Ratna    Barista
-  ('40000000-0000-0000-0000-000000000012', '30000000-0000-0000-0000-00000000000a'),  -- Reza     Kitchen Staff
-  ('40000000-0000-0000-0000-000000000013', '30000000-0000-0000-0000-00000000000a'),  -- Rani     Kitchen Staff
-  ('40000000-0000-0000-0000-000000000014', '30000000-0000-0000-0000-00000000000b'),  -- Eka      Ecommerce Lead
-  ('40000000-0000-0000-0000-000000000015', '30000000-0000-0000-0000-00000000000c'),  -- Endah    Ecommerce Associate
-  ('40000000-0000-0000-0000-000000000016', '30000000-0000-0000-0000-00000000000d'),  -- Rangga   Roaster
-  ('40000000-0000-0000-0000-000000000017', '30000000-0000-0000-0000-00000000000d'),  -- Rosa     Roaster
-  ('40000000-0000-0000-0000-000000000018', '30000000-0000-0000-0000-00000000000e'),  -- Surya    Account Executive
-  ('40000000-0000-0000-0000-000000000019', '30000000-0000-0000-0000-00000000000e'),  -- Sekar    Account Executive
-  ('40000000-0000-0000-0000-00000000001a', '30000000-0000-0000-0000-00000000000f'),  -- Maya     Marketing Lead
-  ('40000000-0000-0000-0000-00000000001b', '30000000-0000-0000-0000-00000000000f'),  -- Miko     Marketing Lead (second seat: exercises a shared Jabatan)
-  ('40000000-0000-0000-0000-00000000001c', '30000000-0000-0000-0000-000000000010'),  -- Putri    People Lead
-  ('40000000-0000-0000-0000-00000000001d', '30000000-0000-0000-0000-000000000011')   -- Farid    Finance Associate
-) as p(person_id, role_id)
+  ('40000000-0000-0000-0000-000000000006', 'Head Barista'),
+  ('40000000-0000-0000-0000-000000000007', 'Barista'),
+  ('40000000-0000-0000-0000-000000000008', 'Barista'),
+  ('40000000-0000-0000-0000-000000000009', 'Barista'),
+  ('40000000-0000-0000-0000-00000000000a', 'Bar Supervisor'),
+  ('40000000-0000-0000-0000-00000000000b', 'Kitchen Supervisor'),
+  ('40000000-0000-0000-0000-00000000000c', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-00000000000d', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-00000000000e', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-00000000000f', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-000000000010', 'Bar Supervisor'),
+  ('40000000-0000-0000-0000-000000000011', 'Barista'),
+  ('40000000-0000-0000-0000-000000000012', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-000000000013', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-000000000014', 'Ecommerce Lead'),
+  ('40000000-0000-0000-0000-000000000015', 'Ecommerce Associate'),
+  ('40000000-0000-0000-0000-000000000016', 'Roaster'),
+  ('40000000-0000-0000-0000-000000000017', 'Roaster'),
+  ('40000000-0000-0000-0000-000000000018', 'Account Executive'),
+  ('40000000-0000-0000-0000-000000000019', 'Account Executive'),
+  ('40000000-0000-0000-0000-00000000001a', 'Marketing Lead'),
+  ('40000000-0000-0000-0000-00000000001b', 'Marketing Lead'),
+  ('40000000-0000-0000-0000-00000000001c', 'People Lead'),
+  ('40000000-0000-0000-0000-00000000001d', 'Finance Associate')
+) as p(person_id, role_name)
+join shared.roles r
+  on r.org_id = '10000000-0000-0000-0000-000000000001' and r.name = p.role_name
 on conflict (person_id, role_id) do nothing;
 
 -- Access roles for the new roster. Deliberately NOT all `member`: the supervisor and ops_lead
