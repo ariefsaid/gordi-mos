@@ -95,10 +95,21 @@ describe('the ⌘K palette carries the ladder Child rung on data-child rows', ()
     expect(body, 'child rung declares a raw length').not.toMatch(/\d+(\.\d+)?(px|rem|em)\b/)
   })
 
-  it('the child glyph steps down too, so glyph and label move together', () => {
-    expect(ruleBody('.cm-item[data-child=\'true\'] .cm-item-glyph svg {')).toMatch(
-      /width:\s*var\(--rail-icon-child\)/,
-    )
+  /**
+   * BOTH axes, and no raw length on either.
+   *
+   * `width` alone left this rule half-guarded: `height` was asserted by nothing in the repo, so a
+   * reviewer could rewrite it to a raw `22px` — an oblong glyph, off the rung and off the token
+   * vocabulary — and every guard that could plausibly have caught it (this file, tap-targets,
+   * the token-vocab and kit-vocab scans, the chrome CSS contract) stayed green. The raw-length
+   * clause is the general form of the same hole, applied here the way it is already applied to
+   * the rung rule above.
+   */
+  it('the child glyph steps down on BOTH axes, in tokens', () => {
+    const body = ruleBody('.cm-item[data-child=\'true\'] .cm-item-glyph svg {')
+    expect(body).toMatch(/width:\s*var\(--rail-icon-child\)/)
+    expect(body).toMatch(/height:\s*var\(--rail-icon-child\)/)
+    expect(body, 'child glyph declares a raw length').not.toMatch(/\d+(\.\d+)?(px|rem|em)\b/)
   })
 
   it('active outranks the rung on SPECIFICITY, not on source order', () => {
