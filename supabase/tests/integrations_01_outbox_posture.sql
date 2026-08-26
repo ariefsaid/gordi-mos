@@ -24,14 +24,52 @@
 --   DirectMgr ...0d2  ops_lead. The positive subject.
 --   GrandMgr  ...0d3  admin. The second positive, because the policy names two roles and a proof of
 --                     one of them would leave the other untested.
+--
+-- The role SWEEPS in D and E hold one subject fixed (DirectMgr ...0d2, a real live org-A row) and
+-- vary only the claimed role. That is sound because shared.has_access_role() reads the role off the
+-- JWT and makes no directory lookup — the person->role hop already happened in the token hook — so
+-- a claim set is the honest way to ask "what would this predicate admit?", and varying nothing else
+-- isolates the role axis exactly.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(30);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
+
+-- ── The two helpers the role sweeps in D and E run on ────────────────────────────────────────
+-- Created here, as the owner, before any role is assumed. Both are pg_temp functions: they live for
+-- this transaction only and leave nothing behind for another test to trip over.
+--
+-- access_role_vocabulary() reads the access-role set out of the shared.access_role domain's own
+-- CHECK rather than restating it here. #216 put that set in ONE place precisely because it grows —
+-- it has grown twice already — and a sweep carrying its own copy of the list would go stale in
+-- exactly the way a hand-written persona matrix does.
+create function pg_temp.access_role_vocabulary() returns setof text
+language sql stable as $$
+  select m[1]
+    from pg_constraint c
+    cross join lateral regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''', 'g') m
+   where c.contypid = 'shared.access_role'::regtype
+$$;
+
+-- reads_as() answers "how many rows of p_rel does a session claiming exactly p_role see?".
+-- SECURITY INVOKER, so the number is the CALLING session's count under RLS and not the owner's. The
+-- claim it sets is transaction-local and OUTLIVES the call, so nothing may read request.jwt.claims
+-- after a sweep without setting it again — both sweeps below are the last statement before a
+-- `reset role`, and every persona in this file sets its own claims before it reads.
+create function pg_temp.reads_as(p_person uuid, p_org uuid, p_role text, p_rel text)
+returns int language plpgsql security invoker as $$
+declare n int;
+begin
+  perform set_config('request.jwt.claims',
+    json_build_object('org_id', p_org, 'person_id', p_person,
+                      'access_roles', json_build_array(p_role))::text, true);
+  execute format('select count(*)::int from %s', p_rel) into n;
+  return n;
+end $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. AC-005 — RLS posture, over the catalog
@@ -121,6 +159,11 @@ select is(
 -- org's row. Without that pairing "reads zero" would be satisfied by a broken session, an empty
 -- table, or a policy that denies everyone.
 --
+-- The four cells pin the ORG axis. They do NOT pin the admitted SET, because the unadmitted persona
+-- holds the two roles she happens to hold and no others — so the sweep at the end of this section
+-- carries the role axis, over the whole vocabulary. Both halves are needed: the sweep says nothing
+-- about org, and the cells say nothing about a role nobody in them holds.
+--
 -- The seeded population both axes are read against: one outbox row in org A (...ba01) and one in
 -- org B (...ba09), from ops._test_seed_cafe().
 set local role authenticated;
@@ -157,10 +200,32 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1"
 select is((select count(*)::int from integrations.esb_push), 0,
   'esb_push_select_ops_lead_or_admin (other org, unadmitted role): the fourth cell reads zero — neither half of the conjunction is satisfied');
 
+-- ── D8. The admitted SET, swept over the whole role vocabulary ───────────────────────────────
+-- One assertion whose CONTENT is the admitted set: every role the shared.access_role domain allows,
+-- next to what a session claiming only that role may read. It goes red when
+--   • any unadmitted role is added to the predicate       — its cell flips 0 -> 1;
+--   • either admitted role is dropped from it             — its cell flips 1 -> 0;
+--   • the vocabulary grows a seventh role                 — the array is a different length, which
+--     is the point: a new role does not get to arrive unproven here, which is how `manager` and
+--     `supervisor` came to be invisible to the four cells above in the first place.
+-- It is behavioural, so it survives any rewrite of how the predicate is SPELLED and still answers
+-- the only question that matters — who gets in. A rewrite that preserves the set passes, and that
+-- is correct: this file pins what the policy admits, not how it is worded (section C already pins
+-- the policy's name and command structurally).
+-- The two `=1` cells are the sweep's own anchor: same mechanism, same transaction, so the zeros
+-- cannot be a blind session, an empty table, or a policy that denies everyone.
+select is(
+  (select array_agg(v.role || '=' || pg_temp.reads_as(
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
+            v.role, 'integrations.esb_push') order by v.role)
+     from pg_temp.access_role_vocabulary() v(role)),
+  array['admin=1','finance=0','manager=0','member=0','ops_lead=1','supervisor=0']::text[],
+  'esb_push_select_ops_lead_or_admin admits EXACTLY ops_lead and admin out of the whole access-role vocabulary — every other role the domain allows reads zero, and both admitted roles read the row');
+
 reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- D2. esb_push_groups_select_ops_lead_or_admin — the same four cells, on the approval-group table
+-- E. esb_push_groups_select_ops_lead_or_admin — the same four cells, on the approval-group table
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- The group table carries its own policy, so it needs its own behavioural proof: a widening of THIS
 -- predicate is invisible to every assertion made about the outbox row's. The fixtures seed no
@@ -188,6 +253,14 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'esb_push_groups_select_ops_lead_or_admin fails closed (own org, unadmitted role): a member of the org without ops_lead or admin reads zero approval groups');
 
+-- ...and the pairing that zero needs, in the SAME session rather than a neighbouring one. A session
+-- whose person_id no longer names a live directory row has current_org_id() NULL and reads zero from
+-- everything, for a reason that has nothing to do with this policy. shared.orgs is gated on exactly
+-- that seam (`id = shared.current_org_id()`), so one row here means this session resolves to org A
+-- and its org half is open — and the zero above is therefore the role gate.
+select is((select count(*)::int from shared.orgs), 1,
+  'esb_push_groups_select_ops_lead_or_admin: ...and that same unadmitted session still resolves to its own org and reads its org row, so the zero above is the role gate and not a dead session');
+
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
 select is((select count(*)::int from integrations.esb_push_groups
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
@@ -200,10 +273,22 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1"
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'esb_push_groups_select_ops_lead_or_admin (other org, unadmitted role): the fourth cell reads zero on the group table as well');
 
+-- ── The admitted SET on the group table, swept the same way ──────────────────────────────────
+-- The group table's predicate is its own, so its admitted set is its own claim to prove: a widening
+-- of THIS one is invisible to D8. Same sweep, same subject, same reading — see D8 for what each
+-- cell buys.
+select is(
+  (select array_agg(v.role || '=' || pg_temp.reads_as(
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
+            v.role, 'integrations.esb_push_groups') order by v.role)
+     from pg_temp.access_role_vocabulary() v(role)),
+  array['admin=1','finance=0','manager=0','member=0','ops_lead=1','supervisor=0']::text[],
+  'esb_push_groups_select_ops_lead_or_admin admits EXACTLY ops_lead and admin out of the whole access-role vocabulary — every other role the domain allows reads zero approval groups');
+
 reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- E. The enqueue refusal authored in the ops pass — verified here, not assumed
+-- F. The enqueue refusal authored in the ops pass — verified here, not assumed
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-012's behaviour is proven in ops_07_enqueue_refusal.sql. What is checked here is the SHAPE this
 -- ticket was told to verify: that the trigger covers the re-point path as well as the enqueue, and
@@ -219,7 +304,7 @@ select ok(not has_function_privilege('authenticated','integrations._guard_esb_pu
   'the refusal''s trigger function is not a callable RPC: execute is revoked, not left on the default PUBLIC grant');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- F. The target-env helper added by this pass
+-- G. The target-env helper added by this pass
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- `integrations` is exposed through PostgREST. Which environment the outbox is pointed at is
 -- operational state, and nothing in the app tier calls this — the only caller is the approval path,
