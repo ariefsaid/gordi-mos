@@ -114,9 +114,13 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
   // 6. LIVE team memberships. One read: the picker labels rows from listTeams(), so no team name
   //    is needed here — carrying one cost a second full read of shared.teams for nothing.
   //
-  //    Liveness matches what the AUTHORIZATION GATES mean by live (`effective_to is null or
-  //    effective_to >= current_date`), not `is null` alone. Two definitions of "live" is how the
-  //    screen came to report someone removed while the Signal read gate still admitted them.
+  //    Liveness here is the END of the gates' definition (`effective_to is null or >= today`) and
+  //    NOT their start clause. That asymmetry is deliberate: an admin screen must show a row it can
+  //    act on, and a not-yet-started membership is a real row an admin may want to end. The gates
+  //    ask "does this person have rights through this team today"; this asks "what is there to
+  //    manage". The screen is deliberately WIDER, never narrower — narrower is what let it report
+  //    someone removed while the gates still admitted them. The HOME question below is the one that
+  //    must match exactly, and does.
   const today = new Date().toISOString().slice(0, 10)
   const { data: tmRows, error: tmErr } = await shared()
     .from('team_memberships')
@@ -133,10 +137,15 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     // authority, and must not render as Home.
     ;(teamsByPerson[row.person_id] ??= []).push({
       team_id: row.team_id,
-      // The FULL predicate both functions carry, `effective_from` included. Omitting the start
-      // date made a future-dated membership render as Home while the gates resolved nothing —
-      // fail-safe, and unreachable through this UI since addTeamMembership never sends
-      // effective_from, but the comment above claimed the predicates matched and they did not.
+      // All three clauses both functions carry, `effective_from` included. Omitting the start date
+      // made a future-dated membership render as Home while the gates resolved nothing.
+      //
+      // NOT an exact match, and the difference is worth naming: `today` is the BROWSER's UTC date
+      // (line above), while the functions compare against the server's `current_date`. A skewed or
+      // differently-zoned client errs toward not-Home, which is the safe direction, and the repo
+      // already carries a scar from the other direction (Café plans seeding at the Jakarta date
+      // rather than UTC). The authoritative cutoff stays server-side — see end_team_membership,
+      // which exists for exactly that reason.
       is_primary: row.is_primary && row.effective_to === null && row.effective_from <= today,
     })
   }

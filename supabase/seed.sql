@@ -27,7 +27,7 @@
 -- already hold a person whose email is not `@example.test` (RFC 6761, unroutable)? `coalesce` so a
 -- real person with a NULL email trips it too.
 --
--- THREE things make it actually stop the run, and it needs all three:
+-- TWO things make it actually stop the run, and it needs both — plus one compatibility note:
 --   * it is FIRST — ahead of the org insert, not in the middle. A guard below the rows it guards
 --     protects nothing above it, which is what the first cut did;
 --   * the file is bracketed `begin; … commit;`. A bare `raise exception` inside `do $$ … $$` does

@@ -42,8 +42,16 @@ select cmp_ok(
 select cmp_ok((select count(*) from ops.wip_items), '>', 0::bigint,
   'the WIP item catalog is seeded — without it the Cafe capture surfaces have nothing to log against and render empty');
 
-select cmp_ok((select count(*) from ops.kitchen_plans where log_date = current_date), '>', 0::bigint,
-  'a plan for today is seeded — the Plan editor''s horizon and the Log variance gate both read it');
+-- "Today" is the JAKARTA date, not `current_date`. The seed was fixed for this (#469) — it writes
+-- `(now() at time zone 'Asia/Jakarta')::date` — but THIS assertion, the one that checks the seed,
+-- kept comparing against UTC. Postgres `current_date` in these containers is UTC, so between 17:00
+-- and 24:00 UTC (00:00–07:00 WIB, seven hours of every day) the two are different dates and this
+-- goes red on a correct seed. Caught at 17:04 UTC on 2026-08-26, when the seeded plan landed on
+-- 08-27 and `current_date` still read 08-26. Same expression as the seed, or the test and the thing
+-- it tests do not agree about what day it is.
+select cmp_ok((select count(*) from ops.kitchen_plans
+                where log_date = (now() at time zone 'Asia/Jakarta')::date), '>', 0::bigint,
+  'a plan for today (Jakarta) is seeded — the Plan editor''s horizon and the Log variance gate both read it');
 
 select cmp_ok((select count(*) from reporting.ingredient_cost_lines), '>', 0::bigint,
   'the ingredient cost lines are seeded — mos.capture_budget prices a budget from them, so Budget is unusable without them');
