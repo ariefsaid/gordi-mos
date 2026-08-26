@@ -35,6 +35,17 @@ if [ -n "$base" ]; then
   bash scripts/prose-budget.sh "$base"
 fi
 
+# A fresh git worktree has no node_modules, and a rebase that crosses a dependency change leaves a
+# stale one. Either way the heavy section dies with `tsc: command not found` (exit 127) or a wall of
+# TS2307s naming packages the branch never touched — which reads as a broken toolchain or, worse,
+# as the branch's own failure. That misreading cost four false diagnoses in one session.
+# `npm ci` (not install) is what CI runs, so it also proves package.json and the lockfile agree.
+# Outside the test lock: installing is not a test, and holding the lock through it starves the host.
+if [ ! -x mos-app/node_modules/.bin/tsc ]; then
+  echo "── deps: node_modules is absent or incomplete in this worktree — running npm ci first"
+  (cd mos-app && npm ci --no-audit --no-fund)
+fi
+
 # The heavy section runs under the machine-global test lock: two concurrent batteries starve
 # each other into moving false REDs — and two full vitest pools OOM'd this host once already.
 bash scripts/with-test-lock.sh bash -c \

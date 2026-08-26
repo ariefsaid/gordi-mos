@@ -55,5 +55,31 @@ git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "plant a red python t
 if run; then bad "red python suite must refuse"; else ok "red python suite refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after red python suite" || bad "stamp written despite red python suite"
 
+# The dependency self-heal: a worktree with no node_modules must install rather than die at
+# `tsc: command not found` (exit 127), which reads as a broken toolchain or the branch's fault.
+if grep -q 'node_modules/.bin/tsc' "$SCRIPT" \
+   && grep -q 'npm ci --no-audit --no-fund' "$SCRIPT"; then
+  ok "verify installs deps when the worktree has none"
+else
+  bad "verify still dies on a fresh worktree instead of installing"
+fi
+
+# can-fail control: the same check against a copy with the guard stripped must NOT be satisfied,
+# proving it tracks the file rather than grep semantics.
+stripped="$(sed '/node_modules\/.bin\/tsc/,+3d' "$SCRIPT")"
+if printf '%s' "$stripped" | grep -q 'node_modules/.bin/tsc'; then
+  bad "control: the stripped copy still satisfied the check"
+else
+  ok "control: the stripped copy fails the check"
+fi
+
+# It must run BEFORE the first command that needs a binary from node_modules, or it heals nothing.
+if [ "$(grep -n 'npm ci --no-audit' "$SCRIPT" | cut -d: -f1)" \
+     -lt "$(grep -n 'npm run typecheck' "$SCRIPT" | cut -d: -f1)" ]; then
+  ok "the install runs before the first command that needs it"
+else
+  bad "the install runs too late to help"
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
