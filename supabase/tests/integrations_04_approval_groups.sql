@@ -12,7 +12,7 @@ select ok((select relrowsecurity from pg_class where oid='integrations.esb_push_
 select ok((select relforcerowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),
   'approval groups force RLS');
 select ok(exists(select 1 from pg_policies where schemaname='integrations' and tablename='esb_push_groups'
-  and policyname='esb_push_groups_select_ops'), 'approval group reads are policy-scoped');
+  and policyname='esb_push_groups_select_ops_lead_or_admin'), 'approval group reads are policy-scoped');
 select ok(exists(select 1 from information_schema.columns where table_schema='integrations'
   and table_name='esb_push_groups' and column_name='org_id'), 'approval groups carry org_id');
 select ok(exists(select 1 from information_schema.columns where table_schema='ops'

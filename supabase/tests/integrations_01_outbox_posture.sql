@@ -102,7 +102,7 @@ select ok(has_table_privilege('service_role','integrations.esb_push','SELECT')
 select is(
   (select array_agg(p.policyname || ':' || p.cmd order by p.policyname)
      from pg_policies p where p.schemaname = 'integrations'),
-  array['esb_push_groups_select_ops:SELECT','esb_push_select_ops_lead_or_admin:SELECT']::text[],
+  array['esb_push_groups_select_ops_lead_or_admin:SELECT','esb_push_select_ops_lead_or_admin:SELECT']::text[],
   'integrations policies are SELECT-only — no write policy exists to be widened');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
