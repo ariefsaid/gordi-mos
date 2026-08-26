@@ -40,9 +40,14 @@ fi
 # TS2307s naming packages the branch never touched — which reads as a broken toolchain or, worse,
 # as the branch's own failure. That misreading cost four false diagnoses in one session.
 # `npm ci` (not install) is what CI runs, so it also proves package.json and the lockfile agree.
+# `npm ci` writes node_modules/.package-lock.json, so a lockfile newer than it means the tree
+# predates the current dependencies — the rebase case. Without that second test the guard heals
+# only the empty worktree, and a tree carrying another branch's dependencies still stamps ALL
+# GREEN over something CI would never build.
 # Outside the test lock: installing is not a test, and holding the lock through it starves the host.
-if [ ! -x mos-app/node_modules/.bin/tsc ]; then
-  echo "── deps: node_modules is absent or incomplete in this worktree — running npm ci first"
+if [ ! -x mos-app/node_modules/.bin/tsc ] \
+   || [ mos-app/package-lock.json -nt mos-app/node_modules/.package-lock.json ]; then
+  echo "── deps: node_modules is missing or older than package-lock.json — running npm ci first"
   (cd mos-app && npm ci --no-audit --no-fund)
 fi
 
