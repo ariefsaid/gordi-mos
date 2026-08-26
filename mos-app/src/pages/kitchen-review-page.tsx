@@ -328,7 +328,9 @@ type LoadState =
 
 export function KitchenReviewPage() {
   const t = useT()
-  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.review') }))
+  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
+  // the catalog's own docTitle convention (tasks-layout, signals-archive).
+  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.review')} · ${t('nav.cafe')}` }))
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.review')}`
   const auth = useAuth()
 

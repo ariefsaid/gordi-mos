@@ -26,13 +26,10 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { listActiveWipItems, listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
-import { fetchDefaultStream } from '@/lib/db/default-stream'
-import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
-import { listActiveBranches } from '@/lib/db/branches'
+import { listActiveWipItems } from '@/lib/db/kitchen-logs'
+import { useCafeStream } from '@/lib/use-cafe-stream'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
-  BranchOption,
   KitchenMovement,
   PesananRow,
   PlanCell,
@@ -76,7 +73,9 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 export function KitchenPlanPage() {
   const auth = useAuth()
   const t = useT()
-  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.plan') }))
+  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
+  // the catalog's own docTitle convention (tasks-layout, signals-archive).
+  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.plan')} · ${t('nav.cafe')}` }))
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
 
   // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
@@ -111,12 +110,12 @@ function PlanEditor() {
   const t = useT()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  const [branches, setBranches] = useState<BranchOption[]>([])
   // The enumerable six-stream catalog (FR-005) — the head picker's options (#440). The branch
-  // catalog stays too: the MOVEMENT control offers every branch as a destination, which is a
-  // different question from which stream this plan belongs to.
-  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
-  const [stream, setStream] = useState<ProductionStream | null>(null)
+  // catalog comes with it: the MOVEMENT control offers every branch as a destination, which is
+  // a different question from which stream this plan belongs to.
+  const cafeStream = useCafeStream()
+  const { branches, options: streamOptions, stream } = cafeStream
+  const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
   const [cells, setCells] = useState<PlanCell[]>([])
@@ -159,33 +158,24 @@ function PlanEditor() {
   const fetchEditor = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [itemRows, branchRows, pairs] = await Promise.all([
-        listActiveWipItems(),
-        listActiveBranches(),
-        listStreamPairs(),
-      ])
-      const catalog = streamCatalogFrom(pairs, branchRows)
-      const resolvedStream = resolveCafeStream(catalog, await fetchDefaultStream(branchRows))
-      const planCells = resolvedStream ? await listKitchenPlans(logDate, resolvedStream) : []
+      const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
+      const planCells = catalog.stream ? await listKitchenPlans(logDate, catalog.stream) : []
       setItems(itemRows)
-      setBranches(branchRows)
-      setStreamOptions(catalog)
-      setStream(resolvedStream)
+      adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
     }
-  }, [logDate])
+  }, [logDate, resolveStream, adoptStream])
 
   useEffect(() => { fetchEditor() }, [fetchEditor, retryKey])
 
   // Switching the stream re-reads the plan — a different (branch, activity) has its own
   // plan rows entirely, same as the capture surface's applyStream (#196).
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
-    setStream(nextStream)
-    rememberStream(nextStream) // the whole Café module follows this choice (#440)
+    chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
@@ -195,7 +185,7 @@ function PlanEditor() {
     } catch {
       setLoad({ kind: 'error' })
     }
-  }, [logDate])
+  }, [logDate, chooseStream])
 
   // Plan qty for (item, current movement) — 0 when no plan row yet.
   const qtyOf = useCallback(
@@ -442,9 +432,9 @@ function PesananView() {
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananRow[]>([])
-  const [branches, setBranches] = useState<BranchOption[]>([])
-  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
-  const [stream, setStream] = useState<ProductionStream | null>(null)
+  const cafeStream = useCafeStream()
+  const { branches, options: streamOptions, stream } = cafeStream
+  const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
@@ -463,23 +453,18 @@ function PesananView() {
   const fetchHorizon = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [branchRows, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
-      const catalog = streamCatalogFrom(pairs, branchRows)
-      const resolved = resolveCafeStream(catalog, await fetchDefaultStream(branchRows))
-      const data = resolved ? await listPesanan(from, PESANAN_HORIZON_DAYS, resolved) : []
-      setBranches(branchRows)
-      setStreamOptions(catalog)
-      setStream(resolved)
+      const catalog = await resolveStream()
+      const data = catalog.stream ? await listPesanan(from, PESANAN_HORIZON_DAYS, catalog.stream) : []
+      adoptStream(catalog)
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
     }
-  }, [from])
+  }, [from, resolveStream, adoptStream])
 
   const applyStream = useCallback(async (next: ProductionStream) => {
-    setStream(next)
-    rememberStream(next) // the whole Café module follows this choice (#440)
+    chooseStream(next) // the whole Café module follows this choice (#440)
     setLoad({ kind: 'loading' })
     try {
       setRows(await listPesanan(from, PESANAN_HORIZON_DAYS, next))
@@ -487,7 +472,7 @@ function PesananView() {
     } catch {
       setLoad({ kind: 'error' })
     }
-  }, [from])
+  }, [from, chooseStream])
 
   useEffect(() => { fetchHorizon() }, [fetchHorizon, retryKey])
 

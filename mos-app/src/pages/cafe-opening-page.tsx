@@ -21,11 +21,7 @@ import { canReviewCafe } from '@/lib/kitchen-gates'
 // five stream-scoped surfaces, and a person who lands here should be able to read (and set)
 // which books they are about to work in before they walk through one.
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
-import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
-import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
-import { listActiveBranches } from '@/lib/db/branches'
-import { fetchDefaultStream } from '@/lib/db/default-stream'
-import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
+import { useCafeStream } from '@/lib/use-cafe-stream'
 import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
@@ -65,26 +61,23 @@ export function CafeOpeningPage() {
   // The module's stream (#440). Read on its own so a failure here never takes the opening
   // surface down with it: the opening itself is Team-scoped, not stream-scoped, so the head's
   // statement is context for the doors below, not a precondition for the panel.
-  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
-  const [stream, setStream] = useState<ProductionStream | null>(null)
+  const cafeStream = useCafeStream()
+  const { resolve: resolveStream, adopt: adoptStream } = cafeStream
 
   useEffect(() => {
     if (!viewerId) return
     let live = true
     void (async () => {
       try {
-        const [branches, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
-        const catalog = streamCatalogFrom(pairs, branches)
-        const resolved = resolveCafeStream(catalog, await fetchDefaultStream(branches))
-        if (!live) return
-        setStreamOptions(catalog)
-        setStream(resolved)
+        const resolved = await resolveStream()
+        if (live) adoptStream(resolved)
       } catch {
-        if (live) setStreamOptions([]) // the head then reads "—": no stream known, nothing claimed
+        // the head then reads "—": no stream known, nothing claimed
+        if (live) adoptStream({ branches: [], options: [], stream: null })
       }
     })()
     return () => { live = false }
-  }, [viewerId])
+  }, [viewerId, resolveStream, adoptStream])
 
   const load = useCallback(() => {
     if (!viewerId) return
@@ -147,9 +140,9 @@ export function CafeOpeningPage() {
       title={t('nav.cafe')}
       statusRow={
         <CafeStreamBar
-          options={streamOptions}
-          stream={stream}
-          onChange={next => { setStream(next); rememberStream(next) }}
+          options={cafeStream.options}
+          stream={cafeStream.stream}
+          onChange={cafeStream.setStream}
         />
       }
       meta={wibToday()}

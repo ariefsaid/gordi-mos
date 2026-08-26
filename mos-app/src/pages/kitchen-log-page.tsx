@@ -27,20 +27,15 @@ import {
   fetchActualsMap,
   fetchPlanMap,
   fetchStockMap,
-  listStreamPairs,
   resolveKitchenBuId,
   insertKitchenLogBatch,
-  streamCatalogFrom,
 } from '@/lib/db/kitchen-logs'
-import { fetchDefaultStream } from '@/lib/db/default-stream'
-// #440: the stream is the MODULE's selection, not this page's — resolveCafeStream records it so
-// Plan/Stock/Review open on the same books, and rememberStream carries every switch across.
-import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
+// #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
+// Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
+import { useCafeStream } from '@/lib/use-cafe-stream'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
-import { listActiveBranches } from '@/lib/db/branches'
 import type {
   ActualsMap,
-  BranchOption,
   CaptureFormItem,
   KitchenLogLine,
   KitchenMovement,
@@ -149,7 +144,9 @@ type PageStatus =
 export function KitchenLogPage() {
   const auth = useAuth()
   const t = useT()
-  useDocumentTitle(t('common.docTitle', { page: t('nav.kitchen.log') }))
+  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
+  // the catalog's own docTitle convention (tasks-layout, signals-archive).
+  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.log')} · ${t('nav.cafe')}` }))
   const isDesktop = useIsDesktop()
   // I18N sweep: the H1 was a literal "Café · Log" — mixed-locale in `id` (breadcrumb
   // correctly translated the module/page, the heading below it did not). Reuses the
@@ -164,9 +161,9 @@ export function KitchenLogPage() {
   // (FR-002), and nothing can be submitted meanwhile because `ops.kitchen_logs.branch_id` /
   // `.activity` are NOT NULL (AC-007). `streamOptions` is the six-stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
-  const [branches, setBranches] = useState<BranchOption[]>([])
-  const [streamOptions, setStreamOptions] = useState<ProductionStream[]>([])
-  const [stream, setStream] = useState<ProductionStream | null>(null)
+  const cafeStream = useCafeStream()
+  const { branches, options: streamOptions, stream } = cafeStream
+  const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
   const [wipItems, setWipItems] = useState<CaptureFormItem[]>([])
@@ -224,25 +221,18 @@ export function KitchenLogPage() {
     const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
     try {
-      const [items, branchRows, streamPairs, bu] = await Promise.all([
+      const [items, catalog, bu] = await Promise.all([
         // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
         // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
         listCaptureFormItems(),
-        listActiveBranches(),
-        listStreamPairs(),
+        // The module's stream, resolved the one way every Café surface resolves it
+        // (issue 456): the session's own choice (#440) outranks the person's own stream
+        // (shared.default_stream(), FR-001), and neither may name a pair outside the live
+        // six-stream catalog — a stale pair resolves to "choose", never to a guess (FR-002).
+        resolveStream(),
         resolveKitchenBuId(),
       ])
-      const catalog = streamCatalogFrom(streamPairs, branchRows)
-      // The person's own default (FR-001) — the ONE shape-validated resolver
-      // (default-stream.ts, #234 consolidation). It needs the branch catalog, so it runs
-      // after the parallel batch. The default must then BE a catalog stream — a stale
-      // pair pointing outside the live six-stream catalog resolves to "choose", never to
-      // a guess (FR-002).
-      // …unless the person already chose a stream elsewhere in the Café module this session
-      // (#440): that choice outranks the default, so walking Log → Plan → Stock never changes
-      // books underfoot. resolveCafeStream applies both rules and records the result.
-      const defaultStream = await fetchDefaultStream(branchRows)
-      const resolvedStream = resolveCafeStream(catalog, defaultStream)
+      const resolvedStream = catalog.stream
       const resolvedMovement = PRODUCE
       const [plan, stock, actuals] = resolvedStream
         ? await Promise.all([
@@ -253,9 +243,7 @@ export function KitchenLogPage() {
         : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setWipItems(items)
-      setBranches(branchRows)
-      setStreamOptions(catalog)
-      setStream(resolvedStream)
+      adoptStream(catalog)
       setMovement(resolvedMovement)
       setPlanMap(plan)
       setStockMap(stock)
@@ -307,8 +295,7 @@ export function KitchenLogPage() {
   // it under a different one is how a COGS series acquires rows nobody meant.
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     const gen = ++requestGen.current
-    setStream(nextStream)
-    rememberStream(nextStream) // the whole Café module follows this choice (#440)
+    chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
     try {

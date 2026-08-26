@@ -31,8 +31,20 @@
 
 .kms-tab {
   flex: 0 0 auto;
+  /* Two RUNGS, not one run-on line (issue 449): the tab's own name on top, the
+     intra-branch qualifier below it. Inline, the qualifier sat on the same baseline at a
+     different weight and made that one tab roughly twice its siblings' width — the row's
+     rhythm broke on the widest label of the set, at the width with the least room to
+     spare. Stacked, the tab measures max(label, qualifier) instead of their sum, and the
+     track's default `align-items: stretch` gives every sibling the same height, so the
+     row still reads as one even strip. */
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   min-height: 44px; /* touch target on phone */
-  padding: 0 12px;
+  padding: 4px 12px;
   border-radius: calc(var(--radius-sm) - 2px);
   border: 1px solid transparent; /* reserve space so the active border doesn't shift layout */
   cursor: pointer;
@@ -75,22 +87,24 @@
   .kms-short { display: inline; }
 }
 
-/* The intra-branch qualifier (FR-013) — "within branch · Kitchen". Muted and lighter than
-   the destination it qualifies: it is a gloss on one option, not a second label, and the
-   option it sits on must still read as the same movement it has always been. Same
-   full ↔ short flip as the label above, so the strip stays one row tall on a phone. */
+/* The intra-branch qualifier (FR-013) — "within branch · Kitchen". Its own rung under the
+   destination it qualifies: one step down the type ramp, muted, weight 400, so it reads as
+   subordinate to the tab's name rather than as a second name. Same full ↔ short flip as the
+   label above, so the rung stays one line wide on a phone. */
 .kms-qual {
-  margin-left: 6px;
+  font-size: var(--font-size-label);
   font-weight: 400;
+  line-height: 1.2;
   color: var(--muted-foreground);
 }
 .kms-qual-short { display: none; }
 @media (max-width: 400px) {
   .kms-qual { display: none; }
   .kms-qual-short {
-    display: inline;
-    margin-left: 4px;
+    display: block;
+    font-size: var(--font-size-label);
     font-weight: 400;
+    line-height: 1.2;
     color: var(--muted-foreground);
   }
 }

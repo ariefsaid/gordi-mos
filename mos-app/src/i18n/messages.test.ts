@@ -73,11 +73,13 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
     'nav.sales',
     'nav.objectives',
     'nav.projectsProcesses',
-    'nav.kitchen.log',
-    'nav.kitchen.plan',
-    'nav.kitchen.stock',
-    'nav.kitchen.review',
-    'nav.kitchen.pushes',
+    // issue 455: the Café module's children — `nav.kitchen.*` retired with the wrong name.
+    'nav.cafe',
+    'nav.cafe.log',
+    'nav.cafe.plan',
+    'nav.cafe.stock',
+    'nav.cafe.review',
+    'nav.cafe.pushes',
   ] as const
 
   it('AC-409: every nav.* key is present in both en and id (shape-identical parity)', () => {
