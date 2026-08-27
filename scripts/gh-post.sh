@@ -33,21 +33,21 @@ denylist="$main_wt/docs/gh-denylist.txt"
 texts=("$@")
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
-  case "${args[$i]}" in
-    --body-file|--input|-F|--field)
-      v="${args[$((i + 1))]:-}"
-      f=""
-      case "${args[$i]}" in
-        --body-file|--input) f="$v" ;;
-        *) case "$v" in *=@*) f="${v#*=@}" ;; esac ;;
-      esac
-      if [ -n "$f" ]; then
-        [ "$f" != "-" ] || die "stdin payloads ('-') are not scannable — put the text in a file"
-        [ -r "$f" ] || die "cannot read body file: $f"
-        texts+=("$(cat "$f")")
-      fi
-      ;;
+  a="${args[$i]}"
+  f="" v=""
+  case "$a" in
+    --body-file|--input) f="${args[$((i + 1))]:-}" ;;
+    --body-file=*|--input=*) f="${a#*=}" ;;
+    -F|--field) v="${args[$((i + 1))]:-}" ;;
+    -F?*) v="${a#-F}" ;;
+    --field=*) v="${a#--field=}" ;;
   esac
+  case "$v" in *=@*) f="${v#*=@}" ;; esac
+  if [ -n "$f" ]; then
+    [ "$f" != "-" ] || die "stdin payloads ('-') are not scannable — put the text in a file"
+    [ -r "$f" ] || die "cannot read body file: $f"
+    texts+=("$(cat "$f")")
+  fi
 done
 
 # ── Scan. Report the matching pattern so the fix is obvious; never echo the blocked text back.
@@ -77,7 +77,7 @@ done
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
     case "$a" in
-      --repo|-R|--repo=*|--head|-H|--head=*)
+      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*)
         die "'pr create' through this door targets the current checkout only — no --repo/--head (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
     esac
   done
