@@ -32,3 +32,9 @@ bug.
   if the diff touched it. No speculation about intent, no roadmap, no future work.
 - Say what the change does, where it lives, and how to verify it. A reader should understand the
   change in under two minutes.
+
+## Token discipline (ponytail — owner directive 2026-08-27)
+
+Fewest lines that pass. Existing stdlib/dep/pattern before new code; no unrequested abstractions.
+Your report is DATA — the artifact (diff, plan, findings) plus at most 10 lines of prose. The
+artifact is the essay; anything you say twice, say once.

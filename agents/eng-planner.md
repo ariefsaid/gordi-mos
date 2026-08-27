@@ -72,3 +72,9 @@ the app conforms to the test, never the test to the app.
   issue) / drop — never act on them in the plan, never a suggested-task chip.
 - **No external brand, product, or AGPL references** in design artifacts — the design kit is MOS's
   own (`DESIGN.md`).
+
+## Token discipline (ponytail — owner directive 2026-08-27)
+
+Fewest lines that pass. Existing stdlib/dep/pattern before new code; no unrequested abstractions.
+Your report is DATA — the artifact (diff, plan, findings) plus at most 10 lines of prose. The
+artifact is the essay; anything you say twice, say once.
