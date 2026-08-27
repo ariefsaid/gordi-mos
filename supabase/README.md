@@ -26,9 +26,9 @@ copy `seed.production.sql.example` to `docs/local-seeds/02-real-roster.sql` and 
 auth links; apply it manually against the deployed stack. The committed seed stays fictional.
 
 The filled-in file lives outside `supabase/` on purpose. This directory is tracked, so anything under
-it is one `git add supabase` away from a public commit — which is exactly how three real addresses
-were published on 2026-08-27. `docs/` is gitignored as a whole directory *and* is a nested repo with
-no remote, so `git add` cannot stage its contents at all. Prefer that boundary to any filename rule.
+it is one `git add supabase` away from a public commit, whatever the filename. `docs/` is gitignored
+as a whole directory *and* is a nested repo with no remote, so `git add` cannot stage its contents at
+all. Prefer that boundary to any filename rule.
 
 ## Common commands (run from repo root)
 - `supabase start` — boot the local stack (Docker).

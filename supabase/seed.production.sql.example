@@ -1,8 +1,8 @@
 -- supabase/seed.production.sql.example
 -- COPY this template to `docs/local-seeds/02-real-roster.sql` at deploy time — NOT to a filename
--- inside this directory. `supabase/` is tracked; `docs/` is gitignored as a whole directory and is a
--- nested repo with no remote, so `git add` cannot stage the filled-in file's contents at all. A
--- single .gitignore line here is the protection class that failed on 2026-08-27.
+-- inside this directory. `supabase/` is tracked, so a filename here is protected only by whatever
+-- pattern anticipated it. `docs/` is gitignored as a whole directory and is a nested repo with no
+-- remote, so `git add` cannot stage the filled-in file's contents at all.
 -- Real Gordi people + real auth links. NEVER commit the filled-in file (public repo, OD-P1-6).
 -- Applied manually against the deployed stack, not by `db reset`. Real names/emails go there ONLY.
 --

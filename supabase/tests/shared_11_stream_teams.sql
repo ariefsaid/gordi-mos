@@ -15,7 +15,7 @@
 -- production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(31);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -112,21 +112,44 @@ select is(
 -- Cikal made the catalog seven, three database comments still said six; the sweep found two, and
 -- the third — the `teams_stream_unique` index — survived because it lives in `shared` and every
 -- guard was scoped to `ops`. A comment is served to anyone running \d+, so a stale one is a wrong
--- answer the schema itself gives. This asserts the class (no shared comment names the catalog by an
--- outdated size) rather than any literal, so rewording stays free.
+-- answer the schema itself gives.
+--
+-- TWO AXES, because scoping to one is exactly the mistake being fixed:
+--   * SCHEMA — `shared` AND `ops`, not one of them.
+--   * OBJECT CLASS — relations and columns (pg_class) AND functions (pg_proc). The first cut of
+--     this guard joined pg_class only, so `shared.seed_stream_teams()`'s own comment — one of the
+--     three re-issued for Cikal — was structurally invisible to the test written to protect it.
+--     `classoid` is pinned on each arm: objoid alone is a bare oid and matches across catalogs.
+--
+-- It bans the stale CLAIM, not the word "six". The live and correct wording on
+-- `ops.kitchen_logs.activity` reads "…yields six streams, plus Cikal… = SEVEN distinct", and must
+-- keep passing — a guard that reddens a true sentence gets deleted by the next person in a hurry.
+-- The first cut of this regex allowed `six[- ]stream` and did exactly that, failing on the one
+-- comment the whole change existed to correct. So the patterns are the forms only a superseded
+-- claim takes: "six-stream" HYPHENATED (it is naming the catalog by its size), "exactly six",
+-- "six distinct", and DD-WAY-25's retracted "five distinct". Plain "six streams" inside a longer
+-- true sentence is deliberately allowed.
 --
 -- If a ruling changes the count again: re-issue every comment that names it FROM A NEW MIGRATION —
 -- editing the applied file fixes nothing, because a deployed database never re-runs it.
 reset role;
 select is(
-  (select count(*)::int
-     from pg_description d
-     join pg_class c on c.oid = d.objoid
-     join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'shared'
-      and d.description ~* '(six|6)[- ](stream|distinct)'),
+  (select count(*)::int from (
+     select d.description
+       from pg_description d
+       join pg_class c on c.oid = d.objoid and d.classoid = 'pg_class'::regclass
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname in ('shared','ops')
+     union all
+     select d.description
+       from pg_description d
+       join pg_proc pr on pr.oid = d.objoid and d.classoid = 'pg_proc'::regclass
+       join pg_namespace n on n.oid = pr.pronamespace
+      where n.nspname in ('shared','ops')
+   ) x
+   where x.description ~* '(six-stream|exactly six|six distinct|(five|5) distinct)'),
   0,
-  'AC-012a: no comment in the shared catalog still publishes the superseded six-stream count — the number a schema reader sees agrees with the shipped catalog (OD-WAY-79)');
+  'FR-005 documentation honesty (spec Further Notes, not AC-012a itself): no comment on any relation, column or function in shared or ops still publishes a superseded stream count — not the six-stream catalog and not DD-WAY-25s retracted five — so the number a schema reader gets from \d+ agrees with the shipped catalog (OD-WAY-42, OD-WAY-79)');
 
 select set_eq($$
   select b.code, t.activity
@@ -156,8 +179,9 @@ select is(
 --
 -- ORG G CARRIES CIKAL ON PURPOSE. Without it, org G's count of six is satisfied both by the rule
 -- as written and by a Cikal disjunct hardcoded to the dev org — pinning `and b.org_id = <dev>`
--- onto the seeder passed the whole suite. The count here is now the ONLY assertion that can tell
--- an org-generic rule from a dev-pinned one, so do not drop the branch to make a number rounder.
+-- onto the seeder passed the WHOLE suite, 1184/1184. The three org-G assertions below are what
+-- tell an org-generic rule from a dev-pinned one (that mutation now fails the set, the org-G count
+-- and the cross-org count), so do not drop the branch to make a number rounder.
 -- Roastery still carries the other half of the shape: a branch NO rule names gets no stream.
 insert into shared.orgs (id, name, slug)
   values ('00000000-0000-0000-0000-0000000000f1','Stream Org G','stream-org-g');
@@ -180,6 +204,22 @@ select is(
       and t.branch_id is not null and t.archived_at is null),
   7,
   'AC-012a: a second seed-shaped org gets its OWN seven stream teams — the SAME seven, three full branches x the activity catalog plus cikal/bar, proving the rule is org-generic and not pinned to the dev org — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
+
+-- The count above cannot tell WHICH seven. AC-012 promises the second org gets the same SET, so
+-- assert the set: a rule that lost cikal/bar and gained roastery/kitchen would hold the count.
+select set_eq($$
+  select b.code, t.activity
+    from shared.teams t
+    join shared.branches b on b.id = t.branch_id
+   where t.org_id = '00000000-0000-0000-0000-0000000000f1'
+     and t.branch_id is not null and t.archived_at is null
+  $$, $$ values
+    ('gordi_hq','kitchen'), ('gordi_hq','bar'),
+    ('rumah_rames','kitchen'), ('rumah_rames','bar'),
+    ('radiant','kitchen'), ('radiant','bar'),
+    ('cikal','bar')
+  $$,
+  'AC-012a: the second org gets the SAME SET as the dev org, pair for pair — the catalog rule is org-generic in shape, not only in size');
 
 select is(
   (select count(*)::int from shared.teams t
