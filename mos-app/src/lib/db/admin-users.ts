@@ -422,14 +422,37 @@ export async function endTeamMembership(personId: string, teamId: string): Promi
 /**
  * Make one of a person's live teams their home team.
  *
- * Two writes, in this order: clear the old primary FIRST, then set the new one. The reverse order
- * hits `team_memberships_one_primary` (unique on person_id where is_primary and effective_to is
- * null) and fails, so the sequence is load-bearing, not stylistic. Not a transaction: PostgREST has
- * no client-side one, and a failure between the two leaves the person with NO home team, which the
- * picker renders honestly and the admin can fix with one more click — strictly better than the
- * alternative of a definer RPC whose only job is to hide a two-step from a screen that shows it.
+ * THREE steps: check the target is eligible, clear the old primary, set the new one.
+ *
+ * The clear-before-set order is load-bearing, not stylistic — the reverse hits
+ * `team_memberships_one_primary` (unique on person_id where is_primary and effective_to is null).
+ * But clear-then-fail costs the person their home team, and that is an AUTHORIZATION change:
+ * `shared.default_stream()` resolves to nothing and `ops.is_stream_reviewer` returns false for a
+ * supervisor. It is reachable without exotic data — a second admin, or a stale tab, ends the
+ * membership while this screen still lists it — so the eligibility read goes FIRST and refuses,
+ * leaving the person exactly as they were. It carries the same three clauses as the write below.
+ *
+ * The read cannot make this atomic (PostgREST has no client-side transaction) and is not trying
+ * to: it removes the one failure that is both likely and destructive. The set below still checks
+ * its own row count, because a row can go away between the two.
  */
 export async function setPrimaryTeam(personId: string, teamId: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: eligible, error: readErr } = await shared()
+    .from('team_memberships')
+    .select('id')
+    .eq('person_id', personId)
+    .eq('team_id', teamId)
+    .is('effective_to', null)
+    .lte('effective_from', today)
+  if (readErr) throw surface('set home team', readErr)
+  if ((eligible ?? []).length === 0) {
+    throw new Error(
+      "Couldn't set home team: that membership is no longer live, so it can't be the home team. Reload the screen, then add the team again.",
+    )
+  }
+
   const { error: clearErr } = await shared()
     .from('team_memberships')
     .update({ is_primary: false })
@@ -454,12 +477,12 @@ export async function setPrimaryTeam(personId: string, teamId: string): Promise<
     // UI — nothing sends effective_from — but a write guard looser than the read that judges it is
     // the asymmetry this whole slice exists to remove.
     .is('effective_to', null)
-    .lte('effective_from', new Date().toISOString().slice(0, 10))
+    .lte('effective_from', today)
     .select('id')
   if (error) throw surface('set home team', error)
   if ((data ?? []).length === 0) {
     throw new Error(
-      "Couldn't set home team: that membership is already ending, so it can't be the home team. Remove it and add the team again.",
+      "Couldn't set home team: that membership stopped being live while you were on this screen. Reload, then try again.",
     )
   }
 }

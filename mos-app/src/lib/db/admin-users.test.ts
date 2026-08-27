@@ -621,7 +621,8 @@ describe('Team wrappers', () => {
     // Order is load-bearing, not stylistic: team_memberships_one_primary is unique on person_id
     // where is_primary and effective_to is null, so setting before clearing hits the index and
     // fails. Swap the two blocks in admin-users.ts and this assertion is what goes red.
-    const [clear, set] = schemaObj.from.mock.results.map(
+    // [0] is the eligibility read, which runs BEFORE anything destructive.
+    const [, clear, set] = schemaObj.from.mock.results.map(
       (r) => r.value as { update: ReturnType<typeof vi.fn>; eq: ReturnType<typeof vi.fn> },
     )
     expect(clear.update).toHaveBeenCalledWith({ is_primary: false })
@@ -639,7 +640,7 @@ describe('Team wrappers', () => {
     schemaMock.mockReturnValue(schemaObj as never)
 
     await setPrimaryTeam('p1', 't2')
-    const set = schemaObj.from.mock.results[1].value as {
+    const set = schemaObj.from.mock.results[2].value as {
       is: ReturnType<typeof vi.fn>; lte: ReturnType<typeof vi.fn>
     }
     // Three clauses, matching the read and both gate functions. A write guard looser than the
@@ -653,17 +654,22 @@ describe('Team wrappers', () => {
     expect(set.lte).toHaveBeenCalledWith('effective_from', today)
   })
 
-  it('setPrimaryTeam refuses loudly when the target membership cannot be the home team', async () => {
+  it('setPrimaryTeam refuses an ineligible target WITHOUT clearing the existing home team', async () => {
     // The primary slot is `is_primary and effective_to is null` — what default_stream() and
-    // ops.is_stream_reviewer read. A membership the picker shows as live but which carries a
-    // future end date matches zero rows, and the old primary is ALREADY cleared by then. Silent
-    // success there is the exact shape this slice exists to kill.
+    // ops.is_stream_reviewer read. A membership the picker still lists but which has since been
+    // ended matches zero rows. Clearing first and discovering that second costs the person their
+    // home team, which is an AUTHORIZATION change: no default stream, and is_stream_reviewer goes
+    // false for a supervisor. So the read comes first and nothing is written.
     const schemaObj = makeSharedSchema({ team_memberships: { data: [], error: null } })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(setPrimaryTeam('p1', 't2')).rejects.toThrow(/already ending/)
+    await expect(setPrimaryTeam('p1', 't2')).rejects.toThrow(/no longer live/)
+    // ONE query — the read. Move the read after the clear and this is what goes red.
+    expect(schemaObj.from).toHaveBeenCalledTimes(1)
+    const read = schemaObj.from.mock.results[0].value as { update: ReturnType<typeof vi.fn> }
+    expect(read.update).not.toHaveBeenCalled()
   })
 
-  it('setPrimaryTeam stops at the clear step if it fails, rather than orphaning two primaries', async () => {
+  it('setPrimaryTeam stops at the first failing query, rather than orphaning two primaries', async () => {
     const schemaObj = makeSharedSchema({ team_memberships: { data: null, error: { message: 'rls denied' } } })
     schemaMock.mockReturnValue(schemaObj as never)
     await expect(setPrimaryTeam('p1', 't2')).rejects.toThrow(/Couldn't set home team/)

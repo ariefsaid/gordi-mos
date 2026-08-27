@@ -101,10 +101,10 @@ comment on function shared.seed_role_tiers() is
 revoke execute on function shared.seed_role_tiers() from public, anon, authenticated;
 
 -- ── Dev fixtures only, and enforced rather than assumed ──────────────────────────────────────
--- Owner, 2026-08-27: these twelve are NOT Gordi's positions. The live titles are different
--- (Operational Manager, Head Barista, Kitchen Manager, Supporting Service Manager, Content
--- Creator, Head Roaster …) and they live in the gitignored deploy seed, where staff names may
--- legally sit. So the twelve below are what they always were — fixture Jabatan for the fixture
+-- Owner, 2026-08-27: these twelve are NOT Gordi's positions. The live titles are different and
+-- live in the gitignored deploy seed, where real names and the real structure may legally sit —
+-- this repo is public, and an org chart is exactly the kind of internal detail the banner keeps
+-- out of it. So the twelve below are what they always were — fixture Jabatan for the fixture
 -- people — and they must never reach a real Jabatan picker.
 --
 -- The guard is the same question seed.sql asks: does this database already hold a REAL person?
