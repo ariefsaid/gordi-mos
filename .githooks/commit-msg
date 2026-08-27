@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# commit-msg gate — refuse a message that counts its own evidence.
+# Briefs advise; hooks enforce. Rationale + self-test: scripts/claim-check.sh
+# Escape hatch: `git commit --no-verify` (humans mid-rebase; an agent doing it is a red flag).
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)"
+exec bash scripts/claim-check.sh --message "$1"

@@ -65,6 +65,13 @@ Findings in a separate comment, never the PR body. A push staleifies every recor
 `./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
 Every guard ships a `scripts/*.test.sh` self-test, run by CI on change.
 
+## Claims
+Never report an action whose output you have not read. A `cd` that failed, an `&&` that
+short-circuited, a mutation proof naming the wrong assertion — every one shipped as "done" here.
+Paste the line that proves it, or don't claim it.
+A comment says what the code does, or it doesn't exist. No counts in prose: they are true the day
+you write them. `scripts/claim-check.sh` gates the mechanical half; the rest is on you.
+
 ## Bar to merge
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.

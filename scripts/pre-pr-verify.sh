@@ -25,6 +25,11 @@ fi
 # commit as ready for a PR. It is hermetic and takes milliseconds.
 bash scripts/reporting-snapshot.test.sh
 
+# Claims nothing can check, over the whole branch — the pre-commit hook only ever saw one commit's
+# staged lines, and a narrative assembled across several commits is exactly what shipped here.
+base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || echo '')"
+if [ -n "$base" ]; then bash scripts/claim-check.sh --branch "$base"; fi
+
 cd mos-app
 npm run typecheck
 npm run lint

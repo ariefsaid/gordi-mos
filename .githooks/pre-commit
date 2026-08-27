@@ -30,6 +30,15 @@ else
   ok "no conflict markers"
 fi
 
+# ── 1b. Claims nothing can check (public-repo incident narrative) ─────────────────
+# The companion message check lives in .githooks/commit-msg. Rationale: scripts/claim-check.sh
+if bash scripts/claim-check.sh --staged >/dev/null 2>&1; then
+  ok "no unverifiable claims in staged lines"
+else
+  bash scripts/claim-check.sh --staged || true
+  fail=1
+fi
+
 if [ ! -d mos-app/node_modules ]; then
   # ponytail: a worktree/fresh clone without deps can still commit — CI still gates it.
   printf '\033[33m⚠ pre-commit: mos-app/node_modules missing — lint/test checks SKIPPED (npm install to enable)\033[0m\n'
