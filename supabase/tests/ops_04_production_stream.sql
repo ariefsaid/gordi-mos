@@ -162,7 +162,8 @@ select throws_ok($$
 -- a reader gets from \d+ — which is why the count is asserted here at all.
 --
 -- Two shapes on purpose. The first is a CLASS check (no ops comment publishes the retracted five),
--- now a strict subset of shared_11's guard but kept as a local canary; `classoid` pinned because
+-- overlapping shared_11's guard, not a subset of it — neither implies the other — and kept as a
+-- local canary; `classoid` pinned because
 -- pg_description's key is (objoid, classoid, objsubid). The second PINS the literal, because a
 -- comment left behind by a count change is exactly what only a pin catches. Keep this header in
 -- step with the pin — it went stale once, and the test then enforced the wrong number.

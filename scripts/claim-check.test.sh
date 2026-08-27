@@ -24,7 +24,6 @@ echo "claim-check self-test"
 # ── test-count claims in commit messages ─────────────────────────────────────────
 for msg in \
   'fix: 1271 unit tests pass' \
-  'fix: Two published descriptions understate the catalog' \
   'fix: it holds 14 real addresses' \
   'fix: published three real addresses' \
   'fix: pgTAP 1186 tests PASS' \
@@ -71,7 +70,17 @@ printf '# never commit a file that names real people - this repo is public\n' > 
 [ "$(run --staged)" = 0 ] && ok "allowed the rule stated without its history" || bad "refused a forward-only rule"
 teardown
 
-# ── the guard must not exempt itself by accident ─────────────────────────────────
+# ── the self-exemption is load-bearing: this very file pairs incident words with dates ───────────
+setup
+mkdir -p scripts
+printf '# published on 2026-08-27 by a bad add\n' > scripts/claim-check.test.sh
+git add -A
+[ "$(run --staged)" = 0 ] && ok "the guard exempts its own self-test" || bad "guard flagged its own test file"
+printf '# published on 2026-08-27 by a bad add\n' > scripts/other.sh
+git add -A
+[ "$(run --staged)" != 0 ] && ok "...and exempts nothing else" || bad "the exemption is too wide"
+teardown
+
 setup; echo x >> f.txt; git commit -qam 'fix: nothing to see'
 [ "$(run --branch "$BASE")" = 0 ] && ok "clean branch passes end to end" || bad "clean branch failed"
 teardown
@@ -80,13 +89,13 @@ setup; printf 'fix: real work\n' > m.txt; echo x >> f.txt; git add -A
 [ "$(run --message m.txt)" = 0 ] && [ "$(run --staged)" = 0 ] && ok "both modes green on a clean commit" || bad "clean commit failed a mode"
 teardown
 
-[ "$fail" -eq 0 ]
-
 # ── commit body length ───────────────────────────────────────────────────────────────────────
 setup
 printf 'test: x\n\nline\n' > m1
 bash "$GUARD" --message m1 >/dev/null 2>&1 && ok "a short body passes" || bad "a short body was refused"
 { printf 'test: x\n\n'; for i in $(seq 25); do echo "line $i"; done; } > m2
 bash "$GUARD" --message m2 >/dev/null 2>&1 && bad "a 25-line body passed — the cap does nothing" || ok "a 25-line body is refused"
+teardown
+
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

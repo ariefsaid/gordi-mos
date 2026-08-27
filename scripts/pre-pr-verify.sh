@@ -6,8 +6,8 @@
 # $GIT_DIR/pre-pr-verify-ok with the HEAD sha; the Claude hook
 # .claude/hooks/pre-pr-gate.sh refuses PR creation unless that stamp matches HEAD.
 #
-# Deliberately NOT here: review-by-someone-else is enforced in CI by
-# scripts/review-gate.sh; the audit-register coverage gate is tracked separately (#295).
+# Deliberately NOT here: review-by-someone-else (docs/agents/review.md — three lenses, a loop step,
+# never a CI check); the audit-register coverage gate is tracked separately (#295).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

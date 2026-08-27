@@ -7,7 +7,7 @@
 --                 and none references the roastery branch.
 --       OD-WAY-49's default-not-wall: the stream gates no MEMBER read or write — an affordance,
 --                 never authorization. NOT "no RLS predicate anywhere": reviewer policies DO key on
---                 (branch_id, activity) via ops.is_stream_reviewer (20260811000001:78-83).
+--                 (branch_id, activity) via ops.is_stream_reviewer (20260811000001:49-72).
 --
 -- The stream is realised ON the Team (FR-004): shared.teams grows a nullable branch link plus
 -- activity, both set = a stream team. There is no stream table and no person<->stream assignment —
@@ -16,7 +16,7 @@
 -- production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(32);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -108,41 +108,24 @@ select is(
   7,
   'AC-012a: exactly SEVEN stream teams are seeded for the dev org — the six-grid plus Cikal bar (FR-005, OD-WAY-42, amended 2026-08-27)');
 
--- ── No comment in `shared` publishes a stale stream count ────────────────────────────────────
--- A CLASS check, and it exists because the pinned-text check in ops_04 could not reach here. When
--- The database serves comments to anyone running \d+, so a stale count is a wrong answer the
--- schema itself gives. Three said six when Cikal made it seven.
+-- ── The two `shared` comments that publish the count ─────────────────────────────────────────
+-- PINS, not a class check. A class check was tried twice and failed both ways: a phrase list
+-- missed the real stale wording, and the invariant that replaced it ("names six, must also name
+-- seven") handed out blanket immunity to any text containing the word seven — so the NEXT ruling,
+-- which leaves "seven" in the prose while making it wrong, would switch the guard off exactly when
+-- it is needed. It also reddened true sentences that wrote the count as a numeral.
 --
--- BOTH AXES, because scoping to one is the mistake being fixed: schema (`shared` AND `ops`) and
--- object class (pg_class AND pg_proc — the stale one was a FUNCTION comment). `classoid` is pinned
--- per arm; a bare objoid matches across catalogs.
---
--- MATCHES ON ARITHMETIC, NOT WORDING: a comment naming streams and six-or-five must also name
--- seven. A phrase list fails both ways — too wide it reddens the true "…six streams … = SEVEN
--- distinct"; too narrow it misses "Seeds the six stream teams" (20260806000001:154), the actual
--- stale one. When a ruling moves the count, this predicate moves with it.
---
--- Re-issue stale comments FROM A NEW MIGRATION; editing an applied file changes no deployed db.
+-- A pin cannot be gamed and cannot false-positive. It costs one edit per ruling, and that cost IS
+-- the rule: a count in a published comment is a fact you own on every ruling. Don't want the cost?
+-- Don't put the number in the comment. (ops_04 pins the third one, on ops.kitchen_logs.activity.)
 reset role;
-select is(
-  (select count(*)::int from (
-     select d.description
-       from pg_description d
-       join pg_class c on c.oid = d.objoid and d.classoid = 'pg_class'::regclass
-       join pg_namespace n on n.oid = c.relnamespace
-      where n.nspname in ('shared','ops')
-     union all
-     select d.description
-       from pg_description d
-       join pg_proc pr on pr.oid = d.objoid and d.classoid = 'pg_proc'::regclass
-       join pg_namespace n on n.oid = pr.pronamespace
-      where n.nspname in ('shared','ops')
-   ) x
-   where x.description ~* 'stream'
-     and x.description ~* '\m(six|6|five|5)\M'
-     and x.description !~* '\mseven\M'),
-  0,
-  'FR-005 documentation honesty (spec Further Notes, not AC-012a itself): no comment on any relation, column or function in shared or ops describes the stream catalog by a superseded count — anything naming six or five must also name the shipped seven — so the number a schema reader gets from \d+ agrees with the catalog (OD-WAY-42, OD-WAY-79)');
+select ok(
+  (select obj_description('shared.seed_stream_teams()'::regprocedure, 'pg_proc')) ~* 'PLUS Cikal with bar only',
+  'FR-005: the seeder function PUBLISHES its rule — the re-issued comment reached this database, not only the source file (OD-WAY-79)');
+
+select ok(
+  (select obj_description('shared.teams_stream_unique'::regclass, 'pg_class')) !~* 'six-stream',
+  'FR-005: the uniqueness index no longer publishes the superseded six-stream catalog — the description a schema reader gets from \\d+ agrees with the shipped catalog (OD-WAY-42, OD-WAY-79)');
 
 select set_eq($$
   select b.code, t.activity

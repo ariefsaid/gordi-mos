@@ -1467,7 +1467,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   })
 })
 
-describe('FR-005: the picker offers exactly the enumerable stream catalog — the roastery is never a stream', () => {
+describe('FR-005: the picker offers exactly the catalog pairs it is given — the roastery is never a stream', () => {
   it('lists exactly the catalog pairs it is given, and no roastery option', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))

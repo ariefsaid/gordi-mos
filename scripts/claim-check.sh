@@ -23,9 +23,15 @@ ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 # ── 1. A count of evidence in a commit message ───────────────────────────────────────────────
 # Banned outright rather than checked against the real number: a count in prose is true the day it
 # is written and silently wrong after. The stamp and the CI run hold the numbers and re-measure.
-# The noun list is every count that went wrong on #494 — tests, assertions, descriptions, and a
-# staff headcount, which the public-repo banner calls an enumeration hint in its own right.
-COUNT_NOUNS='tests?|subtests|assertions?|files?|checks?|comments?|descriptions?|places?|sites?|lines?|rows?|streams?|addresses|people|persons?|passed|failed'
+#
+# EVIDENCE nouns only. A wider list refused domain facts — "adding a prep activity creates three
+# prep streams" is a rule, not a tally, and the message then asserted something false about what it
+# had matched. Headcounts stay because the public-repo banner treats them as enumeration hints.
+#
+# NOT in scope, on purpose: a count inside a code comment or a database comment. Those need the
+# count (a schema reader has no other source), so they are guarded where they live — shared_11 for
+# the stream catalog — and by review everywhere else. This mode only ever sees a commit message.
+COUNT_NOUNS='tests?|subtests|assertions?|files?|checks?|passed|failed|addresses|people|persons?'
 COUNT_WORDS='two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty'
 check_message_text() {
   local msgs="$1" bad=''

@@ -32,7 +32,10 @@ on conflict (org_id, code) do nothing;
 -- activity, plus Cikal x bar. A new activity reaches the three and not Cikal.
 --
 -- THE SHORTFALL CHECK RESTATES BOTH RULES rather than sharing the insert's predicate — it must not
--- trust the insert's own view of what it tried. Keep them in step.
+-- trust the insert's own view of what it tried. Keep them in step. Its activity half IS catalog-
+-- derived on both sides, deliberately: the catalog is the definition, so agreeing with it is
+-- correctness, not collusion. Hardcoding ('kitchen','bar') here silently stops the check demanding
+-- a stream for any future activity, and nothing reddens.
 create or replace function shared.seed_stream_teams()
 returns void
 language plpgsql

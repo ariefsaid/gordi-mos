@@ -139,7 +139,7 @@ on conflict (org_id, code) do nothing;
 -- reset the Gordi org is created by this file, after migrations have run. The pair list itself
 -- lives in ONE place — shared.seed_stream_teams(), defined by that migration — which also
 -- VALIDATES the result: if an ordinary team already holds a reserved code, this call RAISES and
--- the reset fails loudly instead of shipping a five-stream catalog (FR-005/AC-012a). ROASTERY IS
+-- the reset fails loudly instead of shipping an incomplete catalog (FR-005/AC-012a). ROASTERY IS
 -- DELIBERATELY ABSENT from the list: it is a branch, never a stream (OD-WAY-42) — do not
 -- "complete" the grid with it.
 select shared.seed_stream_teams();

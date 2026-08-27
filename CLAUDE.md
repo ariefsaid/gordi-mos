@@ -84,8 +84,10 @@ otherwise re-introduce.
 Never report an action whose output you have not read. A `cd` that failed, an `&&` that
 short-circuited, a mutation proof naming the wrong assertion — every one shipped as "done" here.
 Paste the line that proves it, or don't claim it.
-A comment says what the code does, or it doesn't exist. No counts in prose: they are true the day
-you write them. `scripts/claim-check.sh` gates the mechanical half; the rest is on you.
+A comment says what the code does, or it doesn't exist. A count in prose is a fact you now own on
+every ruling — re-issue it everywhere or don't write it. `scripts/claim-check.sh` gates the
+mechanical half (evidence counts in a commit message, incident history in a public file, body
+length); the rest is on you.
 
 ## Bar to merge
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
