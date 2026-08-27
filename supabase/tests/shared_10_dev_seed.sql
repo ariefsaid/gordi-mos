@@ -70,9 +70,12 @@ select is((select count(*)::int from mos.certified_metrics
 -- ── Team memberships — the section that was never seeded at all ──────────────────────────────
 -- `shared.team_memberships` had no roster seed until 2026-08-26, while the table, its RLS, its
 -- same-org guard and its one-live-primary index had all existed since the squashed baseline. The
--- only rows on a fresh reset were three NON-PRIMARY ones from seed.dev-signals, so "how many
--- memberships exist" was already > 0 and would have passed as an assertion while every team still
--- read as effectively empty. These two ask the questions that were actually false.
+-- only rows on a fresh reset were three NON-PRIMARY ones, written one each by seed.dev-processes
+-- (Dewi/hq_operations), seed.dev-cafe-opening (Cahya/radiant_operations) and seed.dev-signals
+-- (Krishna/roastery_team) — the last DECLARES all three but its `not exists` guard skips the two
+-- already present, and says so in its own comment. So "how many memberships exist" was already > 0
+-- and would have passed as an assertion while every team still read as effectively empty. The
+-- assertions below ask the questions that were actually false.
 
 -- Every seeded person has a home team. Before the roster seed this was 3 of 6 people with any
 -- membership at all and ZERO with a primary, so "which team is this person on" had no answer.
