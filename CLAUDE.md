@@ -72,6 +72,28 @@ Findings in a separate comment, never the PR body. A push staleifies every recor
 `./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
 Every guard ships a `scripts/*.test.sh` self-test, run by CI on change.
 
+## Claims
+
+Never report an action whose output you have not read. A `cd` that failed, an `&&` that
+short-circuited, a mutation proof naming the wrong assertion — every one shipped as "done" here.
+Paste the line that proves it, or don't claim it.
+
+Apply `ponytail` to what you WRITE, not only to what you build. A comment says what the code does
+or it doesn't exist. Say a reason ONCE, in the artifact that owns it — copied into the commit body,
+the code comment and the PR body it is three things to keep true, and each copy is a fresh claim
+the next review round has to check. A count in prose is a fact you then own on every ruling:
+re-issue it everywhere it appears, or don't write it. (Database comments DO carry counts — a schema
+reader has no other source — which is why they are pinned by tests rather than banned.)
+
+`scripts/claim-check.sh` gates the one shape a machine can decide: **incident language beside a
+date**, refused in a commit message (commit-msg), in staged lines (pre-commit), and in the whole
+branch diff (pre-pr-verify + CI). This repo is PUBLIC and a date beside a cause is a lookup
+instruction. It does NOT judge merged commit messages — nobody can edit those without a force-push.
+
+A ban on counting your own evidence was tried and cut: it refused true sentences at a rate that
+would have taught `--no-verify`, and the arm worth keeping would have gone with it. Counts are your
+job, not the hook's.
+
 ## Bar to merge
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
