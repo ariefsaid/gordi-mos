@@ -149,11 +149,12 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
       // does not hold is the defect this file has now produced four times.
       //
       // NOT an exact match, and the difference is worth naming: `today` is the BROWSER's UTC date
-      // (line above), while the functions compare against the server's `current_date`. A skewed or
-      // differently-zoned client errs toward not-Home, which is the safe direction, and the repo
-      // already carries a scar from the other direction (Café plans seeding at the Jakarta date
-      // rather than UTC). The authoritative cutoff stays server-side — see end_team_membership,
-      // which exists for exactly that reason.
+      // (line above), while the functions compare against the server's `current_date`. Only CLOCK
+      // SKEW moves this — `toISOString()` is UTC whatever the client's timezone, so a
+      // differently-zoned browser with a correct clock produces the identical date — and skew errs
+      // toward not-Home, which is the safe direction. The repo already carries a scar from the
+      // other direction (Café plans seeding at the Jakarta date rather than UTC). The authoritative
+      // cutoff stays server-side — see end_team_membership, which exists for exactly that reason.
       is_primary: row.is_primary && row.effective_to === null && row.effective_from <= today,
     })
   }

@@ -645,7 +645,12 @@ describe('Team wrappers', () => {
     // Three clauses, matching the read and both gate functions. A write guard looser than the
     // read that judges it sets a primary the screen then reports as no home team at all.
     expect(set.is).toHaveBeenCalledWith('effective_to', null)
-    expect(set.lte).toHaveBeenCalledWith('effective_from', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+    // The literal date, not its shape — the same standard the read-path assertion above sets, and
+    // for the same reason: `.lte('effective_from', '2099-01-01')` is date-shaped and admits exactly
+    // the not-yet-started row this clause exists to exclude, and a shape-only matcher stays green
+    // through it.
+    const today = new Date().toISOString().slice(0, 10)
+    expect(set.lte).toHaveBeenCalledWith('effective_from', today)
   })
 
   it('setPrimaryTeam refuses loudly when the target membership cannot be the home team', async () => {

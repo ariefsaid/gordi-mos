@@ -20,11 +20,12 @@
 -- This file is FIXTURE data and it is consequential: it grants `admin`, `ops_lead`, `supervisor`,
 -- `manager` and `finance`, and writes 46 team memberships — and membership is an authorization
 -- input for the Signal read gate, the team post/start gates and kitchen-log review authority.
--- Most of it is `on conflict do nothing`, so pointed at the wrong database it lands quietly.
--- (Not all: the team_memberships insert has no matching unique constraint for non-primary rows —
--- only the partial one-live-primary index — so re-running this file by hand duplicates them. Dev
--- fixture, no authorization consequence since every gate asks `exists`, but the header used to
--- claim otherwise.)
+-- Everything here is `on conflict do nothing`, so pointed at the wrong database it lands quietly.
+-- (One caveat, and the mechanism is not what it looks like: 19 of the 20 inserts name a conflict
+-- TARGET; the team_memberships one is bare. An untargeted `do nothing` only suppresses an actual
+-- constraint violation, and no constraint covers a duplicate NON-primary membership — the only
+-- index is the partial one-live-primary — so a hand re-run duplicates those rows, 48 to 64,
+-- measured. Dev fixture, no authorization consequence: every gate asks `exists`.)
 --
 -- The guard asks the one question that separates dev from anything real: does this database
 -- already hold a person whose email is not `@example.test` (RFC 6761, unroutable)? `coalesce` so a
@@ -318,8 +319,9 @@ on conflict (person_id, access_role) do nothing;
 -- Teams are resolved by CODE, never by id: org teams get their ids from `shared.teams`' default
 -- and the six stream teams are created by `shared.seed_stream_teams()`, so there is no literal to
 -- hardcode. `is_primary` is the person's home team — at most one live per person, which the
--- partial unique index enforces; the stream rows below are deliberately non-primary, because a
--- barista's home is the floor they work and the stream is which line they are on that day.
+-- partial unique index enforces. For LINE STAFF that home is their STREAM team, per OD-WAY-49 and
+-- DD-WAY-41; their org-team row is the secondary one. Unit leads and back office are the other way
+-- round. The detail is on the stream block below, and shared_10's assertions enforce both halves.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
 select '10000000-0000-0000-0000-000000000001', m.person_id::uuid, t.id, m.is_primary
 from (values
