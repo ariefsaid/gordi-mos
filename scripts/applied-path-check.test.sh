@@ -729,6 +729,53 @@ else
   bad "the escaped quote ended the literal and string content became SQL (rc=$rc, got: $QSAB)"
 fi
 
+echo "── O2. the live statement comes FIRST on the shared line"
+# Section O only ever placed the live neighbour AFTER the drop, so a writer that blanks from the
+# START OF THE LINE through the statement's `;` passed it — 51/51, zero reds — while destroying
+# whatever preceded the selection. That is the same false refusal O exists to catch, mirrored
+# (#481 cross-family review): the sabotaged FRESH reset loses the live ADD and step 5 exits 2.
+RO2="$T/o2-live-first"
+( export MKREPO_GEN1_EXTRA='alter table t add constraint t_pair2_check check (a is not null);'
+  export MKREPO_GEN2_EXTRA='alter table t add constraint t_keep2_check check (a is not null); alter table t drop constraint if exists t_pair2_check;'
+  mkrepo "$RO2" )
+rm -rf "$T/db"; rm -rf "$T/out-o2"; mkdir -p "$T/out-o2"
+run "$RO2" "$T/out-o2" --prove; rc=$?
+O2SAB="$(tr '\n' ' ' < "$T/out-o2/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -q "t_pair2_check" "$T/out-o2/red/sabotage.txt" 2>/dev/null; then
+  ok "a live statement BEFORE the selected one on the same line survives (rc=0)"
+else
+  bad "blanking ran back over the live statement ahead of it (rc=$rc, got: $O2SAB)"
+fi
+
+echo "── P2. a NAMED dollar-quote tag is an extent too"
+# The lexer accepts `$$` and `$tag$`. Only `$$` had a fixture, so deleting the named-tag
+# alternative scored 51/51 while reopening the phantom-identifier leak M1 closes. This PR's own
+# standard — the one used to defer /* */ to #488 — is that untested behaviour does not count.
+RP2="$T/p2-named-tag"
+# The body must CONTAIN a conditional drop, or nothing leaks whether the tag is recognised or
+# not — my first fixture here had none and scored 53/53 with the branch deleted, i.e. it proved
+# nothing. Same shape as the $$ fixture in M1, with a named tag.
+# The interior `perform 1;` is load-bearing, not decoration. Without it the drop is bundled into
+# `do $fn$ begin alter table …` and the nothing-else guard rejects it anyway, so the fixture
+# passes whether the named tag is recognised or not — my first two attempts here did exactly
+# that and scored 53/53 with the branch deleted. The `;` terminates the preceding statement so
+# the drop stands alone as a CLEAN conditional, which is what leaks when the tag is unknown.
+( export MKREPO_GEN2_EXTRA='do $fn$
+begin
+  perform 1;
+  alter table t drop constraint if exists t_ghost_named;
+end $fn$;
+alter table t drop constraint if exists t_named_check;'
+  mkrepo "$RP2" )
+rm -rf "$T/db"; rm -rf "$T/out-p2"; mkdir -p "$T/out-p2"
+run "$RP2" "$T/out-p2" --prove; rc=$?
+P2SAB="$(tr '\n' ' ' < "$T/out-p2/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && ! grep -q "t_ghost" "$T/out-p2/red/sabotage.txt" 2>/dev/null; then
+  ok "a named \$tag\$ body is stepped over like \$\$ (rc=0)"
+else
+  bad "the named-tag body leaked into the selection (rc=$rc, got: $P2SAB)"
+fi
+
 echo "── R. a quoted identifier may contain ;  --  and :"
 # Postgres permits any character inside "…". The lexer STEPS OVER a quoted identifier so the
 # selector can read its case, which left its content live to the boundary scan: a `;` inside a

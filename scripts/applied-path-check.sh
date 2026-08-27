@@ -497,10 +497,21 @@ echo
 # CONSTRAINT check would call that a failure — a false red on the gate before a staging deploy.
 # Field 1, not field 4: the class leads the record so a colon inside a quoted identifier cannot
 # shift it. NF>=4 still holds — file, range and identifier follow.
-SABOTAGED_KIND="$(awk -F: 'NF>=4 {print $1}' "$OUT/red/sabotage.txt" | sort -u | head -1)"
-SABOTAGED_KIND="${SABOTAGED_KIND:-CONSTRAINT}"
-if grep -qE "^[+-]${SABOTAGED_KIND}\|" "$OUT/red/drift.diff" 2>/dev/null; then
-  note "ok" "the red run names the ${SABOTAGED_KIND} facts that survived"
+# ANY sabotaged class that drifted satisfies this, not the alphabetically-first one. `sort -u |
+# head -1` picked CONSTRAINT over POLICY every time, so a batch mixing a no-op ghost constraint
+# drop with a load-bearing policy drop refused a proof that actually held: drift named the POLICY,
+# the verdict demanded a CONSTRAINT, and the gate before a staging deploy exited 1 (#481
+# cross-family review). The `:-CONSTRAINT` fallback went with it — SAB_N > 0 is enforced above and
+# every row leads with its class, so it was dead code, and it is the same fallback that once made
+# the adaptive-verdict test vacuous.
+SABOTAGED_KINDS="$(awk -F: 'NF>=4 {print $1}' "$OUT/red/sabotage.txt" | sort -u)"
+DRIFTED_KIND=""
+for _k in $SABOTAGED_KINDS; do
+  if grep -qE "^[+-]${_k}\|" "$OUT/red/drift.diff" 2>/dev/null; then DRIFTED_KIND="$_k"; break; fi
+done
+SABOTAGED_KIND="$(printf '%s' "$SABOTAGED_KINDS" | tr '\n' '/')"; SABOTAGED_KIND="${SABOTAGED_KIND%/}"
+if [ -n "$DRIFTED_KIND" ]; then
+  note "ok" "the red run names the ${DRIFTED_KIND} facts that survived"
 else
   note "FAIL" "the red run reported drift without naming a ${SABOTAGED_KIND}"; FAILED=1
 fi
