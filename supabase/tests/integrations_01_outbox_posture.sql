@@ -31,13 +31,15 @@
 --                     nothing to do with these policies.
 --
 -- The role SWEEPS in D and E hold one subject fixed (DirectMgr ...0d2, a real live org-A row) and
--- vary only the claimed role. That is sound because shared.has_access_role() reads the role off the
--- JWT and makes no directory lookup — the person->role hop already happened in the token hook — so
--- a claim set is the honest way to ask "what would this predicate admit?", and varying nothing else
--- isolates the role axis exactly.
+-- vary only the claimed role SET — one name at a time in D8/E, and then every subset of the
+-- vocabulary in D9 and its counterpart. That is sound because shared.has_access_role() reads the
+-- roles off the JWT and makes no directory lookup — the person->role hop already happened in the
+-- token hook — so a claim set is the honest way to ask "what would this predicate admit?", and
+-- varying nothing else isolates the role axis exactly. Varying nothing else is also the limit of
+-- what the sweeps can see, and D9 states that limit in full.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(46);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -187,7 +189,9 @@ begin
   return query select unnest(v_roles);
 end $fn$;
 
--- reads_as() answers "how many rows of p_rel does a session claiming exactly p_role see?".
+-- reads_as() answers "how many rows of p_rel does a session claiming exactly the role set p_roles
+-- see?". It takes a SET and not a single name because the sweeps below vary the whole claim: one
+-- role at a time cannot ask what a COMBINATION of roles opens. See D9.
 -- SECURITY INVOKER, so the number is the CALLING session's count under RLS and not the owner's.
 --
 -- IT PUTS THE CALLER'S CLAIM BACK. The claim it sets is transaction-local and would otherwise
@@ -197,10 +201,10 @@ end $fn$;
 -- claim afterwards. A promise about the rest of the file is not an invariant: it holds only until
 -- someone adds a line below a sweep. So the helper saves the claim on entry and restores it on
 -- exit, and a sweep is now invisible to everything around it whatever else the file grows. The
--- assertion straight after the D8 sweep proves the restore actually happens rather than asserting
--- it in prose. ('' and unset are the same thing to shared._claim_uuid — both fail closed — so a
--- call made with no claim in force restores to no claim in force.)
-create function pg_temp.reads_as(p_person uuid, p_org uuid, p_role text, p_rel text)
+-- assertion that follows the sweeps in each section proves the restore actually happens rather
+-- than asserting it in prose. ('' and unset are the same thing to shared._claim_uuid — both fail
+-- closed — so a call made with no claim in force restores to no claim in force.)
+create function pg_temp.reads_as(p_person uuid, p_org uuid, p_roles text[], p_rel text)
 returns int language plpgsql security invoker as $$
 declare
   n       int;
@@ -208,11 +212,60 @@ declare
 begin
   perform set_config('request.jwt.claims',
     json_build_object('org_id', p_org, 'person_id', p_person,
-                      'access_roles', json_build_array(p_role))::text, true);
+                      'access_roles', array_to_json(p_roles))::text, true);
   execute format('select count(*)::int from %s', p_rel) into n;
   perform set_config('request.jwt.claims', v_prior, true);
   return n;
 end $$;
+
+-- role_combinations() hands back EVERY subset of the vocabulary it is given — the power set, empty
+-- claim and full house included — as the subject matter of the two combination sweeps in D and E.
+-- Its callers pass access_role_vocabulary(), so nothing here re-states the set or decides what a
+-- role name may look like; it takes the vocabulary as an ARGUMENT only so that the two refusals
+-- below can be fed one by hand in section H and proven to fire, exactly as check_literals()' are.
+--
+-- IT IS EXPONENTIAL, AND THAT IS THE WHOLE COST OF THE EXHAUSTIVE CUT. A probe is one set_config
+-- plus one count(*) over a ten-row table, so the 64 subsets today's six roles produce are
+-- milliseconds per table and buying anything less would be a saving nobody can spend. But the
+-- count DOUBLES with every role the vocabulary grows, and it has grown twice. A ceiling is
+-- therefore stated here and RAISES when it is reached, so that "the exhaustive sweep is no longer
+-- cheap" arrives as a decision to make rather than as a suite that quietly got slow. Raising it,
+-- or cutting the coverage down to pairs and saying so in the assertions, are both fine — doing
+-- neither, by accident, is not.
+--
+-- Subsets come out in canonical form: elements in the vocabulary's own sorted order, no repeats,
+-- each subset exactly once. H8 asserts that rather than trusting it, because "no subset misbehaved"
+-- is worth nothing if the subsets were not all there.
+create function pg_temp.role_combinations(p_roles text[]) returns setof text[]
+language plpgsql stable as $fn$
+declare
+  v_roles text[];
+  n       int;
+begin
+  select array_agg(distinct r order by r) into v_roles from unnest(p_roles) r;
+  n := coalesce(cardinality(v_roles), 0);
+
+  if n = 0 then
+    raise exception
+      'role_combinations(): the vocabulary handed in is EMPTY, so the power set is a single empty '
+      'claim and the sweep built on it would pass having asked nothing.';
+  end if;
+
+  if n > 12 then
+    raise exception
+      'role_combinations(): the vocabulary handed in holds % names, so the power set is % '
+      'subsets per table and doubles again with the next role. The sweeps in D and E are '
+      'exhaustive by construction; past this point that has to be chosen rather than discovered. '
+      'Raise this ceiling deliberately, or cut the sweeps down to pairs and change what they '
+      'CLAIM to match.', n, (1::bigint << n);
+  end if;
+
+  return query
+    select (select coalesce(array_agg(v_roles[b] order by b), '{}'::text[])
+              from generate_series(1, n) b
+             where ((i >> (b - 1)) & 1) = 1)
+      from generate_series(0::bigint, (1::bigint << n) - 1) i;
+end $fn$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. AC-005 — RLS posture, over the catalog
@@ -405,15 +458,64 @@ select is((select count(*)::int from integrations.esb_push), 0,
 -- the only question that matters — who gets in. A rewrite that preserves the set passes, and that
 -- is correct: this file pins what the policy admits, not how it is worded (section C already pins
 -- the policy's name and command structurally).
--- The two `=1` cells are the sweep's own anchor: same mechanism, same transaction, so the zeros
+-- The two `=5` cells are the sweep's own anchor: same mechanism, same transaction, so the zeros
 -- cannot be a blind session, an empty table, or a policy that denies everyone.
+-- WHAT IT DOES NOT ASK is what a COMBINATION of roles opens. Every cell here claims exactly one
+-- role, so a predicate widened on two roles held TOGETHER satisfies all six cells and this stays
+-- green while admitting real sessions. D9 carries that half, and this assertion's wording is kept
+-- to the half it actually decides.
 select is(
   (select array_agg(v.role || '=' || pg_temp.reads_as(
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
-            v.role, 'integrations.esb_push') order by v.role)
+            array[v.role], 'integrations.esb_push') order by v.role)
      from pg_temp.access_role_vocabulary() v(role)),
   array['admin=5','finance=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
-  'esb_push_select_ops_lead_or_admin admits EXACTLY ops_lead and admin out of the whole access-role vocabulary — every other role the domain allows reads zero, and both admitted roles read every posting state');
+  'esb_push_select_ops_lead_or_admin, role by role over the whole access-role vocabulary: only ops_lead and admin read anything when it is the ONLY role claimed, and both read every posting state — the per-role census, whose LENGTH is what reddens when the vocabulary grows (combinations are D9''s)');
+
+-- ── D9. The admitted SET, swept over the whole POWER SET of the vocabulary ───────────────────
+-- D8 varies one role at a time, so it pins the admitted set only against a widening that names ONE
+-- role. A widening conditional on a COMBINATION satisfies every cell of it — `or
+-- (shared.has_access_role('manager') and shared.has_access_role('finance'))` is what a "let the
+-- finance managers watch the outbox" ticket actually looks like, and no cell of D8 ever claims two
+-- unadmitted roles at once, so D8 reads green while that predicate admits real sessions. That is
+-- not a hypothetical: it was demonstrated against this file, at 41 of 41 passing.
+--
+-- So this sweep claims EVERY subset of the vocabulary — all 2^n of them, 64 at today's six roles,
+-- the empty claim and the full house included — and requires each to read what the admitted set
+-- says it must: five rows if the subset contains ops_lead or admin, zero if it contains neither.
+-- For any predicate that is a function of the claimed role set, that IS the whole of "admits
+-- exactly ops_lead and admin": there is no combination left for a widening to hide in, because
+-- there is no combination left unclaimed.
+--
+-- WHAT IT COSTS. One set_config plus one count(*) over a ten-row table per subset, so 64 of them
+-- per table is milliseconds — at this size the exhaustive cut is simply the cheapest honest one,
+-- and pairs-only would save nothing worth the hole it leaves. The cost doubles with each role the
+-- vocabulary grows; role_combinations() states a ceiling and RAISES at it rather than letting that
+-- become a suite that quietly got slow.
+--
+-- WHAT REMAINS INVISIBLE, stated here rather than left to be found. This sweep varies the CLAIMED
+-- ROLE SET and nothing else, so a widening keyed on anything else is outside it: on person_id or
+-- org_id, on a row column the fixture holds at one value or at a value/combination its rows do not
+-- form, on a clock, a GUC or a session setting, or on any JWT claim other than access_roles. A
+-- role the domain does not admit is outside it too, since the vocabulary is the domain's own — and
+-- so is vocabulary GROWTH, because a seventh role would simply be swept here and read zero, which
+-- is green. D8 is what reddens for that, which is why both sweeps stay.
+--
+-- IT IS NOT AN EMPTY SWEEP DRESSED AS A PASS. Three quarters of the subsets contain an admitted
+-- role and must read five, so a constant probe, a blind session, an empty table or a policy that
+-- denied everyone all fail here. H8 pins separately that the enumeration really is the whole power
+-- set, in canonical form and with nothing missing.
+select is(
+  (select coalesce(array_agg('{' || array_to_string(c.roles, '+') || '}=' || r.n
+                             order by cardinality(c.roles), c.roles), '{}'::text[])
+     from pg_temp.role_combinations(array(select pg_temp.access_role_vocabulary())) as c(roles)
+     cross join lateral (select pg_temp.reads_as(
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
+            c.roles, 'integrations.esb_push') as n) r
+    where r.n is distinct from
+          (case when c.roles && array['ops_lead','admin']::text[] then 5 else 0 end)),
+  '{}'::text[],
+  'esb_push_select_ops_lead_or_admin admits a session if and only if its claimed roles include ops_lead or admin — checked over EVERY subset of the access-role vocabulary, so no COMBINATION of unadmitted roles opens it (empty = no subset read anything other than what the admitted set says)');
 
 -- ...and the sweep left the session exactly as it found it. This is the enforced half of what used
 -- to be a comment promising the sweep was always the last statement before a `reset role`. The
@@ -508,10 +610,27 @@ select is((select count(*)::int from integrations.esb_push_groups), 0,
 select is(
   (select array_agg(v.role || '=' || pg_temp.reads_as(
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
-            v.role, 'integrations.esb_push_groups') order by v.role)
+            array[v.role], 'integrations.esb_push_groups') order by v.role)
      from pg_temp.access_role_vocabulary() v(role)),
   array['admin=5','finance=0','manager=0','member=0','ops_lead=5','supervisor=0']::text[],
-  'esb_push_groups_select_ops_lead_or_admin admits EXACTLY ops_lead and admin out of the whole access-role vocabulary — every other role the domain allows reads zero approval groups');
+  'esb_push_groups_select_ops_lead_or_admin, role by role over the whole access-role vocabulary: only ops_lead and admin read approval groups when it is the ONLY role claimed — the per-role census; combinations are the sweep straight below');
+
+-- ...and the power set on the group table, for the reason D9 gives at length: one role at a time
+-- cannot see a widening conditional on two roles held together, and this predicate is its own, so
+-- D9 proving it of the outbox proves nothing here. Same enumeration, same subject, same rule —
+-- five if the subset holds ops_lead or admin, zero if it holds neither. D9 also carries the list
+-- of what this shape of sweep cannot see; every line of it applies here unchanged.
+select is(
+  (select coalesce(array_agg('{' || array_to_string(c.roles, '+') || '}=' || r.n
+                             order by cardinality(c.roles), c.roles), '{}'::text[])
+     from pg_temp.role_combinations(array(select pg_temp.access_role_vocabulary())) as c(roles)
+     cross join lateral (select pg_temp.reads_as(
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1',
+            c.roles, 'integrations.esb_push_groups') as n) r
+    where r.n is distinct from
+          (case when c.roles && array['ops_lead','admin']::text[] then 5 else 0 end)),
+  '{}'::text[],
+  'esb_push_groups_select_ops_lead_or_admin admits a session if and only if its claimed roles include ops_lead or admin — checked over EVERY subset of the access-role vocabulary, so no COMBINATION of unadmitted roles opens the approval-group table either');
 
 -- ...and this sweep put the caller's claim back too, proven the same way D8's is. The restore is
 -- what makes a sweep invisible to whatever follows it, and `order by v.role` orders the sweep's
@@ -612,6 +731,40 @@ select throws_ok(
   $q$select 'no_such_role_h7'::shared.access_role$q$,
   '23514'::char(5), null,
   'H7 shared.access_role REJECTS a name outside its vocabulary — so the domain probe above is a live check and not a cast that accepts anything handed to it');
+
+-- The combination sweeps in D and E assert an EMPTY list of misbehaving subsets, and an empty list
+-- is exactly what an enumeration that produced nothing would also give. So the enumeration is
+-- pinned here, in the terms that make "every subset" true: as many rows as the power set has, all
+-- of them distinct, none holding a name the vocabulary does not, and each in canonical form
+-- (sorted, no repeats) so that distinct ARRAYS really are distinct SUBSETS. 2^n distinct canonical
+-- subsets of an n-name vocabulary is all of them — there are no others to be missing.
+select is(
+  (select array[count(*),
+                count(distinct k.roles),
+                count(*) filter (where not (k.roles <@ k.vocab)),
+                count(*) filter (where k.roles is distinct from k.canon)]
+     from (select c.roles,
+                  array(select pg_temp.access_role_vocabulary()) as vocab,
+                  (select coalesce(array_agg(distinct x order by x), '{}'::text[])
+                     from unnest(c.roles) x) as canon
+             from pg_temp.role_combinations(array(select pg_temp.access_role_vocabulary())) as c(roles)) k),
+  (select array[1::bigint << s.n, 1::bigint << s.n, 0::bigint, 0::bigint]
+     from (select cardinality(array(select pg_temp.access_role_vocabulary())) as n) s),
+  'H8 role_combinations() enumerates the WHOLE power set of the harvested vocabulary — 2^n subsets, all distinct, all canonical, none carrying a name the domain does not admit — so the empty mismatch lists in D9 and E are an exhaustive sweep finding nothing, not a sweep that ran on nothing');
+
+-- H8 above is also the enumerator's positive control — it runs on the live vocabulary and gets the
+-- whole power set back. These two are the refusals it makes instead of degrading, fed a vocabulary
+-- by hand the way H1–H6 feed constraint text: an empty sweep and a sweep too big to have been
+-- chosen are both failures that would otherwise arrive as a silent pass and a silently slow suite.
+select throws_like(
+  $q$select * from pg_temp.role_combinations('{}'::text[])$q$,
+  '%vocabulary handed in is EMPTY%',
+  'H9 the enumerator REFUSES an empty vocabulary rather than yielding the one empty claim — a sweep over nothing passes, and passing is the wrong way to report that the vocabulary was lost');
+
+select throws_like(
+  $q$select * from pg_temp.role_combinations(array(select 'r' || g from generate_series(1,13) g))$q$,
+  '%doubles again with the next role%',
+  'H10 ...and it REFUSES a vocabulary past the ceiling, because the sweep is exponential: growing past it has to be a decision someone made, not a suite that quietly took minutes');
 
 select * from finish();
 rollback;
