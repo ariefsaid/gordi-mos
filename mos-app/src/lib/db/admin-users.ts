@@ -137,8 +137,16 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     // authority, and must not render as Home.
     ;(teamsByPerson[row.person_id] ??= []).push({
       team_id: row.team_id,
-      // All three clauses both functions carry, `effective_from` included. Omitting the start date
-      // made a future-dated membership render as Home while the gates resolved nothing.
+      // The three MEMBERSHIP clauses both functions carry, `effective_from` included. Omitting the
+      // start date made a future-dated membership render as Home while the gates resolved nothing.
+      //
+      // Deliberately NOT the whole predicate. Both functions also join `shared.teams` on
+      // `archived_at is null`, and this read never joins teams at all — so an archived team's
+      // membership still renders as Home while default_stream() and is_stream_reviewer resolve
+      // nothing. Fail-safe, and unreachable from the app tier: `authenticated` holds SELECT only on
+      // shared.teams, so nothing here can archive one, and listTeams() already filters archived
+      // teams out of the picker. Named rather than closed, because a comment claiming a match that
+      // does not hold is the defect this file has now produced four times.
       //
       // NOT an exact match, and the difference is worth naming: `today` is the BROWSER's UTC date
       // (line above), while the functions compare against the server's `current_date`. A skewed or

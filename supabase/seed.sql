@@ -20,8 +20,11 @@
 -- This file is FIXTURE data and it is consequential: it grants `admin`, `ops_lead`, `supervisor`,
 -- `manager` and `finance`, and writes 46 team memberships — and membership is an authorization
 -- input for the Signal read gate, the team post/start gates and kitchen-log review authority.
--- Everything here is `on conflict do nothing`, so pointed at the wrong database most of it lands
--- quietly.
+-- Most of it is `on conflict do nothing`, so pointed at the wrong database it lands quietly.
+-- (Not all: the team_memberships insert has no matching unique constraint for non-primary rows —
+-- only the partial one-live-primary index — so re-running this file by hand duplicates them. Dev
+-- fixture, no authorization consequence since every gate asks `exists`, but the header used to
+-- claim otherwise.)
 --
 -- The guard asks the one question that separates dev from anything real: does this database
 -- already hold a person whose email is not `@example.test` (RFC 6761, unroutable)? `coalesce` so a
