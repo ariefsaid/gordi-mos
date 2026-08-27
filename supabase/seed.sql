@@ -20,12 +20,21 @@
 -- This file is FIXTURE data and it is consequential: it grants `admin`, `ops_lead`, `supervisor`,
 -- `manager` and `finance`, and writes 46 team memberships — and membership is an authorization
 -- input for the Signal read gate, the team post/start gates and kitchen-log review authority.
--- Everything here is `on conflict do nothing`, so pointed at the wrong database it lands quietly.
--- (One caveat, and the mechanism is not what it looks like: 19 of the 20 inserts name a conflict
--- TARGET; the team_memberships one is bare. An untargeted `do nothing` only suppresses an actual
--- constraint violation, and no constraint covers a duplicate NON-primary membership — the only
--- index is the partial one-live-primary — so a hand re-run duplicates those rows, 48 to 64,
--- measured. Dev fixture, no authorization consequence: every gate asks `exists`.)
+-- Counted, because two rounds of review got this wrong in both directions: of the 20 inserts,
+-- 17 are `on conflict (target) do nothing`, 1 is a BARE `on conflict do nothing`, and 2 are
+-- `on conflict (target) do UPDATE`. So most of it lands quietly on the wrong database — but not
+-- all of it:
+--   * the two `do update` inserts (reporting.ingredient_cost_lines, reporting.bom_lines) OVERWRITE
+--     existing rows with fixture values, and those rows are what mos.capture_budget prices a budget
+--     from and what the certified COGS metric reads. That is the worst case here, not duplication.
+--   * the bare one is team_memberships. An untargeted `do nothing` only suppresses an ACTUAL
+--     constraint violation, and no constraint covers a duplicate non-primary row — the only index
+--     is the partial one-live-primary — so a hand re-run duplicates them. THIS FILE writes 46
+--     memberships (the count named at the top of this block); a full RESET lands 48, because
+--     seed.dev-cafe-opening and seed.dev-signals each add one the guards do not suppress; and a
+--     second hand run of this file takes that to 64 by duplicating the 16 unconstrained rows.
+--     Dev fixture, no authorization consequence: every gate asks `exists`, and a duplicate of a
+--     row that already exists widens nothing.
 --
 -- The guard asks the one question that separates dev from anything real: does this database
 -- already hold a person whose email is not `@example.test` (RFC 6761, unroutable)? `coalesce` so a

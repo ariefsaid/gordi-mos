@@ -148,13 +148,19 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
       // teams out of the picker. Named rather than closed, because a comment claiming a match that
       // does not hold is the defect this file has now produced four times.
       //
-      // NOT an exact match, and the difference is worth naming: `today` is the BROWSER's UTC date
-      // (line above), while the functions compare against the server's `current_date`. Only CLOCK
-      // SKEW moves this — `toISOString()` is UTC whatever the client's timezone, so a
-      // differently-zoned browser with a correct clock produces the identical date — and skew errs
-      // toward not-Home, which is the safe direction. The repo already carries a scar from the
-      // other direction (Café plans seeding at the Jakarta date rather than UTC). The authoritative
-      // cutoff stays server-side — see end_team_membership, which exists for exactly that reason.
+      // Also NOT an exact match on the date, and this one cuts both ways. `today` is the BROWSER's
+      // UTC date; the functions compare against the server's `current_date`. Timezone is not the
+      // variable — `toISOString()` is UTC whatever the client's zone, so a differently-zoned
+      // browser with a correct clock produces the identical date. CLOCK SKEW is, and it is NOT
+      // uniformly safe: a slow clock errs toward not-Home, but a FAST one pushes `today` forward
+      // and admits a not-yet-started membership as Home — exactly the defect this clause was added
+      // to prevent. Display only, and it moves no privilege; the server gates never read this
+      // value. Which is why the authoritative cutoff is server-side and always has been: see
+      // `end_team_membership`, which exists for that reason. (The repo carries a scar from getting
+      // this frame wrong the other way round: the Café plan seed wrote at Postgres UTC while the
+      // app asked in Jakarta, so plans landed on yesterday and every Plan surface rendered empty —
+      // #469 fixed it by seeding at the Jakarta date. Naming the fix as the bug, which an earlier
+      // draft of this very comment did, is how that scar gets reopened.)
       is_primary: row.is_primary && row.effective_to === null && row.effective_from <= today,
     })
   }
