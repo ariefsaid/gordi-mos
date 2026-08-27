@@ -223,7 +223,7 @@ SQL
 
 run() {  # run REPO_DIR OUT_DIR [args…] -> exit code, output in $LAST_OUT
   local r="$1" o="$2"; shift 2
-  LAST_OUT="$( cd "$r" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+  LAST_OUT="$( cd "$r" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 APPLIED_PATH_MIN_PENDING="${MINP:-1}" \
     ./scripts/applied-path-check.sh --out "$o" "$@" 2>&1 )"
   return $?
 }
@@ -293,7 +293,7 @@ eq "exit 2 when the baseline commit is not in the clone (shallow CI checkout)" "
 
 echo "── E. a collapsed fingerprint is a broken check, not a passing one"
 rm -rf "$T/db"
-LAST_OUT="$( cd "$R" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 FAKE_EMPTY_FINGERPRINT=1 \
+LAST_OUT="$( cd "$R" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 APPLIED_PATH_MIN_PENDING="${MINP:-1}" FAKE_EMPTY_FINGERPRINT=1 \
   ./scripts/applied-path-check.sh --out "$T/out-e" 2>&1 )"; rc=$?
 eq "exit 2 when the fingerprint comes back empty" "$rc" "2"
 
@@ -459,13 +459,28 @@ else
   bad "G2b did not refuse a non-ancestor baseline (rc=$rc)"
 fi
 
-# K2 — thin coverage must be SAID, in the run and in the artifact. The fixture carries one
-# pending migration, so the warning fires on every ordinary run of this suite.
-if printf '%s' "$LAST_OUT_A" | grep -qi "covers very little" \
-   && grep -qi "coverage" "$T/out-a/SUMMARY.md" 2>/dev/null; then
-  ok "thin coverage is stated in the run AND in SUMMARY.md"
+# K2 — thin coverage must BOUND the run, not merely mention it. #472 asks for forward baseline
+# movement to be bounded "within N migrations"; an earlier round answered with a warning, and a
+# cross-family review pointed out that a warning bounds nothing — a one-migration gap still
+# reported GREEN having proven almost nothing. The fixture carries exactly one pending migration,
+# so the default floor of 2 must REFUSE it, and the explicit opt-in must let it through.
+rm -rf "$T/db"; rm -rf "$T/out-k2"; mkdir -p "$T/out-k2"
+MINP=2 run "$R" "$T/out-k2"; rc=$?
+if [ "$rc" = "2" ] && printf '%s' "$LAST_OUT" | grep -qi "covers very little"; then
+  ok "a one-migration gap REFUSES by default (rc=2) and says why"
 else
-  bad "thin coverage was not surfaced in both the run and the artifact"
+  bad "thin coverage did not bound the run (rc=$rc) — a warning is not a bound"
+fi
+if printf '%s' "$LAST_OUT" | grep -qi "APPLIED_PATH_MIN_PENDING"; then
+  ok "the refusal names the deliberate opt-in rather than just refusing"
+else
+  bad "the refusal does not tell the caller how to proceed deliberately"
+fi
+# …and the opt-in really is what let every other case in this suite run: same repo, floor of 1.
+if printf '%s' "$LAST_OUT_A" | grep -qi "covers very little"; then
+  bad "the opt-in run still warned — the floor was not actually lowered"
+else
+  ok "an explicit APPLIED_PATH_MIN_PENDING=1 proceeds without the warning"
 fi
 
 # K3 — case folding follows Postgres, not the harness's convenience: an UNQUOTED identifier is
@@ -482,12 +497,12 @@ perl -0pi -e 's/drop constraint if exists t_legacy_check/DROP CONSTRAINT IF EXIS
 rm -rf "$T/db"; rm -rf "$T/out-k3"; mkdir -p "$T/out-k3"
 run "$RK3" "$T/out-k3" --prove; rc=$?
 K3SAB="$(tr '\n' ' ' < "$T/out-k3/red/sabotage.txt" 2>/dev/null)"
-if [ "$rc" = "0" ] && grep -q ":t_legacy_check:" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
+if [ "$rc" = "0" ] && grep -q ":t_legacy_check$" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
   ok "an UPPERCASE unquoted conditional is selected and folded to lower case (rc=0)"
 else
   bad "the unquoted identifier was not folded (rc=$rc, got: $K3SAB)"
 fi
-if grep -q ":T_Quoted_Check:" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
+if grep -q ":T_Quoted_Check$" "$T/out-k3/red/sabotage.txt" 2>/dev/null; then
   ok "a \"Quoted\" identifier keeps its case, exactly as Postgres stores it"
 else
   bad "a quoted identifier was folded — it would never match the fingerprint (got: $K3SAB)"
@@ -546,7 +561,7 @@ fi
 # L2 — and the evidence artifact must record the WHOLE range it commented out. Naming only the
 # first line names a mutation that did not happen: whoever reads red/sabotage.txt cannot
 # reconstruct what changed. `NF>=4` was satisfied either way (#481 review).
-if grep -qxF "002_catalog.sql:2-3:t_legacy_check:CONSTRAINT" "$T/out-l/red/sabotage.txt" 2>/dev/null; then
+if grep -qxF "CONSTRAINT:002_catalog.sql:2-3:t_legacy_check" "$T/out-l/red/sabotage.txt" 2>/dev/null; then
   ok "the multi-line statement is recorded with its FULL line range, identifier and class"
 else
   bad "sabotage.txt did not record the whole range (got: $(tr '\n' ' ' < "$T/out-l/red/sabotage.txt" 2>/dev/null))"
@@ -576,7 +591,7 @@ rm -rf "$T/db"; rm -rf "$T/out-m1"; mkdir -p "$T/out-m1"
 run "$RM1" "$T/out-m1" --prove; rc=$?
 M1SAB="$(tr '\n' ' ' < "$T/out-m1/red/sabotage.txt" 2>/dev/null)"
 if [ "$rc" = "0" ] && ! grep -q "t_do_check" "$T/out-m1/red/sabotage.txt" 2>/dev/null \
-   && grep -qxF "002_catalog.sql:2-2:t_legacy_check:CONSTRAINT" "$T/out-m1/red/sabotage.txt" 2>/dev/null; then
+   && grep -qxF "CONSTRAINT:002_catalog.sql:2-2:t_legacy_check" "$T/out-m1/red/sabotage.txt" 2>/dev/null; then
   ok "a conditional drop inside a dollar-quoted body is not selectable (rc=0)"
 else
   bad "the DO block leaked into the selection (rc=$rc, got: $M1SAB)"
@@ -592,7 +607,7 @@ alter table t drop constraint if exists t_str_check;"
 rm -rf "$T/db"; rm -rf "$T/out-m2"; mkdir -p "$T/out-m2"
 run "$RM2" "$T/out-m2" --prove; rc=$?
 M2SAB="$(tr '\n' ' ' < "$T/out-m2/red/sabotage.txt" 2>/dev/null)"
-if [ "$rc" = "0" ] && grep -qxF "002_catalog.sql:5-5:t_str_check:CONSTRAINT" "$T/out-m2/red/sabotage.txt" 2>/dev/null; then
+if [ "$rc" = "0" ] && grep -qxF "CONSTRAINT:002_catalog.sql:5-5:t_str_check" "$T/out-m2/red/sabotage.txt" 2>/dev/null; then
   ok "a -- inside a string literal does not merge two statements (rc=0)"
 else
   bad "the literal's -- swallowed the statement above it (rc=$rc, got: $M2SAB)"
@@ -606,7 +621,7 @@ RM3="$T/m-tail"
 rm -rf "$T/db"; rm -rf "$T/out-m3"; mkdir -p "$T/out-m3"
 run "$RM3" "$T/out-m3" --prove; rc=$?
 M3SAB="$(tr '\n' ' ' < "$T/out-m3/red/sabotage.txt" 2>/dev/null)"
-if [ "$rc" = "0" ] && grep -qxF "002_catalog.sql:4-4:t_tail_check:CONSTRAINT" "$T/out-m3/red/sabotage.txt" 2>/dev/null; then
+if [ "$rc" = "0" ] && grep -qxF "CONSTRAINT:002_catalog.sql:4-4:t_tail_check" "$T/out-m3/red/sabotage.txt" 2>/dev/null; then
   ok "a final statement with no trailing semicolon is still selectable (rc=0)"
 else
   bad "the unterminated tail statement was invisible to the selector (rc=$rc, got: $M3SAB)"
@@ -625,7 +640,7 @@ RN="$T/n-policy"
 rm -rf "$T/db"; rm -rf "$T/out-n"; mkdir -p "$T/out-n"
 run "$RN" "$T/out-n" --prove; rc=$?
 NSAB="$(tr '\n' ' ' < "$T/out-n/red/sabotage.txt" 2>/dev/null)"
-if [ "$rc" = "0" ] && grep -qxF "002_catalog.sql:3-3:t_legacy_pol:POLICY" "$T/out-n/red/sabotage.txt" 2>/dev/null; then
+if [ "$rc" = "0" ] && grep -qxF "POLICY:002_catalog.sql:3-3:t_legacy_pol" "$T/out-n/red/sabotage.txt" 2>/dev/null; then
   ok "a policy-only baseline is proven exactly as a constraint one is (rc=0)"
 else
   bad "the policy-only baseline did not prove (rc=$rc, got: $NSAB)"
@@ -653,7 +668,7 @@ if [ "$rc" = "0" ]; then
 else
   bad "cutting one statement took its line-neighbour with it (rc=$rc, got: $OSAB)"
 fi
-if grep -qxF "002_catalog.sql:4-4:t_pair_check:CONSTRAINT" "$T/out-o/red/sabotage.txt" 2>/dev/null; then
+if grep -qxF "CONSTRAINT:002_catalog.sql:4-4:t_pair_check" "$T/out-o/red/sabotage.txt" 2>/dev/null; then
   ok "and the shared line is still recorded as the statement's range"
 else
   bad "sabotage.txt lost the shared-line statement (got: $OSAB)"
@@ -674,8 +689,8 @@ if [ "$rc" = "0" ] && ! grep -q ',' "$T/out-p1/red/sabotage.txt" 2>/dev/null; th
 else
   bad "the identifier carried a comma — a name no fingerprint can hold (rc=$rc, got: $P1SAB)"
 fi
-if grep -qxF "002_catalog.sql:4-4:t_ghost_a:CONSTRAINT" "$T/out-p1/red/sabotage.txt" 2>/dev/null \
-   && grep -qxF "002_catalog.sql:4-4:t_ghost_b:CONSTRAINT" "$T/out-p1/red/sabotage.txt" 2>/dev/null; then
+if grep -qxF "CONSTRAINT:002_catalog.sql:4-4:t_ghost_a" "$T/out-p1/red/sabotage.txt" 2>/dev/null \
+   && grep -qxF "CONSTRAINT:002_catalog.sql:4-4:t_ghost_b" "$T/out-p1/red/sabotage.txt" 2>/dev/null; then
   ok "BOTH drops in the statement are recorded, not just the first"
 else
   bad "sabotage.txt does not carry both drops under the names Postgres would store (got: $P1SAB)"
@@ -708,10 +723,44 @@ rm -rf "$T/db"; rm -rf "$T/out-q"; mkdir -p "$T/out-q"
 run "$RQ" "$T/out-q" --prove; rc=$?
 QSAB="$(tr '\n' ' ' < "$T/out-q/red/sabotage.txt" 2>/dev/null)"
 if [ "$rc" = "0" ] && ! grep -q "t_ghost" "$T/out-q/red/sabotage.txt" 2>/dev/null \
-   && grep -qxF "002_catalog.sql:5-5:t_esc_check:CONSTRAINT" "$T/out-q/red/sabotage.txt" 2>/dev/null; then
+   && grep -qxF "CONSTRAINT:002_catalog.sql:5-5:t_esc_check" "$T/out-q/red/sabotage.txt" 2>/dev/null; then
   ok "an object named only inside an E'…' literal is not selectable (rc=0)"
 else
   bad "the escaped quote ended the literal and string content became SQL (rc=$rc, got: $QSAB)"
+fi
+
+echo "── R. a quoted identifier may contain ;  --  and :"
+# Postgres permits any character inside "…". The lexer STEPS OVER a quoted identifier so the
+# selector can read its case, which left its content live to the boundary scan: a `;` inside a
+# name split a statement that has none, and a `--` truncated it. Either way the real conditional
+# is never selected and --prove exits 2 saying there is nothing CI cannot reach — a false refusal
+# on the gate before a staging deploy. A `:` was worse: it shifted the evidence record's fields,
+# and the verdict read the class out of the wrong column (#481 cross-family review).
+RR="$T/r-qident"
+  ( export MKREPO_GEN1_EXTRA='alter table t add constraint "semi;colon" check (a is not null);'
+  export MKREPO_GEN2_EXTRA='alter table t drop constraint if exists "semi;colon";'
+  mkrepo "$RR" )
+rm -rf "$T/db"; rm -rf "$T/out-r"; mkdir -p "$T/out-r"
+run "$RR" "$T/out-r" --prove; rc=$?
+RSAB="$(tr '\n' ' ' < "$T/out-r/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -qxF 'CONSTRAINT:002_catalog.sql:4-4:semi;colon' "$T/out-r/red/sabotage.txt" 2>/dev/null; then
+  ok "a ; inside a quoted identifier does not split the statement (rc=0)"
+else
+  bad "the quoted identifier's ; split the statement (rc=$rc, got: $RSAB)"
+fi
+
+RR2="$T/r-qident-colon"
+  ( export MKREPO_GEN1_EXTRA='alter table t add constraint "has:colon" check (a is not null);'
+  export MKREPO_GEN2_EXTRA='alter table t drop constraint if exists "has:colon";'
+  mkrepo "$RR2" )
+rm -rf "$T/db"; rm -rf "$T/out-r2"; mkdir -p "$T/out-r2"
+run "$RR2" "$T/out-r2" --prove; rc=$?
+R2SAB="$(tr '\n' ' ' < "$T/out-r2/red/sabotage.txt" 2>/dev/null)"
+# The class must still be readable as field 1 even though the IDENTIFIER carries a colon.
+if [ "$rc" = "0" ] && [ "$(awk -F: 'NR==1 {print $1}' "$T/out-r2/red/sabotage.txt" 2>/dev/null)" = "CONSTRAINT" ]; then
+  ok "a : inside a quoted identifier cannot shift the class field (rc=0)"
+else
+  bad "the colon shifted the evidence fields and the verdict read the wrong column (rc=$rc, got: $R2SAB)"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

@@ -200,14 +200,22 @@ PENDING_N=$(grep -c . "$OUT/pending-versions.txt" || true)
 # GREEN having proven nearly nothing. Coverage shrinking silently is the failure mode this catches.
 git merge-base --is-ancestor "$BASELINE_SHA" HEAD 2>/dev/null \
   || skip "the baseline $BASELINE is not an ancestor of HEAD — it names a commit this branch never had, so 'the deployed database' is a fiction here"
-# Coverage shrink is a WARNING, not a refusal: an arbitrary floor would refuse to run on a repo
-# that legitimately has one pending migration. The defect the review named is that it shrinks
-# SILENTLY — so say it, loudly and in the artifact, and let the run proceed.
+# Coverage shrink. #472 asks for forward baseline movement to be BOUNDED, and an earlier round
+# answered with a warning only — an arbitrary floor would refuse to run on a repo that legitimately
+# has one pending migration, and the defect named was that coverage shrinks SILENTLY. A
+# cross-family review then pointed out the obvious: a warning does not bound anything. A run with
+# one pending migration still reports GREEN having proven almost nothing about the chain.
+#
+# So: it REFUSES by default, and the escape hatch is explicit rather than arbitrary. Setting
+# APPLIED_PATH_MIN_PENDING=1 is a caller saying "yes, one migration really is the whole gap" —
+# a statement someone made on purpose, which is exactly what the silent version lacked. Exit 2 is
+# the established "cannot run meaningfully" code, not a proof failure.
 THIN_COVERAGE=""
 MIN_PENDING="${APPLIED_PATH_MIN_PENDING:-2}"
 if [ "$PENDING_N" -lt "$MIN_PENDING" ]; then
   THIN_COVERAGE="only $PENDING_N migration(s) pending against $BASELINE — this check now covers very little. If the baseline has crept forward, move it back to what is actually deployed."
   printf '  ⚠ %s\n' "$THIN_COVERAGE" >&2
+  skip "$THIN_COVERAGE Set APPLIED_PATH_MIN_PENDING=$PENDING_N to run anyway and say so deliberately."
 fi
 
 echo "── applied-path check"
@@ -319,10 +327,15 @@ while read -r v; do
       # "line 2" for a statement that occupied lines 2-3 is a record of something that did not
       # happen, and so is a single identifier for a statement that dropped two.
       for id in "${IDS[@]}"; do
-        printf '%s:%s-%s:%s:%s\n' "$(basename "$f")" "$first" "$last" "$id" "$kind" >> "$OUT/red/sabotage.txt"
+        # CLASS FIRST, deliberately. Postgres permits a colon inside a quoted identifier, and the
+        # verdict reads the class with `awk -F:` — with the identifier ahead of it, `"has:colon"`
+        # shifted every field and the run exited 1 saying the red run named no CONSTRAINT (#481
+        # cross-family review). The identifier is last, where a colon in it can shift nothing.
+        printf '%s:%s:%s-%s:%s\n' "$kind" "$(basename "$f")" "$first" "$last" "$id" >> "$OUT/red/sabotage.txt"
       done
     done < <(perl -0777 -ne '
       my $shadow = $_;
+      my @qident;
       my $n = length($shadow);
       # ONE left-to-right lex, the way Postgres reads a file: whichever of a `--` comment, a
       # string literal or a dollar-quoted body STARTS first owns its whole extent, and that
@@ -358,9 +371,14 @@ while read -r v; do
             $j++; last;
           }
           $j = $n if $j > $n;
-          # a quoted IDENTIFIER is stepped over, never blanked: the selector still has to read
-          # its case, because Postgres keeps it and the fingerprint therefore does too.
-          if ($c eq "\"") { $i = $j; next }
+          # A quoted IDENTIFIER is stepped over in $shadow, never blanked: the selector still has
+          # to read its case out of it, because Postgres keeps the case and the fingerprint
+          # therefore does too. But its CONTENT must not reach the boundary scan — Postgres
+          # permits `;` and `--` inside a quoted name, and either one splits or truncates a
+          # statement that has neither (#481 cross-family review). So the extent is recorded and
+          # blanked in $split below, which is what the scan reads. Same length, so every offset
+          # and line number stays true.
+          if ($c eq "\"") { push @qident, [$i, $j]; $i = $j; next }
         } elsif ($c eq "\$" && substr($shadow, $i) =~ /^(\$\$|\$[A-Za-z_][A-Za-z0-9_]*\$)/) {
           my $tag = $1;
           $j = index($shadow, $tag, $i + length($tag));
@@ -372,15 +390,23 @@ while read -r v; do
       }
       my @at; my $ln = 1;
       for my $k (0 .. $n - 1) { $at[$k] = $ln; $ln++ if substr($shadow, $k, 1) eq "\n"; }
+      # $split is $shadow with quoted-identifier CONTENT blanked as well: statement boundaries are
+      # found in it, identifiers are still extracted from $shadow. Blanking preserves length, so
+      # the two agree on every offset.
+      my $split = $shadow;
+      for my $q (@qident) {
+        my $seg = substr($split, $q->[0], $q->[1] - $q->[0]); $seg =~ s/[^\n]/ /g;
+        substr($split, $q->[0], $q->[1] - $q->[0]) = $seg;
+      }
       my @stmts; my $start = 0;
-      while ($shadow =~ /;/g) {
-        my $e = pos($shadow) - 1; push @stmts, [$start, $e]; $start = $e + 1;
+      while ($split =~ /;/g) {
+        my $e = pos($split) - 1; push @stmts, [$start, $e]; $start = $e + 1;
       }
       # A file whose LAST statement carries no terminator is still a statement — psql runs it.
       # Without this the tail is invisible, so a conditional drop written without a trailing
       # semicolon could never be selected and the proof would silently cover less than it says.
-      if ($start < $n && substr($shadow, $start) =~ /\S/) {
-        my $e = $n - 1; $e-- while $e > $start && substr($shadow, $e, 1) =~ /\s/;
+      if ($start < $n && substr($split, $start) =~ /\S/) {
+        my $e = $n - 1; $e-- while $e > $start && substr($split, $e, 1) =~ /\s/;
         push @stmts, [$start, $e];
       }
       # A `,` ENDS an identifier: it separates the actions of a multi-action ALTER. Reading it as
@@ -469,7 +495,9 @@ echo
 # Assert against the class actually sabotaged, not a fixed one: a baseline whose pending
 # migrations carry only policy drops produces a correct RED naming POLICY rows, and a hardcoded
 # CONSTRAINT check would call that a failure — a false red on the gate before a staging deploy.
-SABOTAGED_KIND="$(awk -F: 'NF>=4 {print $4}' "$OUT/red/sabotage.txt" | sort -u | head -1)"
+# Field 1, not field 4: the class leads the record so a colon inside a quoted identifier cannot
+# shift it. NF>=4 still holds — file, range and identifier follow.
+SABOTAGED_KIND="$(awk -F: 'NF>=4 {print $1}' "$OUT/red/sabotage.txt" | sort -u | head -1)"
 SABOTAGED_KIND="${SABOTAGED_KIND:-CONSTRAINT}"
 if grep -qE "^[+-]${SABOTAGED_KIND}\|" "$OUT/red/drift.diff" 2>/dev/null; then
   note "ok" "the red run names the ${SABOTAGED_KIND} facts that survived"
