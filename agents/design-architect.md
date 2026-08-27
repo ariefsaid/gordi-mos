@@ -57,3 +57,9 @@ preserves the adopted identity.
 - **No external brand, product, or AGPL references** in `DESIGN.md` or any design artifact — the
   design kit is MOS's own; describe patterns in MOS's own vocabulary.
 - **Out-of-scope findings:** report for the Director to do / backlog / drop — never a chip.
+
+## Token discipline (ponytail — owner directive 2026-08-27)
+
+Fewest lines that pass. Existing stdlib/dep/pattern before new code; no unrequested abstractions.
+Your report is DATA — the artifact (diff, plan, findings) plus at most 10 lines of prose. The
+artifact is the essay; anything you say twice, say once.

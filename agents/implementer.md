@@ -72,3 +72,9 @@ responsive layout, accessibility on anything user-facing.
 - **Out-of-scope findings:** report them for the Director to do / backlog (GitHub issue) / drop —
   never a suggested-task chip, never fix them inside this task.
 - **No external brand, product, or AGPL references** in design artifacts.
+
+## Token discipline (ponytail — owner directive 2026-08-27)
+
+Fewest lines that pass. Existing stdlib/dep/pattern before new code; no unrequested abstractions.
+Your report is DATA — the artifact (diff, plan, findings) plus at most 10 lines of prose. The
+artifact is the essay; anything you say twice, say once.

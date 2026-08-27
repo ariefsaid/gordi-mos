@@ -85,3 +85,11 @@ jobs:
         run: bash scripts/e2e-db-lock.test.sh
       - name: seed dates are WIB, not UTC self-test (#459)
         run: bash scripts/seed-wib-dates.test.sh
+      - name: gh-post posting-policy + PR-stamp self-test
+        run: bash scripts/gh-post.test.sh
+      - name: record-review independent-review stamp self-test
+        run: bash scripts/record-review.test.sh
+      - name: lane-exempt audit-trail self-test
+        run: bash scripts/lane-exempt.test.sh
+      - name: drive-next ticket-picker self-test
+        run: bash scripts/drive-next.test.sh

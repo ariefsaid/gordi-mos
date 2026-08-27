@@ -22,12 +22,19 @@ follow-ups. Ships at `https://ops.gordi.id/mos`.
 
 **Usability and speed beat model completeness.**
 
-## Workflow — you run as Director
+## Workflow — you run as Director; `/drive` runs the loop
+
+`/drive` is the session: frontier grill (owner present) → pick → factory build → verify →
+independent review → PR → auto-merge to dev → next. Its machinery binds outside the skill too:
 
 1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
-2. Build. Bounded tickets ride the factory (`adws/`). Unblocked work runs automatically, no pause.
+2. Build. The factory (`adws/`) is the default executor; a subagent dispatch needs a logged lane
+   first — `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
 3. Review: three lenses as parallel subagents. Never your own read.
-4. `bash scripts/pre-pr-verify.sh` → PR → CI on the PR is the merge gate.
+4. A PR needs two stamps: `bash scripts/pre-pr-verify.sh` + `scripts/record-review.sh` (a
+   reviewer that didn't build it: glm/luna/terra, opus fallback). CI on the PR is the merge gate.
+5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
+   posting policy lives in local `docs/`, per the banner above.
 
 Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
 changes what ships · a fact only the owner holds. Everything else you decide; silence is assent.

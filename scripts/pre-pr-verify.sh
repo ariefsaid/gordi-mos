@@ -25,6 +25,14 @@ fi
 # commit as ready for a PR. It is hermetic and takes milliseconds.
 bash scripts/reporting-snapshot.test.sh
 
+# ponytail: diff budget — oversized tickets are what six-round review chains are made of.
+# Warn-first for one milestone (owner 2026-08-27), then flips to a refusal.
+base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || true)"
+if [ -n "$base" ]; then
+  changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')
+  [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"
+fi
+
 cd mos-app
 npm run typecheck
 npm run lint
