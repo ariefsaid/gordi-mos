@@ -166,7 +166,11 @@ select throws_ok($$
 -- again for Cikal.
 --
 -- The two assertions are deliberately different shapes. The first is a CLASS check — no ops comment
--- may publish the retracted five — so rewording is free and reviving the retraction is not. The
+-- may publish the retracted five — so rewording is free and reviving the retraction is not. It is
+-- now a strict SUBSET of shared_11's stale-count guard, which spans both schemas and reaches
+-- functions too; kept as a local canary in the file a reader of ops.kitchen_logs actually opens.
+-- (`classoid` pinned: pg_description's key is (objoid, classoid, objsubid), so an unpinned objoid
+-- can match a row from another catalog. The same latent bug was just fixed one file over.) The
 -- second PINS the current literal, because the failure this file exists to catch is a comment left
 -- behind by a count change, and only a pin fails on that. A pin costs one edit per count change;
 -- that cost is the point. Keep this header in step with the pin — it went stale once already, which
@@ -174,7 +178,7 @@ select throws_ok($$
 reset role;
 select is(
   (select count(*)::int from pg_description d
-     join pg_class c on c.oid = d.objoid
+     join pg_class c on c.oid = d.objoid and d.classoid = 'pg_class'::regclass
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'ops' and d.description ~* '(five|5) distinct'),
   0,

@@ -5,8 +5,11 @@
 --       AC-012a — the stream Team catalog is enumerable and complete: {GHQ, RRS, Radiant} x
 --                 {kitchen, bar} plus Cikal x bar = SEVEN (amended 2026-08-27; see below) —
 --                 and none references the roastery branch.
---       OD-WAY-49's default-not-wall: the stream appears in NO RLS predicate anywhere. The Team
---                 default is an affordance, never authorization.
+--       OD-WAY-49's default-not-wall: the stream gates no MEMBER read or write. It is an
+--                 affordance for capture, never authorization. NOT "no RLS predicate anywhere" —
+--                 three REVIEWER policies do key on (branch_id, activity), via
+--                 ops.is_stream_reviewer / ops.can_review_stream (20260811000001:78-83). The
+--                 ruling is the narrow one: a member's own reads and writes never consult it.
 --
 -- The stream is realised ON the Team (FR-004): shared.teams grows a nullable branch link plus
 -- activity, both set = a stream team. There is no stream table and no person<->stream assignment —
@@ -121,14 +124,24 @@ select is(
 --     three re-issued for Cikal — was structurally invisible to the test written to protect it.
 --     `classoid` is pinned on each arm: objoid alone is a bare oid and matches across catalogs.
 --
--- It bans the stale CLAIM, not the word "six". The live and correct wording on
--- `ops.kitchen_logs.activity` reads "…yields six streams, plus Cikal… = SEVEN distinct", and must
--- keep passing — a guard that reddens a true sentence gets deleted by the next person in a hurry.
--- The first cut of this regex allowed `six[- ]stream` and did exactly that, failing on the one
--- comment the whole change existed to correct. So the patterns are the forms only a superseded
--- claim takes: "six-stream" HYPHENATED (it is naming the catalog by its size), "exactly six",
--- "six distinct", and DD-WAY-25's retracted "five distinct". Plain "six streams" inside a longer
--- true sentence is deliberately allowed.
+-- IT MATCHES ON ARITHMETIC, NOT ON WORDING, and it took two wrong cuts to get here:
+--   1. `(six|6)[- ](stream|distinct)` reddened the live and CORRECT `ops.kitchen_logs.activity`
+--      comment, which reads "…yields six streams, plus Cikal… = SEVEN distinct". A guard that
+--      fails a true sentence gets deleted by the next person in a hurry.
+--   2. Narrowing to four literals ("six-stream", "exactly six", "six distinct", "five distinct")
+--      fixed that and lost the actual bug: the real stale function comment in history reads
+--      "Seeds the six stream teams … all six pairs" (20260806000001:154), which matches none of
+--      them. Widening the object axis and narrowing the pattern cancelled out on the one object
+--      the pg_proc arm was added to reach. It also silently dropped every digit form, while the
+--      five-arm kept its digit — asymmetric, and a regression on that axis.
+--
+-- So the rule is the INVARIANT, not a phrase list: a comment that talks about streams and names
+-- six or five must also name seven. That keeps the compositional true sentence green (it says
+-- SEVEN), reddens every wording of a superseded count, and needs no new literal the next time
+-- someone phrases it differently. When a ruling moves the count again, this predicate moves with
+-- it — that is one edit, in the same commit that re-issues the comments.
+--
+-- Comments that mention six without mentioning streams at all are none of this test's business.
 --
 -- If a ruling changes the count again: re-issue every comment that names it FROM A NEW MIGRATION —
 -- editing the applied file fixes nothing, because a deployed database never re-runs it.
@@ -147,9 +160,11 @@ select is(
        join pg_namespace n on n.oid = pr.pronamespace
       where n.nspname in ('shared','ops')
    ) x
-   where x.description ~* '(six-stream|exactly six|six distinct|(five|5) distinct)'),
+   where x.description ~* 'stream'
+     and x.description ~* '\m(six|6|five|5)\M'
+     and x.description !~* '\mseven\M'),
   0,
-  'FR-005 documentation honesty (spec Further Notes, not AC-012a itself): no comment on any relation, column or function in shared or ops still publishes a superseded stream count — not the six-stream catalog and not DD-WAY-25s retracted five — so the number a schema reader gets from \d+ agrees with the shipped catalog (OD-WAY-42, OD-WAY-79)');
+  'FR-005 documentation honesty (spec Further Notes, not AC-012a itself): no comment on any relation, column or function in shared or ops describes the stream catalog by a superseded count — anything naming six or five must also name the shipped seven — so the number a schema reader gets from \d+ agrees with the catalog (OD-WAY-42, OD-WAY-79)');
 
 select set_eq($$
   select b.code, t.activity
@@ -179,9 +194,9 @@ select is(
 --
 -- ORG G CARRIES CIKAL ON PURPOSE. Without it, org G's count of six is satisfied both by the rule
 -- as written and by a Cikal disjunct hardcoded to the dev org — pinning `and b.org_id = <dev>`
--- onto the seeder passed the WHOLE suite, 1184/1184. The three org-G assertions below are what
--- tell an org-generic rule from a dev-pinned one (that mutation now fails the set, the org-G count
--- and the cross-org count), so do not drop the branch to make a number rounder.
+-- onto the seeder passed the WHOLE suite, every assertion green. The three org-G assertions below
+-- are what tell an org-generic rule from a dev-pinned one (that mutation now fails the set, the
+-- org-G count and the cross-org count), so do not drop the branch to make a number rounder.
 -- Roastery still carries the other half of the shape: a branch NO rule names gets no stream.
 insert into shared.orgs (id, name, slug)
   values ('00000000-0000-0000-0000-0000000000f1','Stream Org G','stream-org-g');
