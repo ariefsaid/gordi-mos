@@ -16,25 +16,19 @@
 -- `supabase/seed.sql` calls again for the org a fresh `db reset` creates after migrations have run.
 -- Do not copy the list back into the seed; that is the drift this shape exists to prevent.
 --
--- ⚠️ THIS REACHES PRODUCTION, AND THE ASK WAS SCOPED "LOCALLY".
--- The owner asked to "update the seed users LOCALLY". This function runs `for o in select id from
--- shared.orgs`, so on deploy every org — staging and production included — gains twelve Position
--- names coined for a dev fixture: Bar Supervisor, Head Barista, Barista, Kitchen Supervisor,
--- Kitchen Staff, Ecommerce Lead, Ecommerce Associate, Roaster, Account Executive, Marketing Lead,
--- People Lead, Finance Associate. Real staff will see them in the Jabatan picker.
+-- Owner, 2026-08-27, asked and answered: these are NOT Gordi's real positions. The live titles
+-- differ and belong to the gitignored deploy seed. The call below is therefore guarded so the
+-- twelve reach fixture databases only — see the block above `select shared.seed_role_tiers()`.
 --
--- The MECHANISM is forced — `shared.roles` is a CATALOG table under the applied-path fingerprint
--- (RLS on, no write policy, no write grant), so a seed-only list makes a migrated database differ
--- from a fresh one and CI goes red. The DECISION is not forced, and is not the Director's to make:
--- these are either Gordi's real positions or they are not. Recorded as DD-WAY-41; if the answer is
--- "not ours", the fix is to narrow the function to the dev org rather than to move the list back
--- into the seed.
+-- Still a migration rather than a seed line, for one reason: `shared.roles` is a CATALOG table
+-- under the applied-path fingerprint (RLS on, no write policy, no write grant), so a seed-only
+-- list makes a migrated database differ from a fresh one and CI goes red.
 --
--- Second-order, disclosed here because nothing else says it: granting insert/update on
--- `shared.team_memberships` (20260826000001) takes THAT table out of the same fingerprint, so the
--- 46 seeded membership rows stop being compared across the applied path. The check's fact count
--- still rose — the two new policies and this function more than replace what was lost — so a
--- rising number is not evidence that coverage grew.
+-- Second-order, disclosed because nothing else says it: granting insert/update on
+-- `shared.team_memberships` (20260826000001) takes THAT table out of the same fingerprint, so its
+-- rows stop being compared across the applied path. The check's fact count still rose — two new
+-- policies and a function more than replace what was lost — so a rising number is not evidence
+-- that coverage grew.
 --
 -- Reversal:
 --   delete from shared.roles r where r.name in (
@@ -106,4 +100,30 @@ comment on function shared.seed_role_tiers() is
 -- copies, carries the same revoke; this file dropped the line while copying.
 revoke execute on function shared.seed_role_tiers() from public, anon, authenticated;
 
-select shared.seed_role_tiers();
+-- ── Dev fixtures only, and enforced rather than assumed ──────────────────────────────────────
+-- Owner, 2026-08-27: these twelve are NOT Gordi's positions. The live titles are different
+-- (Operational Manager, Head Barista, Kitchen Manager, Supporting Service Manager, Content
+-- Creator, Head Roaster …) and they live in the gitignored deploy seed, where staff names may
+-- legally sit. So the twelve below are what they always were — fixture Jabatan for the fixture
+-- people — and they must never reach a real Jabatan picker.
+--
+-- The guard is the same question seed.sql asks: does this database already hold a REAL person?
+-- Every fixture is `@example.test` (RFC 6761, unroutable); a deployed database has real addresses.
+--   * fresh dev reset — migrations run BEFORE seed.sql, so shared.people is empty, guard passes,
+--     tiers land;
+--   * applied-path check — its baseline database is seeded with fixtures and then migrated up, so
+--     the guard passes there too and a migrated database still matches a fresh one. That check is
+--     the reason this list rides a migration at all, and it keeps converging;
+--   * a deployed database with staff in it — guard fails, nothing lands, and the picker stays clean.
+do $$
+begin
+  if exists (
+    select 1 from shared.people
+     where coalesce(email, '') not like '%@example.test'
+  ) then
+    raise notice 'shared.seed_role_tiers: real people present — skipping fixture Jabatan tiers.';
+  else
+    perform shared.seed_role_tiers();
+  end if;
+end
+$$;
