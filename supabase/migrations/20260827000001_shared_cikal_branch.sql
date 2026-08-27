@@ -4,17 +4,11 @@
 -- Owner, 2026-08-27: "Cikal needs to be added as a branch. it gets a bar stream." Asked and
 -- confirmed: bar only, NO kitchen.
 --
--- ── This supersedes a ratified count, so read that first ─────────────────────────────────────
--- AC-012a and OD-WAY-42 fixed the stream catalog at EXACTLY SIX — {GHQ, RRS, Radiant} × {kitchen,
--- bar} — and `shared.seed_stream_teams()` raises if any expected pair is missing. That "exactly"
--- was never a claim that six is the permanent size; it was a claim that the catalog is ENUMERABLE
--- and complete, so a capture surface can list the streams rather than guess them. Seven satisfies
--- the same property. What would break it is a branch with a stream nobody declared, which is why
--- the pair list and the validation list below are both extended rather than one of them.
+-- Supersedes AC-012a/OD-WAY-42's "exactly six": the requirement is that the catalog be ENUMERABLE
+-- and complete, not its size (FR-005). Extend BOTH the insert and the validation list, never one.
 --
--- The grid is now deliberately ASYMMETRIC: Cikal has a bar and no kitchen. That is a fact about
--- the business, not an oversight, and it is the second such fact in this table — roastery is a
--- branch with NO stream at all (OD-WAY-42). Do not "complete" either one.
+-- The grid is ASYMMETRIC on purpose — Cikal bar, no kitchen; roastery no stream at all. Do not
+-- "complete" either.
 --
 -- Reversal:
 --   delete from shared.teams where activity = 'bar'
@@ -23,31 +17,22 @@
 --   (then re-run 20260814000001's `create or replace shared.seed_stream_teams()` verbatim —
 --    it is the version this file replaced, three-branch code list x the activity catalog)
 
--- ── The branch ───────────────────────────────────────────────────────────────────────────────
--- Every org, matching how the catalog was first seeded (20260805000001) — the orgs that exist at
--- migration time. A fresh `db reset` creates the Gordi org AFTER migrations run, so seed.sql
--- repeats the catalog for it; that dual-seed is why this file and seed.sql both name Cikal.
+-- Every org, as 20260805000001 seeded the catalog. A fresh `db reset` creates the Gordi org AFTER
+-- migrations run, so seed.sql repeats it — that is why both files name Cikal.
 insert into shared.branches (org_id, code, name)
 select o.id, 'cikal', 'Cikal'
   from shared.orgs o
 on conflict (org_id, code) do nothing;
 
--- ── The stream ───────────────────────────────────────────────────────────────────────────────
--- `create or replace` on the seeder as 20260814000001 left it — CATALOG-DRIVEN, not a hard-coded
--- pair list. The activity half comes from `shared.activities`, so a catalog row is the only edit a
--- new activity needs. I nearly reverted that by copying the older 20260806000001 shape; the guard
--- that caught it is `shared_12`'s "the catalog Activity is seeded for every production branch".
+-- Replaces the seeder as 20260814000001 left it — CATALOG-DRIVEN. The activity half comes from
+-- `shared.activities`; do not re-hardcode it (copying the older 20260806000001 shape reverts that,
+-- and only `shared_12` catches it).
 --
--- Cikal does not fit the cross product, and that is the point: the three full branches take every
--- catalog activity, Cikal takes BAR ONLY. So the predicate is a UNION of the two rules, never a
--- wider product. A future activity — 'prep', say — multiplies across the three and leaves Cikal
--- alone, which is what `shared_12`'s count of 3 asserts.
+-- The predicate is a UNION of two rules, never a wider product: three full branches x every
+-- activity, plus Cikal x bar. A new activity reaches the three and not Cikal.
 --
--- THE SHORTFALL CHECK STAYS INDEPENDENT OF THE INSERT (FR-005/AC-012a): it restates both rules
--- rather than sharing the INSERT's predicate, because the check must not trust the INSERT's own
--- view of what it tried. Keep the two in step when editing. The activity half being catalog-derived
--- on both sides is deliberate — the catalog IS the definition, so agreeing with it is correctness,
--- not collusion.
+-- THE SHORTFALL CHECK RESTATES BOTH RULES rather than sharing the insert's predicate — it must not
+-- trust the insert's own view of what it tried. Keep them in step.
 create or replace function shared.seed_stream_teams()
 returns void
 language plpgsql
@@ -103,12 +88,9 @@ begin
 end;
 $$;
 
--- ── Three published descriptions that now understate the catalog ─────────────────────────────
--- These are not cosmetics. All three are served to readers by the database itself, and one is
--- ASSERTED by ops_04, so the stale number was test-enforced green — the test pinned the wrong fact
--- rather than catching it. The third (the index comment, from 20260806000001) survived the first
--- sweep AND this file's own header, which claimed there were two; ops_04 cannot reach it because
--- that scan is scoped to the `ops` schema. If you add a count to a comment, expect to own it here.
+-- Three published descriptions understate the catalog. The database serves all three to any reader
+-- of \d+, and ops_04 asserts one — so the stale number was test-enforced green. A count in a
+-- comment is a fact you own on every ruling; `shared_11` now guards the class.
 comment on column ops.kitchen_logs.activity is
   'Activity half of the production stream; resolves against shared.activities. Crossed with the '
   'three FULL production branches that catalog yields six streams, plus Cikal which takes bar only '
@@ -126,10 +108,8 @@ comment on function shared.seed_stream_teams() is
   'catalog for the Gordi org created after migrations run. Not an app RPC: no EXECUTE for anon or '
   'authenticated.';
 
--- The third one. Source: 20260806000001:59-61, which named the catalog by its size. Editing that
--- file would fix nothing — a deployed database never re-runs an applied migration — so it is
--- re-issued here, like the other two. (Comments are NOT part of the applied-path fingerprint;
--- leaving history immutable is the reason, not the drift check.)
+-- From 20260806000001:59-61. Re-issued here, not edited there: a deployed database never re-runs
+-- an applied migration.
 comment on index shared.teams_stream_unique is
   'At most one LIVE stream team per (org, branch, activity). This is what makes the stream '
   'catalog ENUMERABLE — a capture surface can list the streams rather than guess them — which is '

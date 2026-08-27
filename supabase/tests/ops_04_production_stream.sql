@@ -157,24 +157,15 @@ select throws_ok($$
   'a log cannot point its stream at another org''s branch — an existence-only FK is a cross-tenant reference unless something checks the org');
 
 -- ── The stream COUNT, as it is published to anyone inspecting the schema ─────────────────────
--- OD-WAY-42 retracting DD-WAY-25, then OD-WAY-79 for Cikal: there are SEVEN distinct
--- (branch, activity) streams — {GHQ, RRS, Radiant} x {kitchen, bar}, plus cikal/bar — and TWO are
--- captured today. DD-WAY-25's five/one recount (which this assertion once enforced, in the other
--- direction) was itself the error, and the baseline shipped it into a `comment on column` — the
--- copy a reader gets from \d+ or any schema browser. #231 restored the count in the source file
--- and re-issued the comment for applied databases (20260806000002); 20260827000001 re-issues it
--- again for Cikal.
+-- OD-WAY-42 retracting DD-WAY-25, then OD-WAY-79 for Cikal: SEVEN distinct (branch, activity)
+-- streams, TWO captured today. The retracted five/one shipped into a `comment on column` — the copy
+-- a reader gets from \d+ — which is why the count is asserted here at all.
 --
--- The two assertions are deliberately different shapes. The first is a CLASS check — no ops comment
--- may publish the retracted five — so rewording is free and reviving the retraction is not. It is
--- now a strict SUBSET of shared_11's stale-count guard, which spans both schemas and reaches
--- functions too; kept as a local canary in the file a reader of ops.kitchen_logs actually opens.
--- (`classoid` pinned: pg_description's key is (objoid, classoid, objsubid), so an unpinned objoid
--- can match a row from another catalog. The same latent bug was just fixed one file over.) The
--- second PINS the current literal, because the failure this file exists to catch is a comment left
--- behind by a count change, and only a pin fails on that. A pin costs one edit per count change;
--- that cost is the point. Keep this header in step with the pin — it went stale once already, which
--- is how a test came to enforce the wrong number while reading as if it enforced the right one.
+-- Two shapes on purpose. The first is a CLASS check (no ops comment publishes the retracted five),
+-- now a strict subset of shared_11's guard but kept as a local canary; `classoid` pinned because
+-- pg_description's key is (objoid, classoid, objsubid). The second PINS the literal, because a
+-- comment left behind by a count change is exactly what only a pin catches. Keep this header in
+-- step with the pin — it went stale once, and the test then enforced the wrong number.
 reset role;
 select is(
   (select count(*)::int from pg_description d

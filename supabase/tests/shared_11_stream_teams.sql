@@ -5,11 +5,9 @@
 --       AC-012a — the stream Team catalog is enumerable and complete: {GHQ, RRS, Radiant} x
 --                 {kitchen, bar} plus Cikal x bar = SEVEN (amended 2026-08-27; see below) —
 --                 and none references the roastery branch.
---       OD-WAY-49's default-not-wall: the stream gates no MEMBER read or write. It is an
---                 affordance for capture, never authorization. NOT "no RLS predicate anywhere" —
---                 three REVIEWER policies do key on (branch_id, activity), via
---                 ops.is_stream_reviewer / ops.can_review_stream (20260811000001:78-83). The
---                 ruling is the narrow one: a member's own reads and writes never consult it.
+--       OD-WAY-49's default-not-wall: the stream gates no MEMBER read or write — an affordance,
+--                 never authorization. NOT "no RLS predicate anywhere": reviewer policies DO key on
+--                 (branch_id, activity) via ops.is_stream_reviewer (20260811000001:78-83).
 --
 -- The stream is realised ON the Team (FR-004): shared.teams grows a nullable branch link plus
 -- activity, both set = a stream team. There is no stream table and no person<->stream assignment —
@@ -112,39 +110,19 @@ select is(
 
 -- ── No comment in `shared` publishes a stale stream count ────────────────────────────────────
 -- A CLASS check, and it exists because the pinned-text check in ops_04 could not reach here. When
--- Cikal made the catalog seven, three database comments still said six; the sweep found two, and
--- the third — the `teams_stream_unique` index — survived because it lives in `shared` and every
--- guard was scoped to `ops`. A comment is served to anyone running \d+, so a stale one is a wrong
--- answer the schema itself gives.
+-- The database serves comments to anyone running \d+, so a stale count is a wrong answer the
+-- schema itself gives. Three said six when Cikal made it seven.
 --
--- TWO AXES, because scoping to one is exactly the mistake being fixed:
---   * SCHEMA — `shared` AND `ops`, not one of them.
---   * OBJECT CLASS — relations and columns (pg_class) AND functions (pg_proc). The first cut of
---     this guard joined pg_class only, so `shared.seed_stream_teams()`'s own comment — one of the
---     three re-issued for Cikal — was structurally invisible to the test written to protect it.
---     `classoid` is pinned on each arm: objoid alone is a bare oid and matches across catalogs.
+-- BOTH AXES, because scoping to one is the mistake being fixed: schema (`shared` AND `ops`) and
+-- object class (pg_class AND pg_proc — the stale one was a FUNCTION comment). `classoid` is pinned
+-- per arm; a bare objoid matches across catalogs.
 --
--- IT MATCHES ON ARITHMETIC, NOT ON WORDING, and it took two wrong cuts to get here:
---   1. `(six|6)[- ](stream|distinct)` reddened the live and CORRECT `ops.kitchen_logs.activity`
---      comment, which reads "…yields six streams, plus Cikal… = SEVEN distinct". A guard that
---      fails a true sentence gets deleted by the next person in a hurry.
---   2. Narrowing to four literals ("six-stream", "exactly six", "six distinct", "five distinct")
---      fixed that and lost the actual bug: the real stale function comment in history reads
---      "Seeds the six stream teams … all six pairs" (20260806000001:154), which matches none of
---      them. Widening the object axis and narrowing the pattern cancelled out on the one object
---      the pg_proc arm was added to reach. It also silently dropped every digit form, while the
---      five-arm kept its digit — asymmetric, and a regression on that axis.
+-- MATCHES ON ARITHMETIC, NOT WORDING: a comment naming streams and six-or-five must also name
+-- seven. A phrase list fails both ways — too wide it reddens the true "…six streams … = SEVEN
+-- distinct"; too narrow it misses "Seeds the six stream teams" (20260806000001:154), the actual
+-- stale one. When a ruling moves the count, this predicate moves with it.
 --
--- So the rule is the INVARIANT, not a phrase list: a comment that talks about streams and names
--- six or five must also name seven. That keeps the compositional true sentence green (it says
--- SEVEN), reddens every wording of a superseded count, and needs no new literal the next time
--- someone phrases it differently. When a ruling moves the count again, this predicate moves with
--- it — that is one edit, in the same commit that re-issues the comments.
---
--- Comments that mention six without mentioning streams at all are none of this test's business.
---
--- If a ruling changes the count again: re-issue every comment that names it FROM A NEW MIGRATION —
--- editing the applied file fixes nothing, because a deployed database never re-runs it.
+-- Re-issue stale comments FROM A NEW MIGRATION; editing an applied file changes no deployed db.
 reset role;
 select is(
   (select count(*)::int from (
@@ -192,12 +170,10 @@ select is(
 -- must seven it up while leaving the already-seeded dev org exactly as it was (idempotence), and
 -- it gives the FR-003 catalog test below a second org to prove scoping against.
 --
--- ORG G CARRIES CIKAL ON PURPOSE. Without it, org G's count of six is satisfied both by the rule
--- as written and by a Cikal disjunct hardcoded to the dev org — pinning `and b.org_id = <dev>`
--- onto the seeder passed the WHOLE suite, every assertion green. The three org-G assertions below
--- are what tell an org-generic rule from a dev-pinned one (that mutation now fails the set, the
--- org-G count and the cross-org count), so do not drop the branch to make a number rounder.
--- Roastery still carries the other half of the shape: a branch NO rule names gets no stream.
+-- ORG G CARRIES CIKAL ON PURPOSE. Without it, a Cikal disjunct hardcoded to the dev org passes the
+-- whole suite. The three org-G assertions below are what distinguish org-generic from dev-pinned —
+-- do not drop the branch to round a number. Roastery holds the other half: a branch no rule names
+-- gets no stream.
 insert into shared.orgs (id, name, slug)
   values ('00000000-0000-0000-0000-0000000000f1','Stream Org G','stream-org-g');
 insert into shared.business_units (id, org_id, name, code) values
@@ -220,8 +196,8 @@ select is(
   7,
   'AC-012a: a second seed-shaped org gets its OWN seven stream teams — the SAME seven, three full branches x the activity catalog plus cikal/bar, proving the rule is org-generic and not pinned to the dev org — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
 
--- The count above cannot tell WHICH seven. AC-012 promises the second org gets the same SET, so
--- assert the set: a rule that lost cikal/bar and gained roastery/kitchen would hold the count.
+-- The count cannot tell WHICH seven — a rule that lost cikal/bar and gained roastery/kitchen holds
+-- it. AC-012 promises the same SET.
 select set_eq($$
   select b.code, t.activity
     from shared.teams t

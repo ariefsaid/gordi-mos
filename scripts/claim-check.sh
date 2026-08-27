@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
 # claim-check — refuse claims that nothing can check.
 #
-# WHY THIS EXISTS. Every review round on #480/#494 found the same defect and never once found it
-# in the logic: a SENTENCE asserting something the artifact does not do. A comment claiming the
-# seeder reacts to a new branch (it does not). A test message claiming a scope its query does not
-# have. A commit message claiming 1271 unit tests when the suite is 4680, and a mutation proof
-# naming an assertion the mutation never touched. Code has tests; prose has nothing, and that
-# asymmetry is the whole bug. CLAUDE.md already said "prove the check can fail" — words did not
-# hold, so these two shapes are now gates.
+# WHY. Every review round on #494 found the same defect, never in the logic: a SENTENCE asserting
+# something the artifact does not do. Code has tests; prose has nothing. CLAUDE.md already said
+# "prove the check can fail" and words did not hold, so the two checkable shapes are gates.
 #
 # Usage:
 #   scripts/claim-check.sh --message <file>  # the message being written (.githooks/commit-msg)
 #   scripts/claim-check.sh --staged          # staged added lines       (.githooks/pre-commit)
 #   scripts/claim-check.sh --branch <base>   # branch diff              (scripts/pre-pr-verify.sh)
 #
-# The message check runs at commit-msg, not over history: a gate that retroactively judges pushed
-# commits can only be satisfied by a force-push, and a force-push is what published an orphaned
-# blob here in the first place. Catch it while the message is still a file on disk.
+# The message check runs at commit-msg, not over history: judging pushed commits can only be
+# satisfied by a force-push. Catch it while the message is still a file on disk.
 # Self-test: scripts/claim-check.test.sh
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -26,14 +21,10 @@ note() { printf '\033[31m✗ claim-check: %s\033[0m\n' "$1" >&2; fail=1; }
 ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
 # ── 1. A count of evidence in a commit message ───────────────────────────────────────────────
-# Banned outright rather than checked against the real number, because a number in prose is
-# write-once and read-never: it is true the day it is written and silently wrong after. The
-# evidence lives in the verify stamp and the CI run, which re-measure. Say "the suite passes".
-#
-# The noun list is not arbitrary — it is every count that went wrong on #480/#494: "1271 unit
-# tests" (the suite is 4680), "nine assertions" (six), "Two published descriptions" (three),
-# "14 real addresses" (10 plus 6 synthetic), "three real addresses" — a staff headcount, which
-# the public-repo banner calls an enumeration hint in its own right.
+# Banned outright rather than checked against the real number: a count in prose is true the day it
+# is written and silently wrong after. The stamp and the CI run hold the numbers and re-measure.
+# The noun list is every count that went wrong on #494 — tests, assertions, descriptions, and a
+# staff headcount, which the public-repo banner calls an enumeration hint in its own right.
 COUNT_NOUNS='tests?|subtests|assertions?|files?|checks?|comments?|descriptions?|places?|sites?|lines?|rows?|streams?|addresses|people|persons?|passed|failed'
 COUNT_WORDS='two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty'
 check_message_text() {
@@ -58,10 +49,9 @@ check_message_text() {
 }
 
 # ── 2. Incident narrative in a tracked file ──────────────────────────────────────────────────
-# THIS REPO IS PUBLIC. A date beside a cause is a lookup instruction: the events feed for that day
-# names the push, and the push names the objects. Stripping the story from one file and writing it
-# into the next one over is not removing it — that happened here, twice, across three files.
-# State the RULE, never the history. The history belongs in docs/ and in a private advisory.
+# THIS REPO IS PUBLIC. A date beside a cause is a lookup instruction: the events feed names the
+# push, the push names the objects. Moving the story to the next file over is not removing it.
+# State the RULE, never the history — history goes to docs/ (no remote) or a private advisory.
 INCIDENT_WORDS='published|leak(ed|s)?|exposed|exposure|force-push|orphan(ed)?|incident|breach|un-publish|was committed once|protection class that failed'
 check_added_lines() {
   local diff_cmd="$1" bad=''
