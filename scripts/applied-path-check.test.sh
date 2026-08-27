@@ -99,8 +99,16 @@ apply() {
   while IFS= read -r line; do
     case "$line" in "--"*) continue ;; esac   # a commented-out line is not part of a statement
     stmt="$stmt $line"
-    case "$stmt" in *";"*) ;; *) continue ;; esac
-    apply_stmt "$stmt"; stmt=""
+    # Apply every COMPLETE statement in what has accumulated — not "the line that happened to
+    # contain a semicolon". Two statements can share one line, and a stub that hands the pair to
+    # apply_stmt as a single chunk trips its own fusion guard, so the fixture for that case could
+    # not be built at all and the line-granular sabotage writer had nothing that could catch it
+    # (#481 review). A severed `alter table t` prefix still fuses with its successor here, because
+    # the fusion is inside one `;`-delimited piece either way.
+    while [ "$stmt" != "${stmt#*;}" ]; do
+      apply_stmt "${stmt%%;*};"
+      stmt="${stmt#*;}"
+    done
   done < "$f"
   # psql runs a final statement that carries no terminator, so this one does too. A SEVERED
   # `alter table t` prefix — the continuation line commented out — has that same shape, and
@@ -337,32 +345,84 @@ fi
 echo "── I. control: --prove's OWN verdict must be able to fail"
 # Review of PR #471 proved the gap: neutering --prove's red assertion, or its fresh-invisibility
 # gate, left this suite at 21/21. Section H covers the harness being gutted; nothing covered the
-# PROOF layer being gutted — the same defect as v1, scoped to AC-3. These two do.
-for mutation in red_assertion fresh_gate; do
-  R8="$T/prove-$mutation"; mkrepo "$R8"
-  cp "$HARNESS" "$R8/scripts/applied-path-check.sh"
-  case "$mutation" in
-    red_assertion)
-      # make the RED branch unconditionally satisfied: a proof that cannot fail
-      perl -0pi -e 's/\[ "\$RED_RC" -eq 1 \]/[ 1 -eq 1 ]/' "$R8/scripts/applied-path-check.sh" ;;
-    fresh_gate)
-      # skip the "a fresh reset cannot tell the difference" gate entirely
-      perl -0pi -e 's/if ! diff -q "\$OUT\/fresh\.txt"/if false \&\& ! diff -q "$OUT\/fresh.txt"/' \
-        "$R8/scripts/applied-path-check.sh" ;;
-  esac
-  chmod +x "$R8/scripts/applied-path-check.sh"
-  # break the conditional so a HONEST --prove would still be able to reach its verdict
-  grep -v 'drop constraint if exists' "$R8/supabase/migrations/002_catalog.sql" > "$R8/x" \
-    && mv "$R8/x" "$R8/supabase/migrations/002_catalog.sql"
-  ( cd "$R8" && git add -A && git -c user.email=t@t -c user.name=t commit -qm mutate >/dev/null )
-  rm -rf "$T/db"; rm -rf "$T/out-i-$mutation"; mkdir -p "$T/out-i-$mutation"
-  run "$R8" "$T/out-i-$mutation" --prove; rc=$?
-  if [ "$rc" = "0" ]; then
-    bad "control: --prove passed with its $mutation neutered — the proof layer proves nothing"
-  else
-    ok "control: --prove fails when its $mutation is neutered (rc=$rc)"
+# PROOF layer being gutted.
+#
+# The FIRST repair of that gap did not close it (#481 review). It stripped every
+# `drop constraint if exists` line out of the fixture, which makes the GREEN comparison at step 3
+# fail on its own: the run exits 1 with a plain DRIFT and --prove never starts, so the mutated
+# lines are never executed and an unmutated harness scores exactly what a mutated one does.
+# (The fresh_gate mutation was doubly dead: it patched `diff -q`, and the harness says `diff -u`.)
+#
+# So each control below keeps a HEALTHY green path — --prove really runs — and uses a fixture on
+# which the SHIPPED harness must reach a specific honest refusal. Then it re-runs the same fixture
+# against the mutation and requires the two verdicts to DIFFER. Two runs, one comparison: a
+# mutation that changes nothing cannot be scored as a pass.
+
+# mutate_harness REPO NAME PERL_EXPR — copy the shipped harness in and patch it, and PROVE the
+# patch landed. A mutation whose pattern no longer matches the harness silently turns its control
+# into a second run of the shipped code, which is how the fresh_gate control died.
+mutate_harness() {
+  local r="$1" name="$2" expr="$3"
+  cp "$HARNESS" "$r/scripts/applied-path-check.sh"
+  perl -0pi -e "$expr" "$r/scripts/applied-path-check.sh"
+  chmod +x "$r/scripts/applied-path-check.sh"
+  if cmp -s "$HARNESS" "$r/scripts/applied-path-check.sh"; then
+    bad "control: the $name mutation did not land — it patches text the harness no longer has"
+    return 1
   fi
-done
+}
+
+# I1 — the RED verdict itself. The only CI-unreachable conditional here drops an object no
+# database ever had, so commenting it out changes nothing: --prove reaches its own verdict and
+# that verdict must come out FALSE. Nothing else in this suite ever makes it come out false.
+RI1="$T/prove-red"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_ghost_check;"
+  mkrepo "$RI1" )
+cp "$HARNESS" "$RI1/scripts/applied-path-check.sh"; chmod +x "$RI1/scripts/applied-path-check.sh"
+rm -rf "$T/db"; rm -rf "$T/out-i1"; mkdir -p "$T/out-i1"
+run "$RI1" "$T/out-i1" --prove; rc=$?
+if [ "$rc" != "0" ] && grep -qF "t_ghost_check" "$T/out-i1/red/sabotage.txt" 2>/dev/null \
+   && printf '%s' "$LAST_OUT" | grep -qF "did NOT go red"; then
+  ok "the shipped --prove reaches its verdict on a no-op sabotage and calls it FAILED (rc=$rc)"
+else
+  bad "--prove never reached a false verdict (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -3 | tr '\n' ' ')"
+fi
+if mutate_harness "$RI1" red_assertion 's/\[ "\$RED_RC" -eq 1 \]/[ 1 -eq 1 ]/'; then
+  rm -rf "$T/db"; rm -rf "$T/out-i1m"; mkdir -p "$T/out-i1m"
+  run "$RI1" "$T/out-i1m" --prove
+  if printf '%s' "$LAST_OUT" | grep -qF "did NOT go red"; then
+    bad "control: neutering the red assertion changed nothing — this control scores a mutated harness the same as the shipped one"
+  else
+    ok "control: with the red assertion neutered the harness stops reporting that false verdict"
+  fi
+fi
+
+# I2 — the fresh-invisibility gate. This conditional drops an object today's chain creates and
+# then drops, so it is absent from fresh.txt (hence selectable) while blanking it DOES change a
+# fresh reset. The shipped harness must refuse outright — rc 2, "changed the FRESH database too".
+RI2="$T/prove-fresh"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN2_EXTRA="alter table t add constraint t_temp_check check (a in ('q'));
+alter table t drop constraint if exists t_temp_check;"
+  mkrepo "$RI2" )
+cp "$HARNESS" "$RI2/scripts/applied-path-check.sh"; chmod +x "$RI2/scripts/applied-path-check.sh"
+rm -rf "$T/db"; rm -rf "$T/out-i2"; mkdir -p "$T/out-i2"
+run "$RI2" "$T/out-i2" --prove; rc=$?
+if [ "$rc" = "2" ] && printf '%s' "$LAST_OUT" | grep -qF "changed the FRESH database too"; then
+  ok "the shipped --prove refuses when the mutation is visible to a fresh reset (rc=2)"
+else
+  bad "--prove did not refuse a fresh-visible mutation (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -3 | tr '\n' ' ')"
+fi
+if mutate_harness "$RI2" fresh_gate 's/if ! diff -u "\$OUT\/fresh\.txt"/if false \&\& ! diff -u "\$OUT\/fresh.txt"/'; then
+  rm -rf "$T/db"; rm -rf "$T/out-i2m"; mkdir -p "$T/out-i2m"
+  run "$RI2" "$T/out-i2m" --prove; rc=$?
+  if [ "$rc" = "2" ] || printf '%s' "$LAST_OUT" | grep -qF "changed the FRESH database too"; then
+    bad "control: skipping the fresh-invisibility gate changed nothing — this control scores a mutated harness the same as the shipped one"
+  else
+    ok "control: with that gate skipped the run sails past it instead of refusing (rc=$rc)"
+  fi
+fi
 
 echo "── J. the refusal guards G5 and G6 are themselves proven"
 # Both were unproven: removing either left the suite green (review finding).
@@ -574,6 +634,84 @@ if printf '%s' "$LAST_OUT" | grep -q "names the POLICY facts"; then
   ok "the --prove verdict asserts against POLICY, the class it actually broke"
 else
   bad "the verdict did not adapt: $(printf '%s' "$LAST_OUT" | grep -E '^  (ok|FAIL) ' | tr '\n' ' ')"
+fi
+
+echo "── O. two statements on one line: only the selected one is cut"
+# #472's limit was half closed: the SELECTOR read whole statements, but the WRITER still prefixed
+# `-- ` to every LINE of the range, so a selected statement sharing a line with a live one took
+# the neighbour out too. The sabotaged FRESH reset then differs from the real one and step 5
+# refuses — a false RED on the gate that runs immediately before a staging deploy.
+RO="$T/o-pair"
+( export MKREPO_GEN1_EXTRA="alter table t add constraint t_pair_check check (a in ('p'));"
+  export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_pair_check; alter table t add constraint t_keep_check check (a in ('y'));"
+  mkrepo "$RO" )
+rm -rf "$T/db"; rm -rf "$T/out-o"; mkdir -p "$T/out-o"
+run "$RO" "$T/out-o" --prove; rc=$?
+OSAB="$(tr '\n' ' ' < "$T/out-o/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ]; then
+  ok "the live statement sharing the line survives the mutation (rc=0)"
+else
+  bad "cutting one statement took its line-neighbour with it (rc=$rc, got: $OSAB)"
+fi
+if grep -qxF "002_catalog.sql:4-4:t_pair_check:CONSTRAINT" "$T/out-o/red/sabotage.txt" 2>/dev/null; then
+  ok "and the shared line is still recorded as the statement's range"
+else
+  bad "sabotage.txt lost the shared-line statement (got: $OSAB)"
+fi
+
+echo "── P. a multi-action ALTER: every drop recorded, a mixed one not selectable"
+# P1 — `,` ends an identifier. Reading it as part of the name emitted `t_ghost_a,`, which can
+# never appear in fresh.txt, so the CI-unreachability test was defeated and the statement was
+# selected unconditionally — while the second drop was never recorded at all.
+RP1="$T/p-comma"
+( export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_ghost_a, drop constraint if exists t_ghost_b;"
+  mkrepo "$RP1" )
+rm -rf "$T/db"; rm -rf "$T/out-p1"; mkdir -p "$T/out-p1"
+run "$RP1" "$T/out-p1" --prove; rc=$?
+P1SAB="$(tr '\n' ' ' < "$T/out-p1/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && ! grep -q ',' "$T/out-p1/red/sabotage.txt" 2>/dev/null; then
+  ok "a trailing comma is not swallowed into the identifier (rc=0)"
+else
+  bad "the identifier carried a comma — a name no fingerprint can hold (rc=$rc, got: $P1SAB)"
+fi
+if grep -qxF "002_catalog.sql:4-4:t_ghost_a:CONSTRAINT" "$T/out-p1/red/sabotage.txt" 2>/dev/null \
+   && grep -qxF "002_catalog.sql:4-4:t_ghost_b:CONSTRAINT" "$T/out-p1/red/sabotage.txt" 2>/dev/null; then
+  ok "BOTH drops in the statement are recorded, not just the first"
+else
+  bad "sabotage.txt does not carry both drops under the names Postgres would store (got: $P1SAB)"
+fi
+
+# P2 — and a statement that also does something LIVE must not be selectable at all: the mutation
+# blanks a statement whole, so cutting this one would delete the ADD from a fresh reset too.
+RP2="$T/p-mixed"
+( export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_mixed_check, add constraint t_mixed_new check (a in ('m'));"
+  mkrepo "$RP2" )
+rm -rf "$T/db"; rm -rf "$T/out-p2"; mkdir -p "$T/out-p2"
+run "$RP2" "$T/out-p2" --prove; rc=$?
+P2SAB="$(tr '\n' ' ' < "$T/out-p2/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && ! grep -q "t_mixed_check" "$T/out-p2/red/sabotage.txt" 2>/dev/null; then
+  ok "an ALTER mixing a conditional drop with a live action is not selected (rc=0)"
+else
+  bad "the mixed statement was selected — blanking it would cut the live ADD (rc=$rc, got: $P2SAB)"
+fi
+
+echo "── Q. a backslash inside an E'…' string does not end the literal"
+# `''` is the escape in every string, but `\'` continues an E'…' one. Reading it as a terminator
+# resumed lexing INSIDE the literal, so an object that exists only in string content was selected:
+# absent from fresh.txt so always picked, absent from the red diff so step 6 reports "did NOT go
+# red" on a healthy migration. Same false-RED class as the dollar-quote bug in section M.
+RQ="$T/q-escape"
+( export MKREPO_GEN2_EXTRA="insert into cfg values (E'a\\'; alter table t drop constraint if exists t_ghost');
+alter table t drop constraint if exists t_esc_check;"
+  mkrepo "$RQ" )
+rm -rf "$T/db"; rm -rf "$T/out-q"; mkdir -p "$T/out-q"
+run "$RQ" "$T/out-q" --prove; rc=$?
+QSAB="$(tr '\n' ' ' < "$T/out-q/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && ! grep -q "t_ghost" "$T/out-q/red/sabotage.txt" 2>/dev/null \
+   && grep -qxF "002_catalog.sql:5-5:t_esc_check:CONSTRAINT" "$T/out-q/red/sabotage.txt" 2>/dev/null; then
+  ok "an object named only inside an E'…' literal is not selectable (rc=0)"
+else
+  bad "the escaped quote ended the literal and string content became SQL (rc=$rc, got: $QSAB)"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
