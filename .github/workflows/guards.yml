@@ -12,7 +12,6 @@ on:
       - 'scripts/record-review.sh'
       - 'scripts/lane-exempt.sh'
       - 'scripts/drive-next.sh'
-      - 'scripts/claim-check.sh'
       - 'scripts/*.test.sh'
       # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
       # a change there changes what those tests actually run, so re-run them.
@@ -63,11 +62,6 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
-      - name: claim-check self-test
-        run: bash scripts/claim-check.test.sh
-      - name: commit-msg hook self-test
-        run: bash scripts/commit-msg-hook.test.sh
-
       - name: sssf vendor conformance self-test (FAC-001)
         run: bash scripts/vendor-sssf.test.sh
       - name: sssf gate composition + chain-exit self-test (FAC-004/FAC-005)

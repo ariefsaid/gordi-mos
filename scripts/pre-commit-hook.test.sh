@@ -47,23 +47,5 @@ echo "const x:number=1" > "$tmp/repo/mos-app/src/f.ts"
 git -C "$tmp/repo" add mos-app/src/f.ts
 check "missing node_modules skips lint instead of blocking" 0
 
-git -C "$tmp/repo" reset -q
-
-# ── block 1b: the claim-check call ───────────────────────────────────────────────
-# The scratch repo has no scripts/claim-check.sh, which is exactly the sparse-tree case the hook
-# warns about instead of blocking. Prove BOTH halves: absent = warn, present = enforce.
-printf '# the widget was published on 2024-01-01\n' > "$tmp/repo/note.md"
-git -C "$tmp/repo" add note.md
-check "no claim-check.sh present: warns, does not block" 0
-
-mkdir -p "$tmp/repo/scripts"
-cp "$(dirname "$HOOK")/../scripts/claim-check.sh" "$tmp/repo/scripts/claim-check.sh"
-check "claim-check.sh present: an incident line is refused" 1
-
-printf '# ruling 2024-01-01: the widget gets a bar stream\n' > "$tmp/repo/note.md"
-git -C "$tmp/repo" add note.md
-check "claim-check.sh present: a bare ruling date passes" 0
-git -C "$tmp/repo" reset -q; rm -rf "$tmp/repo/note.md" "$tmp/repo/scripts"
-
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

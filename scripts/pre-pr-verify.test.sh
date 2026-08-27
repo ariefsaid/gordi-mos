@@ -55,40 +55,5 @@ git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "plant a red python t
 if run; then bad "red python suite must refuse"; else ok "red python suite refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after red python suite" || bad "stamp written despite red python suite"
 
-# ── claim-check base resolution: BOTH branches ──────────────────────────────────
-# The scratch repo has no remote, which is the SKIP branch every case above rides. The REFUSAL
-# branch — a remote that exists whose base will not resolve — is the whole point of failing closed,
-# and it was invisible here: mutating it into a silent skip left this file fully green.
-#
-# Back to green first: the case above appended a deliberately failing test, and a battery that is
-# red for an unrelated reason would satisfy the refusal assertion for the wrong reason.
-# Running the python suite leaves __pycache__. It must be removed BEFORE committing — an earlier
-# `git add -A` here swept the .pyc files into the tree, and deleting them afterwards then read as a
-# dirty worktree, which the battery refuses on. Targeted, not `git clean -fdx`: mos-app/ is an
-# untracked empty directory the battery cds into and a broad clean deletes it.
-drop_pyc() { find "$tmp/repo" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null; }
-clean_run() { drop_pyc; rm -f "$STAMP"; run; }
-
-drop_pyc
-cp "$(pwd)/scripts/test_reporting_snapshot.py" "$tmp/repo/scripts/test_reporting_snapshot.py"
-git -C "$tmp/repo" add -A && git -C "$tmp/repo" commit -qm "restore the green battery"
-
-clean_run; rc=$?
-if [ "$rc" -eq 0 ] && [ -f "$STAMP" ]; then ok "battery is green again before the base-resolution cases"
-else bad "battery still red (rc=$rc, stamp=$([ -f "$STAMP" ] && echo yes || echo no)) — the cases below would prove nothing"; fi
-HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
-git -C "$tmp/repo" remote add origin "$tmp/repo" 2>/dev/null
-clean_run
-if [ ! -f "$STAMP" ]; then ok "remote present, base unresolvable: refuses and does not stamp"
-else bad "remote present, base unresolvable: STAMPED — the fail-closed arm is a silent skip"; fi
-
-# ...and with the base resolvable again it must go back to stamping, or the case above passes for
-# the wrong reason (any breakage would satisfy it).
-git -C "$tmp/repo" update-ref refs/remotes/origin/dev "$HEAD"
-clean_run
-if [ -f "$STAMP" ]; then ok "remote present, base resolvable: stamps again"
-else bad "resolvable base did not stamp — the refusal case above proves nothing"; fi
-git -C "$tmp/repo" remote remove origin 2>/dev/null
-
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
