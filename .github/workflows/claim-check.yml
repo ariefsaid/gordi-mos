@@ -1,0 +1,36 @@
+name: claim-check
+# Runs the guard against the PR itself. Its own file, not a job in guards.yml, because that lane is
+# path-filtered to guard files and would never fire on the PRs this catches (see guards.yml:18).
+#
+# What it refuses, and why: scripts/claim-check.sh.
+on:
+  pull_request:
+    # INTO dev only. A release PR (dev->main, main->staging) diffs everything already merged,
+    # so one line that ever slipped through would block every future promotion — the same trap as
+    # judging merged commit messages. This is the gate where content ENTERS; past it, it was
+    # already checked. Anything found later is a fix on a feature branch, not a blocked release.
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  claim-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      # BASE_REF via env, never interpolated into the script body — the house pattern, and the
+      # reason is spelled out in verify.yml: git refnames permit `"`, `;`, `$` and backticks, so
+      # `${{ }}` inside a quoted shell string is breakable in principle. base_ref is the TARGET
+      # branch and so is not fork-controlled; this is defence-in-depth, not a live vector.
+      - name: claim-check over the PR
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          base="$(git merge-base HEAD FETCH_HEAD)"
+          [ -n "$base" ] || { echo "no merge-base with $BASE_REF" >&2; exit 1; }
+          bash scripts/claim-check.sh --branch "$base"

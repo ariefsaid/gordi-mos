@@ -6,8 +6,8 @@
 # $GIT_DIR/pre-pr-verify-ok with the HEAD sha; the Claude hook
 # .claude/hooks/pre-pr-gate.sh refuses PR creation unless that stamp matches HEAD.
 #
-# Deliberately NOT here: review-by-someone-else is enforced in CI by
-# scripts/review-gate.sh; the audit-register coverage gate is tracked separately (#295).
+# Deliberately NOT here: review-by-someone-else (docs/agents/review.md — three lenses, a loop step,
+# never a CI check); the audit-register coverage gate is tracked separately (#295).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,12 +25,33 @@ fi
 # commit as ready for a PR. It is hermetic and takes milliseconds.
 bash scripts/reporting-snapshot.test.sh
 
-# ponytail: diff budget — oversized tickets are what six-round review chains are made of.
-# Warn-first for one milestone (owner 2026-08-27), then flips to a refusal.
-base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || true)"
-if [ -n "$base" ]; then
-  changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')
-  [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"
+# Two branch-scoped checks share one base. No `origin` at all = a scratch or detached tree with
+# nothing to diff against, and saying so is honest.
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo "· branch checks: no origin remote — nothing to diff against, SKIPPED"
+else
+  base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || true)"
+
+  # ponytail: diff budget — oversized tickets are what six-round review chains are made of.
+  # Warn-first for one milestone (owner 2026-08-27), then flips to a refusal.
+  if [ -n "$base" ]; then
+    changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')
+    [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"
+  fi
+
+  # claim-check reads ADDED LINES for an incident narrative. Scoped to PRs entering dev: a release
+  # PR re-diffs everything already merged, where one historical line would block every promotion.
+  # Where it DOES apply it fails closed — an unresolvable base is a lane that has not verified, and
+  # a silent skip there is the shape this guard is about.
+  if [ "${MOS_PR_BASE:-dev}" = "dev" ]; then
+    if [ -z "$base" ]; then
+      echo "✗ claim-check: no merge-base with origin/dev — fetch it, then re-run" >&2
+      exit 1
+    fi
+    bash scripts/claim-check.sh --branch "$base"
+  else
+    echo "· claim-check: base is ${MOS_PR_BASE} — checked on entry to dev, SKIPPED"
+  fi
 fi
 
 cd mos-app
