@@ -154,8 +154,15 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
       // browser with a correct clock produces the identical date. CLOCK SKEW is, and it is NOT
       // uniformly safe: a slow clock errs toward not-Home, but a FAST one pushes `today` forward
       // and admits a not-yet-started membership as Home — exactly the defect this clause was added
-      // to prevent. Display only, and it moves no privilege; the server gates never read this
-      // value. Which is why the authoritative cutoff is server-side and always has been: see
+      // to prevent. NOT authoritative — the server gates never read this value — but not display
+      // only either, and the difference matters: TeamPicker derives `hasPrimary` from this flag and
+      // passes it straight into `addTeamMembership`'s `isPrimary` argument, so a skewed read
+      // crosses into a WRITE on the column `default_stream()` and `is_stream_reviewer` resolve
+      // from. It still moves no privilege in either direction — a fast clock renders a future-dated
+      // primary as Home, so the next join inserts non-primary and the person ends with none
+      // (withholding); a slow clock renders a live primary as not-Home, the insert attempts a
+      // second primary, and the one-live-primary index rejects it (an error, not a grant).
+      // Which is why the authoritative cutoff is server-side and always has been: see
       // `end_team_membership`, which exists for that reason. (The repo carries a scar from getting
       // this frame wrong the other way round: the Café plan seed wrote at Postgres UTC while the
       // app asked in Jakarta, so plans landed on yesterday and every Plan surface rendered empty —
