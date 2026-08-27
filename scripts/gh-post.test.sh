@@ -47,6 +47,11 @@ check "clean --body-file passes" 0 yes issue comment 5 --body-file "$tmp/repo/bo
 
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
 
+check "stdin body-file ('-') refused — unscannable" 1 no issue comment 5 --body-file -
+echo '{"body":"has secretword"}' > "$tmp/repo/payload.json"
+check "gh api --input file scanned" 1 no api repos/x/y/issues --input "$tmp/repo/payload.json"
+check "gh api --input - refused" 1 no api repos/x/y/issues --input -
+
 mv "$tmp/repo/docs/gh-denylist.txt" "$tmp/repo/docs/gone.txt"
 check "missing policy file = fail closed" 1 no issue comment 5 --body "anything"
 mv "$tmp/repo/docs/gone.txt" "$tmp/repo/docs/gh-denylist.txt"
@@ -59,6 +64,9 @@ printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 check "pr create with verify stamp only refused" 1 no pr create --title t --body "clean"
 printf '%s reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-ok"
 check "pr create with both stamps passes" 0 yes pr create --title t --body "clean"
+printf '%s reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-ok"
+check "global flags can't dodge the verb check" 1 no --repo other/repo pr create --title t --body "clean"
+check "--head to another branch refused" 1 no pr create --head other-branch --title t --body "clean"
 printf 'deadbeef reviewer-x now art.md\n' > "$gitdir/independent-review-ok"
 check "review stamp for wrong sha refused" 1 no pr create --title t --body "clean"
 

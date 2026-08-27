@@ -25,10 +25,12 @@ EOF
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
-# stub: 'gh api <path> --jq <prog>' → run the real jq program over the fixture
-[ "\$1" = api ] || exit 9
+# stub: 'gh api --paginate <path>' → emit the fixture as TWO pages (concatenated arrays), the
+# real --paginate wire shape — proves the script's jq flattens pages instead of dropping them.
+[ "\$1" = api ] && [ "\$2" = --paginate ] || exit 9
 [ "\${GH_STUB_FAIL:-0}" = 1 ] && exit 1
-jq -r "\$4" < "$tmp/issues.json"
+jq '.[0:4]' < "$tmp/issues.json"
+jq '.[4:]'  < "$tmp/issues.json"
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"

@@ -9,21 +9,26 @@
 #  ready-for-human/wontfix = not ours).
 #
 # Order: milestone number asc (nulls last), then issue number asc — milestone merge order
-# matters (docs/decisions.md); within one, oldest first.
+# matters (docs/decisions.md); within one, oldest first. --paginate walks the whole backlog;
+# jq -s add flattens the per-page arrays.
 #
 # Self-test: scripts/drive-next.test.sh
 set -uo pipefail
 
-gh api 'repos/{owner}/{repo}/issues?state=open&per_page=100' --jq '
-  [ .[]
-    | select(has("pull_request") | not)
-    | select((.issue_dependencies_summary.blocked_by // 0) == 0)
-    | select((.assignees | length) == 0)
-    | select([.labels[].name]
-        | map(. == "wayfinder:grilling" or . == "wayfinder:map" or . == "needs-info"
-              or . == "needs-triage" or . == "ready-for-human" or . == "wontfix")
-        | any | not)
-  ]
+raw="$(gh api --paginate 'repos/{owner}/{repo}/issues?state=open&per_page=100' 2>/dev/null)" \
+  || { echo "✗ drive-next: gh query failed" >&2; exit 1; }
+
+printf '%s' "$raw" | jq -r -s '
+  add
+  | [ .[]
+      | select(has("pull_request") | not)
+      | select((.issue_dependencies_summary.blocked_by // 0) == 0)
+      | select((.assignees | length) == 0)
+      | select([.labels[].name]
+          | map(. == "wayfinder:grilling" or . == "wayfinder:map" or . == "needs-info"
+                or . == "needs-triage" or . == "ready-for-human" or . == "wontfix")
+          | any | not)
+    ]
   | sort_by((.milestone.number // 999999), .number)
   | .[] | "#\(.number)\t\(.title)\t\([.labels[].name] | join(","))"
-' || { echo "✗ drive-next: gh query failed" >&2; exit 1; }
+'

@@ -27,19 +27,22 @@ main_wt="$(git worktree list --porcelain 2>/dev/null | awk '$1=="worktree"{print
 denylist="$main_wt/docs/gh-denylist.txt"
 [ -s "$denylist" ] || die "posting policy missing: $denylist — writes are fail-closed without it"
 
-# ── Collect every outbound string: all argv, plus the contents of any --body-file/-F body=@file.
+# ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
+# (--body-file / --input / -F key=@file). Stdin payloads ('-') are refused outright — text the
+# scanner can't see is text that doesn't leave.
 texts=("$@")
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
   case "${args[$i]}" in
-    --body-file|-F|--field)
+    --body-file|--input|-F|--field)
       v="${args[$((i + 1))]:-}"
       f=""
       case "${args[$i]}" in
-        --body-file) f="$v" ;;
+        --body-file|--input) f="$v" ;;
         *) case "$v" in *=@*) f="${v#*=@}" ;; esac ;;
       esac
-      if [ -n "$f" ] && [ "$f" != "-" ]; then
+      if [ -n "$f" ]; then
+        [ "$f" != "-" ] || die "stdin payloads ('-') are not scannable — put the text in a file"
         [ -r "$f" ] || die "cannot read body file: $f"
         texts+=("$(cat "$f")")
       fi
@@ -58,8 +61,26 @@ while IFS= read -r pat; do
   done
 done < "$denylist"
 
-# ── PR creation: both stamps must certify the exact HEAD being PRed.
-if [ "${1:-}" = "pr" ] && [ "${2:-}" = "create" ]; then
+# ── PR creation: both stamps must certify the exact HEAD being PRed. The verb is found by the
+# first two non-flag argv entries, so global flags (`gh --repo x/y pr create`) can't dodge it —
+# and a pr create may only target THIS checkout: the stamps certify HEAD here, nothing else.
+verb1="" verb2=""
+skip=0
+for a in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    -R|--repo|--hostname) skip=1; continue ;;   # value-taking global flags: skip flag + value
+    -*) continue ;;
+  esac
+  if [ -z "$verb1" ]; then verb1="$a"; elif [ -z "$verb2" ]; then verb2="$a"; break; fi
+done
+if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
+  for a in "$@"; do
+    case "$a" in
+      --repo|-R|--repo=*|--head|-H|--head=*)
+        die "'pr create' through this door targets the current checkout only — no --repo/--head (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
+    esac
+  done
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
