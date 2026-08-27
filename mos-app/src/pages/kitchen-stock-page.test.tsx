@@ -89,8 +89,10 @@ const STOCK_ROWS: KitchenStockRow[] = [
   { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: null, stok: -3, tersedia: -3 },
 ]
 
-// The live stream Teams — six of them, {GHQ, Radiant, Rumah Rames} × {kitchen, bar}. The
-// roastery is deliberately absent from this list even where it is a branch: it is never a stream.
+// This fixture's stream Teams: {GHQ, Radiant, Rumah Rames} × {kitchen, bar}. A SUBSET of the live
+// catalog, which also has cikal/bar (OD-WAY-79) — nothing here turns on the catalog's size, so the
+// fixture is not grown for it. The roastery is deliberately absent even though it is a branch: it
+// is never a stream.
 const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
   { branch_id: b.id, activity: 'kitchen' as const },
   { branch_id: b.id, activity: 'bar' as const },

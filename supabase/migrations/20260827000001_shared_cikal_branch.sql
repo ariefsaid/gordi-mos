@@ -20,7 +20,8 @@
 --   delete from shared.teams where activity = 'bar'
 --     and branch_id in (select id from shared.branches where code = 'cikal');
 --   delete from shared.branches where code = 'cikal';
---   (then restore the two six-pair lists in shared.seed_stream_teams())
+--   (then re-run 20260814000001's `create or replace shared.seed_stream_teams()` verbatim —
+--    it is the version this file replaced, three-branch code list x the activity catalog)
 
 -- ── The branch ───────────────────────────────────────────────────────────────────────────────
 -- Every org, matching how the catalog was first seeded (20260805000001) — the orgs that exist at
@@ -102,21 +103,38 @@ begin
 end;
 $$;
 
--- ── Two published descriptions that now understate the catalog ───────────────────────────────
--- These are not cosmetics. Both are served to readers by the database itself, and one of them is
+-- ── Three published descriptions that now understate the catalog ─────────────────────────────
+-- These are not cosmetics. All three are served to readers by the database itself, and one is
 -- ASSERTED by ops_04, so the stale number was test-enforced green — the test pinned the wrong fact
--- rather than catching it. All three review lenses found this independently; my own sweep missed it.
+-- rather than catching it. The third (the index comment, from 20260806000001) survived the first
+-- sweep AND this file's own header, which claimed there were two; ops_04 cannot reach it because
+-- that scan is scoped to the `ops` schema. If you add a count to a comment, expect to own it here.
 comment on column ops.kitchen_logs.activity is
   'Activity half of the production stream; resolves against shared.activities. Crossed with the '
   'three FULL production branches that catalog yields six streams, plus Cikal which takes bar only '
   '= SEVEN distinct streams today (OD-WAY-42, OD-WAY-79). Adding a catalog row multiplies across '
-  'the three full branches and leaves Cikal alone; adding a BRANCH changes the number too, which is '
-  'what this comment exists to keep honest.';
+  'the three full branches and leaves Cikal alone. Adding a BRANCH changes nothing on its own: the '
+  'branch half is a literal code list inside shared.seed_stream_teams(), so a new branch gets a '
+  'stream only when that function is edited to name it.';
 
 comment on function shared.seed_stream_teams() is
   'Seeds the live stream Teams: the three FULL production branches crossed with every '
   'shared.activities row, PLUS Cikal with bar only (OD-WAY-79). A union of two rules, never a wider '
   'cross product — a new activity reaches the three and not Cikal. Roastery is a branch with no '
-  'stream at all (OD-WAY-42). Not an app RPC: no EXECUTE for anon or authenticated.';
+  'stream at all (OD-WAY-42). VALIDATES: raises if any expected pair has no live team. Idempotent '
+  '(on conflict do nothing); called by this migration and again by seed.sql, which re-seeds the '
+  'catalog for the Gordi org created after migrations run. Not an app RPC: no EXECUTE for anon or '
+  'authenticated.';
+
+-- The third one. Source: 20260806000001:59-61, which named the catalog by its size. Editing that
+-- file would fix nothing — a deployed database never re-runs an applied migration — so it is
+-- re-issued here, like the other two. (Comments are NOT part of the applied-path fingerprint;
+-- leaving history immutable is the reason, not the drift check.)
+comment on index shared.teams_stream_unique is
+  'At most one LIVE stream team per (org, branch, activity). This is what makes the stream '
+  'catalog ENUMERABLE — a capture surface can list the streams rather than guess them — which is '
+  'the property FR-005/AC-012a asserts, not any particular count (OD-WAY-42, OD-WAY-79). Partial '
+  'index: archiving a stream team and later seeding its successor stays possible, and ordinary '
+  'teams (branch_id NULL) never pay.';
 
 select shared.seed_stream_teams();

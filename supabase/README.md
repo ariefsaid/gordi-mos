@@ -21,9 +21,14 @@ ris-dev production deployment is a later issue.
   person-without-auth, multi-role, `is_manager_of` dual-hat union chain, `org_id` spoof.
 
 ## Seed privacy (public repo — OD-P1-6)
-Real names/emails NEVER enter `seed.sql`. At deploy time, copy `seed.production.sql.example` to
-`seed.production.sql` (gitignored) and fill in real people + auth links; apply it manually against the
-deployed stack. The committed seed stays fictional.
+Real names/emails NEVER enter `seed.sql`, and never enter **this directory at all**. At deploy time,
+copy `seed.production.sql.example` to `docs/local-seeds/02-real-roster.sql` and fill in real people +
+auth links; apply it manually against the deployed stack. The committed seed stays fictional.
+
+The filled-in file lives outside `supabase/` on purpose. This directory is tracked, so anything under
+it is one `git add supabase` away from a public commit — which is exactly how three real addresses
+were published on 2026-08-27. `docs/` is gitignored as a whole directory *and* is a nested repo with
+no remote, so `git add` cannot stage its contents at all. Prefer that boundary to any filename rule.
 
 ## Common commands (run from repo root)
 - `supabase start` — boot the local stack (Docker).

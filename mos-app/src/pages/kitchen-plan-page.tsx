@@ -110,7 +110,7 @@ function PlanEditor() {
   const t = useT()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  // The enumerable enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
+  // The enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
   // catalog comes with it: the MOVEMENT control offers every branch as a destination, which is
   // a different question from which stream this plan belongs to.
   const cafeStream = useCafeStream()

@@ -59,7 +59,7 @@ export function rememberStream(stream: ProductionStream | null): void {
  * Order (FR-001/002 + #440):
  *   1. the stream chosen elsewhere in the module this session, IF it is still in the catalog;
  *   2. otherwise the person's own stream — `shared.default_stream()`, resolved by the caller —
- *      IF it is a catalog stream (a stale pair pointing outside the live six resolves to null,
+ *      IF it is a catalog stream (a stale pair pointing outside the live catalog resolves to null,
  *      never to a guess);
  *   3. otherwise null: no default, so the surface asks for an explicit choice exactly as the
  *      capture surface does. A wrong default files production against books nobody chose; a

@@ -51,7 +51,8 @@ export const KITCHEN_BU_CODE = 'retail_ops'
 
 /**
  * The enumerable stream catalog (FR-005, OD-WAY-42): the (branch_id, activity) pairs of
- * the live stream Teams — exactly the six seeded {GHQ, RRS, Radiant} × {kitchen, bar}.
+ * the live stream Teams — the three FULL branches {GHQ, RRS, Radiant} × {kitchen, bar}, plus
+ * Cikal with bar only: seven today (OD-WAY-79). Read the pairs, never assume the count.
  * Read from `shared.teams` where the pair is set: the Team IS the stream (OD-WAY-49), so
  * the catalog cannot drift from the substrate the default resolves against. The roastery
  * is a branch but never a stream — it has no stream Team, so it can never appear here

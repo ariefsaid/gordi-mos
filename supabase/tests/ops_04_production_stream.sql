@@ -157,13 +157,20 @@ select throws_ok($$
   'a log cannot point its stream at another org''s branch — an existence-only FK is a cross-tenant reference unless something checks the org');
 
 -- ── The stream COUNT, as it is published to anyone inspecting the schema ─────────────────────
--- OD-WAY-42, retracting DD-WAY-25: there are SIX distinct (branch, activity) streams —
--- {GHQ, RRS, Radiant} x {kitchen, bar} — and TWO are captured today. DD-WAY-25's five/one recount
--- (which this assertion previously enforced, in the other direction) was itself the error, and the
--- baseline shipped it into a `comment on column` — the copy a reader gets from \d+ or any schema
--- browser. #231 restores the count in the source file and re-issues the comment for applied
--- databases (20260806000002). Asserted as a class rather than by pinning exact text, so rewording
--- a comment is free and re-introducing the retracted count is not.
+-- OD-WAY-42 retracting DD-WAY-25, then OD-WAY-79 for Cikal: there are SEVEN distinct
+-- (branch, activity) streams — {GHQ, RRS, Radiant} x {kitchen, bar}, plus cikal/bar — and TWO are
+-- captured today. DD-WAY-25's five/one recount (which this assertion once enforced, in the other
+-- direction) was itself the error, and the baseline shipped it into a `comment on column` — the
+-- copy a reader gets from \d+ or any schema browser. #231 restored the count in the source file
+-- and re-issued the comment for applied databases (20260806000002); 20260827000001 re-issues it
+-- again for Cikal.
+--
+-- The two assertions are deliberately different shapes. The first is a CLASS check — no ops comment
+-- may publish the retracted five — so rewording is free and reviving the retraction is not. The
+-- second PINS the current literal, because the failure this file exists to catch is a comment left
+-- behind by a count change, and only a pin fails on that. A pin costs one edit per count change;
+-- that cost is the point. Keep this header in step with the pin — it went stale once already, which
+-- is how a test came to enforce the wrong number while reading as if it enforced the right one.
 reset role;
 select is(
   (select count(*)::int from pg_description d
