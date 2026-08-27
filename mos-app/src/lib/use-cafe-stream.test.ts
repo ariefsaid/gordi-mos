@@ -43,7 +43,7 @@ beforeEach(() => {
 })
 
 describe('useCafeStream — the shared Café bootstrap', () => {
-  it('resolves the six-stream catalog and the module stream, and leaves state untouched', async () => {
+  it('resolves the enumerable stream catalog and the module stream, and leaves state untouched', async () => {
     const { result } = renderHook(() => useCafeStream())
 
     const resolved = await act(async () => result.current.resolve())

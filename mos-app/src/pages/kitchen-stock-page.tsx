@@ -73,7 +73,7 @@ export function KitchenStockPage() {
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
-  // The module's stream + the enumerable six-stream catalog it is chosen from (FR-005),
+  // The module's stream + the enumerable stream catalog it is chosen from (FR-005),
   // through the ONE bootstrap every Café surface shares (issue 456).
   const cafeStream = useCafeStream()
   const { options: streamOptions, stream } = cafeStream

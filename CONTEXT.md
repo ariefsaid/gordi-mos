@@ -70,7 +70,7 @@ _Avoid_: using Site to scope a production record — that axis is the **Producti
 
 **Production stream**:
 The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · kitchen`, `GHQ · bar`,
-`RRS · kitchen`. Three Branches × two Activities = **six streams**, of which two are captured today
+`RRS · kitchen`. Three full Branches × two Activities, plus Cikal which takes bar only = **seven streams** (OD-WAY-79), of which two are captured today
 (OD-WAY-42). This is the axis the Café Module is scoped on (OD-WAY-26): it selects the item list,
 the ERP coordinates, and the default a capture surface opens on. **A Team _is_ a stream** — `GHQ ·
 kitchen` and `GHQ · bar` are different teams with different leads — so a person's primary team supplies

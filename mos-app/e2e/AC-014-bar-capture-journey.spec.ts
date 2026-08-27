@@ -4,7 +4,7 @@
 // review scoping and movements sit below it in pgTAP and RTL; this is the one place all of it is
 // asked to work together on a real stack — real PostgREST, real RLS, the real approval RPC.
 //
-// AC-014: Given the seeded fixture (six stream Teams, a bar member whose primary Team is a bar
+// AC-014: Given the seeded fixture (SEVEN stream Teams since OD-WAY-79, a bar member whose primary Team is a bar
 // stream, a supervisor on that stream, confirmed item-units), When the member on a phone-width
 // viewport opens capture, logs a production qty against plan, and the stream's supervisor approves
 // it, Then the row reaches Approved and appears in the stream's stock net.
@@ -99,7 +99,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // neither hook can be silently weakened without the other being read.
     await resetFixtureRows()
 
-    // The six stream Teams are the seed's (FR-005) — assert the fixture rather than create it, so
+    // The seven stream Teams are the seed's (FR-005, OD-WAY-79) — assert the fixture rather than create it, so
     // a seed that shipped a thin catalog fails HERE with a readable message instead of surfacing
     // as a mystery empty dropdown three acts later.
     const streams = await sql(
@@ -107,7 +107,11 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
          from shared.teams t join shared.branches b on b.id = t.branch_id
         where t.org_id = '${ORG}' and t.archived_at is null order by 1`,
     )
+    // SEVEN since OD-WAY-79 (2026-08-27): Cikal joined the branch catalog with a BAR stream and
+    // no kitchen, so the grid is deliberately asymmetric. Asserted as an ordered list, so a pair
+    // silently added or dropped fails here — including a cikal/kitchen nobody asked for.
     expect(streams.map(r => r.pair)).toEqual([
+      'cikal/bar',
       'gordi_hq/bar', 'gordi_hq/kitchen', 'radiant/bar', 'radiant/kitchen',
       'rumah_rames/bar', 'rumah_rames/kitchen',
     ])
@@ -167,11 +171,11 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
 
     // FR-001 — the surface OPENS on their own stream. Resolved from the live primary Team
     // membership, through the real RPC: nothing in the URL or the click path said "Rumah Rames".
-    // FR-005 — and the picker enumerates SIX streams, the whole catalog, switchable (FR-003):
-    // the default is a default, not a wall (OD-WAY-49/31).
+    // FR-005 — and the picker enumerates SEVEN streams, the whole catalog, switchable (FR-003):
+    // the default is a default, not a wall (OD-WAY-49/31). Seven since OD-WAY-79 added Cikal bar.
     const streamPicker = page.getByRole('combobox', { name: /Production stream/i })
     await expect(streamPicker).toBeVisible({ timeout: 15_000 })
-    await expect(streamPicker.locator('option')).toHaveCount(6)
+    await expect(streamPicker.locator('option')).toHaveCount(7)
     await expect(streamPicker.locator('option:checked')).toHaveText(/Rumah Rames · Bar/i)
 
     // FR-011 / DD-WAY-29 — the item is on the form because its unit is CONFIRMED, and it carries

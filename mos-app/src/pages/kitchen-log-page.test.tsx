@@ -3,7 +3,7 @@
 // empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
 // BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3);
 // #233 stream context: AC-002 (default from shared.default_stream(), switchable),
-// FR-002 (no default → explicit choice), FR-005 (six streams only), AC-004 (no
+// FR-002 (no default → explicit choice), FR-005 (the enumerable catalog only), AC-004 (no
 // raw-material input), AC-006 (effective target + already-logged, stream-scoped),
 // AC-012b frontend half (rows carry the SELECTED stream pair).
 
@@ -20,7 +20,7 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   // `streamCatalogFrom` is pure catalog arithmetic, not IO — the page uses it to build the
-  // six-stream picker out of the loaded pairs, so the real one is kept and only the reads
+  // stream picker out of the loaded pairs, so the real one is kept and only the reads
   // are mocked.
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>(
     '@/lib/db/kitchen-logs',
@@ -90,7 +90,10 @@ const BRANCH_ROASTERY: BranchOption = {
   id: '30000000-0000-0000-0000-0000000000b4', code: 'roastery', name: 'Roastery',
 }
 const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTERY, BRANCH_RUMAH_RAMES]
-// The six-stream catalog (FR-005): the live stream Teams' pairs — roastery has none.
+// The enumerable stream catalog (FR-005), as this fixture stages it: three branches × two
+// activities. A SUBSET of the live catalog (which also has cikal/bar, OD-WAY-79) — what these
+// tests assert is that the picker offers EXACTLY the pairs it is given, so the count below is
+// this list's length, not the catalog's. Roastery has no stream Team and so appears in neither.
 const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
   b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
 )
@@ -1339,9 +1342,9 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// #233 — capture surface with stream context, all six streams (bar-capture spec).
+// #233 — capture surface with stream context, all streams (bar-capture spec).
 // AC-002 (default pre-selected + switchable), FR-002 (no default → explicit choice),
-// FR-005 (six streams, roastery never one), AC-004 (no raw-material input),
+// FR-005 (the catalog's streams, roastery never one), AC-004 (no raw-material input),
 // AC-006 (plan-as-placeholder + effective target + already-logged + note-on-blur,
 // stream-scoped), AC-012b frontend half (the submitted rows carry the SELECTED pair).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1464,15 +1467,17 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   })
 })
 
-describe('FR-005: the picker offers exactly the six-stream catalog — the roastery is never a stream', () => {
-  it('lists all six {branch × activity} streams and no roastery option', async () => {
+describe('FR-005: the picker offers exactly the catalog pairs it is given — the roastery is never a stream', () => {
+  it('lists exactly the catalog pairs it is given, and no roastery option', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
     const options = within(picker).getAllByRole('option')
-    // Six streams — no placeholder (a default resolved), no roastery, no seventh.
-    expect(options).toHaveLength(6)
+    // Exactly STREAM_PAIRS — no placeholder (a default resolved), no roastery, and nothing the
+    // fixture did not stage. Pinned to the fixture's own length so growing the live catalog does
+    // not touch this test; what is under test is 'exactly the pairs given', not a number.
+    expect(options).toHaveLength(STREAM_PAIRS.length)
     const labels = options.map(o => o.textContent)
     // CANONICAL catalog names (OD-WAY-39) — never the 'Bungur' destination alias:
     // a Rumah Rames barista picking their own stream reads 'Rumah Rames', not the

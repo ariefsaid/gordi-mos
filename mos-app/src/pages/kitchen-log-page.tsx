@@ -159,7 +159,7 @@ export function KitchenLogPage() {
   // branch. `stream` is null while loading, and STAYS null when the person has no
   // stream-linked primary Team: capture then requires an explicit choice from the picker
   // (FR-002), and nothing can be submitted meanwhile because `ops.kitchen_logs.branch_id` /
-  // `.activity` are NOT NULL (AC-007). `streamOptions` is the six-stream catalog (FR-005):
+  // `.activity` are NOT NULL (AC-007). `streamOptions` is the enumerable stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
   const { branches, options: streamOptions, stream } = cafeStream
@@ -228,7 +228,7 @@ export function KitchenLogPage() {
         // The module's stream, resolved the one way every Café surface resolves it
         // (issue 456): the session's own choice (#440) outranks the person's own stream
         // (shared.default_stream(), FR-001), and neither may name a pair outside the live
-        // six-stream catalog — a stale pair resolves to "choose", never to a guess (FR-002).
+        // enumerable stream catalog — a stale pair resolves to "choose", never to a guess (FR-002).
         resolveStream(),
         resolveKitchenBuId(),
       ])
@@ -317,7 +317,7 @@ export function KitchenLogPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logDate, wipItems])
 
-  // The six-stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
+  // The stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
   // state including while a switch's read is in flight: a slow stream's fetch must never
   // unmount the control that lets the person leave that stream (default-not-wall).
   // #440: it is the shared <CafeStreamBar> now — the same statement-and-switch every Café

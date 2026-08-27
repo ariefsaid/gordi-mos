@@ -97,7 +97,8 @@ insert into shared.branches (id, org_id, code, name) values
   ('25000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'gordi_hq',    'Gordi HQ'),
   ('25000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'rumah_rames', 'Rumah Rames'),
   ('25000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'radiant',     'Radiant'),
-  ('25000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'roastery',    'Gordi Roastery')
+  ('25000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'roastery',    'Gordi Roastery'),
+  ('25000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'cikal',       'Cikal')
 on conflict (org_id, code) do nothing;
 
 -- ── Sites and Teams — org structure, a different plane from branches (DD-WAY-17) ─────────────
@@ -130,7 +131,7 @@ join shared.business_units bu
  and bu.archived_at is null
 on conflict (org_id, code) do nothing;
 
--- ── The six stream Teams — {GHQ, RRS, Radiant} x {kitchen, bar} (FR-005, OD-WAY-42, #231) ────
+-- ── The seven stream Teams — {GHQ, RRS, Radiant} x {kitchen, bar} + Cikal x bar (OD-WAY-79) ──
 -- A Team with branch_id + activity set IS a production stream: the enumerable stream catalog, the
 -- default-stream resolution (shared.default_stream) and — later — reviewer scoping all ride these
 -- rows. Called here for the same reason the branch catalog is repeated above: the migration
@@ -138,7 +139,7 @@ on conflict (org_id, code) do nothing;
 -- reset the Gordi org is created by this file, after migrations have run. The pair list itself
 -- lives in ONE place — shared.seed_stream_teams(), defined by that migration — which also
 -- VALIDATES the result: if an ordinary team already holds a reserved code, this call RAISES and
--- the reset fails loudly instead of shipping a five-stream catalog (FR-005/AC-012a). ROASTERY IS
+-- the reset fails loudly instead of shipping an incomplete catalog (FR-005/AC-012a). ROASTERY IS
 -- DELIBERATELY ABSENT from the list: it is a branch, never a stream (OD-WAY-42) — do not
 -- "complete" the grid with it.
 select shared.seed_stream_teams();

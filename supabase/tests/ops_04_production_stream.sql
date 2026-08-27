@@ -157,17 +157,20 @@ select throws_ok($$
   'a log cannot point its stream at another org''s branch — an existence-only FK is a cross-tenant reference unless something checks the org');
 
 -- ── The stream COUNT, as it is published to anyone inspecting the schema ─────────────────────
--- OD-WAY-42, retracting DD-WAY-25: there are SIX distinct (branch, activity) streams —
--- {GHQ, RRS, Radiant} x {kitchen, bar} — and TWO are captured today. DD-WAY-25's five/one recount
--- (which this assertion previously enforced, in the other direction) was itself the error, and the
--- baseline shipped it into a `comment on column` — the copy a reader gets from \d+ or any schema
--- browser. #231 restores the count in the source file and re-issues the comment for applied
--- databases (20260806000002). Asserted as a class rather than by pinning exact text, so rewording
--- a comment is free and re-introducing the retracted count is not.
+-- OD-WAY-42 retracting DD-WAY-25, then OD-WAY-79 for Cikal: SEVEN distinct (branch, activity)
+-- streams, TWO captured today. The retracted five/one shipped into a `comment on column` — the copy
+-- a reader gets from \d+ — which is why the count is asserted here at all.
+--
+-- Two shapes on purpose. The first is a CLASS check (no ops comment publishes the retracted five),
+-- overlapping shared_11's guard, not a subset of it — neither implies the other — and kept as a
+-- local canary; `classoid` pinned because
+-- pg_description's key is (objoid, classoid, objsubid). The second PINS the literal, because a
+-- comment left behind by a count change is exactly what only a pin catches. Keep this header in
+-- step with the pin — it went stale once, and the test then enforced the wrong number.
 reset role;
 select is(
   (select count(*)::int from pg_description d
-     join pg_class c on c.oid = d.objoid
+     join pg_class c on c.oid = d.objoid and d.classoid = 'pg_class'::regclass
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'ops' and d.description ~* '(five|5) distinct'),
   0,
@@ -177,8 +180,8 @@ select ok(
   (select col_description('ops.kitchen_logs'::regclass,
             (select attnum from pg_attribute
               where attrelid = 'ops.kitchen_logs'::regclass and attname = 'activity'))
-     ~* 'six distinct'),
-  'OD-WAY-42: the activity column PUBLISHES the six-stream count — the re-issued comment reached this database, not only the source file');
+     ~* 'SEVEN distinct'),
+  'OD-WAY-42: the activity column PUBLISHES the stream count — the re-issued comment reached this database, not only the source file');
 
 select * from finish();
 rollback;

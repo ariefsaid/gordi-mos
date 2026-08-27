@@ -38,7 +38,7 @@ export interface ProductionStream {
 
 /**
  * A raw (branch_id, activity) pair as the stream substrate stores it — the shape
- * `shared.default_stream()` returns (FR-001) and the six stream Teams carry (FR-005).
+ * `shared.default_stream()` returns (FR-001) and the stream Teams carry (FR-005).
  * Resolved against the branch catalog into a display-ready ProductionStream by
  * `streamCatalogFrom` / the capture page.
  */

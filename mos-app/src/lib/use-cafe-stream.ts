@@ -35,7 +35,7 @@ import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types
 export interface CafeStreamCatalog {
   /** The live branch catalog. Movement labels and destinations are derived from it. */
   branches: BranchOption[]
-  /** The enumerated six-stream catalog (FR-005) — never a branch × activity cross-product. */
+  /** The enumerated stream catalog (FR-005) — never a branch × activity cross-product. */
   options: ProductionStream[]
   /** The stream this surface should open on; null = ask (FR-002). */
   stream: ProductionStream | null

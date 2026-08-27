@@ -2,18 +2,21 @@
 --
 -- OWNS: AC-001  — a person's live primary Team membership resolves their default capture stream;
 --                 a person with no stream-linked primary Team resolves to none.
---       AC-012a — exactly six stream Teams are seeded — {GHQ, RRS, Radiant} x {kitchen, bar} —
+--       AC-012a — the stream Team catalog is enumerable and complete: {GHQ, RRS, Radiant} x
+--                 {kitchen, bar} plus Cikal x bar = SEVEN (amended 2026-08-27; see below) —
 --                 and none references the roastery branch.
---       OD-WAY-49's default-not-wall: the stream appears in NO RLS predicate anywhere. The Team
---                 default is an affordance, never authorization.
+--       OD-WAY-49's default-not-wall: the stream gates no MEMBER read or write — an affordance,
+--                 never authorization. NOT "no RLS predicate anywhere": reviewer policies DO key on
+--                 (branch_id, activity) via ops.is_stream_reviewer (20260811000001:49-72).
 --
 -- The stream is realised ON the Team (FR-004): shared.teams grows a nullable branch link plus
 -- activity, both set = a stream team. There is no stream table and no person<->stream assignment —
--- the six seeded stream Teams ARE the enumerable catalog (FR-005, OD-WAY-42). Roastery is a branch,
--- never a stream: it books to its own company and has no production stream (OD-WAY-42).
+-- the seeded stream Teams ARE the enumerable catalog — SEVEN since OD-WAY-79 (FR-005,
+-- OD-WAY-42). Roastery is a branch, never a stream: it books to its own company and has no
+-- production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(32);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -71,7 +74,7 @@ select throws_ok($$
             where org_id = '10000000-0000-0000-0000-000000000001' and code = 'rumah_rames'),
           'bar')
   $$, '23505', null,
-  'a second live team for the same (branch, activity) is refused — the six-team catalog cannot silently grow a seventh (AC-012a''s "exactly")');
+  'a second live team for the same (branch, activity) is refused — the catalog cannot silently grow a DUPLICATE pair. Its size is ruled (seven, OD-WAY-79) and changes only by ruling; its shape — one team per pair — is not negotiable');
 
 -- The composite FK is the cross-org proof: another org's branch id is simply not a row under
 -- (org E, id) and the reference fails as a foreign key — declaratively, with no guard involved.
@@ -91,13 +94,38 @@ select throws_ok($$
   $$, '23503', null,
   'a team cannot point its stream at ANOTHER org''s branch — the composite FK holds the tenancy seam declaratively');
 
--- ── AC-012a: the seed — six stream teams, the expected pairs, roastery never among them ──────
+-- ── AC-012a: the seed — the expected pairs, roastery never among them ───────────────────────
+-- The count moved from six to SEVEN on 2026-08-27: the owner added Cikal as a branch with a BAR
+-- stream and no kitchen. "Exactly six" was never a claim that six is the permanent size — it was a
+-- claim that the catalog is ENUMERABLE and complete, so a capture surface can list the streams
+-- rather than guess. Seven satisfies that property; a stream nobody declared would not.
+-- The grid is deliberately asymmetric now, and this is the SECOND such fact here: roastery is a
+-- branch with no stream at all. Do not "complete" either one.
 select is(
   (select count(*)::int from shared.teams t
     where t.org_id = '10000000-0000-0000-0000-000000000001'
       and t.branch_id is not null and t.archived_at is null),
-  6,
-  'AC-012a: exactly SIX stream teams are seeded for the dev org (FR-005, OD-WAY-42)');
+  7,
+  'AC-012a: exactly SEVEN stream teams are seeded for the dev org — the six-grid plus Cikal bar (FR-005, OD-WAY-42, amended 2026-08-27)');
+
+-- ── The two `shared` comments that publish the count ─────────────────────────────────────────
+-- PINS, not a class check. A class check was tried twice and failed both ways: a phrase list
+-- missed the real stale wording, and the invariant that replaced it ("names six, must also name
+-- seven") handed out blanket immunity to any text containing the word seven — so the NEXT ruling,
+-- which leaves "seven" in the prose while making it wrong, would switch the guard off exactly when
+-- it is needed. It also reddened true sentences that wrote the count as a numeral.
+--
+-- A pin cannot be gamed and cannot false-positive. It costs one edit per ruling, and that cost IS
+-- the rule: a count in a published comment is a fact you own on every ruling. Don't want the cost?
+-- Don't put the number in the comment. (ops_04 pins the third one, on ops.kitchen_logs.activity.)
+reset role;
+select ok(
+  (select obj_description('shared.seed_stream_teams()'::regprocedure, 'pg_proc')) ~* 'PLUS Cikal with bar only',
+  'FR-005: the seeder function PUBLISHES its rule — the re-issued comment reached this database, not only the source file (OD-WAY-79)');
+
+select ok(
+  (select obj_description('shared.teams_stream_unique'::regclass, 'pg_class')) !~* 'six-stream',
+  'FR-005: the uniqueness index no longer publishes the superseded six-stream catalog — the description a schema reader gets from \\d+ agrees with the shipped catalog (OD-WAY-42, OD-WAY-79)');
 
 select set_eq($$
   select b.code, t.activity
@@ -108,9 +136,10 @@ select set_eq($$
   $$, $$ values
     ('gordi_hq','kitchen'), ('gordi_hq','bar'),
     ('rumah_rames','kitchen'), ('rumah_rames','bar'),
-    ('radiant','kitchen'), ('radiant','bar')
+    ('radiant','kitchen'), ('radiant','bar'),
+    ('cikal','bar')
   $$,
-  'AC-012a: the six are {GHQ, RRS, Radiant} x {kitchen, bar} — asserted as a set, so a pair silently added or dropped fails here');
+  'AC-012a: the seven are {GHQ, RRS, Radiant} x {kitchen, bar} plus Cikal bar — asserted as a SET, so a pair silently added or dropped fails here, and a cikal/kitchen nobody asked for fails too');
 
 select is(
   (select count(*)::int from shared.teams t
@@ -121,8 +150,13 @@ select is(
 
 -- ── The seeder: one home for the pair list, idempotent, and FAIL-LOUD on a code collision ────
 -- Org G is a second seed-shaped org (Retail Ops BU + the branch catalog): calling the seeder again
--- must six it up while leaving the already-seeded dev org exactly as it was (idempotence), and it
--- gives the FR-003 catalog test below a second org to prove scoping against.
+-- must seven it up while leaving the already-seeded dev org exactly as it was (idempotence), and
+-- it gives the FR-003 catalog test below a second org to prove scoping against.
+--
+-- ORG G CARRIES CIKAL ON PURPOSE. Without it, a Cikal disjunct hardcoded to the dev org passes the
+-- whole suite. The three org-G assertions below are what distinguish org-generic from dev-pinned —
+-- do not drop the branch to round a number. Roastery holds the other half: a branch no rule names
+-- gets no stream.
 insert into shared.orgs (id, name, slug)
   values ('00000000-0000-0000-0000-0000000000f1','Stream Org G','stream-org-g');
 insert into shared.business_units (id, org_id, name, code) values
@@ -131,6 +165,7 @@ insert into shared.branches (org_id, code, name) values
   ('00000000-0000-0000-0000-0000000000f1','gordi_hq','G Gordi HQ'),
   ('00000000-0000-0000-0000-0000000000f1','rumah_rames','G Rumah Rames'),
   ('00000000-0000-0000-0000-0000000000f1','radiant','G Radiant'),
+  ('00000000-0000-0000-0000-0000000000f1','cikal','G Cikal'),
   ('00000000-0000-0000-0000-0000000000f1','roastery','G Roastery');
 
 select lives_ok(
@@ -141,14 +176,30 @@ select is(
   (select count(*)::int from shared.teams t
     where t.org_id = '00000000-0000-0000-0000-0000000000f1'
       and t.branch_id is not null and t.archived_at is null),
-  6,
-  'AC-012a: a second seed-shaped org gets its OWN six stream teams — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
+  7,
+  'AC-012a: a second seed-shaped org gets its OWN seven stream teams — the SAME seven, three full branches x the activity catalog plus cikal/bar, proving the rule is org-generic and not pinned to the dev org — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
+
+-- The count cannot tell WHICH seven — a rule that lost cikal/bar and gained roastery/kitchen holds
+-- it. AC-012 promises the same SET.
+select set_eq($$
+  select b.code, t.activity
+    from shared.teams t
+    join shared.branches b on b.id = t.branch_id
+   where t.org_id = '00000000-0000-0000-0000-0000000000f1'
+     and t.branch_id is not null and t.archived_at is null
+  $$, $$ values
+    ('gordi_hq','kitchen'), ('gordi_hq','bar'),
+    ('rumah_rames','kitchen'), ('rumah_rames','bar'),
+    ('radiant','kitchen'), ('radiant','bar'),
+    ('cikal','bar')
+  $$,
+  'AC-012a: the second org gets the SAME SET as the dev org, pair for pair — the catalog rule is org-generic in shape, not only in size');
 
 select is(
   (select count(*)::int from shared.teams t
     where t.branch_id is not null and t.archived_at is null),
-  12,
-  'twelve live stream teams now exist ACROSS orgs — which is what makes the member-enumeration test below prove org scoping rather than pass vacuously');
+  14,
+  'fourteen live stream teams now exist ACROSS orgs — which is what makes the member-enumeration test below prove org scoping rather than pass vacuously');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-001 — default-stream resolution from the live primary membership
@@ -215,14 +266,16 @@ select results_eq($$
   'AC-001: a live primary membership of the (RRS, bar) team resolves the default stream to (RRS, bar) — the Team IS the stream (FR-001, OD-WAY-49)');
 
 -- The member can enumerate the stream catalog: the default is an affordance and switching is free
--- (FR-003), which needs the six teams readable, not just the person''s own. Twelve live stream
--- teams exist across orgs (asserted above), so this count proves RLS org-scoping of the catalog,
--- not merely that six rows exist somewhere.
+-- (FR-003), which needs all seven teams readable, not just the person''s own. FOURTEEN live stream
+-- teams exist across orgs (asserted above: seven here, seven in org G), so this count proves RLS
+-- org-scoping of the catalog, not merely that some rows exist somewhere. The two orgs holding the
+-- SAME number is what makes this sharp: a leak of even one row reads as eight, never as a plausible
+-- total.
 select is(
   (select count(*)::int from shared.teams
     where branch_id is not null and archived_at is null),
-  6,
-  'FR-003: a member enumerates exactly their OWN org''s six stream teams — org G''s six are invisible; the switcher''s catalog is org-scoped by RLS');
+  7,
+  'FR-003: a member enumerates exactly their OWN org''s seven stream teams — org G''s seven are invisible; the switcher''s catalog is org-scoped by RLS');
 
 set local request.jwt.claims =
   '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"47000000-0000-0000-0000-000000000002","access_roles":["member"]}';

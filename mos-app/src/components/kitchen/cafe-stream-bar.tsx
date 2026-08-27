@@ -3,7 +3,7 @@
 //
 // Lifted from the capture surface's own picker (kitchen-log-page's `kl-scope-stream`), which
 // is the grammar this module already shipped and the review queue already copied: a single
-// <Select> over the ENUMERATED six-stream catalog (FR-003/005, OD-WAY-42). Not the branch ×
+// <Select> over the ENUMERATED stream catalog (FR-003/005, OD-WAY-42). Not the branch ×
 // activity pair the stock/plan surfaces grew separately — that cross-product can offer a pair
 // that is not a stream at all (the roastery is a branch and never a stream), and two 44px
 // selects do not fit a page head on a phone. The pair implementation (StreamScopePicker) was
