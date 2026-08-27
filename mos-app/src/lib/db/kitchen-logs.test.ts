@@ -1033,11 +1033,11 @@ describe('rejectKitchenLog — guarded UPDATE to Rejected with a required note (
   })
 })
 
-// ── #233 stream context: six-stream catalog, already-logged ──────────────────
+// ── #233 stream context: enumerable stream catalog, already-logged ──────────────────
 // (The person's own default-stream resolver lives in default-stream.ts — the ONE
 // shape-validated reader after the #234 consolidation — and is tested there.)
 
-describe('listStreamPairs + streamCatalogFrom — the six-stream catalog (FR-005)', () => {
+describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog (FR-005)', () => {
   it('reads the LIVE stream Teams’ pairs from shared.teams (branch set, not archived)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(

@@ -131,7 +131,7 @@ join shared.business_units bu
  and bu.archived_at is null
 on conflict (org_id, code) do nothing;
 
--- ── The six stream Teams — {GHQ, RRS, Radiant} x {kitchen, bar} (FR-005, OD-WAY-42, #231) ────
+-- ── The seven stream Teams — {GHQ, RRS, Radiant} x {kitchen, bar} + Cikal x bar (OD-WAY-79) ──
 -- A Team with branch_id + activity set IS a production stream: the enumerable stream catalog, the
 -- default-stream resolution (shared.default_stream) and — later — reviewer scoping all ride these
 -- rows. Called here for the same reason the branch catalog is repeated above: the migration

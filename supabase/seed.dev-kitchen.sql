@@ -17,7 +17,7 @@
 --     destination branch for transfers. The incumbent's "Transfer to Bungur" is a
 --     transfer whose destination equals its origin (Rumah Rames — 'Bungur' is a UI
 --     label, never stored); "Transfer to Radiant" is an inter-branch transfer.
---   * Streams are SPREAD across the six-stream catalog ({GHQ, RRS, Radiant} x
+--   * Streams are SPREAD across the enumerable stream catalog ({GHQ, RRS, Radiant} x
 --     {kitchen, bar}, OD-WAY-42) rather than everything landing on one branch —
 --     each item has a home stream in the maps below.
 --   * An intra-branch transfer has NO ERP counterpart (endpoint 'noop', FR-053
@@ -83,7 +83,7 @@ delete from ops.kitchen_batch_seq where org_id = '10000000-0000-0000-0000-000000
 
 -- ── 1. Plans — today-13 .. today+13 (feeds the lead Editor @ today AND the member
 --       14-day forward horizon). ~22 produced dishes/day with day-to-day drift + a
---       few gaps, spread across the six-stream catalog, plus standing transfer
+--       few gaps, spread across the enumerable stream catalog, plus standing transfer
 --       plans on the Rumah Rames kitchen anchors. ───────────────────────────────
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)

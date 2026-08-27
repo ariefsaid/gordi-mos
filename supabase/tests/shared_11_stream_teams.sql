@@ -10,7 +10,7 @@
 --
 -- The stream is realised ON the Team (FR-004): shared.teams grows a nullable branch link plus
 -- activity, both set = a stream team. There is no stream table and no person<->stream assignment —
--- the six seeded stream Teams ARE the enumerable catalog (FR-005, OD-WAY-42). Roastery is a branch,
+-- the seeded stream Teams ARE the enumerable catalog — SEVEN since OD-WAY-79 (FR-005, OD-WAY-42). Roastery is a branch,
 -- never a stream: it books to its own company and has no production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -72,7 +72,7 @@ select throws_ok($$
             where org_id = '10000000-0000-0000-0000-000000000001' and code = 'rumah_rames'),
           'bar')
   $$, '23505', null,
-  'a second live team for the same (branch, activity) is refused — the six-team catalog cannot silently grow a seventh (AC-012a''s "exactly")');
+  'a second live team for the same (branch, activity) is refused — the catalog cannot silently grow a DUPLICATE pair. Its size is ruled (seven, OD-WAY-79) and changes only by ruling; its shape — one team per pair — is not negotiable');
 
 -- The composite FK is the cross-org proof: another org's branch id is simply not a row under
 -- (org E, id) and the reference fails as a foreign key — declaratively, with no guard involved.
@@ -156,7 +156,7 @@ select is(
   (select count(*)::int from shared.teams t
     where t.branch_id is not null and t.archived_at is null),
   13,
-  'twelve live stream teams now exist ACROSS orgs — which is what makes the member-enumeration test below prove org scoping rather than pass vacuously');
+  'thirteen live stream teams now exist ACROSS orgs — which is what makes the member-enumeration test below prove org scoping rather than pass vacuously');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-001 — default-stream resolution from the live primary membership

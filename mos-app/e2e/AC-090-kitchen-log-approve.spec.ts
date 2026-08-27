@@ -128,7 +128,7 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     ).toBeVisible({ timeout: 15_000 })
 
     // STALE fixture + real journey step (not just a locator fix): v4 scoped capture to an explicit
-    // (branch, activity) production stream (OD-WAY-28, CONTEXT.md's six-stream model). The default
+    // (branch, activity) production stream (OD-WAY-28, CONTEXT.md's stream model). The default
     // resolves from the viewer's live primary Team — and per fixtures/users.ts, "every dev
     // persona's primary Team is org structure, not a (branch, activity)", so VIEWER (Cahya) opens
     // on the explicit "Choose stream…" state (FR-001/002: a missing default is never guessed).

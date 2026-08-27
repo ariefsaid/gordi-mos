@@ -102,4 +102,21 @@ begin
 end;
 $$;
 
+-- ── Two published descriptions that now understate the catalog ───────────────────────────────
+-- These are not cosmetics. Both are served to readers by the database itself, and one of them is
+-- ASSERTED by ops_04, so the stale number was test-enforced green — the test pinned the wrong fact
+-- rather than catching it. All three review lenses found this independently; my own sweep missed it.
+comment on column ops.kitchen_logs.activity is
+  'Activity half of the production stream; resolves against shared.activities. Crossed with the '
+  'three FULL production branches that catalog yields six streams, plus Cikal which takes bar only '
+  '= SEVEN distinct streams today (OD-WAY-42, OD-WAY-79). Adding a catalog row multiplies across '
+  'the three full branches and leaves Cikal alone; adding a BRANCH changes the number too, which is '
+  'what this comment exists to keep honest.';
+
+comment on function shared.seed_stream_teams() is
+  'Seeds the live stream Teams: the three FULL production branches crossed with every '
+  'shared.activities row, PLUS Cikal with bar only (OD-WAY-79). A union of two rules, never a wider '
+  'cross product — a new activity reaches the three and not Cikal. Roastery is a branch with no '
+  'stream at all (OD-WAY-42). Not an app RPC: no EXECUTE for anon or authenticated.';
+
 select shared.seed_stream_teams();

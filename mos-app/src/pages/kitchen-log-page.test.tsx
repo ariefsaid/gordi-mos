@@ -3,7 +3,7 @@
 // empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
 // BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3);
 // #233 stream context: AC-002 (default from shared.default_stream(), switchable),
-// FR-002 (no default → explicit choice), FR-005 (six streams only), AC-004 (no
+// FR-002 (no default → explicit choice), FR-005 (the enumerable catalog only), AC-004 (no
 // raw-material input), AC-006 (effective target + already-logged, stream-scoped),
 // AC-012b frontend half (rows carry the SELECTED stream pair).
 
@@ -20,7 +20,7 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   // `streamCatalogFrom` is pure catalog arithmetic, not IO — the page uses it to build the
-  // six-stream picker out of the loaded pairs, so the real one is kept and only the reads
+  // stream picker out of the loaded pairs, so the real one is kept and only the reads
   // are mocked.
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>(
     '@/lib/db/kitchen-logs',
@@ -90,7 +90,7 @@ const BRANCH_ROASTERY: BranchOption = {
   id: '30000000-0000-0000-0000-0000000000b4', code: 'roastery', name: 'Roastery',
 }
 const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTERY, BRANCH_RUMAH_RAMES]
-// The six-stream catalog (FR-005): the live stream Teams' pairs — roastery has none.
+// The enumerable stream catalog (FR-005): the live stream Teams' pairs — roastery has none.
 const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
   b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
 )
@@ -1339,9 +1339,9 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// #233 — capture surface with stream context, all six streams (bar-capture spec).
+// #233 — capture surface with stream context, all streams (bar-capture spec).
 // AC-002 (default pre-selected + switchable), FR-002 (no default → explicit choice),
-// FR-005 (six streams, roastery never one), AC-004 (no raw-material input),
+// FR-005 (the catalog's streams, roastery never one), AC-004 (no raw-material input),
 // AC-006 (plan-as-placeholder + effective target + already-logged + note-on-blur,
 // stream-scoped), AC-012b frontend half (the submitted rows carry the SELECTED pair).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1464,7 +1464,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   })
 })
 
-describe('FR-005: the picker offers exactly the six-stream catalog — the roastery is never a stream', () => {
+describe('FR-005: the picker offers exactly the enumerable stream catalog — the roastery is never a stream', () => {
   it('lists all six {branch × activity} streams and no roastery option', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))

@@ -177,8 +177,8 @@ select ok(
   (select col_description('ops.kitchen_logs'::regclass,
             (select attnum from pg_attribute
               where attrelid = 'ops.kitchen_logs'::regclass and attname = 'activity'))
-     ~* 'six distinct'),
-  'OD-WAY-42: the activity column PUBLISHES the six-stream count — the re-issued comment reached this database, not only the source file');
+     ~* 'SEVEN distinct'),
+  'OD-WAY-42: the activity column PUBLISHES the stream count — the re-issued comment reached this database, not only the source file');
 
 select * from finish();
 rollback;

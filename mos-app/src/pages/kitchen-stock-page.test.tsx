@@ -27,7 +27,7 @@ import { useAuth } from '@/auth/use-auth'
 
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  // listStreamPairs is the six-stream catalog read (#440): the head's ONE picker offers the
+  // listStreamPairs is the enumerable stream catalog read (#440): the head's ONE picker offers the
   // enumerated streams, never a branch × activity cross-product that can name a pair which is
   // not a stream. Un-mocked it hits Supabase and every bootstrap lands in the error state.
   return { ...actual, fetchKitchenStock: vi.fn(), listStreamPairs: vi.fn() }

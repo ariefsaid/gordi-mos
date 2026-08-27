@@ -36,7 +36,7 @@ select lives_ok($$ select shared.seed_stream_teams() $$,
 select is((select count(*)::int from shared.teams
   where org_id = '10000000-0000-0000-0000-000000000001'
     and activity = 'prep' and archived_at is null), 3,
-  'the catalog Activity is seeded for every production branch');
+  'a new catalog Activity reaches the three FULL production branches — and NOT Cikal, which takes bar only (OD-WAY-79). Three, not four: that is the union rule, not a wider cross product');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
 select lives_ok($$ insert into ops.stream_completeness
   (org_id, branch_id, activity, confirmed_by)
