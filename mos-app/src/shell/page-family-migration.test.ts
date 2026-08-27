@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { join, dirname, relative } from 'node:path'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
 import { routeConfig } from '@/router'
 import { collectClassifiedRoutes } from './route-classification'
+import { readCompilerOptions, valueImportClosure } from './value-import-closure'
 
 const SRC = join(__dirname, '..')
+const TSCONFIG = join(SRC, '..', 'tsconfig.app.json')
 
 /**
  * Pages that render the frame but are reached through a parent's route rather than one of their
@@ -40,48 +42,8 @@ const COMMENTS_THIS_CASE_ANCHORS = [
   'pages/follow-ups-page.test.tsx — the comment inside AC-520',
 ]
 
-/**
- * Every module reachable from `entry` through imports, transitively: `@/…` and relative specifiers
- * in `import`, `export … from`, and dynamic `import()` alike. Comments are stripped first, so
- * prose that merely NAMES a module is not an edge.
- *
- * Returns module → the module that imported it (empty string for the entry), so a hit can be
- * printed as the chain that produced it.
- */
-function importClosure(entry: string): Map<string, string> {
-  const SPECIFIER = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g
-  const resolve = (spec: string, importer: string): string | null => {
-    let base: string
-    if (spec.startsWith('@/')) base = join(SRC, spec.slice(2))
-    else if (spec.startsWith('.')) base = join(dirname(importer), spec)
-    else return null // a package, not our source
-    const candidates = [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')]
-    return candidates.find((c) => existsSync(c) && statSync(c).isFile()) ?? null
-  }
-
-  const first = join(SRC, entry)
-  const importedBy = new Map<string, string | null>([[first, null]])
-  const queue = [first]
-  while (queue.length > 0) {
-    const file = queue.shift() as string
-    if (!/\.tsx?$/.test(file)) continue // .css and friends import nothing we resolve
-    const code = readFileSync(file, 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, ' ')
-      .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
-    for (const [, spec] of code.matchAll(SPECIFIER)) {
-      const target = resolve(spec, file)
-      if (target === null || importedBy.has(target)) continue
-      importedBy.set(target, file)
-      queue.push(target)
-    }
-  }
-  return new Map(
-    [...importedBy].map(([file, importer]) => [
-      relative(SRC, file),
-      importer === null ? '' : relative(SRC, importer),
-    ]),
-  )
-}
+/** The page whose divergence from the Tasks door the marker below watches. */
+const MONEY_DOOR = 'pages/follow-ups-page.tsx'
 
 // This registry started empty on `dev` (no page rendered `PageFamilyFrame` yet) and every existing
 // `context-row.test.tsx` case exercises it through a MOCK, never the real export — so before this
@@ -171,17 +133,45 @@ describe('issue 270 — the registry describes the pages that really render the 
     // useFollowUpRecordOpener, and this page reaches none of them — so when SHOW_FOLLOWUPS lights
     // the two doors will render the same record type through two unrelated implementations.
     //
-    // IF THIS FAILS, THAT IS THE CUTOVER (#428), NOT A BREAKAGE. The failure message says so and
-    // says what to delete. Deliberate edit, not silent drift — the same contract as the frame
-    // exclusion above.
+    // WHAT A RED HERE MEANS — and the limit of it. This case reads the import graph; it renders
+    // nothing and can therefore never observe a render. A red says the page has GAINED a runtime
+    // import edge into the shared queue. That is the shape a cutover takes, and it is the earliest
+    // honest moment to send someone to look — but it is not by itself proof the cutover happened,
+    // and the failure message is written not to claim that it is. Deliberate edit, not silent
+    // drift — the same contract as the frame exclusion above.
     //
-    // WHY THE MODULE GRAPH AND NOT A GREP. The first version of this marker read this ONE file for
-    // the three literal names. Review dodged it in the most natural spelling of all: the page
-    // rendered <FollowUpQueueEmbed/>, which composes all three — a complete cutover with none of
-    // the three names in the file, and the marker stayed green. A grep pins how a cutover is
-    // SPELLED; the reachable set pins whether it HAPPENED. Rendering the embed, a barrel that
-    // re-exports under other names, an aliased import, a dynamic import, and moving the
-    // composition into a child component the page renders all land the trio in this closure.
+    // WHY THE MODULE GRAPH AND NOT A GREP, AND WHY TYPESCRIPT'S OWN RESOLVER AND NOT A REGEX.
+    // Three versions of this marker have now been defeated, each by a spelling its author had not
+    // thought to enumerate:
+    //   v1 read this ONE file for the three literal names — dodged by rendering
+    //      <FollowUpQueueEmbed/>, which composes all three: a complete cutover with none of the
+    //      three names in the file.
+    //   v2 walked the module graph with a hand-rolled specifier regex — dodged three separate
+    //      ways: a template-literal dynamic import (the regex wanted quotes), `import x =
+    //      require(…)` (not parsed at all), and a `paths` alias other than `@/` (thrown away).
+    // Enumerating syntaxes lost every time, so this version stops enumerating. `valueImportClosure`
+    // reads the file with TypeScript's own parser and resolves every specifier with
+    // `ts.resolveModuleName` against tsconfig.app.json's real options. Any import form the compiler
+    // understands, and any alias the project configures, is covered because the compiler covers it
+    // — nobody has to add a pattern. And what it CANNOT read (a dynamic import with a computed
+    // argument, a specifier that resolves nowhere) it reports, so the marker fails loud instead of
+    // going quietly green over a graph it never actually read. Every one of those forms is pinned
+    // by fixture in value-import-closure.test.ts, including the three that beat v2.
+    //
+    // TYPE-ONLY EDGES DO NOT COUNT. `import type` erases at emit and renders nothing, so treating
+    // one as a cutover would be a lie the compiler can disprove. Live case, not hypothetical:
+    // follow-up-queue-table.tsx imports use-follow-up-queue type-only, so a page that value-imports
+    // only the table reaches the table and NOT the hook — which is the truth.
+    //
+    // A VALUE IMPORT THAT IS NEVER RENDERED STILL COUNTS, deliberately. It is weaker evidence than
+    // a rendered component, and the message below is written so that it is still TRUE in that
+    // state — it reports an edge and asks the reader to look, rather than announcing a cutover.
+    // Excluding it was considered and rejected twice over: tsconfig.app.json sets
+    // `noUnusedLocals`, so a dead named binding cannot pass typecheck anyway, and the form that
+    // does survive — a bare side-effect `import '…'` — genuinely executes the module. Meanwhile
+    // "is it used?" is a whole-program question whose wrong answer would open a NEW silent-green
+    // hole. A false red here costs one look at one file; a false green is the entire reason this
+    // marker exists.
     //
     // Why not lean on consistency.regression.test.tsx RI-IXD-8, which was proposed instead:
     // checked by mutation, the cutover does turn it red — but the SAME cutover with one residual
@@ -199,28 +189,60 @@ describe('issue 270 — the registry describes the pages that really render the 
         `the shared queue itself is gone, delete the case and the comments it anchors).`,
     ).toEqual([])
 
-    const importedBy = importClosure('pages/follow-ups-page.tsx')
-    const reached = SHARED_FOLLOW_UP_QUEUE.filter((mod) => importedBy.has(mod))
+    const { importedBy, blindSpots } = valueImportClosure(
+      join(SRC, MONEY_DOOR),
+      readCompilerOptions(TSCONFIG),
+    )
+
+    // FAIL LOUD BEFORE CONCLUDING ANYTHING. An import this walk could not follow is precisely
+    // where a cutover would hide, so an incomplete graph must never be reported as "nothing
+    // found". This red says the marker went blind, not that anything changed.
+    expect(
+      blindSpots.map((spot) => `${relative(SRC, spot.file)}: ${spot.detail}`),
+      `THE #428 MARKER HAS GONE BLIND — it could not read part of the module graph below ` +
+        `${MONEY_DOOR}, so it cannot honestly say whether the cutover has happened.\n\n` +
+        `This is NOT a report about the divergence either way. Restore the marker's sight: make ` +
+        `the specifier statically readable (a literal, not a computed one), or make it resolve ` +
+        `(add the mapping to tsconfig.app.json's \`paths\`), or — if it is a bundler asset the ` +
+        `compiler will never place — add its extension to BUNDLER_ASSET in ` +
+        `shell/value-import-closure.ts. Never silence this by narrowing what the walk looks at.`,
+    ).toEqual([])
+
+    const reached = SHARED_FOLLOW_UP_QUEUE.filter((mod) => importedBy.has(join(SRC, mod)))
     const chains = reached.map((mod) => {
-      const chain = [mod]
-      for (let at = importedBy.get(mod); at; at = importedBy.get(at)) chain.unshift(at)
+      const chain: string[] = []
+      for (let at: string | null | undefined = join(SRC, mod); at; at = importedBy.get(at)) {
+        chain.unshift(relative(SRC, at))
+      }
       return `      ${chain.join('\n        → ')}`
     })
     expect(
       reached,
-      `ISSUE 428 IS LANDING — this red is the marker retiring, not something you broke.\n\n` +
-        `pages/follow-ups-page.tsx now reaches the shared follow-up queue, by this path:\n` +
-        `${chains.join('\n')}\n\n` +
-        `So the Money door no longer diverges from the Tasks door the way these comments say it ` +
-        `does. Re-read every one of them and delete or narrow what has stopped being true:\n      ` +
-        `${COMMENTS_THIS_CASE_ANCHORS.join('\n      ')}\n\n` +
-        `Then delete THIS case — once all three modules are reached there is no divergence left ` +
-        `for it to mark. If only some are (a partial cutover), narrow the list it checks to what ` +
-        `still diverges. Revisit the /money/follow-ups row in DEFERRED_PAGE_ROUTES below and the ` +
-        `frame exclusion above at the same time.\n\n` +
-        `The one reading that is NOT a cutover: an unrelated module in the chain above picked the ` +
-        `import up by accident. Then the two doors still diverge, the comments still hold, and ` +
-        `the fix is to cut that edge — never to weaken this case.`,
+      // EVERY SENTENCE HERE MUST BE TRUE OF EVERY STATE THAT CAN PRODUCE THIS RED. What the walk
+      // established is a runtime import edge — nothing more. It did not observe a render, so it
+      // does not claim one, and it does not claim the divergence is over. Saying either on this
+      // evidence would hand the #428 implementer a conclusion the marker never checked.
+      `THE #428 MARKER JUST WENT RED. Read what it actually found before you change anything.\n\n` +
+        `WHAT IT OBSERVED, and all it observed: ${MONEY_DOOR} now reaches ${reached.length} of ` +
+        `the ${SHARED_FOLLOW_UP_QUEUE.length} shared follow-up-queue modules through runtime ` +
+        `(non-type-only) imports, by this path:\n${chains.join('\n')}\n\n` +
+        `WHAT THAT DOES NOT ESTABLISH: that the page RENDERS the shared queue, or that the Money ` +
+        `door has stopped diverging from the Tasks door. A reachable import is not a rendered ` +
+        `component. This marker reads the import graph; it has never rendered anything.\n\n` +
+        `SO GO READ ${MONEY_DOOR}, then take exactly one of these two branches:\n\n` +
+        `  (a) IT NOW RENDERS THE SHARED QUEUE — the cutover landed and this red is the marker ` +
+        `retiring, not something you broke. Re-read every comment below and delete or narrow ` +
+        `whatever has stopped being true:\n      ` +
+        `${COMMENTS_THIS_CASE_ANCHORS.join('\n      ')}\n` +
+        `      Then delete THIS case, and revisit the /money/follow-ups row in ` +
+        `DEFERRED_PAGE_ROUTES below and the frame exclusion above at the same time. If only some ` +
+        `of the modules are reached because the cutover is partial, narrow the list this case ` +
+        `checks to what still diverges rather than deleting it.\n\n` +
+        `  (b) IT STILL RENDERS ITS OWN BESPOKE TABLE — then the two doors still diverge, every ` +
+        `comment above still holds, and the edge printed above is incidental: something in that ` +
+        `chain picked the import up for an unrelated reason, or the import was added and is not ` +
+        `rendering anything yet. The fix is to cut that edge, or to finish the cutover. Never to ` +
+        `weaken this case.`,
     ).toEqual([])
   })
 
