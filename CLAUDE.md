@@ -85,14 +85,11 @@ the next review round has to check. A count in prose is a fact you then own on e
 re-issue it everywhere it appears, or don't write it. (Database comments DO carry counts — a schema
 reader has no other source — which is why they are pinned by tests rather than banned.)
 
-`scripts/claim-check.sh` gates the one shape a machine can decide: **incident language beside a
-date**, refused in a commit message (commit-msg), in staged lines (pre-commit), and in the whole
-branch diff (pre-pr-verify + CI). This repo is PUBLIC and a date beside a cause is a lookup
-instruction. It does NOT judge merged commit messages — nobody can edit those without a force-push.
+**This repo is PUBLIC.** Never write a date beside a cause — "X was published on <date>" tells a
+reader which push to look up. State the rule, never the history; history goes to `docs/`.
 
-A ban on counting your own evidence was tried and cut: it refused true sentences at a rate that
-would have taught `--no-verify`, and the arm worth keeping would have gone with it. Counts are your
-job, not the hook's.
+A hook to enforce this was built and reverted: it blocked true sentences, and a guard that refuses
+honest work teaches `--no-verify`, which disables the guards that matter. This one is on you.
 
 ## Bar to merge
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
