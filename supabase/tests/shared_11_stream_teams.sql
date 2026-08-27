@@ -2,7 +2,8 @@
 --
 -- OWNS: AC-001  — a person's live primary Team membership resolves their default capture stream;
 --                 a person with no stream-linked primary Team resolves to none.
---       AC-012a — exactly six stream Teams are seeded — {GHQ, RRS, Radiant} x {kitchen, bar} —
+--       AC-012a — the stream Team catalog is enumerable and complete: {GHQ, RRS, Radiant} x
+--                 {kitchen, bar} plus Cikal x bar = SEVEN (amended 2026-08-27; see below) —
 --                 and none references the roastery branch.
 --       OD-WAY-49's default-not-wall: the stream appears in NO RLS predicate anywhere. The Team
 --                 default is an affordance, never authorization.
@@ -91,13 +92,19 @@ select throws_ok($$
   $$, '23503', null,
   'a team cannot point its stream at ANOTHER org''s branch — the composite FK holds the tenancy seam declaratively');
 
--- ── AC-012a: the seed — six stream teams, the expected pairs, roastery never among them ──────
+-- ── AC-012a: the seed — the expected pairs, roastery never among them ───────────────────────
+-- The count moved from six to SEVEN on 2026-08-27: the owner added Cikal as a branch with a BAR
+-- stream and no kitchen. "Exactly six" was never a claim that six is the permanent size — it was a
+-- claim that the catalog is ENUMERABLE and complete, so a capture surface can list the streams
+-- rather than guess. Seven satisfies that property; a stream nobody declared would not.
+-- The grid is deliberately asymmetric now, and this is the SECOND such fact here: roastery is a
+-- branch with no stream at all. Do not "complete" either one.
 select is(
   (select count(*)::int from shared.teams t
     where t.org_id = '10000000-0000-0000-0000-000000000001'
       and t.branch_id is not null and t.archived_at is null),
-  6,
-  'AC-012a: exactly SIX stream teams are seeded for the dev org (FR-005, OD-WAY-42)');
+  7,
+  'AC-012a: exactly SEVEN stream teams are seeded for the dev org — the six-grid plus Cikal bar (FR-005, OD-WAY-42, amended 2026-08-27)');
 
 select set_eq($$
   select b.code, t.activity
@@ -108,9 +115,10 @@ select set_eq($$
   $$, $$ values
     ('gordi_hq','kitchen'), ('gordi_hq','bar'),
     ('rumah_rames','kitchen'), ('rumah_rames','bar'),
-    ('radiant','kitchen'), ('radiant','bar')
+    ('radiant','kitchen'), ('radiant','bar'),
+    ('cikal','bar')
   $$,
-  'AC-012a: the six are {GHQ, RRS, Radiant} x {kitchen, bar} — asserted as a set, so a pair silently added or dropped fails here');
+  'AC-012a: the seven are {GHQ, RRS, Radiant} x {kitchen, bar} plus Cikal bar — asserted as a SET, so a pair silently added or dropped fails here, and a cikal/kitchen nobody asked for fails too');
 
 select is(
   (select count(*)::int from shared.teams t
@@ -142,12 +150,12 @@ select is(
     where t.org_id = '00000000-0000-0000-0000-0000000000f1'
       and t.branch_id is not null and t.archived_at is null),
   6,
-  'AC-012a: a second seed-shaped org gets its OWN six stream teams — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
+  'AC-012a: a second seed-shaped org gets its OWN six stream teams — SIX not seven, because org G has no Cikal branch, so the seeder expects no Cikal pair for it — and its roastery branch is skipped identically (the roastery-zero assertion above spans all orgs)');
 
 select is(
   (select count(*)::int from shared.teams t
     where t.branch_id is not null and t.archived_at is null),
-  12,
+  13,
   'twelve live stream teams now exist ACROSS orgs — which is what makes the member-enumeration test below prove org scoping rather than pass vacuously');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -215,14 +223,14 @@ select results_eq($$
   'AC-001: a live primary membership of the (RRS, bar) team resolves the default stream to (RRS, bar) — the Team IS the stream (FR-001, OD-WAY-49)');
 
 -- The member can enumerate the stream catalog: the default is an affordance and switching is free
--- (FR-003), which needs the six teams readable, not just the person''s own. Twelve live stream
--- teams exist across orgs (asserted above), so this count proves RLS org-scoping of the catalog,
--- not merely that six rows exist somewhere.
+-- (FR-003), which needs the six teams readable, not just the person''s own. Thirteen live stream
+-- teams exist across orgs (asserted above: seven here, six in org G, which has no Cikal branch),
+-- so this count proves RLS org-scoping of the catalog, not merely that some rows exist somewhere.
 select is(
   (select count(*)::int from shared.teams
     where branch_id is not null and archived_at is null),
-  6,
-  'FR-003: a member enumerates exactly their OWN org''s six stream teams — org G''s six are invisible; the switcher''s catalog is org-scoped by RLS');
+  7,
+  'FR-003: a member enumerates exactly their OWN org''s seven stream teams — org G''s six are invisible; the switcher''s catalog is org-scoped by RLS');
 
 set local request.jwt.claims =
   '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"47000000-0000-0000-0000-000000000002","access_roles":["member"]}';

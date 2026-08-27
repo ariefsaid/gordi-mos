@@ -72,6 +72,10 @@ secrets.*
 # Supabase deploy-time real-people seed — NEVER commit (public repo, OD-P1-6).
 # The .example template IS committed; the filled-in real file is not.
 supabase/seed.production.sql
+# Local-only database shaping — real roster, fixture teardown, dev logins. NEVER committed: this
+# repo is public and these name real people. They were committed once, on 2026-08-27, because this
+# pattern lived only on an unmerged sibling branch while `git add supabase` ran on another.
+supabase/seed.local-*.sql
 
 # (.claude/settings.local.json and all other .claude/* are covered by the .claude/ rule above)
 

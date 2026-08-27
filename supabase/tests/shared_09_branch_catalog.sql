@@ -12,8 +12,8 @@ select plan(12);
 select set_eq($$
   select code from shared.branches
    where org_id = '10000000-0000-0000-0000-000000000001' and archived_at is null
-$$, array['gordi_hq','rumah_rames','radiant','roastery'],
-  'the catalog is seeded with exactly the four branches in use');
+$$, array['gordi_hq','rumah_rames','radiant','roastery','cikal'],
+  'the catalog is seeded with exactly the five branches in use (Cikal added 2026-08-27)');
 
 select is(
   (select name from shared.branches
