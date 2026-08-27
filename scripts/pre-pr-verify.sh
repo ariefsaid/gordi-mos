@@ -39,15 +39,22 @@ fi
 # stale one. Either way the heavy section dies with `tsc: command not found` (exit 127) or a wall of
 # TS2307s naming packages the branch never touched — which reads as a broken toolchain or, worse,
 # as the branch's own failure. That misreading cost four false diagnoses in one session.
-# `npm ci` (not install) is what CI runs, so it also proves package.json and the lockfile agree.
-# `npm ci` writes node_modules/.package-lock.json, so a lockfile newer than it means the tree
+# `npm ci` (not install) is what CI runs, so it also proves package.json and the lockfile agree,
+# and it writes node_modules/.package-lock.json, so a lockfile newer than it means the tree
 # predates the current dependencies — the rebase case. Without that second test the guard heals
 # only the empty worktree, and a tree carrying another branch's dependencies still stamps ALL
 # GREEN over something CI would never build.
 # Outside the test lock: installing is not a test, and holding the lock through it starves the host.
-if [ ! -x mos-app/node_modules/.bin/tsc ] \
+# EVERY binary the battery reaches for, not just the first: an interrupted `npm ci` or a pruned
+# node_modules can leave any subset of .bin, and a tree with tsc but no eslint sailed past a
+# one-sentinel probe and died 127 at `npm run lint`.
+deps_missing=""
+for _b in tsc eslint stylelint vitest vite; do
+  [ -x "mos-app/node_modules/.bin/$_b" ] || deps_missing="${deps_missing}${deps_missing:+ }$_b"
+done
+if [ -n "$deps_missing" ] \
    || [ mos-app/package-lock.json -nt mos-app/node_modules/.package-lock.json ]; then
-  echo "── deps: node_modules is missing or older than package-lock.json — running npm ci first"
+  echo "── deps: ${deps_missing:+missing }${deps_missing:-node_modules is older than package-lock.json} — running npm ci first"
   (cd mos-app && npm ci --no-audit --no-fund)
 fi
 

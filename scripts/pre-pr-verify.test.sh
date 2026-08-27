@@ -85,13 +85,24 @@ printf '%s\n' "\$*" >> "$npm_log"
 case "\$1" in
   ci)
     mkdir -p node_modules/.bin
-    printf '#!/bin/sh\nexit 0\n' > node_modules/.bin/tsc
-    chmod +x node_modules/.bin/tsc
+    for b in tsc eslint stylelint vitest vite; do
+      printf '#!/bin/sh\nexit 0\n' > "node_modules/.bin/\$b"; chmod +x "node_modules/.bin/\$b"
+    done
     : > node_modules/.package-lock.json
     exit 0 ;;
   run)
-    if [ ! -x node_modules/.bin/tsc ]; then
-      echo "sh: tsc: command not found" >&2
+    # The battery reaches for a DIFFERENT binary per script: typecheck/build need tsc, lint needs
+    # eslint and stylelint, test:coverage needs vitest. Modelling only tsc restated the guard's own
+    # assumption, so a tsc-present/eslint-missing tree was unhealed AND invisible here — the guard
+    # and its model agreeing with each other is not evidence about a database of binaries.
+    case "\$2" in
+      typecheck|build) need=tsc ;;
+      lint)            need=eslint ;;
+      test:coverage)   need=vitest ;;
+      *)               need=tsc ;;
+    esac
+    if [ ! -x "node_modules/.bin/\$need" ]; then
+      echo "sh: \$need: command not found" >&2
       exit 127
     fi
     exit 0 ;;
@@ -118,9 +129,13 @@ if installed && [ -f "$STAMP" ]; then ok "installs on a fresh worktree, BEFORE t
 else bad "verify still dies on a fresh worktree instead of installing (stamp=$([ -f "$STAMP" ] && echo yes || echo no))"; fi
 
 # (b) dependencies present and current — installing again would cost minutes for nothing.
+# A CURRENT tree carries every binary the battery reaches for, not just the sentinel — planting
+# one by hand would model a half-installed tree and call it healthy.
 mkdir -p "$tmp/repo/mos-app/node_modules/.bin"
-printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/mos-app/node_modules/.bin/tsc"
-chmod +x "$tmp/repo/mos-app/node_modules/.bin/tsc"
+for b in tsc eslint stylelint vitest vite; do
+  printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/mos-app/node_modules/.bin/$b"
+  chmod +x "$tmp/repo/mos-app/node_modules/.bin/$b"
+done
 # Explicit timestamps, not two bare touches: both would land in the same second and `-nt` would be
 # false either way, so the ordering these two cases turn on would not actually be established.
 touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
@@ -146,6 +161,16 @@ touch "$tmp/repo/mos-app/node_modules/.package-lock.json"
 : > "$npm_log"; rm -f "$STAMP"; run
 if installed; then ok "installs when node_modules exists but its binaries do not"
 else bad "a half-installed node_modules is not healed — the guard is only testing the directory"; fi
+
+# (d2) HALF-INSTALLED, the OTHER half — tsc present, eslint gone, dates current. Without this the
+#      guard could probe a single sentinel and the whole suite stayed 14/14 while `npm run lint`
+#      died 127 mid-battery on a tree the guard called healthy.
+rm -f "$tmp/repo/mos-app/node_modules/.bin/eslint"
+touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
+touch "$tmp/repo/mos-app/node_modules/.package-lock.json"
+: > "$npm_log"; rm -f "$STAMP"; run
+if installed && [ -f "$STAMP" ]; then ok "installs when a binary OTHER than tsc is missing"
+else bad "a tsc-present/eslint-missing tree is unhealed — the guard probes one sentinel (stamp=$([ -f "$STAMP" ] && echo yes || echo no))"; fi
 
 # (e) the install ITSELF fails. The body claims the self-heal cannot mask a red; that path was the
 #     one the harness never exercised, in a file whose whole point is that a green must have been
