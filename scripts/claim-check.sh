@@ -53,6 +53,14 @@ check_message_text() {
 # push, the push names the objects. Moving the story to the next file over is not removing it.
 # State the RULE, never the history — history goes to docs/ (no remote) or a private advisory.
 INCIDENT_WORDS='published|leak(ed|s)?|exposed|exposure|force-push|orphan(ed)?|incident|breach|un-publish|was committed once|protection class that failed'
+# ponytail: a commit body over 20 lines is an essay. Global CLAUDE.md says apply ponytail to
+# prose; nothing enforced it, so I wrote 3000-word messages all session. Cap, not taste.
+check_length() {
+  n=$(sed '1,2d' "$1" | grep -c . )
+  [ "$n" -le 20 ] && { ok "commit body is $n lines"; return 0; }
+  note "commit body is $n lines (max 20). Say it once — the rationale belongs in docs/gotchas.md, not in every artifact."
+}
+
 check_added_lines() {
   local diff_cmd="$1" bad=''
   bad="$(eval "$diff_cmd" \
@@ -73,6 +81,7 @@ case "${1:-}" in
   --message)
     f="${2:?--message needs the message file}"
     check_message_text "$(cat "$f")"
+    check_length "$f"
     ;;
   --staged)
     check_added_lines "git diff --cached -- . ':(exclude)scripts/claim-check.sh' ':(exclude)scripts/claim-check.test.sh'"

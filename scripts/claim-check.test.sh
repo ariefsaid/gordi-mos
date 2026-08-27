@@ -80,5 +80,13 @@ setup; printf 'fix: real work\n' > m.txt; echo x >> f.txt; git add -A
 [ "$(run --message m.txt)" = 0 ] && [ "$(run --staged)" = 0 ] && ok "both modes green on a clean commit" || bad "clean commit failed a mode"
 teardown
 
+[ "$fail" -eq 0 ]
+
+# ── commit body length ───────────────────────────────────────────────────────────────────────
+setup
+printf 'test: x\n\nline\n' > m1
+bash "$GUARD" --message m1 >/dev/null 2>&1 && ok "a short body passes" || bad "a short body was refused"
+{ printf 'test: x\n\n'; for i in $(seq 25); do echo "line $i"; done; } > m2
+bash "$GUARD" --message m2 >/dev/null 2>&1 && bad "a 25-line body passed — the cap does nothing" || ok "a 25-line body is refused"
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
