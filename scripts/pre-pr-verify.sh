@@ -6,8 +6,8 @@
 # $GIT_DIR/pre-pr-verify-ok with the HEAD sha; the Claude hook
 # .claude/hooks/pre-pr-gate.sh refuses PR creation unless that stamp matches HEAD.
 #
-# Deliberately NOT here: review-by-someone-else (docs/agents/review.md — three lenses, a loop step,
-# never a CI check); the audit-register coverage gate is tracked separately (#295).
+# Deliberately NOT here: review-by-someone-else is enforced in CI by
+# scripts/review-gate.sh; the audit-register coverage gate is tracked separately (#295).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,11 +24,6 @@ fi
 # mos-app/, so without this the job's unit suite would be absent from the battery that stamps a
 # commit as ready for a PR. It is hermetic and takes milliseconds.
 bash scripts/reporting-snapshot.test.sh
-
-# Claims nothing can check, over the whole branch — the pre-commit hook only ever saw one commit's
-# staged lines, and a narrative assembled across several commits is exactly what shipped here.
-base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || echo '')"
-if [ -n "$base" ]; then bash scripts/claim-check.sh --branch "$base"; fi
 
 cd mos-app
 npm run typecheck

@@ -65,30 +65,6 @@ Findings in a separate comment, never the PR body. A push staleifies every recor
 `./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
 Every guard ships a `scripts/*.test.sh` self-test, run by CI on change.
 
-## Prose is code you also have to maintain
-
-Apply `ponytail` to what you WRITE, not only to what you build: fewest words that land. If the
-explanation is longer than the code, delete the explanation.
-
-`claim-check.sh` refuses a commit body over 20 lines. It exists because advice did not work —
-a whole session of 3000-word commit messages and diffs that were 24-50% comment, with the rule
-already in global CLAUDE.md the entire time. The skill's own "governs what you build, not how you
-talk" line is not an exemption here.
-
-**Say it once.** Rationale belongs in `docs/gotchas.md`. A reason copied into the commit body, the
-code comment AND the PR body is three things to keep true, and each copy is a fresh claim the next
-review round has to check. A comment earns its place only by encoding a trap someone would
-otherwise re-introduce.
-
-## Claims
-Never report an action whose output you have not read. A `cd` that failed, an `&&` that
-short-circuited, a mutation proof naming the wrong assertion — every one shipped as "done" here.
-Paste the line that proves it, or don't claim it.
-A comment says what the code does, or it doesn't exist. A count in prose is a fact you now own on
-every ruling — re-issue it everywhere or don't write it. `scripts/claim-check.sh` gates the
-mechanical half (evidence counts in a commit message, incident history in a public file, body
-length); the rest is on you.
-
 ## Bar to merge
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.

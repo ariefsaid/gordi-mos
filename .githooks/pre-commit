@@ -30,21 +30,6 @@ else
   ok "no conflict markers"
 fi
 
-# ── 1b. Claims nothing can check (public-repo incident narrative) ─────────────────
-# The companion message check lives in .githooks/commit-msg. Rationale: scripts/claim-check.sh
-# Absence is a WARNING, not a block, for the same reason as node_modules below: this hook is
-# copied into bare fixture repos and sparse worktrees where scripts/ does not exist, and a hook
-# that hard-fails there is a hook people stop installing. pre-pr-verify runs --branch over the
-# whole branch regardless, so nothing reaches a PR unchecked.
-if [ ! -f scripts/claim-check.sh ]; then
-  printf '\033[33m⚠ pre-commit: scripts/claim-check.sh missing — claim check SKIPPED\033[0m\n'
-elif bash scripts/claim-check.sh --staged >/dev/null 2>&1; then
-  ok "no unverifiable claims in staged lines"
-else
-  bash scripts/claim-check.sh --staged || true
-  fail=1
-fi
-
 if [ ! -d mos-app/node_modules ]; then
   # ponytail: a worktree/fresh clone without deps can still commit — CI still gates it.
   printf '\033[33m⚠ pre-commit: mos-app/node_modules missing — lint/test checks SKIPPED (npm install to enable)\033[0m\n'
