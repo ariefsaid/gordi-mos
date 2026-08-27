@@ -73,6 +73,10 @@ check "global flags can't dodge the verb check" 1 no --repo other/repo pr create
 check "--head to another branch refused" 1 no pr create --head other-branch --title t --body "clean"
 check "concatenated -Rother/repo refused" 1 no pr create -Rother/repo --title t --body "clean"
 check "concatenated -Hother refused" 1 no pr create -Hother --title t --body "clean"
+check "alias 'pr new' refused (allowlist)" 1 no pr new --title t --body "clean"
+echo "contains secretword" > "$tmp/repo/notes.md"
+check "release create refused (allowlist)" 1 no release create v1 -F "$tmp/repo/notes.md"
+check "gist create refused (allowlist)" 1 no gist create "$tmp/repo/notes.md"
 printf 'deadbeef reviewer-x now art.md\n' > "$gitdir/independent-review-ok"
 check "review stamp for wrong sha refused" 1 no pr create --title t --body "clean"
 

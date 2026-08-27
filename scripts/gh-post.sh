@@ -27,9 +27,30 @@ main_wt="$(git worktree list --porcelain 2>/dev/null | awk '$1=="worktree"{print
 denylist="$main_wt/docs/gh-denylist.txt"
 [ -s "$denylist" ] || die "posting policy missing: $denylist — writes are fail-closed without it"
 
+# ── Verb allowlist. A firewall enumerates what it PERMITS — a denylist of argv forms is a
+# bypass-hunting game with no end (rounds 1–3 of the gate review each found a new one: global
+# flags, =-forms, `pr new`, `release -F`). Only the writes this repo actually performs pass;
+# anything else — aliases included — is refused until deliberately added here.
+verb1="" verb2=""
+skip=0
+for a in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    -R|--repo|--hostname) skip=1; continue ;;   # value-taking global flags: skip flag + value
+    -*) continue ;;
+  esac
+  if [ -z "$verb1" ]; then verb1="$a"; elif [ -z "$verb2" ]; then verb2="$a"; break; fi
+done
+case "$verb1 $verb2" in
+  "issue create"|"issue comment"|"issue edit"|"issue close"|"issue reopen") ;;
+  "pr create"|"pr comment"|"pr edit"|"pr close"|"pr reopen"|"pr review") ;;
+  "api "*) ;;
+  *) die "'$verb1 $verb2' is not in the allowlist — this door permits the writes the repo actually uses (issue/pr create·comment·edit·close·reopen·review, api). Canonical verbs only, no aliases. Extend scripts/gh-post.sh deliberately if this write is legitimate." ;;
+esac
+
 # ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
-# (--body-file / --input / -F key=@file). Stdin payloads ('-') are refused outright — text the
-# scanner can't see is text that doesn't leave.
+# (--body-file / --input / -F key=@file, in space or equals form). Stdin payloads ('-') are
+# refused outright — text the scanner can't see is text that doesn't leave.
 texts=("$@")
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
@@ -61,19 +82,8 @@ while IFS= read -r pat; do
   done
 done < "$denylist"
 
-# ── PR creation: both stamps must certify the exact HEAD being PRed. The verb is found by the
-# first two non-flag argv entries, so global flags (`gh --repo x/y pr create`) can't dodge it —
-# and a pr create may only target THIS checkout: the stamps certify HEAD here, nothing else.
-verb1="" verb2=""
-skip=0
-for a in "$@"; do
-  if [ "$skip" = 1 ]; then skip=0; continue; fi
-  case "$a" in
-    -R|--repo|--hostname) skip=1; continue ;;   # value-taking global flags: skip flag + value
-    -*) continue ;;
-  esac
-  if [ -z "$verb1" ]; then verb1="$a"; elif [ -z "$verb2" ]; then verb2="$a"; break; fi
-done
+# ── PR creation: both stamps must certify the exact HEAD being PRed — and a pr create may only
+# target THIS checkout: the stamps certify HEAD here, nothing else.
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
     case "$a" in
