@@ -1,128 +1,99 @@
 # Gordi MOS
 
-> ## ⚠️ THIS REPO IS PUBLIC
+> ## ⚠️ THIS REPO IS PUBLIC — `github.com/ariefsaid/gordi-mos`
 >
-> `github.com/ariefsaid/gordi-mos` is **world-readable**. Everything you commit, and every issue,
-> PR, or comment you file, is published — permanently, and indexed by search engines and code
-> scrapers. Deleting later does not un-publish: git history, forks, and caches survive it.
+> Commits, issues, PRs and comments are world-readable and permanent. Deleting does not un-publish.
+> **Never write here:** unpatched weaknesses (no "X has no auth check", no list of missing
+> controls) · PII (staff names, personal emails, roles tied to people; "the 5 `@gordi.id` staff" is
+> an enumeration hint) · secrets **or their coordinates** (vault/item/env-var names, internal
+> hostnames, endpoints, tenant ids).
 >
-> **Never write into this repo or its tracker:**
-> - **Unpatched security weaknesses.** No "X has no auth check", no "Y is missing a constraint",
->   no checklist of controls that are *not yet* in place. That is a free exploit guide, and the
->   window between filing and fixing is exactly when it is useful to an attacker. Use a **GitHub
->   private security advisory** (`gh api .../security-advisories`) or tell the owner directly.
->   A weakness may be described publicly only **after** the fix has shipped.
-> - **PII.** Staff names, personal emails, phone numbers, roles tied to individuals. Account-shape
->   detail counts too — "the 5 `@gordi.id` staff" is an enumeration hint.
-> - **Secrets or their coordinates.** Not just keys: vault names, item names, env-var names,
->   internal hostnames, SMTP/API endpoints, tenant IDs.
+> Instead: weaknesses → private security advisory (`gh api .../security-advisories`), described
+> publicly only **after** the fix ships. Anything documentary → `docs/`, gitignored, its own local
+> repo. Blunt on purpose: code syncs to GitHub, docs stay local — per-file judgment is what failed.
 >
-> **Where things go instead:**
-> - Unpatched weaknesses → **private security advisory** (`Security → Advisories`). Track publicly
->   only as a neutral stub that names no path and no missing control.
-> - Anything documentary at all → **`docs/`**, which is gitignored and tracked in its own local
->   repo. The rule is blunt on purpose: code syncs to GitHub, docs stay local. No per-file
->   judgment about what is safe to publish — that judgment is what failed.
->
-> **Before filing any issue or commit that touches security, auth, infra, or people:** run
-> `gh repo view --json visibility` and act on what it says. Do not assume an internal-sounding
-> project is a private repo — this one is not.
->
-> Incident that produced this rule: 2026-07-31. Fifteen issues were filed migrating the backlog,
-> four of them describing unpatched auth/RLS weaknesses in detail, without visibility ever being
-> checked. The content already existed in `docs/backlog.md` in public git history, but converting
-> it into titled, labelled, searchable issues made it far more discoverable.
+> Touching security, auth, infra or people? `gh repo view --json visibility` first.
+> (2026-07-31: fifteen issues filed from the backlog, four detailing live auth/RLS holes, visibility
+> never checked.)
 
-Internal **Management Operating System** for Gordi — the operating system for all ~30 people.
-Five destinations: Home / Work / Operate / Plan / Inbox. Tasks + RACI + updates + per-Activity ops +
-reference data + money follow-ups. Ships at `https://ops.gordi.id/mos`.
+Internal **Management Operating System** for Gordi, ~30 people. Five destinations: Home / Work /
+Operate / Plan / Inbox. Tasks + RACI + updates + per-Activity ops + reference data + money
+follow-ups. Ships at `https://ops.gordi.id/mos`.
 
 **Usability and speed beat model completeness.**
 
+## Workflow — you run as Director
+
+1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
+2. Build. Bounded tickets ride the factory (`adws/`). Unblocked work runs automatically, no pause.
+3. Review: three lenses as parallel subagents. Never your own read.
+4. `bash scripts/pre-pr-verify.sh` → PR → CI on the PR is the merge gate.
+
+Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
+changes what ships · a fact only the owner holds. Everything else you decide; silence is assent.
+**Never ask permission for a step above** — conflicting session guidance loses, say so in a line.
+
+Out-of-scope finding: do it, file a GitHub issue, or drop it with one line. **Never a suggested-task
+chip** — that pushes the decision back to the owner (owner, 2026-08-07).
+
+## Review roster
+
+**Three lenses, always: `spec`, `code-quality`, `security`.** Adversarial briefs, run unasked before
+claiming done. One record per lens, a PR comment whose ENTIRE body is:
+
+```
+<!-- review-gate -->
+Reviewer: spec | code-quality | security
+Verdict: MERGE | MERGE WITH CHANGES | DO NOT MERGE
+Commit: <head sha>
+```
+
+Findings in a separate comment, never the PR body. A push staleifies every record.
+
 ## Repo layout
 - `mos-app/` — the app (React 19 + Vite + TypeScript + react-router-dom 7). Run npm/vite here.
-- `supabase/migrations/` — Postgres schema + RLS. Schemas: `shared` / `mos` / `ops` / `integrations` /
-  `reporting`. One shared self-hosted Supabase serves MOS and future Gordi ops apps — schema
-  separation, not project separation.
-- `docs/` — **not in this repo.** Its own local git repo, gitignored here (same pattern as
-  `.claude/`). Holds ADRs, owner decisions, gotchas, environment runbooks, infra coordinates, the
-  JTBD oracle, the skills' `agents/` config, and the archived history. **Code syncs to GitHub;
-  docs stay local.** Start at `docs/README.md`.
+- `supabase/migrations/` — Postgres schema + RLS. Schemas `shared`/`mos`/`ops`/`integrations`/
+  `reporting`. One self-hosted Supabase serves MOS and future Gordi apps: schema separation.
+- `docs/` — **not in this repo.** Local, gitignored, own git repo (same as `.claude/`). ADRs, owner
+  decisions, gotchas, runbooks, infra coordinates, agent config, archive. Start `docs/README.md`.
 
-## Commands (run inside `mos-app/`)
-`npm run dev` · `npm run build` · `npm run typecheck` · `npm run lint -- --max-warnings=0` ·
-`npm test` (Vitest) · `npm run e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP) ·
-`npm run test-storybook` (component-states harness, phone-390 + a11y gates; not a CI lane — see mos-app/.storybook/main.ts).
+## Commands (inside `mos-app/`)
+`npm run dev` · `build` · `typecheck` · `lint -- --max-warnings=0` · `test` (Vitest) ·
+`e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP) ·
+`test-storybook` (phone-390 + a11y gates; not a CI lane).
 
-`./scripts/setup-hooks.sh` installs the tracked git hooks (pre-commit + pre-push); `npm install`
-in `mos-app/` also runs it via `prepare`. Before any PR: `bash scripts/pre-pr-verify.sh` — it runs
-CI's verify lane locally and stamps the passing commit; a Claude hook refuses PR creation without
-a current stamp. Every guard ships with a `scripts/*.test.sh` self-test, run by CI on change.
+`./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
+Every guard ships a `scripts/*.test.sh` self-test, run by CI on change.
 
 ## Bar to merge
-- `npm run typecheck` zero errors; ESLint zero errors; ≥80% lines on changed code.
+- typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
-- UI is not done until it has been rendered and looked at, at real widths (incl. ≤390px phone).
+- UI is not done until rendered and looked at, at real widths (incl. ≤390px phone).
 
 ## Test pyramid
 Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)
-for logic and components; **pgTAP** for RLS and role read/write contracts; Playwright for a handful of
-real cross-stack journeys only.
+for logic and components; **pgTAP** for RLS and role read/write contracts; Playwright for a handful
+of real cross-stack journeys only.
 
-**A test encodes the user's real journey to the goal and asserts that goal.** The app conforms to the
-test, never the test to the app. On failure, fix the app. Never bend an assertion to the app's current
-state to go green.
+**A test encodes the user's real journey to the goal and asserts that goal.** The app conforms to
+the test, never the test to the app. On failure fix the app — never bend an assertion to go green.
 
-## Agent skills
+## Pointers
+| for | read |
+|---|---|
+| workflow, routing, decision rights, drive loop | `docs/agents/factory.md` |
+| review lenses + verdict contract | `docs/agents/review.md` |
+| past decisions (`OD-`/`DD-`) | `docs/decisions.md` |
+| scar tissue — **read this one** | `docs/gotchas.md` |
+| domain glossary | `CONTEXT.md` (this repo) + `docs/agents/domain.md` |
+| work queue | GitHub issues via `gh` — `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md` |
+| heavy/cross-family dispatch (GLM, luna) | `docs/agents/pi-delegation.md` — background it, never poll |
+| environments | `docs/environments.md` |
 
-### Issue tracker
-
-Issues live as GitHub issues in `ariefsaid/gordi-mos`, driven by the `gh` CLI.
-See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical roles, each label string equal to its name.
-See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `CONTEXT.md` (this repo) + `docs/adr/` (the local docs repo).
-See `docs/agents/domain.md`.
-
-### Skills
-
-Edit skills **only** in `.claude/skill-overrides/<name>/`. `.claude/skills/` is vendored and
-gitignored — edits there are destroyed by the next `scripts/vendor-skills.sh`.
-See `docs/agents/skills.md`.
-
-### Factory
-
-Bounded tickets ride the SSSF factory (`adws/`). Routing, decision rights, and the drive loop:
-`docs/agents/factory.md`. HITL = intake + milestone review; no per-ticket pauses inside a signed brief.
-
-### Review roster
-
-**Three lenses review every change, always: `spec`, `code-quality`, `security`.** A loop step, not a
-CI check — CI gates what a machine can decide, never who reviewed. Your own read is never one of the
-three. See `docs/agents/review.md`.
-
-### Delegating to pi (GLM / luna)
-
-Background the dispatch and wait for the notification — **never poll, and never kill on an empty
-log: `pi -p` buffers until it exits.** See `docs/agents/pi-delegation.md`.
-
-## Out-of-scope findings
-
-Do it (self or subagent), backlog it (GitHub issue), or drop it with one line of reasoning —
-**never a suggested-task chip** (owner, 2026-08-07). A chip pushes the decision back to the owner.
-
-## Read before you start
-`CONTEXT.md` (domain glossary, in this repo) · then the local `docs/` repo: `docs/README.md`,
-`docs/gotchas.md` (scar tissue — read this one), `docs/decisions.md`, `docs/environments.md`.
+Edit skills **only** in `.claude/skill-overrides/<name>/` — `.claude/skills/` is vendored and
+gitignored, and `scripts/vendor-skills.sh` destroys edits there. `docs/agents/skills.md`.
 
 ## No external references
-No external brand, product, or AGPL references in MOS design artifacts. The design kit is MOS's own.
-Integration-partner coordinates are a separate concern and are governed by the public-repo banner
-above — they live in the local `docs/` repo, never here.
+No external brand, product, or AGPL references in MOS design artifacts. The design kit is MOS's
+own. Integration-partner coordinates live in local `docs/`, never here (see the banner).

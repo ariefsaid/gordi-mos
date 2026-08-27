@@ -17,7 +17,8 @@ import {
  *  - `DESTINATIONS` — the 5 workspace roots (Home · Work · Signals · Money · Inbox).
  *    Used by the rail Workspace zone + the phone bottom-nav primary tabs.
  *  - `MODULES`     — 2 BU groups (Retail Ops [Café, Ecommerce], B2B Ops [Roastery]).
- *  - `UTILITY`     — 2 entries (Admin Settings [gated admin], Personal Profile).
+ *  - `UTILITY`     — 2 entries (Admin Settings [gated admin], Personal Profile). Nav
+ *    surfaces draw `navUtility()` (Admin only); Personal Profile lives in the UserChip menu.
  *
  * Work owns exactly 4 always-expanded children (Signals · Tasks · Projects &
  * Processes · Objectives) with 0 family headings (Rule 3 caps). Money is
@@ -268,6 +269,28 @@ export const UTILITY: Destination[] = [
     links: [{ path: '/profile', label: 'Personal Profile', labelKey: 'nav.profile', Icon: ProfileIcon }],
   },
 ]
+
+/**
+ * The Utility entries a NAV SURFACE draws for this viewer — Admin Settings when their roles admit
+ * it, and nothing else.
+ *
+ * Personal Profile is deliberately absent: it moved into the UserChip menu (owner, 2026-08-26),
+ * which renders on every viewport — the rail footer on desktop, the top of the More drawer on
+ * phone — so `/profile` keeps a rendered, one-click way in without spending a rail row on it.
+ *
+ * `UTILITY` itself keeps the profile entry, because it is also the RESOLUTION registry:
+ * `destinationForPath('/profile')` and the breadcrumb both read it, and dropping the row there
+ * would leave the route with no owner. Nav surfaces call this; resolution reads UTILITY.
+ *
+ * The reachability guard (`nav-reachability.test.tsx`) opens the chip menu and counts its links,
+ * so "moved into a menu" cannot quietly become "no way in" — the defect that file exists to catch.
+ *
+ * A function because it takes the viewer's roles, like every other filtered view this file exposes
+ * — `allModules`, `modulesByBU`, `visibleSections`.
+ */
+export function navUtility(accessRoles: string[]): Destination[] {
+  return UTILITY.filter((u) => u.id !== 'profile' && isLive(u, accessRoles))
+}
 
 /** All destinations across the three zones, in rail order (for resolution scans). */
 const ALL_DESTINATIONS: Destination[] = [

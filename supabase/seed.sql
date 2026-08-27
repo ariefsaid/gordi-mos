@@ -16,6 +16,58 @@
 -- frontend chain shares this local stack and a missing dev login reads as a broken app rather than
 -- a missing seed (docs/gotchas.md).
 
+-- ── Dev-only, enforced rather than assumed ──────────────────────────────────────────────────
+-- This file is FIXTURE data and it is consequential: it grants `admin`, `ops_lead`, `supervisor`,
+-- `manager` and `finance`, and writes 46 team memberships — and membership is an authorization
+-- input for the Signal read gate, the team post/start gates and kitchen-log review authority.
+-- Counted, because two rounds of review got this wrong in both directions: of the 20 inserts,
+-- 17 are `on conflict (target) do nothing`, 1 is a BARE `on conflict do nothing`, and 2 are
+-- `on conflict (target) do UPDATE`. So most of it lands quietly on the wrong database — but not
+-- all of it:
+--   * the two `do update` inserts (reporting.ingredient_cost_lines, reporting.bom_lines) OVERWRITE
+--     existing rows with fixture values, and those rows are what mos.capture_budget prices a budget
+--     from and what the certified COGS metric reads. That is the worst case here, not duplication.
+--   * the bare one is team_memberships. An untargeted `do nothing` only suppresses an ACTUAL
+--     constraint violation, and no constraint covers a duplicate non-primary row — the only index
+--     is the partial one-live-primary — so a hand re-run duplicates them. THIS FILE writes 46
+--     memberships (the count named at the top of this block); a full RESET lands 48, because
+--     seed.dev-cafe-opening and seed.dev-signals each add one the guards do not suppress; and a
+--     second hand run of this file takes that to 64 by duplicating the 16 unconstrained rows.
+--     Dev fixture, no authorization consequence: every gate asks `exists`, and a duplicate of a
+--     row that already exists widens nothing.
+--
+-- The guard asks the one question that separates dev from anything real: does this database
+-- already hold a person whose email is not `@example.test` (RFC 6761, unroutable)? `coalesce` so a
+-- real person with a NULL email trips it too.
+--
+-- TWO things make it actually stop the run, and it needs both — plus one compatibility note:
+--   * it is FIRST — ahead of the org insert, not in the middle. A guard below the rows it guards
+--     protects nothing above it, which is what the first cut did;
+--   * the file is bracketed `begin; … commit;`. A bare `raise exception` inside `do $$ … $$` does
+--     NOT stop `psql -f`: ON_ERROR_STOP is off by default, every statement is its own transaction,
+--     and psql prints the error and runs the next one. Measured, not assumed — a probe insert
+--     after the raise still landed. Inside a transaction the raise poisons it, every later
+--     statement fails "current transaction is aborted", and `commit` degrades to rollback;
+--   * and `supabase db reset` still applies the file cleanly with the bracket in place — measured,
+--     no transaction warning in its output, so the CLI does NOT appear to wrap seed files itself
+--     and this `begin`/`commit` is the only transaction rather than a redundant inner one.
+begin;
+
+do $$
+begin
+  if exists (
+    select 1 from shared.people
+     where coalesce(email, '') not like '%@example.test'
+  ) then
+    raise exception
+      'supabase/seed.sql: refusing to seed dev FIXTURES into a database that holds real people. '
+      'This file grants access roles and team memberships, which are authorization inputs. '
+      'Deployed databases take the gitignored deploy seed, never this one.'
+      using errcode = '42501';
+  end if;
+end
+$$;
+
 -- The single org (OD-P1-1).
 insert into shared.orgs (id, name, slug) values
   ('10000000-0000-0000-0000-000000000001', 'Gordi', 'gordi')
@@ -134,6 +186,224 @@ insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', 'finance')
 on conflict (person_id, access_role) do nothing;
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════
+-- ── The wider dev roster — a floor, a bar, a kitchen and a back office ───────────────────────
+-- ═════════════════════════════════════════════════════════════════════════════════════════════
+-- Owner, 2026-08-26: "update the seed users to reflect more reality." A six-person org made every
+-- people-shaped surface read as a toy — one name per team, assignee pickers with six entries, RACI
+-- with nobody to be Consulted, and `shared.team_memberships` EMPTY, so "who is on this team" had
+-- no answer at all on a fresh reset.
+--
+-- What "more reality" means here is the SHAPE, not the roster: a tiered org (leads → supervisors →
+-- floor), several people per team, and everyone actually attached to a team. The names below are
+-- fixtures and stay fixtures — see the header. They are NOT the Gordi roster, they do not encode
+-- Gordi's real headcount per team, and nothing here should be read as an enumeration of who works
+-- where. Real names, real emails and the real distribution land only via the gitignored deploy
+-- seed. This is a PUBLIC repo; that rule has no exceptions.
+
+-- ── The tiers under each lead ────────────────────────────────────────────────────────────────
+-- The role tree stopped at "one lead per unit", so there was no Jabatan for the people who
+-- actually run a shift and no manager chain below a lead to walk.
+--
+-- Called, not restated: the list lives in shared.seed_role_tiers() (20260826000002) and nowhere
+-- else. Same dual-seed reason as the branch catalog and the stream teams above — the migration
+-- seeds the orgs that exist AT MIGRATION TIME, and on a fresh `supabase db reset` the Gordi org is
+-- created by THIS file, after migrations have run. Copying the list back here is the drift that
+-- shape exists to prevent, and the applied-path check (#393) is what would catch it.
+select shared.seed_role_tiers();
+
+-- ── The rest of the fixture roster ───────────────────────────────────────────────────────────
+-- The original six (…0000–…0005) keep their ids and their alliterative fixture names — they are the
+-- demo logins (seed.dev-auth.sql) and a pile of unit fixtures reference them by name. These are
+-- their colleagues. Ids continue the same block so a fixture can still pin one deterministically.
+insert into shared.people (id, org_id, full_name, email) values
+  ('40000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Bagas Barista',    'bagas.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'Bulan Barista',    'bulan.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'Bayu Barista',     'bayu.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 'Bintang Barista',  'bintang.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Sinta Supervisor', 'sinta.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'Satria Supervisor','satria.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000000c', '10000000-0000-0000-0000-000000000001', 'Kirana Kitchen',   'kirana.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000000d', '10000000-0000-0000-0000-000000000001', 'Kemal Kitchen',    'kemal.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', 'Kartika Kitchen',  'kartika.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000000f', '10000000-0000-0000-0000-000000000001', 'Kanaya Kitchen',   'kanaya.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', 'Rio Radiant',      'rio.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', 'Ratna Radiant',    'ratna.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000001', 'Reza Radiant',     'reza.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000013', '10000000-0000-0000-0000-000000000001', 'Rani Radiant',     'rani.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Eka Ecommerce',    'eka.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'Endah Ecommerce',  'endah.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000001', 'Rangga Roaster',   'rangga.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000017', '10000000-0000-0000-0000-000000000001', 'Rosa Roaster',     'rosa.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000018', '10000000-0000-0000-0000-000000000001', 'Surya Sales',      'surya.dev@example.test'),
+  ('40000000-0000-0000-0000-000000000019', '10000000-0000-0000-0000-000000000001', 'Sekar Sales',      'sekar.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000001a', '10000000-0000-0000-0000-000000000001', 'Maya Marketing',   'maya.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000001b', '10000000-0000-0000-0000-000000000001', 'Miko Marketing',   'miko.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000001c', '10000000-0000-0000-0000-000000000001', 'Putri People',     'putri.dev@example.test'),
+  ('40000000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Farid Finance',    'farid.dev@example.test')
+on conflict (id) do nothing;
+
+-- Jabatan for the new roster. Resolved by role NAME, not id: the tier roles are created by
+-- shared.seed_role_tiers() with generated ids, so there is no literal to pin. `granted_by` stays
+-- NULL for the same honest reason as the six above (a seed connection has no acting person).
+insert into shared.person_roles (org_id, person_id, role_id)
+select '10000000-0000-0000-0000-000000000001', p.person_id::uuid, r.id
+from (values
+  ('40000000-0000-0000-0000-000000000006', 'Head Barista'),
+  ('40000000-0000-0000-0000-000000000007', 'Barista'),
+  ('40000000-0000-0000-0000-000000000008', 'Barista'),
+  ('40000000-0000-0000-0000-000000000009', 'Barista'),
+  ('40000000-0000-0000-0000-00000000000a', 'Bar Supervisor'),
+  ('40000000-0000-0000-0000-00000000000b', 'Kitchen Supervisor'),
+  ('40000000-0000-0000-0000-00000000000c', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-00000000000d', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-00000000000e', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-00000000000f', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-000000000010', 'Bar Supervisor'),
+  ('40000000-0000-0000-0000-000000000011', 'Barista'),
+  ('40000000-0000-0000-0000-000000000012', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-000000000013', 'Kitchen Staff'),
+  ('40000000-0000-0000-0000-000000000014', 'Ecommerce Lead'),
+  ('40000000-0000-0000-0000-000000000015', 'Ecommerce Associate'),
+  ('40000000-0000-0000-0000-000000000016', 'Roaster'),
+  ('40000000-0000-0000-0000-000000000017', 'Roaster'),
+  ('40000000-0000-0000-0000-000000000018', 'Account Executive'),
+  ('40000000-0000-0000-0000-000000000019', 'Account Executive'),
+  ('40000000-0000-0000-0000-00000000001a', 'Marketing Lead'),
+  ('40000000-0000-0000-0000-00000000001b', 'Marketing Lead'),
+  ('40000000-0000-0000-0000-00000000001c', 'People Lead'),
+  ('40000000-0000-0000-0000-00000000001d', 'Finance Associate')
+) as p(person_id, role_name)
+join shared.roles r
+  on r.org_id = '10000000-0000-0000-0000-000000000001' and r.name = p.role_name
+on conflict (person_id, role_id) do nothing;
+
+-- Access roles for the new roster. Deliberately NOT all `member`: the supervisor and ops_lead
+-- tiers exist in the access model and every surface gated on them (Café Review, Café Pushes, the
+-- revenue VIEW tiers) had exactly ONE dev account that could open it, which is how a role gate
+-- ships broken and nobody notices.
+insert into shared.person_access_roles (org_id, person_id, access_role)
+select '10000000-0000-0000-0000-000000000001', p.person_id::uuid, p.access_role::shared.access_role
+from (values
+  ('40000000-0000-0000-0000-000000000006', 'member'),
+  ('40000000-0000-0000-0000-000000000007', 'member'),
+  ('40000000-0000-0000-0000-000000000008', 'member'),
+  ('40000000-0000-0000-0000-000000000009', 'member'),
+  ('40000000-0000-0000-0000-00000000000a', 'supervisor'),   -- Sinta  runs the HQ bar
+  ('40000000-0000-0000-0000-00000000000b', 'supervisor'),   -- Satria runs the HQ kitchen
+  ('40000000-0000-0000-0000-00000000000c', 'member'),
+  ('40000000-0000-0000-0000-00000000000d', 'member'),
+  ('40000000-0000-0000-0000-00000000000e', 'member'),
+  ('40000000-0000-0000-0000-00000000000f', 'member'),
+  ('40000000-0000-0000-0000-000000000010', 'supervisor'),   -- Rio    runs the Radiant floor
+  ('40000000-0000-0000-0000-000000000011', 'member'),
+  ('40000000-0000-0000-0000-000000000012', 'member'),
+  ('40000000-0000-0000-0000-000000000013', 'member'),
+  ('40000000-0000-0000-0000-000000000014', 'manager'),      -- Eka    owns Ecommerce
+  ('40000000-0000-0000-0000-000000000015', 'member'),
+  ('40000000-0000-0000-0000-000000000016', 'member'),
+  ('40000000-0000-0000-0000-000000000017', 'member'),
+  ('40000000-0000-0000-0000-000000000018', 'member'),
+  ('40000000-0000-0000-0000-000000000019', 'member'),
+  ('40000000-0000-0000-0000-00000000001a', 'manager'),      -- Maya   owns Marketing
+  ('40000000-0000-0000-0000-00000000001b', 'member'),
+  ('40000000-0000-0000-0000-00000000001c', 'manager'),      -- Putri  owns People
+  ('40000000-0000-0000-0000-00000000001d', 'finance')       -- Farid  the second finance seat
+) as p(person_id, access_role)
+on conflict (person_id, access_role) do nothing;
+
+-- Cahya keeps the Café ops_lead tier the demo login depends on; it was never granted, so the one
+-- persona the Café Review and Pushes gates were designed around could not open either surface.
+insert into shared.person_access_roles (org_id, person_id, access_role) values
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'ops_lead')
+on conflict (person_id, access_role) do nothing;
+
+-- ── Team memberships — who is actually ON a team ─────────────────────────────────────────────
+-- `shared.team_memberships` was seeded by NOTHING before this. The table has existed since the
+-- squashed baseline (ADR-0050 D1) with RLS, a same-org guard and a one-live-primary index, and on
+-- a fresh `supabase db reset` it held zero rows — so every team read the same way an unseeded
+-- section does: empty, and indistinguishable from broken.
+--
+-- Teams are resolved by CODE, never by id: org teams get their ids from `shared.teams`' default
+-- and the six stream teams are created by `shared.seed_stream_teams()`, so there is no literal to
+-- hardcode. `is_primary` is the person's home team — at most one live per person, which the
+-- partial unique index enforces. For LINE STAFF that home is their STREAM team, per OD-WAY-49 and
+-- DD-WAY-41; their org-team row is the secondary one. Unit leads and back office are the other way
+-- round. The detail is on the stream block below, and shared_10's assertions enforce both halves.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select '10000000-0000-0000-0000-000000000001', m.person_id::uuid, t.id, m.is_primary
+from (values
+  -- Leadership + back office, on their unit's team.
+  ('40000000-0000-0000-0000-000000000000', 'hq_operations',      true),   -- Dewi    Managing Director
+  ('40000000-0000-0000-0000-000000000001', 'hq_operations',      true),   -- Cahya   Cafe Ops Lead
+  ('40000000-0000-0000-0000-000000000002', 'hq_operations',      true),   -- Krishna Kitchen Lead
+  ('40000000-0000-0000-0000-000000000003', 'roastery_team',      true),   -- Rama    Roastery Lead
+  ('40000000-0000-0000-0000-000000000004', 'b2b_sales_team',     true),   -- Sari    Sales Lead
+  ('40000000-0000-0000-0000-000000000005', 'finance_team',       true),   -- Fitri   Finance Lead
+  -- HQ floor.
+  ('40000000-0000-0000-0000-000000000006', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-000000000007', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-000000000008', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-000000000009', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000a', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000b', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000c', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000d', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000e', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000000f', 'hq_operations',      false),
+  -- Radiant floor.
+  ('40000000-0000-0000-0000-000000000010', 'radiant_operations', false),
+  ('40000000-0000-0000-0000-000000000011', 'radiant_operations', false),
+  ('40000000-0000-0000-0000-000000000012', 'radiant_operations', false),
+  ('40000000-0000-0000-0000-000000000013', 'radiant_operations', false),
+  -- Everyone else.
+  ('40000000-0000-0000-0000-000000000014', 'ecommerce_team',     true),
+  ('40000000-0000-0000-0000-000000000015', 'ecommerce_team',     true),
+  ('40000000-0000-0000-0000-000000000016', 'roastery_team',      true),
+  ('40000000-0000-0000-0000-000000000017', 'roastery_team',      true),
+  ('40000000-0000-0000-0000-000000000018', 'b2b_sales_team',     true),
+  ('40000000-0000-0000-0000-000000000019', 'b2b_sales_team',     true),
+  ('40000000-0000-0000-0000-00000000001a', 'marketing_team',     true),
+  ('40000000-0000-0000-0000-00000000001b', 'marketing_team',     true),
+  ('40000000-0000-0000-0000-00000000001c', 'hr_team',            true),
+  ('40000000-0000-0000-0000-00000000001d', 'finance_team',       true),
+  -- Stream teams — {branch} x {kitchen, bar}, the production lines. These are the PRIMARY rows for
+  -- everyone who works a line, and their org-team row above is the non-primary one.
+  --
+  -- That direction is OD-WAY-49's, not a preference: "the person's PRIMARY team defaults their
+  -- capture stream", and `shared.default_stream()` reads the live primary and nothing else. The
+  -- first cut of this seed had it backwards — primary = reporting line, stream = secondary — which
+  -- left all 30 seeded people resolving to NO stream, the exact state the seed exists to fix, while
+  -- the admin screen told the world "the home team sets this person's default capture stream".
+  -- Back-office people keep an org team as primary and correctly resolve to no stream.
+  --
+  -- So do the two unit LEADS (Cahya, Krishna): a lead who runs several lines is not line staff, and
+  -- seed.dev-cafe-opening.sql already says why in as many words — "a primary would re-point Cahya's
+  -- default context app-wide". Their stream rows stay secondary, which is all the gates need.
+  ('40000000-0000-0000-0000-000000000006', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000007', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000008', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-00000000000a', 'gordi_hq_bar',        true),
+  ('40000000-0000-0000-0000-000000000001', 'gordi_hq_bar',        false),   -- Cahya: LEAD, not line staff
+  ('40000000-0000-0000-0000-00000000000b', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-00000000000c', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-00000000000d', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-000000000002', 'gordi_hq_kitchen',    false),   -- Krishna: LEAD, not line staff
+  ('40000000-0000-0000-0000-00000000000e', 'rumah_rames_kitchen', true),
+  ('40000000-0000-0000-0000-00000000000f', 'rumah_rames_kitchen', true),
+  ('40000000-0000-0000-0000-000000000009', 'rumah_rames_bar',     true),
+  ('40000000-0000-0000-0000-000000000010', 'radiant_bar',         true),
+  ('40000000-0000-0000-0000-000000000011', 'radiant_bar',         true),
+  ('40000000-0000-0000-0000-000000000012', 'radiant_kitchen',     true),
+  ('40000000-0000-0000-0000-000000000013', 'radiant_kitchen',     true)
+) as m(person_id, team_code, is_primary)
+join shared.teams t
+  on t.org_id = '10000000-0000-0000-0000-000000000001'
+ and t.code = m.team_code
+ and t.archived_at is null
+on conflict do nothing;
+
 
 -- ── mos: the certified-metric registry (ADR-0022 D6) ─────────────────────────────────────────
 -- Repeated here for the same reason as the branch catalog above: the migration seeds every org that
@@ -285,3 +555,5 @@ insert into reporting.bom_lines (org_id, menu_item_esb_code, ingredient_esb_code
 on conflict (org_id, menu_item_esb_code, ingredient_esb_code) do update
   set recipe_qty = excluded.recipe_qty, qty_unit = excluded.qty_unit, as_of = excluded.as_of,
       loaded_at = excluded.loaded_at;
+
+commit;

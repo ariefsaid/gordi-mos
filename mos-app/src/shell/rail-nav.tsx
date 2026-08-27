@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { DESTINATIONS, UTILITY, isLive, modulesByBU, type Destination } from './destinations'
+import { DESTINATIONS, navUtility, isLive, modulesByBU, type Destination } from './destinations'
 import { visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
 import type { RailCounts } from '@/lib/db/rail-counts'
@@ -232,10 +232,13 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const liveDestinations = DESTINATIONS.filter((d) => isLive(d, accessRoles))
-  // Both Utility entries render as ordinary rail links now: Admin Settings (gated) and Personal
-  // Profile (security audit fix — the footer below is the identity/sign-out chip, not a /profile
-  // link, so /profile needs its own reachable rail entry to stay navigable, Rule 11).
-  const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
+  // Admin Settings (gated) is the only Utility rail link now. Personal Profile moved into the
+  // UserChip menu in the footer below (OD-WAY-77). The requirement that carried over is AC-013's —
+  // /profile keeps a RENDERED way in — not that it keeps a rail ROW; the spec line predates the
+  // ruling and the ruling supersedes it. NOT "Rule 11", which is component reuse and says nothing
+  // about /profile. `navUtility()` is the nav-surface list; `UTILITY` stays the resolution registry
+  // so the breadcrumb can still name /profile's owner.
+  const liveUtility = navUtility(accessRoles)
   // F2 fix (grouped IA spine, OD-REDESIGN-1 + DESIGN.md Navigation/Rail — "Grouped items under
   // Overline group labels"): the rail shows YOUR work, grouped by BU (Retail Ops / B2B Ops),
   // only for viewers whose job role belongs to that BU. Org-wide roles get no module group at
@@ -336,11 +339,14 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
           </div>
         ))}
 
-        {/* Utility — Admin Settings (gated) and Personal Profile. The footer below is the
-            identity/sign-out chip, not a nav link, so /profile needs its own entry here. mt-3
-            matches the group rhythm above (Destinations / BU module overlines). */}
+        {/* Utility — Admin Settings (gated). Pinned to the FOOT of the rail (owner, 2026-08-26):
+            `mt-auto` on the first row eats the nav's leftover vertical space, so Admin sits just
+            above the identity chip instead of floating directly under the last module group. The
+            nav is `flex-1 flex-col`, which is what gives `mt-auto` something to consume; on a short
+            viewport where the list already overflows there is no free space and the row simply
+            follows the modules, as it did before. */}
         {liveUtility.map((u, i) => (
-          <div key={u.id} className={`rail-item-list-item ${i === 0 ? 'mt-3' : 'mt-1'}`}>
+          <div key={u.id} className={`rail-item-list-item ${i === 0 ? 'mt-auto pt-3' : 'mt-1'}`}>
             <DestLink d={u} onNavigate={onNavigate} compact={compact} />
           </div>
         ))}
@@ -351,7 +357,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
           on shared café/kitchen terminals a stale session became invisible AND unterminable. Reuses
           the existing UserChip (Rule 11 — no new component): the 'rail' variant shows the viewer's
           full NAME + role and opens a menu with Sign out (handleSignOut is unchanged). /profile
-          itself moved to a normal Utility rail link above (see liveUtility). Compact (P1-1): the
+          is a menuitem INSIDE that menu (owner, 2026-08-26), not a rail link. Compact (P1-1): the
           chip collapses to the avatar only (UserChip's existing `compact` prop, previously only
           wired for the <920px header variant). */}
       {viewer && (

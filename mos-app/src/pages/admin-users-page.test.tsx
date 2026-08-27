@@ -20,6 +20,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   listRoles: vi.fn(),
   listRevenueScopeOptions: vi.fn(),
+  listTeams: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   removeJabatan: vi.fn(),
   synthesizeEmail: vi.fn((name: string) => `${name.toLowerCase().replace(/\s+/g, '-')}@ops.gordi.local`),
 }))
-import { listAdminPeople, listRoles, listRevenueScopeOptions } from '@/lib/db/admin-users'
+import { listAdminPeople, listRoles, listRevenueScopeOptions, listTeams } from '@/lib/db/admin-users'
 
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
@@ -41,6 +42,7 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockListAdminPeople = vi.mocked(listAdminPeople)
 const mockListRoles = vi.mocked(listRoles)
 const mockListRevenueScopeOptions = vi.mocked(listRevenueScopeOptions)
+const mockListTeams = vi.mocked(listTeams)
 
 // Admin viewer fixture
 const ADMIN_VIEWER: AuthState = {
@@ -74,6 +76,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     access_roles: ['admin'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
   {
     id: 'p-no-login',
@@ -84,6 +87,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     access_roles: ['member'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
   {
     id: 'p-disabled',
@@ -94,6 +98,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     access_roles: ['ops_lead'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
   {
     id: 'p-archived',
@@ -104,6 +109,7 @@ const PEOPLE_ALL_STATES: AdminPersonRow[] = [
     access_roles: [],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
 ]
 
@@ -114,6 +120,9 @@ beforeEach(() => {
   vi.mocked(useIsCoarsePointer).mockReturnValue(false)
   mockListRoles.mockResolvedValue([])
   mockListRevenueScopeOptions.mockResolvedValue([])
+  // The page's load() awaits every option list; an unstubbed one rejects and the whole page
+  // renders its error state, which is how adding listTeams took 24 tests red at once.
+  mockListTeams.mockResolvedValue([])
 })
 
 function renderPage() {
@@ -195,6 +204,7 @@ describe('AdminUsersPage (AC-060)', () => {
         access_roles: ['admin'],
         jabatan: [],
         revenue_scope: [],
+        teams: [],
       },
     ])
     renderPage()
@@ -339,6 +349,7 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
       access_roles: [],
       jabatan: [],
       revenue_scope: [],
+      teams: [],
     }
     mockListRoles.mockResolvedValue([{ id: 'r-kitchen', name: 'Kitchen Lead' }])
     mockListAdminPeople
@@ -360,5 +371,34 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
     await waitFor(() =>
       expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toHaveAttribute('aria-checked', 'true'),
     )
+  })
+})
+
+// The Teams section is the one part of the RoleEditor dialog nothing asserted end to end: every
+// suite stubbed listTeams to [] and RoleEditor's `teams` prop defaults to [], so deleting
+// `teams={teams}` from the page left the whole suite green.
+describe('AdminUsersPage — the Teams section is actually wired through', () => {
+  it('passes listTeams() into the role editor, so a real team renders in the dialog', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue([
+      {
+        id: 'p-1', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null,
+        login: 'active', access_roles: ['member'], jabatan: [], revenue_scope: [],
+        teams: [{ team_id: 't-bar', is_primary: true }],
+      },
+    ])
+    mockListTeams.mockResolvedValue([
+      { id: 't-bar', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
+    ])
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /More actions for Budi Santoso/i }))
+    await user.click(await screen.findByText(/Manage access & position/i))
+
+    // The team the PAGE fetched, rendered by the picker, showing its (branch, activity) pair —
+    // and marked Home, which is what resolves this person's default capture stream.
+    expect(await screen.findByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
+    expect(screen.getByText('Gordi HQ · Bar')).toBeInTheDocument()
+    expect(screen.getByText('Home')).toBeInTheDocument()
   })
 })

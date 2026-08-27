@@ -28,6 +28,7 @@ import { useToast } from '@/components/admin/use-toast'
 import {
   listAdminPeople,
   listRoles,
+  listTeams,
   listRevenueScopeOptions,
   setLoginEnabled,
   resetPassword,
@@ -35,7 +36,7 @@ import {
   restorePerson,
   createLogin,
 } from '@/lib/db/admin-users'
-import type { AdminPersonRow, RoleOption, RevenueScopeOption } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RoleOption, RevenueScopeOption, TeamOption } from '@/lib/db/admin-users.types'
 
 type LoadState = 'loading' | 'loaded' | 'error'
 
@@ -64,6 +65,7 @@ export function AdminUsersPage() {
   const [people, setPeople] = useState<AdminPersonRow[]>([])
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [scopeOptions, setScopeOptions] = useState<RevenueScopeOption[]>([])
+  const [teams, setTeams] = useState<TeamOption[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [reveal, setReveal] = useState<RevealContext | null>(null)
   // Hold only the id; derive the live row from `people` so a post-write load() refreshes the open
@@ -98,6 +100,7 @@ export function AdminUsersPage() {
       setPeople(rows)
       setRoles(await listRoles())
       setScopeOptions(await listRevenueScopeOptions())
+      setTeams(await listTeams())
       setLoadState('loaded')
     } catch {
       setLoadState('error')
@@ -308,6 +311,7 @@ export function AdminUsersPage() {
           people={people}
           roles={roles}
           scopeOptions={scopeOptions}
+          teams={teams}
           open
           onClose={() => setRoleEditorPersonId(null)}
           onDone={() => {

@@ -3,7 +3,7 @@ import type React from 'react'
 import { Link } from 'react-router-dom'
 import {
   DESTINATIONS,
-  UTILITY,
+  navUtility,
   isLive,
   modulesByBU,
   primaryModuleForViewer,
@@ -174,7 +174,9 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         .filter((i) => i.showParent || i.children.length > 0),
     }))
     .filter((g) => g.items.length > 0)
-  const liveUtility = UTILITY.filter((u) => isLive(u, accessRoles))
+  // Admin Settings only; Personal Profile is in the UserChip row at the top of this drawer
+  // (owner, 2026-08-26). See navUtility() in destinations.tsx.
+  const liveUtility = navUtility(accessRoles)
 
   return (
     <>
@@ -209,7 +211,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             disclosure chevron (Task 7 a11y — a menu-opening row needs a visible affordance cue). */}
         {viewer && (
           <div className="px-2 pt-2">
-            <UserChip variant="drawer" />
+            <UserChip variant="drawer" onNavigate={closeAndReturn} />
           </div>
         )}
 

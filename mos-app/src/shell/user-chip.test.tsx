@@ -1,6 +1,8 @@
+import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../auth/use-auth')
 vi.mock('../theme/theme-provider')
@@ -12,6 +14,17 @@ const mockUseThemeContext = vi.mocked(useThemeContext)
 
 // We import after mock to get the mocked version
 import { UserChip } from './user-chip'
+
+/**
+ * The chip's menu now carries a real <Link> to /profile (owner, 2026-08-26 — Personal Profile
+ * moved out of its Utility rail row and into this menu), so every render needs router context.
+ *
+ * A <Link> and not a button + navigate(): `nav-reachability.test.tsx` reads `a[href]` out of the
+ * DOM to prove the surface is still reachable, and a viewer gets ⌘-click and a status-bar preview.
+ */
+function renderChip(ui: ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>)
+}
 
 const baseViewer = {
   person: {
@@ -61,7 +74,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
       signOut,
     })
-    render(<UserChip />)
+    renderChip(<UserChip />)
     expect(screen.getByText('DP')).toBeInTheDocument()
     expect(screen.getByText('Dina Pratiwi')).toBeInTheDocument()
     expect(screen.getByText('Kitchen Lead')).toBeInTheDocument()
@@ -76,7 +89,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
       signOut,
     })
-    render(<UserChip />)
+    renderChip(<UserChip />)
     const name = screen.getByText('Dina Pratiwi')
     expect(name.className).toMatch(/truncate/)
     expect(name.getAttribute('title')).toBe('Dina Pratiwi')
@@ -88,7 +101,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
       signOut,
     })
-    render(<UserChip compact />)
+    renderChip(<UserChip compact />)
     expect(screen.getByRole('button', { name: /dina pratiwi/i }).className).toMatch(/tap-target-phone--icon/)
   })
 
@@ -99,7 +112,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     const chip = screen.getByRole('button', { name: /dina pratiwi/i })
     chip.focus()
     await user.keyboard('{Enter}')
@@ -114,7 +127,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     const chip = screen.getByRole('button', { name: /dina pratiwi/i })
     chip.focus()
     await user.keyboard('{Enter}')
@@ -132,7 +145,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
     expect(screen.getByRole('menu')).toBeInTheDocument()
     fireEvent.mouseDown(document.body)
@@ -146,7 +159,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
     // ALL menu items — Sign out (menuitem) AND Light/Dark/System (menuitemradio). The first
     // version queried menuitem only and congratulated a one-item loop (second-pass audit F5).
@@ -169,7 +182,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
       signOut: mockSignOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     const chip = screen.getByRole('button', { name: /dina pratiwi/i })
     chip.focus()
     await user.keyboard('{Enter}')
@@ -189,7 +202,7 @@ describe('AC-006: Role-title rule', () => {
       },
       signOut,
     })
-    render(<UserChip />)
+    renderChip(<UserChip />)
     expect(screen.getByText('Floor Lead')).toBeInTheDocument()
     expect(screen.queryByText('Kitchen Lead')).not.toBeInTheDocument()
   })
@@ -200,7 +213,7 @@ describe('AC-006: Role-title rule', () => {
       viewer: { ...baseViewer, roles: [] },
       signOut,
     })
-    render(<UserChip />)
+    renderChip(<UserChip />)
     expect(screen.getByText('Dina Pratiwi')).toBeInTheDocument()
     // No role text rendered at all
     expect(screen.queryByText(/Lead|Manager|Director/i)).not.toBeInTheDocument()
@@ -216,7 +229,7 @@ describe('AC-138: Appearance control is in the account menu above Sign out', () 
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     const chip = screen.getByRole('button', { name: /dina pratiwi/i })
     chip.focus()
     await user.keyboard('{Enter}')
@@ -238,7 +251,7 @@ describe('AC-138: Appearance control is in the account menu above Sign out', () 
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
     await user.click(screen.getByRole('menuitemradio', { name: /dark/i }))
     // Menu stays open after selecting a theme option
@@ -253,7 +266,7 @@ describe('AC-138: Appearance control is in the account menu above Sign out', () 
       signOut,
     })
     const user = userEvent.setup()
-    render(<UserChip />)
+    renderChip(<UserChip />)
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
     // Both appearance and sign out are in the menu
     expect(screen.getByRole('menuitemradio', { name: /light/i })).toBeInTheDocument()

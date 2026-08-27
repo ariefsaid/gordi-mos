@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
@@ -18,6 +19,13 @@ interface UserChipProps {
   // opens DOWNWARD (there is no space above the drawer's fixed top edge).
   /** Display variant. */
   variant?: 'header' | 'rail' | 'drawer'
+  /**
+   * Called after the menu's Personal Profile link navigates. The phone drawer passes its own
+   * `closeAndReturn` here: without it the drawer stays open on top of the profile page the viewer
+   * just asked for, which is what shipped the first time this link was rendered. Every other
+   * drawer link already routes through the same handler (`DrawerRow`'s `onNavigate`).
+   */
+  onNavigate?: () => void
 }
 
 function getInitials(fullName: string): string {
@@ -27,7 +35,7 @@ function getInitials(fullName: string): string {
   return (first + second).toUpperCase()
 }
 
-export function UserChip({ compact = false, variant = 'header' }: UserChipProps) {
+export function UserChip({ compact = false, variant = 'header', onNavigate }: UserChipProps) {
   // 'rail' and 'drawer' both render the full-width identity row (name + role); only the
   // menu's open direction differs (rail opens up, drawer opens down — see menuOpensUp below).
   const isFullWidth = variant === 'rail' || variant === 'drawer'
@@ -136,6 +144,33 @@ export function UserChip({ compact = false, variant = 'header' }: UserChipProps)
               '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
           }}
         >
+          {/* Personal Profile (owner, 2026-08-26) — moved here from its own Utility rail row. The
+              chip menu is the one identity surface that renders on EVERY viewport (rail footer on
+              desktop, top of the More drawer on phone), so /profile keeps a rendered, one-click way
+              in on all of them without spending a rail row. `nav-reachability.test.tsx` opens this
+              menu and counts its links, so the move cannot decay into "no way in".
+
+              A real <Link>, not a button + navigate(): the reachability guard reads `a[href]` out
+              of the DOM, and — the point behind that — a viewer gets middle-click, ⌘-click and a
+              status-bar preview, which a button never gives them. */}
+          <Link
+            role="menuitem"
+            to="/profile"
+            // SYS-2: same 32px desktop row as Sign out below, raised to the 44px touch floor on
+            // phone (tap-target-phone, Button.css) because the drawer variant is phone-reachable.
+            className="tap-target-phone flex w-full items-center px-3 rounded-sm hover:bg-accent text-foreground no-underline"
+            style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
+            onClick={() => {
+              close()
+              onNavigate?.()
+            }}
+          >
+            {t('nav.profile')}
+          </Link>
+
+          {/* Divider */}
+          <div className="my-[5px] border-t border-border" role="separator" aria-hidden="true" />
+
           {/* Appearance switcher */}
           <AppearanceControl />
 

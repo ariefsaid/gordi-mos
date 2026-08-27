@@ -54,6 +54,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   listRoles: vi.fn(),
   listRevenueScopeOptions: vi.fn(),
+  listTeams: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -92,7 +93,7 @@ import { listTasks } from '@/lib/db/tasks'
 import { useAuth } from '@/auth/use-auth'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
-import { listAdminPeople, listRoles, listRevenueScopeOptions } from '@/lib/db/admin-users'
+import { listAdminPeople, listRoles, listRevenueScopeOptions, listTeams } from '@/lib/db/admin-users'
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { listBomLines, listIngredientCostLines, listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
@@ -120,11 +121,11 @@ const ADMIN_VIEWER: AuthState = {
 const PEOPLE: AdminPersonRow[] = [
   {
     id: 'p-1', full_name: 'Admin Gordi', email: 'admin@example.test', archived_at: null,
-    login: 'active', access_roles: ['admin'], jabatan: [], revenue_scope: [],
+    login: 'active', access_roles: ['admin'], jabatan: [], revenue_scope: [], teams: [],
   },
   {
     id: 'p-2', full_name: 'Budi Santoso', email: 'budi@example.test', archived_at: null,
-    login: 'none', access_roles: ['member'], jabatan: [], revenue_scope: [],
+    login: 'none', access_roles: ['member'], jabatan: [], revenue_scope: [], teams: [],
   },
 ]
 
@@ -195,6 +196,7 @@ beforeEach(() => {
   vi.mocked(listAdminPeople).mockResolvedValue(PEOPLE)
   vi.mocked(listRoles).mockResolvedValue([])
   vi.mocked(listRevenueScopeOptions).mockResolvedValue([])
+  vi.mocked(listTeams).mockResolvedValue([])
   // money lane (#250): a resolved-but-empty baseline, so each test states only the shape
   // its own case needs.
   vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
