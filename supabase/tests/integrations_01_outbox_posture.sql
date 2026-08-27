@@ -39,7 +39,7 @@
 -- what the sweeps can see, and D9 states that limit in full.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(50);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -515,7 +515,7 @@ select is(
     where r.n is distinct from
           (case when c.roles && array['ops_lead','admin']::text[] then 5 else 0 end)),
   '{}'::text[],
-  'esb_push_select_ops_lead_or_admin admits a session if and only if its claimed roles include ops_lead or admin — checked over EVERY subset of the access-role vocabulary, so no COMBINATION of unadmitted roles opens it (empty = no subset read anything other than what the admitted set says)');
+  'esb_push_select_ops_lead_or_admin admits, AS A FUNCTION OF THE CLAIMED ROLE SET, exactly ops_lead and admin — every subset of the vocabulary, so no COMBINATION of unadmitted roles opens it. The role set is the only axis it varies: a widening keyed on anything else passes it');
 
 -- ...and the sweep left the session exactly as it found it. This is the enforced half of what used
 -- to be a comment promising the sweep was always the last statement before a `reset role`. The
@@ -525,6 +525,28 @@ select is(
   current_setting('request.jwt.claims', true),
   '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}',
   'the role sweep restores the caller''s claim: request.jwt.claims still holds the session that was in force before it, so no assertion after a sweep can be reading a claim the sweep left behind');
+
+-- No claim at all. Every other cell in this file sets an org_id, and reads_as() builds one for
+-- every row of both sweeps, so until this line nothing here had ever run a claimless session —
+-- on a file whose subject is the tenancy seam. Splicing `shared.current_org_id() is null or` onto
+-- the front of this policy's USING left the file 46/46 green while a claimless `authenticated`
+-- session read all TEN outbox rows, both tenants'. Measured, not predicted: with the assertion
+-- below in place that same splice prints `not ok - have: 10, want: 0`.
+set local request.jwt.claims to '';
+select is((select count(*)::int from integrations.esb_push), 0,
+  'a claimless session reads no outbox row: a null-org service exemption is not a way in');
+
+-- A NULL org is reachable two ways, and the cell above only covers one of them. A claim carrying
+-- ROLES but no org_id leaves current_org_id() null while has_access_role() answers true, so an
+-- exemption written `_claim_uuid('org_id') is null and has_access_role('ops_lead')` reads both
+-- tenants with the cell above still green — measured at 48/48 before this line existed.
+set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select is((select count(*)::int from integrations.esb_push), 0,
+  'a session claiming ops_lead but NO org reads no outbox row: the org half of the conjunction is not optional');
+-- WHAT THESE TWO DO NOT ASK is the THIRD claim. Both cells carry a person_id, as does every other
+-- cell in the file, so an exemption keyed on ITS absence — `current_person_id() is null and
+-- has_access_role('ops_lead')` — reads both tenants with the file at 50/50. Measured, not
+-- predicted. Closing that one costs a sweep over claim SHAPES, the way D8 sweeps role sets.
 
 reset role;
 
@@ -630,7 +652,7 @@ select is(
     where r.n is distinct from
           (case when c.roles && array['ops_lead','admin']::text[] then 5 else 0 end)),
   '{}'::text[],
-  'esb_push_groups_select_ops_lead_or_admin admits a session if and only if its claimed roles include ops_lead or admin — checked over EVERY subset of the access-role vocabulary, so no COMBINATION of unadmitted roles opens the approval-group table either');
+  'esb_push_groups_select_ops_lead_or_admin admits, AS A FUNCTION OF THE CLAIMED ROLE SET, exactly ops_lead and admin on the approval-group table — every subset, so no COMBINATION opens it');
 
 -- ...and this sweep put the caller's claim back too, proven the same way D8's is. The restore is
 -- what makes a sweep invisible to whatever follows it, and `order by v.role` orders the sweep's
@@ -642,6 +664,18 @@ select is(
   current_setting('request.jwt.claims', true),
   '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}',
   'the group-table role sweep restores the caller''s claim as well: request.jwt.claims still holds the session that was in force before it');
+
+-- The group table's own claimless probe, and it belongs HERE, not beside D's: the group fixture is
+-- inserted at the head of THIS section, so the same assertion placed in D reads an empty table and
+-- can only ever pass. It was placed there first, and it stayed `ok` under the very widening D's
+-- probe caught — a vacuous cell in the middle of the proof it was written to be part of.
+set local request.jwt.claims to '';
+select is((select count(*)::int from integrations.esb_push_groups), 0,
+  'a claimless session reads no approval group either: the group predicate carries its own null-org exemption or it does not');
+
+set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select is((select count(*)::int from integrations.esb_push_groups), 0,
+  'a session claiming ops_lead but NO org reads no approval group: the group predicate carries the same two-way null org, and a proof of the outbox''s says nothing about it');
 
 reset role;
 
