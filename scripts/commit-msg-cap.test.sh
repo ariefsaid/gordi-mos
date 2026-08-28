@@ -32,6 +32,13 @@ check "trailers don't count against the cap" 0 "$trailered"
 commented="fix: ok
 $(seq 1 30 | sed 's/^/# comment /')"
 check "comment lines don't count" 0 "$commented"
+generic="fix: ok
+$(seq 1 15 | sed 's/^/l /')
+Reviewed-by: someone <s@x>
+Fixes: #123
+Refs: OD-WAY-80
+$(seq 1 4 | sed 's/^/m /')"
+check "generic Token: trailers exempt" 0 "$generic"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

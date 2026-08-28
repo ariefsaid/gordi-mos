@@ -54,5 +54,21 @@ check "250 md lines warns" 0 "$r" yes
 r=$(mkrepo); commit_file "$r" notes.md "$(seq 1 50 | sed 's/^/prose /')"
 check "small md passes clean" 0 "$r" no
 
+r=$(mkrepo); commit_file "$r" b.md "$(seq 1 250 | sed 's/^/+ plus-led line /')"
+check "content starting with '+' still counted (md warn)" 0 "$r" yes
+
+r=$(mkrepo); commit_file "$r" a.ts "$(seq 1 25 | sed 's/^/\/\/ note /')"
+check "21+ comment-only diff still warns (code=0)" 0 "$r" yes
+
+r=$(mkrepo)
+if (cd "$r" && bash "$SCRIPT" no-such-ref) >/dev/null 2>&1; then
+  fail=$((fail+1)); printf '  FAIL  bad base ref must refuse, not pass silently\n'
+else pass=$((pass+1)); printf '  ok    bad base ref refuses (fail closed)\n'; fi
+
+# Wiring: the verify lane must actually invoke this guard — removing the call goes red here.
+if grep -q 'prose-budget.sh' scripts/pre-pr-verify.sh; then
+  pass=$((pass+1)); printf '  ok    pre-pr-verify invokes prose-budget\n'
+else fail=$((fail+1)); printf '  FAIL  pre-pr-verify no longer calls prose-budget.sh\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

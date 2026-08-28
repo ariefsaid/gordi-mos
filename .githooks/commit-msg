@@ -8,8 +8,10 @@
 set -uo pipefail
 
 msgfile="$1"
+# Any `Token: value` line is exempt as a git trailer (Reviewed-by:, Fixes:, …) — an over-broad
+# exemption only under-counts, and a cap may under-count; it must never miscount honest trailers.
 n="$(sed -e '1d' -e '/^#/d' -e '/^[[:space:]]*$/d' \
-      -e '/^[A-Za-z-]*[Cc]o-[Aa]uthored-[Bb]y:/d' -e '/^Signed-off-by:/d' \
+      -e '/^[A-Za-z][A-Za-z0-9-]*:[[:space:]]/d' \
       "$msgfile" | wc -l | tr -d ' ')"
 if [ "$n" -gt 20 ]; then
   printf '\033[31m✗ commit-msg: body is %s lines (max 20) — the diff is the essay. Rationale goes in docs/, once.\033[0m\n' "$n" >&2
