@@ -489,28 +489,16 @@ select is(
 -- vocabulary grows; role_combinations() states a ceiling and RAISES at it rather than letting that
 -- arrive as a silent truncation.
 --
--- WHAT REMAINS INVISIBLE, stated here rather than left to be found. These sweeps vary the CLAIMED
--- role set, and the crossed sweep also varies which of org_id/person_id the claim carries. Nothing
--- else moves, so a widening keyed on anything else reads FALSE in every cell and passes:
---   * Another CLAIM KEY. No cell sets `sub`, `role`, or any key beyond org_id/person_id/
---     access_roles. A disjunct on one is invisible — and these are not exotic keys: PostgREST puts
---     `role` in every request and GoTrue puts `sub` in every token, so `or (claims->>'role' =
---     'authenticated')` collapses the tenancy seam entirely with this file green.
---   * A role taken from the DIRECTORY rather than the claim, or a predicate naming a SUBJECT.
---     The sweeps hold the person fixed, so `or exists (select 1 from shared.person_roles ...)` is
---     seen only if that one subject holds the role, and a disjunct naming any person_id other than
---     the four personas is invisible outright.
---   * A COLUMN COMBINATION. The five rows carry every value of every enumerated column between
---     them, so a predicate scoped to ONE column IS caught — `or target_env = 'goo'` reddens the
---     role and subset sweeps. What is invisible is a predicate keyed on a combination those five
---     rows do not form, or on an unbounded column at a value they do not take.
---   * A SESSION SETTING. Nothing here varies a GUC, so `or current_setting('app.support', true) =
---     'on'` reads false in all 512 cells and passes. Reachable in practice through
---     `alter role authenticated set ...` or a pre-request hook — the "support mode" shape.
---   * ANOTHER DB ROLE. Every cell runs as `authenticated`. Section C pins each policy's COMMAND
---     but not its `polroles`, and section B asks about `authenticated` and `service_role` only, so
---     granting `anon` select and adding it to a policy's roles is invisible to all of this.
--- Each is a widening a reviewer must look for by reading the policy, because no cell here reddens.
+-- WHAT REMAINS INVISIBLE. These sweeps vary the claimed role set, and the crossed sweep also
+-- varies which of org_id/person_id the claim carries. Nothing else moves, so a predicate keyed on
+-- anything else reads false in every cell and passes. Four classes are known and enumerated in
+-- docs/reference/outbox-posture-blind-spots.md (local): another claim key, a directory-sourced
+-- role or a named subject, a session setting, another database role.
+--
+-- The detail lives there rather than here because this repo is public and a precise list of which
+-- policy edits this suite cannot see is a map of where to edit. What belongs in the file is the
+-- shape of the limit: reading rows proves what a predicate ADMITS, never how it is spelled, so a
+-- widening keyed outside the swept axes is a reviewer's job to catch by reading the policy.
 select is(
   (select coalesce(array_agg('{' || array_to_string(c.roles, '+') || '}=' || r.n
                              order by cardinality(c.roles), c.roles), '{}'::text[])
