@@ -1,9 +1,8 @@
 -- integrations, squashed baseline — the posture of the whole schema, and the fail-closed proof of
 -- its policies (the outbox row's, and the approval group's since #432).
 --
--- AC-005: RLS is enabled on every table in `integrations`. Asserted as a CATCH-ALL over the catalog
--- rather than against a list of names, so a table added by a later ticket without RLS fails THIS
--- file instead of quietly sitting outside its plan.
+-- AC-005: RLS on every `integrations` table, asserted as a CATCH-ALL over the catalog, so a table
+-- added later without RLS fails THIS file rather than sitting outside its plan.
 --
 -- Proves the `integrations` policies here, in the `integrations` suite, though ops_03 also
 -- touches esb_push: a re-authored policy is a new policy and its fail-closed proof does not carry.
@@ -14,10 +13,8 @@
 --   DirectMgr ...0d2  ops_lead. The positive subject.
 --   GrandMgr  ...0d3  admin. The second positive, because the policy names two roles and a proof of
 --                     one of them would leave the other untested.
---   ForeignMgr ...0b4 a real person of ORG B, claiming ops_lead or member as the cell requires.
---                     The other tenant's subject in every other-org cell below. She has to be a
---                     real directory row: current_org_id() resolves NULL for a person_id naming no
---                     live person, so an invented viewer would read zero for a reason that has
+--   ForeignMgr ...0b4 a real ORG B person — current_org_id() resolves NULL for a person_id naming
+--                     no live row, so an invented viewer would read zero for the wrong reason.
 --                     nothing to do with these policies.
 --
 -- The role SWEEPS in D and E hold one subject fixed (DirectMgr ...0d2, a real live org-A row) and
