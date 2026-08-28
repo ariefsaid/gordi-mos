@@ -31,8 +31,9 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 2. Build. The factory (`adws/`) is the default executor; a subagent dispatch needs a logged lane
    first — `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
 3. Review: three lenses as parallel subagents. Never your own read.
-4. A PR needs two stamps: `bash scripts/pre-pr-verify.sh` + `scripts/record-review.sh` (a
-   reviewer that didn't build it: glm/luna, opus fallback). CI on the PR is the merge gate.
+4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
+   `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
+   it: glm/luna, opus fallback). CI on the PR is the merge gate.
 5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
    posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
    stays raw (no prose leaves through a merge).

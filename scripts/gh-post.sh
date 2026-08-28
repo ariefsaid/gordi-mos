@@ -95,8 +95,11 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   head="$(git rev-parse HEAD)"
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
-  r="$(awk '{print $1}' "$gitdir/independent-review-ok" 2>/dev/null || true)"
-  [ "$r" = "$head" ] || die "no independent-review stamp for HEAD — an agent that did not write this branch must review it (glm/luna, or opus as fallback), then: bash scripts/record-review.sh --reviewer <name> --artifact <review file>"
+  # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
+  for lens in spec code-quality security; do
+    r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
+    [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
+  done
 fi
 
 exec gh "$@"
