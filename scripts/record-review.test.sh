@@ -22,7 +22,7 @@ check() { # $1 name · $2 expected rc · args…
 }
 
 # One multi-lens artifact, three tagged sections — the shape /drive step 7 produces.
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\nnone\n\n## code-quality\nReviewer: gpt-5.6-luna (code-quality)\nVerdict: MERGE WITH CHANGES\nCommit: %s\nnone\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\nnone\n' "$head" "$head" "$head" > "$tmp/repo/review.md"
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\nnone\n\n## code-quality\nReviewer: zai/glm-5.3-flash (code-quality)\nVerdict: MERGE WITH CHANGES\nCommit: %s\nnone\n\n## security\nReviewer: claude-opus-5 (security)\nVerdict: MERGE\nCommit: %s\nnone\n' "$head" "$head" "$head" > "$tmp/repo/review.md"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: DO NOT MERGE\nCommit: %s\n' "$head" "$head" > "$tmp/repo/mixed.md"
 printf '## spec\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/noreviewer.md"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nCommit: %s\nlooks fine to me\n' "$head" > "$tmp/repo/noverdict.md"
@@ -44,6 +44,9 @@ check "missing lens section refused (spec-only artifact, security requested)" 1 
 check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
 check "DNM anywhere poisons even the MERGE section" 1 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
 
+check "reviewer not named by the section refused" 1 --lens spec --reviewer zai/glm-5.3-flash --artifact review.md
+printf '## spec\nReviewer: gpt-5.6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
+check "superstring reviewer name refused (exact match)" 1 --lens spec --reviewer gpt-5.6-luna --artifact spoof.md
 check "spec lens stamps from its own section" 0 --lens spec --reviewer gpt-5.6-luna --artifact review.md
 if grep -q "^$head spec gpt-5.6-luna" "$gitdir/independent-review-spec-ok"; then
   pass=$((pass+1)); printf '  ok    spec stamp holds HEAD + lens + reviewer\n'

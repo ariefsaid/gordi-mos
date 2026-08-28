@@ -82,6 +82,16 @@ check "release create refused (allowlist)" 1 no release create v1 -F "$tmp/repo/
 check "gist create refused (allowlist)" 1 no gist create "$tmp/repo/notes.md"
 printf 'deadbeef spec reviewer-x now art.md\n' > "$gitdir/independent-review-spec-ok"
 check "one lens stamp on wrong sha refused" 1 no pr create --title t --body "clean"
+g "$tmp/repo" checkout -q main 2>/dev/null || g "$tmp/repo" checkout -qb main
+rm -f "$gitdir/pre-pr-verify-ok" "$gitdir"/independent-review-*-ok
+check "main->staging promotion passes unstamped (release carve-out)" 0 yes pr create --base staging --title t --body "clean"
+check "equals-form --base=staging promotion passes" 0 yes pr create --base=staging --title t --body "clean"
+check "duplicate base flags: LAST wins — staging then dev refused" 1 no pr create --base staging --base dev --title t --body "clean"
+check "duplicate base flags: dev then staging is the promotion" 0 yes pr create --base dev --base staging --title t --body "clean"
+check "--base staging-hotfix is NOT the carve-out" 1 no pr create --base staging-hotfix --title t --body "clean"
+check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no pr create --base dev --title staging --body "clean"
+g "$tmp/repo" checkout -qb rogue
+check "staging PR from a non-main branch still needs stamps" 1 no pr create --base staging --title t --body "clean"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -4,16 +4,16 @@
 # scans every outbound string against the posting policy, then execs `gh` with the same args.
 #
 #   scripts/gh-post.sh issue comment 42 --body "..."     # any gh write, same argv as gh itself
-#   scripts/gh-post.sh pr create --base dev --title ... # extra: requires the two PR stamps
+#   scripts/gh-post.sh pr create --base dev --title ... # extra: requires the FOUR PR stamps
 #
 # Policy patterns live OUTSIDE this public repo, in the local docs checkout
 # (docs/gh-denylist.txt of the MAIN worktree — worktrees don't materialize gitignored dirs).
 # Missing policy file = refuse (fail closed). A match = refuse, no override flag on purpose:
 # reword the text or take it to the owner. Rationale: docs/decisions.md (2026-08-27).
 #
-# PR stamps checked on `pr create`:
-#   <git-dir>/pre-pr-verify-ok        HEAD sha           (scripts/pre-pr-verify.sh)
-#   <git-dir>/independent-review-ok   "<sha> <reviewer> …" (scripts/record-review.sh)
+# PR stamps checked on `pr create` (FOUR, OD-WAY-83):
+#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh)
+#   <git-dir>/independent-review-<lens>-ok  ×3    per lens    (scripts/record-review.sh --lens …)
 #
 # Self-test: scripts/gh-post.test.sh
 set -uo pipefail
@@ -82,7 +82,7 @@ while IFS= read -r pat; do
   done
 done < "$denylist"
 
-# ── PR creation: both stamps must certify the exact HEAD being PRed — and a pr create may only
+# ── PR creation: all four stamps must certify the exact HEAD being PRed — and a pr create may only
 # target THIS checkout: the stamps certify HEAD here, nothing else.
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
@@ -93,6 +93,17 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   done
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
+  # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
+  # PR already four-stamped and the owner ratified — main's merge commit itself can never hold
+  # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
+  base_val="" prev=""
+  for a in "$@"; do
+    case "$prev" in --base) base_val="$a"; prev=""; continue ;; esac
+    case "$a" in --base) prev="$a" ;; --base=*) base_val="${a#--base=}" ;; esac
+  done
+  exec_promotion=0
+  [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && exec_promotion=1
+  if [ "$exec_promotion" = 0 ]; then
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
@@ -100,6 +111,7 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
     r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
   done
+  fi
 fi
 
 # GH_POST_DOOR marks this as the sanctioned write path for scripts/gh-shim/gh (the PATH-level

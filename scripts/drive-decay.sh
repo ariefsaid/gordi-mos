@@ -7,7 +7,13 @@
 #   DEAD-CLAIM  — open, assigned, no update in <stale-days>: the assignee claim is likely a dead
 #                 session; drive-next skips assigned tickets, so these are invisible until cleared.
 #   AGING-TRIAGE — needs-triage older than <triage-days>: /feedback filed it, nothing revisits it.
-#   FRONTIER    — one line: count of open wayfinder:grilling tickets awaiting the owner.
+#   PR-PARKED   — ready-for-agent tickets the picker is skipping because an open PR mentions
+#                 them (DD-WAY-45's over-parking counterweight: a stale forgotten PR that parks
+#                 ready work indefinitely surfaces HERE, not silently).
+#   UNTRACKED   — open issues with NO workflow-state label at all (not ready-for-*, needs-*,
+#                 wayfinder:*, wontfix): invisible to the strict picker AND to triage — /triage's
+#                 queue too (dual audit 2026-08-28 found 19 of 40 open issues in this state).
+#   FRONTIER    — one line: count of open UNBLOCKED wayfinder:grilling tickets awaiting the owner.
 #
 # DRIVE_DECAY_NOW overrides "now" (ISO8601) for the self-test. Exit 1 = query failed (≠ empty).
 # Self-test: scripts/drive-decay.test.sh
@@ -19,9 +25,16 @@ now="${DRIVE_DECAY_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 raw="$(gh api --paginate 'repos/{owner}/{repo}/issues?state=open&per_page=100' 2>/dev/null)" \
   || { echo "✗ drive-decay: gh query failed" >&2; exit 1; }
+prs="$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' 2>/dev/null)" \
+  || { echo "✗ drive-decay: gh pulls query failed" >&2; exit 1; }
+printf '%s' "$prs" | jq -e -s 'map(type == "array") | all' >/dev/null \
+  || { echo "✗ drive-decay: pulls payload is not page-arrays — refusing a partial report" >&2; exit 1; }
+pr_refs="$(printf '%s' "$prs" | jq -r -s 'add // [] | .[] | "\(.title) \(.body // "")"' \
+  | grep -oE '#[0-9]+([^[:alnum:]]|$)' | grep -oE '[0-9]+' | sort -nu \
+  | jq -R -n '[inputs | tonumber]')"
 
 printf '%s' "$raw" | jq -r -s --arg now "$now" \
-  --argjson sd "$stale_days" --argjson td "$triage_days" '
+  --argjson sd "$stale_days" --argjson td "$triage_days" --argjson prrefs "${pr_refs:-[]}" '
   def age_days(t): (($now | fromdateiso8601) - (t | fromdateiso8601)) / 86400 | floor;
   add
   | map(select(has("pull_request") | not))
@@ -31,5 +44,15 @@ printf '%s' "$raw" | jq -r -s --arg now "$now" \
     (map(select(([.labels[].name] | index("needs-triage")) and (age_days(.created_at) >= $td))
       | "AGING-TRIAGE\t#\(.number)\t\(age_days(.created_at))d old\t\(.title)")
      | .[]),
-    "FRONTIER\t\(map(select([.labels[].name] | index("wayfinder:grilling"))) | length) grilling ticket(s) awaiting the owner"
+    (map(select([.labels[].name]
+        | map(test("^(ready-for-|needs-|wayfinder:|wontfix)")) | any | not)
+      | "UNTRACKED\t#\(.number)\t\(.title)")
+     | .[]),
+    (map(select(([.labels[].name] | index("ready-for-agent"))
+        and ((.assignees | length) == 0)
+        and (.number as $n | $prrefs | index($n)))
+      | "PR-PARKED\t#\(.number)\t\(.title)")
+     | .[]),
+    "FRONTIER\t\(map(select(([.labels[].name] | index("wayfinder:grilling"))
+                       and ((.issue_dependencies_summary.blocked_by // 0) == 0))) | length) unblocked grilling ticket(s) awaiting the owner"
 '
