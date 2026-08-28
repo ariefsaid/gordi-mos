@@ -573,6 +573,9 @@ echo "── M. the statement lexer: dollar-quoted bodies, string literals, an u
 # is silently smaller than the proof claims.
 
 # M1 — a conditional drop inside a `do $$ … $$` body must NOT be selectable, which is exactly
+# (the `perform 1;` is load-bearing: without it the block is the drop and nothing else, so the
+# nothing-else guard rejects it whether or not `$$` is recognised, and deleting the bare-`$$`
+# alternative from the lexer scored 53/53. P2 carries the same line for the same reason.)
 # what the harness's own header already promises. Without dollar-quote awareness the `;` inside
 # the body ends a statement that has none: the selector reports `4-7:t_do_check`, comments the
 # opening half of the block out and leaves `end if; end $$;` orphaned, and t_do_check is an
@@ -583,6 +586,7 @@ RM1="$T/m-dollar"
 ( export MKREPO_GEN2_EXTRA="do \$\$
 begin
   if to_regclass('public.t') is not null then
+    perform 1;
     alter table t drop constraint if exists t_do_check;
   end if;
 end \$\$;"
@@ -649,6 +653,34 @@ if printf '%s' "$LAST_OUT" | grep -q "names the POLICY facts"; then
   ok "the --prove verdict asserts against POLICY, the class it actually broke"
 else
   bad "the verdict did not adapt: $(printf '%s' "$LAST_OUT" | grep -E '^  (ok|FAIL) ' | tr '\n' ' ')"
+fi
+
+# N2 — and it names ANY class that drifted, not the alphabetically first. The pick was
+# `sort -u | head -1`; with two sabotaged classes it took CONSTRAINT and asked whether CONSTRAINT
+# facts drifted. Here the ghost constraint never existed, so blanking it changes nothing, while the
+# POLICY drop is the one that moves — `head -1` reports "reported drift without naming a" and the
+# gate goes red on a correct run, immediately before a staging deploy. Two classes, one drifting:
+# the only shape that can tell the loop from the pick.
+RN2="$T/n-mixed"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN1_EXTRA="create policy t_mixed_pol on t for select using (true);"
+  export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_ghost_mixed;
+drop policy if exists t_mixed_pol on t;"
+  mkrepo "$RN2" )
+rm -rf "$T/db"; rm -rf "$T/out-n2"; mkdir -p "$T/out-n2"
+run "$RN2" "$T/out-n2" --prove; rc=$?
+N2SAB="$(tr '\n' ' ' < "$T/out-n2/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] \
+   && grep -q "^CONSTRAINT:" "$T/out-n2/red/sabotage.txt" 2>/dev/null \
+   && grep -q "^POLICY:" "$T/out-n2/red/sabotage.txt" 2>/dev/null; then
+  ok "a mixed CONSTRAINT+POLICY baseline proves, both classes sabotaged (rc=0)"
+else
+  bad "the mixed baseline did not prove both classes (rc=$rc, got: $N2SAB)"
+fi
+if printf '%s' "$LAST_OUT" | grep -q "names the POLICY facts"; then
+  ok "the verdict names the class that DRIFTED, not the alphabetically first one"
+else
+  bad "the verdict picked the wrong class: $(printf '%s' "$LAST_OUT" | grep -E '^  (ok|FAIL) ' | tr '\n' ' ')"
 fi
 
 echo "── O. two statements on one line: only the selected one is cut"
