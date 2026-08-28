@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# PATH-level GitHub write firewall for NON-Claude harnesses. The Claude hook only sees Claude's
+# own Bash calls; a pi/codex/factory shell bypasses it. Prepend this directory to PATH in every
+# dispatch and the same rule holds there: reads pass through, writes refuse with the door.
+#
+#   PATH="$(git rev-parse --show-toplevel)/scripts/gh-shim:$PATH" pi …
+#
+# gh-post.sh itself execs the real gh with GH_POST_DOOR=1 — the sanctioned write path through
+# here. That door is a plain env var ON PURPOSE: a PATH shim cannot bind an adversary at all
+# (absolute-path `gh` exists), so like every local control here it targets habit drift, never a
+# hostile operator (OD-WAY-80's accepted bound). `pr merge` stays raw (no prose in a merge).
+# Self-test: scripts/gh-shim.test.sh
+set -uo pipefail
+
+self="$(cd "$(dirname "$0")" && pwd)/gh"
+real=""
+IFS=: read -r -a dirs <<< "$PATH"
+for d in "${dirs[@]}"; do
+  [ -n "$d" ] && [ -x "$d/gh" ] && [ "$d/gh" != "$self" ] && { real="$d/gh"; break; }
+done
+[ -n "$real" ] || { echo "✗ gh-shim: no real gh on PATH" >&2; exit 127; }
+
+[ "${GH_POST_DOOR:-}" = "1" ] && exec "$real" "$@"
+
+verb1="" verb2=""
+skip=0
+for a in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    -R|--repo|--hostname) skip=1; continue ;;
+    -*) continue ;;
+  esac
+  if [ -z "$verb1" ]; then verb1="$a"; elif [ -z "$verb2" ]; then verb2="$a"; break; fi
+done
+
+deny() { echo "✗ gh-shim: '$verb1 $verb2' is not on the READ allowlist — this repo is public; writes go through scripts/gh-post.sh (same argv), which scans the posting policy. Extend the allowlist deliberately if this is a genuine read." >&2; exit 1; }
+
+# READ ALLOWLIST — a firewall enumerates what it permits (gh-post learned this over three
+# bypass rounds; a deny-table of write verbs has no end: release upload, repo archive, …).
+# `pr merge` is the one sanctioned write (no prose leaves through a merge).
+case "$verb1 $verb2" in
+  "issue view"|"issue list"|"issue status") ;;
+  "pr view"|"pr list"|"pr diff"|"pr checks"|"pr status"|"pr merge") ;;
+  "repo view"|"release view"|"release list"|"release download") ;;
+  "run view"|"run list"|"run watch"|"run download"|"workflow view"|"workflow list") ;;
+  "label list"|"gist view"|"gist list"|"search "*|"auth status"|"browse "*) ;;
+  " "|"") ;;   # bare `gh`, --version/--help forms
+  "api "*)
+    # Read-mode only: any field flag denies; any method (long, =, -X, -XPOST) must be GET.
+    m="" prev="" seen=0
+    for a in "$@"; do
+      case "$prev" in -X|--method) m="$a"; seen=1; prev=""; continue ;; esac
+      case "$a" in
+        -X|--method) prev="$a" ;;
+        -X?*) m="${a#-X}"; seen=1 ;;
+        --method=*) m="${a#--method=}"; seen=1 ;;
+        -f|-F|--field|--raw-field|--input|-f?*|-F?*|--input=*|--field=*|--raw-field=*) deny ;;
+      esac
+    done
+    # A dangling method flag is malformed even after a valid one; an empty value is not GET.
+    [ -z "$prev" ] || deny
+    if [ "$seen" = 1 ]; then
+      case "$m" in GET|get|Get) ;; *) deny ;; esac
+    fi ;;
+  *) deny ;;
+esac
+
+exec "$real" "$@"

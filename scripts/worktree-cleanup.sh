@@ -30,6 +30,20 @@ while read -r path ref; do
   br="${ref#refs/heads/}"
   [ "$path" = "$(git rev-parse --show-toplevel)" ] && continue   # never the main tree
   if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
+    # Archive factory run traces BEFORE removal — they are the milestone review's evidence and
+    # live worktree-local (factory.md says archive-first; nothing enforced it until now).
+    if [ -d "$path/adws/adw_data/sessions" ]; then
+      dest="$(git rev-parse --show-toplevel)/adws/adw_data/archive/$(basename "$path")"
+      mkdir -p "$dest"
+      # Fail closed: traces are the milestone review's evidence — a failed archive KEEPS the
+      # worktree rather than force-removing what it just failed to save.
+      if cp -R "$path/adws/adw_data/sessions" "$dest/"; then
+        echo "  traces archived: $path -> $dest"
+      else
+        echo "  ✗ trace archive FAILED for $path — keeping the worktree" >&2
+        continue
+      fi
+    fi
     echo "  worktree (merged): $path [$br] -> remove"
     git worktree remove --force "$path" 2>/dev/null || true
   fi

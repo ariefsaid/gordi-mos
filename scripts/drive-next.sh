@@ -3,16 +3,14 @@
 # the /drive skill takes line 1 and works it. No output = nothing drivable (exit 0; exit 1
 # is reserved for a failed query, so "empty" and "broken" can't be confused).
 #
-# Drivable = open issue · not a PR · zero OPEN blockers (native dependencies) · unassigned
-# (assignee = the claim, per docs/agents/issue-tracker.md) · none of the parked/human labels
-# (wayfinder:grilling|map = owner frontier, needs-info/needs-triage = not ready,
-#  ready-for-human/wontfix = not ours) · NOT already implemented by an open PR (a "Closes #N"
-# in any open PR body/title parks N — markers get forgotten, the PR itself is the truth;
-# cold-start audit 2026-08-28 found four built tickets listed as drivable).
+# Drivable = open issue · not a PR · carries `ready-for-agent` (STRICT ADMISSION, OD-WAY-83:
+# legacy/unlabeled issues go through /triage first — /drive consumes only canonical tickets) ·
+# zero OPEN blockers (native dependencies) · unassigned (assignee = the claim, per
+# docs/agents/issue-tracker.md) · NOT already implemented by an open PR (a "Closes #N" in any
+# open PR body/title parks N — markers get forgotten, the PR itself is the truth).
 #
-# Order: milestone number asc (nulls last) · `ready-for-agent` before unlabeled (with no
-# milestones in the tracker, the label is the only "this is next" signal — same audit) ·
-# issue number asc. --paginate walks the whole backlog; jq -s add flattens the pages.
+# Order: milestone number asc (nulls last), then issue number asc. --paginate walks the whole
+# backlog; jq -s add flattens the pages.
 #
 # Self-test: scripts/drive-next.test.sh
 set -uo pipefail
@@ -36,13 +34,8 @@ printf '%s' "$raw" | jq -r -s --argjson prrefs "${pr_refs:-[]}" '
       | select((.issue_dependencies_summary.blocked_by // 0) == 0)
       | select((.assignees | length) == 0)
       | select(.number as $n | $prrefs | index($n) | not)
-      | select([.labels[].name]
-          | map(. == "wayfinder:grilling" or . == "wayfinder:map" or . == "needs-info"
-                or . == "needs-triage" or . == "ready-for-human" or . == "wontfix")
-          | any | not)
+      | select([.labels[].name] | index("ready-for-agent"))
     ]
-  | sort_by((.milestone.number // 999999),
-            (if ([.labels[].name] | index("ready-for-agent")) then 0 else 1 end),
-            .number)
+  | sort_by((.milestone.number // 999999), .number)
   | .[] | "#\(.number)\t\(.title)\t\([.labels[].name] | join(","))"
 '

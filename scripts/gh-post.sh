@@ -87,16 +87,21 @@ done < "$denylist"
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
     case "$a" in
-      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*)
-        die "'pr create' through this door targets the current checkout only — no --repo/--head (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
+      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*|--hostname|--hostname=*)
+        die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
     esac
   done
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
-  r="$(awk '{print $1}' "$gitdir/independent-review-ok" 2>/dev/null || true)"
-  [ "$r" = "$head" ] || die "no independent-review stamp for HEAD — an agent that did not write this branch must review it (glm/luna, or opus as fallback), then: bash scripts/record-review.sh --reviewer <name> --artifact <review file>"
+  # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
+  for lens in spec code-quality security; do
+    r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
+    [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
+  done
 fi
 
-exec gh "$@"
+# GH_POST_DOOR marks this as the sanctioned write path for scripts/gh-shim/gh (the PATH-level
+# firewall non-Claude harnesses run under) — without it the shim would refuse our own exec.
+GH_POST_DOOR=1 exec gh "$@"
