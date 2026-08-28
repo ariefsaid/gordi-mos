@@ -34,7 +34,8 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 4. A PR needs two stamps: `bash scripts/pre-pr-verify.sh` + `scripts/record-review.sh` (a
    reviewer that didn't build it: glm/luna, opus fallback). CI on the PR is the merge gate.
 5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
-   posting policy lives in local `docs/`, per the banner above.
+   posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
+   stays raw (no prose leaves through a merge).
 
 Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
 changes what ships · a fact only the owner holds. Everything else you decide; silence is assent.
@@ -65,7 +66,8 @@ Findings in a separate comment, never the PR body. A push staleifies every recor
   decisions, gotchas, runbooks, infra coordinates, agent config, archive. Start `docs/README.md`.
 
 ## Commands (inside `mos-app/`)
-`npm run dev` · `build` · `typecheck` · `lint -- --max-warnings=0` · `test` (Vitest) ·
+`npm run dev` · `build` · `typecheck` · `lint -- --max-warnings=0` · `test` (Vitest; the PR gate
+runs `test:coverage`) ·
 `e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP) ·
 `test-storybook` (phone-390 + a11y gates; not a CI lane).
 
