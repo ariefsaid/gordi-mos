@@ -83,7 +83,8 @@ type ItemGroup = { key: string; label: string; items: CommandItem[] }
  * gate + ship gate) below — the same filter the rail and the drawer apply, so Projects & Processes
  * stays behind `workline.manage` and a ship-gated child (Events) stays absent.
  */
-const WORK_CHILDREN: readonly Section[] = DESTINATIONS.find((d) => d.id === 'work')?.children ?? []
+const WORK_DEST = DESTINATIONS.find((d) => d.id === 'work')
+const WORK_CHILDREN: readonly Section[] = WORK_DEST?.children ?? []
 
 /** The Work PARENT row — the one row a Work child may hang its rung from. */
 const WORK_PARENT_ID = 'n-work'
@@ -220,7 +221,10 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       // The Work PARENT row, exactly as the rail draws it: labelled "Work", targeting the same
       // canonical `/work/tasks`. It stays so that typing "work" still finds the section; the
       // children below are the rows that carry the sequence.
-      { id: WORK_PARENT_ID, label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: '/work/tasks' },
+      // primaryPath, not a literal: the rail and drawer both render `d.primaryPath ?? d.links[0].path`,
+      // so a hard-coded target here is the last place the palette could still disagree with them
+      // about where Work goes — re-pointing the registry moved two surfaces and left this one.
+      { id: WORK_PARENT_ID, label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: WORK_DEST?.primaryPath ?? '/work/tasks' },
     ]
     // Work's children, in DECLARED order, gated by the same filter the rail and the drawer use.
     // Nothing here decides sequence or visibility — both are read (issue 479).

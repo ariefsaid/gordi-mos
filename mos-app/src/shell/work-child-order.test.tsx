@@ -134,6 +134,14 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     [role],
   ).map((c) => c.path)
 
+  it('the registry declares the whole family, gate or no gate', () => {
+    // `expected` below filters FAMILY by the ship gate, so /work/events sits on NEITHER side of it:
+    // moving it to first position, or deleting it outright, left 36/36 green. PRODUCT.md and the
+    // registry both claim five children in one order, so the pre-gate array is what owns that claim.
+    const declared = (DESTINATIONS.find((d) => d.id === 'work')!.children ?? []).map((c) => c.path)
+    expect(declared).toEqual(FAMILY)
+  })
+
   it('the declared order is the E7 family sequence, flattened', () => {
     // Built from literals HERE plus the two gate primitives — never from `declaredOrder` or the
     // registry. An expectation read from the thing under test cannot notice the thing going
@@ -176,7 +184,28 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     const rows = Array.from(
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]:not(.action)'),
     ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
-    expect(rows).toEqual(['/work/tasks=Work', ...expectedPairs()])
+    // The parent pair is read from the registry, not written here: the rail and drawer both
+    // render `primaryPath ?? links[0].path`, so pinning a literal would fail a legitimate
+    // re-point while still missing the defect that matters — the palette keeping its own target
+    // while the other two move. That disagreement is what this must catch.
+    const parentPath = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
+    expect(rows).toEqual([`${parentPath}=Work`, ...expectedPairs()])
+  })
+
+  it('no Work target is rendered twice, except the parent sharing its primaryPath', () => {
+    // The membership check above excludes `.action` rows, which it must — /work/tasks/new is a
+    // legitimate action. That exclusion let a SECOND re-typed Work sequence back into the Actions
+    // group under distinct labels, 90/90 green: the drift #479 closed, one group over.
+    // The parent row legitimately repeats its own primaryPath (it targets where Work goes, which
+    // is also a child's path), so that one repeat is allowed and every other is not.
+    const v = palette()
+    const targets = Array.from(
+      v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]'),
+    ).map((el) => el.getAttribute('data-to') ?? '')
+    const parent = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
+    const withoutParentRow = [...targets]
+    withoutParentRow.splice(withoutParentRow.indexOf(parent), 1)
+    expect(withoutParentRow).toEqual([...new Set(withoutParentRow)])
   })
 
   it('rail, drawer and palette agree — the same items in the same sequence', () => {

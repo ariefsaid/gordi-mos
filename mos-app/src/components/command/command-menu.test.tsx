@@ -736,8 +736,23 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
     const tasks = screen.getByRole('option', { name: /^Tasks$/i })
 
+    // EVERY surviving child, not just Tasks: clearing the rung for all children except
+    // /work/tasks passed 90/90 while query "o" rendered Work · Projects & Processes · Objectives
+    // with both children stripped of their indent, hairline and aria-describedby.
+    for (const row of childRows()) {
+      expect(row.getAttribute('data-child')).toBe('true')
+      expect(row.getAttribute('aria-describedby')).toBe('n-work')
+    }
     expect(tasks.getAttribute('data-child')).toBe('true')
-    expect(tasks.getAttribute('aria-describedby')).toBe('n-work')
+  })
+
+  it('a filter keeping the parent and TWO children keeps both rungs', async () => {
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
+    expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
+    const rows = childRows()
+    expect(rows.length).toBeGreaterThan(1)
+    for (const row of rows) expect(row.getAttribute('data-child')).toBe('true')
   })
 
   it('in the default view every child wears the rung AND points at the rendered Work row', () => {
