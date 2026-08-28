@@ -39,6 +39,10 @@ check "write-mode api (-XPOST concatenated) refused" 1 no api repos/x/y/z -XPOST
 check "write-mode api (--method=DELETE equals-form) refused" 1 no api repos/x/y/z --method=DELETE
 check "explicit -X GET passes" 0 yes api repos/x/y/z -X GET
 check "dangling -X with no value refused" 1 no api repos/x/y/z -X
+check "valid GET then dangling -X refused (composite)" 1 no api repos/x/y/z -X GET -X
+check "empty --method= refused (not GET)" 1 no api repos/x/y/z --method=
+check "last method wins: POST then GET passes (gh semantics)" 0 yes api repos/x/y/z --method POST --method GET
+check "last method wins: GET then POST refused" 1 no api repos/x/y/z --method GET --method POST
 check "release upload refused (allowlist, not deny-table)" 1 no release upload v1 file.tgz
 check "repo archive refused (allowlist)" 1 no repo archive x/y
 check "unknown future verb refused by default" 1 no cabbage plant --now

@@ -47,17 +47,19 @@ case "$verb1 $verb2" in
   " "|"") ;;   # bare `gh`, --version/--help forms
   "api "*)
     # Read-mode only: any field flag denies; any method (long, =, -X, -XPOST) must be GET.
-    m="" prev=""
+    m="" prev="" seen=0
     for a in "$@"; do
-      case "$prev" in -X|--method) m="$a"; prev=""; continue ;; esac
+      case "$prev" in -X|--method) m="$a"; seen=1; prev=""; continue ;; esac
       case "$a" in
         -X|--method) prev="$a" ;;
-        -X?*) m="${a#-X}" ;;
-        --method=*) m="${a#--method=}" ;;
+        -X?*) m="${a#-X}"; seen=1 ;;
+        --method=*) m="${a#--method=}"; seen=1 ;;
         -f|-F|--field|--raw-field|--input|-f?*|-F?*|--input=*|--field=*|--raw-field=*) deny ;;
       esac
     done
-    if [ -n "$m" ] || [ -n "$prev" ]; then
+    # A dangling method flag is malformed even after a valid one; an empty value is not GET.
+    [ -z "$prev" ] || deny
+    if [ "$seen" = 1 ]; then
       case "$m" in GET|get|Get) ;; *) deny ;; esac
     fi ;;
   *) deny ;;
