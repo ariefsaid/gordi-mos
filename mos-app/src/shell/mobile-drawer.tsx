@@ -86,7 +86,8 @@ function DrawerGroupLabel({ children }: { children: string }) {
 /**
  * MobileDrawer — v4 shell rebuild (Task 4). The real two-zone nav drawer, derived from the SAME
  * destinations.tsx registry the desktop rail reads (no second hand-maintained list): workspace
- * roots (+ Work's 4 always-expanded children) · Modules grouped by BU (modulesByBU,
+ * roots (+ Work's 5 declared always-expanded children, 4 of them past the ship gate today) ·
+ * Modules grouped by BU (modulesByBU,
  * viewer-scoped) · Utility. The viewer's promoted module is already a bottom-tab, so it's
  * excluded from the Modules zone here — it lives on exactly one nav surface. Links carry no
  * aria-current (the bottom-tab-bar / breadcrumb leaf own that; Rule 5 — see breadcrumb.tsx).

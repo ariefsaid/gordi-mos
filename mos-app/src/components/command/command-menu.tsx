@@ -5,12 +5,13 @@ import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
-import { can, canViewRevenue } from '@/lib/capabilities'
+import { canViewRevenue } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
-import { viewerAdmittedToRoute } from '@/shell/destinations'
+import { DESTINATIONS, viewerAdmittedToRoute } from '@/shell/destinations'
+import { visibleSections, type Section } from '@/shell/sections'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
-  HomeIcon, WorkIcon, SignalsIcon, TasksIcon, WorkLineIcon, ObjectiveIcon,
+  HomeIcon, WorkIcon, SignalsIcon, TasksIcon,
   MoneyIcon, InboxIcon, CafeIcon,
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
@@ -53,9 +54,71 @@ type CommandItem = {
   meta?: string
   gated?: boolean
   record?: { id: string; title: string }
+  /**
+   * This row is one of Work's DECLARED children — a fact about the registry, true whatever the
+   * query is. It is not yet a licence to draw the rung: `withResolvedRungs` decides that against
+   * what actually renders, and clears the flag on a child whose parent row was filtered away.
+   *
+   * Where it survives, it is rendered as `data-child`, the palette's counterpart of the
+   * rail/drawer's `rail-item--child` rung class: every nav surface has to say which of its rows
+   * are children, or a guard comparing their sequences reads the Work PARENT row (`/work/tasks`,
+   * same target as the Tasks child) as a child too and the lists stop being comparable (issue 479).
+   */
+  child?: boolean
 }
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
+
+/**
+ * Work's children, read from the ONE declared sequence (issue 446, issue 479).
+ *
+ * The palette used to re-type this list — Work, Signals, then Projects & Processes, then
+ * Objectives — which was fine while every surface re-typed its own. Issue 446 made the desktop
+ * rail and the phone drawer both render `destinations.tsx`'s `children` array as declared, and
+ * left the palette as the last place the sequence existed twice: a third order, disagreeing with
+ * the other two, that the issue-446 guard could not see because it rendered only the rail and the
+ * drawer. Reading the array is what makes a re-sort impossible rather than merely currently-absent.
+ *
+ * Order only. Per-row VISIBILITY is unchanged and still comes from `visibleSections` (capability
+ * gate + ship gate) below — the same filter the rail and the drawer apply, so Projects & Processes
+ * stays behind `workline.manage` and a ship-gated child (Events) stays absent.
+ */
+const WORK_DEST = DESTINATIONS.find((d) => d.id === 'work')
+const WORK_CHILDREN: readonly Section[] = WORK_DEST?.children ?? []
+
+/** The Work PARENT row — the one row a Work child may hang its rung from. */
+const WORK_PARENT_ID = 'n-work'
+
+/**
+ * The rung states a RELATIONSHIP, so it may only be drawn while both ends are on screen.
+ *
+ * `child: true` says "the registry declares this row under Work". The rung says something else:
+ * "the row above me is my parent". In the default view those coincide. In the FILTERED list they
+ * come apart — typing "objectives" matches no destination row, so the Work parent is not rendered
+ * and the surviving child was left indented behind a 1px hairline guide that hung off nothing,
+ * with the active highlight starting at the guide instead of at the row.
+ *
+ * So resolve the claim against what actually renders, at the last seam before render (after the
+ * query filter AND after the ship gate, either of which can remove the parent): a child keeps its
+ * rung only while an unbroken run of children reaches back to the Work parent row above it. The
+ * run matters as much as the parent — the guide is one continuous line, and a non-child row
+ * dropped into the middle of it (Money surviving a filter that Tasks did not) ends the tree the
+ * indent is describing.
+ *
+ * Deleting the rung instead is not available: two adjacent rows to the SAME target, at one weight
+ * and one indent, is the regression this rework closed (issue 479).
+ */
+function withResolvedRungs(items: CommandItem[]): CommandItem[] {
+  let underWork = false
+  return items.map((item) => {
+    if (!item.child) {
+      underWork = item.id === WORK_PARENT_ID
+      return item
+    }
+    if (underWork) return item
+    return { ...item, child: false }
+  })
+}
 
 // OD-REDESIGN-91 #4/B2: the palette searches ALL record kinds now — Tasks + Signals +
 // AR Follow-ups — so a hit carries its kind (drives the row icon, route, and kind label).
@@ -110,17 +173,18 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
 
   const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
-  const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  // Memoized so it is referentially stable across renders: `navigateItems` derives Work's child
+  // rows from it, and a fresh `[]` on every render would defeat that memo.
+  const accessRoles = useMemo<string[]>(
+    () => (auth.status === 'authenticated' ? auth.viewer.accessRoles : []),
+    [auth],
+  )
   // DELIBERATE DIVERGENCE FROM v4: v4 gated this entry on finance|admin. On this line the /money
   // route and the rail entry are both gated on REVENUE_VIEW_ROLES (ADR-0051 D4 — manager holds the
   // financial VIEW tier, supervisor the revenue-only one), so v4's narrower gate would hide from
   // the palette a destination the rail offers and the router admits. One gate, read through the
   // same helper destinations.tsx and the router read.
   const moneyAuthorized = canViewRevenue(accessRoles)
-  // Step 8 (catalog re-home, FR-802/803): the Work manage-mode screens are capability-gated
-  // (90%-employee-first) and were only reachable from the desktop rail. Mirrors the existing
-  // Signals entry below — a Work child reachable via ⌘K, not the phone More menu.
-  const projectsAuthorized = can(accessRoles, 'workline.manage')
   // #407 — the floor's one-tap capture path. The Daily Log retirement (#226/#405) repointed
   // Home's capture CTA at /cafe/log, but on a component only the DEV-only fossil Home mounted —
   // the shipped shell offered no capture entry at all. The Actions group (and so the phone `+`
@@ -154,23 +218,33 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   const navigateItems = useMemo<CommandItem[]>(() => {
     const items: CommandItem[] = [
       { id: 'n-home', label: t('dest.home'), Icon: HomeIcon, kind: 'navigate', to: '/' },
-      { id: 'n-work', label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: '/work/tasks' },
-      { id: 'n-signals', label: t('nav.signals'), Icon: SignalsIcon, kind: 'navigate', to: '/work/signals' },
+      // The Work PARENT row, exactly as the rail draws it: labelled "Work", targeting the same
+      // canonical `/work/tasks`. It stays so that typing "work" still finds the section; the
+      // children below are the rows that carry the sequence.
+      // primaryPath, not a literal. All three surfaces resolve the parent the same way now; when
+      // this was hard-coded here AND in the rail's own Work branch, re-pointing the registry moved
+      // the drawer alone and a review found palette and rail disagreeing with the suite green.
+      { id: WORK_PARENT_ID, label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: WORK_DEST?.primaryPath ?? '/work/tasks' },
     ]
-    if (projectsAuthorized) {
-      items.push({ id: 'n-projects', label: t('nav.work.projects'), Icon: WorkLineIcon, kind: 'navigate', to: '/work/projects' })
+    // Work's children, in DECLARED order, gated by the same filter the rail and the drawer use.
+    // Nothing here decides sequence or visibility — both are read (issue 479).
+    for (const c of visibleSections(WORK_CHILDREN, accessRoles)) {
+      items.push({
+        id: `n${c.path.replace(/\//g, '-')}`,
+        label: c.labelKey ? t(c.labelKey) : c.label,
+        Icon: c.Icon,
+        kind: 'navigate',
+        to: c.path,
+        child: true,
+      })
     }
-    // OD-V4-1 (owner-ratified 2026-07-27): Objectives are visible to everyone — this NAVIGATE
-    // command carries no capability gate, mirroring the destinations.tsx rail and the router
-    // (mos.objectives SELECT RLS has no role check). Write stays gated inside the page.
-    items.push({ id: 'n-objectives', label: t('nav.work.objectives'), Icon: ObjectiveIcon, kind: 'navigate', to: '/work/objectives' })
     items.push(
       { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
       { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
       { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },
     )
     return items
-  }, [t, projectsAuthorized])
+  }, [t, accessRoles])
 
   const visibleNavigate = useMemo(
     () => navigateItems.filter((i) => !i.gated || moneyAuthorized),
@@ -275,7 +349,11 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   const visibleGroups = useMemo(
     () =>
       groups
-        .map((g) => ({ ...g, items: g.items.filter((i) => i.to == null || !isShipGated(i.to)) }))
+        .map((g) => ({
+          ...g,
+          // Rungs resolve AFTER the gate, so a child orphaned by the gate loses its rung too.
+          items: withResolvedRungs(g.items.filter((i) => i.to == null || !isShipGated(i.to))),
+        }))
         .filter((g) => g.items.length > 0),
     [groups],
   )
@@ -378,6 +456,25 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         ref={(element) => { optionRefs.current[item.id] = element }}
                         role="option"
                         aria-selected={isActive}
+                        /* The rung, said twice — once to the eye, once to the screen reader, from
+                           the ONE resolved answer above. `data-child` is the style hook for the
+                           ladder's Child rung (command-menu.css) and the marker the cross-surface
+                           order guard reads (issue 479); `aria-describedby` points at the Work
+                           PARENT ROW ITSELF, so the row is announced "Tasks … Work" and the pair
+                           that share `/work/tasks` stop sounding like two unrelated options.
+
+                           Not `aria-level`: it is not a supported property of `role="option"`
+                           (ARIA 1.2 — option's properties are aria-selected/checked/posinset/
+                           setsize plus the global set), so it would be dropped, and the listbox
+                           has no tree to level. Not an accessible-NAME suffix either: the visible
+                           label is the name a voice-control user speaks and the name the rail and
+                           drawer give the same destination, and the parent is supplementary
+                           information about the row — which is what `aria-describedby` is for.
+                           The idref resolves only while the parent row is rendered, which is the
+                           same condition that draws the indent. */
+                        data-to={item.to}
+                        data-child={item.child ? 'true' : undefined}
+                        aria-describedby={item.child ? WORK_PARENT_ID : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
                         onClick={() => activate(item)}
                         onMouseMove={() => {

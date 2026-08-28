@@ -273,7 +273,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                       (matching the FULL /work section, computed above) has to drive aria-current
                       by hand instead of riding NavLink's internal match. */}
                   <Link
-                    to="/work/tasks"
+                    to={d.primaryPath ?? d.links[0].path}
                     aria-current={workActive ? 'location' : undefined}
                     onClick={onNavigate}
                     data-label={compact ? workLabel : undefined}

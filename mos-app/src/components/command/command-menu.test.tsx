@@ -693,3 +693,92 @@ describe('AC-K09: no-bleed + muted group labels', () => {
     expect(screen.getByText('Actions').className).toMatch(/text-muted-foreground/)
   })
 })
+
+// ── #479: the child rung is a RELATIONSHIP, so it is drawn only while both ends are rendered ──
+// The rung (indent + hairline guide + muted step) says "this row hangs under the one above it".
+// `child: true` is a registry fact — "Work declares this" — and survives filtering; the LICENCE to
+// draw the rung does not, because the query and the ship gate can each remove the parent. A guide
+// with nothing above it points at a row that is not there, which is worse than saying nothing.
+describe('Issue 479 — the child rung only claims a parent that is on screen', () => {
+  const childRows = () =>
+    Array.from(document.querySelectorAll('[role="option"][data-child="true"]'))
+
+  it('a filtered result that lost its parent row wears no rung', async () => {
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'objectives' } })
+    // Precondition, or this asserts nothing: the row IS there and the Work parent is NOT.
+    expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeTruthy()
+    expect(screen.queryByRole('option', { name: /^Work$/i })).toBeNull()
+
+    expect(childRows()).toHaveLength(0)
+  })
+
+  it('a child separated from Work by an unrelated row wears no rung either', async () => {
+    // Query "e" leaves Home · Projects & Processes · Objectives — Work is gone and Home is not a
+    // parent. A CSS sibling rule (`.cm-item:not([data-child]) ~ [data-child]`) would hang the
+    // guide off HOME here; the run back to the parent has to be unbroken, not merely preceded.
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'e' } })
+    expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeTruthy()
+    expect(screen.queryByRole('option', { name: /^Work$/i })).toBeNull()
+
+    expect(childRows()).toHaveLength(0)
+  })
+
+  it('a FILTERED result that kept its parent keeps the rung', async () => {
+    // The two tests above assert the rung disappears when the parent goes. Nothing asserted it
+    // SURVIVES — so "clear every rung whenever the query is non-empty", the fix a developer
+    // reaches for after an orphaned-rung report, passed the whole suite while every child lost
+    // its indent, hairline and aria-describedby on the first keystroke.
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'k' } })
+    // Precondition: "k" keeps BOTH ends on screen — Work and its Tasks child.
+    expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
+    const tasks = screen.getByRole('option', { name: /^Tasks$/i })
+
+    // EVERY surviving child, not just Tasks: clearing the rung for all children except
+    // /work/tasks passed 90/90 while query "o" rendered Work · Projects & Processes · Objectives
+    // with both children stripped of their indent, hairline and aria-describedby.
+    // Selected by TARGET, not by the rung marker: childRows() matches [data-child="true"], so
+    // asserting data-child on its results cannot come out red — a cleared rung leaves the
+    // selector rather than failing the check. Rows are found by where they point instead.
+    const workRows = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="option"][data-to^="/work/"]'),
+    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks/new')
+    expect(workRows.length).toBeGreaterThan(1)
+    for (const row of workRows.slice(1)) {
+      expect(row.getAttribute('data-child')).toBe('true')
+      expect(row.getAttribute('aria-describedby')).toBe('n-work')
+    }
+    expect(tasks.getAttribute('data-child')).toBe('true')
+  })
+
+  it('a filter keeping the parent and TWO children keeps both rungs', async () => {
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
+    expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
+    // By target, like its neighbour: childRows() selects [data-child="true"], so asserting
+    // data-child on its results cannot come out red — a cleared rung leaves the selector.
+    const rows = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="option"][data-to^="/work/"]'),
+    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks/new')
+    expect(rows.length).toBeGreaterThan(2)
+    for (const row of rows.slice(1)) expect(row.getAttribute('data-child')).toBe('true')
+  })
+
+  it('in the default view every child wears the rung AND points at the rendered Work row', () => {
+    renderMenu()
+    const work = screen.getByRole('option', { name: /^Work$/i })
+    const children = childRows()
+    expect(children.length).toBeGreaterThan(0)
+
+    for (const row of children) {
+      // `option` does not take aria-level (ARIA 1.2 puts it on treeitem/listitem/row), and there
+      // is no tree here — so the rung reaches assistive tech as a description pointing at the
+      // parent row itself, which is the same relationship the indent draws.
+      const describedBy = row.getAttribute('aria-describedby')
+      expect(describedBy).toBe(work.id)
+      expect(document.getElementById(describedBy!)).toBe(work)
+    }
+  })
+})
