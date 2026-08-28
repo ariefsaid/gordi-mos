@@ -198,10 +198,11 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     const rows = Array.from(
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]:not(.action)'),
     ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
-    // The parent pair is read from the registry, not written here: all three surfaces resolve the
-    // parent as `primaryPath ?? links[0].path`, so pinning a literal would fail a legitimate
-    // re-point while still missing the defect that matters — the palette keeping its own target
-    // while the other two move. That disagreement is what this must catch.
+    // The parent pair is read from the registry, not written here, so a legitimate re-point does
+    // not fail this. What THIS asserts is narrow: the palette's parent target equals the declared
+    // one. Cross-surface agreement is a separate assertion above — reading the same field proves
+    // each surface follows the registry, never that the three agree with each other, and a guard
+    // covering two of three surfaces licenses the third to drift.
     const parentPath = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
     expect(rows).toEqual([`${parentPath}=Work`, ...expectedPairs()])
   })
@@ -215,8 +216,11 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     const v = palette()
     const targets = Array.from(
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]'),
-    ).map((el) => el.getAttribute('data-to') ?? '')
-    const parent = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
+      // Trailing slash normalised: react-router resolves /work/signals/ and /work/signals to the
+      // same route, but `new Set` sees two strings — a re-typed sequence differing only by a
+      // slash passed 103/103.
+    ).map((el) => (el.getAttribute('data-to') ?? '').replace(/\/+$/, ''))
+    const parent = (DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks').replace(/\/+$/, '')
     // indexOf returns -1 when the parent target is not under /work/ — and splice(-1, 1) deletes
     // the LAST element, silently dropping a real row from the uniqueness check. With the registry
     // re-pointed off /work/ AND a genuine duplicate present, this passed 6/6 green.

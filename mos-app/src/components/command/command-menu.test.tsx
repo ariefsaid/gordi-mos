@@ -739,7 +739,14 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     // EVERY surviving child, not just Tasks: clearing the rung for all children except
     // /work/tasks passed 90/90 while query "o" rendered Work · Projects & Processes · Objectives
     // with both children stripped of their indent, hairline and aria-describedby.
-    for (const row of childRows()) {
+    // Selected by TARGET, not by the rung marker: childRows() matches [data-child="true"], so
+    // asserting data-child on its results cannot come out red — a cleared rung leaves the
+    // selector rather than failing the check. Rows are found by where they point instead.
+    const workRows = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="option"][data-to^="/work/"]'),
+    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks/new')
+    expect(workRows.length).toBeGreaterThan(1)
+    for (const row of workRows.slice(1)) {
       expect(row.getAttribute('data-child')).toBe('true')
       expect(row.getAttribute('aria-describedby')).toBe('n-work')
     }
