@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -52,6 +52,19 @@ select cmp_ok((select count(*) from ops.wip_items), '>', 0::bigint,
 select cmp_ok((select count(*) from ops.kitchen_plans
                 where log_date = (now() at time zone 'Asia/Jakarta')::date), '>', 0::bigint,
   'a plan for today (Jakarta) is seeded — the Plan editor''s horizon and the Log variance gate both read it');
+
+-- ...and the count is the DEV ORG's three, not a total across tenants. `> 0` passes on one plan
+-- belonging to anyone, so a seed that dropped two of the three, or wrote them under another org,
+-- read green. Named rows, org-scoped, exact count.
+select is(
+  (select count(*)::int from ops.kitchen_plans
+    where org_id = '10000000-0000-0000-0000-000000000001'
+      and log_date = (now() at time zone 'Asia/Jakarta')::date
+      and wip_item_id in ('a1100000-0000-0000-0000-000000000001',
+                          'a1100000-0000-0000-0000-000000000002',
+                          'a1100000-0000-0000-0000-000000000006')),
+  3,
+  'all three dev-org plans are dated today (WIB) — the Plan editor''s horizon and the Log variance gate both read them');
 
 select cmp_ok((select count(*) from reporting.ingredient_cost_lines), '>', 0::bigint,
   'the ingredient cost lines are seeded — mos.capture_budget prices a budget from them, so Budget is unusable without them');
