@@ -21,10 +21,10 @@ git rev-parse --verify --quiet "$base^{commit}" >/dev/null \
 # in dollar-quoted SQL miscounts; the refuse gate's AND-margin (>50 AND >code) absorbs that.
 # CSS is counted code-only ('*' is its universal selector, and /* */ bodies rarely dominate a diff).
 added="$(git diff "$base"...HEAD -- '*.ts' '*.tsx' '*.js' '*.mjs' '*.sql' '*.sh' '*.py' \
-  | grep -E '^\+' | grep -vE '^\+\+\+' | sed 's/^+//' || true)"
+  | grep -E '^\+' | grep -vE '^\+\+\+ ' | sed 's/^+//' || true)"
 comments="$(printf '%s\n' "$added" | grep -cE '^[[:space:]]*(//|#|--|/\*|\*)' || true)"
 code="$(printf '%s\n' "$added" | grep -vcE '^[[:space:]]*(//|#|--|/\*|\*)|^[[:space:]]*$' || true)"
-csscode="$(git diff "$base"...HEAD -- '*.css' | grep -cE '^\+[^+]' || true)"
+csscode="$(git diff "$base"...HEAD -- '*.css' | grep -E '^\+' | grep -cvE '^\+\+\+ ' || true)"
 code=$((code + csscode))
 
 if [ "$comments" -gt 50 ] && [ "$comments" -gt "$code" ]; then
@@ -35,7 +35,7 @@ if [ "$comments" -gt 20 ] && [ $((comments * 2)) -gt "$code" ]; then
   echo "⚠ prose-budget: $comments comment lines on $code code lines — heavy; a WHY-comment earns its line, narration doesn't"
 fi
 
-md="$(git diff "$base"...HEAD -- '*.md' | grep -E '^\+' | grep -cvE '^\+\+\+' || true)"
+md="$(git diff "$base"...HEAD -- '*.md' | grep -E '^\+' | grep -cvE '^\+\+\+ ' || true)"
 [ "$md" -le 200 ] || echo "⚠ prose-budget: $md added markdown lines in the public repo — narratives belong in local docs/"
 
 exit 0

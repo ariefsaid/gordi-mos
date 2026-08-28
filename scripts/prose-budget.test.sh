@@ -65,6 +65,10 @@ if (cd "$r" && bash "$SCRIPT" no-such-ref) >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  bad base ref must refuse, not pass silently\n'
 else pass=$((pass+1)); printf '  ok    bad base ref refuses (fail closed)\n'; fi
 
+r=$(mkrepo); commit_file "$r" c.ts "$(seq 1 60 | sed 's/^/\/\/ note /')
+$(seq 1 60 | sed 's/^/++i;x/')"
+check "++-led code lines counted as code (60c vs 60++ = no refusal)" 0 "$r"
+
 # Wiring: the verify lane must actually invoke this guard — removing the call goes red here.
 if grep -q 'prose-budget.sh' scripts/pre-pr-verify.sh; then
   pass=$((pass+1)); printf '  ok    pre-pr-verify invokes prose-budget\n'
