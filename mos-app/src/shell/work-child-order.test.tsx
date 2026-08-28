@@ -80,7 +80,7 @@ function shell(ui: React.ReactNode) {
 function workChildHrefs(root: HTMLElement): string[] {
   return Array.from(
     root.querySelectorAll<HTMLAnchorElement>('a.rail-item--child[href^="/work/"]'),
-  ).map((a) => a.getAttribute('href') ?? '')
+  ).map((a) => `${a.getAttribute('href') ?? ''}=${(a.textContent ?? '').trim()}`)
 }
 
 /**
@@ -95,8 +95,11 @@ function workChildHrefs(root: HTMLElement): string[] {
 function paletteWorkChildTargets(root: HTMLElement): string[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>('[data-child="true"][data-to^="/work/"]'),
-  ).map((el) => el.getAttribute('data-to') ?? '')
+  ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
 }
+
+/** Targets alone, for the comparisons whose expectation is the declared path list. */
+const targets = (pairs: string[]) => pairs.map((x) => x.split('=')[0])
 
 function palette() {
   return shell(<CommandMenu open onClose={vi.fn()} onShareSignal={vi.fn()} />)
@@ -121,25 +124,38 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
   it('the declared order is the E7 family sequence, flattened', () => {
     // Events is ship-gated (#348 rides milestone 4), so it is absent from what a viewer sees.
     const full = ['/work/tasks', '/work/projects', '/work/objectives', '/work/signals']
-    expect(declaredOrder).toEqual(full.filter((p) => declaredOrder.includes(p)))
-    expect(declaredOrder.length).toBeGreaterThan(0)
+    // ORDER: a subsequence of the family sequence. Comparing against `full.filter(p =>
+    // declaredOrder.includes(p))` derived the expectation from the actual, so a destination that
+    // silently DISAPPEARED was filtered out of both sides and passed.
+    let i = -1
+    for (const p of declaredOrder) {
+      const at = full.indexOf(p)
+      expect(at, `${p} is not a Work child`).toBeGreaterThan(-1)
+      expect(at, `${p} is out of family order`).toBeGreaterThan(i)
+      i = at
+    }
+    // MEMBERSHIP: pinned to the gate, so a dropped rung reddens. Projects & Processes is
+    // capability-gated (workline.manage); the other three are open to every viewer.
+    expect(declaredOrder).toContain('/work/tasks')
+    expect(declaredOrder).toContain('/work/objectives')
+    expect(declaredOrder).toContain('/work/signals')
   })
 
   it('the desktop rail renders Work children in the declared order', () => {
     shell(<RailNav />)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(workChildHrefs(nav)).toEqual(declaredOrder)
+    expect(targets(workChildHrefs(nav))).toEqual(declaredOrder)
   })
 
   it('the phone drawer renders Work children in the declared order', () => {
     shell(<MobileDrawer open onClose={vi.fn()} />)
     const nav = screen.getByRole('navigation', { name: 'More destinations' })
-    expect(workChildHrefs(nav)).toEqual(declaredOrder)
+    expect(targets(workChildHrefs(nav))).toEqual(declaredOrder)
   })
 
   it('the ⌘K palette renders Work children in the declared order (issue 479)', () => {
     const view = palette()
-    expect(paletteWorkChildTargets(view.container)).toEqual(declaredOrder)
+    expect(targets(paletteWorkChildTargets(view.container))).toEqual(declaredOrder)
   })
 
   it('rail, drawer and palette agree — the same items in the same sequence', () => {
@@ -159,6 +175,8 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     // surfaces drifted together.
     expect(drawerOrder).toEqual(railOrder)
     expect(paletteOrder).toEqual(railOrder)
+    // Pairs are `target=label`, not bare targets: with targets alone, relabelling one surface's
+    // /work/tasks row “Signals” left every order test green.
     // …and none of the three is passing on an empty list.
     expect(railOrder.length).toBeGreaterThan(1)
   })
