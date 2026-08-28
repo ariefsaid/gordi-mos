@@ -32,13 +32,17 @@ while read -r path ref; do
   if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
     # Archive factory run traces BEFORE removal — they are the milestone review's evidence and
     # live worktree-local (factory.md says archive-first; nothing enforced it until now).
-    if [ -d "$path/adws/adw_data/sessions" ]; then
+    if [ -d "$path/adws/adw_data/sessions" ] || ls "$path"/adws/adw_data/sssf.db* >/dev/null 2>&1; then
       dest="$(git rev-parse --show-toplevel)/adws/adw_data/archive/$(basename "$path")"
       mkdir -p "$dest"
       # Fail closed: traces are the milestone review's evidence — a failed archive KEEPS the
       # worktree rather than force-removing what it just failed to save.
-      if cp -R "$path/adws/adw_data/sessions" "$dest/" \
-         && { [ ! -f "$path/adws/adw_data/sssf.db" ] || cp "$path/adws/adw_data/sssf.db" "$dest/"; }; then
+      ok=1
+      [ ! -d "$path/adws/adw_data/sessions" ] || cp -R "$path/adws/adw_data/sessions" "$dest/" || ok=0
+      if ls "$path"/adws/adw_data/sssf.db* >/dev/null 2>&1; then
+        cp "$path"/adws/adw_data/sssf.db* "$dest/" || ok=0
+      fi
+      if [ "$ok" = 1 ]; then
         echo "  traces archived (sessions + sssf.db): $path -> $dest"
       else
         echo "  ✗ trace archive FAILED for $path — keeping the worktree" >&2

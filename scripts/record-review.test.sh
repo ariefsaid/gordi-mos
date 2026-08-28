@@ -45,6 +45,8 @@ check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --revi
 check "DNM anywhere poisons even the MERGE section" 1 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
 
 check "reviewer not named by the section refused" 1 --lens spec --reviewer zai/glm-5.3-flash --artifact review.md
+printf '## spec\nReviewer: gpt-5.6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
+check "superstring reviewer name refused (exact match)" 1 --lens spec --reviewer gpt-5.6-luna --artifact spoof.md
 check "spec lens stamps from its own section" 0 --lens spec --reviewer gpt-5.6-luna --artifact review.md
 if grep -q "^$head spec gpt-5.6-luna" "$gitdir/independent-review-spec-ok"; then
   pass=$((pass+1)); printf '  ok    spec stamp holds HEAD + lens + reviewer\n'
