@@ -509,24 +509,6 @@ select is((select count(*)::int from integrations.esb_push), 0,
 -- claim should be admitted at all is a question about the token hook, not about this policy. Naming the shapes one at a
 -- time left the third uncovered: an exemption on `current_person_id() is null` read both tenants
 -- with the file at 50/50, because every cell carried a person_id.
-select is(
-  (select coalesce(array_agg(v.shape || '/' || array_to_string(r.roles, '+') || '=' || c.n
-                             order by v.shape, array_to_string(r.roles, '+')), '{}')
-     from (values
-       ('org+person', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2",'),
-       ('org',        '{"org_id":"00000000-0000-0000-0000-0000000000a1",'),
-       ('person',     '{"person_id":"00000000-0000-0000-0000-0000000000d2",'),
-       ('bare',       '{')
-     ) as v(shape, prefix),
-     lateral (select rc.roles from pg_temp.role_combinations(
-                (select array_agg(x) from pg_temp.access_role_vocabulary() as t(x))) as rc(roles)) r,
-     lateral (select pg_temp.reads_claim(
-                v.prefix || '"access_roles":' || array_to_json(r.roles)::text || '}',
-                'integrations.esb_push') as n) c
-    where c.n <> case when v.shape in ('org+person','org')
-                       and (r.roles && array['ops_lead','admin']) then 5 else 0 end),
-  '{}'::text[],
-  'every claim SHAPE crossed with every role SUBSET: the outbox opens on org + an admitted role and nothing else. D9 swept subsets but always with a person; D10 swept shapes but only single roles, so a personless COMBINATION sat in the corner neither covered');
 
 reset role;
 
@@ -657,9 +639,33 @@ set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'a session claiming ops_lead but NO org reads no approval group: the group predicate carries the same two-way null org, and a proof of the outbox''s says nothing about it');
 
+-- Inside section E's authenticated window, below the group fixture: above the fixture every
+-- group cell read an empty table, and below the `reset role` the sweep ran as the table owner
+-- with RLS bypassed — a bare claim read all 10 rows. Both directions passed by measuring nothing.
+select is(
+  (select coalesce(array_agg(t.rel || ' ' || v.shape || '/' || array_to_string(r.roles, '+') || '=' || c.n
+                             order by t.rel, v.shape, array_to_string(r.roles, '+')), '{}')
+     from (values ('integrations.esb_push'), ('integrations.esb_push_groups')) as t(rel),
+     (values
+       ('org+person', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2",'),
+       ('org',        '{"org_id":"00000000-0000-0000-0000-0000000000a1",'),
+       ('person',     '{"person_id":"00000000-0000-0000-0000-0000000000d2",'),
+       ('bare',       '{')
+     ) as v(shape, prefix),
+     lateral (select rc.roles from pg_temp.role_combinations(
+                (select array_agg(x) from pg_temp.access_role_vocabulary() as t2(x))) as rc(roles)) r,
+     lateral (select pg_temp.reads_claim(
+                v.prefix || '"access_roles":' || array_to_json(r.roles)::text || '}', t.rel) as n) c
+    where c.n <> case when v.shape in ('org+person','org')
+                       and (r.roles && array['ops_lead','admin']) then 5 else 0 end),
+  '{}'::text[],
+  'both outbox tables x every claim SHAPE x every role SUBSET: each opens on org + an admitted role and nothing else. Each axis was added because fixing the previous one left a corner: D9 swept subsets with a person only, then shapes were swept with single roles only, then the whole crossed sweep covered esb_push while esb_push_groups kept its person-bearing sweep — a personless manager+finance read the group rows with the suite green');
+
 reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+
 -- F. The enqueue refusal authored in the ops pass — verified here, not assumed
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-012's behaviour is proven in ops_07_enqueue_refusal.sql. What is checked here is the SHAPE this
