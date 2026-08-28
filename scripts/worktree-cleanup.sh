@@ -30,6 +30,14 @@ while read -r path ref; do
   br="${ref#refs/heads/}"
   [ "$path" = "$(git rev-parse --show-toplevel)" ] && continue   # never the main tree
   if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
+    # Archive factory run traces BEFORE removal — they are the milestone review's evidence and
+    # live worktree-local (factory.md says archive-first; nothing enforced it until now).
+    if [ -d "$path/adws/adw_data/sessions" ]; then
+      dest="$(git rev-parse --show-toplevel)/adws/adw_data/archive/$(basename "$path")"
+      mkdir -p "$dest"
+      cp -R "$path/adws/adw_data/sessions" "$dest/" 2>/dev/null || true
+      echo "  traces archived: $path -> $dest"
+    fi
     echo "  worktree (merged): $path [$br] -> remove"
     git worktree remove --force "$path" 2>/dev/null || true
   fi

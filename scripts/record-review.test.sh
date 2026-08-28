@@ -21,22 +21,28 @@ check() { # $1 name · $2 expected rc · args…
   else fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s)\n' "$name" "$rc" "$want"; fi
 }
 
-printf 'Reviewer: gpt-5.6-luna\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/review.md"
-printf 'Reviewer: gpt-5.6-luna\nVerdict: DO NOT MERGE\nCommit: %s\n' "$head" > "$tmp/repo/dnm.md"
-printf 'Verdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/noreviewer.md"
-printf 'Reviewer: gpt-5.6-luna\nCommit: %s\nlooks fine to me\n' "$head" > "$tmp/repo/noverdict.md"
-printf 'Reviewer: gpt-5.6-luna\nVerdict: MERGE\nCommit: 0123456789abcdef\n' > "$tmp/repo/stale.md"
+# One multi-lens artifact, three tagged sections — the shape /drive step 7 produces.
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\nnone\n\n## code-quality\nReviewer: gpt-5.6-luna (code-quality)\nVerdict: MERGE WITH CHANGES\nCommit: %s\nnone\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\nnone\n' "$head" "$head" "$head" > "$tmp/repo/review.md"
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: DO NOT MERGE\nCommit: %s\n' "$head" "$head" > "$tmp/repo/mixed.md"
+printf '## spec\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/noreviewer.md"
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nCommit: %s\nlooks fine to me\n' "$head" > "$tmp/repo/noverdict.md"
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: 0123456789abcdef\n' > "$tmp/repo/stale.md"
+printf 'Reviewer: gpt-5.6-luna\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/untagged.md"
 
 check "missing --lens refused" 1 --reviewer gpt-5.6-luna --artifact review.md
 check "unknown lens refused" 1 --lens vibes --reviewer gpt-5.6-luna --artifact review.md
 check "session-family reviewer refused" 1 --lens spec --reviewer fable-self --artifact review.md
 check "terra refused — retired" 1 --lens spec --reviewer gpt-5.6-terra --artifact review.md
-check "no Reviewer: line refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noreviewer.md
-check "no Verdict: line refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noverdict.md
-check "DO NOT MERGE cannot stamp" 1 --lens spec --reviewer gpt-5.6-luna --artifact dnm.md
+check "no Reviewer: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noreviewer.md
+check "no Verdict: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noverdict.md
 check "stale sha refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact stale.md
+check "untagged artifact refused — a stamp needs ITS lens's section" 1 --lens spec --reviewer gpt-5.6-luna --artifact untagged.md
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/lacking.md"
+check "missing lens section refused (spec-only artifact, security requested)" 1 --lens security --reviewer gpt-5.6-luna --artifact lacking.md
+check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
+check "DNM anywhere poisons even the MERGE section" 1 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
 
-check "spec lens stamps" 0 --lens spec --reviewer gpt-5.6-luna --artifact review.md
+check "spec lens stamps from its own section" 0 --lens spec --reviewer gpt-5.6-luna --artifact review.md
 if grep -q "^$head spec gpt-5.6-luna" "$gitdir/independent-review-spec-ok"; then
   pass=$((pass+1)); printf '  ok    spec stamp holds HEAD + lens + reviewer\n'
 else fail=$((fail+1)); printf '  FAIL  spec stamp wrong: %s\n' "$(cat "$gitdir/independent-review-spec-ok" 2>/dev/null)"; fi

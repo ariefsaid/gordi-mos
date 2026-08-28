@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# PATH-level GitHub write firewall for NON-Claude harnesses. The Claude hook only sees Claude's
+# own Bash calls; a pi/codex/factory shell bypasses it. Prepend this directory to PATH in every
+# dispatch and the same rule holds there: reads pass through, writes refuse with the door.
+#
+#   PATH="$(git rev-parse --show-toplevel)/scripts/gh-shim:$PATH" pi …
+#
+# gh-post.sh itself execs the real gh with GH_POST_DOOR=1 — that is the ONLY sanctioned write
+# path through here. `pr merge` stays raw (the one carve-out; no prose leaves through a merge).
+# Self-test: scripts/gh-shim.test.sh
+set -uo pipefail
+
+self="$(cd "$(dirname "$0")" && pwd)/gh"
+real=""
+IFS=: read -r -a dirs <<< "$PATH"
+for d in "${dirs[@]}"; do
+  [ -n "$d" ] && [ -x "$d/gh" ] && [ "$d/gh" != "$self" ] && { real="$d/gh"; break; }
+done
+[ -n "$real" ] || { echo "✗ gh-shim: no real gh on PATH" >&2; exit 127; }
+
+[ "${GH_POST_DOOR:-}" = "1" ] && exec "$real" "$@"
+
+verb1="" verb2=""
+skip=0
+for a in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    -R|--repo|--hostname) skip=1; continue ;;
+    -*) continue ;;
+  esac
+  if [ -z "$verb1" ]; then verb1="$a"; elif [ -z "$verb2" ]; then verb2="$a"; break; fi
+done
+
+deny() { echo "✗ gh-shim: raw '$verb1 $verb2' is a GitHub WRITE — this repo is public; use scripts/gh-post.sh (same argv), which scans the posting policy. Reads pass through." >&2; exit 1; }
+
+case "$verb1 $verb2" in
+  "issue create"|"issue comment"|"issue edit"|"issue close"|"issue reopen"|"issue delete"|"issue pin"|"issue transfer") deny ;;
+  "pr create"|"pr comment"|"pr edit"|"pr close"|"pr reopen"|"pr review"|"pr ready") deny ;;
+  "gist "*|"release create"|"release edit"|"release delete"|"repo create"|"repo edit"|"repo delete") deny ;;
+  "api "*)
+    for a in "$@"; do
+      case "$a" in
+        --method|--method=*) case "$*" in *--method[=\ ]GET*|*--method[=\ ]get*) ;; *) deny ;; esac; break ;;
+        -f|-F|--field|--raw-field|--input|-f*|-F*) deny ;;
+      esac
+    done ;;
+esac
+
+exec "$real" "$@"

@@ -1,57 +1,63 @@
 name: guard-self-tests
 # Every guard ships with its own self-test, and the self-tests run in CI — a guard
 # whose test never runs is a control everyone believes is running.
+#
+# ALWAYS-RUN on every PR (no paths filter): this check is REQUIRED, and a required check
+# skipped by a path filter never reports, so the PR would block forever (verify.yml documents
+# the same trap). The whole suite is <1 min — cheaper than the deadlock. The old paths list
+# is kept below as documentation of what the suite guards, not as a trigger.
 on:
   pull_request:
-    paths:
-      - '.githooks/**'
-      - 'scripts/agent-git-shim/**'
-      - 'scripts/pre-pr-verify.sh'
-      # the drive-loop gates (OD-WAY-80): an edit to a guard must re-run its self-test
-      - 'scripts/gh-post.sh'
-      - 'scripts/record-review.sh'
-      - 'scripts/lane-exempt.sh'
-      - 'scripts/drive-next.sh'
-      - 'scripts/prose-budget.sh'
-      - 'scripts/drive-decay.sh'
-      - 'scripts/release-evidence.sh'
-      - 'scripts/drive-burn.sh'
-      - 'scripts/*.test.sh'
-      # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
-      # a change there changes what those tests actually run, so re-run them.
-      - 'scripts/lib/**'
-      - 'scripts/import-kitchen-history.py'
-      # the seeds themselves (#459): seed-wib-dates.test.sh exists to catch a seed reverting to
-      # UTC current_date, and that revert touches supabase/ ONLY — without this the lane would not
-      # even start for the exact regression the guard guards. Registering the step is half the job;
-      # the trigger is the other half.
-      - 'supabase/seed*.sql'
-      # the ESB push worker (#134): its self-test is what proves a real ERP identifier
-      # cannot reach the shared vendor sandbox, and that a rehearsal cannot mark a log
-      # posted — so a change to any of the three re-runs it.
-      - 'scripts/esb-worker.py'
-      - 'scripts/*.test.py'
-      # the nightly snapshot job and its unit suite — the suite owns an acceptance criterion
-      # (a run declares the org it writes), so a change to either has to re-run it.
-      # NOTE: test_reporting_snapshot.py does NOT match 'scripts/*.test.py' above — the
-      # underscore form needs its own entry, which is why both lists are here.
-      - 'scripts/reporting_snapshot.py'
-      - 'scripts/reporting_local_env.py'
-      - 'scripts/test_reporting_snapshot.py'
-      - 'scripts/setup-hooks.sh'
-      # the applied-path harness (#393): its self-test is what proves the deployed-database
-      # check can still fail, so a change to the harness, its fingerprint, or the commit it
-      # treats as deployed re-runs it. `scripts/*.test.sh` above only covers the test file.
-      - 'scripts/applied-path-check.sh'
-      - 'scripts/lib/applied-path-fingerprint.sql'
-      - 'supabase/applied-path-baseline'
-      - '.github/workflows/guards.yml'
-      # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory
-      # skeleton or its stamp re-proves byte-identity against the upstream pin.
-      - 'scripts/vendor-skills.sh'
-      - 'adws/**'
-      - '.env.sample'
-      - 'justfile'
+  workflow_dispatch:
+    # (former trigger paths, now documentation:)
+    # - '.githooks/**'
+    # - 'scripts/agent-git-shim/**'
+    # - 'scripts/pre-pr-verify.sh'
+    # # the drive-loop gates (OD-WAY-80): an edit to a guard must re-run its self-test
+    # - 'scripts/gh-post.sh'
+    # - 'scripts/record-review.sh'
+    # - 'scripts/lane-exempt.sh'
+    # - 'scripts/drive-next.sh'
+    # - 'scripts/prose-budget.sh'
+    # - 'scripts/drive-decay.sh'
+    # - 'scripts/release-evidence.sh'
+    # - 'scripts/drive-burn.sh'
+    # - 'scripts/*.test.sh'
+    # # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
+    # # a change there changes what those tests actually run, so re-run them.
+    # - 'scripts/lib/**'
+    # - 'scripts/import-kitchen-history.py'
+    # # the seeds themselves (#459): seed-wib-dates.test.sh exists to catch a seed reverting to
+    # # UTC current_date, and that revert touches supabase/ ONLY — without this the lane would not
+    # # even start for the exact regression the guard guards. Registering the step is half the job;
+    # # the trigger is the other half.
+    # - 'supabase/seed*.sql'
+    # # the ESB push worker (#134): its self-test is what proves a real ERP identifier
+    # # cannot reach the shared vendor sandbox, and that a rehearsal cannot mark a log
+    # # posted — so a change to any of the three re-runs it.
+    # - 'scripts/esb-worker.py'
+    # - 'scripts/*.test.py'
+    # # the nightly snapshot job and its unit suite — the suite owns an acceptance criterion
+    # # (a run declares the org it writes), so a change to either has to re-run it.
+    # # NOTE: test_reporting_snapshot.py does NOT match 'scripts/*.test.py' above — the
+    # # underscore form needs its own entry, which is why both lists are here.
+    # - 'scripts/reporting_snapshot.py'
+    # - 'scripts/reporting_local_env.py'
+    # - 'scripts/test_reporting_snapshot.py'
+    # - 'scripts/setup-hooks.sh'
+    # # the applied-path harness (#393): its self-test is what proves the deployed-database
+    # # check can still fail, so a change to the harness, its fingerprint, or the commit it
+    # # treats as deployed re-runs it. `scripts/*.test.sh` above only covers the test file.
+    # - 'scripts/applied-path-check.sh'
+    # - 'scripts/lib/applied-path-fingerprint.sql'
+    # - 'supabase/applied-path-baseline'
+    # - '.github/workflows/guards.yml'
+    # # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory
+    # # skeleton or its stamp re-proves byte-identity against the upstream pin.
+    # - 'scripts/vendor-skills.sh'
+    # - 'adws/**'
+    # - '.env.sample'
+    # - 'justfile'
 jobs:
   guard-self-tests:
     runs-on: ubuntu-latest
@@ -112,3 +118,5 @@ jobs:
         run: bash scripts/release-evidence.test.sh
       - name: drive-burn report self-test
         run: bash scripts/drive-burn.test.sh
+      - name: gh-shim PATH firewall self-test
+        run: bash scripts/gh-shim.test.sh

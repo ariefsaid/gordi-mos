@@ -87,8 +87,8 @@ done < "$denylist"
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
     case "$a" in
-      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*)
-        die "'pr create' through this door targets the current checkout only — no --repo/--head (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
+      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*|--hostname|--hostname=*)
+        die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
     esac
   done
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
@@ -102,4 +102,6 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   done
 fi
 
-exec gh "$@"
+# GH_POST_DOOR marks this as the sanctioned write path for scripts/gh-shim/gh (the PATH-level
+# firewall non-Claude harnesses run under) — without it the shim would refuse our own exec.
+GH_POST_DOOR=1 exec gh "$@"
