@@ -27,7 +27,7 @@ check_config() {
   #    provider (openrouter, fireworks, upstream's google default, …) is caught here
   while read -r m; do
     case "$m" in
-      zai/glm-5.3|zai/glm-4.7|openai-codex/gpt-5.6-luna|bitdeer/deepseek-ai/DeepSeek-V4-Flash) ;;
+      zai/glm-5.3-flash|zai/glm-4.7|openai-codex/gpt-5.6-luna|bitdeer/deepseek-ai/DeepSeek-V4-Flash) ;;
       *) bad_out+="model not in the ruled substrate set: $m\n" ;;
     esac
   done < <(grep -E '^ *model: ' "$cfg" | awk '{print $2}')
@@ -86,7 +86,7 @@ sed 's|contract: agents/|contract: elsewhere/|' "$CONFIG" > "$tmp/contract.yaml"
 check_config "$tmp/contract.yaml" >/dev/null && bad "checker missed an out-of-tree contract path" \
   || ok "checker catches a contract path outside agents/"
 
-grep -v '"zai/glm-5.3":' adws/adw_modules/git_helper.py > "$tmp/gh-unmapped.py"
+grep -v '"zai/glm-5.3-flash":' adws/adw_modules/git_helper.py > "$tmp/gh-unmapped.py"
 check_config "$CONFIG" "$tmp/gh-unmapped.py" >/dev/null \
   && bad "checker missed a roster model with no attribution trailer row (#343)" \
   || ok "checker catches a roster model with no attribution trailer row (#343)"

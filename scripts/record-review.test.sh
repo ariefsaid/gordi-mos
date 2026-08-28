@@ -36,7 +36,7 @@ if grep -q "^$head gpt-5.6-luna" "$gitdir/independent-review-ok"; then
 else
   fail=$((fail+1)); printf '  FAIL  stamp content wrong: %s\n' "$(cat "$gitdir/independent-review-ok" 2>/dev/null)"
 fi
-check "glm accepted" 0 --reviewer zai/glm-5.3 --artifact review.md
+check "glm accepted" 0 --reviewer zai/glm-5.3-flash --artifact review.md
 check "terra refused — retired from the roster" 1 --reviewer gpt-5.6-terra --artifact review.md
 check "opus fallback accepted" 0 --reviewer claude-opus-5 --artifact review.md
 

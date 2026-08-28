@@ -49,6 +49,7 @@ def repo_root() -> Path:
 # honest over specific — never attribute a model that did not build.
 SUBSTRATE_ATTRIBUTION: dict[str, tuple[str, str]] = {
     "zai/glm-5.3": ("GLM-5.3", "noreply@z.ai"),
+    "zai/glm-5.3-flash": ("GLM-5.3-Flash", "noreply@z.ai"),
     "zai/glm-4.7": ("GLM-4.7", "noreply@z.ai"),
     "openai-codex/gpt-5.6-terra": ("GPT-5.6 Terra", "noreply@openai.com"),
     "openai-codex/gpt-5.6-luna": ("GPT-5.6 Luna", "noreply@openai.com"),

@@ -13,6 +13,8 @@ on:
       - 'scripts/lane-exempt.sh'
       - 'scripts/drive-next.sh'
       - 'scripts/prose-budget.sh'
+      - 'scripts/drive-decay.sh'
+      - 'scripts/release-evidence.sh'
       - 'scripts/*.test.sh'
       # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
       # a change there changes what those tests actually run, so re-run them.
@@ -103,3 +105,7 @@ jobs:
         run: bash scripts/commit-msg-cap.test.sh
       - name: prose-budget comment-essay self-test
         run: bash scripts/prose-budget.test.sh
+      - name: drive-decay backlog-rot self-test
+        run: bash scripts/drive-decay.test.sh
+      - name: release-evidence package self-test
+        run: bash scripts/release-evidence.test.sh

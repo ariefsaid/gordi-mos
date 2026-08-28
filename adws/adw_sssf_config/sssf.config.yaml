@@ -2,8 +2,14 @@
 # v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
 #
 # MOS roster ruling (owner 2026-08-20, OD-WAY-71; amends the builder half of OD-WAY-64):
-# planner zai/glm-5.3 · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
-# reviewer gpt-5.6-luna · fe_reviewer gpt-5.6-luna.
+# planner zai/glm-5.3-flash · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
+# reviewer zai/glm-5.3-flash · fe_reviewer zai/glm-5.3-flash (luna = fallback).
+#
+# Owner directive 2026-08-28: the DEFAULT reviewer is zai/glm-5.3-flash — cheaper, and multimodal
+# where the gpt-5.6 pair is not. Pixel judgment is the fe_reviewer's whole job, so a text-only
+# reviewer there was the wrong shape. luna stays the fallback. ⚑ The slug is accepted by z.ai but
+# was NOT smoke-tested green (account at its cap when the ruling landed) — confirm before relying
+# on it. Ruling recorded here AND in docs/agents/pi-delegation.md, per the two-places rule above.
 #
 # Three families now sit on the roster, so build and review are cross-family by CONSTRUCTION
 # rather than by the careful pairing OD-WAY-64 had to settle for. Escalation ladders by
@@ -20,7 +26,7 @@
 # substrate ruling drifts.
 defaults:
   coding_agent: pi
-  model: zai/glm-5.3               # provider/id — a bare pattern is ambiguous across providers
+  model: zai/glm-5.3-flash           # provider/id — a bare pattern is ambiguous across providers
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -100,7 +106,7 @@ observability:
 
 agents:
   - name: planner
-    model: zai/glm-5.3             # top tier — planning is judgment work
+    model: zai/glm-5.3-flash       # owner 2026-08-28: glm-5.3 → glm-5.3-flash everywhere (cheaper, multimodal)
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -171,7 +177,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-luna   # code review (owner 2026-08-28: luna is the ONLY openai-side reviewer; terra retired). CROSS-FAMILY by construction since OD-WAY-71: the builder is DeepSeek (bitdeer). Review ladder glm -> luna by availability; see docs/agents/pi-delegation.md.
+    model: zai/glm-5.3-flash           # DEFAULT reviewer (owner 2026-08-28) — cross-family vs the DeepSeek builder; luna is the fallback rung and the reviewer whenever the build fell through to GLM. Ladder glm-5.3-flash -> luna; see docs/agents/pi-delegation.md.
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -190,7 +196,7 @@ agents:
       - write
 
   - name: fe_builder
-    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71): FE builds on DeepSeek too. fe_reviewer stays luna, so build and review are different FAMILIES again, not merely different models. fe_builder is TEXT-ONLY - its self-check is the a11y tree via agent-browser; pixel judgment stays with fe_reviewer, which MUST remain a vision model.
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71): FE builds on DeepSeek too. fe_reviewer is GLM (2026-08-28), so build and review are different FAMILIES again, not merely different models. fe_builder is TEXT-ONLY - its self-check is the a11y tree via agent-browser; pixel judgment stays with fe_reviewer, which MUST remain a vision model.
     color: "#34d399"
     purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
     contract: agents/ui-implementer.md
@@ -208,7 +214,7 @@ agents:
       - write
 
   - name: fe_reviewer
-    model: openai-codex/gpt-5.6-luna    # design/FE review — cross-family vs the DeepSeek fe_builder (OD-WAY-71). MUST stay a VISION model: fe_builder is text-only and self-checks the a11y tree, so pixel judgment lives here and nowhere else.
+    model: zai/glm-5.3-flash            # design/FE review (owner 2026-08-28) — MULTIMODAL, which the gpt-5.6 pair is not: pixel judgment is this slot's whole job. Cross-family vs the DeepSeek fe_builder; luna is the text fallback.
     thinking: high
     color: "#f472b6"
     purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
