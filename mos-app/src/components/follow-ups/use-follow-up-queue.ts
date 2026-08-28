@@ -1,9 +1,12 @@
-// useFollowUpQueue — the single data/behavior hook behind every Follow-up queue
-// door (Money queue entry, Work Tasks saved-view, and the canonical
-// /money/follow-ups queue). Money-inbox-alignment (Step 9, FR-905/AC-906/
-// AC-907): extracted verbatim from FollowUpsPage so the record has ONE canonical
-// behavior implementation reached from multiple destinations (ADR-0025 D9;
+// useFollowUpQueue — the shared data/behavior hook for the Follow-up queue. Money-inbox-alignment
+// (Step 9, FR-905/AC-906/AC-907): its body was extracted from FollowUpsPage so the record could
+// have ONE behavior implementation reached from multiple destinations (ADR-0025 D9;
 // experience-contract Rule 2 "Follow-up" row).
+//
+// The extraction was never wired BACK. pages/follow-ups-page.tsx still runs its own copy of this
+// logic and imports this hook zero times, so the Work Tasks saved-view embed is the only door on
+// it — two behavior implementations, not one, until #428 cuts the page over (rebuild deferred,
+// OD-WAY-34).
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'

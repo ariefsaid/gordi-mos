@@ -1,9 +1,12 @@
-// FollowUpQueueTable — the ONE canonical Follow-up record renderer (table +
-// lifecycle actions + detail aside). Reused by every door: the canonical page
-// (FollowUpsPage, at /money/follow-ups — the Work spelling is deleted, DD-WAY-36) and the Work
-// Tasks saved-view embed (FollowUpQueueEmbed). Money-inbox-alignment (Step 9,
-// FR-905/AC-906/AC-907). Presentational only — all data/behavior lives in
-// useFollowUpQueue.
+// FollowUpQueueTable — the shared Follow-up queue renderer (table + lifecycle actions + detail
+// aside). Presentational only — all data/behavior lives in useFollowUpQueue.
+// Money-inbox-alignment (Step 9, FR-905/AC-906/AC-907).
+//
+// INTENDED to be the one renderer; NOT YET the one renderer. Exactly one door uses it today: the
+// Work Tasks saved-view embed (FollowUpQueueEmbed). The Money page (FollowUpsPage, at
+// /money/follow-ups — the Work spelling is deleted, DD-WAY-36) imports this component zero times
+// and carries its own bespoke table and detail aside instead. #428 owns the cutover; the rebuild
+// is deferred (OD-WAY-34).
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
