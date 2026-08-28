@@ -20,6 +20,9 @@ cat > "$tmp/issues.json" <<'EOF'
   "updated_at":"2026-08-27T00:00:00Z","created_at":"2026-08-27T00:00:00Z"},
  {"number":5,"title":"grill me","labels":[{"name":"wayfinder:grilling"}],"assignees":[],
   "updated_at":"2026-08-20T00:00:00Z","created_at":"2026-08-20T00:00:00Z"},
+ {"number":7,"title":"grill me but blocked","labels":[{"name":"wayfinder:grilling"}],"assignees":[],
+  "issue_dependencies_summary":{"blocked_by":1},
+  "updated_at":"2026-08-20T00:00:00Z","created_at":"2026-08-20T00:00:00Z"},
  {"number":6,"title":"a PR","labels":[],"assignees":[{"login":"x"}],"pull_request":{},
   "updated_at":"2026-08-01T00:00:00Z","created_at":"2026-08-01T00:00:00Z"}
 ]
@@ -47,7 +50,7 @@ printf '%s' "$out" | grep -q "DEAD-CLAIM	#1"; t "5d-quiet claim flagged" $?
 ! printf '%s' "$out" | grep -q "#6"; t "PRs excluded" $?
 printf '%s' "$out" | grep -q "AGING-TRIAGE	#3"; t "old triage flagged" $?
 ! printf '%s' "$out" | grep -q "AGING-TRIAGE	#4"; t "fresh triage not flagged" $?
-printf '%s' "$out" | grep -q "FRONTIER	1 grilling"; t "frontier counted" $?
+printf '%s' "$out" | grep -q "FRONTIER	1 unblocked grilling"; t "frontier counts only unblocked (hook parity)" $?
 
 if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  gh failure must exit non-zero\n'

@@ -26,7 +26,7 @@ EOF
 cat > "$tmp/pulls.json" <<'EOF'
 [
  {"number":90,"title":"feat: builds it","body":"does things\n\nCloses #1"},
- {"number":91,"title":"fix: decoys","body":"Fixes nothing here. Encloses #9 discussion. Fixes #8abc is not a ref. See owner/repo#5."}
+ {"number":91,"title":"fix: mentions","body":"Touches on #9 in passing. #8abc is not a ref (unbounded)."}
 ]
 EOF
 
@@ -50,10 +50,15 @@ t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
       else fail=$((fail+1)); printf '  FAIL  %s\n%s\n' "$1" "$out"; fi; }
 [ "$rc" -eq 0 ]; t "query exits 0" $?
 [ "$(printf '%s\n' "$out" | sed -n 1p)" = "$(printf '#5\tmilestone one\tready-for-agent')" ]; t "milestone ticket first" $?
-[ "$(printf '%s\n' "$out" | sed -n 2p)" = "$(printf '#8\tagent ready\tready-for-agent')" ]; t "unmilestoned ready ticket second" $?
+[ "$(printf '%s\n' "$out" | sed -n 2p)" = "$(printf '#8\tagent ready\tready-for-agent')" ]; t "unmilestoned ready ticket second (#8abc unbounded = not a ref)" $?
 ! printf '%s' "$out" | grep -q "#9	"; t "unlabeled issue NOT admitted (strict admission, OD-WAY-83)" $?
 ! printf '%s' "$out" | grep -q "#1	"; t "issue with an open 'Closes #1' PR excluded" $?
 [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = "2" ]; t "blocked/claimed/parked/PR/human/built/unlabeled all excluded" $?
+cat > "$tmp/pulls.json" <<'EOF2'
+[{"number":92,"title":"wip","body":"Closes the recoverable part of #8."}]
+EOF2
+out2="$(bash "$SCRIPT")"
+! printf '%s' "$out2" | grep -q "#8	"; t "prose-separated mention parks the ticket (the #472 failure)" $?
 
 if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  gh failure must exit non-zero\n'

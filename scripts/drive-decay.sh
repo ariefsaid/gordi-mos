@@ -31,5 +31,6 @@ printf '%s' "$raw" | jq -r -s --arg now "$now" \
     (map(select(([.labels[].name] | index("needs-triage")) and (age_days(.created_at) >= $td))
       | "AGING-TRIAGE\t#\(.number)\t\(age_days(.created_at))d old\t\(.title)")
      | .[]),
-    "FRONTIER\t\(map(select([.labels[].name] | index("wayfinder:grilling"))) | length) grilling ticket(s) awaiting the owner"
+    "FRONTIER\t\(map(select(([.labels[].name] | index("wayfinder:grilling"))
+                       and ((.issue_dependencies_summary.blocked_by // 0) == 0))) | length) unblocked grilling ticket(s) awaiting the owner"
 '

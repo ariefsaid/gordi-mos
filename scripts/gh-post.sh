@@ -11,9 +11,9 @@
 # Missing policy file = refuse (fail closed). A match = refuse, no override flag on purpose:
 # reword the text or take it to the owner. Rationale: docs/decisions.md (2026-08-27).
 #
-# PR stamps checked on `pr create`:
-#   <git-dir>/pre-pr-verify-ok        HEAD sha           (scripts/pre-pr-verify.sh)
-#   <git-dir>/independent-review-ok   "<sha> <reviewer> …" (scripts/record-review.sh)
+# PR stamps checked on `pr create` (FOUR, OD-WAY-83):
+#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh)
+#   <git-dir>/independent-review-<lens>-ok  ×3    per lens    (scripts/record-review.sh --lens …)
 #
 # Self-test: scripts/gh-post.test.sh
 set -uo pipefail
