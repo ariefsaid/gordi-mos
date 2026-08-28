@@ -117,7 +117,11 @@ describe('issue 457 — the Café children carry marks of their own', () => {
   })
 
   it('none of them is a mark another destination already draws', () => {
-    const elsewhere = new Set(SECTIONS.filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon))
+    // ADMIN_SECTIONS too: "another destination" means every registry a rail rung can come from,
+    // not just SECTIONS. Without it a child borrowing an admin mark slips through.
+    const elsewhere = new Set(
+      [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
+    )
     for (const s of CAFE_MODULE_SECTIONS) {
       expect(elsewhere.has(s.Icon), `${s.path} borrows a mark from another destination`).toBe(false)
     }
