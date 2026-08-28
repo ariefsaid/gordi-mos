@@ -5,18 +5,8 @@
 -- rather than against a list of names, so a table added by a later ticket without RLS fails THIS
 -- file instead of quietly sitting outside its plan.
 --
--- ⚠ THE POLICY THIS FILE PROVES WAS AUTHORED IN THE `ops` PASS, AND IS PROVEN AGAIN HERE ON PURPOSE.
--- integrations.esb_push had to land with `ops` because AC-012's enqueue refusal is a trigger and a
--- trigger needs its table, so ops_03_policy_fail_closed.sql carries a pair of assertions for
--- esb_push_select_ops_lead_or_admin. The rule this chain works to is that a re-authored policy is a NEW policy
--- whose fail-closed proof does not carry over — and the same reasoning says the proof of an
--- `integrations` policy belongs in the `integrations` suite, whichever migration happened to create
--- it. The assertions below were written here against the SQL, not copied. The overlap with ops_03 is
--- deliberate and is the cheaper of the two mistakes available.
---
--- The other half of this file is the VERIFY-DON'T-RE-CREATE criterion, discharged as assertions
--- rather than as a claim: the schema holds exactly the two tables asserted below, and the enqueue refusal really does
--- fire on INSERT *and* on an UPDATE that re-points source_ref, and really is revoked.
+-- Proves the `integrations` policies here, in the `integrations` suite, though ops_03 also
+-- touches esb_push: a re-authored policy is a new policy and its fail-closed proof does not carry.
 --
 -- Personas, from the shared fixture:
 --   Author    ...0d1  member + finance. Her ops_lead grant is seeded already-revoked, so she is a
@@ -69,15 +59,8 @@ select ops._test_seed_cafe();
 -- So the harvest is now pinned by TWO independent nets, and a value the domain admits has to get
 -- past BOTH of them to go unreported. Either one alone refuses the disjunct shape above.
 --
---   NET 1 — SHAPE, ANCHORED AT BOTH ENDS. The whole printed definition must be, end to end, one
---   `<subject> = ANY (ARRAY[…])` test and nothing besides. `^CHECK \(\(` and `\]\)\)\)$` pin the
---   two ends, and `[^()]+` for the subject is what refuses a LEADING disjunct: an OR prints its
---   own parentheses, and parentheses cannot appear there. There is no partial understanding
---   available — a shape this does not match whole is a shape it raises on. A regex re-spelling, a
---   function call, a subquery, an AND-narrowing, two arrays OR'd together: none of them match, and
---   all of them raise.
---
---   NET 2 — LITERAL CENSUS, over the WHOLE definition. Every SQL string literal written anywhere in
+-- Two nets: an anchored end-to-end shape match, then a literal census over the whole definition.
+-- Either fails and it raises. H1-H6 assert each sentence of this.
 --   the text is scanned out (quote-aware, so `''` inside a literal is read as one quote and no
 --   character class decides what a name may contain), and that census must equal the set lifted out
 --   of the array EXACTLY. A value admitted from outside the array — the `auditor` disjunct — is
