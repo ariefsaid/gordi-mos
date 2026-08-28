@@ -50,9 +50,12 @@
 # and that lives in supabase/applied-path-baseline. #230's baseline cutover is the second
 # customer: point --baseline at the pre-squash commit and nothing else changes.
 # Does NOT generalise: --prove can only break conditional statements whose target object class the
-# fingerprint covers (constraints and policies today). A `do $$ … $$` repair block or a
-# `drop function if exists` is exercised by the check but cannot be selected as the mutation, and
-# --prove says so and exits 2 rather than quietly proving nothing.
+# fingerprint covers (constraints and policies today). A `do $$ … $$` repair block, a
+# `drop function if exists`, or a multi-action ALTER that mixes a conditional drop with a live
+# action (`drop constraint if exists c, add constraint c check (…)`) is exercised by the check but
+# cannot be selected as the mutation — the last because the mutation blanks a statement whole, so
+# breaking it would be visible to a fresh reset. --prove says so and exits 2 rather than quietly
+# proving nothing.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -197,14 +200,22 @@ PENDING_N=$(grep -c . "$OUT/pending-versions.txt" || true)
 # GREEN having proven nearly nothing. Coverage shrinking silently is the failure mode this catches.
 git merge-base --is-ancestor "$BASELINE_SHA" HEAD 2>/dev/null \
   || skip "the baseline $BASELINE is not an ancestor of HEAD — it names a commit this branch never had, so 'the deployed database' is a fiction here"
-# Coverage shrink is a WARNING, not a refusal: an arbitrary floor would refuse to run on a repo
-# that legitimately has one pending migration. The defect the review named is that it shrinks
-# SILENTLY — so say it, loudly and in the artifact, and let the run proceed.
+# Coverage shrink. #472 asks for forward baseline movement to be BOUNDED, and an earlier round
+# answered with a warning only — an arbitrary floor would refuse to run on a repo that legitimately
+# has one pending migration, and the defect named was that coverage shrinks SILENTLY. A
+# cross-family review then pointed out the obvious: a warning does not bound anything. A run with
+# one pending migration still reports GREEN having proven almost nothing about the chain.
+#
+# So: it REFUSES by default, and the escape hatch is explicit rather than arbitrary. Setting
+# APPLIED_PATH_MIN_PENDING=1 is a caller saying "yes, one migration really is the whole gap" —
+# a statement someone made on purpose, which is exactly what the silent version lacked. Exit 2 is
+# the established "cannot run meaningfully" code, not a proof failure.
 THIN_COVERAGE=""
 MIN_PENDING="${APPLIED_PATH_MIN_PENDING:-2}"
 if [ "$PENDING_N" -lt "$MIN_PENDING" ]; then
   THIN_COVERAGE="only $PENDING_N migration(s) pending against $BASELINE — this check now covers very little. If the baseline has crept forward, move it back to what is actually deployed."
   printf '  ⚠ %s\n' "$THIN_COVERAGE" >&2
+  skip "$THIN_COVERAGE Set APPLIED_PATH_MIN_PENDING=$PENDING_N to run anyway and say so deliberately."
 fi
 
 echo "── applied-path check"
@@ -258,6 +269,22 @@ rm -f "$OUT/drift.diff"
 # The trap restores; leaving it armed costs one reset and removes a class of haunting.
 echo "✓ the applied path converges: a migrated database is indistinguishable from a fresh one"
 
+# The base evidence table is written on EVERY run, not only under --prove: the fast lane runs
+# plain, and a coverage warning that only reaches the deploy lane's artifact is half a warning.
+{
+  echo "# Applied-path check (#393)"
+  echo
+  echo "| | |"
+  echo "|---|---|"
+  echo "| repo commit | \`$(git rev-parse HEAD)\` |"
+  echo "| deployed baseline | \`$BASELINE_SHA\` |"
+  echo "| pending migrations | $PENDING_N |"
+  echo "| facts compared | $(head_of "$OUT/fresh.txt") |"
+  [ -n "$THIN_COVERAGE" ] && echo "| ⚠ coverage | $THIN_COVERAGE |"
+  echo
+  echo "GREEN — a database migrated from the baseline is indistinguishable from a fresh one."
+} > "$OUT/SUMMARY.md"
+
 if [ "$PROVE" -eq 0 ]; then
   say "evidence: $OUT"
   exit 0
@@ -275,24 +302,167 @@ while read -r v; do
   [ -n "$v" ] || continue
   for f in "$SAB_TREE"/supabase/migrations/"$v"_*.sql; do
     [ -e "$f" ] || continue
-    lines=""
-    while IFS=: read -r no text; do
-      # The object this statement drops. Only classes the fingerprint covers can be judged.
-      # Strip surrounding quotes: a quoted identifier is the same object as its bare form, but
-      # the fingerprint prints it bare — leaving the quotes on makes the fresh-fingerprint lookup
-      # miss, the statement look CI-unreachable, and the run abort at step 5 (#472).
-      ident="$(printf '%s' "$text" | sed -n 's/.*[Ii][Ff][[:space:]]*[Ee][Xx][Ii][Ss][Tt][Ss][[:space:]]*\([^ ;]*\).*/\1/p' | tr -d '\"')"
-      [ -n "$ident" ] || continue
-      # Unreachable by CI iff the object is absent from a freshly reset database. Confirmed
-      # empirically at step 5 — a wrong pick there stops the run rather than weakening the proof.
-      grep -qF "|$ident|" "$OUT/fresh.txt" && continue
-      lines="${lines}${lines:+,}$no"
-      printf '%s:%s:%s\n' "$(basename "$f")" "$no" "$ident" >> "$OUT/red/sabotage.txt"
-    # -i: the ident sed is already case-insensitive, so a case-sensitive selector here made an
-    # uppercase DROP CONSTRAINT IF EXISTS silently unselectable — inconsistent, and invisible (#472).
-    done < <(grep -niE 'drop[[:space:]]+(constraint|policy)[[:space:]]+if[[:space:]]+exists' "$f" || true)
-    [ -n "$lines" ] || continue
-    LINES="$lines" perl -i -pe 'BEGIN{%L = map { $_ => 1 } split /,/, $ENV{LINES}} $_ = "-- [applied-path sabotage] " . $_ if $L{$.}' "$f"
+    spans=""
+    # STATEMENT-aware, not line-aware (#472). Commenting out one LINE of a statement spanning
+    # several leaves an orphaned `alter table X` prefix, which surfaces as "migration up failed"
+    # rather than a diagnosis. Perl finds each statement's full CHARACTER extent, blanking `--`
+    # comments first so a commented-out conditional is never mistaken for a live one, and folding
+    # unquoted identifiers the way Postgres and the fingerprint both do.
+    while IFS=: read -r first last soff eoff kind ids; do
+      [ -n "$ids" ] || continue
+      # Unreachable by CI iff EVERY object the statement drops is absent from a freshly reset
+      # database. All-or-nothing, because the mutation blanks the statement WHOLE: if one target
+      # of a multi-action ALTER does survive into fresh.txt, blanking would be visible to a fresh
+      # reset. Confirmed empirically at step 5 — a wrong pick there stops the run rather than
+      # weakening the proof.
+      IFS=$'\t' read -r -a IDS <<< "$ids"
+      unreachable=1
+      for id in "${IDS[@]}"; do
+        if grep -qF "|$id|" "$OUT/fresh.txt"; then unreachable=0; fi
+      done
+      [ "$unreachable" = "1" ] || continue
+      spans="${spans}${spans:+,}${soff}-${eoff}"
+      # The whole RANGE, not just its first line, and one row per object the statement drops. A
+      # reader of red/sabotage.txt has to be able to reconstruct exactly what was commented out:
+      # "line 2" for a statement that occupied lines 2-3 is a record of something that did not
+      # happen, and so is a single identifier for a statement that dropped two.
+      for id in "${IDS[@]}"; do
+        # CLASS FIRST, deliberately. Postgres permits a colon inside a quoted identifier, and the
+        # verdict reads the class with `awk -F:` — with the identifier ahead of it, `"has:colon"`
+        # shifted every field and the run exited 1 saying the red run named no CONSTRAINT (#481
+        # cross-family review). The identifier is last, where a colon in it can shift nothing.
+        printf '%s:%s:%s-%s:%s\n' "$kind" "$(basename "$f")" "$first" "$last" "$id" >> "$OUT/red/sabotage.txt"
+      done
+    done < <(perl -0777 -ne '
+      my $shadow = $_;
+      my @qident;
+      my $n = length($shadow);
+      # ONE left-to-right lex, the way Postgres reads a file: whichever of a `--` comment, a
+      # string literal or a dollar-quoted body STARTS first owns its whole extent, and that
+      # extent is blanked to spaces — newlines kept, so line numbers stay true. Without it a
+      # `--` inside a literal erases the rest of the line and merges two statements, and a `;`
+      # inside a `do $$ … $$` body splits a statement that has none, which yields a phantom
+      # identifier that is in neither fresh.txt nor the red diff: a FALSE RED on the gate that
+      # runs immediately before a staging deploy (#472). The header above promises a DO block
+      # cannot be selected; this is what makes that true.
+      my $i = 0;
+      while ($i < $n) {
+        my $c = substr($shadow, $i, 1);
+        my $j;
+        if ($c eq "-" && substr($shadow, $i + 1, 1) eq "-") {
+          $j = index($shadow, "\n", $i); $j = $n if $j < 0;
+        } elsif ($c eq "\x27" || $c eq "\"") {
+          # `\x27\x27` doubles the quote in every string; a BACKSLASH escapes it only in an
+          # E\x27…\x27 string, which is the one form where standard_conforming_strings does not
+          # apply. Reading `\\\x27` as a terminator resumes lexing INSIDE the literal, so a
+          # `drop constraint if exists …` written in string content is selected as if it were
+          # SQL — an object no database ever had, absent from fresh.txt so always picked and
+          # absent from the red diff so step 6 reports "did NOT go red": a false RED on the gate
+          # that runs immediately before a staging deploy (#481 review). Same class as the
+          # dollar-quote bug above.
+          my $esc = ($c eq "\x27" && $i > 0
+                     && substr($shadow, $i - 1, 1) =~ /[Ee]/
+                     && ($i < 2 || substr($shadow, $i - 2, 1) !~ /[A-Za-z0-9_\$"]/));
+          $j = $i + 1;
+          while ($j < $n) {
+            if ($esc && substr($shadow, $j, 1) eq "\\") { $j += 2; next }
+            if (substr($shadow, $j, 1) ne $c) { $j++; next }
+            if (substr($shadow, $j + 1, 1) eq $c) { $j += 2; next }
+            $j++; last;
+          }
+          $j = $n if $j > $n;
+          # A quoted IDENTIFIER is stepped over in $shadow, never blanked: the selector still has
+          # to read its case out of it, because Postgres keeps the case and the fingerprint
+          # therefore does too. But its CONTENT must not reach the boundary scan — Postgres
+          # permits `;` and `--` inside a quoted name, and either one splits or truncates a
+          # statement that has neither (#481 cross-family review). So the extent is recorded and
+          # blanked in $split below, which is what the scan reads. Same length, so every offset
+          # and line number stays true.
+          if ($c eq "\"") { push @qident, [$i, $j]; $i = $j; next }
+        } elsif ($c eq "\$" && substr($shadow, $i) =~ /^(\$\$|\$[A-Za-z_][A-Za-z0-9_]*\$)/) {
+          my $tag = $1;
+          $j = index($shadow, $tag, $i + length($tag));
+          $j = ($j < 0) ? $n : $j + length($tag);
+        } else { $i++; next }
+        my $seg = substr($shadow, $i, $j - $i); $seg =~ s/[^\n]/ /g;
+        substr($shadow, $i, $j - $i) = $seg;
+        $i = $j;
+      }
+      my @at; my $ln = 1;
+      for my $k (0 .. $n - 1) { $at[$k] = $ln; $ln++ if substr($shadow, $k, 1) eq "\n"; }
+      # $split is $shadow with quoted-identifier CONTENT blanked as well: statement boundaries are
+      # found in it, identifiers are still extracted from $shadow. Blanking preserves length, so
+      # the two agree on every offset.
+      my $split = $shadow;
+      for my $q (@qident) {
+        my $seg = substr($split, $q->[0], $q->[1] - $q->[0]); $seg =~ s/[^\n]/ /g;
+        substr($split, $q->[0], $q->[1] - $q->[0]) = $seg;
+      }
+      my @stmts; my $start = 0;
+      while ($split =~ /;/g) {
+        my $e = pos($split) - 1; push @stmts, [$start, $e]; $start = $e + 1;
+      }
+      # A file whose LAST statement carries no terminator is still a statement — psql runs it.
+      # Without this the tail is invisible, so a conditional drop written without a trailing
+      # semicolon could never be selected and the proof would silently cover less than it says.
+      if ($start < $n && substr($split, $start) =~ /\S/) {
+        my $e = $n - 1; $e-- while $e > $start && substr($split, $e, 1) =~ /\s/;
+        push @stmts, [$start, $e];
+      }
+      # A `,` ENDS an identifier: it separates the actions of a multi-action ALTER. Reading it as
+      # part of the name emitted `t_cat_fkey,` — a phantom that can never appear in fresh.txt, so
+      # the CI-unreachability test passed vacuously and the statement was selected unconditionally
+      # (#481 review).
+      my $OBJ  = qr/(?:(?:"[^"]+"|\w+)\s*\.\s*)?(?:"[^"]+"|\w+)/;
+      my $COND = qr/drop\s+(constraint|policy)\s+if\s+exists\s+("[^"]+"|[^\s;,]+)/i;
+      for my $s (@stmts) {
+        my ($st, $end) = @$s;
+        my $stmt = substr($shadow, $st, $end - $st + 1);
+        # EVERY conditional drop in the statement, not merely the first: one ALTER can drop two
+        # constraints, and recording one of them describes a mutation smaller than the one made.
+        my (@ids, $kind);
+        while ($stmt =~ /$COND/g) {
+          my ($k, $raw) = (uc($1), $2);
+          my $quoted = ($raw =~ /^"/);
+          $raw =~ s/^"//; $raw =~ s/"$//; $raw = lc($raw) unless $quoted;
+          $kind = $k; push @ids, $raw;
+        }
+        next unless @ids;
+        # …and the statement must do NOTHING ELSE, because the mutation blanks it whole.
+        # `alter table t drop constraint if exists c, add constraint c check (…);` is the
+        # idiomatic repair shape; blanking it would delete the ADD from a FRESH reset too, which
+        # step 5 reports as "the mutation changed the FRESH database" — a refusal on the gate that
+        # runs before a staging deploy. Not selectable is the safe answer, the same answer the
+        # header already gives for a `do $$ … $$` block.
+        my $rest = $stmt;
+        $rest =~ s/$COND//g;
+        $rest =~ s/^\s*alter\s+table\s+(?:only\s+)?$OBJ//i;   # the ALTER TABLE prefix
+        $rest =~ s/\bon\s+$OBJ//i;                            # DROP POLICY … ON t
+        $rest =~ s/[\s,;]//g;
+        next if length $rest;
+        my $fs = $st; $fs++ while $fs < $end && substr($shadow, $fs, 1) =~ /\s/;
+        # Character offsets travel alongside the line numbers: the line range is for the human
+        # reading red/sabotage.txt, the offsets are what the mutation actually cuts. Identifiers
+        # come last so a `:` inside a "Quoted" one cannot shift the class field.
+        print join(":", $at[$fs], $at[$end], $fs, $end, $kind, join("\t", @ids)), "\n";
+      }
+    ' "$f" || true)
+    [ -n "$spans" ] || continue
+    # Blank each selected statement over its EXACT character extent — spaces for everything but
+    # newlines, so every line number in red/sabotage.txt stays true. NOT a `-- ` prefix on every
+    # line of the range (#481 review): two statements can share a line, and commenting that line
+    # out takes the neighbour with it, so the sabotaged FRESH reset differs from the real one and
+    # step 5 refuses — a false RED on the gate that runs immediately before a staging deploy, the
+    # same shape as the dollar-quote and string-literal bugs. Blanking also introduces no comment
+    # syntax, so nothing inside the statement's own text can terminate the mutation early.
+    SPANS="$spans" perl -0777 -i -pe '
+      for my $r (map { [ split /-/ ] } split /,/, $ENV{SPANS}) {
+        my $len = $r->[1] - $r->[0] + 1;
+        my $seg = substr($_, $r->[0], $len);
+        $seg =~ s/[^\n]/ /g;
+        substr($_, $r->[0], $len) = $seg;
+      }
+    ' "$f"
   done
 done < "$OUT/pending-versions.txt"
 SAB_N=$(grep -c . "$OUT/red/sabotage.txt" || true)
@@ -325,10 +495,23 @@ echo
 # Assert against the class actually sabotaged, not a fixed one: a baseline whose pending
 # migrations carry only policy drops produces a correct RED naming POLICY rows, and a hardcoded
 # CONSTRAINT check would call that a failure — a false red on the gate before a staging deploy.
-SABOTAGED_KIND=$(sed 's/.*:\([a-z_]*\)$/\1/' "$OUT/red/sabotage.txt" >/dev/null 2>&1; \
-  grep -qi 'drop policy' "$OUT/red/sabotage.sql" 2>/dev/null && echo POLICY || echo CONSTRAINT)
-if grep -qE "^[+-]${SABOTAGED_KIND}\|" "$OUT/red/drift.diff" 2>/dev/null; then
-  note "ok" "the red run names the ${SABOTAGED_KIND} facts that survived"
+# Field 1, not field 4: the class leads the record so a colon inside a quoted identifier cannot
+# shift it. NF>=4 still holds — file, range and identifier follow.
+# ANY sabotaged class that drifted satisfies this, not the alphabetically-first one. `sort -u |
+# head -1` picked CONSTRAINT over POLICY every time, so a batch mixing a no-op ghost constraint
+# drop with a load-bearing policy drop refused a proof that actually held: drift named the POLICY,
+# the verdict demanded a CONSTRAINT, and the gate before a staging deploy exited 1 (#481
+# cross-family review). The `:-CONSTRAINT` fallback went with it — SAB_N > 0 is enforced above and
+# every row leads with its class, so it was dead code, and it is the same fallback that once made
+# the adaptive-verdict test vacuous.
+SABOTAGED_KINDS="$(awk -F: 'NF>=4 {print $1}' "$OUT/red/sabotage.txt" | sort -u)"
+DRIFTED_KIND=""
+for _k in $SABOTAGED_KINDS; do
+  if grep -qE "^[+-]${_k}\|" "$OUT/red/drift.diff" 2>/dev/null; then DRIFTED_KIND="$_k"; break; fi
+done
+SABOTAGED_KIND="$(printf '%s' "$SABOTAGED_KINDS" | tr '\n' '/')"; SABOTAGED_KIND="${SABOTAGED_KIND%/}"
+if [ -n "$DRIFTED_KIND" ]; then
+  note "ok" "the red run names the ${DRIFTED_KIND} facts that survived"
 else
   note "FAIL" "the red run reported drift without naming a ${SABOTAGED_KIND}"; FAILED=1
 fi
