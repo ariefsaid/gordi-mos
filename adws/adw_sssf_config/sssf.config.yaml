@@ -3,7 +3,7 @@
 #
 # MOS roster ruling (owner 2026-08-20, OD-WAY-71; amends the builder half of OD-WAY-64):
 # planner zai/glm-5.3 · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
-# reviewer gpt-5.6-terra · fe_reviewer gpt-5.6-luna.
+# reviewer gpt-5.6-luna · fe_reviewer gpt-5.6-luna.
 #
 # Three families now sit on the roster, so build and review are cross-family by CONSTRUCTION
 # rather than by the careful pairing OD-WAY-64 had to settle for. Escalation ladders by
@@ -171,7 +171,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-terra   # code review. CROSS-FAMILY by construction since OD-WAY-71: the builder is DeepSeek (bitdeer), so codex reviewing it is a genuinely different family — the compromise OD-WAY-64 accepted is gone. Review ladder glm -> luna -> terra by availability; see docs/agents/pi-delegation.md.
+    model: openai-codex/gpt-5.6-luna   # code review (owner 2026-08-28: luna is the ONLY openai-side reviewer; terra retired). CROSS-FAMILY by construction since OD-WAY-71: the builder is DeepSeek (bitdeer). Review ladder glm -> luna by availability; see docs/agents/pi-delegation.md.
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.

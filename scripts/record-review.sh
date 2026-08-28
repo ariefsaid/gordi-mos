@@ -5,7 +5,7 @@
 #
 # Rules (docs/decisions.md 2026-08-27, amends the #295 identity direction):
 #   - reviewer must be an agent that did not write the branch: cross-family preferred
-#     (glm / luna / terra), opus accepted as fallback. The session's own model never qualifies.
+#     (glm / luna), opus accepted as fallback. The session's own model never qualifies.
 #   - the artifact is the reviewer's actual output and must cite this HEAD (≥12-char sha prefix),
 #     so a stamp cannot be minted from a stale or unrelated review.
 #
@@ -25,8 +25,8 @@ done
 [ -n "$reviewer" ] && [ -n "$artifact" ] || die "usage: --reviewer <name> --artifact <file>"
 
 case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
-  *glm*|*luna*|*terra*|*opus*) ;;
-  *) die "reviewer '$reviewer' is not an accepted independent reviewer (glm/luna/terra, or opus fallback)" ;;
+  *glm*|*luna*|*opus*) ;;
+  *) die "reviewer '$reviewer' is not an accepted independent reviewer (glm/luna, or opus fallback)" ;;
 esac
 
 [ -s "$artifact" ] || die "artifact missing or empty: $artifact"

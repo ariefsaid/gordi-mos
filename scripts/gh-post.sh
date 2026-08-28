@@ -96,7 +96,7 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
   r="$(awk '{print $1}' "$gitdir/independent-review-ok" 2>/dev/null || true)"
-  [ "$r" = "$head" ] || die "no independent-review stamp for HEAD — an agent that did not write this branch must review it (glm/luna/terra, or opus as fallback), then: bash scripts/record-review.sh --reviewer <name> --artifact <review file>"
+  [ "$r" = "$head" ] || die "no independent-review stamp for HEAD — an agent that did not write this branch must review it (glm/luna, or opus as fallback), then: bash scripts/record-review.sh --reviewer <name> --artifact <review file>"
 fi
 
 exec gh "$@"
