@@ -496,10 +496,20 @@ select is(
 --     access_roles. A disjunct on one is invisible — and these are not exotic keys: PostgREST puts
 --     `role` in every request and GoTrue puts `sub` in every token, so `or (claims->>'role' =
 --     'authenticated')` collapses the tenancy seam entirely with this file green.
---   * A role taken from the DIRECTORY rather than the claim. The subject is fixed, so
---     `or exists (select 1 from shared.person_roles ...)` is seen only if that one subject holds it.
---   * A COLUMN combination. The fixture holds target_env, status and source_module constant per
---     row, so a predicate scoped to one of those is not spanned.
+--   * A role taken from the DIRECTORY rather than the claim, or a predicate naming a SUBJECT.
+--     The sweeps hold the person fixed, so `or exists (select 1 from shared.person_roles ...)` is
+--     seen only if that one subject holds the role, and a disjunct naming any person_id other than
+--     the four personas is invisible outright.
+--   * A COLUMN COMBINATION. The five rows carry every value of every enumerated column between
+--     them, so a predicate scoped to ONE column IS caught — `or target_env = 'goo'` reddens the
+--     role and subset sweeps. What is invisible is a predicate keyed on a combination those five
+--     rows do not form, or on an unbounded column at a value they do not take.
+--   * A SESSION SETTING. Nothing here varies a GUC, so `or current_setting('app.support', true) =
+--     'on'` reads false in all 512 cells and passes. Reachable in practice through
+--     `alter role authenticated set ...` or a pre-request hook — the "support mode" shape.
+--   * ANOTHER DB ROLE. Every cell runs as `authenticated`. Section C pins each policy's COMMAND
+--     but not its `polroles`, and section B asks about `authenticated` and `service_role` only, so
+--     granting `anon` select and adding it to a policy's roles is invisible to all of this.
 -- Each is a widening a reviewer must look for by reading the policy, because no cell here reddens.
 select is(
   (select coalesce(array_agg('{' || array_to_string(c.roles, '+') || '}=' || r.n
@@ -673,7 +683,10 @@ select is((select count(*)::int from integrations.esb_push_groups), 0,
 -- absent, so current_org_id() resolves and the conjunction holds. This sweep pins that as it is
 -- rather than asserting a person_id requirement the predicate never made. Whether a personless
 -- claim should be admitted at all is a question about the token hook, not about this policy.
--- It lives here because assertion 37 is the only thing that encodes it.
+-- It lives beside the crossed sweep below because that sweep is the only thing that encodes it:
+-- the power-set sweeps run through reads_as(), which always builds a person_id, so none of them
+-- can express a personless claim. Named rather than numbered — four assertions were inserted
+-- above this line in one round and an ordinal would already be wrong.
 --
 -- Inside section E's authenticated window, below the group fixture: above the fixture every
 -- group cell read an empty table, and below the `reset role` the sweep ran as the table owner
