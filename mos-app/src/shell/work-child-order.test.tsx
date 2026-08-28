@@ -109,6 +109,24 @@ function workChildHrefs(root: HTMLElement): string[] {
  * would stop being comparable.
  */
 /**
+ * Route-equivalent form of a nav target. react-router matches on pathname and is case-insensitive
+ * by default, so `/Work/Signals?x=1`, `/work/signals/` and `/work/signals` are one destination —
+ * but a CSS `[data-to^="/work/"]` selector is byte-exact and case-sensitive, so re-typed rows in
+ * any of those spellings were invisible to every assertion here.
+ */
+const routeKey = (t: string) => t.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase()
+
+/** Every /work anchor a rail/drawer surface emits, in document order, parent included. */
+function workAnchors(root: HTMLElement): { to: string; child: boolean }[] {
+  return Array.from(root.querySelectorAll<HTMLAnchorElement>('a[href]'))
+    .filter((a) => routeKey(a.getAttribute('href') ?? '').startsWith('/work'))
+    .map((a) => ({
+      to: routeKey(a.getAttribute('href') ?? ''),
+      child: a.classList.contains('rail-item--child'),
+    }))
+}
+
+/**
  * The Work PARENT target a rail/drawer surface emits: a /work/ anchor that is NOT a child rung.
  *
  * The cross-surface checks below compare child rows only, so a surface that re-typed its PARENT
@@ -200,7 +218,7 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
     // The parent pair is read from the registry, not written here, so a legitimate re-point does
     // not fail this. What THIS asserts is narrow: the palette's parent target equals the declared
-    // one. Cross-surface agreement is a separate assertion above — reading the same field proves
+    // one. Cross-surface agreement is a separate assertion below — reading the same field proves
     // each surface follows the registry, never that the three agree with each other, and a guard
     // covering two of three surfaces licenses the third to drift.
     const parentPath = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
@@ -214,13 +232,14 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     // The parent row legitimately repeats its own primaryPath (it targets where Work goes, which
     // is also a child's path), so that one repeat is allowed and every other is not.
     const v = palette()
-    const targets = Array.from(
-      v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]'),
-      // Trailing slash normalised: react-router resolves /work/signals/ and /work/signals to the
-      // same route, but `new Set` sees two strings — a re-typed sequence differing only by a
-      // slash passed 103/103.
-    ).map((el) => (el.getAttribute('data-to') ?? '').replace(/\/+$/, ''))
-    const parent = (DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks').replace(/\/+$/, '')
+    // Every row with a target, keyed by ROUTE not by string. A CSS `[data-to^="/work/"]` prefix is
+    // byte-exact and case-sensitive, so `/Work/Signals`, `/work/signals?` and `/work/signals/` —
+    // all one destination to react-router — were invisible here and re-typed sequences in any of
+    // those spellings passed green.
+    const targets = Array.from(v.container.querySelectorAll<HTMLElement>('[data-to]'))
+      .map((el) => routeKey(el.getAttribute('data-to') ?? ''))
+      .filter((t) => t.startsWith('/work'))
+    const parent = routeKey(DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks')
     // indexOf returns -1 when the parent target is not under /work/ — and splice(-1, 1) deletes
     // the LAST element, silently dropping a real row from the uniqueness check. With the registry
     // re-pointed off /work/ AND a genuine duplicate present, this passed 6/6 green.
@@ -232,12 +251,14 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
 
   it('all three surfaces send the Work PARENT to the same place', () => {
     const rail = shell(<RailNav />)
-    const railParent = workParentHref(rail.container.querySelector('nav')!)
+    const railNav = rail.container.querySelector('nav')!
+    const railParent = workParentHref(railNav)
+    const railAnchors = workAnchors(railNav)
     rail.unmount()
     const drawer = shell(<MobileDrawer open onClose={vi.fn()} />)
-    const drawerParent = workParentHref(
-      drawer.container.querySelector('nav[aria-label="More destinations"]')!,
-    )
+    const drawerNav = drawer.container.querySelector<HTMLElement>('nav[aria-label="More destinations"]')!
+    const drawerParent = workParentHref(drawerNav)
+    const drawerAnchors = workAnchors(drawerNav)
     drawer.unmount()
     const view = palette()
     const palParent = (view.container.querySelector('[data-to^="/work/"]:not(.action)') as HTMLElement | null)
@@ -246,6 +267,15 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     expect(railParent).not.toBe('')
     expect(drawerParent).toBe(railParent)
     expect(palParent).toBe(railParent)
+
+    // POSITION, not just value. workParentHref FILTERS for the first non-child anchor, so it is
+    // position-blind: moving the drawer's Work row below its children left every assertion green
+    // while the drawer listed Work last and the rail listed it first — the cross-device divergence
+    // this file exists to prevent. The parent must be the FIRST /work anchor on each surface.
+    for (const [surface, anchors] of [['rail', railAnchors], ['drawer', drawerAnchors]] as const) {
+      expect(anchors.length, `${surface} rendered no /work anchors`).toBeGreaterThan(1)
+      expect(anchors[0].child, `${surface} renders a child before the Work parent`).toBe(false)
+    }
   })
 
   it('rail, drawer and palette agree — the same items in the same sequence', () => {

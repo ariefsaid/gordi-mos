@@ -757,9 +757,13 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
     expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
-    const rows = childRows()
-    expect(rows.length).toBeGreaterThan(1)
-    for (const row of rows) expect(row.getAttribute('data-child')).toBe('true')
+    // By target, like its neighbour: childRows() selects [data-child="true"], so asserting
+    // data-child on its results cannot come out red — a cleared rung leaves the selector.
+    const rows = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="option"][data-to^="/work/"]'),
+    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks/new')
+    expect(rows.length).toBeGreaterThan(2)
+    for (const row of rows.slice(1)) expect(row.getAttribute('data-child')).toBe('true')
   })
 
   it('in the default view every child wears the rung AND points at the rendered Work row', () => {
