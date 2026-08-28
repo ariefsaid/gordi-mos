@@ -4,7 +4,7 @@
 # scans every outbound string against the posting policy, then execs `gh` with the same args.
 #
 #   scripts/gh-post.sh issue comment 42 --body "..."     # any gh write, same argv as gh itself
-#   scripts/gh-post.sh pr create --base dev --title ... # extra: requires the two PR stamps
+#   scripts/gh-post.sh pr create --base dev --title ... # extra: requires the FOUR PR stamps
 #
 # Policy patterns live OUTSIDE this public repo, in the local docs checkout
 # (docs/gh-denylist.txt of the MAIN worktree — worktrees don't materialize gitignored dirs).
@@ -82,7 +82,7 @@ while IFS= read -r pat; do
   done
 done < "$denylist"
 
-# ── PR creation: both stamps must certify the exact HEAD being PRed — and a pr create may only
+# ── PR creation: all four stamps must certify the exact HEAD being PRed — and a pr create may only
 # target THIS checkout: the stamps certify HEAD here, nothing else.
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do

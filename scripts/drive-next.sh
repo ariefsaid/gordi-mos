@@ -20,7 +20,8 @@ raw="$(gh api --paginate 'repos/{owner}/{repo}/issues?state=open&per_page=100' 2
 prs="$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' 2>/dev/null)" \
   || { echo "✗ drive-next: gh pulls query failed" >&2; exit 1; }
 
-# Any '#N' at a word boundary counts ('#5abc' is not a ref — GitHub links only bounded numbers).
+# Any '#N' with a bounded TAIL counts ('#5abc' is not a ref; a bound before the # is not
+# required — 'v1#12' parks 12, over-parking being the accepted direction).
 pr_refs="$(printf '%s' "$prs" | jq -r -s 'add // [] | .[] | "\(.title) \(.body // "")"' \
   | grep -oE '#[0-9]+([^[:alnum:]]|$)' | grep -oE '[0-9]+' | sort -nu \
   | jq -R -n '[inputs | tonumber]')"

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Self-test for scripts/drive-next.sh — the drivable filter (blocked / assigned / parked labels /
-# PRs / open-PR "Closes #N" cross-ref) and the milestone → ready-for-agent → number order,
-# against a stubbed gh.
+# Self-test for scripts/drive-next.sh — strict admission, the drivable filters, any-mention
+# PR parking (DD-WAY-45), and milestone → number order, against a stubbed gh.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/drive-next.sh"
@@ -57,7 +56,8 @@ t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
 cat > "$tmp/pulls.json" <<'EOF2'
 [{"number":92,"title":"wip","body":"Closes the recoverable part of #8."}]
 EOF2
-out2="$(bash "$SCRIPT")"
+out2="$(bash "$SCRIPT")"; rc2=$?
+[ "$rc2" -eq 0 ]; t "second picker run exits 0 (guards the regression check against vacuous pass)" $?
 ! printf '%s' "$out2" | grep -q "#8	"; t "prose-separated mention parks the ticket (the #472 failure)" $?
 
 if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then

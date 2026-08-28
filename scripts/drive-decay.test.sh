@@ -24,16 +24,26 @@ cat > "$tmp/issues.json" <<'EOF'
   "issue_dependencies_summary":{"blocked_by":1},
   "updated_at":"2026-08-20T00:00:00Z","created_at":"2026-08-20T00:00:00Z"},
  {"number":6,"title":"a PR","labels":[],"assignees":[{"login":"x"}],"pull_request":{},
-  "updated_at":"2026-08-01T00:00:00Z","created_at":"2026-08-01T00:00:00Z"}
+  "updated_at":"2026-08-01T00:00:00Z","created_at":"2026-08-01T00:00:00Z"},
+ {"number":8,"title":"ready but parked by PR 90","labels":[{"name":"ready-for-agent"}],"assignees":[],
+  "updated_at":"2026-08-27T00:00:00Z","created_at":"2026-08-27T00:00:00Z"},
+ {"number":9,"title":"ready and free","labels":[{"name":"ready-for-agent"}],"assignees":[],
+  "updated_at":"2026-08-27T00:00:00Z","created_at":"2026-08-27T00:00:00Z"}
 ]
 EOF
 
+cat > "$tmp/pulls.json" <<'EOF2'
+[{"number":90,"title":"wip","body":"touches #8 in passing"}]
+EOF2
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
 [ "\$1" = api ] && [ "\$2" = --paginate ] || exit 9
 [ "\${GH_STUB_FAIL:-0}" = 1 ] && exit 1
-cat "$tmp/issues.json"
+case "\$3" in
+  *"/pulls"*) cat "$tmp/pulls.json" ;;
+  *) cat "$tmp/issues.json" ;;
+esac
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -52,6 +62,8 @@ printf '%s' "$out" | grep -q "AGING-TRIAGE	#3"; t "old triage flagged" $?
 ! printf '%s' "$out" | grep -q "AGING-TRIAGE	#4"; t "fresh triage not flagged" $?
 printf '%s' "$out" | grep -q "FRONTIER	1 unblocked grilling"; t "frontier counts only unblocked (hook parity)" $?
 printf '%s' "$out" | grep -q "UNTRACKED	#1"; t "state-less issue surfaces as UNTRACKED" $?
+printf '%s' "$out" | grep -q "PR-PARKED	#8"; t "parked ready ticket surfaces (DD-WAY-45 counterweight)" $?
+! printf '%s' "$out" | grep -q "PR-PARKED	#9"; t "unparked ready ticket not flagged" $?
 ! printf '%s' "$out" | grep -q "UNTRACKED	#3"; t "needs-triage issue is not UNTRACKED" $?
 
 if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then

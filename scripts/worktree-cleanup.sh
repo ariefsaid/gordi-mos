@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # worktree-cleanup.sh — sweep merged agent worktrees + branches.
 #
-# Worktree-isolated agents are the DEFAULT dispatch mode (see docs/agents/factory.md
+# Worktree-isolated agents are the DEFAULT dispatch mode (see docs/agents/factory.md § Executor routing
 # §Multi-agent). Each agent commits to its own `worktree-agent-<id>` branch in a
 # throwaway worktree. After the Director merges that work, the worktree + branch are
 # dead weight. This sweeps them.
