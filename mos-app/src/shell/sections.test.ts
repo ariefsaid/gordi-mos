@@ -5,7 +5,7 @@
  */
 import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
-import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
+import { SECTIONS, CAFE_SECTIONS, CAFE_MODULE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
 
 describe('T5: SECTIONS — workspace fallback registry', () => {
   it('home section resolves for /', () => {
@@ -103,5 +103,31 @@ describe('T5: new destination sections resolve', () => {
 describe('T5: sectionForPath — fallbacks', () => {
   it('returns null for a truly unknown path', () => {
     expect(sectionForPath('/unknown-xyz')).toBeNull()
+  })
+})
+
+describe('the Café children carry marks of their own (#457)', () => {
+  // Before this, all five borrowed the parent's cup: five rail rungs, one picture. Swapping them
+  // all back to CafeIcon passed every test in the repo, so this is the cheapest thing that fails
+  // on that. Geometry comparison across the whole rail is a separate guard.
+  it('the five children use five distinct components', () => {
+    const icons = CAFE_MODULE_SECTIONS.map((s) => s.Icon)
+    expect(icons).toHaveLength(5)
+    expect(new Set(icons).size).toBe(5)
+  })
+
+  it('none of them is a mark another destination already draws', () => {
+    // The breadcrumb registries — SECTIONS and ADMIN_SECTIONS — and nothing more. That is a real
+    // limit, not a claim of completeness: the rail's own rungs are inline literals in
+    // destinations.tsx, so a child borrowing ShieldIcon or WorkIcon passes this. Widening to cover
+    // them needs the destination tree walked through `links` as well as `children`, which is the
+    // geometry guard's scope; the gap is filed. What this DOES catch is the defect issue 457 names
+    // — five rungs pointing at one component — and a borrow from the admin registry.
+    const elsewhere = new Set(
+      [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
+    )
+    for (const s of CAFE_MODULE_SECTIONS) {
+      expect(elsewhere.has(s.Icon), `${s.path} borrows a mark from another destination`).toBe(false)
+    }
   })
 })

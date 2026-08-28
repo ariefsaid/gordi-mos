@@ -473,3 +473,132 @@ export function MoreIcon() {
     </svg>
   )
 }
+
+// ── Café child marks (issue 457, part 1). Five screens that all drew `CafeIcon`, which made the
+// icon-only compact rail (920–1099.98px) a column of identical cups told apart by tooltip alone.
+//
+// MINTED, not borrowed. The first attempt gave each child an existing mark and was reverted: two
+// of those marks were unique only because their twins sit in `SHIP_GATED_PATHS` today (the
+// duplicate returns on switch day), and two duplicated live rows outright. The unclaimed marks in
+// this file — a percent tag, a gear, three dots — each buy uniqueness by saying something untrue
+// about the screen. DESIGN.md's "no new icon is minted" is scoped to the rail collapse toggle
+// (§Rail collapse, the Control row), not a global ban, and there is no iconography section
+// forbidding new module marks.
+//
+// Same idiom as every glyph above: 24-unit viewBox, 18px attribute size (CSS resolves the rung's
+// 17px/15px), stroke-2, round cap/join, no fill, aria-hidden.
+//
+// These must stay distinct from every other mark the rail and the phone's More drawer draw,
+// including entries the ship gate hides today — a hidden twin is a collision the day the gate
+// lifts. Distinctness is a property of the GEOMETRY, not the markup: the same shape re-spelled
+// into a `<g>`, a `<rect>` or different path syntax collides all the same.
+//
+// `sections.test.ts` pins that the five are five distinct components and that none is borrowed
+// from another destination. That is the cheap half; a geometry comparison across the whole rail
+// is a separate guard, and this comment will cite it when it exists rather than before.
+
+// LogIcon — tally marks, the Café Log capture screen: recording how much was actually made.
+export function LogIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6.5 5v14M13 5v14" />
+      <path d="M19.5 5v14" />
+      <path d="M4 17 22 7" />
+    </svg>
+  )
+}
+
+// PlanIcon — a planted flag, the Café Plan screen: the quantities intended before the day starts.
+export function PlanIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 21V4" />
+      <path d="M6 5h12l-2.5 4L18 13H6z" />
+    </svg>
+  )
+}
+
+// StockIcon — a carton, the Café Stock screen: the goods actually on hand in the stream.
+export function StockIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z" />
+      <path d="M3.5 7 12 11.5 20.5 7" />
+      <path d="M12 11.5v10" />
+    </svg>
+  )
+}
+
+// ReviewIcon — a check beside a cross, the Café Review screen: the approve/reject decision a lead
+// makes on a submitted log. Deliberately the PAIR — a lone check is the Tasks mark and would say
+// "done" about a screen whose whole job is that the answer may be no.
+export function ReviewIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2.5 13 6 16.5 11 6.5" />
+      <path d="M14.5 7 21.5 17M21.5 7 14.5 17" />
+    </svg>
+  )
+}
+
+// DispatchIcon — an arrow leaving an enclosure, the Café Pushes screen: production batches handed
+// OUT of MOS to the ERP, and the outbox where a stuck one is found.
+export function DispatchIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6" />
+      <path d="M10 12h11" />
+      <path d="m17.5 8.5 4 3.5-4 3.5" />
+    </svg>
+  )
+}
