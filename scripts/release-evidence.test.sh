@@ -17,6 +17,7 @@ echo b > "$tmp/r/b"; g add b; g commit -qm "feat: first slice (#101)"
 mkdir -p "$tmp/r/supabase/migrations"
 echo "select 1;" > "$tmp/r/supabase/migrations/001_x.sql"; g add supabase; g commit -qm "feat(db): schema bit (#102)"
 echo c > "$tmp/r/c"; g add c; g commit -qm "chore: no issue ref"
+echo d > "$tmp/r/d"; g add d; g commit -qm "fix: pair landing (#9, #110)"
 
 out="$( (cd "$tmp/r" && bash "$SCRIPT" main dev) 2>&1 )"; rc=$?
 t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
@@ -25,7 +26,9 @@ t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
 printf '%s' "$out" | grep -q "first slice (#101)"; t "shipped issue #101 listed" $?
 printf '%s' "$out" | grep -q "schema bit (#102)"; t "shipped issue #102 listed" $?
 printf '%s' "$out" | grep -q "supabase/migrations/001_x.sql"; t "migration listed" $?
-printf '%s' "$out" | grep -q "3 commits"; t "commit count right" $?
+printf '%s' "$out" | grep -q "4 commits"; t "commit count right" $?
+printf '%s' "$out" | grep -q "^- #9 " && printf '%s' "$out" | grep -q "^- #110 "; t "multi-ref subject yields both issues" $?
+[ "$(printf '%s\n' "$out" | grep -n '^- #9 ' | cut -d: -f1)" -lt "$(printf '%s\n' "$out" | grep -n '^- #101' | cut -d: -f1)" ]; t "numeric order (#9 before #101), no GNU sort -V" $?
 
 if (cd "$tmp/r" && bash "$SCRIPT" main no-such-branch) >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  bad ref must refuse\n'

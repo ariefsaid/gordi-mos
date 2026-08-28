@@ -22,11 +22,12 @@ count="$(git rev-list --count "$base".."$head")"
 
 echo "## Release evidence: $head over $base ($count commits)"
 echo
-echo "### Shipped (PR-squash subjects)"
-git log "$base".."$head" --pretty='%s' | grep -oE '\(#[0-9]+\)$' | tr -d '()' | sort -u -V \
+echo "### Shipped (issue refs in the window's subjects)"
+subjects="$(git log "$base".."$head" --pretty='%s')"
+printf '%s\n' "$subjects" | grep -oE '#[0-9]+' | tr -d '#' | sort -nu \
   | while read -r n; do
-      subj="$(git log "$base".."$head" --pretty='%s' | grep -F "($n)" | head -1)"
-      echo "- $subj"
+      subj="$(printf '%s\n' "$subjects" | grep -E "#$n([^0-9]|$)" | head -1)"
+      echo "- #$n — $subj"
     done
 echo
 echo "### All commits"
