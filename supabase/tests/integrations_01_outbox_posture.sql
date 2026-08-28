@@ -445,38 +445,12 @@ select is(
   'esb_push_select_ops_lead_or_admin, role by role over the whole access-role vocabulary: only ops_lead and admin read anything when it is the ONLY role claimed, and both read every posting state — the per-role census, whose LENGTH is what reddens when the vocabulary grows (combinations are D9''s)');
 
 -- ── D9. The admitted SET, swept over the whole POWER SET of the vocabulary ───────────────────
--- D8 varies one role at a time, so it pins the admitted set only against a widening that names ONE
--- role. A widening conditional on a COMBINATION satisfies every cell of it — `or
--- (shared.has_access_role('manager') and shared.has_access_role('finance'))` is what a "let the
--- finance managers watch the outbox" ticket actually looks like, and no cell of D8 ever claims two
--- unadmitted roles at once, so D8 reads green while that predicate admits real sessions. That is
--- not a hypothetical: it was demonstrated against this file, at 41 of 41 passing.
---
--- So this sweep claims EVERY subset of the vocabulary — all 2^n of them, 64 at today's six roles,
--- the empty claim and the full house included — and requires each to read what the admitted set
--- says it must: five rows if the subset contains ops_lead or admin, zero if it contains neither.
--- For any predicate that is a function of the claimed role set, that IS the whole of "admits
--- exactly ops_lead and admin": there is no combination left for a widening to hide in, because
--- there is no combination left unclaimed.
---
--- WHAT IT COSTS. One set_config plus one count(*) over a ten-row table per subset, so 64 of them
--- per table is milliseconds — at this size the exhaustive cut is simply the cheapest honest one,
--- and pairs-only would save nothing worth the hole it leaves. The cost doubles with each role the
+-- D8 varies ONE role at a time, so a widening on a COMBINATION satisfies every cell of it —
+-- `or (has_access_role('manager') and has_access_role('finance'))` read green at 41 of 41.
+-- So: every subset of the vocabulary, each required to read what the admitted set says. For a
+-- predicate that is a function of the claimed role set, no combination is left to hide in.
 -- vocabulary grows; role_combinations() states a ceiling and RAISES at it rather than letting that
--- become a suite that quietly got slow.
---
 -- WHAT REMAINS INVISIBLE, stated here rather than left to be found. This sweep varies the CLAIMED
--- ROLE SET and nothing else, so a widening keyed on anything else is outside it: on person_id or
--- org_id, on a row column the fixture holds at one value or at a value/combination its rows do not
--- form, on a clock, a GUC or a session setting, or on any JWT claim other than access_roles. A
--- role the domain does not admit is outside it too, since the vocabulary is the domain's own — and
--- so is vocabulary GROWTH, because a seventh role would simply be swept here and read zero, which
--- is green. D8 is what reddens for that, which is why both sweeps stay.
---
--- IT IS NOT AN EMPTY SWEEP DRESSED AS A PASS. Three quarters of the subsets contain an admitted
--- role and must read five, so a constant probe, a blind session, an empty table or a policy that
--- denied everyone all fail here. H8 pins separately that the enumeration really is the whole power
--- set, in canonical form and with nothing missing.
 select is(
   (select coalesce(array_agg('{' || array_to_string(c.roles, '+') || '}=' || r.n
                              order by cardinality(c.roles), c.roles), '{}'::text[])
