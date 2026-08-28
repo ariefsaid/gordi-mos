@@ -36,8 +36,11 @@ import { useAuth } from '@/auth/use-auth'
 import { CommandMenu } from '@/components/command/command-menu'
 const mockUseAuth = vi.mocked(useAuth)
 
-const ACCESS_ROLES = ['admin']
+// Every role a viewer can hold, not just admin: an order divergence conditioned on
+// `accessRoles.includes('admin')` shipped green through this whole file.
+const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'] as const
 
+let CURRENT_ROLES: string[] = ['admin']
 function setAuth() {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
@@ -49,7 +52,7 @@ function setAuth() {
       },
       roles: [{ id: 'r0', org_id: 'o1', business_unit_id: 'bu', name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
-      accessRoles: ACCESS_ROLES,
+      accessRoles: CURRENT_ROLES,
     },
     signOut: vi.fn(),
   })
@@ -105,23 +108,21 @@ beforeEach(() => {
   setAuth()
 })
 
-describe('Work children: one declared order, every surface (issue 446)', () => {
+describe.each(ROLES)('Work children: one declared order, every surface — viewer %s', (role) => {
+  beforeEach(() => { CURRENT_ROLES = [role]; setAuth() })
   // The ONE source: the `children` array in destinations.tsx, filtered by the same gate both
   // surfaces apply. Read here rather than re-typed, so the expectation cannot drift from the
   // registry — only from a surface that stopped honouring it, which is the defect being guarded.
   const declaredOrder = visibleSections(
     DESTINATIONS.find((d) => d.id === 'work')!.children ?? [],
-    ACCESS_ROLES,
+    [role],
   ).map((c) => c.path)
 
   it('the declared order is the E7 family sequence, flattened', () => {
     // Events is ship-gated (#348 rides milestone 4), so it is absent from what a viewer sees.
-    expect(declaredOrder).toEqual([
-      '/work/tasks',
-      '/work/projects',
-      '/work/objectives',
-      '/work/signals',
-    ])
+    const full = ['/work/tasks', '/work/projects', '/work/objectives', '/work/signals']
+    expect(declaredOrder).toEqual(full.filter((p) => declaredOrder.includes(p)))
+    expect(declaredOrder.length).toBeGreaterThan(0)
   })
 
   it('the desktop rail renders Work children in the declared order', () => {
