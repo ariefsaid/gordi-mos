@@ -15,6 +15,7 @@ on:
       - 'scripts/prose-budget.sh'
       - 'scripts/drive-decay.sh'
       - 'scripts/release-evidence.sh'
+      - 'scripts/drive-burn.sh'
       - 'scripts/*.test.sh'
       # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
       # a change there changes what those tests actually run, so re-run them.
@@ -109,3 +110,5 @@ jobs:
         run: bash scripts/drive-decay.test.sh
       - name: release-evidence package self-test
         run: bash scripts/release-evidence.test.sh
+      - name: drive-burn report self-test
+        run: bash scripts/drive-burn.test.sh
