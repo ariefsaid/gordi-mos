@@ -22,8 +22,11 @@ raw="$(gh api --paginate 'repos/{owner}/{repo}/issues?state=open&per_page=100' 2
 prs="$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' 2>/dev/null)" \
   || { echo "✗ drive-next: gh pulls query failed" >&2; exit 1; }
 
+# Boundaries both sides: 'Encloses #5' must not match via its 'closes' substring, and
+# 'Fixes #5abc' is not a ref (GitHub only links a number ending at a word boundary).
 pr_refs="$(printf '%s' "$prs" | jq -r -s 'add // [] | .[] | "\(.title) \(.body // "")"' \
-  | grep -oiE '(close[sd]?|fixe?[sd]?|resolve[sd]?) #[0-9]+' | grep -oE '[0-9]+' | sort -nu \
+  | grep -oiE '(^|[^[:alnum:]])(close[sd]?|fixe?[sd]?|resolve[sd]?)[[:space:]]+#[0-9]+([^[:alnum:]]|$)' \
+  | grep -oE '#[0-9]+' | tr -d '#' | sort -nu \
   | jq -R -n '[inputs | tonumber]')"
 
 printf '%s' "$raw" | jq -r -s --argjson prrefs "${pr_refs:-[]}" '

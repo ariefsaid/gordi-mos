@@ -26,7 +26,7 @@ EOF
 cat > "$tmp/pulls.json" <<'EOF'
 [
  {"number":90,"title":"feat: builds it","body":"does things\n\nCloses #1"},
- {"number":91,"title":"fix: other repo ref","body":"Fixes nothing here"}
+ {"number":91,"title":"fix: decoys","body":"Fixes nothing here. Encloses #9 discussion. Fixes #8abc is not a ref. See owner/repo#5."}
 ]
 EOF
 
