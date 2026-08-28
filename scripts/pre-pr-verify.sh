@@ -35,19 +35,13 @@ if [ -n "$base" ]; then
   bash scripts/prose-budget.sh "$base"
 fi
 
-# A fresh git worktree has no node_modules, and a rebase that crosses a dependency change leaves a
-# stale one. Either way the heavy section dies with `tsc: command not found` (exit 127) or a wall of
-# TS2307s naming packages the branch never touched — which reads as a broken toolchain or, worse,
-# as the branch's own failure. That misreading cost four false diagnoses in one session.
-# `npm ci` (not install) is what CI runs, so it also proves package.json and the lockfile agree,
-# and it writes node_modules/.package-lock.json, so a lockfile newer than it means the tree
-# predates the current dependencies — the rebase case. Without that second test the guard heals
-# only the empty worktree, and a tree carrying another branch's dependencies still stamps ALL
-# GREEN over something CI would never build.
-# Outside the test lock: installing is not a test, and holding the lock through it starves the host.
-# EVERY binary the battery reaches for, not just the first: an interrupted `npm ci` or a pruned
-# node_modules can leave any subset of .bin, and a tree with tsc but no eslint sailed past a
-# one-sentinel probe and died 127 at `npm run lint`.
+# A fresh worktree has no node_modules; a rebase across a dependency change leaves a stale one.
+# Either way the heavy section dies as `tsc: command not found` or a wall of TS2307s, which reads
+# as a broken toolchain rather than a missing install — four false diagnoses in one session.
+# `npm ci` is what CI runs, so it also proves package.json and the lockfile agree, and it writes
+# node_modules/.package-lock.json — a newer lockfile means the tree predates current deps.
+# Every binary, not one sentinel: a tree with tsc but no eslint died 127 at `npm run lint`.
+# Installing is not a test, so this sits outside the test lock.
 deps_missing=""
 for _b in tsc eslint stylelint vitest vite; do
   [ -x "mos-app/node_modules/.bin/$_b" ] || deps_missing="${deps_missing}${deps_missing:+ }$_b"
