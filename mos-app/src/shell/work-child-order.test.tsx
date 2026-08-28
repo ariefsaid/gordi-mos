@@ -23,6 +23,8 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
 import { DESTINATIONS } from './destinations'
 import { visibleSections } from './sections'
+import { can } from '@/lib/capabilities'
+import { isShipGated } from '@/lib/ship-gate'
 import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
 
@@ -39,6 +41,18 @@ const mockUseAuth = vi.mocked(useAuth)
 // Every role a viewer can hold, not just admin: an order divergence conditioned on
 // `accessRoles.includes('admin')` shipped green through this whole file.
 const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'] as const
+
+// The Work family, its gates and its labels, written out HERE. Every expectation below is built
+// from these, so a registry entry that is deleted, reordered, or relabelled has nothing to hide
+// behind: Events is ship-gated (#348 rides milestone 4).
+const FAMILY = ['/work/tasks', '/work/projects', '/work/objectives', '/work/signals', '/work/events']
+const CAPABILITY: Record<string, string | undefined> = { '/work/projects': 'workline.manage' }
+const LABEL: Record<string, string> = {
+  '/work/tasks': 'Tasks',
+  '/work/projects': 'Projects & Processes',
+  '/work/objectives': 'Objectives',
+  '/work/signals': 'Signals',
+}
 
 let CURRENT_ROLES: string[] = ['admin']
 function setAuth() {
@@ -98,9 +112,6 @@ function paletteWorkChildTargets(root: HTMLElement): string[] {
   ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
 }
 
-/** Targets alone, for the comparisons whose expectation is the declared path list. */
-const targets = (pairs: string[]) => pairs.map((x) => x.split('=')[0])
-
 function palette() {
   return shell(<CommandMenu open onClose={vi.fn()} onShareSignal={vi.fn()} />)
 }
@@ -122,40 +133,36 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
   ).map((c) => c.path)
 
   it('the declared order is the E7 family sequence, flattened', () => {
-    // Events is ship-gated (#348 rides milestone 4), so it is absent from what a viewer sees.
-    const full = ['/work/tasks', '/work/projects', '/work/objectives', '/work/signals']
-    // ORDER: a subsequence of the family sequence. Comparing against `full.filter(p =>
-    // declaredOrder.includes(p))` derived the expectation from the actual, so a destination that
-    // silently DISAPPEARED was filtered out of both sides and passed.
-    let i = -1
-    for (const p of declaredOrder) {
-      const at = full.indexOf(p)
-      expect(at, `${p} is not a Work child`).toBeGreaterThan(-1)
-      expect(at, `${p} is out of family order`).toBeGreaterThan(i)
-      i = at
-    }
-    // MEMBERSHIP: pinned to the gate, so a dropped rung reddens. Projects & Processes is
-    // capability-gated (workline.manage); the other three are open to every viewer.
-    expect(declaredOrder).toContain('/work/tasks')
-    expect(declaredOrder).toContain('/work/objectives')
-    expect(declaredOrder).toContain('/work/signals')
+    // Built from literals HERE plus the two gate primitives — never from `declaredOrder` or the
+    // registry. An expectation read from the thing under test cannot notice the thing going
+    // missing: filtering the family list by `declaredOrder.includes(p)` passed a DELETED
+    // destination, and pinning three paths by hand still passed a deleted /work/projects.
+    const expected = FAMILY.filter(
+      (p) => !isShipGated(p) && (!CAPABILITY[p] || can([role], CAPABILITY[p])),
+    )
+    expect(declaredOrder).toEqual(expected)
+    expect(declaredOrder.length).toBeGreaterThan(0)
   })
+
+  // target=label, the labels from LABEL above: pairwise agreement alone only catches ONE surface
+  // drifting. Relabelling the shared translation moved all three together and stayed green.
+  const expectedPairs = () => declaredOrder.map((p) => `${p}=${LABEL[p]}`)
 
   it('the desktop rail renders Work children in the declared order', () => {
     shell(<RailNav />)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(targets(workChildHrefs(nav))).toEqual(declaredOrder)
+    expect(workChildHrefs(nav)).toEqual(expectedPairs())
   })
 
   it('the phone drawer renders Work children in the declared order', () => {
     shell(<MobileDrawer open onClose={vi.fn()} />)
     const nav = screen.getByRole('navigation', { name: 'More destinations' })
-    expect(targets(workChildHrefs(nav))).toEqual(declaredOrder)
+    expect(workChildHrefs(nav)).toEqual(expectedPairs())
   })
 
   it('the ⌘K palette renders Work children in the declared order (issue 479)', () => {
     const view = palette()
-    expect(targets(paletteWorkChildTargets(view.container))).toEqual(declaredOrder)
+    expect(paletteWorkChildTargets(view.container)).toEqual(expectedPairs())
   })
 
   it('rail, drawer and palette agree — the same items in the same sequence', () => {
