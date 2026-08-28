@@ -17,17 +17,18 @@ adw="$1"; shift
 case "$adw" in */*|.*) echo "✗ factory-run: ADW must be a bare filename under adws/ (got '$adw')" >&2; exit 2 ;; esac
 [ -f "$top/adws/$adw" ] || { echo "✗ factory-run: no such ADW: adws/$adw" >&2; exit 2; }
 
-# uv REWRITES the child PATH (probed 2026-08-28: /opt/homebrew/bin lands first however the
-# outer PATH is ordered), so prepending the shim is not enough: every gh-bearing dir is
-# STRIPPED from the child PATH — uv re-adds none of them — and the shim gets the real gh
-# via GH_SHIM_REAL for its own passthrough.
+# Two layers, honestly bounded. (1) POLITE: the gh shim is prepended so most child shells
+# resolve gh to the refusal message — but uv REWRITES the child PATH (it prepends the resolved
+# interpreter's real bin dir, so masks and strips both lose; probed 2026-08-28, and the strip
+# version broke /usr/bin/env on CI). (2) HARD, and uv-proof because it rides the ENVIRONMENT:
+# GH_CONFIG_DIR points at an empty dir, so any raw gh a factory child reaches is UNAUTHENTICATED
+# — every GitHub write fails at the API; anonymous public reads still work. gh-post.sh runs from
+# the Director's session, never a factory child, so the door is unaffected.
 GH_SHIM_REAL="$(command -v gh || true)"
-clean=""
-IFS=: read -r -a dirs <<< "$PATH"
-for d in "${dirs[@]}"; do
-  [ -n "$d" ] || continue
-  [ -x "$d/gh" ] && [ "$d" != "$top/scripts/gh-shim" ] && continue
-  clean="$clean:$d"
-done
 export GH_SHIM_REAL
-PATH="$top/scripts/gh-shim${clean}" exec uv run "$top/adws/$adw" "$@"
+# Fresh per-run dir: a reused one could carry auth a child persisted (e.g. gh auth login).
+noauth="$(mktemp -d "${TMPDIR:-/tmp}/gh-noauth.XXXXXX")"
+export GH_CONFIG_DIR="$noauth"
+# Env tokens override config-dir auth — scrub them or the empty config is theater.
+unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
+PATH="$top/scripts/gh-shim:$PATH" exec uv run "$top/adws/$adw" "$@"
