@@ -96,15 +96,18 @@ case "\$1" in
     # assumption, so a tsc-present/eslint-missing tree was unhealed AND invisible here — the guard
     # and its model agreeing with each other is not evidence about a database of binaries.
     case "\$2" in
-      typecheck|build) need=tsc ;;
-      lint)            need=eslint ;;
+      typecheck)       need=tsc ;;
+      build)           need="tsc vite" ;;
+      lint)            need="eslint stylelint" ;;
       test:coverage)   need=vitest ;;
       *)               need=tsc ;;
     esac
-    if [ ! -x "node_modules/.bin/\$need" ]; then
-      echo "sh: \$need: command not found" >&2
-      exit 127
-    fi
+    for b in \$need; do
+      if [ ! -x "node_modules/.bin/\$b" ]; then
+        echo "sh: \$b: command not found" >&2
+        exit 127
+      fi
+    done
     exit 0 ;;
 esac
 exit 0
@@ -165,12 +168,15 @@ else bad "a half-installed node_modules is not healed — the guard is only test
 # (d2) HALF-INSTALLED, the OTHER half — tsc present, eslint gone, dates current. Without this the
 #      guard could probe a single sentinel and the whole suite stayed 14/14 while `npm run lint`
 #      died 127 mid-battery on a tree the guard called healthy.
-rm -f "$tmp/repo/mos-app/node_modules/.bin/eslint"
+for _miss in eslint stylelint vitest vite; do
+  rm -f "$tmp/repo/mos-app/node_modules/.bin/$_miss"
 touch -t 202001010000 "$tmp/repo/mos-app/package-lock.json"
 touch "$tmp/repo/mos-app/node_modules/.package-lock.json"
 : > "$npm_log"; rm -f "$STAMP"; run
-if installed && [ -f "$STAMP" ]; then ok "installs when a binary OTHER than tsc is missing"
-else bad "a tsc-present/eslint-missing tree is unhealed — the guard probes one sentinel (stamp=$([ -f "$STAMP" ] && echo yes || echo no))"; fi
+  if installed && [ -f "$STAMP" ]; then ok "installs when $_miss is missing"
+  else bad "a tsc-present/$_miss-missing tree is unhealed — the probe list has members no case covers (stamp=$([ -f "$STAMP" ] && echo yes || echo no))"; fi
+  printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/mos-app/node_modules/.bin/$_miss"; chmod +x "$tmp/repo/mos-app/node_modules/.bin/$_miss"
+done
 
 # (e) the install ITSELF fails. The body claims the self-heal cannot mask a red; that path was the
 #     one the harness never exercised, in a file whose whole point is that a green must have been
