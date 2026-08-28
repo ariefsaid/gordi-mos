@@ -510,20 +510,23 @@ select is((select count(*)::int from integrations.esb_push), 0,
 -- time left the third uncovered: an exemption on `current_person_id() is null` read both tenants
 -- with the file at 50/50, because every cell carried a person_id.
 select is(
-  (select coalesce(array_agg(v.shape || '/' || r.role || '=' || c.n order by v.shape, r.role), '{}')
+  (select coalesce(array_agg(v.shape || '/' || array_to_string(r.roles, '+') || '=' || c.n
+                             order by v.shape, array_to_string(r.roles, '+')), '{}')
      from (values
        ('org+person', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2",'),
        ('org',        '{"org_id":"00000000-0000-0000-0000-0000000000a1",'),
        ('person',     '{"person_id":"00000000-0000-0000-0000-0000000000d2",'),
        ('bare',       '{')
      ) as v(shape, prefix),
-     lateral (select v2.role from pg_temp.access_role_vocabulary() as v2(role)) r,
-     lateral (select pg_temp.reads_claim(v.prefix || '"access_roles":["' || r.role || '"]}',
-                                         'integrations.esb_push') as n) c
+     lateral (select rc.roles from pg_temp.role_combinations(
+                (select array_agg(x) from pg_temp.access_role_vocabulary() as t(x))) as rc(roles)) r,
+     lateral (select pg_temp.reads_claim(
+                v.prefix || '"access_roles":' || array_to_json(r.roles)::text || '}',
+                'integrations.esb_push') as n) c
     where c.n <> case when v.shape in ('org+person','org')
-                       and r.role in ('ops_lead','admin') then 5 else 0 end),
+                       and (r.roles && array['ops_lead','admin']) then 5 else 0 end),
   '{}'::text[],
-  'every claim SHAPE crossed with every ROLE the vocabulary knows: the outbox opens on org+admitted-role and nothing else — sweeping shapes with the role pinned at ops_lead left a personless manager exemption green');
+  'every claim SHAPE crossed with every role SUBSET: the outbox opens on org + an admitted role and nothing else. D9 swept subsets but always with a person; D10 swept shapes but only single roles, so a personless COMBINATION sat in the corner neither covered');
 
 reset role;
 
