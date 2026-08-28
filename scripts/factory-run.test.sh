@@ -16,16 +16,20 @@ cat > "$tmp/bin/uv" <<'EOF'
 echo "PATH1=$(printf '%s' "$PATH" | cut -d: -f1)"
 echo "GH=$(command -v gh)"
 echo "CFG=${GH_CONFIG_DIR:-unset}"
+echo "TOK=${GH_TOKEN:-scrubbed}"
+echo "CFGEMPTY=$(ls -A "$GH_CONFIG_DIR" 2>/dev/null | wc -l | tr -d " ")"
 EOF
 chmod +x "$tmp/bin/uv"
 
-out="$(PATH="$tmp/bin:$PATH" bash scripts/factory-run.sh adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
+out="$(GH_TOKEN=fake-token PATH="$tmp/bin:$PATH" bash scripts/factory-run.sh adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
 t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
      else fail=$((fail+1)); printf '  FAIL  %s\n%s\n' "$1" "$out"; fi; }
 [ "$rc" -eq 0 ]; t "wrapper execs the stub" $?
 printf '%s' "$out" | grep -q "PATH1=$(pwd)/scripts/gh-shim"; t "shim leads the child's PATH" $?
 printf '%s' "$out" | grep -q "GH=$(pwd)/scripts/gh-shim/gh"; t "child resolves gh to the shim" $?
 printf '%s' "$out" | grep -q "CFG=.*gh-noauth"; t "child gets the empty GH_CONFIG_DIR (hard layer)" $?
+printf '%s' "$out" | grep -q "TOK=scrubbed"; t "inherited GH_TOKEN is scrubbed (env-auth override closed)" $?
+printf '%s' "$out" | grep -q "CFGEMPTY=0"; t "config dir is per-run FRESH and empty (no carried hosts.yml)" $?
 
 if bash scripts/factory-run.sh no_such_adw.py >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  unknown ADW must refuse\n'

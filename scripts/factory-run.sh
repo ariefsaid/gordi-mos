@@ -29,4 +29,6 @@ export GH_SHIM_REAL
 # Fresh per-run dir: a reused one could carry auth a child persisted (e.g. gh auth login).
 noauth="$(mktemp -d "${TMPDIR:-/tmp}/gh-noauth.XXXXXX")"
 export GH_CONFIG_DIR="$noauth"
+# Env tokens override config-dir auth — scrub them or the empty config is theater.
+unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
 PATH="$top/scripts/gh-shim:$PATH" exec uv run "$top/adws/$adw" "$@"
