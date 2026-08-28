@@ -6,7 +6,7 @@
 // live states.
 //
 // TWO RENDERERS, NOT ONE. This header used to claim the canonical FollowUpsPage renders the same
-// pair. It does not: pages/follow-ups-page.tsx is a 261-line bespoke renderer importing none of
+// pair. It does not: pages/follow-ups-page.tsx is a bespoke renderer importing none of
 // useFollowUpQueue / FollowUpQueueTable / useFollowUpRecordOpener. Both doors are dark behind
 // SHOW_FOLLOWUPS today, so this is a divergence in the SOURCE, not one a viewer can reach yet:
 // when the flag lights, the same record type renders two different ways depending on the door.
@@ -15,9 +15,8 @@
 //
 // JQ-4 / interaction D-A4: this embed passes the shared record opener, so the counterparty cell
 // opens the follow-up in the shared overlay-host panel instead of a bare <Link> page-jump. That
-// is the open grammar every door is MEANT to share; the Money page shares none of it, and in fact
-// offers no record-open affordance at all — its detail aside is a lifecycle-form target
-// (settle/partial/promise), and the `:id` it also reads belongs to a route deleted by DD-WAY-36.
+// is the open grammar every door is MEANT to share; the Money page shares none of it. Why it
+// cannot be read as a counter-example is stated once, in use-follow-up-record-opener.ts.
 import { useFollowUpQueue } from './use-follow-up-queue'
 import { FollowUpQueueTable } from './follow-up-queue-table'
 import { useFollowUpRecordOpener } from './use-follow-up-record-opener'
