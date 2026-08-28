@@ -34,6 +34,9 @@ check "global-flag dodge refused (-R value skipped)" 1 no -R other/repo issue co
 check "gist refused" 1 no gist create file.md
 check "write-mode api (-F) refused" 1 no api repos/x/y/issues -F body=x
 check "write-mode api (--method POST) refused" 1 no api repos/x/y/z --method POST
+check "release upload refused (allowlist, not deny-table)" 1 no release upload v1 file.tgz
+check "repo archive refused (allowlist)" 1 no repo archive x/y
+check "unknown future verb refused by default" 1 no cabbage plant --now
 
 rm -f "$tmp/real-calls"
 PATH="$SHIM_DIR:$tmp/realbin:/usr/bin:/bin" GH_POST_DOOR=1 gh issue comment 5 --body x >/dev/null 2>&1

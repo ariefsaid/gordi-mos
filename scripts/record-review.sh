@@ -49,8 +49,11 @@ fi
 # SECTION-BOUND validation: the stamp is minted from THIS lens's own record, never from another
 # lens's verdict sharing the file. A section opens at a 'Reviewer:' line or '## ' heading naming
 # the lens, and closes at the next section opener.
+# Exact tags only: a '## <lens>' heading (whole line) or a parenthesized '(<lens>)' on the
+# Reviewer line — substring matches ('## special' for spec) must NOT open a section.
 section="$(awk -v lens="$lens" '
-  /^[Rr]eviewer:/ || /^## / { open = (index($0, lens) > 0) }
+  /^## /          { open = ($0 == "## " lens) }
+  /^[Rr]eviewer:/ { open = (index($0, "(" lens ")") > 0) }
   open { print }
 ' "$artifact")"
 [ -n "$section" ] || die "artifact has no section for lens '$lens' (a 'Reviewer: … ($lens)' line or '## $lens' heading) — each lens is its own record (OD-WAY-83)"

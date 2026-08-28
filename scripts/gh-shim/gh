@@ -5,8 +5,10 @@
 #
 #   PATH="$(git rev-parse --show-toplevel)/scripts/gh-shim:$PATH" pi …
 #
-# gh-post.sh itself execs the real gh with GH_POST_DOOR=1 — that is the ONLY sanctioned write
-# path through here. `pr merge` stays raw (the one carve-out; no prose leaves through a merge).
+# gh-post.sh itself execs the real gh with GH_POST_DOOR=1 — the sanctioned write path through
+# here. That door is a plain env var ON PURPOSE: a PATH shim cannot bind an adversary at all
+# (absolute-path `gh` exists), so like every local control here it targets habit drift, never a
+# hostile operator (OD-WAY-80's accepted bound). `pr merge` stays raw (no prose in a merge).
 # Self-test: scripts/gh-shim.test.sh
 set -uo pipefail
 
@@ -31,12 +33,18 @@ for a in "$@"; do
   if [ -z "$verb1" ]; then verb1="$a"; elif [ -z "$verb2" ]; then verb2="$a"; break; fi
 done
 
-deny() { echo "✗ gh-shim: raw '$verb1 $verb2' is a GitHub WRITE — this repo is public; use scripts/gh-post.sh (same argv), which scans the posting policy. Reads pass through." >&2; exit 1; }
+deny() { echo "✗ gh-shim: '$verb1 $verb2' is not on the READ allowlist — this repo is public; writes go through scripts/gh-post.sh (same argv), which scans the posting policy. Extend the allowlist deliberately if this is a genuine read." >&2; exit 1; }
 
+# READ ALLOWLIST — a firewall enumerates what it permits (gh-post learned this over three
+# bypass rounds; a deny-table of write verbs has no end: release upload, repo archive, …).
+# `pr merge` is the one sanctioned write (no prose leaves through a merge).
 case "$verb1 $verb2" in
-  "issue create"|"issue comment"|"issue edit"|"issue close"|"issue reopen"|"issue delete"|"issue pin"|"issue transfer") deny ;;
-  "pr create"|"pr comment"|"pr edit"|"pr close"|"pr reopen"|"pr review"|"pr ready") deny ;;
-  "gist "*|"release create"|"release edit"|"release delete"|"repo create"|"repo edit"|"repo delete") deny ;;
+  "issue view"|"issue list"|"issue status") ;;
+  "pr view"|"pr list"|"pr diff"|"pr checks"|"pr status"|"pr merge") ;;
+  "repo view"|"release view"|"release list"|"release download") ;;
+  "run view"|"run list"|"run watch"|"run download"|"workflow view"|"workflow list") ;;
+  "label list"|"gist view"|"gist list"|"search "*|"auth status"|"browse "*) ;;
+  " "|"") ;;   # bare `gh`, --version/--help forms
   "api "*)
     for a in "$@"; do
       case "$a" in
@@ -44,6 +52,7 @@ case "$verb1 $verb2" in
         -f|-F|--field|--raw-field|--input|-f*|-F*) deny ;;
       esac
     done ;;
+  *) deny ;;
 esac
 
 exec "$real" "$@"

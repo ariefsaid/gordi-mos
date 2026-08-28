@@ -37,6 +37,8 @@ check "no Reviewer: line in the lens section refused" 1 --lens spec --reviewer g
 check "no Verdict: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noverdict.md
 check "stale sha refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact stale.md
 check "untagged artifact refused — a stamp needs ITS lens's section" 1 --lens spec --reviewer gpt-5.6-luna --artifact untagged.md
+printf '## special\nReviewer: gpt-5.6-luna (specialist)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/substr.md"
+check "substring collision refused ('## special'/'(specialist)' is not spec)" 1 --lens spec --reviewer gpt-5.6-luna --artifact substr.md
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/lacking.md"
 check "missing lens section refused (spec-only artifact, security requested)" 1 --lens security --reviewer gpt-5.6-luna --artifact lacking.md
 check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
