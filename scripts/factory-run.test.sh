@@ -26,6 +26,28 @@ printf '%s' "$out" | grep -q "GH=$(pwd)/scripts/gh-shim/gh"; t "child resolves g
 if bash scripts/factory-run.sh no_such_adw.py >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  unknown ADW must refuse\n'
 else pass=$((pass+1)); printf '  ok    unknown ADW refuses\n'; fi
+if bash scripts/factory-run.sh ../scripts/gh-post.sh >/dev/null 2>&1; then
+  fail=$((fail+1)); printf '  FAIL  path traversal must refuse\n'
+else pass=$((pass+1)); printf '  ok    ../ traversal refuses (bare filename only)\n'; fi
+
+# THE test that matters: real uv rewrites PATH; the strip-and-pin must survive it.
+# (Skips where uv is absent — CI covers the wrapper logic via the stub above.)
+if command -v uv >/dev/null 2>&1; then
+  cat > "$tmp/probe.py" <<'EOF3'
+import shutil, sys
+print(shutil.which("gh") or "NONE")
+EOF3
+  cp "$tmp/probe.py" adws/zz_probe_factory_run.py
+  out2="$(bash scripts/factory-run.sh zz_probe_factory_run.py 2>&1 | tail -1)"
+  rm -f adws/zz_probe_factory_run.py
+  if printf '%s' "$out2" | grep -q "scripts/gh-shim/gh"; then
+    pass=$((pass+1)); printf '  ok    REAL uv child resolves gh to the shim (strip-and-pin holds)\n'
+  else
+    fail=$((fail+1)); printf '  FAIL  real uv child resolved gh to: %s\n' "$out2"
+  fi
+else
+  printf '  skip  real-uv probe (uv not installed here)\n'
+fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -27,8 +27,8 @@ raw="$(gh api --paginate 'repos/{owner}/{repo}/issues?state=open&per_page=100' 2
   || { echo "✗ drive-decay: gh query failed" >&2; exit 1; }
 prs="$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' 2>/dev/null)" \
   || { echo "✗ drive-decay: gh pulls query failed" >&2; exit 1; }
-printf '%s' "$prs" | jq -e -s '(add // []) | type == "array"' >/dev/null \
-  || { echo "✗ drive-decay: pulls payload unparseable" >&2; exit 1; }
+printf '%s' "$prs" | jq -e -s 'map(type == "array") | all' >/dev/null \
+  || { echo "✗ drive-decay: pulls payload is not page-arrays — refusing a partial report" >&2; exit 1; }
 pr_refs="$(printf '%s' "$prs" | jq -r -s 'add // [] | .[] | "\(.title) \(.body // "")"' \
   | grep -oE '#[0-9]+([^[:alnum:]]|$)' | grep -oE '[0-9]+' | sort -nu \
   | jq -R -n '[inputs | tonumber]')"

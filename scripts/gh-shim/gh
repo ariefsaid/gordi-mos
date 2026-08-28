@@ -13,12 +13,16 @@
 set -uo pipefail
 
 self="$(cd "$(dirname "$0")" && pwd)/gh"
-real=""
-IFS=: read -r -a dirs <<< "$PATH"
-for d in "${dirs[@]}"; do
-  [ -n "$d" ] && [ -x "$d/gh" ] && [ "$d/gh" != "$self" ] && { real="$d/gh"; break; }
-done
-[ -n "$real" ] || { echo "✗ gh-shim: no real gh on PATH" >&2; exit 127; }
+# factory-run strips every gh-bearing dir from the child PATH (uv reorders PATH, so ordering
+# alone cannot win) and hands us the real gh via GH_SHIM_REAL instead.
+real="${GH_SHIM_REAL:-}"
+if [ -z "$real" ]; then
+  IFS=: read -r -a dirs <<< "$PATH"
+  for d in "${dirs[@]}"; do
+    [ -n "$d" ] && [ -x "$d/gh" ] && [ "$d/gh" != "$self" ] && { real="$d/gh"; break; }
+  done
+fi
+[ -n "$real" ] && [ -x "$real" ] || { echo "✗ gh-shim: no real gh (PATH or GH_SHIM_REAL)" >&2; exit 127; }
 
 [ "${GH_POST_DOOR:-}" = "1" ] && exec "$real" "$@"
 

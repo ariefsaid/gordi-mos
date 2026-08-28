@@ -41,7 +41,7 @@ cat > "$tmp/bin/gh" <<EOF
 [ "\$1" = api ] && [ "\$2" = --paginate ] || exit 9
 [ "\${GH_STUB_FAIL:-0}" = 1 ] && exit 1
 case "\$3" in
-  *"/pulls"*) cat "$tmp/pulls.json" ;;
+  *"/pulls"*) cat "\${PULLS_OVERRIDE:-$tmp/pulls.json}" ;;
   *) cat "$tmp/issues.json" ;;
 esac
 EOF
@@ -65,6 +65,11 @@ printf '%s' "$out" | grep -q "UNTRACKED	#1"; t "state-less issue surfaces as UNT
 printf '%s' "$out" | grep -q "PR-PARKED	#8"; t "parked ready ticket surfaces (DD-WAY-45 counterweight)" $?
 ! printf '%s' "$out" | grep -q "PR-PARKED	#9"; t "unparked ready ticket not flagged" $?
 ! printf '%s' "$out" | grep -q "UNTRACKED	#3"; t "needs-triage issue is not UNTRACKED" $?
+
+printf 'null' > "$tmp/pulls-null.json"
+if PULLS_OVERRIDE="$tmp/pulls-null.json" bash "$SCRIPT" >/dev/null 2>&1; then
+  fail=$((fail+1)); printf '  FAIL  null pulls payload must fail closed\n'
+else pass=$((pass+1)); printf '  ok    null pulls payload fails closed (no partial report)\n'; fi
 
 if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  gh failure must exit non-zero\n'
