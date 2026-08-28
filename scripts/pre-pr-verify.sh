@@ -35,12 +35,10 @@ if [ -n "$base" ]; then
   bash scripts/prose-budget.sh "$base"
 fi
 
-cd mos-app
-npm run typecheck
-npm run lint
-npm run test:coverage
-npm run build
-cd ..
+# The heavy section runs under the machine-global test lock: two concurrent batteries starve
+# each other into moving false REDs — and two full vitest pools OOM'd this host once already.
+bash scripts/with-test-lock.sh bash -c \
+  'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
 
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 echo "✓ ALL GREEN — stamped ${head:0:8}"
