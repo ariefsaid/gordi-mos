@@ -510,21 +510,20 @@ select is((select count(*)::int from integrations.esb_push), 0,
 -- time left the third uncovered: an exemption on `current_person_id() is null` read both tenants
 -- with the file at 50/50, because every cell carried a person_id.
 select is(
-  (select coalesce(array_agg(v.shape || '=' || pg_temp.reads_claim(v.claim, 'integrations.esb_push') order by v.shape), '{}')
+  (select coalesce(array_agg(v.shape || '/' || r.role || '=' || c.n order by v.shape, r.role), '{}')
      from (values
-       ('org+person+roles', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}'),
-       ('org+roles',        '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["ops_lead"]}'),
-       ('person+roles',     '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}'),
-       ('roles only',       '{"access_roles":["ops_lead"]}'),
-       ('org+person',       '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2"}'),
-       ('org only',         '{"org_id":"00000000-0000-0000-0000-0000000000a1"}'),
-       ('person only',      '{"person_id":"00000000-0000-0000-0000-0000000000d2"}'),
-       ('empty',            '{}')
-     ) as v(shape, claim)
-    where pg_temp.reads_claim(v.claim, 'integrations.esb_push')
-          <> case when v.shape in ('org+person+roles', 'org+roles') then 5 else 0 end),
+       ('org+person', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2",'),
+       ('org',        '{"org_id":"00000000-0000-0000-0000-0000000000a1",'),
+       ('person',     '{"person_id":"00000000-0000-0000-0000-0000000000d2",'),
+       ('bare',       '{')
+     ) as v(shape, prefix),
+     lateral (select v2.role from pg_temp.access_role_vocabulary() as v2(role)) r,
+     lateral (select pg_temp.reads_claim(v.prefix || '"access_roles":["' || r.role || '"]}',
+                                         'integrations.esb_push') as n) c
+    where c.n <> case when v.shape in ('org+person','org')
+                       and r.role in ('ops_lead','admin') then 5 else 0 end),
   '{}'::text[],
-  'the outbox opens on org+role and nothing else: no shape missing the org, or missing the role, is a way in');
+  'every claim SHAPE crossed with every ROLE the vocabulary knows: the outbox opens on org+admitted-role and nothing else — sweeping shapes with the role pinned at ops_lead left a personless manager exemption green');
 
 reset role;
 
