@@ -17,11 +17,8 @@
 --                     no live row, so an invented viewer would read zero for the wrong reason.
 --                     nothing to do with these policies.
 --
--- The role SWEEPS in D and E hold one subject fixed (DirectMgr ...0d2, a real live org-A row) and
--- vary only the claimed role SET — one name at a time in D8/E, and then every subset of the
--- vocabulary in D9 and its counterpart. That is sound because shared.has_access_role() reads the
--- roles off the JWT and makes no directory lookup — the person->role hop already happened in the
--- token hook — so a claim set is the honest way to ask "what would this predicate admit?", and
+-- The D/E sweeps hold one subject fixed and vary only the claimed role SET. Sound because
+-- has_access_role() reads the JWT and makes no directory lookup.
 -- varying nothing else isolates the role axis exactly. Varying nothing else is also the limit of
 -- what the sweeps can see, and D9 states that limit in full.
 begin;
