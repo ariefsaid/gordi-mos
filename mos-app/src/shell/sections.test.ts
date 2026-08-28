@@ -106,7 +106,7 @@ describe('T5: sectionForPath — fallbacks', () => {
   })
 })
 
-describe('issue 457 — the Café children carry marks of their own', () => {
+describe('the Café children carry marks of their own (#457)', () => {
   // Before this, all five borrowed the parent's cup: five rail rungs, one picture. Swapping them
   // all back to CafeIcon passed every test in the repo, so this is the cheapest thing that fails
   // on that. Geometry comparison across the whole rail is a separate guard.
@@ -117,8 +117,12 @@ describe('issue 457 — the Café children carry marks of their own', () => {
   })
 
   it('none of them is a mark another destination already draws', () => {
-    // ADMIN_SECTIONS too: "another destination" means every registry a rail rung can come from,
-    // not just SECTIONS. Without it a child borrowing an admin mark slips through.
+    // The breadcrumb registries — SECTIONS and ADMIN_SECTIONS — and nothing more. That is a real
+    // limit, not a claim of completeness: the rail's own rungs are inline literals in
+    // destinations.tsx, so a child borrowing ShieldIcon or WorkIcon passes this. Widening to cover
+    // them needs the destination tree walked through `links` as well as `children`, which is the
+    // geometry guard's scope; the gap is filed. What this DOES catch is the defect issue 457 names
+    // — five rungs pointing at one component — and a borrow from the admin registry.
     const elsewhere = new Set(
       [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
     )
