@@ -23,7 +23,7 @@
 -- what the sweeps can see, and D9 states that limit in full.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(51);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -181,6 +181,18 @@ end $fn$;
 -- assertion that follows the sweeps in each section proves the restore actually happens rather
 -- than asserting it in prose. ('' and unset are the same thing to shared._claim_uuid — both fail
 -- closed — so a call made with no claim in force restores to no claim in force.)
+create function pg_temp.reads_claim(p_claim text, p_rel text)
+returns int language plpgsql security invoker as $$
+declare
+  n       int;
+  v_prior text := current_setting('request.jwt.claims', true);
+begin
+  perform set_config('request.jwt.claims', p_claim, true);
+  execute format('select count(*)::int from %s', p_rel) into n;
+  perform set_config('request.jwt.claims', v_prior, true);
+  return n;
+end $$;
+
 create function pg_temp.reads_as(p_person uuid, p_org uuid, p_roles text[], p_rel text)
 returns int language plpgsql security invoker as $$
 declare
@@ -489,10 +501,30 @@ select is((select count(*)::int from integrations.esb_push), 0,
 set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select is((select count(*)::int from integrations.esb_push), 0,
   'a session claiming ops_lead but NO org reads no outbox row: the org half of the conjunction is not optional');
--- WHAT THESE TWO DO NOT ASK is the THIRD claim. Both cells carry a person_id, as does every other
--- cell in the file, so an exemption keyed on ITS absence — `current_person_id() is null and
--- has_access_role('ops_lead')` — reads both tenants with the file at 50/50. Measured, not
--- predicted. Closing that one costs a sweep over claim SHAPES, the way D8 sweeps role sets.
+-- D10. Every SHAPE a claim can take, the way D9 sweeps every role SET.
+-- ⚠ A claim with org_id and a role but NO person_id reads the org's rows, and that is the policy's
+-- actual contract: shared._current_person_is_live() answers TRUE when the person_id claim is
+-- absent, so current_org_id() resolves and the conjunction holds. This sweep pins that as it is
+-- rather than asserting a person_id requirement the predicate never made. Whether a personless
+-- claim should be admitted at all is a question about the token hook, not about this policy. Naming the shapes one at a
+-- time left the third uncovered: an exemption on `current_person_id() is null` read both tenants
+-- with the file at 50/50, because every cell carried a person_id.
+select is(
+  (select coalesce(array_agg(v.shape || '=' || pg_temp.reads_claim(v.claim, 'integrations.esb_push') order by v.shape), '{}')
+     from (values
+       ('org+person+roles', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}'),
+       ('org+roles',        '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["ops_lead"]}'),
+       ('person+roles',     '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}'),
+       ('roles only',       '{"access_roles":["ops_lead"]}'),
+       ('org+person',       '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2"}'),
+       ('org only',         '{"org_id":"00000000-0000-0000-0000-0000000000a1"}'),
+       ('person only',      '{"person_id":"00000000-0000-0000-0000-0000000000d2"}'),
+       ('empty',            '{}')
+     ) as v(shape, claim)
+    where pg_temp.reads_claim(v.claim, 'integrations.esb_push')
+          <> case when v.shape in ('org+person+roles', 'org+roles') then 5 else 0 end),
+  '{}'::text[],
+  'the outbox opens on org+role and nothing else: no shape missing the org, or missing the role, is a way in');
 
 reset role;
 
