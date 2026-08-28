@@ -488,10 +488,14 @@ export function MoreIcon() {
 // Same idiom as every glyph above: 24-unit viewBox, 18px attribute size (CSS resolves the rung's
 // 17px/15px), stroke-2, round cap/join, no fill, aria-hidden.
 //
-// Uniqueness is held by `rail-glyph-uniqueness.test.tsx`, not by this comment: across the WHOLE
-// compact rail AND the phone's More drawer, including entries the ship gate hides today, compared
-// by the GEOMETRY each mark draws (`glyph-shape.ts`) rather than by its markup — a mark re-spelled
-// into a `<g>`, a `<rect>` or a different path syntax collides with its twin all the same.
+// These must stay distinct from every other mark the rail and the phone's More drawer draw,
+// including entries the ship gate hides today — a hidden twin is a collision the day the gate
+// lifts. Distinctness is a property of the GEOMETRY, not the markup: the same shape re-spelled
+// into a `<g>`, a `<rect>` or different path syntax collides all the same.
+//
+// `sections.test.ts` pins that the five are five distinct components and that none is borrowed
+// from another destination. That is the cheap half; a geometry comparison across the whole rail
+// is a separate guard, and this comment will cite it when it exists rather than before.
 
 // LogIcon — tally marks, the Café Log capture screen: recording how much was actually made.
 export function LogIcon() {

@@ -5,7 +5,7 @@
  */
 import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
-import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
+import { SECTIONS, CAFE_SECTIONS, CAFE_MODULE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
 
 describe('T5: SECTIONS — workspace fallback registry', () => {
   it('home section resolves for /', () => {
@@ -103,5 +103,23 @@ describe('T5: new destination sections resolve', () => {
 describe('T5: sectionForPath — fallbacks', () => {
   it('returns null for a truly unknown path', () => {
     expect(sectionForPath('/unknown-xyz')).toBeNull()
+  })
+})
+
+describe('issue 457 — the Café children carry marks of their own', () => {
+  // Before this, all five borrowed the parent's cup: five rail rungs, one picture. Swapping them
+  // all back to CafeIcon passed every test in the repo, so this is the cheapest thing that fails
+  // on that. Geometry comparison across the whole rail is a separate guard.
+  it('the five children use five distinct components', () => {
+    const icons = CAFE_MODULE_SECTIONS.map((s) => s.Icon)
+    expect(icons).toHaveLength(5)
+    expect(new Set(icons).size).toBe(5)
+  })
+
+  it('none of them is a mark another destination already draws', () => {
+    const elsewhere = new Set(SECTIONS.filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon))
+    for (const s of CAFE_MODULE_SECTIONS) {
+      expect(elsewhere.has(s.Icon), `${s.path} borrows a mark from another destination`).toBe(false)
+    }
   })
 })
