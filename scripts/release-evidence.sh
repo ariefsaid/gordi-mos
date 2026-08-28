@@ -24,9 +24,9 @@ echo "## Release evidence: $head over $base ($count commits)"
 echo
 echo "### Shipped (issue refs in the window's subjects)"
 subjects="$(git log "$base".."$head" --pretty='%s')"
-printf '%s\n' "$subjects" | grep -oE '#[0-9]+' | tr -d '#' | sort -nu \
+printf '%s\n' "$subjects" | grep -oE '#[0-9]+' | tr -d '#' | sed 's/^0*//;s/^$/0/' | sort -nu \
   | while read -r n; do
-      subj="$(printf '%s\n' "$subjects" | grep -E "#$n([^0-9]|$)" | head -1)"
+      subj="$(printf '%s\n' "$subjects" | grep -E "#0*$n([^0-9]|$)" | head -1)"
       echo "- #$n — $subj"
     done
 echo

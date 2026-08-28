@@ -18,6 +18,7 @@ mkdir -p "$tmp/r/supabase/migrations"
 echo "select 1;" > "$tmp/r/supabase/migrations/001_x.sql"; g add supabase; g commit -qm "feat(db): schema bit (#102)"
 echo c > "$tmp/r/c"; g add c; g commit -qm "chore: no issue ref"
 echo d > "$tmp/r/d"; g add d; g commit -qm "fix: pair landing (#9, #110)"
+echo e > "$tmp/r/e"; g add e; g commit -qm "fix: zero-padded typo ref (#0007)"
 
 out="$( (cd "$tmp/r" && bash "$SCRIPT" main dev) 2>&1 )"; rc=$?
 t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
@@ -26,7 +27,8 @@ t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
 printf '%s' "$out" | grep -q "first slice (#101)"; t "shipped issue #101 listed" $?
 printf '%s' "$out" | grep -q "schema bit (#102)"; t "shipped issue #102 listed" $?
 printf '%s' "$out" | grep -q "supabase/migrations/001_x.sql"; t "migration listed" $?
-printf '%s' "$out" | grep -q "4 commits"; t "commit count right" $?
+printf '%s' "$out" | grep -q "5 commits"; t "commit count right" $?
+printf '%s' "$out" | grep -q "^- #7 — fix: zero-padded typo ref (#0007)"; t "leading-zero ref canonicalized with its subject" $?
 printf '%s' "$out" | grep -q "^- #9 " && printf '%s' "$out" | grep -q "^- #110 "; t "multi-ref subject yields both issues" $?
 [ "$(printf '%s\n' "$out" | grep -n '^- #9 ' | cut -d: -f1)" -lt "$(printf '%s\n' "$out" | grep -n '^- #101' | cut -d: -f1)" ]; t "numeric order (#9 before #101), no GNU sort -V" $?
 
