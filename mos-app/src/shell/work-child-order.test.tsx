@@ -47,6 +47,8 @@ const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'
 // behind: Events is ship-gated (#348 rides milestone 4).
 const FAMILY = ['/work/tasks', '/work/projects', '/work/objectives', '/work/signals', '/work/events']
 const CAPABILITY: Record<string, string | undefined> = { '/work/projects': 'workline.manage' }
+// Add a row here when you add a Work child or lift a ship gate — a missing entry renders as
+// `=undefined` in the red, which reads as a label bug rather than a missing literal.
 const LABEL: Record<string, string> = {
   '/work/tasks': 'Tasks',
   '/work/projects': 'Projects & Processes',
@@ -163,6 +165,18 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
   it('the ⌘K palette renders Work children in the declared order (issue 479)', () => {
     const view = palette()
     expect(paletteWorkChildTargets(view.container)).toEqual(expectedPairs())
+  })
+
+  it('the palette emits no Work row beyond the parent and the declared children', () => {
+    // Selected by TARGET, not by the palette's own `data-child` marker. The marker is opt-in: a
+    // re-typed Work row that simply omits it is invisible to every other assertion here — which is
+    // the exact defect #479 exists to kill, one level of indirection down. Action rows carry
+    // `.action` and are excluded; the parent row targets /work/tasks and is expected first.
+    const v = palette()
+    const rows = Array.from(
+      v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]:not(.action)'),
+    ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
+    expect(rows).toEqual(['/work/tasks=Work', ...expectedPairs()])
   })
 
   it('rail, drawer and palette agree — the same items in the same sequence', () => {

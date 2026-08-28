@@ -725,6 +725,21 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     expect(childRows()).toHaveLength(0)
   })
 
+  it('a FILTERED result that kept its parent keeps the rung', async () => {
+    // The two tests above assert the rung disappears when the parent goes. Nothing asserted it
+    // SURVIVES — so "clear every rung whenever the query is non-empty", the fix a developer
+    // reaches for after an orphaned-rung report, passed the whole suite while every child lost
+    // its indent, hairline and aria-describedby on the first keystroke.
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'k' } })
+    // Precondition: "k" keeps BOTH ends on screen — Work and its Tasks child.
+    expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
+    const tasks = screen.getByRole('option', { name: /^Tasks$/i })
+
+    expect(tasks.getAttribute('data-child')).toBe('true')
+    expect(tasks.getAttribute('aria-describedby')).toBe('n-work')
+  })
+
   it('in the default view every child wears the rung AND points at the rendered Work row', () => {
     renderMenu()
     const work = screen.getByRole('option', { name: /^Work$/i })
