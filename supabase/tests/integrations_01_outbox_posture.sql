@@ -14,16 +14,17 @@
 --   GrandMgr  ...0d3  admin. The second positive, because the policy names two roles and a proof of
 --                     one of them would leave the other untested.
 --   ForeignMgr ...0b4 a real ORG B person — current_org_id() resolves NULL for a person_id naming
---                     no live row, so an invented viewer would read zero for the wrong reason.
---                     nothing to do with these policies.
+--                     no live row, so an invented viewer would read zero for the wrong reason —
+--                     a zero that proves the claim was unresolvable, not that the policy refused.
+--                     A REAL org B person makes the cross-tenant zero mean what it says.
 --
--- The D/E sweeps hold one subject fixed and vary only the claimed role SET. Sound because
--- has_access_role() reads the JWT and makes no directory lookup.
--- varying nothing else isolates the role axis exactly. Varying nothing else is also the limit of
--- what the sweeps can see, and D9 states that limit in full.
+-- The D/E sweeps hold one subject fixed and vary the claimed role SET and the claim SHAPE.
+-- Sound because has_access_role() reads the JWT and makes no directory lookup, so holding the
+-- subject fixed costs nothing on the role axis. Varying nothing else is also the limit of what
+-- the sweeps can see, and D9 states that limit in full.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(55);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -55,6 +56,8 @@ select ops._test_seed_cafe();
 --
 -- Two nets: an anchored end-to-end shape match, then a literal census over the whole definition.
 -- Either fails and it raises. H1-H6 assert each sentence of this.
+--   Net 1 matches the CHECK end to end against the shape the harvest understands, so a definition
+--   written any other way refuses instead of being half-read. Net 2 is the census: every literal in
 --   the text is scanned out (quote-aware, so `''` inside a literal is read as one quote and no
 --   character class decides what a name may contain), and that census must equal the set lifted out
 --   of the array EXACTLY. A value admitted from outside the array — the `auditor` disjunct — is
@@ -243,10 +246,12 @@ begin
   if n > 12 then
     raise exception
       'role_combinations(): the vocabulary handed in holds % names, so the power set is % '
-      'subsets per table and doubles again with the next role. The sweeps in D and E are '
+      'subsets, and this file walks it 10 times over (D9, E, and the crossed sweep''s two '
+      'relations x four claim shapes) for % probes per run — which doubles again with the next role. '
+      'The sweeps in D and E are '
       'exhaustive by construction; past this point that has to be chosen rather than discovered. '
       'Raise this ceiling deliberately, or cut the sweeps down to pairs and change what they '
-      'CLAIM to match.', n, (1::bigint << n);
+      'CLAIM to match.', n, (1::bigint << n), 10 * (1::bigint << n);
   end if;
 
   return query
@@ -318,6 +323,26 @@ select ok(has_table_privilege('service_role','integrations.esb_push','SELECT')
   'the worker may read outbox rows and flip their status, and may NOT create one — enqueue belongs to the approval path alone');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The same four questions on the approval-group table. Asked separately because the group table
+-- is where approval EVIDENCE lives: service_role bypasses RLS, so a DELETE grant here is not
+-- masked by the forced row security the way the authenticated write grants are, and NFR-002's
+-- "a push cannot be made to disappear" binds the outbox row only.
+select ok(not has_table_privilege('authenticated','integrations.esb_push_groups','INSERT')
+      and not has_table_privilege('authenticated','integrations.esb_push_groups','UPDATE'),
+  'the app tier cannot write approval groups: no INSERT, no UPDATE for authenticated');
+
+select ok(has_table_privilege('authenticated','integrations.esb_push_groups','SELECT'),
+  'the app tier can read approval groups — the read policy decides which rows, the grant only that it may ask');
+
+select ok(not has_table_privilege('authenticated','integrations.esb_push_groups','DELETE')
+      and not has_table_privilege('service_role','integrations.esb_push_groups','DELETE'),
+  'an approval group cannot be made to disappear: DELETE is granted to neither the app tier NOR the worker, which bypasses RLS and would not be stopped by it');
+
+select ok(has_table_privilege('service_role','integrations.esb_push_groups','SELECT')
+      and has_table_privilege('service_role','integrations.esb_push_groups','UPDATE')
+      and not has_table_privilege('service_role','integrations.esb_push_groups','INSERT'),
+  'the worker reads and advances approval groups but does not mint them — minting is the definer approval path');
+
 -- C. Each table carries exactly one policy, and each is a read policy
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Asserted structurally as well as behaviourally: "there is no INSERT or UPDATE policy" is a claim
@@ -462,7 +487,20 @@ select is(
 -- So: every subset of the vocabulary, each required to read what the admitted set says. For a
 -- predicate that is a function of the claimed role set, no combination is left to hide in.
 -- vocabulary grows; role_combinations() states a ceiling and RAISES at it rather than letting that
--- WHAT REMAINS INVISIBLE, stated here rather than left to be found. This sweep varies the CLAIMED
+-- arrive as a silent truncation.
+--
+-- WHAT REMAINS INVISIBLE, stated here rather than left to be found. These sweeps vary the CLAIMED
+-- role set, and the crossed sweep also varies which of org_id/person_id the claim carries. Nothing
+-- else moves, so a widening keyed on anything else reads FALSE in every cell and passes:
+--   * Another CLAIM KEY. No cell sets `sub`, `role`, or any key beyond org_id/person_id/
+--     access_roles. A disjunct on one is invisible — and these are not exotic keys: PostgREST puts
+--     `role` in every request and GoTrue puts `sub` in every token, so `or (claims->>'role' =
+--     'authenticated')` collapses the tenancy seam entirely with this file green.
+--   * A role taken from the DIRECTORY rather than the claim. The subject is fixed, so
+--     `or exists (select 1 from shared.person_roles ...)` is seen only if that one subject holds it.
+--   * A COLUMN combination. The fixture holds target_env, status and source_module constant per
+--     row, so a predicate scoped to one of those is not spanned.
+-- Each is a widening a reviewer must look for by reading the policy, because no cell here reddens.
 select is(
   (select coalesce(array_agg('{' || array_to_string(c.roles, '+') || '}=' || r.n
                              order by cardinality(c.roles), c.roles), '{}'::text[])
@@ -501,15 +539,6 @@ select is((select count(*)::int from integrations.esb_push), 0,
 set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select is((select count(*)::int from integrations.esb_push), 0,
   'a session claiming ops_lead but NO org reads no outbox row: the org half of the conjunction is not optional');
--- D10. Every SHAPE a claim can take, the way D9 sweeps every role SET.
--- ⚠ A claim with org_id and a role but NO person_id reads the org's rows, and that is the policy's
--- actual contract: shared._current_person_is_live() answers TRUE when the person_id claim is
--- absent, so current_org_id() resolves and the conjunction holds. This sweep pins that as it is
--- rather than asserting a person_id requirement the predicate never made. Whether a personless
--- claim should be admitted at all is a question about the token hook, not about this policy. Naming the shapes one at a
--- time left the third uncovered: an exemption on `current_person_id() is null` read both tenants
--- with the file at 50/50, because every cell carried a person_id.
-
 reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -639,6 +668,13 @@ set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'a session claiming ops_lead but NO org reads no approval group: the group predicate carries the same two-way null org, and a proof of the outbox''s says nothing about it');
 
+-- ⚠ A claim with org_id and a role but NO person_id reads the org's rows, and that is the policy's
+-- actual contract: shared._current_person_is_live() answers TRUE when the person_id claim is
+-- absent, so current_org_id() resolves and the conjunction holds. This sweep pins that as it is
+-- rather than asserting a person_id requirement the predicate never made. Whether a personless
+-- claim should be admitted at all is a question about the token hook, not about this policy.
+-- It lives here because assertion 37 is the only thing that encodes it.
+--
 -- Inside section E's authenticated window, below the group fixture: above the fixture every
 -- group cell read an empty table, and below the `reset role` the sweep ran as the table owner
 -- with RLS bypassed — a bare claim read all 10 rows. Both directions passed by measuring nothing.
