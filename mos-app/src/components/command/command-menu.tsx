@@ -221,9 +221,9 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       // The Work PARENT row, exactly as the rail draws it: labelled "Work", targeting the same
       // canonical `/work/tasks`. It stays so that typing "work" still finds the section; the
       // children below are the rows that carry the sequence.
-      // primaryPath, not a literal: the rail and drawer both render `d.primaryPath ?? d.links[0].path`,
-      // so a hard-coded target here is the last place the palette could still disagree with them
-      // about where Work goes — re-pointing the registry moved two surfaces and left this one.
+      // primaryPath, not a literal. All three surfaces resolve the parent the same way now; when
+      // this was hard-coded here AND in the rail's own Work branch, re-pointing the registry moved
+      // the drawer alone and a review found palette and rail disagreeing with the suite green.
       { id: WORK_PARENT_ID, label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: WORK_DEST?.primaryPath ?? '/work/tasks' },
     ]
     // Work's children, in DECLARED order, gated by the same filter the rail and the drawer use.

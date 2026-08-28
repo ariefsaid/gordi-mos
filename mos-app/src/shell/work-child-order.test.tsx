@@ -108,6 +108,20 @@ function workChildHrefs(root: HTMLElement): string[] {
  * `/work/tasks` too, so a target-only scan would read it as a fifth child and the three lists
  * would stop being comparable.
  */
+/**
+ * The Work PARENT target a rail/drawer surface emits: a /work/ anchor that is NOT a child rung.
+ *
+ * The cross-surface checks below compare child rows only, so a surface that re-typed its PARENT
+ * target stayed invisible: with the registry re-pointed and the rail holding a literal, the
+ * palette and the rail sent "Work" to different places and every assertion here passed.
+ */
+function workParentHref(root: HTMLElement): string {
+  const a = Array.from(root.querySelectorAll<HTMLAnchorElement>('a[href^="/work"]')).find(
+    (el) => !el.classList.contains('rail-item--child'),
+  )
+  return a?.getAttribute('href') ?? ''
+}
+
 function paletteWorkChildTargets(root: HTMLElement): string[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>('[data-child="true"][data-to^="/work/"]'),
@@ -184,8 +198,8 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     const rows = Array.from(
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]:not(.action)'),
     ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
-    // The parent pair is read from the registry, not written here: the rail and drawer both
-    // render `primaryPath ?? links[0].path`, so pinning a literal would fail a legitimate
+    // The parent pair is read from the registry, not written here: all three surfaces resolve the
+    // parent as `primaryPath ?? links[0].path`, so pinning a literal would fail a legitimate
     // re-point while still missing the defect that matters — the palette keeping its own target
     // while the other two move. That disagreement is what this must catch.
     const parentPath = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
@@ -203,9 +217,31 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]'),
     ).map((el) => el.getAttribute('data-to') ?? '')
     const parent = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
+    // indexOf returns -1 when the parent target is not under /work/ — and splice(-1, 1) deletes
+    // the LAST element, silently dropping a real row from the uniqueness check. With the registry
+    // re-pointed off /work/ AND a genuine duplicate present, this passed 6/6 green.
     const withoutParentRow = [...targets]
-    withoutParentRow.splice(withoutParentRow.indexOf(parent), 1)
+    const at = withoutParentRow.indexOf(parent)
+    if (at >= 0) withoutParentRow.splice(at, 1)
     expect(withoutParentRow).toEqual([...new Set(withoutParentRow)])
+  })
+
+  it('all three surfaces send the Work PARENT to the same place', () => {
+    const rail = shell(<RailNav />)
+    const railParent = workParentHref(rail.container.querySelector('nav')!)
+    rail.unmount()
+    const drawer = shell(<MobileDrawer open onClose={vi.fn()} />)
+    const drawerParent = workParentHref(
+      drawer.container.querySelector('nav[aria-label="More destinations"]')!,
+    )
+    drawer.unmount()
+    const view = palette()
+    const palParent = (view.container.querySelector('[data-to^="/work/"]:not(.action)') as HTMLElement | null)
+      ?.getAttribute('data-to') ?? ''
+
+    expect(railParent).not.toBe('')
+    expect(drawerParent).toBe(railParent)
+    expect(palParent).toBe(railParent)
   })
 
   it('rail, drawer and palette agree — the same items in the same sequence', () => {
