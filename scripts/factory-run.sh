@@ -26,7 +26,7 @@ case "$adw" in */*|.*) echo "✗ factory-run: ADW must be a bare filename under 
 # the Director's session, never a factory child, so the door is unaffected.
 GH_SHIM_REAL="$(command -v gh || true)"
 export GH_SHIM_REAL
-noauth="$(git -C "$top" rev-parse --git-dir)/gh-noauth"
-mkdir -p "$noauth"
+# Fresh per-run dir: a reused one could carry auth a child persisted (e.g. gh auth login).
+noauth="$(mktemp -d "${TMPDIR:-/tmp}/gh-noauth.XXXXXX")"
 export GH_CONFIG_DIR="$noauth"
 PATH="$top/scripts/gh-shim:$PATH" exec uv run "$top/adws/$adw" "$@"
