@@ -325,18 +325,13 @@ select is(
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- D. esb_push_select_ops_lead_or_admin — the four cells the predicate actually admits
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- The predicate is a conjunction — org AND (ops_lead OR admin) — so proving it takes both axes, and
--- proving it takes the POSITIVE cell as much as the negatives: a policy that admitted nobody at all
--- would satisfy every "reads zero" on its own. The four cells, per issue 474:
+-- Both axes, and the positive cell too: a policy admitting nobody satisfies every "reads zero".
 --
 --                          own org (A)                       other org (B)
 --   admitted role          reads the row  (D2, D3)           reads NONE of A's  (D5)
 --   unadmitted role        reads zero     (D1)               reads zero         (D7)
 --
--- Each negative is paired with a read that proves the session is not simply blind: D1 sits beside
--- D2/D3 in the same org, and D5 sits beside D6, which is the same org-B session counting its OWN
--- org's row. Without that pairing "reads zero" would be satisfied by a broken session, an empty
--- table, or a policy that denies everyone.
+-- Every negative is paired with a same-session read, or a blind session would satisfy it.
 --
 -- The four cells pin the ORG axis. They do NOT pin the admitted SET, because the unadmitted persona
 -- holds the two roles she happens to hold and no others — so the sweep at the end of this section
