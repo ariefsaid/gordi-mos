@@ -85,6 +85,9 @@ check "one lens stamp on wrong sha refused" 1 no pr create --title t --body "cle
 g "$tmp/repo" checkout -q main 2>/dev/null || g "$tmp/repo" checkout -qb main
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir"/independent-review-*-ok
 check "main->staging promotion passes unstamped (release carve-out)" 0 yes pr create --base staging --title t --body "clean"
+check "equals-form --base=staging promotion passes" 0 yes pr create --base=staging --title t --body "clean"
+check "--base staging-hotfix is NOT the carve-out" 1 no pr create --base staging-hotfix --title t --body "clean"
+check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no pr create --base dev --title staging --body "clean"
 g "$tmp/repo" checkout -qb rogue
 check "staging PR from a non-main branch still needs stamps" 1 no pr create --base staging --title t --body "clean"
 

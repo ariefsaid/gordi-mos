@@ -96,12 +96,13 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
   # PR already four-stamped and the owner ratified — main's merge commit itself can never hold
   # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
-  if printf '%s' "$*" | grep -qE -- '--base[= ]staging' \
-     && [ "$(git branch --show-current)" = "main" ]; then
-    exec_promotion=1
-  else
-    exec_promotion=0
-  fi
+  exec_promotion=0
+  prev=""
+  for a in "$@"; do
+    case "$prev" in --base) [ "$a" = "staging" ] && exec_promotion=1; prev=""; continue ;; esac
+    case "$a" in --base) prev="$a" ;; --base=staging) exec_promotion=1 ;; esac
+  done
+  [ "$(git branch --show-current)" = "main" ] || exec_promotion=0
   if [ "$exec_promotion" = 0 ]; then
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
