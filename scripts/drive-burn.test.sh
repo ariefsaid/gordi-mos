@@ -16,8 +16,10 @@ printf '{"usage":{"totalTokens":50}}\n' > "$tmp/sessions/b.jsonl"
 printf '{"usage":{"totalTokens":9999}}\n' > "$tmp/sessions/old.jsonl"
 touch -t 202601010000 "$tmp/sessions/old.jsonl"
 
+printf '{"usage":{"totalTokens":7}}\n' > "$tmp/sessions/with space.jsonl"
+
 out="$(PI_SESSIONS_DIR="$tmp/sessions" bash "$SCRIPT" 24)"
-printf '%s' "$out" | grep -q "400 pi tokens across 2 session(s)"; t "sums fresh sessions, excludes old" $? "$out"
+printf '%s' "$out" | grep -q "407 pi tokens across 3 session(s)"; t "sums fresh sessions incl. spaced filename, excludes old" $? "$out"
 
 out="$(PI_SESSIONS_DIR="$tmp/nope" bash "$SCRIPT")"
 printf '%s' "$out" | grep -q "no pi session dir"; t "missing dir reports, exits 0" $? "$out"

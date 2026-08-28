@@ -16,10 +16,10 @@ slug="-$(pwd | tr '/' '-')--"
 dir="${PI_SESSIONS_DIR:-$HOME/.pi/agent/sessions/$slug}"
 [ -d "$dir" ] || { echo "burn: no pi session dir for this checkout"; exit 0; }
 
-files="$(find "$dir" -name '*.jsonl' -mmin -$((hours * 60)) 2>/dev/null)"
-[ -n "$files" ] || { echo "burn: 0 pi tokens (no sessions in last ${hours}h)"; exit 0; }
+n="$(find "$dir" -name '*.jsonl' -mmin -$((hours * 60)) 2>/dev/null | wc -l | tr -d ' ')"
+[ "$n" -gt 0 ] || { echo "burn: 0 pi tokens (no sessions in last ${hours}h)"; exit 0; }
 
-total="$(printf '%s\n' "$files" | xargs cat 2>/dev/null \
+# -exec cat {} + keeps filenames intact (xargs split on spaces and silently dropped those files).
+total="$(find "$dir" -name '*.jsonl' -mmin -$((hours * 60)) -exec cat {} + 2>/dev/null \
   | grep -oE '"totalTokens":[0-9]+' | cut -d: -f2 | awk '{s+=$1} END {print s+0}')"
-n="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
 echo "burn: ${total} pi tokens across ${n} session(s) in last ${hours}h (main checkout only)"
