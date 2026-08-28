@@ -93,6 +93,16 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   done
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
+  # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
+  # PR already four-stamped and the owner ratified — main's merge commit itself can never hold
+  # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
+  if printf '%s' "$*" | grep -qE -- '--base[= ]staging' \
+     && [ "$(git branch --show-current)" = "main" ]; then
+    exec_promotion=1
+  else
+    exec_promotion=0
+  fi
+  if [ "$exec_promotion" = 0 ]; then
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
@@ -100,6 +110,7 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
     r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
   done
+  fi
 fi
 
 # GH_POST_DOOR marks this as the sanctioned write path for scripts/gh-shim/gh (the PATH-level

@@ -51,6 +51,8 @@ printf '%s' "$out" | grep -q "DEAD-CLAIM	#1"; t "5d-quiet claim flagged" $?
 printf '%s' "$out" | grep -q "AGING-TRIAGE	#3"; t "old triage flagged" $?
 ! printf '%s' "$out" | grep -q "AGING-TRIAGE	#4"; t "fresh triage not flagged" $?
 printf '%s' "$out" | grep -q "FRONTIER	1 unblocked grilling"; t "frontier counts only unblocked (hook parity)" $?
+printf '%s' "$out" | grep -q "UNTRACKED	#1"; t "state-less issue surfaces as UNTRACKED" $?
+! printf '%s' "$out" | grep -q "UNTRACKED	#3"; t "needs-triage issue is not UNTRACKED" $?
 
 if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  gh failure must exit non-zero\n'

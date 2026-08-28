@@ -59,6 +59,8 @@ section="$(awk -v lens="$lens" '
 [ -n "$section" ] || die "artifact has no section for lens '$lens' (a 'Reviewer: … ($lens)' line or '## $lens' heading) — each lens is its own record (OD-WAY-83)"
 printf '%s\n' "$section" | grep -qi '^Reviewer:' \
   || die "the '$lens' section has no 'Reviewer:' line — it must be the reviewer's own record"
+printf '%s\n' "$section" | grep -i '^Reviewer:' | grep -qF "$reviewer" \
+  || die "the '$lens' section's Reviewer line does not name '$reviewer' — the stamp must match the record's own author"
 verdict="$(printf '%s\n' "$section" | grep -iE '^Verdict:' | sed -E 's/^[Vv]erdict:[[:space:]]*//' | head -1)"
 [ -n "$verdict" ] || die "the '$lens' section carries no 'Verdict:' line"
 printf '%s\n' "$verdict" | grep -qE '^MERGE( WITH CHANGES)?$' \

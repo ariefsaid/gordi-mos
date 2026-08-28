@@ -37,8 +37,9 @@ while read -r path ref; do
       mkdir -p "$dest"
       # Fail closed: traces are the milestone review's evidence — a failed archive KEEPS the
       # worktree rather than force-removing what it just failed to save.
-      if cp -R "$path/adws/adw_data/sessions" "$dest/"; then
-        echo "  traces archived: $path -> $dest"
+      if cp -R "$path/adws/adw_data/sessions" "$dest/" \
+         && { [ ! -f "$path/adws/adw_data/sssf.db" ] || cp "$path/adws/adw_data/sssf.db" "$dest/"; }; then
+        echo "  traces archived (sessions + sssf.db): $path -> $dest"
       else
         echo "  ✗ trace archive FAILED for $path — keeping the worktree" >&2
         continue
