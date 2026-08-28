@@ -46,12 +46,20 @@ case "$verb1 $verb2" in
   "label list"|"gist view"|"gist list"|"search "*|"auth status"|"browse "*) ;;
   " "|"") ;;   # bare `gh`, --version/--help forms
   "api "*)
+    # Read-mode only: any field flag denies; any method (long, =, -X, -XPOST) must be GET.
+    m="" prev=""
     for a in "$@"; do
+      case "$prev" in -X|--method) m="$a"; prev=""; continue ;; esac
       case "$a" in
-        --method|--method=*) case "$*" in *--method[=\ ]GET*|*--method[=\ ]get*) ;; *) deny ;; esac; break ;;
-        -f|-F|--field|--raw-field|--input|-f*|-F*) deny ;;
+        -X|--method) prev="$a" ;;
+        -X?*) m="${a#-X}" ;;
+        --method=*) m="${a#--method=}" ;;
+        -f|-F|--field|--raw-field|--input|-f?*|-F?*|--input=*|--field=*|--raw-field=*) deny ;;
       esac
-    done ;;
+    done
+    if [ -n "$m" ] || [ -n "$prev" ]; then
+      case "$m" in GET|get|Get) ;; *) deny ;; esac
+    fi ;;
   *) deny ;;
 esac
 

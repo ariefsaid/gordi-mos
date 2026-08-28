@@ -34,6 +34,11 @@ check "global-flag dodge refused (-R value skipped)" 1 no -R other/repo issue co
 check "gist refused" 1 no gist create file.md
 check "write-mode api (-F) refused" 1 no api repos/x/y/issues -F body=x
 check "write-mode api (--method POST) refused" 1 no api repos/x/y/z --method POST
+check "write-mode api (-X POST) refused" 1 no api repos/x/y/z -X POST
+check "write-mode api (-XPOST concatenated) refused" 1 no api repos/x/y/z -XPOST
+check "write-mode api (--method=DELETE equals-form) refused" 1 no api repos/x/y/z --method=DELETE
+check "explicit -X GET passes" 0 yes api repos/x/y/z -X GET
+check "dangling -X with no value refused" 1 no api repos/x/y/z -X
 check "release upload refused (allowlist, not deny-table)" 1 no release upload v1 file.tgz
 check "repo archive refused (allowlist)" 1 no repo archive x/y
 check "unknown future verb refused by default" 1 no cabbage plant --now
