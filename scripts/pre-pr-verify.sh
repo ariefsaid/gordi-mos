@@ -35,6 +35,23 @@ if [ -n "$base" ]; then
   bash scripts/prose-budget.sh "$base"
 fi
 
+# A fresh worktree has no node_modules; a rebase across a dependency change leaves a stale one.
+# Either way the heavy section dies as `tsc: command not found` or a wall of TS2307s, which reads
+# as a broken toolchain rather than a missing install — four false diagnoses in one session.
+# `npm ci` is what CI runs, so it also proves package.json and the lockfile agree, and it writes
+# node_modules/.package-lock.json — a newer lockfile means the tree predates current deps.
+# Every binary, not one sentinel: a tree with tsc but no eslint died 127 at `npm run lint`.
+# Installing is not a test, so this sits outside the test lock.
+deps_missing=""
+for _b in tsc eslint stylelint vitest vite; do
+  [ -x "mos-app/node_modules/.bin/$_b" ] || deps_missing="${deps_missing}${deps_missing:+ }$_b"
+done
+if [ -n "$deps_missing" ] \
+   || [ mos-app/package-lock.json -nt mos-app/node_modules/.package-lock.json ]; then
+  echo "── deps: ${deps_missing:+missing }${deps_missing:-node_modules is older than package-lock.json} — running npm ci first"
+  (cd mos-app && npm ci --no-audit --no-fund)
+fi
+
 # The heavy section runs under the machine-global test lock: two concurrent batteries starve
 # each other into moving false REDs — and two full vitest pools OOM'd this host once already.
 bash scripts/with-test-lock.sh bash -c \
