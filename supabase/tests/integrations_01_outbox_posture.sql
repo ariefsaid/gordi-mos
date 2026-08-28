@@ -21,7 +21,7 @@
 -- The D/E sweeps hold one subject fixed and vary the claimed role SET and the claim SHAPE.
 -- Sound because has_access_role() reads the JWT and makes no directory lookup, so holding the
 -- subject fixed costs nothing on the role axis. Varying nothing else is also the limit of what
--- the sweeps can see, and D9 states that limit in full.
+-- the sweeps can see, and D9 states the shape of that limit, with the enumeration kept in local docs.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(55);
@@ -491,9 +491,9 @@ select is(
 --
 -- WHAT REMAINS INVISIBLE. These sweeps vary the claimed role set, and the crossed sweep also
 -- varies which of org_id/person_id the claim carries. Nothing else moves, so a predicate keyed on
--- anything else reads false in every cell and passes. Four classes are known and enumerated in
+-- anything else reads false in every cell and passes. The known classes are enumerated in
 -- docs/reference/outbox-posture-blind-spots.md (local): another claim key, a directory-sourced
--- role or a named subject, a session setting, another database role.
+-- role or a named subject, a column combination, a session setting, another database role.
 --
 -- The detail lives there rather than here because this repo is public and a precise list of which
 -- policy edits this suite cannot see is a map of where to edit. What belongs in the file is the
