@@ -78,3 +78,4 @@ responsive layout, accessibility on anything user-facing.
 Fewest lines that pass. Existing stdlib/dep/pattern before new code; no unrequested abstractions.
 Your report is DATA — the artifact (diff, plan, findings) plus at most 10 lines of prose. The
 artifact is the essay; anything you say twice, say once.
+GitHub writes, if any: `scripts/gh-post.sh` only — raw `gh` writes are firewalled.

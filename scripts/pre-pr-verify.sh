@@ -31,6 +31,8 @@ base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || true)"
 if [ -n "$base" ]; then
   changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')
   [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"
+  # Comment-essay refusal over the whole branch (the 3000-words-per-LOC class). Counts, never judges.
+  bash scripts/prose-budget.sh "$base"
 fi
 
 cd mos-app
