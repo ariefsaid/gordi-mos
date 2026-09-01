@@ -114,6 +114,16 @@ describe('ViewOptionsDisclosure', () => {
     expect(screen.getByRole('button', { name: 'View options' })).toBeInTheDocument()
   })
 
+  it('shows the decorative active cue only when filters are active', () => {
+    const { unmount } = renderDisclosure({ open: false, hasActiveFilters: false })
+    expect(document.querySelectorAll('.view-options-disclosure__active-dot')).toHaveLength(0)
+    unmount()
+    renderDisclosure({ open: false, hasActiveFilters: true, summary: 'All · Status' })
+    expect(document.querySelectorAll('.view-options-disclosure__active-dot')).toHaveLength(1)
+    expect(screen.getByText('All · Status')).toHaveAttribute('aria-hidden', 'true')
+    expect(document.querySelector('.view-options-disclosure__active-dot')).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('applies each host skin class (container/trigger/chevron/panel) so CSS is preserved', () => {
     const { container } = renderDisclosure({
       open: true,

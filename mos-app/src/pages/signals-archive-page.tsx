@@ -86,6 +86,25 @@ export function SignalsArchivePage() {
       : view === 'retracted' ? t('signals.archive.viewRetracted')
         : t('signals.archive.viewAll')
 
+  function signalDisclosureSummary(currentQuery: SignalCollectionQuery): { summary: string; hasActiveFilters: boolean } {
+    const base = signalViewLabel(currentQuery.view)
+    const hasIndependentFilter = Boolean(
+      currentQuery.q.trim() || currentQuery.attention || currentQuery.category || currentQuery.teamId
+        || currentQuery.showRetracted || currentQuery.savedViewId,
+    )
+    const hasActiveFilters = currentQuery.view !== 'all' || Boolean(currentQuery.savedViewId) || hasIndependentFilter
+    if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
+
+    const filterLabel = currentQuery.attention ? t('signals.archive.filterAttention')
+      : currentQuery.category ? t('signals.archive.filterCategory')
+        : currentQuery.teamId ? t('signals.archive.filterTeam')
+          : currentQuery.q.trim() ? t('signals.archive.searchLabel')
+            : currentQuery.showRetracted ? t('signals.archive.showRetracted')
+              : currentQuery.savedViewId ? t('common.savedView')
+                : undefined
+    return { summary: filterLabel ? `${base} · ${filterLabel}` : base, hasActiveFilters }
+  }
+
   function setQuery(patch: Partial<SignalCollectionQuery>) {
     controller.setQuery({ ...query, ...patch })
   }
@@ -314,13 +333,15 @@ export function SignalsArchivePage() {
   // Signals and Tasks share the same capture-first phone contract: the first record leads;
   // presentation, filters, grouping, and saved views remain available behind one disclosure.
   // The collection toolbar itself stays unchanged, so desktop keeps the full E7 control row.
+  const signalDisclosure = signalDisclosureSummary(query)
   const signalControls = isDesktop ? signalToolbar : (
     <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
       onClose={() => setMobileOptionsOpen(false)}
       label={t('signals.archive.viewAndFilters')}
-      summary={signalViewLabel(query.view)}
+      summary={signalDisclosure.summary}
+      hasActiveFilters={signalDisclosure.hasActiveFilters}
       panelId="mobile-signal-options-panel"
       className="collection-mobile-options"
       triggerClassName="collection-mobile-options-trigger"

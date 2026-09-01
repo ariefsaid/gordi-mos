@@ -35,6 +35,8 @@ export interface ViewOptionsDisclosureProps {
   label: string
   /** Optional decorative summary of the current selection (aria-hidden). */
   summary?: string
+  /** Whether the phone door should show a decorative cue for active filters. */
+  hasActiveFilters?: boolean
   /** id wiring aria-controls ↔ the panel. */
   panelId: string
   /** Skin hooks — kept explicit so each host preserves its own computed style. */
@@ -52,6 +54,7 @@ export function ViewOptionsDisclosure({
   onClose,
   label,
   summary,
+  hasActiveFilters = false,
   panelId,
   className,
   triggerClassName,
@@ -90,6 +93,7 @@ export function ViewOptionsDisclosure({
         {summary != null && (
           <span className={summaryClassName} aria-hidden="true">{summary}</span>
         )}
+        {hasActiveFilters && <span className="view-options-disclosure__active-dot" aria-hidden="true" />}
         <Chevron className={chevronCls} />
       </button>
       {open && (

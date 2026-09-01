@@ -18,6 +18,7 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
   afterEach(() => vi.unstubAllGlobals())
 
   it('renders one reusable presentation, view, search, filter, and saved-view surface', async () => {
+    stubDesktop()
     const onPresentationChange = vi.fn()
     const onViewChange = vi.fn()
     const onSearchChange = vi.fn()
@@ -86,6 +87,22 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'My view')
     await userEvent.keyboard('{Escape}')
     expect(saveTrigger).toHaveFocus()
+  })
+
+  it('removes presentation tabs from the phone DOM while retaining them on desktop', () => {
+    const presentation = {
+      label: 'Presentation', value: 'table' as const,
+      options: [{ value: 'table' as const, label: 'Table' }, { value: 'feed' as const, label: 'Feed' }],
+      onChange: vi.fn(),
+    }
+    const view = { label: 'Views', value: 'all' as const, options: [{ value: 'all' as const, label: 'All' }], onChange: vi.fn() }
+    const { unmount } = render(<I18nProvider><CollectionToolbar presentation={presentation} views={view} /></I18nProvider>)
+    expect(screen.queryByRole('tablist', { name: 'Presentation' })).toBeNull()
+    unmount()
+    stubDesktop()
+    render(<I18nProvider><CollectionToolbar presentation={presentation} views={view} /></I18nProvider>)
+    const tabs = screen.getByRole('tablist', { name: 'Presentation' })
+    expect(within(tabs).getAllByRole('tab')).toHaveLength(2)
   })
 
   it('OD-WAY-89: exposes compact desktop options without a disclosure door', async () => {

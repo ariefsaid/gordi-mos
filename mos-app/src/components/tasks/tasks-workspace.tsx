@@ -119,6 +119,29 @@ function viewLabel(view: TaskCollectionView, t: ReturnType<typeof useT>): string
   }
 }
 
+function taskDisclosureSummary(
+  query: TaskCollectionQuery,
+  t: ReturnType<typeof useT>,
+): { summary: string; hasActiveFilters: boolean } {
+  const base = viewLabel(query.view, t)
+  const hasIndependentFilter = Boolean(
+    query.q.trim() || query.businessUnitId || query.status || query.picId || query.supervisorId
+      || query.personId || query.occurrenceId || query.includeArchived || query.overdueOnly || query.savedViewId,
+  )
+  const hasActiveFilters = query.view !== 'all' || Boolean(query.savedViewId) || hasIndependentFilter
+  if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
+
+  const filterLabel = query.overdueOnly ? t('tasks.saved.overdue')
+    : query.status ? t('tasks.filter.status')
+      : query.businessUnitId ? t('tasks.filter.businessUnit')
+        : query.picId || query.supervisorId || query.personId ? t('tasks.filter.person')
+          : query.q.trim() ? t('tasks.filter.search')
+            : query.includeArchived ? t('tasks.filter.showArchived')
+              : query.savedViewId ? t('common.savedView')
+                : undefined
+  return { summary: filterLabel ? `${base} · ${filterLabel}` : base, hasActiveFilters }
+}
+
 export function TasksWorkspace({
   selectedId = null,
   drawerOpen = false,
@@ -489,13 +512,15 @@ export function TasksWorkspace({
   // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
   // disclosure (whose whole content is now just those chips) would be a door hiding the only
   // way out — render the chips directly instead.
+  const taskDisclosure = taskDisclosureSummary(query, t)
   const controls = captureFirstMobile && !reservedFollowups ? (
       <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
       onClose={() => setMobileOptionsOpen(false)}
       label={t('tasks.viewAndFilters')}
-      summary={viewLabel(query.view, t)}
+      summary={taskDisclosure.summary}
+      hasActiveFilters={taskDisclosure.hasActiveFilters}
       panelId="mobile-task-options-panel"
       className="mobile-task-options"
       triggerClassName="mobile-task-options-trigger"

@@ -24,6 +24,16 @@
 /* Layout-independent primary action (D-D2) — trails row 1, after the presentation switch. */
 .collection-toolbar__primary-action { flex: 0 0 auto; display: flex; align-items: center; }
 
+.view-options-disclosure__active-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-start: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex: 0 0 auto;
+}
+
 .collection-toolbar__presentations .view-tabs {
   position: static;
   z-index: auto;
