@@ -194,10 +194,16 @@ function PlanEditor() {
     [cells, movement],
   )
 
-  // Persist one cell (FR-031 upsert). No-op when unchanged, offline, or no resolved stream.
+  // Persist one cell (FR-031 upsert). No-op when unchanged or offline; a commit with no
+  // resolved stream IS the attempt — it raises the alert (FR-006, Log's handleSubmit guard)
+  // and writes nothing.
   async function saveCell(wipItemId: string, nextQty: number) {
-    if (!isOnline || !stream) return
+    if (!isOnline) return
     if (nextQty < 0) return
+    if (!stream) {
+      setSaveError(t('kitchen.log.stream.missing'))
+      return
+    }
     const current = qtyOf(wipItemId)
     if (nextQty === current) return
     setSavingId(wipItemId)
@@ -292,7 +298,10 @@ function PlanEditor() {
             <PlanQtyField
               itemName={item.name}
               qty={qtyOf(item.id)}
-              disabled={!isOnline || !stream}
+              // #548 FR-006: entry stays live without a stream (Log's grammar) — the commit
+              // attempt raises the alert; only offline pre-disables the field. Committed value
+              // unchanged: it renders beside the field at the page.
+              disabled={!isOnline}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -310,6 +319,46 @@ function PlanEditor() {
   ]
 
   const streamMissing = stream === null
+
+  // #548 FR-007: Plan's phone face is the DESIGN.md compact capture row — identity left,
+  // the typed plan field + unit right, no per-card field label. Same seam as Log
+  // (renderCard → PhoneCard applies .dt-card--compact); the meta line renders ONLY when it
+  // has something to say (commit state). No dense: the phone card keeps the 44px touch floor.
+  const renderPlanCard = (item: WipItemOption) => {
+    const saving = savingId === item.id
+    const saved = !saving && justSavedId === item.id
+    return (
+      <div className="kp-card">
+        <div className="kp-card-head">
+          <span className="kp-card-name">
+            <Link
+              to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
+              className="kp-row-link"
+              aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
+            >
+              {item.name}
+            </Link>
+            {item.category && <span className="kp-card-cat">{item.category}</span>}
+          </span>
+          <PlanQtyField
+            itemName={item.name}
+            qty={qtyOf(item.id)}
+            disabled={!isOnline}
+            onSave={next => saveCell(item.id, next)}
+          />
+        </div>
+        {(saving || saved) && (
+          <div className="kp-card-meta">
+            <span className="kp-cell-status" role="status" aria-live="polite">
+              {saving
+                ? t('record.field.saving')
+                : <><span className="kp-cell-tick" aria-hidden="true">✓</span> {t('record.field.saved')}</>}
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <PageFamilyFrame
@@ -357,10 +406,14 @@ function PlanEditor() {
       {saveError && (
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
       )}
+      {/* #548 FR-006: the precondition is a muted hint at rest (Log's .kl-submit-reason
+          grammar, role="status" — programmatically associated as a live region, NFR-002). The
+          role="alert" banner above is reserved for an actual commit attempt (saveCell's
+          no-stream guard). */}
       {streamMissing && load.kind === 'ready' && (
-        <div role="alert" className="kp-banner kp-banner-error kp-block">
+        <p className="kp-stream-hint" role="status" aria-live="polite">
           {t('kitchen.log.stream.missing')}
-        </div>
+        </p>
       )}
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
@@ -413,6 +466,7 @@ function PlanEditor() {
             columns={planColumns}
             rows={visible}
             groups={planGroups}
+            renderCard={renderPlanCard}
             isDesktop={isDesktop}
             state={visible.length > 0 ? 'ready' : 'empty'}
             emptyLabel={t('kitchen.filter.noMatch')}
