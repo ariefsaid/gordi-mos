@@ -8,11 +8,25 @@
 #
 # Deliberately NOT here: review-by-someone-else (docs/agents/review.md — three lenses, a loop step,
 # never a CI check); the audit-register coverage gate is tracked separately (#295).
+# Ledger contract: the EXIT trap appends after the gate has decided; the stamp is written only on green.
+# It never alters the verification exit status, and ledger append failures never fail that result.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 head="$(git rev-parse HEAD)"
 gitdir="$(git rev-parse --git-dir)"
+ledger_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+started_at="$(date +%s)"
+mode=full
+record_ledger() {
+  local status=$? ended_at duration
+  [ "$status" -eq 0 ] || mode=refused
+  ended_at="$(date +%s 2>/dev/null || printf '%s' "$started_at")"
+  duration=$((ended_at - started_at))
+  [ "$duration" -ge 0 ] || duration=0
+  { printf '%s\t%s\t%s\t%s\n' "$started_at" "$duration" "$mode" "$head" >> "$ledger_dir/verify-ledger.log"; } 2>/dev/null || :
+}
+trap record_ledger EXIT
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
 
 if [ -n "$(git status --porcelain)" ]; then
@@ -78,6 +92,7 @@ if [ "$app_touched" = 1 ]; then
   bash scripts/with-test-lock.sh bash -c \
     'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
 else
+  mode=skipped
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
 fi
 

@@ -30,15 +30,21 @@ run() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh) 
 echo dirty > "$tmp/repo/f"
 if run; then bad "dirty worktree must refuse"; else ok "dirty worktree refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after refusal" || bad "stamp written despite refusal"
+ledger="$tmp/repo/.git/verify-ledger.log"
+[ "$(wc -l < "$ledger" 2>/dev/null | tr -d ' ')" = 1 ] && ok "refused run appends one ledger record" || bad "refused run did not append one ledger record"
+awk -F '\t' -v head="$HEAD" 'NF == 4 && $3 == "refused" && $4 == head { found=1 } END { exit !found }' "$ledger" 2>/dev/null
+[ "$?" -eq 0 ] && ok "refused ledger record captures refused mode and HEAD" || bad "ledger record is missing refused mode or HEAD"
 git -C "$tmp/repo" checkout -q f
 
 if run; then ok "green battery passes"; else bad "green battery must pass"; fi
 if [ "$(cat "$STAMP" 2>/dev/null)" = "$HEAD" ]; then ok "stamp equals HEAD sha"; else bad "stamp missing or wrong sha"; fi
+[ "$(wc -l < "$ledger" 2>/dev/null | tr -d ' ')" = 2 ] && ok "green run appends one additional ledger record" || bad "green run ledger count is wrong"
 
 rm -f "$STAMP"
 printf '#!/bin/sh\ncase "$*" in *test*) exit 1;; *) exit 0;; esac\n' > "$tmp/bin/npm"
 if run; then bad "red battery must refuse"; else ok "red battery refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after red battery" || bad "stamp written despite red battery"
+[ "$(tail -n 1 "$ledger" | cut -f3)" = refused ] && ok "red battery records refused mode" || bad "red battery did not record refused mode"
 
 # A red PYTHON suite must refuse too — the snapshot job's tests are part of the battery, and a
 # battery that runs a step without propagating its failure is the same non-gate as not running it.
@@ -208,8 +214,10 @@ scope_case() { # $1 name · $2 file-to-change · $3 expect-npm yes/no
   run
   local got=no; [ -s "$tmp/npm-calls" ] && got=yes
   local stamped=no; [ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && stamped=yes
-  if [ "$got" = "$want" ] && [ "$stamped" = yes ]; then pass=$((pass+1)); printf '  ok    scope: %s\n' "$name"
-  else fail=$((fail+1)); printf '  FAIL  scope: %s — npm=%s (want %s) stamped=%s\n' "$name" "$got" "$want" "$stamped"; fi
+  local expected_mode=full; [ "$want" = no ] && expected_mode=skipped
+  local actual_mode; actual_mode="$(tail -n 1 "$tmp/repo/.git/verify-ledger.log" | cut -f3)"
+  if [ "$got" = "$want" ] && [ "$stamped" = yes ] && [ "$actual_mode" = "$expected_mode" ]; then pass=$((pass+1)); printf '  ok    scope: %s\n' "$name"
+  else fail=$((fail+1)); printf '  FAIL  scope: %s — npm=%s (want %s) stamped=%s mode=%s\n' "$name" "$got" "$want" "$stamped" "$actual_mode"; fi
 }
 # Manufacture the base ref the scoping reads — a skip here would be a can't-fail check.
 G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
