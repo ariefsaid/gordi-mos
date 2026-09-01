@@ -217,6 +217,16 @@ scope_case "docs/scripts-only diff skips the npm lane" "scripts/some-guard.sh" n
 scope_case "mos-app diff runs the npm lane" "mos-app/src/thing.ts" yes
 scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
 scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out class)" "shared/mod.ts" yes
+# The SIGPIPE regression: a >64KB path list with ONE unlisted path must still run the lane —
+# grep -q early-exit killed the producer and read the match as absent (flash round 4, 5/5 repro).
+rm -f "$tmp/npm-calls" "$STAMP"
+mkdir -p "$tmp/repo/scripts/bulk" "$tmp/repo/shared"
+for i in $(seq 1 4999); do : > "$tmp/repo/scripts/bulk/file-$i-padding-padding-padding.sh"; done
+: > "$tmp/repo/shared/needle.ts"
+G add scripts/bulk shared; G commit -qm "bulk + one unlisted"
+run
+if [ -s "$tmp/npm-calls" ]; then pass=$((pass+1)); printf '  ok    scope: 64KB+ diff with one unlisted path still runs the lane (SIGPIPE race)\n'
+else fail=$((fail+1)); printf '  FAIL  scope: SIGPIPE race — big diff skipped the lane\n'; fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -49,8 +49,15 @@ fi
 app_touched=1
 if [ -n "$base" ]; then
   changed="$(git diff --name-only "$base"...HEAD)"
-  if [ -n "$changed" ] && ! printf '%s\n' "$changed" \
-       | grep -qvE '^(docs/|scripts/|agents/|adws/|\.githooks/|\.github/|\.claude/|justfile$|\.gitignore$|\.env\.sample$|[^/]+\.md$)'; then
+  # No -q: early-exit SIGPIPEs the printf producer above the 64KB pipe buffer and pipefail then
+  # reads the match as absent — a demonstrated wrong-skip at a 4999-file diff. Full drain + test
+  # emptiness instead. List polarity note: additions here are DELIBERATE and each provably
+  # cannot reach the npm gates — agents/ adws/ .githooks/ justfile .env.sample are root surfaces
+  # with no path into mos-app's build; CI's inert list differs (supabase/ runs there too) and the
+  # divergence is safe-direction only (extra local runs, never extra skips).
+  offlist="$(printf '%s\n' "$changed" \
+       | grep -vE '^(docs/|scripts/|agents/|adws/|\.githooks/|\.github/|\.claude/|justfile$|\.gitignore$|\.env\.sample$|[^/]+\.md$)' || true)"
+  if [ -n "$changed" ] && [ -z "$offlist" ]; then
     app_touched=0
   fi
 fi
@@ -71,7 +78,7 @@ if [ "$app_touched" = 1 ]; then
   bash scripts/with-test-lock.sh bash -c \
     'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
 else
-  echo "── app untouched by this diff — npm lane skipped (CI verify applies the same scope guard)"
+  echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
 fi
 
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
