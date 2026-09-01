@@ -1,5 +1,5 @@
 // RowMenu — the hover-revealed ⋯ row-actions trigger (PR-2 AC-T02).
-// Stub popover: the only action this PR is "Open" → /tasks/:id (archive lives in
+// Stub popover: the only action this PR is "Open full page" → /tasks/:id (archive lives in
 // the surface). The reveal is owned by `.row-menu` CSS in TasksWorkspace.css.
 import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -39,12 +39,12 @@ describe('RowMenu — AC-T02 reveal + actions', () => {
     expect(css).toContain('tr:focus-within .row-menu')
   })
 
-  it('opens a menu with an "Open" item linking to /tasks/:id?view=overdue', () => {
+  it('opens a menu with an "Open full page" item linking to /tasks/:id?view=overdue', () => {
     renderMenu('task-7', '?view=overdue')
-    // initially no Open link
-    expect(screen.queryByRole('menuitem', { name: /open/i })).toBeNull()
+    // initially no Open full page link
+    expect(screen.queryByRole('menuitem', { name: /open full page/i })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /row actions/i }))
-    const openItem = screen.getByRole('menuitem', { name: /open/i })
+    const openItem = screen.getByRole('menuitem', { name: 'Open full page' })
     expect(openItem.getAttribute('href')).toBe('/work/tasks/task-7?view=overdue')
   })
 })

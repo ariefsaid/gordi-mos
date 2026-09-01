@@ -7,7 +7,7 @@
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
 import type { Ref } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -65,6 +65,7 @@ export function TaskRow({
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
+  const titleEditKeyhintId = useId()
   const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
   // C1: only genuinely-overdue (non-Done, non-archived) rows get the red class.
@@ -223,10 +224,12 @@ export function TaskRow({
               disabled={pending}
               aria-busy={pending || undefined}
               aria-label={t('tasks.inlineEdit.aria')}
+              aria-describedby={titleEditKeyhintId}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onInputKeyDown}
               onBlur={finishEdit}
             />
+            <span id={titleEditKeyhintId} className="task-title-edit-keyhint">{t('tasks.inlineEdit.activeHint')}</span>
             {businessUnitName && (
               <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
             )}

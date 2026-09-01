@@ -2,7 +2,7 @@
 //
 // Kit "quiet at rest" craft: the ⋯ is visually hidden until the row is hovered,
 // selected, or keyboard-focused (:focus-within). Reveal is owned by `.row-menu`
-// CSS in TasksWorkspace.css. This PR ships ONE action — "Open" → /work/tasks/:id
+// CSS in TasksWorkspace.css. This PR ships ONE action — "Open full page" → /work/tasks/:id
 // (the canonical record surface, ADR-0013 D3). Archive stays in the surface.
 //
 // a11y: aria-haspopup="menu" + aria-expanded; the popover is role="menu" with
@@ -52,7 +52,7 @@ export function RowMenu({ taskId, recordSearch = '' }: RowMenuProps) {
             className="row-menu-item"
             onClick={(e) => { e.stopPropagation(); setOpen(false) }}
           >
-            {t('tasks.rowOpen')}
+            {t('tasks.openFullPage')}
           </Link>
         </span>
       )}
