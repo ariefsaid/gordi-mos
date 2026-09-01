@@ -1,0 +1,9 @@
+.view-options-disclosure__active-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-inline-start: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex: 0 0 auto;
+}

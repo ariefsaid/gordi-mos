@@ -225,6 +225,21 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
   })
 
+  it('AC-574: the host cue tracks a real non-default filter and stays absent at defaults', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Cue task' })])
+
+    renderTable()
+    await waitFor(() => screen.getByText('Cue task'))
+    const trigger = screen.getByRole('button', { name: /view & filters/i })
+    expect(document.querySelector('.view-options-disclosure__active-dot')).toBeNull()
+
+    fireEvent.click(trigger)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'Blocked' } })
+    await waitFor(() => expect(document.querySelector('.view-options-disclosure__active-dot')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /view & filters, all · status/i })).toBeInTheDocument()
+  })
+
   it('Rule 8/11: the whole filter stack collapses behind the single shared "View options" disclosure, and reveals on expand', async () => {
     // The member phone filter stack (Group · Business unit · Status · Person + search)
     // folds behind ONE affordance — the SAME ViewOptionsDisclosure primitive Home uses

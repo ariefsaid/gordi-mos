@@ -17,6 +17,7 @@ import { CollectionToolbar } from '@/components/record-collection/collection-too
 import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
 import {
   signalCollectionDescriptor,
+  SIGNAL_COLLECTION_NEUTRAL_QUERY,
   type SignalCollectionQuery,
 } from '@/components/signals/signal-collection-adapter'
 import {
@@ -61,6 +62,7 @@ export function SignalsArchivePage() {
   const controller = useRecordCollection({
     descriptor: signalCollectionDescriptor,
     urlMode: 'synced',
+    isDesktop,
     viewerId: null,
     accessRoles: [],
   })
@@ -88,11 +90,14 @@ export function SignalsArchivePage() {
 
   function signalDisclosureSummary(currentQuery: SignalCollectionQuery): { summary: string; hasActiveFilters: boolean } {
     const base = signalViewLabel(currentQuery.view)
-    const hasIndependentFilter = Boolean(
-      currentQuery.q.trim() || currentQuery.attention || currentQuery.category || currentQuery.teamId
-        || currentQuery.showRetracted || currentQuery.savedViewId,
-    )
-    const hasActiveFilters = currentQuery.view !== 'all' || Boolean(currentQuery.savedViewId) || hasIndependentFilter
+    const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
+    const hasIndependentFilter = Object.keys(SIGNAL_COLLECTION_NEUTRAL_QUERY).some((key) => {
+      if (excludedKeys.has(key)) return false
+      const queryValue = currentQuery[key as keyof SignalCollectionQuery]
+      const neutralValue = SIGNAL_COLLECTION_NEUTRAL_QUERY[key as keyof SignalCollectionQuery]
+      return queryValue !== neutralValue
+    })
+    const hasActiveFilters = currentQuery.view !== 'all' || hasIndependentFilter
     if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
 
     const filterLabel = currentQuery.attention ? t('signals.archive.filterAttention')

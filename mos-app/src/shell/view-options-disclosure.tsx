@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Chevron } from './icons'
+import './view-options-disclosure.css'
 import { viewOptionsTraversal } from './view-options-keyboard'
 
 /**
@@ -86,6 +87,7 @@ export function ViewOptionsDisclosure({
         className={triggerClassName}
         aria-expanded={open}
         aria-controls={panelId}
+        aria-label={hasActiveFilters && summary ? `${label}, ${summary}` : label}
         onClick={onToggle}
         onKeyDown={onKeyDown}
       >

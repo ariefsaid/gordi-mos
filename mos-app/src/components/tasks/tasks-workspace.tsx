@@ -124,17 +124,21 @@ function taskDisclosureSummary(
   t: ReturnType<typeof useT>,
 ): { summary: string; hasActiveFilters: boolean } {
   const base = viewLabel(query.view, t)
-  const hasIndependentFilter = Boolean(
-    query.q.trim() || query.businessUnitId || query.status || query.picId || query.supervisorId
-      || query.personId || query.occurrenceId || query.includeArchived || query.overdueOnly || query.savedViewId,
-  )
-  const hasActiveFilters = query.view !== 'all' || Boolean(query.savedViewId) || hasIndependentFilter
+  const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
+  const hasIndependentFilter = Object.keys(TASK_COLLECTION_NEUTRAL_QUERY).some((key) => {
+    if (excludedKeys.has(key)) return false
+    const queryValue = query[key as keyof TaskCollectionQuery]
+    const neutralValue = TASK_COLLECTION_NEUTRAL_QUERY[key as keyof TaskCollectionQuery]
+    return queryValue !== neutralValue
+  })
+  const hasActiveFilters = query.view !== 'all' || hasIndependentFilter
   if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
 
   const filterLabel = query.overdueOnly ? t('tasks.saved.overdue')
     : query.status ? t('tasks.filter.status')
       : query.businessUnitId ? t('tasks.filter.businessUnit')
         : query.picId || query.supervisorId || query.personId ? t('tasks.filter.person')
+          : query.occurrenceId ? t('tasks.filter.occurrence')
           : query.q.trim() ? t('tasks.filter.search')
             : query.includeArchived ? t('tasks.filter.showArchived')
               : query.savedViewId ? t('common.savedView')
@@ -177,6 +181,7 @@ export function TasksWorkspace({
     descriptor: taskCollectionDescriptor,
     urlMode: 'synced',
     initialQuery,
+    isDesktop,
     viewerId,
     accessRoles,
   })
