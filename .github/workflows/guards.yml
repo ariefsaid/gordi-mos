@@ -22,6 +22,7 @@ on:
     # - 'scripts/drive-decay.sh'
     # - 'scripts/release-evidence.sh'
     # - 'scripts/drive-burn.sh'
+    # - 'scripts/drive-clock.sh'
     # - 'scripts/*.test.sh'
     # # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
     # # a change there changes what those tests actually run, so re-run them.
@@ -118,6 +119,8 @@ jobs:
         run: bash scripts/release-evidence.test.sh
       - name: drive-burn report self-test
         run: bash scripts/drive-burn.test.sh
+      - name: drive-clock report self-test
+        run: bash scripts/drive-clock.test.sh
       - name: worktree-cleanup sweep self-test
         run: bash scripts/worktree-cleanup.test.sh
       - name: carry-stamps pure-rebase self-test

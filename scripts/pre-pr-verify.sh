@@ -13,6 +13,16 @@ cd "$(dirname "$0")/.."
 
 head="$(git rev-parse HEAD)"
 gitdir="$(git rev-parse --git-dir)"
+started_at="$(date +%s)"
+mode=full
+record_ledger() {
+  local ended_at duration
+  ended_at="$(date +%s 2>/dev/null || printf '%s' "$started_at")"
+  duration=$((ended_at - started_at))
+  [ "$duration" -ge 0 ] || duration=0
+  printf '%s\t%s\t%s\t%s\n' "$started_at" "$duration" "$mode" "$head" >> "$gitdir/verify-ledger.log" 2>/dev/null || :
+}
+trap record_ledger EXIT
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
 
 if [ -n "$(git status --porcelain)" ]; then
@@ -78,6 +88,7 @@ if [ "$app_touched" = 1 ]; then
   bash scripts/with-test-lock.sh bash -c \
     'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
 else
+  mode=skipped
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
 fi
 
