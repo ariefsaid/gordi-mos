@@ -14,12 +14,11 @@ type ObjectiveHintProps = {
  * A task group's Objective hint: always the NAME, and a drill into that Objective only when there
  * is somewhere to go.
  *
- * Tasks ships in the MVP payload and Objectives does not (#444), so the drill is currently a
- * closed door. The name stays either way — it is what tells a reader which Objective a group of
- * work belongs to, and dropping it would cost real context — but while the destination is
- * ship-gated it renders as plain text rather than a control that lands the viewer back on Home.
- * That is not a new visual case: it is exactly the shape the hint already took for an Objective
- * it was not joined to.
+ * The live rule: the drill renders when the hint is joined to a real Objective
+ * (`hint.id != null`) AND the Objectives route is un-gated (`isShipGated('/work/objectives')`
+ * is false); otherwise the name renders as plain text. A named-but-unjoined Objective has no
+ * destination, and a gated one must not be linked to — but the name still tells a reader which
+ * Objective a group of work belongs to, so it renders either way.
  *
  * **One component for both surfaces.** The desktop group header and the phone cards render this
  * hint (Rule 9 parity) and their answer has to be identical, so the rule lives here rather than

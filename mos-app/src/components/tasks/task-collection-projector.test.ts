@@ -282,4 +282,21 @@ describe('buildTaskGroups — grouping branches', () => {
     expect(p.groups.map((g) => g.key)).toEqual([BU_CAFE, BU_B2B])
     expect(p.groups.map((g) => g.rows.map((r) => r.id))).toEqual([['t-1', 't-3'], ['t-2']])
   })
+
+  it('AC-002 (#570): with ≥1 real occurrence group, the ad-hoc null bucket renders last; alone still renders', () => {
+    const rollups = new Map([[RUN_CAFE_OPENING, CAFE_OPENING_ROLLUP]])
+    // Mixed scope: t-1/t-3 sit in the run group, t-2 is ad-hoc → null bucket is the LAST group.
+    const mixed = projectTaskCollection(
+      makeData(RAW, { runRollupsByRunId: rollups }),
+      q({ groupBy: 'occurrence' }),
+    )
+    expect(mixed.groups.map((g) => g.key)).toEqual([RUN_CAFE_OPENING, NO_OCCURRENCE_GROUP_KEY])
+
+    // All-ad-hoc scope: the null bucket is the only group and still renders.
+    const alone = projectTaskCollection(
+      makeData([rawTask({ id: 'adhoc-1', title: 'Ad-hoc task' })], { runRollupsByRunId: rollups }),
+      q({ groupBy: 'occurrence' }),
+    )
+    expect(alone.groups.map((g) => g.key)).toEqual([NO_OCCURRENCE_GROUP_KEY])
+  })
 })

@@ -1053,7 +1053,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
 
     await waitFor(() => {
-      expect(screen.getByText('Not part of a recurring occurrence')).toBeInTheDocument()
+      expect(screen.getByText('One-off tasks')).toBeInTheDocument()
     })
     expect(screen.getByText('Ad-hoc task')).toBeInTheDocument()
   })
