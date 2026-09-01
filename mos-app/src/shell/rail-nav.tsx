@@ -9,9 +9,7 @@ import { useT } from '@/i18n/use-t'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import './rail-nav.css'
 
-// #446: the rail no longer holds an order of its own. Work's children render in the order
-// `destinations.tsx` declares them — the E7 family sequence (Execution → Work systems → Direction
-// → Cadence), flattened there into the plain list it behaviourally already was once DD-WAY-33
+// #446: the rail no longer holds an order of its own. Work's children render in the owner-ruled order (OD-REDESIGN-57(ii)/P-13), as `destinations.tsx` declares them, flattened there into the plain list it behaviourally already was once DD-WAY-33
 // (#439) deleted the family eyebrows. The rail used to re-sort `children` through a local
 // `WORK_SUBSECTION_ORDER`; the phone drawer rendered `children` as declared; the two surfaces
 // listed the same five items in two different orders, and a nav list is worth most when muscle
