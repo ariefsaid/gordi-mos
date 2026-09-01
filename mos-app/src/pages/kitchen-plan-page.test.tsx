@@ -708,3 +708,66 @@ describe('issue 455: document title', () => {
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.plan')))
   })
 })
+
+// ── #548 FR-006/AC-006: the stream precondition is quiet at rest, alerts on attempt ──
+describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar', () => {
+  it('AC-006: no stream → no alert-role element, muted hint beside the commit fields; the commit attempt raises the alert', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    // At rest the page is QUIET — the precondition is not an error before anything happened.
+    expect(screen.queryByRole('alert')).toBeNull()
+    // The precondition is named as a muted status hint (Log's .kl-submit-reason role).
+    expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    // Entry stays live (Log's grammar — entry is never the wall); the COMMIT is what refuses.
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toBeEnabled()
+    // Attempt: typing + Enter = the submit attempt → the alert raises, nothing is written.
+    fireEvent.change(input, { target: { value: '15' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/choose a production stream/i)
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('AC-006: choosing a stream retires the hint and the attempt then commits', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
+      target: { value: streamOption('branch-1', 'kitchen') },
+    })
+    await waitFor(() =>
+      expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull(),
+    )
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(input, { target: { value: '15' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() =>
+      expect(mockUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({ branch_id: 'branch-1', activity: 'kitchen', qty_porsi: 15 }),
+      ),
+    )
+  })
+})
+
+// ── #548 FR-007/AC-007: Plan's phone face is the compact capture row ───────
+describe('FR-007/AC-007: Plan\'s phone face is the compact capture row', () => {
+  it('AC-007: phone width with planned items → each row is the compact capture row (identity + typed field/unit), not the generic record card', async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS) // Ayam Bakar planned 12
+    render(<KitchenPlanPage />, { wrapper })
+    const card = (await screen.findByText('Ayam Bakar')).closest('.dt-card')
+    expect(card).not.toBeNull()
+    expect(card).toHaveClass('dt-card--compact') // PhoneCard applies it when renderCard is supplied
+    expect(card!.querySelector('.kp-card-head')).not.toBeNull()
+    // identity left, typed plan field + unit right — the SAME field the desktop cell mounts
+    expect(
+      within(card as HTMLElement).getByRole('spinbutton', { name: /planned quantity for ayam bakar/i }),
+    ).toBeInTheDocument()
+    expect(card!.textContent).toContain('porsi')
+    // and EVERY row is that row — the unplanned one too
+    expect(screen.getByText('Nasi Goreng').closest('.dt-card--compact')).not.toBeNull()
+    // no per-card field label: the generic <dl> fallback is gone
+    expect(document.querySelector('.dt-card-detail')).toBeNull()
+  })
+})
