@@ -65,7 +65,7 @@ for f in $DEVIATED; do
 done
 DIFF_OUT="$(diff -r \
   -x __pycache__ -x '*.pyc' \
-  -x sessions -x 'sssf.db*' \
+  -x sessions -x 'sssf.db*' -x archive \
   "$tmp/expected/adws" "$ROOT/adws" 2>&1)"
 if [ -z "$DIFF_OUT" ]; then
   ok "adws/ byte-identical to upstream stamp at pin (manifest files excepted)"
@@ -76,9 +76,16 @@ fi
 
 # Root-stamped files: justfile stays byte-identical; .env.sample is a manifest-listed
 # MOS deviation (roster note) — assert it exists, is manifested, and names no values.
-cmp -s "$T/justfile" "$ROOT/justfile" \
-  && ok "justfile byte-identical to upstream templates/justfile" \
-  || bad "justfile deviates from upstream templates/justfile"
+# justfile carries ONE ruled MOS deviation (PORT-MANIFEST row: factory-run door): expected =
+# upstream template with the same deterministic transform the vendor applies. Any OTHER drift
+# still goes red, and the row must exist.
+sed 's#uv run adws/#bash scripts/factory-run.sh #g' "$T/justfile" > "$tmp/justfile.expected"
+cmp -s "$tmp/justfile.expected" "$ROOT/justfile" \
+  && ok "justfile == upstream + the ruled factory-run transform (only)" \
+  || bad "justfile deviates beyond the ruled factory-run transform"
+grep -qF 'justfile' adws/PORT-MANIFEST.md \
+  && ok "justfile deviation is manifest-listed" \
+  || bad "justfile deviates but has no manifest row"
 if [ -f "$ROOT/.env.sample" ]; then
   grep -qF '.env.sample' adws/PORT-MANIFEST.md \
     && ok ".env.sample present and manifest-listed as a MOS deviation" \

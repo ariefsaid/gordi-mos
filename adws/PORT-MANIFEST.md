@@ -150,3 +150,4 @@ FAC-004 (pgTAP conditional, both directions) and FAC-005 (3-round exhaustion exi
 commits; control: a green run commits exactly once) are owned by `scripts/sssf-gate.test.sh`,
 which runs the real `quality.py`/`adw_simple_sdlc.py`; it was proven able to fail by perturbing
 the `_touches_db` condition (red) and reverting (green).
+| `justfile` | MOS ruled deviation (coherence audit) | Every ADW recipe routes through `scripts/factory-run.sh` (the gh no-auth door) instead of bare `uv run adws/` — applied as a deterministic transform in `scripts/vendor-skills.sh` at stamp time; `scripts/vendor-sssf.test.sh` checks conformance against the transformed template, so any OTHER justfile drift still fails. |
