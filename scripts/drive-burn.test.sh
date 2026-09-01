@@ -10,16 +10,22 @@ pass=0; fail=0
 t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
       else fail=$((fail+1)); printf '  FAIL  %s — got: %s\n' "$1" "$3"; fi; }
 
-mkdir -p "$tmp/sessions"
-printf '{"x":1,"usage":{"totalTokens":100}}\n{"usage":{"totalTokens":250}}\n' > "$tmp/sessions/a.jsonl"
-printf '{"usage":{"totalTokens":50}}\n' > "$tmp/sessions/b.jsonl"
-printf '{"usage":{"totalTokens":9999}}\n' > "$tmp/sessions/old.jsonl"
-touch -t 202601010000 "$tmp/sessions/old.jsonl"
+# Two slug dirs for this repo (main checkout + a worktree dispatch); a third slug for a
+# DIFFERENT repo must stay out of the sum.
+mkdir -p "$tmp/sessions/--Users-x-Coding-gordi-mos--"
+mkdir -p "$tmp/sessions/--Users-x-Coding-gordi-mos-.claude-worktrees-fix-1--"
+mkdir -p "$tmp/sessions/--Users-x-Coding-other-project--"
 
-printf '{"usage":{"totalTokens":7}}\n' > "$tmp/sessions/with space.jsonl"
+printf '{"x":1,"usage":{"totalTokens":100}}\n{"usage":{"totalTokens":250}}\n' > "$tmp/sessions/--Users-x-Coding-gordi-mos--/a.jsonl"
+printf '{"usage":{"totalTokens":50}}\n' > "$tmp/sessions/--Users-x-Coding-gordi-mos--/b.jsonl"
+printf '{"usage":{"totalTokens":7}}\n' > "$tmp/sessions/--Users-x-Coding-gordi-mos-.claude-worktrees-fix-1--/with space.jsonl"
+# second slug carries its own tokens too — the burn must SUM, not take the first dir
+printf '{"usage":{"totalTokens":9999}}\n' > "$tmp/sessions/--Users-x-Coding-other-project--/excluded.jsonl"
+printf '{"usage":{"totalTokens":9999}}\n' > "$tmp/sessions/--Users-x-Coding-gordi-mos--/old.jsonl"
+touch -t 202601010000 "$tmp/sessions/--Users-x-Coding-gordi-mos--/old.jsonl"
 
 out="$(PI_SESSIONS_DIR="$tmp/sessions" bash "$SCRIPT" 24)"
-printf '%s' "$out" | grep -q "407 pi tokens across 3 session(s)"; t "sums fresh sessions incl. spaced filename, excludes old" $? "$out"
+printf '%s' "$out" | grep -q "407 pi tokens across 3 session(s)"; t "sums across both repo slugs, excludes non-repo + old, incl. spaced filename" $? "$out"
 
 out="$(PI_SESSIONS_DIR="$tmp/nope" bash "$SCRIPT")"
 printf '%s' "$out" | grep -q "no pi session dir"; t "missing dir reports, exits 0" $? "$out"
