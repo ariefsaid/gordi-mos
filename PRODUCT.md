@@ -78,8 +78,9 @@ Three things a neighboring internal tool could not truthfully copy:
   behind the ship gate, so four of the five are visible today.
   There is no "Plan" and no "Operate" destination — Plan folded into Work, Operate into the module
   zone. Kitchen and Bar are one **Café** module because they are one operating workflow. Home is a
-  role-aware cockpit. Modules are scoped to the viewer's own affiliation: *the rail shows your work,
-  not the org chart.*
+  role-aware cockpit. A module renders for whoever its route admits — navigation is never narrower
+  than the authorization; the viewer's own affiliation decides only emphasis (which module takes
+  the phone's bottom-tab slot), never whether a link exists.
 - **Where it is used:** phones on a café/kitchen/roastery floor (standing, one-handed, gloves or wet
   hands, poor light, intermittent connectivity) and desktops for leads/BU-heads/owner doing weekly
   and money work. Both are primary; neither is the fallback.
