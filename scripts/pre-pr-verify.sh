@@ -41,16 +41,16 @@ fi
 # `npm ci` is what CI runs, so it also proves package.json and the lockfile agree, and it writes
 # node_modules/.package-lock.json — a newer lockfile means the tree predates current deps.
 
-# SCOPE the heavy lane by the diff, exactly like CI's verify does (its per-step scope guard is
-# why a docs-only PR passes verify in seconds there): the npm battery runs only when the branch
-# touches something it could break. FAIL CLOSED — no resolvable base means unknown scope means
-# the full battery. The stamp stays honest either way: it certifies everything this diff could
-# break is green.
+# SCOPE the heavy lane by the diff, with CI verify's own polarity: skip ONLY when every changed
+# path is on a PROVEN-INERT allowlist — anything unrecognized runs the full battery, so layout
+# drift (a root tsconfig, a shared/ package, a rename OUT of mos-app/) costs wasted minutes, not
+# an unrun gate. The obvious inverse ("skip unless mos-app/ changed") is fail-open and was
+# rejected in review for exactly the reason verify.yml documents. No resolvable base → full run.
 app_touched=1
 if [ -n "$base" ]; then
-  if git diff --name-only "$base"...HEAD | grep -qE '^(mos-app/|package\.json|supabase/)'; then
-    app_touched=1
-  else
+  changed="$(git diff --name-only "$base"...HEAD)"
+  if [ -n "$changed" ] && ! printf '%s\n' "$changed" \
+       | grep -qvE '^(docs/|scripts/|agents/|adws/|\.githooks/|\.github/|\.claude/|justfile$|\.gitignore$|\.env\.sample$|[^/]+\.md$)'; then
     app_touched=0
   fi
 fi

@@ -43,5 +43,27 @@ if (cd "$tmp/r" && bash "$SCRIPT" "$OLD2" dev) >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  no bound stamps must refuse\n'
 else pass=$((pass+1)); printf '  ok    no bound stamps refuses\n'; fi
 
+# Adversarial subjects: " = " in a commit MESSAGE must never satisfy the marker field.
+git init -q -b dev "$tmp/r2"
+G2() { git -C "$tmp/r2" -c user.email=t@t -c user.name=t "$@"; }
+echo base > "$tmp/r2/a"; G2 add a; G2 commit -qm base
+G2 checkout -qb feat
+echo one > "$tmp/r2/b"; G2 add b; G2 commit -qm "add config = value parsing"
+OLD3="$(G2 rev-parse HEAD)"
+gd2="$(G2 rev-parse --absolute-git-dir)"
+printf '%s' "$OLD3" > "$gd2/pre-pr-verify-ok"
+for l in spec code-quality security; do printf '%s %s rev now art\n' "$OLD3" "$l" > "$gd2/independent-review-$l-ok"; done
+G2 checkout -q dev; echo moved > "$tmp/r2/d"; G2 add d; G2 commit -qm moved
+G2 checkout -q feat; G2 rebase -q dev
+echo sneaky > "$tmp/r2/e"; G2 add e; G2 commit -qm "wire mapping: key = val lookup"
+if (cd "$tmp/r2" && bash "$SCRIPT" "$OLD3" dev) >/dev/null 2>&1; then
+  fail=$((fail+1)); printf '  FAIL  new commit with \" = \" subject must refuse\n'
+else pass=$((pass+1)); printf '  ok    new commit with \" = \" subject refuses (field-anchored)\n'; fi
+G2 reset -q --hard HEAD~1
+echo tampered >> "$tmp/r2/b"; G2 add b; G2 commit -q --amend -m "add config = value parsing (edited)"
+if (cd "$tmp/r2" && bash "$SCRIPT" "$OLD3" dev) >/dev/null 2>&1; then
+  fail=$((fail+1)); printf '  FAIL  amended commit with \" = \" subject must refuse\n'
+else pass=$((pass+1)); printf '  ok    amended commit with \" = \" subject refuses\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -216,6 +216,7 @@ G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
 scope_case "docs/scripts-only diff skips the npm lane" "scripts/some-guard.sh" no
 scope_case "mos-app diff runs the npm lane" "mos-app/src/thing.ts" yes
 scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
+scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out class)" "shared/mod.ts" yes
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
