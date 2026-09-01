@@ -167,6 +167,11 @@ if [ ! -f "$ROOT/.env.sample" ]; then
   cp "$SSSF_T/env.sample" "$ROOT/.env.sample"              # bootstrap only; MOS roster note owns it (#336)
 fi
 cp "$SSSF_T/justfile" "$ROOT/justfile"                     # root-stamped, exactly as install.py does
+# Ruled MOS deviation (PORT-MANIFEST): every ADW invocation routes through the factory door —
+# bare `uv run adws/` runs the factory with live gh auth (no shim, no GH_CONFIG_DIR scrub).
+# Deterministic transform, so conformance stays checkable (vendor-sssf.test.sh applies the same).
+sed -i '' 's#uv run adws/#bash scripts/factory-run.sh #g' "$ROOT/justfile" 2>/dev/null \
+  || sed -i 's#uv run adws/#bash scripts/factory-run.sh #g' "$ROOT/justfile"
 # (install.py's .gitignore entries are committed directly in this repo's tracked .gitignore)
 
 echo "==> agent-browser (discovery stub) — rendered UI verification from pi (docs/pi-delegation.md §3a)"
