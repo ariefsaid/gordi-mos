@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { translateFor } from '@/i18n/use-t'
 import { InboxTriage, type InboxTriageProps } from './inbox-triage'
 import type { TriageNotificationRow } from './read-handled-semantics'
 
@@ -155,5 +156,51 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
   it('reflects its mode for the host without changing row meaning', () => {
     renderTriage({ mode: 'quick' })
     expect(document.querySelector('.inbox-triage')).toHaveAttribute('data-mode', 'quick')
+  })
+})
+
+describe('OD-WAY-86 (#141) — re-nudge age badge', () => {
+  // Deterministic local-day bucket: exactly `n` VIEWER-LOCAL calendar days before today at a fixed
+  // hour — guarantees age `n` regardless of runtime clock time (unlike an hoursAgo offset, which
+  // crosses a local midnight and flips the bucket under the calendar-day semantics).
+  const daysAgo = (n: number) => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - n)
+    d.setHours(12, 0, 0, 0)
+    return d.toISOString()
+  }
+  const nowIso = new Date().toISOString()
+
+  it('AC-141-1: an untriaged row older than 48h carries the age badge; a younger row does not', () => {
+    renderTriage({
+      rows: [
+        trow('aged', { created_at: daysAgo(3) }), // 3 local days ago → "3 days"
+        trow('young', { created_at: daysAgo(0) }),
+      ],
+    })
+    const agedRow = document.querySelector('[data-notification-id="aged"]')!
+    expect(within(agedRow as HTMLElement).getByText('3 days')).toBeInTheDocument()
+    expect(document.querySelector('[data-notification-id="young"]')!.textContent).not.toMatch(/days/)
+  })
+
+  it('AC-141-2: read and handled rows never carry the badge', () => {
+    renderTriage({
+      rows: [
+        trow('read', { read_at: nowIso, created_at: daysAgo(8) }),
+        trow('handled', { read_at: nowIso, handled_at: nowIso, created_at: daysAgo(8) }),
+      ],
+    })
+    expect(screen.queryByText(/days/)).toBeNull()
+  })
+
+  it('the badge is part of the row open-button accessible name', () => {
+    renderTriage({ rows: [trow('aged', { created_at: daysAgo(3) })] })
+    expect(screen.getByRole('button', { name: /Title aged \(unread\) \(3 days\)/ })).toBeInTheDocument()
+  })
+
+  it('the badge localizes: en "3 days", id "3 hari" (OD-WAY-86: both locales)', () => {
+    expect(translateFor('en')('inbox.age.days', { count: 3 })).toBe('3 days')
+    expect(translateFor('id')('inbox.age.days', { count: 3 })).toBe('3 hari')
   })
 })

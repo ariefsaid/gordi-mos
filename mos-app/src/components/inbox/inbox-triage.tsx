@@ -1,5 +1,6 @@
 import './inbox.css'
 import { useT } from '@/i18n/use-t'
+import { Pill } from '@/components/ui/pill'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import {
   INBOX_FILTERS,
@@ -7,6 +8,7 @@ import {
   type InboxFilter,
   type TriageNotificationRow,
 } from './read-handled-semantics'
+import { nudgeAgeDays } from './nudge-semantics'
 
 /**
  * InboxTriage — the ONE chrome-free Inbox triage content surface (Issue 7). The same component
@@ -100,6 +102,9 @@ export function InboxTriage({
 }: InboxTriageProps) {
   const t = useT()
   const pending = new Set(pendingIds ?? [])
+  // One render-time boundary for every row (AC-141-3): a single shared `now` means every row's
+  // day-bucket is judged against the SAME local midnight, so the queue can't disagree with itself.
+  const now = new Date()
   const filters = INBOX_FILTERS.filter((f) => f !== 'handled' || handledFilterAvailable)
 
   // H7 fix (design audit, 2026-07-27): ↑/↓ moves focus between rows (Tab already reaches every
@@ -193,6 +198,7 @@ export function InboxTriage({
               const unread = n.read_at == null
               const isPending = pending.has(n.id)
               const canHandle = onMarkHandled != null && !isHandled(n)
+              const ageDays = nudgeAgeDays(n, now) // OD-WAY-86: >= 2 on nudged rows, else null
               return (
                 <li key={n.id} className={`inbox-row${unread ? ' inbox-row--unread' : ''}`} data-notification-id={n.id}>
                   <button
@@ -201,14 +207,21 @@ export function InboxTriage({
                     onClick={() => onOpen(n)}
                     disabled={isPending}
                     aria-busy={isPending || undefined}
-                    aria-label={`${n.title}${unread ? ' (unread)' : ''}`}
+                    aria-label={`${n.title}${unread ? ' (unread)' : ''}${ageDays != null ? ` (${t('inbox.age.days', { count: ageDays })})` : ''}`}
                   >
                     <span
                       className={`inbox-row__dot inbox-row__dot--${n.severity}`}
                       aria-label={t(SEVERITY_KEY[n.severity])}
                     />
                     <span className="inbox-row__content">
-                      <span className="inbox-row__title">{n.title}</span>
+                      <span className="inbox-row__titleline">
+                        <span className="inbox-row__title">{n.title}</span>
+                        {ageDays != null ? (
+                          <Pill tone="neutral" dot={false} className="inbox-row__age">
+                            {t('inbox.age.days', { count: ageDays })}
+                          </Pill>
+                        ) : null}
+                      </span>
                       {n.body ? <span className="inbox-row__body">{n.body}</span> : null}
                     </span>
                   </button>
