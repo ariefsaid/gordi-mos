@@ -229,14 +229,31 @@ describe('v4 shell Task 1: no header hamburger — the bottom-tab More button is
     mockUseIsNarrow.mockReturnValue(true)
     renderTopBar('/work/tasks')
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
-    // The phone header still carries its real controls, so this is not an empty header.
+    // The phone header still carries its real controls (bell excluded by AC-002/#545 — the
+    // bottom-tab Inbox tab is the phone's sole Inbox door), so this is not an empty header.
     expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open deputy/i })).toBeInTheDocument()
   })
 
   it('the header carries no navigation opener at ≥920px either (the rail is the nav)', () => {
     mockUseIsNarrow.mockReturnValue(false)
     renderTopBar()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+  })
+})
+
+// AC-002 (#545, FR-002): the top-bar bell is a DESKTOP-ONLY door. At <920px it must not render
+// at all (an unrendered element neither tabs nor reads — no display:none substitute); the
+// bottom-tab Inbox entry with its unread badge is the phone's sole Inbox door. One test, both arms.
+describe('AC-002: the Inbox bell renders on desktop only (#545)', () => {
+  it('narrow viewport: no bell in the top bar; desktop viewport: bell present', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    const phone = renderTopBar()
+    expect(screen.queryByRole('button', { name: 'Inbox' })).toBeNull()
+    phone.unmount()
+
+    mockUseIsNarrow.mockReturnValue(false)
+    renderTopBar()
+    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
   })
 })

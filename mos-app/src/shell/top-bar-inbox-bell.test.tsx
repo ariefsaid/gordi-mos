@@ -1,8 +1,9 @@
-// AC-V3-006 / AC-RPH-4 — the Inbox bell is two honest doors: on desktop it quick-opens the SAME
+// AC-V3-006 / AC-RPH-4 — the Inbox bell (desktop-only since #545/FR-002) quick-opens the SAME
 // InboxTriage surface as an ephemeral root in the ONE shared overlay host (no URL mutation, focus
-// returns to the bell on close, a row pushes the canonical record, internal Back returns to triage);
-// on phone it navigates to the full `/inbox` route. Isolated file so the mocks don't perturb the
-// broader top-bar layout tests.
+// returns to the bell on close, a row pushes the canonical record, internal Back returns to
+// triage); a desktop render without a mounted host falls back to the full `/inbox` route. At
+// <920px the bell does not render at all (#545 AC-002) — the bottom-tab Inbox entry is the
+// phone's door. Isolated file so the mocks don't perturb the broader top-bar layout tests.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -113,14 +114,5 @@ describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
     fireEvent.click(bell)
     fireEvent.click(screen.getByRole('button', { name: /^Close$/i }))
     expect(document.activeElement).toBe(bell)
-  })
-
-  it('phone: navigates to the full /inbox route instead of opening a host panel', () => {
-    mockNarrow.mockReturnValue(true)
-    renderShell()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Inbox' }))
-    expect(screen.getByTestId('loc')).toHaveTextContent('/inbox')
-    expect(document.querySelectorAll('[data-overlay-host]').length).toBe(0)
   })
 })

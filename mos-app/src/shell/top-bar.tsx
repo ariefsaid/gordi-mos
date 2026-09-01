@@ -1,5 +1,4 @@
 import { Breadcrumb } from './breadcrumb'
-import { useIsNarrow } from './use-is-narrow'
 import { useRailCompact } from './use-rail-compact'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -118,23 +117,23 @@ function AssistantTopBarButton() {
   )
 }
 
-// The notification bell (T16) — the Inbox door with an unread badge (ADR-0019 D9). Inbox is always
-// live (Step 2, D-1). Two honest doors (Issue 7): on desktop it quick-opens the SAME InboxTriage
-// surface as an ephemeral root in the shared overlay host (no URL mutation), so a manager triages in
-// context and the host returns focus to the bell on close; on phone (and whenever no host is mounted,
-// e.g. isolated tests) it falls back to the full `/inbox` route. Uses the dedicated useUnreadCount
-// hook (CQ#2) so the badge is backed by the unread-only index, not the full list.
+// The notification bell (T16) — the desktop Inbox door with an unread badge (ADR-0019 D9); at
+// narrow widths it does not render at all (FR-002/AC-002, #545 — the bottom tab is the phone's
+// door). With a mounted overlay host it quick-opens the SAME InboxTriage surface as an ephemeral
+// root (no URL mutation), so a manager triages in context and the host returns focus to the bell
+// on close; without a host (e.g. isolated tests) it falls back to the full `/inbox` route. Uses
+// the dedicated useUnreadCount hook (CQ#2) so the badge is backed by the unread-only index, not
+// the full list.
 function NotificationBell() {
   const navigate = useNavigate()
   const t = useT()
-  const isNarrow = useIsNarrow()
   const host = useOptionalOverlayHost()
   const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
 
   const openInbox = () => {
-    // Phone → full route; desktop with a mounted host → ephemeral quick triage in context.
-    if (isNarrow || !host) {
+    // No host mounted → full route; desktop with a host → ephemeral quick triage in context.
+    if (!host) {
       navigate('/inbox')
       return
     }
@@ -275,8 +274,11 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           </button>
         )}
 
-        {/* Inbox bell — always live (SHOW_INBOX retired, D-1). A live Inbox link + unread badge. */}
-        <NotificationBell />
+        {/* Inbox bell — desktop door only (FR-002/AC-002, #545). At <920px it must NOT render:
+            the bottom-tab Inbox entry (with its unread badge) is the phone's sole Inbox door, and
+            a second rendered door would split the phone's Inbox entry point in two. The bell's
+            internal no-host route fallback stays live for desktop renders without a host. */}
+        {!isNarrow && <NotificationBell />}
 
         {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).
             Absent when SHOW_ASSISTANT=false. */}
