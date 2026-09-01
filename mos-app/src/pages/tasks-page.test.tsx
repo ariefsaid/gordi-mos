@@ -157,13 +157,6 @@ async function switchToAll() {
   })
 }
 
-// Desktop filters/group/sort/toggles are inline; the phone host owns the single disclosure.
-// Keep this helper for phone journeys, where the outer door may still need opening.
-function openViewOptions() {
-  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
-  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-}
-
 // ── Render helper ─────────────────────────────────────────────────────────────
 function renderPage(auth: AuthState = authedState, props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
   _capturedLocation = null
@@ -411,7 +404,6 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
-    openViewOptions()
     const buSelect = screen.getByLabelText(/business unit/i)
     fireEvent.change(buSelect, { target: { value: 'bu-kitchen' } })
 
@@ -431,7 +423,6 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     renderPage()
     await waitFor(() => screen.getByText('Kitchen task'))
 
-    openViewOptions()
     const statusSelect = screen.getByLabelText(/^status$/i)
     fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
 
@@ -701,7 +692,6 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
-    openViewOptions()
     // Both BU options present before filtering (from directory DEFAULT_BUS)
     const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
     const optsBefore = Array.from(buSelect.options).map(o => o.text)
@@ -729,7 +719,6 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     renderPage()
     await waitFor(() => screen.getByText('Task with CI'))
 
-    openViewOptions()
     const personSelect = screen.getByLabelText(/^person$/i) as HTMLSelectElement
     const opts = Array.from(personSelect.options).map(o => o.text)
     // All people from directory are present, with stable display names.
@@ -919,11 +908,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   // carries the runs disclosure (aria-expanded) when due work exists. The goal-oracle is
   // unchanged (a capable viewer reveals + starts a due run, collapsed by default); only the
   // control that reveals it changed from a bespoke trigger to the shared attention pill.
-  // Desktop options are inline; retain the helper as a no-op for the shared phone journey.
-  async function openAttentionDoor() {}
-
   async function expandDueRuns() {
-    await openAttentionDoor()
     const trigger = await screen.findByRole('button', { name: /need attention/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(trigger)
@@ -935,7 +920,6 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
-    await openAttentionDoor()
     const trigger = await screen.findByRole('button', { name: '1 need attention' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()

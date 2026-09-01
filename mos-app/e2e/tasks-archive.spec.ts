@@ -51,9 +51,7 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
   // ── 5. Toggle "Show archived" — task reappears ──────────────────────────────
-  // OD-REDESIGN-84: secondary filters, including Show archived, render behind disclosure.
-  await page.getByRole('button', { name: 'View & filters' }).click()
-  await expect(page.getByRole('group', { name: 'View & filters' })).toBeVisible()
+  // Desktop secondary filters, including Show archived, render inline.
   const archivedToggle = page.getByLabel(/show archived/i)
   await archivedToggle.check()
 

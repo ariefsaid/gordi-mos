@@ -3,9 +3,9 @@ import { Chevron } from './icons'
 import { viewOptionsTraversal } from './view-options-keyboard'
 
 /**
- * ViewOptionsDisclosure — the ONE capture-first "View options" disclosure primitive
+ * ViewOptionsDisclosure — the ONE capture-first phone-only "View options" disclosure primitive
  * (Rule 8 capture-first · Rule 11 component reuse). A compact trigger (label + optional
- * decorative summary + a chevron) that toggles a collapsible panel of secondary controls.
+ * decorative summary + a chevron) that toggles a collapsible panel of secondary controls on phone hosts.
  *
  * The behavior + a11y wiring (aria-expanded ↔ open, aria-controls ↔ panel id, decorative
  * aria-hidden summary) live here once. Each host passes its OWN skin classes, so the distinct
@@ -13,11 +13,11 @@ import { viewOptionsTraversal } from './view-options-keyboard'
  * skinned per context.
  *
  * Live callers (#379): the Tasks workspace phone wrapper and the Signals archive phone wrapper —
- * both host a CollectionToolbar inside this door. The desktop "View & filters" door is
- * CollectionToolbar's own trigger, which carries the same Escape contract.
+ * both host a CollectionToolbar inside this phone-only door. Desktop hosts expose the secondary
+ * controls inline and have no disclosure trigger.
  *
- * The panel also carries the shared Arrow/Home/End traversal between its controls (#382), so both
- * doors inherit it. Opening does NOT move focus into the panel: a disclosure is not an overlay, and
+ * The panel also carries the shared Arrow/Home/End traversal between its controls (#382), so phone
+ * hosts inherit it. Opening does NOT move focus into the panel: a disclosure is not an overlay, and
  * focusing the first filter `<select>` on expand takes the collection's j/k row cursor away from a
  * keyboard user with no way back (PR #394 review).
  */

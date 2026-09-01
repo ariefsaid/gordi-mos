@@ -5,8 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { CollectionToolbar } from './collection-toolbar'
 
-// The lean-row disclosure trigger is desktop-only (min-width:768px). jsdom's setup default is
-// matches:false (phone → panel expanded); stub matches:true to exercise the collapsed door.
+// Desktop media-query behavior is explicit here; jsdom's setup default is phone-sized.
 function stubDesktop() {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
     matches: true, media: query,
@@ -225,12 +224,10 @@ describe('CollectionToolbar — desktop keyboard and nested save behavior', () =
 
   it('traverses desktop controls without stealing native select keys', async () => {
     stubDesktop(); renderToolbar()
-    const group = screen.getByRole('group', { name: /view & filters/i })
     const select = screen.getByRole('combobox', { name: 'Team' })
     const save = screen.getByRole('button', { name: /save view/i })
     select.focus(); await userEvent.keyboard('{ArrowDown}'); expect(select).toHaveFocus()
     save.focus(); await userEvent.keyboard('{ArrowUp}'); expect(select).toHaveFocus()
-    expect(group).toBeInTheDocument()
   })
 
   it('Escape closes only the nested save row and keeps desktop options visible', async () => {

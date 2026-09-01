@@ -90,9 +90,8 @@ test.describe('desktop geometry guards', () => {
     // Rest state: the one page CTA is the only filled primary.
     expect(await page.locator('.btn-primary:visible').count()).toBeLessThanOrEqual(1)
 
-    // The incident state: disclosing "View & filters" must not add a filled primary —
+    // The incident state: inline secondary controls must not add a filled primary —
     // the Save-view trigger stays a ghost button.
-    await page.getByRole('button', { name: /view & filters/i }).click()
     const saveTrigger = page.getByRole('button', { name: /save view/i })
     await expect(saveTrigger).toBeVisible()
     await expect(saveTrigger).not.toHaveClass(/btn-primary/)

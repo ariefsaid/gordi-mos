@@ -164,9 +164,7 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'All', exact: true }).click()
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
-  // OD-REDESIGN-84: Group is disclosed in the View & filters options row.
-  await page.getByRole('button', { name: 'View & filters' }).click()
-  await page.getByRole('group', { name: 'View & filters' }).waitFor()
+  // Desktop secondary controls are inline in the View & filters options row.
   await page.getByLabel('Group').selectOption('status')
   // Wait for at least one group header to appear (TanStack row model, one render cycle).
   await page.waitForSelector('tr.grp', { timeout: 10_000 })

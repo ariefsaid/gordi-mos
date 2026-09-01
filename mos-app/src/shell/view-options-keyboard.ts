@@ -11,8 +11,8 @@ const OWNS_KEYS = 'select, textarea, input:not([type="checkbox"]), [contentedita
 const OWNS_KEYS_COMPOSITE = '[role="tablist"], [role="listbox"], [role="menu"], [role="radiogroup"]'
 
 /**
- * Arrow/Home/End traversal between a View & filters panel's own controls (#382), shared by the
- * desktop door (CollectionToolbar's trigger) and the phone door (ViewOptionsDisclosure).
+ * Arrow/Home/End traversal between a phone View & filters panel's own controls (#382), shared by
+ * phone hosts using ViewOptionsDisclosure.
  *
  * Attach it to the panel element: the live control set is read from `event.currentTarget` on every
  * key, so controls that appear while the panel is open (the Save-view row) join the traversal

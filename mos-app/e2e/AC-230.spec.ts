@@ -159,9 +159,7 @@ test(
   await page.getByRole('button', { name: 'All', exact: true }).click()
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
-  // OD-REDESIGN-84: Group and Person controls render only inside the disclosed options row.
-  await page.getByRole('button', { name: 'View & filters' }).click()
-  await page.getByRole('group', { name: 'View & filters' }).waitFor()
+  // Desktop Group and Person controls render inline in the options row.
   await page.getByLabel('Group').selectOption('workline')
 
   // ── 5. Set Person = Cahya ────────────────────────────────────────────────────

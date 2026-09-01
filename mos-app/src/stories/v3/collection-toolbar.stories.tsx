@@ -134,7 +134,7 @@ function Specimen(props: { title: string; copy: string; activePicFilter?: boolea
   )
 }
 
-export const LeanCollapsed: Story = {
+export const DesktopInline: Story = {
   render: () => (
     <Specimen
       title="Desktop inline toolbar"
@@ -183,7 +183,7 @@ export const DesktopInlineControls: Story = {
   },
 }
 
-export const ActiveFilterDot: Story = {
+export const DesktopActiveFilter: Story = {
   render: () => (
     <Specimen
       title="Active filter stays visible"

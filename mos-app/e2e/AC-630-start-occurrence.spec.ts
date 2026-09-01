@@ -88,9 +88,7 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
   // attention" in src/i18n/messages.ts). Clicking it still opens the overdue filter AND expands
   // the due-runs disclosure (useDueRuns.toggleExpanded) when due work exists — the collapsed-by-
   // default behavior (design-review step-6 CRITICAL) this test depends on is unchanged.
-  // OD-REDESIGN-84: the attention pill is in the expanded View & filters options row.
-  await page.getByRole('button', { name: 'View & filters' }).click()
-  await expect(page.getByRole('group', { name: 'View & filters' })).toBeVisible()
+  // Desktop: the attention pill is in the inline View & filters options row.
   await page.getByRole('button', { name: /need attention/i }).click()
 
   const dueRow = page.locator('li.due-runs-row')
