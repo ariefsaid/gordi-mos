@@ -109,7 +109,7 @@ describe('T5: sectionForPath — fallbacks', () => {
 describe('the Café children carry marks of their own (#457)', () => {
   // Before this, all five borrowed the parent's cup: five rail rungs, one picture. Swapping them
   // all back to CafeIcon passed every test in the repo, so this is the cheapest thing that fails
-  // on that. Geometry comparison across the whole rail is a separate guard.
+  // on that — and it names the offending component, where the geometry guard names a signature.
   it('the five children use five distinct components', () => {
     const icons = CAFE_MODULE_SECTIONS.map((s) => s.Icon)
     expect(icons).toHaveLength(5)
@@ -117,12 +117,10 @@ describe('the Café children carry marks of their own (#457)', () => {
   })
 
   it('none of them is a mark another destination already draws', () => {
-    // The breadcrumb registries — SECTIONS and ADMIN_SECTIONS — and nothing more. That is a real
-    // limit, not a claim of completeness: the rail's own rungs are inline literals in
-    // destinations.tsx, so a child borrowing ShieldIcon or WorkIcon passes this. Widening to cover
-    // them needs the destination tree walked through `links` as well as `children`, which is the
-    // geometry guard's scope; the gap is filed. What this DOES catch is the defect issue 457 names
-    // — five rungs pointing at one component — and a borrow from the admin registry.
+    // The breadcrumb registries — SECTIONS and ADMIN_SECTIONS — and nothing more: the rail's own
+    // rungs are inline literals in destinations.tsx, so a child borrowing ShieldIcon or WorkIcon
+    // passes this. rail-glyph-uniqueness.test.tsx closes that by comparing what the rail actually
+    // renders; this stays because it is fast and names the component.
     const elsewhere = new Set(
       [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
     )
