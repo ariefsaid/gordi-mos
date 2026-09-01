@@ -32,8 +32,8 @@ if run; then bad "dirty worktree must refuse"; else ok "dirty worktree refuses";
 [ ! -f "$STAMP" ] && ok "no stamp after refusal" || bad "stamp written despite refusal"
 ledger="$tmp/repo/.git/verify-ledger.log"
 [ "$(wc -l < "$ledger" 2>/dev/null | tr -d ' ')" = 1 ] && ok "refused run appends one ledger record" || bad "refused run did not append one ledger record"
-awk -F '\t' -v head="$HEAD" 'NF == 4 && $3 == "full" && $4 == head { found=1 } END { exit !found }' "$ledger" 2>/dev/null
-[ "$?" -eq 0 ] && ok "ledger record captures full mode and HEAD" || bad "ledger record is missing full mode or HEAD"
+awk -F '\t' -v head="$HEAD" 'NF == 4 && $3 == "refused" && $4 == head { found=1 } END { exit !found }' "$ledger" 2>/dev/null
+[ "$?" -eq 0 ] && ok "refused ledger record captures refused mode and HEAD" || bad "ledger record is missing refused mode or HEAD"
 git -C "$tmp/repo" checkout -q f
 
 if run; then ok "green battery passes"; else bad "green battery must pass"; fi
@@ -44,6 +44,7 @@ rm -f "$STAMP"
 printf '#!/bin/sh\ncase "$*" in *test*) exit 1;; *) exit 0;; esac\n' > "$tmp/bin/npm"
 if run; then bad "red battery must refuse"; else ok "red battery refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after red battery" || bad "stamp written despite red battery"
+[ "$(tail -n 1 "$ledger" | cut -f3)" = refused ] && ok "red battery records refused mode" || bad "red battery did not record refused mode"
 
 # A red PYTHON suite must refuse too — the snapshot job's tests are part of the battery, and a
 # battery that runs a step without propagating its failure is the same non-gate as not running it.

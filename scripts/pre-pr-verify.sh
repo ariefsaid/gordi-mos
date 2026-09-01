@@ -8,19 +8,22 @@
 #
 # Deliberately NOT here: review-by-someone-else (docs/agents/review.md — three lenses, a loop step,
 # never a CI check); the audit-register coverage gate is tracked separately (#295).
+# Ledger contract: the EXIT trap appends only after a successful run has written its stamp.
+# Ledger contract: ledger append failures never fail the verification result.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 head="$(git rev-parse HEAD)"
-gitdir="$(git rev-parse --git-dir)"
+gitdir="$(git rev-parse --path-format=absolute --git-common-dir)"
 started_at="$(date +%s)"
 mode=full
 record_ledger() {
-  local ended_at duration
+  local status=$? ended_at duration
+  [ "$status" -eq 0 ] || mode=refused
   ended_at="$(date +%s 2>/dev/null || printf '%s' "$started_at")"
   duration=$((ended_at - started_at))
   [ "$duration" -ge 0 ] || duration=0
-  printf '%s\t%s\t%s\t%s\n' "$started_at" "$duration" "$mode" "$head" >> "$gitdir/verify-ledger.log" 2>/dev/null || :
+  { printf '%s\t%s\t%s\t%s\n' "$started_at" "$duration" "$mode" "$head" >> "$gitdir/verify-ledger.log"; } 2>/dev/null || :
 }
 trap record_ledger EXIT
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
