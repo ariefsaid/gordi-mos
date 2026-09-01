@@ -27,18 +27,34 @@ out="$(VERIFY_LEDGER_PATH="$ledger" VERIFY_LEDGER_NOW=2000000000 bash "$SCRIPT" 
 [ "$rc" -ne 0 ]; t "in-window malformed ledger fails closed" $? "$out"
 printf '%s' "$out" | grep -q 'ERROR malformed ledger record'; t "in-window malformed ledger reports an error" $? "$out"
 
-# A real linked worktree must append to the common ledger seen by the main checkout.
+# Exercise the real verifier from a linked worktree: its ledger is shared, but its stamp is not.
 fixture="$tmp/worktree-fixture"; linked="$tmp/worktree-linked"
 git init -q "$fixture" && git -C "$fixture" config user.email t@t && git -C "$fixture" config user.name t
-mkdir -p "$fixture/scripts"; cp "$SCRIPT" "$fixture/scripts/drive-clock.sh"
+mkdir -p "$fixture/scripts"
+cp "$SCRIPT" "$fixture/scripts/drive-clock.sh"
+cp scripts/pre-pr-verify.sh scripts/reporting-snapshot.test.sh scripts/prose-budget.sh "$fixture/scripts/"
+cp scripts/reporting_snapshot.py scripts/reporting_local_env.py scripts/test_reporting_snapshot.py "$fixture/scripts/"
 touch "$fixture/file"; git -C "$fixture" add -A; git -C "$fixture" commit -qm init
+git -C "$fixture" update-ref refs/remotes/origin/dev "$(git -C "$fixture" rev-parse HEAD)"
 git -C "$fixture" worktree add -q -b linked "$linked"
 linked_head="$(git -C "$linked" rev-parse HEAD)"
+touch "$linked/dirty"
+out="$(cd "$linked" && bash scripts/pre-pr-verify.sh 2>&1)"; rc=$?
 common="$(git -C "$linked" rev-parse --path-format=absolute --git-common-dir)"
-printf '1999999900\t60\tfull\t%s\n' "$linked_head" >> "$common/verify-ledger.log"
-out="$(cd "$fixture" && VERIFY_LEDGER_NOW=2000000000 bash scripts/drive-clock.sh 24)"; rc=$?
-{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '1 runs, 1.00 total minutes'; }
-t "linked-worktree append is visible to main-checkout report" $? "$out"
+main_gitdir="$(git -C "$fixture" rev-parse --git-dir)"
+{ [ "$rc" -ne 0 ] && [ -f "$common/verify-ledger.log" ] && grep -q "refused.*$linked_head" "$common/verify-ledger.log"; }
+t "refused linked-worktree run appends to the main common ledger" $? "$out"
+out="$(cd "$fixture" && VERIFY_LEDGER_NOW="$(date +%s)" bash scripts/drive-clock.sh 24 2>&1)"; rc=$?
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '0 runs, 0.00 total minutes' && printf '%s' "$out" | grep -q '1 refusals'; }
+t "main-checkout report sees the linked-worktree refusal" $? "$out"
+rm "$linked/dirty"
+printf 'inert\n' > "$linked/scripts/inert.sh"
+git -C "$linked" add scripts/inert.sh; git -C "$linked" commit -qm green
+linked_head="$(git -C "$linked" rev-parse HEAD)"
+out="$(cd "$linked" && bash scripts/pre-pr-verify.sh 2>&1)"; rc=$?
+linked_gitdir="$(git -C "$linked" rev-parse --git-dir)"
+{ [ "$rc" -eq 0 ] && [ "$(cat "$linked_gitdir/pre-pr-verify-ok" 2>/dev/null)" = "$linked_head" ] && [ ! -e "$common/pre-pr-verify-ok" ] && [ ! -e "$main_gitdir/pre-pr-verify-ok" ]; }
+t "green linked-worktree run stamps only its own git-dir" $? "$out"
 
 mkdir -p "$tmp/not-a-repo"
 out="$(cd "$tmp/not-a-repo" && bash "$SCRIPT" 24 2>&1)"; rc=$?
