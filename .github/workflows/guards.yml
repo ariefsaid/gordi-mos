@@ -118,6 +118,8 @@ jobs:
         run: bash scripts/release-evidence.test.sh
       - name: drive-burn report self-test
         run: bash scripts/drive-burn.test.sh
+      - name: worktree-cleanup sweep self-test
+        run: bash scripts/worktree-cleanup.test.sh
       - name: carry-stamps pure-rebase self-test
         run: bash scripts/carry-stamps.test.sh
       - name: gh-shim PATH firewall self-test
