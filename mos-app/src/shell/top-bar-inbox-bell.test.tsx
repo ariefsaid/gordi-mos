@@ -44,6 +44,7 @@ function hook(over: Partial<UseNotifications> = {}): UseNotifications {
     loading: false,
     error: null,
     markRead: vi.fn(),
+    markHandled: vi.fn(),
     refresh: vi.fn(),
     ...over,
   }

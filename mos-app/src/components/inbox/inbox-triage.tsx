@@ -44,6 +44,11 @@ export type InboxTriageProps = {
   hiddenCount?: number
   /** Whether Handled is a real, ratified persisted view; false omits it entirely. */
   handledFilterAvailable: boolean
+  /**
+   * AC-003 (#549): live per-tab counts over the WHOLE queue, independent of the active filter.
+   * Absent = plain labels (callers/tests that don't model counts).
+   */
+  counts?: { all: number; unread: number; handled: number }
   onFilterChange(filter: InboxFilter): void
   /** Open a notification: the caller marks it read (only) and pushes its canonical record. */
   onOpen(row: TriageNotificationRow): void
@@ -84,6 +89,7 @@ export function InboxTriage({
   filter,
   hiddenCount = 0,
   handledFilterAvailable,
+  counts,
   onFilterChange,
   onOpen,
   onMarkHandled,
@@ -131,7 +137,9 @@ export function InboxTriage({
             aria-pressed={filter === f}
             onClick={() => onFilterChange(f)}
           >
-            {t(FILTER_KEY[f])}
+            {counts
+              ? t('inbox.filter.withCount', { label: t(FILTER_KEY[f]), count: counts[f] })
+              : t(FILTER_KEY[f])}
           </button>
         ))}
       </div>
@@ -154,9 +162,9 @@ export function InboxTriage({
           retryLabel={t('inbox.retry')}
         />
       ) : state === 'empty' ? (
-        // F13 (OD-91 #26): when the unread view is empty but read notifications are hidden by the
-        // filter, name what's hidden and offer a one-tap escape to All — never a false all-clear.
-        filter !== 'all' && hiddenCount > 0 ? (
+        // The filter-aware empty copy is unread-specific ('N read hidden'); an empty
+        // Handled view is honestly quiet.
+        filter === 'unread' && hiddenCount > 0 ? (
           <EmptyState
             variant="blank"
             title={t('inbox.emptyUnread.title')}

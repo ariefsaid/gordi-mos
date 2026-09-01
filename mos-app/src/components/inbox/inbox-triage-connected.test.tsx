@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useEffect } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -44,6 +44,7 @@ function notif(over: Partial<NotificationRow> = {}): NotificationRow {
     body: 'Please review Q3 budget',
     metadata: { entity: { type: 'task', id: 't1' } },
     read_at: null,
+    handled_at: null,
     created_at: '2026-07-20T00:00:00Z',
     ...over,
   }
@@ -56,6 +57,7 @@ function hook(over: Partial<UseNotifications> = {}): UseNotifications {
     loading: false,
     error: null,
     markRead: vi.fn(),
+    markHandled: vi.fn(),
     refresh: vi.fn(),
     ...over,
   }
@@ -88,6 +90,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUse.mockReturnValue(hook())
 })
+
+// The connected surface always renders the tab labels with a live count suffix (AC-003 / #549).
+// Target the filter buttons through their group so we never collide with a row whose title happens
+// to start with the same word (e.g. a "Unread one" row vs the "Unread · n" tab).
+const filterGroup = () => within(screen.getByRole('group', { name: /filter/i }))
 
 describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008 / J06)', () => {
   it('opening a safe target marks it read (only) and mounts the shared actionable record host (JQ-4: never a zero-action summary)', () => {
@@ -195,7 +202,7 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(screen.getByRole('button', { name: /Budget review/ })).toBeInTheDocument()
   })
 
-  it('the Unread filter narrows the queue by read state; Handled stays withheld (no dead tab)', () => {
+  it('the Unread filter narrows the queue by read state (Handled now live, OD-WAY-88 / #549)', () => {
     mockUse.mockReturnValue(hook({
       notifications: [
         notif({ id: 'a', title: 'Unread one', read_at: null }),
@@ -204,10 +211,57 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     }))
     renderConnected()
 
-    expect(screen.queryByRole('button', { name: 'Handled' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Unread' }))
+    expect(screen.getByRole('button', { name: /^Handled/ })).toBeInTheDocument()
+    fireEvent.click(filterGroup().getByRole('button', { name: /^Unread/ }))
     expect(screen.getByText('Unread one')).toBeInTheDocument()
     expect(screen.queryByText('Read one')).toBeNull()
+  })
+
+  it('AC-003 (#549): per-tab counts cover the whole queue, and the Handled view returns only handled rows', () => {
+    mockUse.mockReturnValue(hook({
+      notifications: [
+        notif({ id: 'a', title: 'Unread one', read_at: null }),
+        notif({ id: 'b', title: 'Read one', read_at: '2026-07-20T02:00:00Z' }),
+        notif({ id: 'c', title: 'Handled one', read_at: '2026-07-20T02:00:00Z', handled_at: '2026-07-20T03:00:00Z' }),
+      ],
+    }))
+    renderConnected()
+
+    expect(screen.getByRole('button', { name: 'All · 3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unread · 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Handled · 1' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Handled · 1' }))
+    expect(screen.getByText('Handled one')).toBeInTheDocument()
+    expect(screen.queryByText('Unread one')).toBeNull()
+    expect(screen.queryByText('Read one')).toBeNull()
+  })
+
+  it('AC-003 (#549): ?filter=handled round-trips on the /inbox page (hydrate + write-back)', () => {
+    mockUse.mockReturnValue(hook({
+      notifications: [
+        notif({ id: 'b', title: 'Read one', read_at: '2026-07-20T02:00:00Z' }),
+        notif({ id: 'c', title: 'Handled one', read_at: '2026-07-20T02:00:00Z', handled_at: '2026-07-20T03:00:00Z' }),
+      ],
+    }))
+    let search = ''
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/inbox?filter=handled']}>
+          <OverlayHostProvider>
+            <InboxTriageConnected mode="page" />
+            <Routes>
+              <Route path="*" element={<LocationSearchProbe onChange={(s) => { search = s }} />} />
+            </Routes>
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    expect(filterGroup().getByRole('button', { name: /^Handled/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Handled one')).toBeInTheDocument()
+    expect(screen.queryByText('Read one')).toBeNull()
+    fireEvent.click(filterGroup().getByRole('button', { name: /^All/ }))
+    expect(search).not.toContain('filter=')
   })
 
   it('I7 / D-E1: the /inbox PAGE filter is URL-synced (hydrates from ?filter=unread + writes it back)', () => {
@@ -231,10 +285,10 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
       </I18nProvider>,
     )
     // Hydrated from the URL: Unread is active and the read row is already filtered out.
-    expect(screen.getByRole('button', { name: 'Unread' })).toHaveAttribute('aria-pressed', 'true')
+    expect(filterGroup().getByRole('button', { name: /^Unread/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText('Read one')).toBeNull()
     // Switching back to All writes the URL (?filter= dropped at the default).
-    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    fireEvent.click(filterGroup().getByRole('button', { name: /^All/ }))
     expect(search).not.toContain('filter=unread')
   })
 
@@ -255,7 +309,7 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
         </MemoryRouter>
       </I18nProvider>,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Unread' }))
+    fireEvent.click(filterGroup().getByRole('button', { name: /^Unread/ }))
     // The bell was opened over /money — its filter must not pollute that page's URL.
     expect(search).toBe('')
   })

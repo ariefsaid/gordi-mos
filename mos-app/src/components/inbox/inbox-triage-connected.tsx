@@ -9,7 +9,7 @@ import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import { InboxTriage, type InboxTriageState } from './inbox-triage'
-import { matchesFilter, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
+import { matchesFilter, isHandled, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
 import { resolveNotificationTarget } from './inbox-target'
 import { buildInboxTargetDeps } from './inbox-record-door'
 import { isSessionExpiredMessage } from './session-expired'
@@ -28,24 +28,26 @@ import { isSessionExpiredMessage } from './session-expired'
  *     exact triage queue.
  * An unavailable/denied/malformed target never opens a record; it surfaces honest, localized copy.
  *
- * Handled stays withheld (`handledFilterAvailable={false}`) until the owner-gated migration/RLS/
- * pgTAP prerequisite lands — opening marks read, never handled (read-handled-semantics.ts).
+ * Handled is live (OD-WAY-88 / #549): an explicit 'Mark handled' stamps the viewer's private
+ * `handled_at` — opening still marks read only.
  */
 export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' : 'shell' }: {
   mode: 'page' | 'quick'
   owner?: OverlayOwner
 }) {
   const t = useT()
-  const { notifications, loading, error, refresh, markRead } = useNotifications()
+  const { notifications, loading, error, refresh, markRead, markHandled } = useNotifications()
   const host = useOptionalOverlayHost()
   const auth = useAuth()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  // The All/Unread filter is URL-synced on the /inbox PAGE (I7 / D-E1) so a refreshed/shared link
+  // The All/Unread/Handled filter is URL-synced on the /inbox PAGE (I7 / D-E1) so a refreshed/shared link
   // reproduces the same view. The bell's ephemeral quick-triage keeps a LOCAL filter — it must not
-  // stamp ?filter= onto whatever host page the bell was opened over. (Handled stays withheld.)
+  // stamp ?filter= onto whatever host page the bell was opened over.
   const [filterParam, setFilterParam] = useSearchParamState('filter', 'all')
   const [localFilter, setLocalFilter] = useState<InboxFilter>('all')
-  const filter: InboxFilter = mode === 'page' ? (filterParam === 'unread' ? 'unread' : 'all') : localFilter
+  // ?filter= round-trips all three ratified views (OD-WAY-88); anything else falls back to All.
+  const pageFilter: InboxFilter = filterParam === 'unread' ? 'unread' : filterParam === 'handled' ? 'handled' : 'all'
+  const filter: InboxFilter = mode === 'page' ? pageFilter : localFilter
   const setFilter = (next: InboxFilter) => {
     if (mode === 'page') setFilterParam(next)
     else setLocalFilter(next)
@@ -76,6 +78,15 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   // F13 (OD-91 #26): notifications the active (non-All) filter is hiding — the count behind the
   // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
   const hiddenCount = filter === 'all' ? 0 : notifications.length - rows.length
+
+  // AC-003 (#549): per-tab counts over the whole (loaded) queue, independent of the active filter.
+  // Derived from the loaded rows (same array the hook's unreadCount is computed from) so the tabs
+  // stay self-consistent and never range above what the filter can show.
+  const counts = {
+    all: notifications.length,
+    unread: notifications.filter((n) => n.read_at == null).length,
+    handled: notifications.filter(isHandled).length,
+  }
 
   const state: InboxTriageState = loading || (isAuthError && !authRetried)
     ? 'loading' // masks the single silent refresh attempt above — never flashes the dead-retry error
@@ -119,10 +130,12 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         rows={rows}
         filter={filter}
         hiddenCount={hiddenCount}
-        handledFilterAvailable={false}
+        handledFilterAvailable
+        counts={counts}
         onFilterChange={setFilter}
         onOpen={onOpen}
         onQuickMarkRead={(row) => void markRead(row.id)}
+        onMarkHandled={(row) => void markHandled(row.id)}
         onRetry={() => void refresh()}
         onSignInAgain={onSignInAgain}
       />
