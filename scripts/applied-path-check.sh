@@ -112,15 +112,26 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/applied-path.XXXXXXXX")"
 # way: not to the e2e job that runs after it in CI, and not to whoever is working in the next
 # terminal. DB_DIRTY tracks whether the database still needs putting back.
 DB_DIRTY=0
+# RESTORE_FAILED makes a failed reset load-bearing on the script's own exit code (fail closed): a
+# caller that sees rc=0 needs it to mean the database really is back to a plain fresh reset, not
+# merely that the attempt was made. One attempt only — DB_DIRTY clears whether it succeeded or
+# not, so a second call (the explicit --prove call, then the EXIT trap) is a no-op rather than a
+# silent retry that could flip a recorded failure back to unnoticed.
+RESTORE_FAILED=0
 restore_db() {
   [ "$DB_DIRTY" = "1" ] || return 0
+  DB_DIRTY=0
   [ -d "${HEAD_TREE:-/nonexistent}/supabase" ] || return 0
   echo "   restoring the local database to a plain fresh reset…"
-  supabase db reset --local --workdir "$HEAD_TREE" >/dev/null 2>&1 || \
-    echo "   ⚠ could not restore the database — run: supabase db reset" >&2
-  DB_DIRTY=0
+  supabase db reset --local --workdir "$HEAD_TREE" >/dev/null 2>&1 || {
+    RESTORE_FAILED=1
+    echo "   ✗ restore FAILED — the database is left mid-reset, unusable by the next lock holder. Run: supabase db reset" >&2
+  }
 }
-trap 'restore_db; rm -rf "$WORK"' EXIT
+# An EXIT trap that never calls `exit` itself leaves the shell's exit status exactly as an
+# earlier `exit N` left it — so overriding a GREEN result on a failed restore requires exiting
+# again, from inside the trap.
+trap 'restore_db; rm -rf "$WORK"; [ "$RESTORE_FAILED" = 0 ] || exit 1' EXIT
 if [ -n "$OUT" ]; then mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; else OUT="$WORK/out"; mkdir -p "$OUT"; fi
 
 FP_SQL="$REPO/scripts/lib/applied-path-fingerprint.sql"
