@@ -106,12 +106,23 @@ describe('ViewOptionsDisclosure', () => {
   })
 
   it('renders the summary as a decorative (aria-hidden) hint, not part of the accessible name', () => {
-    renderDisclosure({ open: false, summary: 'Attention first', summaryClassName: 'sum' })
+    renderDisclosure({ open: false, summary: 'Attention first', summaryClassName: 'sum', hasActiveFilters: true })
     const summary = screen.getByText('Attention first')
     expect(summary).toHaveAttribute('aria-hidden', 'true')
     expect(summary).toHaveClass('sum')
-    // The accessible name is the label alone (the summary is aria-hidden).
-    expect(screen.getByRole('button', { name: 'View options' })).toBeInTheDocument()
+    // The summary remains decorative, but the trigger announces the active context.
+    expect(screen.getByRole('button', { name: 'View options, Attention first' })).toBeInTheDocument()
+  })
+
+  it('shows the decorative active cue only when filters are active', () => {
+    const { unmount } = renderDisclosure({ open: false, hasActiveFilters: false })
+    expect(document.querySelectorAll('.view-options-disclosure__active-dot')).toHaveLength(0)
+    unmount()
+    renderDisclosure({ open: false, hasActiveFilters: true, summary: 'All · Status' })
+    expect(document.querySelectorAll('.view-options-disclosure__active-dot')).toHaveLength(1)
+    expect(screen.getByText('All · Status')).toHaveAttribute('aria-hidden', 'true')
+    expect(document.querySelector('.view-options-disclosure__active-dot')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('button', { name: 'View options, All · Status' })).toBeInTheDocument()
   })
 
   it('applies each host skin class (container/trigger/chevron/panel) so CSS is preserved', () => {

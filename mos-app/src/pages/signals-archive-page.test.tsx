@@ -217,6 +217,19 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getAllByText(/HQ Operations/).some((node) => node.closest('td'))).toBe(true)
   })
 
+  it('AC-574: the host cue tracks a real non-default filter and stays absent at defaults', async () => {
+    desktopState.value = false
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(document.querySelector('.view-options-disclosure__active-dot')).toBeNull()
+
+    const trigger = screen.getByRole('button', { name: /view & filters/i })
+    await userEvent.click(trigger)
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Quality')
+    await waitFor(() => expect(document.querySelector('.view-options-disclosure__active-dot')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /view & filters, all · category/i })).toBeInTheDocument()
+  })
+
   it('AC-V3-014: column-header sorting updates the same shareable query and visible row order', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 'signal-old', body: 'Older signal', occurred_at: '2026-07-16T02:00:00Z' }),
@@ -299,12 +312,13 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByTestId('location')).toHaveTextContent('saved=view-1')
   })
 
-  it('AC-V3-013: phone Signals uses the same capture-first View & filters disclosure as Tasks', async () => {
+  it('AC-V3-013: phone Signals uses the phone default even for a shared Table link', async () => {
     desktopState.value = false
-    // Group is a Table capability — open the Table so the disclosure shows the full filter set.
     renderPage('/work/signals?layout=table')
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
 
+    expect(screen.getByTestId('signal-feed')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('layout=feed')
     const options = screen.getByRole('button', { name: /view & filters/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('searchbox', { name: /search signals/i })).not.toBeInTheDocument()
@@ -312,7 +326,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await userEvent.click(options)
     expect(options).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
   })
 
   it('Issue #379 I3: phone Escape on the open View & filters door closes it with focus on the trigger', async () => {

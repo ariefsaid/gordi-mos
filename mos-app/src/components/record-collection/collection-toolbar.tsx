@@ -179,9 +179,9 @@ export function CollectionToolbar<
 
         <div className="collection-toolbar__primary-spacer" />
 
-        {/* Reserved views have no rows to re-present — a live Table/Card switch above a
-            coming-soon placeholder is a dead control (DO-6). */}
-        {!reserved && (
+        {/* Presentation switching is a desktop control; phone cards intentionally have no tabs.
+            Reserved views have no rows to re-present (DO-6). */}
+        {isDesktop && !reserved && (
           <div className="collection-toolbar__presentations">
             <ViewTabs
               ariaLabel={presentation.label}

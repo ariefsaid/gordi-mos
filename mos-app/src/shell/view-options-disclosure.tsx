@@ -1,5 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Chevron } from './icons'
+import './view-options-disclosure.css'
 import { viewOptionsTraversal } from './view-options-keyboard'
 
 /**
@@ -35,6 +36,8 @@ export interface ViewOptionsDisclosureProps {
   label: string
   /** Optional decorative summary of the current selection (aria-hidden). */
   summary?: string
+  /** Whether the phone door should show a decorative cue for active filters. */
+  hasActiveFilters?: boolean
   /** id wiring aria-controls ↔ the panel. */
   panelId: string
   /** Skin hooks — kept explicit so each host preserves its own computed style. */
@@ -52,6 +55,7 @@ export function ViewOptionsDisclosure({
   onClose,
   label,
   summary,
+  hasActiveFilters = false,
   panelId,
   className,
   triggerClassName,
@@ -83,6 +87,7 @@ export function ViewOptionsDisclosure({
         className={triggerClassName}
         aria-expanded={open}
         aria-controls={panelId}
+        aria-label={hasActiveFilters && summary ? `${label}, ${summary}` : label}
         onClick={onToggle}
         onKeyDown={onKeyDown}
       >
@@ -90,6 +95,7 @@ export function ViewOptionsDisclosure({
         {summary != null && (
           <span className={summaryClassName} aria-hidden="true">{summary}</span>
         )}
+        {hasActiveFilters && <span className="view-options-disclosure__active-dot" aria-hidden="true" />}
         <Chevron className={chevronCls} />
       </button>
       {open && (
