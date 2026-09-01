@@ -160,13 +160,23 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
 })
 
 describe('OD-WAY-86 (#141) — re-nudge age badge', () => {
-  const iso = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString()
+  // Deterministic local-day bucket: exactly `n` VIEWER-LOCAL calendar days before today at a fixed
+  // hour — guarantees age `n` regardless of runtime clock time (unlike an hoursAgo offset, which
+  // crosses a local midnight and flips the bucket under the calendar-day semantics).
+  const daysAgo = (n: number) => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - n)
+    d.setHours(12, 0, 0, 0)
+    return d.toISOString()
+  }
+  const nowIso = new Date().toISOString()
 
   it('AC-141-1: an untriaged row older than 48h carries the age badge; a younger row does not', () => {
     renderTriage({
       rows: [
-        trow('aged', { created_at: iso(75) }), // 75h → "3 days"
-        trow('young', { created_at: iso(1) }),
+        trow('aged', { created_at: daysAgo(3) }), // 3 local days ago → "3 days"
+        trow('young', { created_at: daysAgo(0) }),
       ],
     })
     const agedRow = document.querySelector('[data-notification-id="aged"]')!
@@ -177,15 +187,15 @@ describe('OD-WAY-86 (#141) — re-nudge age badge', () => {
   it('AC-141-2: read and handled rows never carry the badge', () => {
     renderTriage({
       rows: [
-        trow('read', { read_at: iso(1), created_at: iso(200) }),
-        trow('handled', { read_at: iso(1), handled_at: iso(1), created_at: iso(200) }),
+        trow('read', { read_at: nowIso, created_at: daysAgo(8) }),
+        trow('handled', { read_at: nowIso, handled_at: nowIso, created_at: daysAgo(8) }),
       ],
     })
     expect(screen.queryByText(/days/)).toBeNull()
   })
 
   it('the badge is part of the row open-button accessible name', () => {
-    renderTriage({ rows: [trow('aged', { created_at: iso(75) })] })
+    renderTriage({ rows: [trow('aged', { created_at: daysAgo(3) })] })
     expect(screen.getByRole('button', { name: /Title aged \(unread\) \(3 days\)/ })).toBeInTheDocument()
   })
 

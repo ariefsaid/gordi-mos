@@ -141,6 +141,28 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
     expect(result.current.notifications[1].read_at).not.toBeNull()
   })
 
+  it('OD-WAY-86 (#141): a just-read row re-sorts below unread rows on the SAME render (no refetch)', async () => {
+    const now = Date.now()
+    const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()
+    mockList.mockResolvedValue([
+      row('young', false, iso(1)), // unread, newest
+      row('older', false, iso(2)), // unread
+    ])
+    mockMark.mockResolvedValue(undefined)
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    // Both unread → newest first.
+    expect(result.current.notifications.map((n) => n.id)).toEqual(['young', 'older'])
+    await act(async () => {
+      await result.current.markRead('young')
+    })
+    // young is now read → it sinks below the still-unread older row immediately (ordering derives
+    // from current row state, so no refetch is needed to fix the queue).
+    expect(result.current.notifications.map((n) => n.id)).toEqual(['older', 'young'])
+    expect(result.current.notifications[0].read_at).toBeNull()
+    expect(result.current.notifications[1].read_at).not.toBeNull()
+  })
+
   it('OD-WAY-88 (#549): markHandled on an already-handled row is a no-op', async () => {
     mockList.mockResolvedValue([{ ...row('b', true, '2026-07-02T00:00:00Z'), handled_at: '2026-07-20T03:00:00Z' }])
     const { result } = renderHook(() => useNotifications())

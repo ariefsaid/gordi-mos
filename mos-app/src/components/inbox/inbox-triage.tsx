@@ -102,6 +102,9 @@ export function InboxTriage({
 }: InboxTriageProps) {
   const t = useT()
   const pending = new Set(pendingIds ?? [])
+  // One render-time boundary for every row (AC-141-3): a single shared `now` means every row's
+  // day-bucket is judged against the SAME local midnight, so the queue can't disagree with itself.
+  const now = new Date()
   const filters = INBOX_FILTERS.filter((f) => f !== 'handled' || handledFilterAvailable)
 
   // H7 fix (design audit, 2026-07-27): ↑/↓ moves focus between rows (Tab already reaches every
@@ -195,7 +198,7 @@ export function InboxTriage({
               const unread = n.read_at == null
               const isPending = pending.has(n.id)
               const canHandle = onMarkHandled != null && !isHandled(n)
-              const ageDays = nudgeAgeDays(n, new Date()) // OD-WAY-86: >= 2 on nudged rows, else null
+              const ageDays = nudgeAgeDays(n, now) // OD-WAY-86: >= 2 on nudged rows, else null
               return (
                 <li key={n.id} className={`inbox-row${unread ? ' inbox-row--unread' : ''}`} data-notification-id={n.id}>
                   <button

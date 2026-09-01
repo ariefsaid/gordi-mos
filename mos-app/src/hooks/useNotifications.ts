@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   listNotifications,
   markNotificationRead,
@@ -36,8 +36,8 @@ export function useNotifications(): UseNotifications {
     setError(null)
     try {
       const rows = await listNotifications()
-      // Nudged untriaged first (OD-WAY-86 #141), then unread, then read — the triage order.
-      rows.sort((a, b) => compareTriage(a, b, new Date()))
+      // Raw newest-first load; ORDERING is derived below (compareTriage on every render) so an
+      // optimistic markRead/markHandled reshuffles the queue for the current row state, not once here.
       setNotifications(rows)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'load failed')
@@ -87,5 +87,13 @@ export function useNotifications(): UseNotifications {
 
   const unreadCount = notifications.reduce((n, row) => n + (row.read_at == null ? 1 : 0), 0)
 
-  return { notifications, unreadCount, loading, error, markRead, markHandled, refresh }
+  // Project the triage order HERE, from the CURRENT row state, each render — never at fetch. After
+  // markRead/markHandled flips a row's read/handled stamps, the next render re-sorts so a
+  // just-read/handled row never lingers above unread rows until a refetch (OD-WAY-86 #141).
+  const ordered = useMemo(
+    () => [...notifications].sort((a, b) => compareTriage(a, b, new Date())),
+    [notifications],
+  )
+
+  return { notifications: ordered, unreadCount, loading, error, markRead, markHandled, refresh }
 }
