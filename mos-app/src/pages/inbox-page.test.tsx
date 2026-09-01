@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -169,5 +171,34 @@ describe('DO-1 — the triage list is never squashed by an empty record track', 
     const { container } = renderHostedPage()
     fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
     expect(container.querySelector('.record-split')).toBeNull()
+  })
+})
+
+// AC-005 (FR-005, #547): Given the Inbox page at 390px, When the page head renders, Then the
+// help glyph is a child of the title row, not a following block. jsdom does no layout, so the
+// test encodes title-row membership the way the shared grammar defines it: the head opts into
+// the meta-inline mode, and that mode retracts the phone fling (own full-width row, last order)
+// in page-head.css — the same css-guard grammar page-head.test.tsx uses.
+describe('AC-005 — the help glyph rides in the title row at 390 (FR-005)', () => {
+  it('the head opts into meta-inline and the glyph is the meta slot the title row owns', () => {
+    const { container } = renderPage()
+    const head = container.querySelector('[data-testid="page-head"]')!
+    expect(head).toHaveClass('content-header--meta-inline')
+    const meta = head.querySelector('.ch-meta')!
+    expect(meta.children).toHaveLength(1)
+    expect(meta.querySelector('.help-tip-anchor button')).not.toBeNull()
+  })
+
+  it('the shared grammar keeps that meta in the title row at phone width — no full-width fling', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/shell/page-head.css'), 'utf8')
+    const phone = css.slice(css.indexOf('@media (max-width: 767.98px)'))
+    const rule = /\.content-header--meta-inline \.ch-meta\s*\{[^}]*\}/.exec(phone)?.[0]
+    expect(rule, 'the meta-inline mode must override the phone fling').toBeDefined()
+    expect(rule).toMatch(/order:\s*0/)
+    expect(rule).toMatch(/flex:\s*none/)
+    // Same specificity as the generic fling (.content-header .ch-meta), so cascade order
+    // decides: the override must appear AFTER it inside the same media block.
+    expect(phone.indexOf('.content-header--meta-inline .ch-meta'))
+      .toBeGreaterThan(phone.indexOf('.content-header .ch-meta'))
   })
 })
