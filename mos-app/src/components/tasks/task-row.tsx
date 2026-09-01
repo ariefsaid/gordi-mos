@@ -227,6 +227,7 @@ export function TaskRow({
               onKeyDown={onInputKeyDown}
               onBlur={finishEdit}
             />
+            <span className="task-inline-edit-active-hint">{t('tasks.inlineEdit.activeHint')}</span>
             {businessUnitName && (
               <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
             )}

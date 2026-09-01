@@ -28,6 +28,15 @@ describe('i18n messages catalog', () => {
     expect(idKeys).toEqual(enKeys)
   })
 
+  it('tasks editing and full-page action labels are localized in both locales', () => {
+    expect(messages.en['tasks.inlineEdit.activeHint']).toBe('Enter saves · Esc discards')
+    expect(messages.id['tasks.inlineEdit.activeHint']).toBe('Enter menyimpan · Esc membatalkan')
+    expect(messages.en['tasks.openFullPage']).toBe('Open full page')
+    expect(messages.id['tasks.openFullPage']).toBe('Buka halaman penuh')
+    expect('tasks.rowOpen' in messages.en).toBe(false)
+    expect('tasks.rowOpen' in messages.id).toBe(false)
+  })
+
   it('AC-I02: with locale persisted as id, t("dest.home") returns "Beranda"', () => {
     localStorage.setItem('mos.locale', 'id')
     const { result } = renderHook(() => useT(), { wrapper })

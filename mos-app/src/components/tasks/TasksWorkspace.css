@@ -224,6 +224,14 @@
   line-height: 1.3;
 }
 
+.task-inline-edit-active-hint {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.3;
+}
+
 /* ── Table ── */
 /* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop DB-view shows ONLY
    the decision columns — Task + Status + PIC + Supervisor + Due + menu (6 cols).

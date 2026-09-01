@@ -195,6 +195,16 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     return screen.getByLabelText('Edit task title') as HTMLInputElement
   }
 
+  it('shows the Enter/Escape helper only beside the active title input', () => {
+    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    expect(screen.queryByText('Enter saves · Esc discards')).toBeNull()
+    const input = openEditor()
+    expect(input.parentElement).toHaveTextContent('Enter saves · Esc discards')
+    expect(screen.getAllByText(/Enter saves · Esc discards/)).toHaveLength(1)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByText('Enter saves · Esc discards')).toBeNull()
+  })
+
   it('commits an edited title (F2 → type → Enter) and shows it in the row', async () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
