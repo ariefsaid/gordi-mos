@@ -5,9 +5,11 @@ import type { NotificationRow } from '@/lib/db/notifications'
 
 const mockList = vi.fn()
 const mockMark = vi.fn()
+const mockHandle = vi.fn()
 vi.mock('@/lib/db/notifications', () => ({
   listNotifications: () => mockList(),
   markNotificationRead: (id: string, at: string) => mockMark(id, at),
+  markNotificationHandled: (id: string, at: string, readAt: string | null) => mockHandle(id, at, readAt),
 }))
 
 function row(id: string, read: boolean, created: string): NotificationRow {
@@ -18,6 +20,7 @@ function row(id: string, read: boolean, created: string): NotificationRow {
     body: null,
     metadata: {},
     read_at: read ? '2026-07-05T00:00:00Z' : null,
+    handled_at: null,
     created_at: created,
   }
 }
@@ -25,6 +28,7 @@ function row(id: string, read: boolean, created: string): NotificationRow {
 beforeEach(() => {
   mockList.mockReset()
   mockMark.mockReset()
+  mockHandle.mockReset()
 })
 
 describe('useNotifications (AC-P3-IB-002/003)', () => {
@@ -76,5 +80,46 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.error).toBe('boom')
     expect(result.current.notifications).toEqual([])
+  })
+
+  it('OD-WAY-88 (#549): markHandled optimistically stamps handled (+read for an unread row) and persists', async () => {
+    mockList.mockResolvedValue([row('b', false, '2026-07-02T00:00:00Z')])
+    mockHandle.mockResolvedValue(undefined)
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.markHandled('b')
+    })
+
+    expect(result.current.notifications[0].handled_at).not.toBeNull()
+    expect(result.current.notifications[0].read_at).not.toBeNull() // unread row co-stamped read
+    expect(mockHandle).toHaveBeenCalledWith('b', expect.any(String), expect.any(String))
+  })
+
+  it('OD-WAY-88 (#549): a failed markHandled reverts (the queue must not lie about handled state)', async () => {
+    mockList.mockResolvedValue([row('b', false, '2026-07-02T00:00:00Z')])
+    mockHandle.mockRejectedValue(new Error('rls'))
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.markHandled('b')
+    })
+
+    expect(result.current.notifications[0].handled_at).toBeNull()
+    expect(result.current.notifications[0].read_at).toBeNull()
+  })
+
+  it('OD-WAY-88 (#549): markHandled on an already-handled row is a no-op', async () => {
+    mockList.mockResolvedValue([{ ...row('b', true, '2026-07-02T00:00:00Z'), handled_at: '2026-07-20T03:00:00Z' }])
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.markHandled('b')
+    })
+
+    expect(mockHandle).not.toHaveBeenCalled()
   })
 })

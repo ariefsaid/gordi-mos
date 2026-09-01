@@ -1,12 +1,7 @@
 import type { NotificationRow } from '@/lib/db/notifications'
 
 /**
- * read-handled-semantics — the PROVISIONAL, owner-gated read/handled model for Inbox triage
- * (Issue 7). Encodes docs/plans/2026-07-20-v3-inbox-deputy.md §"provisional owner-gated semantics"
- * exactly as written; it is built to the plan, not ratified.
- *
- *   RATIFY-BEFORE-MERGE: read-vs-handled semantics built as provisional per plan
- *   §"Evidence-led data seam gate" / §"provisional owner-gated semantics".
+ * read-handled-semantics — the RATIFIED read/handled model for Inbox triage (OD-WAY-88; issue 549).
  *
  * The rules encoded here:
  *  - `read_at`  = this person has seen/opened the notification.
@@ -16,22 +11,20 @@ import type { NotificationRow } from '@/lib/db/notifications'
  *  - Handled is private notification state only; it is NEVER Task completion, Signal
  *    acknowledgement, approval, or ownership.
  *
- * `handled_at` does NOT exist on `mos.notifications` yet — the owner-gated migration/RLS/pgTAP
- * prerequisite (supabase/migrations/20260720000001_mos_notifications_handled.sql) is a SEPARATE
- * reviewable change that must land and pass before any Handled view/claim ships. These pure
- * helpers only prove the client-side semantics; they perform no I/O. Until ratification the Handled
- * filter is omitted (see InboxTriage.handledFilterAvailable), not rendered as a dead tab.
+ * `mos.notifications.handled_at` exists in the baseline chain (20260805000005: nullable column,
+ * unhandled partial index, column-pin trigger; owner-scoped UPDATE policy in 20260805000006) —
+ * the Handled view is live.
  */
 
-/** A notification row with the provisional private `handled_at` field the prerequisite would add. */
+/** A notification row with the private `handled_at` field (OD-WAY-88). */
 export type TriageNotificationRow = NotificationRow & {
-  /** Provisional: set when the person explicitly triaged this out of their queue. */
+  /** Set when the person explicitly triaged this out of their queue. */
   handled_at?: string | null
 }
 
 export type InboxFilter = 'all' | 'unread' | 'handled'
 
-/** The exactly-three Inbox triage filters. `handled` executes only after owner ratification. */
+/** The exactly-three Inbox triage filters. */
 export const INBOX_FILTERS = ['all', 'unread', 'handled'] as const
 
 export function isUnread(row: TriageNotificationRow): boolean {

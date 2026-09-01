@@ -8,7 +8,7 @@
 -- org itself.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(39);
 
 select shared._test_seed_directory();
 
@@ -62,11 +62,35 @@ $$, 'the owner can mark their own notification read');
 select lives_ok($$
   update mos.notifications set handled_at = now() where id = '00000000-0000-0000-0000-000000008003'
 $$, '...and triage it out of the active queue — read and handled are different states, and both are representable');
+-- lives_ok alone proves no exception; a policy DENYING the owner's UPDATE (zero-row update) would
+-- still pass. Read back the stamp directly so AC-004 actually fails if the write matches nothing.
+select is((select handled_at is not null from mos.notifications where id = '00000000-0000-0000-0000-000000008003'), true,
+  '...and the owner''s handled stamp actually stuck — the UPDATE matched a row, not a denial');
 select throws_ok($$
   update mos.notifications set title = 'Rewritten after delivery'
   where id = '00000000-0000-0000-0000-000000008003'
 $$, '42501', null,
   'the content is immutable once delivered — a notification the owner has already read cannot be changed under them');
+
+-- ── Handled is the owner's PRIVATE triage stamp (OD-WAY-88 / #549) ───────────────────────────
+select lives_ok($$
+  update mos.notifications set handled_at = null where id = '00000000-0000-0000-0000-000000008003'
+$$, 'the owner can also CLEAR their handled stamp — set and clear are the same private right');
+
+-- A peer in the SAME org: the row is invisible under their RLS, so the UPDATE matches nothing
+-- (the mos_03 no-op pattern). Read back as the owner to prove nothing moved.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+update mos.notifications set handled_at = now() where id = '00000000-0000-0000-0000-000000008003';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select is((select count(*) from mos.notifications where id = '00000000-0000-0000-0000-000000008003' and handled_at is not null), 0::bigint,
+  'a peer in the SAME org cannot handled-stamp someone else''s row — RLS hides it, the write matches nothing');
+
+-- A person in ANOTHER org: same no-op shape — cross-org stays invisible.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+update mos.notifications set handled_at = now() where id = '00000000-0000-0000-0000-000000008003';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select is((select count(*) from mos.notifications where id = '00000000-0000-0000-0000-000000008003' and handled_at is not null), 0::bigint,
+  'a person in ANOTHER org cannot handled-stamp the row either — cross-org writes match nothing');
 
 -- ── Comments: the polymorphic target must exist AND be same-org ──────────────────────────────
 select lives_ok($$

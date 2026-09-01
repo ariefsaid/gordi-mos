@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   listNotifications,
   markNotificationRead,
+  markNotificationHandled,
   type NotificationRow,
 } from '@/lib/db/notifications'
+import { applyMarkHandled } from '@/components/inbox/read-handled-semantics'
 
 export interface UseNotifications {
   notifications: NotificationRow[]
@@ -11,6 +13,8 @@ export interface UseNotifications {
   loading: boolean
   error: string | null
   markRead: (id: string) => Promise<void>
+  /** Explicit "Mark handled" (OD-WAY-88): optimistic, reverts on failure; co-stamps read on an unread row. */
+  markHandled: (id: string) => Promise<void>
   refresh: () => Promise<void>
 }
 
@@ -65,7 +69,25 @@ export function useNotifications(): UseNotifications {
     [notifications],
   )
 
+  const markHandled = useCallback(
+    async (id: string) => {
+      const target = notifications.find((n) => n.id === id)
+      if (!target || target.handled_at != null) return
+      const now = new Date().toISOString()
+      const before = target
+      // Optimistic: applyMarkHandled is the ratified semantics (read co-stamp for unread rows).
+      setNotifications((prev) => prev.map((n) => (n.id === id ? applyMarkHandled(n, now) : n)))
+      try {
+        await markNotificationHandled(id, now, before.read_at == null ? now : null)
+      } catch {
+        // Revert on failure — the queue must not lie about handled state.
+        setNotifications((prev) => prev.map((n) => (n.id === id ? before : n)))
+      }
+    },
+    [notifications],
+  )
+
   const unreadCount = notifications.reduce((n, row) => n + (row.read_at == null ? 1 : 0), 0)
 
-  return { notifications, unreadCount, loading, error, markRead, refresh }
+  return { notifications, unreadCount, loading, error, markRead, markHandled, refresh }
 }
