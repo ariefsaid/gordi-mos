@@ -1,8 +1,8 @@
 // Money-inbox-alignment (Step 9) — Door 1: the Tasks saved-view `?view=followups`
 // chip renders the LIVE Follow-up queue once SHOW_FOLLOWUPS is on (AC-904),
 // reusing the useFollowUpQueue + FollowUpQueueTable pair. FollowUpsPage does NOT use that pair —
-// it is a 261-line bespoke renderer importing none of the three, so "the same as the canonical
-// page" was the fifth copy of the claim #428 was filed to correct. Both doors are dark behind
+// it is a bespoke renderer importing none of the three, so "the same as the canonical
+// page" was one more copy of the claim #428 was filed to correct. Both doors are dark behind
 // SHOW_FOLLOWUPS, so the divergence is in the source, not in anything a viewer reaches
 // (AC-907/AC-908). Flag-variant file — tasks-workspace.test.tsx keeps proving the
 // flag-off placeholder path (AC-311) unmocked/unchanged.

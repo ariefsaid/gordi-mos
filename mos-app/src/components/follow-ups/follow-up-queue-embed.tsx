@@ -11,12 +11,12 @@
 // SHOW_FOLLOWUPS today, so this is a divergence in the SOURCE, not one a viewer can reach yet:
 // when the flag lights, the same record type renders two different ways depending on the door.
 // The rebuild is deferred (OD-WAY-34); #428 owns the cutover. The claim is corrected rather than
-// deleted because asserting the divergence away is exactly what let it be rediscovered four times.
+// deleted because asserting the divergence away is exactly what let it keep being rediscovered.
 //
 // JQ-4 / interaction D-A4: this embed passes the shared record opener, so the counterparty cell
 // opens the follow-up in the shared overlay-host panel instead of a bare <Link> page-jump. That
-// is the open grammar every door is MEANT to share; the Money page shares none of it. Why it
-// cannot be read as a counter-example is stated once, in use-follow-up-record-opener.ts.
+// is the open grammar every door is MEANT to share; the Money page shares none of it. Why that
+// page cannot be read as a counter-example is stated once, in use-follow-up-record-opener.ts.
 import { useFollowUpQueue } from './use-follow-up-queue'
 import { FollowUpQueueTable } from './follow-up-queue-table'
 import { useFollowUpRecordOpener } from './use-follow-up-record-opener'
