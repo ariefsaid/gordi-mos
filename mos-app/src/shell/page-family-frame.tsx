@@ -36,6 +36,8 @@ export interface PageFamilyFrameProps {
    * specific tenant renderer named here — per the page-family migration guard.)
    */
   hideHead?: boolean
+  /** Passthrough to PageHead.headClassName — per-head opt-in modes of the shared grammar. */
+  headClassName?: string
   children: ReactNode
 }
 
@@ -51,6 +53,7 @@ export function PageFamilyFrame({
   state = 'default',
   surfaceWash,
   hideHead = false,
+  headClassName,
   children,
 }: PageFamilyFrameProps) {
   const contract = PAGE_FAMILY_CONTRACTS[family]
@@ -73,6 +76,7 @@ export function PageFamilyFrame({
           meta={meta}
           action={action}
           statusRow={statusRow}
+          headClassName={headClassName}
         />
       )}
       {children}

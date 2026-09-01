@@ -49,6 +49,12 @@ export interface PageHeadProps {
    */
   statusRow?: ReactNode
   family?: PageFamily
+  /**
+   * Extra class on the head element (both variants), for per-head opt-in modes of the shared
+   * grammar — e.g. `content-header--meta-inline` (FR-005 #547: a head whose meta is only the
+   * help glyph keeps it in the title row at phone width). Optional; absent = head unchanged.
+   */
+  headClassName?: string
 }
 
 /**
@@ -59,7 +65,7 @@ export interface PageHeadProps {
  */
 export function PageHead({
   title, subtitle, jobSentence, meta, maxWidth,
-  variant = 'prose', count, action, statusRow, family,
+  variant = 'prose', count, action, statusRow, family, headClassName,
 }: PageHeadProps) {
   const v3ClassName = family ? ' page-head--v3' : ''
   if (variant === 'content') {
@@ -67,7 +73,7 @@ export function PageHead({
     return (
       <div
         data-testid="page-head"
-        className={`content-header${v3ClassName}${compactClassName}`}
+        className={`content-header${v3ClassName}${compactClassName}${headClassName ? ` ${headClassName}` : ''}`}
         style={maxWidth ? { maxWidth } : undefined}
       >
         {/* Cohesion-debt 2026-07-19, item #5 (owner call: "proceed with all items"):
@@ -98,7 +104,7 @@ export function PageHead({
     <div
       data-testid="page-head"
       style={{ marginBottom: 16, ...(maxWidth ? { maxWidth } : {}) }}
-      className={family ? 'page-head--v3' : undefined}
+      className={[family ? 'page-head--v3' : '', headClassName].filter(Boolean).join(' ') || undefined}
     >
       <div className="flex items-baseline gap-3 flex-wrap">
         <h1

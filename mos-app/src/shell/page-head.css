@@ -167,4 +167,14 @@
   .content-header--compact .ch-status-row {
     order: 3;
   }
+
+  /* ── Meta stays in the title row (opt-in) ────────────────────────────────────────────────
+     FR-005 / AC-005 (#547): a head whose meta is ONLY the help glyph must not spend the
+     generic phone stack — order 4 + full width strands a lone "?" on its own row below the
+     job sentence, where it reads as debris. The glyph rides the title row, as on desktop.
+     Opt-in via PageHead headClassName; every other head keeps the stack. No new tokens. */
+  .content-header--meta-inline .ch-meta {
+    order: 0;
+    flex: none;
+  }
 }
