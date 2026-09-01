@@ -60,7 +60,10 @@ jobs:
           else
             RANGE="HEAD~1..HEAD"
           fi
-          INERT='^(docs/|review/|adws/|\.claude/|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
+          # Extended 2026-09-01: the gate-era surfaces (scripts/, hooks, CI defs, contracts, justfile)
+          # ship no pixels — every guard PR was paying ~3 min of screenshots (owner audit of the
+          # gates' own spend). Same inert-allowlist polarity as pre-pr-verify's local scope.
+          INERT='^(docs/|review/|adws/|\.claude/|scripts/|agents/|\.githooks/|\.github/|justfile$|\.env\.sample$|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
           CHANGED="$(git diff --name-only "$RANGE")"
           NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
           if [ -n "$NOT_INERT" ]; then
