@@ -31,4 +31,26 @@ noauth="$(mktemp -d "${TMPDIR:-/tmp}/gh-noauth.XXXXXX")"
 export GH_CONFIG_DIR="$noauth"
 # Env tokens override config-dir auth — scrub them or the empty config is theater.
 unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
-PATH="$top/scripts/gh-shim:$PATH" exec uv run "$top/adws/$adw" "$@"
+# Node pin (#560): the quality gates run node, and an inherited session PATH can lead with a
+# node the repo rejects — homebrew node 26 first fails 16 shell tests that CI (node 22, the
+# repo's mos-app/.nvmrc) passes, so the gate goes red on inherited failures. Lead PATH (just
+# under the gh shim, which must stay first) with the .nvmrc node when one exists: an
+# exact-major install under nvm's versions dir (NVM_DIR, nvm's own convention, default
+# ~/.nvm), else the session's node if its major already matches, else warn and gate on the
+# inherited node anyway — the door never hard-fails over a dev-machine quirk, and there is
+# deliberately no install step (no network, no new dependencies).
+nvmrc="$(tr -d '[:space:]' < "$top/mos-app/.nvmrc" 2>/dev/null || true)"
+nvm_node=""
+if [ -n "$nvmrc" ]; then
+  nvm_major="${nvmrc#v}"; nvm_major="${nvm_major%%.*}"
+  for bin_dir in "${NVM_DIR:-$HOME/.nvm}"/versions/node/v"$nvm_major"*/bin; do
+    [ -x "$bin_dir/node" ] && nvm_node="$bin_dir"
+  done
+  if [ -z "$nvm_node" ]; then
+    cur_v="$(node -v 2>/dev/null || true)"
+    cur_major="${cur_v#v}"; cur_major="${cur_major%%.*}"
+    [ "$cur_major" = "$nvm_major" ] || \
+      echo "⚠ factory-run: .nvmrc node $nvmrc not found — using inherited node ${cur_v:-none}" >&2
+  fi
+fi
+PATH="$top/scripts/gh-shim${nvm_node:+:$nvm_node}:$PATH" exec uv run "$top/adws/$adw" "$@"
