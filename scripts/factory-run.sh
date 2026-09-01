@@ -31,4 +31,30 @@ noauth="$(mktemp -d "${TMPDIR:-/tmp}/gh-noauth.XXXXXX")"
 export GH_CONFIG_DIR="$noauth"
 # Env tokens override config-dir auth — scrub them or the empty config is theater.
 unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
-PATH="$top/scripts/gh-shim:$PATH" exec uv run "$top/adws/$adw" "$@"
+# Node pin: quality gates must not silently use a rejected inherited major. If the pin cannot
+# be resolved, warn and continue with the inherited node (fail open; no install step).
+nvmrc=""
+if [ -f "$top/mos-app/.nvmrc" ]; then
+  nvmrc="$(tr -d '[:space:]' < "$top/mos-app/.nvmrc")"
+fi
+if [ -z "$nvmrc" ]; then
+  echo "⚠ factory-run: mos-app/.nvmrc absent — using inherited node" >&2
+fi
+nvm_node=""
+if [ -n "$nvmrc" ]; then
+  nvm_major="${nvmrc#v}"; nvm_major="${nvm_major%%.*}"
+  nvm_matches=("${NVM_DIR:-$HOME/.nvm}"/versions/node/v"$nvm_major".*/bin)
+  nvm_matches=($(for dir in "${nvm_matches[@]}"; do
+    [ -x "$dir/node" ] && printf '%s\n' "$dir"
+  done | sort -V))
+  if [ "${#nvm_matches[@]}" -gt 0 ] && [ -d "${nvm_matches[0]}" ]; then
+    nvm_node="${nvm_matches[${#nvm_matches[@]} - 1]}"
+  fi
+  if [ -z "$nvm_node" ]; then
+    cur_v="$(node -v 2>/dev/null || true)"
+    cur_major="${cur_v#v}"; cur_major="${cur_major%%.*}"
+    [ "$cur_major" = "$nvm_major" ] || \
+      echo "⚠ factory-run: .nvmrc node $nvmrc not found — using inherited node ${cur_v:-none}" >&2
+  fi
+fi
+PATH="$top/scripts/gh-shim${nvm_node:+:$nvm_node}:$PATH" exec uv run "$top/adws/$adw" "$@"
