@@ -16,9 +16,11 @@
 > (2026-07-31: fifteen issues filed from the backlog, four detailing live auth/RLS holes, visibility
 > never checked.)
 
-Internal **Management Operating System** for Gordi, ~30 people. Five destinations: Home / Work /
-Operate / Plan / Inbox. Tasks + RACI + updates + per-Activity ops + reference data + money
-follow-ups. Ships at `https://ops.gordi.id/mos`.
+Internal **Management Operating System** for Gordi, ~30 people. Four workspace roots —
+Home / Work / Money / Inbox — with Work carrying the object collections (Signals · Tasks ·
+Projects & Processes · Objectives) and Café as the ops module; RACI lives on the objects.
+Updates + per-Activity ops + reference data + money follow-ups. Ships at
+`https://ops.gordi.id/mos`.
 
 **Usability and speed beat model completeness.**
 
@@ -68,9 +70,10 @@ Findings in a separate comment, never the PR body. A push staleifies every recor
   decisions, gotchas, runbooks, infra coordinates, agent config, archive. Start `docs/README.md`.
 
 ## Commands (inside `mos-app/`)
-`npm run dev` · `build` · `typecheck` · `lint -- --max-warnings=0` · `test` (Vitest; the PR gate
-runs `test:coverage`) ·
-`e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP) ·
+`npm run dev` · `build` · `typecheck` · `lint` (script already carries `--max-warnings=0`; also
+runs `lint:css`) · `test` (Vitest; the PR gate runs `test:coverage`) ·
+`e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP — run from the
+repo root, not `mos-app/`) ·
 `test-storybook` (phone-390 + a11y gates; not a CI lane).
 
 `./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
