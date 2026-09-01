@@ -22,9 +22,9 @@ import {
  * filter store — but the filter state it is handed is NOT on the Issue 6 RecordCollection seam:
  * InboxTriageConnected keeps it in plain `useState`, so it does not URL-sync or survive refresh.
  * Migrating Inbox onto the engine's synced query is D-E1 / fix work-order item 7
- * (docs/plans/2026-07-23-interaction-consistency.md). The Handled filter is omitted (not a dead
- * tab) until `handledFilterAvailable` — see read-handled-semantics.ts for the owner-gated
- * provisional semantics.
+ * (docs/plans/2026-07-23-interaction-consistency.md). The Handled filter is LIVE (OD-WAY-88):
+ * `handled_at` is the viewer-personal triage stamp that hides rows from the owner's own active queue.
+ * It renders only when `handledFilterAvailable` (owner-gated) — see read-handled-semantics.ts.
  */
 
 export type InboxTriageState = 'loading' | 'ready' | 'empty' | 'error' | 'unauthorized'

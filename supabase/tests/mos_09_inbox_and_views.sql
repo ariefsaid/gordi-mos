@@ -8,7 +8,7 @@
 -- org itself.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(39);
 
 select shared._test_seed_directory();
 
@@ -62,6 +62,10 @@ $$, 'the owner can mark their own notification read');
 select lives_ok($$
   update mos.notifications set handled_at = now() where id = '00000000-0000-0000-0000-000000008003'
 $$, '...and triage it out of the active queue — read and handled are different states, and both are representable');
+-- lives_ok alone proves no exception; a policy DENYING the owner's UPDATE (zero-row update) would
+-- still pass. Read back the stamp directly so AC-004 actually fails if the write matches nothing.
+select is((select handled_at is not null from mos.notifications where id = '00000000-0000-0000-0000-000000008003'), true,
+  '...and the owner''s handled stamp actually stuck — the UPDATE matched a row, not a denial');
 select throws_ok($$
   update mos.notifications set title = 'Rewritten after delivery'
   where id = '00000000-0000-0000-0000-000000008003'

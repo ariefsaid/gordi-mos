@@ -2,8 +2,9 @@ import { supabase } from '@/lib/supabase'
 
 // Data layer for mos.notifications (Inbox destination — ADR-0044 §5 / ADR-0019 D9). Reads/writes via
 // supabase.schema('mos') on the existing caller-JWT client; RLS is the authority (owner-private,
-// org-scoped) — this layer NEVER sends org_id/owner_id. The only permitted write is marking read
-// (the mark-read-only column-pin trigger enforces content immutability server-side).
+// org-scoped) — this layer NEVER sends org_id/owner_id. The only permitted writes are marking read
+// and marking handled (OD-WAY-88, the viewer-personal triage stamp); the column-pin trigger keeps
+// the delivered content itself immutable server-side.
 
 const mos = () => supabase.schema('mos')
 
