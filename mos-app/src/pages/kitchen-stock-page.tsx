@@ -99,7 +99,7 @@ export function KitchenStockPage() {
   const stockColumns: DataTableColumn<KitchenStockRow>[] = [
     {
       key: 'wip_item_name',
-      header: t('kitchen.stock.col.dish'),
+      header: t('kitchen.stock.col.item'),
       cardLabel: '',
       render: row => (
         <span className="ks-item">

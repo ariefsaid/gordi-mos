@@ -252,7 +252,7 @@ function PlanEditor() {
   const planColumns: DataTableColumn<WipItemOption>[] = [
     {
       key: 'dish',
-      header: t('kitchen.plan.col.dish'),
+      header: t('kitchen.plan.col.item'),
       cardLabel: '',
       render: item => (
         <span className="kp-dish">
@@ -262,7 +262,7 @@ function PlanEditor() {
           <Link
             to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
             className="kp-name kp-row-link"
-            aria-label={t('kitchen.plan.row.logAria', { dish: item.name })}
+            aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
           >
             {item.name}
           </Link>
@@ -514,7 +514,7 @@ function PesananView() {
           <Link
             to={`/cafe/log?q=${encodeURIComponent(r.wip_item_name)}`}
             className="kp-name kp-row-link"
-            aria-label={t('kitchen.plan.row.logAria', { dish: r.wip_item_name })}
+            aria-label={t('kitchen.plan.row.logAria', { item: r.wip_item_name })}
           >
             {r.wip_item_name}
           </Link>

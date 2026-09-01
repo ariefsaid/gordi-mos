@@ -565,7 +565,7 @@ export function KitchenLogPage() {
   const columns: DataTableColumn<CaptureFormItem>[] = [
     {
       key: 'dish',
-      header: t('kitchen.log.col.dish'),
+      header: t('kitchen.log.col.item'),
       cardLabel: '',
       render: item => (
         <span className="kl-dish">
@@ -817,7 +817,7 @@ export function KitchenLogPage() {
           <div className="kl-footer">
             <div className="kl-tally">
               <span className="kl-tally-num tabular">
-                {t(stagedCount === 1 ? 'kitchen.log.footer.dish.one' : 'kitchen.log.footer.dish.other', { count: stagedCount })}
+                {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
                 {' · '}
                 {t(kpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: kpis.madeSoFar })}
               </span>

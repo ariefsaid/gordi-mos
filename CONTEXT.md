@@ -82,6 +82,14 @@ A stream is **named by its branch's canonical catalog name** wherever it is name
 _Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
 fold destination into action — a storage workaround, not the model; DD-WAY-13)
 
+**Item** (Café production):
+The thing a **production stream makes** and the production noun across ALL Café streams — kitchen
+and bar alike (owner ruling `OD-WAY-85`, 2026-08-31). This is what `ops.wip_items` already stores;
+every Café surface (Log, Plan, Stock, Review) names it **Item** in both locales — English and
+Indonesian share the word.
+_Avoid_: dish, hidangan; "menu" as the surface noun on Café screens ("menu item" survives only in
+menu-costing/COGS contexts)
+
 **Unit** (of a WIP item):
 **Master data, not an input.** An item is made in one unit, shown fixed beside the quantity box;
 changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — the ERP

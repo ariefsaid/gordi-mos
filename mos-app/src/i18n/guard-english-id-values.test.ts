@@ -1,7 +1,8 @@
 // #410 — the check the parity test cannot make.
 //
 // The parity type + test prove every key EXISTS in both locales; they can never notice that an
-// Indonesian VALUE is still the English word. That is exactly how `kitchen.stock.col.dish`,
+// Indonesian VALUE is still the English word. That is exactly how `kitchen.stock.col.dish`
+// (now `kitchen.stock.col.item`, value 'Item' per OD-WAY-85),
 // `kitchen.pushes.col.error` and `kitchen.pushes.col.target` shipped as 'Dish'/'Error'/'Target'
 // in the id catalog while v4 had them translated ('Hidangan'/'Kesalahan'/'Tujuan') — a shared
 // key is skipped by a "keys dev lacks" sweep, and a catalog value is skipped by a "hardcoded
@@ -69,6 +70,11 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'admin.create.email', // Email
   // #410 review-page chrome: 'Item' is the same word in both locales.
   'kitchen.review.col.item', // Item
+  'kitchen.log.col.item', // Item — same word in both locales (OD-WAY-85)
+  'kitchen.plan.col.item', // Item — same word in both locales (OD-WAY-85)
+  'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)
+  'kitchen.plan.pesanan.col.item', // Item — same word in both locales (OD-WAY-85)
+  'kitchen.log.footer.item.one', // ${count} item — same word in both locales (OD-WAY-85)
 ])
 
 describe('id catalog values are Indonesian (#410 inverse of the parity test)', () => {
@@ -81,8 +87,7 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
     expect(offenders, `id === en outside the allowlist: ${offenders.join(', ')}`).toEqual([])
   })
 
-  it('the three #410 keys stay translated (the seed defects this guard exists for)', () => {
-    expect(messages.id['kitchen.stock.col.dish']).toBe('Hidangan')
+  it('the remaining #410 keys stay translated (the seed defects this guard exists for)', () => {
     expect(messages.id['kitchen.pushes.col.error']).toBe('Kesalahan')
     expect(messages.id['kitchen.pushes.col.target']).toBe('Tujuan')
   })

@@ -73,7 +73,7 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
       <input
         type="number"
         inputMode="decimal"
-        aria-label={t('kitchen.qty.plannedAria', { dish: itemName })}
+        aria-label={t('kitchen.qty.plannedAria', { item: itemName })}
         className="pqf-qty"
         value={draft > 0 ? draft : ''}
         placeholder="0"

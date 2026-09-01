@@ -48,7 +48,7 @@ export function computePlanSummary(cells: PlanCell[], movement: KitchenMovement)
     ariaLabel: 'kitchen.plan.summary.aria',
     metrics: [
       { key: 'plannedTotal', label: 'kitchen.kpi.plannedTotal', value: String(plannedTotal) },
-      { key: 'dishesPlanned', label: 'kitchen.plan.summary.dishesPlanned', value: String(plannedDishCount) },
+      { key: 'dishesPlanned', label: 'kitchen.plan.summary.itemsPlanned', value: String(plannedDishCount) },
     ],
   }
 }
