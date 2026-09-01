@@ -452,7 +452,9 @@ describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () =>
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     fireEvent.change(groupSelect, { target: { value: 'status' } })
     await waitFor(() => {
-      expect(document.querySelectorAll('tr.grp').length).toBeGreaterThanOrEqual(4)
+      // Capability preserved: status grouping still renders. Only Open holds a row;
+      // #569 drops empty statuses → exactly one populated group header.
+      expect(document.querySelectorAll('tr.grp').length).toBe(1)
     })
   })
 })
@@ -1181,9 +1183,10 @@ describe('Task 14/15 — grouping engine (AC-123, AC-119)', () => {
     await switchToAll()
     selectGroupBy('status') // opt into grouping (default is flat)
     await waitFor(() => screen.getByText('Blocked one'))
-    // Group header rows (tr.grp) for each status, never .task-row
+    // Group header rows (tr.grp): only statuses holding rows render — In Progress and
+    // Done are empty in scope and dropped by #569.
     const groups = document.querySelectorAll('tr.grp')
-    expect(groups.length).toBeGreaterThanOrEqual(4) // all 4 statuses shown
+    expect(groups.length).toBe(2)
     // Blocked group header shows its label + count 2
     const blockedHeader = Array.from(groups).find(g => g.textContent?.includes('Blocked'))
     expect(blockedHeader).toBeTruthy()
@@ -1221,8 +1224,8 @@ describe('Task 14/15 — grouping engine (AC-123, AC-119)', () => {
 })
 
 describe('Task 17 — show all groups incl. empty (AC-124)', () => {
-  it('AC-124: grouping by Owner shows ALL owner groups, including those with zero tasks', async () => {
-    // Only the viewer owns a task; Budi (other-id) owns none → his group still renders.
+  it('AC-124: grouping by Owner renders only owner groups that hold rows (#569)', async () => {
+    // Only the viewer owns a task; Budi (other-id) owns none → his empty group is dropped.
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
     renderTable()
     await waitFor(() => screen.getByText('Mine task'))
@@ -1232,8 +1235,8 @@ describe('Task 17 — show all groups incl. empty (AC-124)', () => {
     await waitFor(() => {
       const groups = Array.from(document.querySelectorAll('tr.grp'))
       const budiHeader = groups.find(g => g.textContent?.includes('Budi'))
-      expect(budiHeader).toBeTruthy()
-      expect(budiHeader!.textContent).toContain('0') // zero count
+      expect(budiHeader).toBeFalsy() // zero-count owner group dropped (#569)
+      expect(groups.length).toBe(1) // only the owner holding the task renders
     })
   })
 })

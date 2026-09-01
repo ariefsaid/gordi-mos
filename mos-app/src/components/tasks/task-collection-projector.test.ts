@@ -27,6 +27,7 @@ const BU_B2B = 'bu-b2b'
 const P_RAKA = 'p-raka'
 const P_SARI = 'p-sari'
 const P_ADI = 'p-adi'
+const P_AYU = 'p-ayu'
 const WL_ROASTERY = 'wl-roastery'
 const WL_SOP = 'wl-sop'
 const RUN_CAFE_OPENING = 'run-cafe-opening'
@@ -259,5 +260,26 @@ describe('buildTaskGroups — grouping branches', () => {
     const ctx = makeContext({ runRollupsByRunId: new Map([[RUN_CAFE_OPENING, CAFE_OPENING_ROLLUP]]) })
     const groups = buildTaskGroups(RAW.map(toTaskCollectionRecord), q({ groupBy: 'occurrence' }), ctx)
     expect(groups.find((g) => g.key === RUN_CAFE_OPENING)?.overdue).toBe(2)
+  })
+
+  it('AC-001 (#569): a zero-row group does not render above groups with rows', () => {
+    // Ayu sits FIRST in the people directory but PICs nothing in scope — today her empty
+    // group is the first thing a group=pic table renders (the #569 bug). Adi (trailing
+    // directory entry, also PIC-less) must vanish too.
+    const ayu = { id: P_AYU, full_name: 'Ayu' } as PersonOption
+    const p = projectTaskCollection(
+      makeData(RAW, { people: [ayu, ...PEOPLE] }),
+      q({ groupBy: 'pic' }),
+    )
+    expect(p.groups.map((g) => g.key)).toEqual([P_RAKA, P_SARI])
+    expect(p.groups.every((g) => g.rows.length > 0)).toBe(true)
+  })
+
+  it('AC-002 (#569): grouping where every group has rows is unchanged (order preserved)', () => {
+    // Both BUs hold rows; the empty-group rule must be a no-op here — same groups,
+    // same order, same due-sorted inner rows.
+    const p = projectTaskCollection(makeData(), q({ groupBy: 'bu' }))
+    expect(p.groups.map((g) => g.key)).toEqual([BU_CAFE, BU_B2B])
+    expect(p.groups.map((g) => g.rows.map((r) => r.id))).toEqual([['t-1', 't-3'], ['t-2']])
   })
 })
