@@ -14,6 +14,10 @@
 #
 # Protected (never deleted): main, dev, staging, and the branch currently checked out.
 # ponytail: only ever deletes MERGED branches — unmerged work is left alone, by design.
+# Fail closed: a failed `git fetch --prune origin` aborts the sweep (a stale origin/<target>
+# must never drive removals), and a DIRTY worktree (uncommitted/untracked work) is kept, not
+# force-removed. (Ignored files don't count — traces under adws/adw_data/ are gitignored and
+# archived below.)
 # Detached review worktrees (review-* carry NO `branch` line in `git worktree list --porcelain`)
 # are swept purely by age under `.claude/worktrees/`; adws/adw_data/archive/ is pruned past 90 days.
 set -euo pipefail
@@ -53,11 +57,20 @@ archive_or_keep() {
   return 0
 }
 
+# Uncommitted/untracked work is unrecoverable once the worktree is gone — never remove a tree
+# that still holds it.
+dirty() { [ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ]; }
+
 PROTECTED="main dev staging"
 CURRENT="$(git branch --show-current)"
 
 echo "== cleanup vs origin/$TARGET =="
-git fetch --prune origin >/dev/null 2>&1 || true
+# Fail closed: the merge-base checks run against origin/$TARGET — pruning against a STALE
+# origin/$TARGET could delete live work. A failed fetch aborts the whole sweep.
+if ! git fetch --prune origin >/dev/null 2>&1; then
+  echo "worktree-cleanup: 'git fetch --prune origin' failed — aborting removals" >&2
+  exit 1
+fi
 
 # 1. Remove worktrees: merged branch worktrees plus detached .claude/worktrees/ past max-age.
 git worktree list --porcelain | awk '
@@ -72,9 +85,15 @@ git worktree list --porcelain | awk '
     refs/heads/*)
       br="${ref#refs/heads/}"
       if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
+        if dirty "$path"; then
+          echo "  worktree (dirty, kept): $path [$br]"
+          continue
+        fi
         archive_or_keep "$path" || continue
         echo "  worktree (merged): $path [$br] -> remove"
-        git worktree remove --force "$path" 2>/dev/null || true
+        # No --force: the dirty guard above already filtered; a plain remove refuses anything
+        # questionable instead of destroying it.
+        git worktree remove "$path" 2>/dev/null || true
       fi
       ;;
     DETACHED)
@@ -83,9 +102,13 @@ git worktree list --porcelain | awk '
       case "$path" in
         *.claude/worktrees/*)
           if find "$path" -maxdepth 0 -type d -mmin +$((MAX_AGE_DAYS * 1440)) | grep -q .; then
+            if dirty "$path"; then
+              echo "  worktree (dirty, kept): $path"
+              continue
+            fi
             archive_or_keep "$path" || continue
             echo "  worktree (detached, >${MAX_AGE_DAYS}d old): $path -> remove"
-            git worktree remove --force "$path" 2>/dev/null || true
+            git worktree remove "$path" 2>/dev/null || true
           fi
           ;;
       esac
@@ -103,9 +126,16 @@ if [ -d "$archive_root" ]; then
   done
 fi
 
-# 2. Delete LOCAL branches merged into the target (skip protected + current).
+# 2. Delete LOCAL branches merged into the target (skip protected + current + still checked
+# out in a kept worktree — `git branch -D` refuses a checked-out branch and would abort the
+# sweep under set -e).
+checked_out="$(git worktree list --porcelain | sed -n 's/^branch //p' | sed 's#^refs/heads/##')"
 for br in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
   case " $PROTECTED $CURRENT " in *" $br "*) continue;; esac
+  if printf '%s\n' "$checked_out" | grep -Fxq "$br"; then
+    echo "  local branch (kept, still checked out): $br"
+    continue
+  fi
   if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
     echo "  local branch (merged): $br -> delete"
     git branch -D "$br" >/dev/null

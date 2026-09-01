@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Self-test for scripts/drive-burn.sh — summing, windowing, and the two empty paths.
+# Self-test for scripts/drive-burn.sh — summing, windowing, the two empty paths, and the
+# fail-closed path: session files in the window with nothing parsable = ERROR, nonzero exit.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/drive-burn.sh"
@@ -33,6 +34,22 @@ printf '%s' "$out" | grep -q "no pi session dir"; t "missing dir reports, exits 
 mkdir -p "$tmp/empty"
 out="$(PI_SESSIONS_DIR="$tmp/empty" bash "$SCRIPT" 1)"
 printf '%s' "$out" | grep -q "0 pi tokens"; t "empty window reports zero" $? "$out"
+
+# Malformed session files must fail closed: files found but 0 records parsed = ERROR (exit 1),
+# never a silent "0 tokens".
+mkdir -p "$tmp/garbage/--Users-x-Coding-gordi-mos--"
+printf 'not json at all\n{"broken": tru\n' > "$tmp/garbage/--Users-x-Coding-gordi-mos--/junk.jsonl"
+out="$(PI_SESSIONS_DIR="$tmp/garbage" bash "$SCRIPT" 24 2>&1)"; rc=$?
+[ "$rc" -ne 0 ]; t "unparsable session files exit nonzero (fail closed)" $? "$out"
+printf '%s' "$out" | grep -q "ERROR"; t "unparsable session files error instead of reporting 0" $? "$out"
+
+# Boundary: SOME parsable records among the files = sum those, exit 0.
+mkdir -p "$tmp/mixed/--Users-x-Coding-gordi-mos--"
+printf 'garbage line\n' > "$tmp/mixed/--Users-x-Coding-gordi-mos--/junk.jsonl"
+printf '{"usage":{"totalTokens":55}}\n' > "$tmp/mixed/--Users-x-Coding-gordi-mos--/good.jsonl"
+out="$(PI_SESSIONS_DIR="$tmp/mixed" bash "$SCRIPT" 24 2>&1)"; rc=$?
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q "55 pi tokens across 2 session(s)"; }
+t "some parsable records among junk still sum, exit 0" $? "$out"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

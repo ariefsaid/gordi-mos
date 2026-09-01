@@ -4,11 +4,11 @@
 #   scripts/drive-burn.sh [hours]      (default 24)
 #
 # Sums the usage records pi already writes (~/.pi/agent/sessions/<cwd-slug>/*.jsonl).
-# Worktree and factory dispatches log under their OWN slugs (13 slug dirs observed; a 10.6M-token
-# factory run was invisible), so SUM across EVERY slug matching this repo, not just the main
-# checkout's.
-# PI_SESSIONS_DIR overrides the sessions ROOT (self-test). Missing dir/no sessions = report,
-# exit 0.
+# Worktree and factory dispatches log under their OWN slugs (one per checkout path), so SUM
+# across EVERY slug matching this repo, not just the main checkout's.
+# PI_SESSIONS_DIR overrides the sessions ROOT (self-test). Missing dir/no sessions in the
+# window = report 0, exit 0. Session files found but 0 totalTokens records parsed = ERROR,
+# exit 1 (fail closed — a silent 0 would understate burn).
 # Self-test: scripts/drive-burn.test.sh
 set -uo pipefail
 
@@ -27,6 +27,9 @@ n="$(find "${dirs[@]}" -name '*.jsonl' -mmin -$((hours * 60)) 2>/dev/null | wc -
 [ "$n" -gt 0 ] || { echo "burn: 0 pi tokens (no sessions in last ${hours}h)"; exit 0; }
 
 # -exec cat {} + keeps filenames intact (xargs split on spaces and silently dropped those files).
-total="$(find "${dirs[@]}" -name '*.jsonl' -mmin -$((hours * 60)) -exec cat {} + 2>/dev/null \
-  | grep -oE '"totalTokens":[0-9]+' | cut -d: -f2 | awk '{s+=$1} END {print s+0}')"
+# Fail closed: files in the window with nothing parsable must ERROR, not report a silent 0.
+raw="$(find "${dirs[@]}" -name '*.jsonl' -mmin -$((hours * 60)) -exec cat {} + 2>/dev/null \
+  | grep -oE '"totalTokens":[0-9]+' | cut -d: -f2)"
+[ -n "$raw" ] || { echo "burn: ERROR ${n} session file(s) in the window but 0 totalTokens records parsed" >&2; exit 1; }
+total="$(printf '%s\n' "$raw" | awk '{s+=$1} END {print s+0}')"
 echo "burn: ${total} pi tokens across ${n} session(s) in last ${hours}h (all checkout/worktree slugs)"
