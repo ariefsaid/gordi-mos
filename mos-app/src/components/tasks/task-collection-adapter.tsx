@@ -561,7 +561,11 @@ export function projectTaskCollection(
     : data.records.map((r) => (ctx.statusOverrides.has(r.id) ? { ...r, status: ctx.statusOverrides.get(r.id)! } : r))
   const filtered = withOverrides.filter((r) => matchesTaskFilters(r, query, ctx.viewerId, ctx.now))
   const sorted = sortTaskRecords(filtered, query, ctx.personNamesById)
-  const groups = buildTaskGroups(sorted, query, ctx)
+  // #569: a group with zero rows in the current filter scope does not render — an empty
+  // bucket never leads the grouped table. Groups holding rows keep their exact order
+  // (Array.filter preserves it); the all-empty case falls to TasksTableBody's
+  // empty/filtered-empty state, which keys off leafTasks, not groups.
+  const groups = buildTaskGroups(sorted, query, ctx).filter((group) => group.rows.length > 0)
   return {
     visibleRecords: sorted,
     groups,

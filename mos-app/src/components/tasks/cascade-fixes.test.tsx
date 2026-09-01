@@ -253,7 +253,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     })
   })
 
-  it('RI-2: without a person filter, all work-line groups are shown (layout stability)', async () => {
+  it('RI-2: without a person filter, zero-count work-line groups are still dropped (#569)', async () => {
     vi.mocked(listTasks).mockResolvedValue([
       makeTask({ id: 't1', title: 'Task A', work_line_id: 'wl-project' }),
     ])
@@ -265,9 +265,10 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     fireEvent.change(groupSelect, { target: { value: 'workline' } })
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
-      // Both groups render (no person filter = show all for layout stability)
+      // #569: the projection drops every zero-row group — the empty wl-process group does
+      // not render even without a person filter. Only the group holding a row remains.
       expect(glabels).toContain('New Menu Design')
-      expect(glabels).toContain('Daily IG Content')
+      expect(glabels).not.toContain('Daily IG Content')
     })
   })
 })

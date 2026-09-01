@@ -227,7 +227,10 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     // Still works for status
     fireEvent.change(groupSelect, { target: { value: 'status' } })
     await waitFor(() => {
-      expect(document.querySelectorAll('tr.grp').length).toBeGreaterThanOrEqual(4)
+      const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
+      // Status grouping still works; #569 drops empty statuses — only Blocked has a row.
+      expect(glabels).toContain('Blocked')
+      expect(document.querySelectorAll('tr.grp').length).toBe(1)
     })
   })
 })
