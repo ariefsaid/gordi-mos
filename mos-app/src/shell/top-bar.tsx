@@ -275,8 +275,11 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           </button>
         )}
 
-        {/* Inbox bell — always live (SHOW_INBOX retired, D-1). A live Inbox link + unread badge. */}
-        <NotificationBell />
+        {/* Inbox bell — desktop door only (FR-002/AC-002, #545). At <920px it must NOT render:
+            the bottom-tab Inbox entry (with its unread badge) is the phone's sole Inbox door, and
+            a second rendered door would split the phone's Inbox entry point in two. The bell's
+            internal no-host route fallback stays live for desktop renders without a host. */}
+        {!isNarrow && <NotificationBell />}
 
         {/* Deputy launcher (T28) — neutral header icon on every viewport (No-FAB Rule).
             Absent when SHOW_ASSISTANT=false. */}
