@@ -157,9 +157,8 @@ async function switchToAll() {
   })
 }
 
-// OD-REDESIGN-84.1: filters/group/sort/toggles (incl. the attention pill) live behind the one
-// desktop "View & filters" disclosure. Open it when collapsed; the controls themselves are
-// unchanged, so these journeys just reach through the door first.
+// Desktop filters/group/sort/toggles are inline; the phone host owns the single disclosure.
+// Keep this helper for phone journeys, where the outer door may still need opening.
 function openViewOptions() {
   const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
@@ -269,9 +268,8 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     mockListTasks.mockRejectedValue(new Error('boom'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    // toolbar stays rendered: its "View & filters" door remains reachable and reveals the filters
-    expect(screen.getByRole('button', { name: /view & filters/i })).toBeInTheDocument()
-    openViewOptions()
+    // Desktop toolbar stays rendered with its secondary controls exposed and no inner door.
+    expect(screen.queryByRole('button', { name: /view & filters/i })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
   })
@@ -921,12 +919,8 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   // carries the runs disclosure (aria-expanded) when due work exists. The goal-oracle is
   // unchanged (a capable viewer reveals + starts a due run, collapsed by default); only the
   // control that reveals it changed from a bespoke trigger to the shared attention pill.
-  // The attention pill lives behind the desktop "View & filters" disclosure (OD-84.1); open that
-  // door first, then exercise the pill's own runs disclosure.
-  async function openAttentionDoor() {
-    const door = await screen.findByRole('button', { name: /view & filters/i })
-    if (door.getAttribute('aria-expanded') === 'false') fireEvent.click(door)
-  }
+  // Desktop options are inline; retain the helper as a no-op for the shared phone journey.
+  async function openAttentionDoor() {}
 
   async function expandDueRuns() {
     await openAttentionDoor()

@@ -89,48 +89,33 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(saveTrigger).toHaveFocus()
   })
 
-  it('OD-REDESIGN-84.1: filters/group/sort are disclosed behind ONE "View & filters" door and a dot flags a non-default shape', async () => {
-    // Desktop grammar: the lean row shows only search + the one trigger. Phone hosts expose the
-    // identical door via their outer wrapper (matchMedia default → panel already expanded there).
+  it('OD-WAY-89: exposes compact desktop options without a disclosure door', async () => {
     stubDesktop()
-    const onGroupChange = vi.fn()
-    render(
-      <I18nProvider>
-        <CollectionToolbar
-          presentation={{
-            label: 'Presentation', value: 'table',
-            options: [{ value: 'table', label: 'Table' }], onChange: vi.fn(),
-          }}
-          views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
-          filters={[
-            {
-              id: 'team', label: 'Team', value: '',
-              options: [{ value: '', label: 'All teams' }], onChange: vi.fn(),
-            },
-            {
-              id: 'tasks-group', label: 'Group', value: 'team',
-              options: [{ value: '', label: 'None' }, { value: 'team', label: 'Team' }],
-              onChange: onGroupChange,
-            },
-          ]}
-        />
-      </I18nProvider>,
-    )
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      filters={[{ id: 'team', label: 'Team', value: '', options: [{ value: '', label: 'All teams' }], onChange: vi.fn() }, { id: 'group', label: 'Group', value: '', options: [{ value: '', label: 'All groups' }], onChange: vi.fn() }]}
+      savedViews={{ label: 'Saved views', selectedId: null, operation: 'idle', items: [], onApply: vi.fn(), onSave: vi.fn() }}
+      toggles={<span role="switch" aria-label="Attention">Attention</span>}
+    /></I18nProvider>)
 
-    // Collapsed: the domain filter AND the view-shape select both live behind the one door.
-    expect(screen.queryByRole('combobox', { name: 'Team' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
-
-    const trigger = screen.getByRole('button', { name: /view & filters/i })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    // A non-default filter (Group=team) is hidden, so the trigger carries the active dot.
-    expect(document.querySelector('.collection-toolbar__options-dot')).toBeInTheDocument()
-
-    await userEvent.click(trigger)
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: /view & filters/i })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Group' }), '')
-    expect(onGroupChange).toHaveBeenCalledWith('')
+    expect(screen.getByRole('combobox', { name: 'Group' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Attention' })).toBeInTheDocument()
+    expect(screen.queryByText('Team')).not.toBeInTheDocument()
+  })
+
+  it('keeps phone options available for the host outer disclosure with visible labels', () => {
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      filters={[{ id: 'team', label: 'Team', value: '', options: [{ value: '', label: 'All teams' }], onChange: vi.fn() }]}
+    /></I18nProvider>)
+    expect(screen.queryByRole('button', { name: /view & filters/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
+    expect(screen.getByText('Team')).toBeInTheDocument()
   })
 
   it('omits unsupported capabilities instead of rendering disabled decorative controls', () => {
@@ -226,126 +211,43 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
   })
 })
 
-// I3 (issue #379): the ONE desktop "View & filters" door closes on Escape with focus on the
-// trigger. Covers every CollectionToolbar consumer (Tasks, Signals archive, the catalogs).
-describe('CollectionToolbar — I3 "View & filters" Escape (issue #379)', () => {
+describe('CollectionToolbar — desktop keyboard and nested save behavior', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  function renderToolbar(extra?: Partial<React.ComponentProps<typeof CollectionToolbar>>) {
-    return render(
-      <I18nProvider>
-        <CollectionToolbar
-          presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
-          views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
-          filters={[{
-            id: 'team', label: 'Team', value: '',
-            options: [{ value: '', label: 'All teams' }, { value: 'ops', label: 'Operations' }],
-            onChange: vi.fn(),
-          }]}
-          savedViews={extra?.savedViews}
-        />
-      </I18nProvider>,
-    )
+  function renderToolbar() {
+    return render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      filters={[{ id: 'team', label: 'Team', value: '', options: [{ value: '', label: 'All teams' }, { value: 'ops', label: 'Operations' }], onChange: vi.fn() }]}
+      savedViews={{ label: 'Saved views', selectedId: null, operation: 'idle', items: [], onApply: vi.fn(), onSave: vi.fn() }}
+    /></I18nProvider>)
   }
 
-  // #382: Arrow/Home/End rove the panel's own controls. Two things the traversal must NOT do:
-  // take focus off the trigger when the door opens (that killed the collection's j/k row cursor,
-  // which suppresses itself for a focused control), and eat keys a native <select> already owns.
-  it('Arrow/Home/End rove the live control set; the door does not steal focus and a focused filter keeps its own keys', async () => {
-    stubDesktop()
-    renderToolbar({
-      savedViews: {
-        label: 'Saved views', selectedId: null, operation: 'idle', items: [], onApply: vi.fn(),
-        onSave: vi.fn().mockResolvedValue(undefined),
-      },
-    })
-    const trigger = screen.getByRole('button', { name: /view & filters/i })
-    await userEvent.click(trigger)
-    // Opening discloses controls; it does not move the user's focus into them.
-    expect(trigger).toHaveFocus()
-
-    // A focused filter select owns Arrow/Home/End (option navigation) — traversal stands down.
-    const team = screen.getByRole('combobox', { name: 'Team' })
-    team.focus()
-    await userEvent.keyboard('{ArrowDown}')
-    expect(team).toHaveFocus()
-    await userEvent.keyboard('{End}')
-    expect(team).toHaveFocus()
-
-    // From a button, the arrows rove — and the Save-view row opened after the panel did is part
-    // of the set, because the control list is read live on every key.
-    const saveTrigger = screen.getByRole('button', { name: /save view/i })
-    saveTrigger.focus()
-    await userEvent.keyboard('{ArrowUp}')
-    expect(team).toHaveFocus()
-    await userEvent.click(saveTrigger)
-    saveTrigger.focus()
-    await userEvent.keyboard('{ArrowDown}')
-    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveFocus()
-    saveTrigger.focus()
-    await userEvent.keyboard('{End}')
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
-    await userEvent.keyboard('{Home}')
-    expect(team).toHaveFocus()
-  })
-
-  it('Escape on the open trigger closes the disclosure; focus stays on the trigger', async () => {
-    stubDesktop()
-    renderToolbar()
-    const trigger = screen.getByRole('button', { name: /view & filters/i })
-    await userEvent.click(trigger)
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.keyDown(trigger, { key: 'Escape' })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveFocus()
-    expect(screen.queryByRole('combobox', { name: 'Team' })).not.toBeInTheDocument()
-  })
-
-  it('Escape inside the disclosed panel closes it and returns focus to the trigger', async () => {
-    stubDesktop()
-    renderToolbar()
-    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
+  it('traverses desktop controls without stealing native select keys', async () => {
+    stubDesktop(); renderToolbar()
+    const group = screen.getByRole('group', { name: /view & filters/i })
     const select = screen.getByRole('combobox', { name: 'Team' })
-    select.focus()
-    fireEvent.keyDown(select, { key: 'Escape' })
-    const trigger = screen.getByRole('button', { name: /view & filters/i })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveFocus()
+    const save = screen.getByRole('button', { name: /save view/i })
+    select.focus(); await userEvent.keyboard('{ArrowDown}'); expect(select).toHaveFocus()
+    save.focus(); await userEvent.keyboard('{ArrowUp}'); expect(select).toHaveFocus()
+    expect(group).toBeInTheDocument()
   })
 
-  it('Escape in the save-view input closes ONLY the save row — the disclosure stays open', async () => {
-    stubDesktop()
-    renderToolbar({
-      savedViews: {
-        label: 'Saved views', selectedId: null, operation: 'idle',
-        items: [{ id: 'mine', name: 'My view' }], onApply: vi.fn(),
-        onSave: vi.fn().mockResolvedValue(undefined),
-      },
-    })
-    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
-    await userEvent.click(screen.getByRole('button', { name: /save view/i }))
+  it('Escape closes only the nested save row and keeps desktop options visible', async () => {
+    stubDesktop(); renderToolbar()
+    const save = screen.getByRole('button', { name: /save view/i })
+    await userEvent.click(save)
     const input = screen.getByRole('textbox', { name: /view name/i })
-    input.focus()
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /view & filters/i })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: /save view/i })).toHaveFocus()
+    expect(save).toHaveFocus()
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
   })
 
-  it('Escape on the Save view trigger while its row is open closes the row, not the disclosure', async () => {
-    stubDesktop()
-    renderToolbar({
-      savedViews: {
-        label: 'Saved views', selectedId: null, operation: 'idle',
-        items: [{ id: 'mine', name: 'My view' }], onApply: vi.fn(),
-        onSave: vi.fn().mockResolvedValue(undefined),
-      },
-    })
-    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
-    const saveTrigger = screen.getByRole('button', { name: /save view/i })
-    await userEvent.click(saveTrigger)
-    fireEvent.keyDown(saveTrigger, { key: 'Escape' })
-    expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /view & filters/i })).toHaveAttribute('aria-expanded', 'true')
+  it('Escape on a focused desktop select leaves the options row rendered', () => {
+    stubDesktop(); renderToolbar()
+    const select = screen.getByRole('combobox', { name: 'Team' }); select.focus()
+    fireEvent.keyDown(select, { key: 'Escape' })
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
   })
 })

@@ -6,18 +6,16 @@ import { CollectionToolbar } from '@/components/record-collection/collection-too
 export const v3Matrix = {
   jobs: [
     'collection-toolbar.view-axis',
-    'collection-toolbar.lean-collapsed',
-    'collection-toolbar.disclosure-open',
-    'collection-toolbar.active-filter-dot',
+    'collection-toolbar.desktop-inline',
+    'collection-toolbar.desktop-active-filter',
     'collection-toolbar.save-view-flow',
     'collection-toolbar.phone-regime',
   ],
   states: [
     'toolbar.preset-chip-active',
     'toolbar.saved-view-chip-active',
-    'toolbar.disclosure-closed',
-    'toolbar.disclosure-open',
-    'toolbar.active-filter-dot',
+    'toolbar.desktop-inline',
+    'toolbar.desktop-active-filter',
     'toolbar.save-view-row',
     'toolbar.phone-expanded',
   ],
@@ -35,7 +33,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'The one visible RecordCollection control grammar (lean + disclosure anatomy, OD-REDESIGN-84.1): row 1 is the single view axis — the labelled saved-view chip strip first-left, the presentation switch right. Row 2 is search plus the ONE "View & filters" disclosure holding every secondary control; an active-filter dot keeps a hidden filter honest. Phone hosts open the identical panel through their outer wrapper, so the in-toolbar trigger is desktop-only.',
+          'The one visible RecordCollection control grammar: row 1 is the single view axis — the labelled saved-view chip strip first-left, the presentation switch right. Desktop keeps secondary controls visible in a compact inline row; phone hosts expose them through the single outer View & filters door.',
       },
     },
   },
@@ -69,7 +67,7 @@ function ToolbarHarness({
   activePicFilter = false,
   withSavedViews = true,
 }: {
-  /** Start with the PIC filter away from its rest state so the collapsed trigger shows the dot. */
+  /** Start with the PIC filter away from its rest state for the active desktop select specimen. */
   activePicFilter?: boolean
   withSavedViews?: boolean
 }) {
@@ -139,21 +137,19 @@ function Specimen(props: { title: string; copy: string; activePicFilter?: boolea
 export const LeanCollapsed: Story = {
   render: () => (
     <Specimen
-      title="Lean collapsed toolbar"
-      copy="Row 1 carries the one view axis — preset chips and user-saved views in a single labelled strip, presentation switch trailing right. Row 2 is search plus the closed View & filters disclosure."
+      title="Desktop inline toolbar"
+      copy="Row 1 carries the one view axis — preset chips and user-saved views in a single labelled strip, presentation switch trailing right. Row 2 is search plus compact secondary controls, always available inline."
     />
   ),
   parameters: { v3Viewport: 'desktop1280' },
   globals: { viewport: { value: 'desktop1280' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const trigger = canvas.getByRole('button', { name: /View & filters/ })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
     // Presets and saved views share one strip; the default preset is the active chip.
     expect(canvas.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
     await expect(canvas.getByRole('button', { name: 'Roastery focus' })).toBeVisible()
-    // The secondary controls stay behind the door while collapsed.
-    expect(canvas.queryByLabelText('PIC')).toBeNull()
+    await expect(canvas.getByLabelText('PIC')).toBeVisible()
+    await expect(canvas.getByLabelText('Status')).toBeVisible()
   },
 }
 
@@ -172,18 +168,15 @@ export const SavedViewApplied: Story = {
   },
 }
 
-export const DisclosureOpen: Story = {
+export const DesktopInlineControls: Story = {
   render: () => (
     <Specimen
-      title="View & filters disclosure open"
-      copy="The one labelled disclosure opens an inline row holding every secondary control: domain filters, Save view, and domain toggles. Nothing is shown disabled — unsupported capabilities are omitted."
+      title="Desktop inline controls"
+      copy="Desktop keeps every secondary control visible in one compact row: domain filters and Save view. Nothing is shown disabled — unsupported capabilities are omitted."
     />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const trigger = canvas.getByRole('button', { name: /View & filters/ })
-    await userEvent.click(trigger)
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
     await expect(canvas.getByLabelText('PIC')).toBeVisible()
     await expect(canvas.getByLabelText('Status')).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Save view' })).toBeVisible()
@@ -193,16 +186,14 @@ export const DisclosureOpen: Story = {
 export const ActiveFilterDot: Story = {
   render: () => (
     <Specimen
-      title="Hidden active filter stays honest"
-      copy="With the PIC filter away from its rest state and the disclosure closed, the trigger carries a dot: the view is shaped by a filter you cannot currently see."
+      title="Active filter stays visible"
+      copy="With the PIC filter away from its rest state, the active selection remains visible in the compact desktop row."
       activePicFilter
     />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const trigger = canvas.getByRole('button', { name: /View & filters/ })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger.querySelector('.collection-toolbar__options-dot')).not.toBeNull()
+    await expect(canvas.getByLabelText('PIC')).toHaveValue('p-aisyah')
   },
 }
 
@@ -210,12 +201,11 @@ export const SaveViewFlow: Story = {
   render: () => (
     <Specimen
       title="Save the current view"
-      copy="Save view lives behind the disclosure; it opens a naming row whose Save action stays disabled until the name is non-empty. Escape returns focus to the trigger."
+      copy="Save view is always available on desktop; it opens a naming row whose Save action stays disabled until the name is non-empty."
     />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /View & filters/ }))
     await userEvent.click(canvas.getByRole('button', { name: 'Save view' }))
     const nameField = canvas.getByLabelText('View name')
     await expect(nameField).toBeVisible()
