@@ -40,22 +40,39 @@ fi
 # as a broken toolchain rather than a missing install — four false diagnoses in one session.
 # `npm ci` is what CI runs, so it also proves package.json and the lockfile agree, and it writes
 # node_modules/.package-lock.json — a newer lockfile means the tree predates current deps.
-# Every binary, not one sentinel: a tree with tsc but no eslint died 127 at `npm run lint`.
-# Installing is not a test, so this sits outside the test lock.
-deps_missing=""
-for _b in tsc eslint stylelint vitest vite; do
-  [ -x "mos-app/node_modules/.bin/$_b" ] || deps_missing="${deps_missing}${deps_missing:+ }$_b"
-done
-if [ -n "$deps_missing" ] \
-   || [ mos-app/package-lock.json -nt mos-app/node_modules/.package-lock.json ]; then
-  echo "── deps: ${deps_missing:+missing }${deps_missing:-node_modules is older than package-lock.json} — running npm ci first"
-  (cd mos-app && npm ci --no-audit --no-fund)
-fi
 
-# The heavy section runs under the machine-global test lock: two concurrent batteries starve
-# each other into moving false REDs — and two full vitest pools OOM'd this host once already.
-bash scripts/with-test-lock.sh bash -c \
-  'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
+# SCOPE the heavy lane by the diff, exactly like CI's verify does (its per-step scope guard is
+# why a docs-only PR passes verify in seconds there): the npm battery runs only when the branch
+# touches something it could break. FAIL CLOSED — no resolvable base means unknown scope means
+# the full battery. The stamp stays honest either way: it certifies everything this diff could
+# break is green.
+app_touched=1
+if [ -n "$base" ]; then
+  if git diff --name-only "$base"...HEAD | grep -qE '^(mos-app/|package\.json|supabase/)'; then
+    app_touched=1
+  else
+    app_touched=0
+  fi
+fi
+if [ "$app_touched" = 1 ]; then
+  # Every binary, not one sentinel: a tree with tsc but no eslint died 127 at `npm run lint`.
+  # Installing is not a test, so this sits outside the test lock.
+  deps_missing=""
+  for _b in tsc eslint stylelint vitest vite; do
+    [ -x "mos-app/node_modules/.bin/$_b" ] || deps_missing="${deps_missing}${deps_missing:+ }$_b"
+  done
+  if [ -n "$deps_missing" ] \
+     || [ mos-app/package-lock.json -nt mos-app/node_modules/.package-lock.json ]; then
+    echo "── deps: ${deps_missing:+missing }${deps_missing:-node_modules is older than package-lock.json} — running npm ci first"
+    (cd mos-app && npm ci --no-audit --no-fund)
+  fi
+  # The heavy section runs under the machine-global test lock: two concurrent batteries starve
+  # each other into moving false REDs — and two full vitest pools OOM'd this host once already.
+  bash scripts/with-test-lock.sh bash -c \
+    'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
+else
+  echo "── app untouched by this diff — npm lane skipped (CI verify applies the same scope guard)"
+fi
 
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 echo "✓ ALL GREEN — stamped ${head:0:8}"

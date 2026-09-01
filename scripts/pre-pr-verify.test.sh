@@ -196,5 +196,26 @@ if run; then bad "a failing npm ci must sink the battery"; else ok "a failing np
 printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
 rm -rf "$tmp/repo/mos-app/node_modules"; rm -f "$STAMP"
 
+# ── Diff scoping: the npm lane runs only when the diff could break the app; FAIL CLOSED
+# without a base. The recording stub proves invocation, not just exit status.
+printf '#!/bin/sh\necho called >> "%s/npm-calls"\nexit 0\n' "$tmp" > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
+G() { git -C "$tmp/repo" -c user.email=t@t -c user.name=t "$@"; }
+scope_case() { # $1 name · $2 file-to-change · $3 expect-npm yes/no
+  local name="$1" file="$2" want="$3"
+  rm -f "$tmp/npm-calls" "$STAMP"
+  mkdir -p "$tmp/repo/$(dirname "$file")"
+  echo "x$RANDOM" >> "$tmp/repo/$file"; G add "$file"; G commit -qm "touch $file"
+  run
+  local got=no; [ -s "$tmp/npm-calls" ] && got=yes
+  local stamped=no; [ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && stamped=yes
+  if [ "$got" = "$want" ] && [ "$stamped" = yes ]; then pass=$((pass+1)); printf '  ok    scope: %s\n' "$name"
+  else fail=$((fail+1)); printf '  FAIL  scope: %s — npm=%s (want %s) stamped=%s\n' "$name" "$got" "$want" "$stamped"; fi
+}
+# Manufacture the base ref the scoping reads — a skip here would be a can't-fail check.
+G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
+scope_case "docs/scripts-only diff skips the npm lane" "scripts/some-guard.sh" no
+scope_case "mos-app diff runs the npm lane" "mos-app/src/thing.ts" yes
+scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
