@@ -10,8 +10,12 @@ pass=0; fail=0
 
 cat > "$tmp/issues.json" <<'EOF'
 [
- {"number":1,"title":"claimed, quiet 5d","labels":[],"assignees":[{"login":"x"}],
+ {"number":1,"title":"owner brief: claimed, quiet 5d","labels":[{"name":"wayfinder:map"}],"assignees":[{"login":"x"}],
   "updated_at":"2026-08-23T00:00:00Z","created_at":"2026-08-01T00:00:00Z"},
+ {"number":10,"title":"agent claim: claimed, quiet 5d","labels":[{"name":"ready-for-agent"}],"assignees":[{"login":"x"}],
+  "updated_at":"2026-08-23T00:00:00Z","created_at":"2026-08-01T00:00:00Z"},
+ {"number":11,"title":"state-less issue","labels":[],"assignees":[],
+  "updated_at":"2026-08-27T00:00:00Z","created_at":"2026-08-27T00:00:00Z"},
  {"number":2,"title":"claimed, active today","labels":[],"assignees":[{"login":"x"}],
   "updated_at":"2026-08-28T00:00:00Z","created_at":"2026-08-01T00:00:00Z"},
  {"number":3,"title":"old triage","labels":[{"name":"needs-triage"}],"assignees":[],
@@ -55,13 +59,14 @@ t() { # $1 name · $2 condition result (0 ok)
   else fail=$((fail+1)); printf '  FAIL  %s\n%s\n' "$1" "$out"; fi
 }
 [ "$rc" -eq 0 ]; t "exits 0 on good query" $?
-printf '%s' "$out" | grep -q "DEAD-CLAIM	#1"; t "5d-quiet claim flagged" $?
+! printf '%s' "$out" | grep -q "DEAD-CLAIM	#1	"; t "owner brief shape (assigned, not ready-for-agent) NOT dead-claim" $?
+printf '%s' "$out" | grep -q "DEAD-CLAIM	#10"; t "ready-for-agent claim flagged" $?
 ! printf '%s' "$out" | grep -q "DEAD-CLAIM	#2"; t "active claim not flagged" $?
 ! printf '%s' "$out" | grep -q "#6"; t "PRs excluded" $?
 printf '%s' "$out" | grep -q "AGING-TRIAGE	#3"; t "old triage flagged" $?
 ! printf '%s' "$out" | grep -q "AGING-TRIAGE	#4"; t "fresh triage not flagged" $?
 printf '%s' "$out" | grep -q "FRONTIER	1 unblocked grilling"; t "frontier counts only unblocked (hook parity)" $?
-printf '%s' "$out" | grep -q "UNTRACKED	#1"; t "state-less issue surfaces as UNTRACKED" $?
+printf '%s' "$out" | grep -q "UNTRACKED	#11"; t "state-less issue surfaces as UNTRACKED" $?
 printf '%s' "$out" | grep -q "PR-PARKED	#8"; t "parked ready ticket surfaces (DD-WAY-45 counterweight)" $?
 ! printf '%s' "$out" | grep -q "PR-PARKED	#9"; t "unparked ready ticket not flagged" $?
 ! printf '%s' "$out" | grep -q "UNTRACKED	#3"; t "needs-triage issue is not UNTRACKED" $?

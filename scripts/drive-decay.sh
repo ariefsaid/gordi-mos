@@ -38,7 +38,8 @@ printf '%s' "$raw" | jq -r -s --arg now "$now" \
   def age_days(t): (($now | fromdateiso8601) - (t | fromdateiso8601)) / 86400 | floor;
   add
   | map(select(has("pull_request") | not))
-  | (map(select((.assignees | length) > 0 and (age_days(.updated_at) >= $sd))
+  | (map(select((.assignees | length) > 0 and (age_days(.updated_at) >= $sd)
+        and ([.labels[].name] | index("ready-for-agent")))   # claims live only on ready-for-agent
       | "DEAD-CLAIM\t#\(.number)\t\(.assignees[0].login)\t\(age_days(.updated_at))d quiet\t\(.title)")
      | .[]),
     (map(select(([.labels[].name] | index("needs-triage")) and (age_days(.created_at) >= $td))
