@@ -163,26 +163,26 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
   // DD-WAY-33 (#439): the Work sub-family eyebrows are DELETED, not suppressed. Only Cadence ever
   // rendered (the old ≥2-items rule silenced the other three), so one unexplained word floated
   // mid-list. This case used to assert 'Cadence' was PRESENT; the owner ruling reverses it. The
-  // E7 family ORDER survives — that half of the assertion is unchanged.
-  it('AC-004: Work children retain E7 order and NO sub-family eyebrow renders (DD-WAY-33)', () => {
+  // ORDER assertion survives, re-pointed at the owner-ruled sequence (#544, OD-REDESIGN-57(ii)).
+  it('AC-004: Work children retain the owner-ruled order and NO sub-family eyebrow renders (DD-WAY-33; #544)', () => {
     setAuthAs(['admin'])
     const { container } = renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // Day-one children after OD-WAY-63: Tasks · Projects & Processes · Objectives · Signals.
-    // Events alone stays ship-gated (#348 rides milestone 4).
+    // The ruled children (#544, OD-REDESIGN-57(ii)): Signals · Tasks · Projects & Processes ·
+    // Objectives. Events alone stays ship-gated (#348 rides milestone 4).
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
-    for (const name of ['Tasks', 'Projects & Processes', 'Objectives', 'Signals']) {
+    for (const name of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
     expect(within(nav).queryByRole('link', { name: 'Events' }), 'Events is ship-gated').toBeNull()
     for (const label of ['Execution', 'Work Systems', 'Direction', 'Cadence']) {
       expect(within(nav).queryByText(label)).toBeNull()
     }
-    // Children render in E7 top-down family order: Execution (Tasks) → Work systems (Projects &
-    // Processes) → Direction (Objectives) → Cadence (Signals).
+    // Children render in owner-ruled order: Signals → Tasks → Projects & Processes
+    // → Objectives (OD-REDESIGN-57(ii)).
     const precedes = (a: Node, b: Node) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    const links = ['Tasks', 'Projects & Processes', 'Objectives', 'Signals'].map((l) =>
+    const links = ['Signals', 'Tasks', 'Projects & Processes', 'Objectives'].map((l) =>
       within(nav).getByRole('link', { name: l }))
     for (let i = 0; i < links.length - 1; i += 1) expect(precedes(links[i], links[i + 1])).toBe(true)
     expect(container).toBeTruthy()

@@ -15,6 +15,12 @@
  * (Work, Signals, Projects & Processes, Objectives) — and the reason it drifted unseen is exactly
  * that this guard rendered the rail and the drawer only. A guard that covers two of three surfaces
  * licenses the third to drift. All three render here now, from the one declared array.
+ *
+ * #544 extends the pin: each surface is compared against the RULED sequence as literals
+ * (Signals · Tasks · Projects & Processes · Objectives · Events — OD-REDESIGN-57(ii), oracle
+ * P-13), not merely against the declaration. Comparing surfaces to the declaration alone is the
+ * looseness that let the wrong order survive: every surface agreed, with the array, on the wrong
+ * sequence.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -42,10 +48,14 @@ const mockUseAuth = vi.mocked(useAuth)
 // `accessRoles.includes('admin')` shipped green through this whole file.
 const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'] as const
 
-// The Work family, its gates and its labels, written out HERE. Every expectation below is built
-// from these, so a registry entry that is deleted, reordered, or relabelled has nothing to hide
-// behind: Events is ship-gated (#348 rides milestone 4).
-const FAMILY = ['/work/tasks', '/work/projects', '/work/objectives', '/work/signals', '/work/events']
+// The Work family, its gates and its labels, written out HERE — in the OWNER-RULED order
+// (OD-REDESIGN-57(ii), oracle row P-13): Signals first, then Tasks, Projects & Processes,
+// Objectives; Events stays last. Every expectation below is built from these literals, so a
+// registry entry that is deleted, reordered, or relabelled has nothing to hide behind: Events is
+// ship-gated (#348 rides milestone 4). #544: an expectation derived from the declaration itself
+// agrees with whatever order the declaration takes — that looseness is what let the pre-#544
+// order survive #476's unification.
+const FAMILY = ['/work/signals', '/work/tasks', '/work/projects', '/work/objectives', '/work/events']
 const CAPABILITY: Record<string, string | undefined> = { '/work/projects': 'workline.manage' }
 // Add a row here when you add a Work child or lift a ship gate — a missing entry renders as
 // `=undefined` in the red, which reads as a label bug rather than a missing literal.
@@ -174,7 +184,7 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     expect(declared).toEqual(FAMILY)
   })
 
-  it('the declared order is the E7 family sequence, flattened', () => {
+  it('the gate-filtered declaration is the owner-ruled sequence (OD-REDESIGN-57(ii))', () => {
     // Built from literals HERE plus the two gate primitives — never from `declaredOrder` or the
     // registry. An expectation read from the thing under test cannot notice the thing going
     // missing: filtering the family list by `declaredOrder.includes(p)` passed a DELETED
@@ -186,23 +196,28 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     expect(declaredOrder.length).toBeGreaterThan(0)
   })
 
-  // target=label, the labels from LABEL above: pairwise agreement alone only catches ONE surface
-  // drifting. Relabelling the shared translation moved all three together and stayed green.
-  const expectedPairs = () => declaredOrder.map((p) => `${p}=${LABEL[p]}`)
+  // target=label, built from the FAMILY LITERALS plus the two gate primitives — never from
+  // `declaredOrder` or the registry. An expectation read from the thing under test cannot notice
+  // the thing being re-sorted: agreement with the declaration alone is what let the pre-#544
+  // order survive (#544). Each surface below is pinned to the RULED sequence, not to each other.
+  const expectedPairs = () =>
+    FAMILY.filter((p) => !isShipGated(p) && (!CAPABILITY[p] || can([role], CAPABILITY[p]))).map(
+      (p) => `${p}=${LABEL[p]}`,
+    )
 
-  it('the desktop rail renders Work children in the declared order', () => {
+  it('the desktop rail renders Work children in the owner-ruled order (OD-REDESIGN-57(ii))', () => {
     shell(<RailNav />)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(workChildHrefs(nav)).toEqual(expectedPairs())
   })
 
-  it('the phone drawer renders Work children in the declared order', () => {
+  it('the phone drawer renders Work children in the owner-ruled order (OD-REDESIGN-57(ii))', () => {
     shell(<MobileDrawer open onClose={vi.fn()} />)
     const nav = screen.getByRole('navigation', { name: 'More destinations' })
     expect(workChildHrefs(nav)).toEqual(expectedPairs())
   })
 
-  it('the ⌘K palette renders Work children in the declared order (issue 479)', () => {
+  it('the ⌘K palette renders Work children in the owner-ruled order (OD-REDESIGN-57(ii); issue 479)', () => {
     const view = palette()
     expect(paletteWorkChildTargets(view.container)).toEqual(expectedPairs())
   })

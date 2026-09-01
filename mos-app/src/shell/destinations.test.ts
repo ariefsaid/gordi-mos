@@ -33,8 +33,8 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
   })
 
   // #446: the ORDER below is the assertion, not incidental. This array is now the single declared
-  // nav order for Work's children — the E7 family sequence (Execution → Work systems → Direction →
-  // Cadence) flattened, after DD-WAY-33 (#439) deleted the family eyebrows that were the only
+  // nav order for Work's children — the owner-ruled sequence (OD-REDESIGN-57(ii), oracle P-13;
+  // #544), after DD-WAY-33 (#439) deleted the family eyebrows that were the only
   // rendered trace of the nesting. The desktop rail used to re-sort into this order locally while
   // the phone drawer rendered the array as declared, so the two surfaces listed the same five items
   // two ways. Both now render declaration order; `work-child-order.test.tsx` guards that they agree.
@@ -42,10 +42,10 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     expect(work.children).toBeDefined()
     expect(work.children!.map((c) => c.path)).toEqual([
+      '/work/signals',
       '/work/tasks',
       '/work/projects',
       '/work/objectives',
-      '/work/signals',
       '/work/events',
     ])
     expect(work.primaryPath).toBe('/work/tasks')
