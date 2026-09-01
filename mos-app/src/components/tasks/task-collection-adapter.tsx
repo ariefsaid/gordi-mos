@@ -565,7 +565,7 @@ export function projectTaskCollection(
   // bucket never leads the grouped table. Groups holding rows keep their exact order
   // (Array.filter preserves it); the all-empty case falls to TasksTableBody's
   // empty/filtered-empty state, which keys off leafTasks, not groups.
-  const groups = buildTaskGroups(sorted, query, ctx).filter((g) => g.rows.length > 0)
+  const groups = buildTaskGroups(sorted, query, ctx).filter((group) => group.rows.length > 0)
   return {
     visibleRecords: sorted,
     groups,
