@@ -217,19 +217,20 @@
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }
 
 /* Quiet inline-edit hint under the table (E7 `.e7-edit-hint`) — muted, small, not shouting. */
-.tasks-inline-edit-hint {
-  margin: 8px 12px 0;
+.tasks-inline-edit-hint,
+.task-title-edit-keyhint {
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
   line-height: 1.3;
 }
 
-.task-inline-edit-active-hint {
+.tasks-inline-edit-hint {
+  margin: 8px 12px 0;
+}
+
+.task-title-edit-keyhint {
   display: block;
   margin-top: 3px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  line-height: 1.3;
 }
 
 /* ── Table ── */
