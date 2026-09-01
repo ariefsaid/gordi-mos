@@ -8,10 +8,8 @@
   background: var(--card);
 }
 
-/* E7-floor anatomy (owner score gate, 2026-07-22): the saved-view chip strip leads row 1,
-   the presentation switch trails — saved views are the primary axis and read first. A single
-   flex row with every select allowed to wrap was the source of the "several apps" feeling —
-   its visual order changed with width, so each row keeps one fixed left→right order. */
+/* E7-floor anatomy: the saved-view chip strip leads row 1, the presentation switch trails.
+   Secondary controls retain a fixed left-to-right order in their row below. */
 .collection-toolbar__primary {
   display: flex;
   align-items: center;
@@ -111,7 +109,6 @@
   padding: 8px 12px;
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
-.collection-toolbar__query-spacer { flex: 1 1 auto; min-width: 0; }
 .collection-toolbar__filter-group {
   display: flex;
   align-items: center;
@@ -120,38 +117,7 @@
   flex-wrap: wrap;
 }
 
-/* Lean + disclosure (OD-REDESIGN-84.1): the ONE "View & filters" door. An inline row, not a
-   popup, so it keeps normal document focus order and can't be clipped by a scroll container. */
-.collection-toolbar__options-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--font-size-mono);
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.collection-toolbar__options-trigger:hover { border-color: var(--border-strong); background: var(--secondary); }
-.collection-toolbar__options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-.collection-toolbar__options-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-.collection-toolbar__options-chevron { transition: transform var(--dur-med) ease; }
-.collection-toolbar__options-chevron--open { transform: rotate(180deg); }
-@media (prefers-reduced-motion: reduce) {
-  .collection-toolbar__options-chevron { transition: none; }
-}
-
+/* Secondary controls stay in normal document flow so focus order follows the visible row. */
 .collection-toolbar__options {
   display: flex;
   align-items: end;
@@ -247,6 +213,17 @@
 .collection-toolbar__save-field input:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
+}
+
+/* OD-WAY-89: desktop keeps the secondary controls exposed as one quiet, compact row. */
+@media (min-width: 768px) {
+  .collection-toolbar__options {
+    align-items: center;
+  }
+  .collection-toolbar__option-field {
+    flex-direction: row;
+    align-items: center;
+  }
 }
 
 /* Capture-first phone contract shared by collection hosts. The domain toolbar remains the

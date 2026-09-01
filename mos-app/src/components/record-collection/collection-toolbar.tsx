@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { ViewTabs } from '@/components/ui/view-tabs'
@@ -61,8 +61,8 @@ export interface CollectionToolbarProps<
   className?: string
   /**
    * Census R2 DO-6: a reserved (coming-soon) view has no rows to operate on, so every
-   * row-operating control — search, the "View & filters" disclosure, the presentation
-   * switch, Save view — is HIDDEN rather than rendered live-but-dead above a placeholder
+   * row-operating control — search, the options, the presentation switch, Save view — is
+   * HIDDEN rather than rendered live-but-dead above a placeholder
    * body. Only the view chip strip survives: it is the door back out of the reserved view.
    */
   reserved?: boolean
@@ -73,18 +73,13 @@ export interface CollectionToolbarProps<
  * this component owns the order, geometry, keyboard-capable primitives, saved-view door, and
  * responsive wrapping. Unsupported capabilities are omitted rather than shown disabled.
  *
- * Lean + disclosure anatomy (OD-REDESIGN-84.1, owner-ratified 2026-07-23; Luna P0-2): row 1 is
- * the ONE view axis — a labelled saved-view chip strip (presets + user-saved views together)
- * FIRST-left, the presentation switch RIGHT. Row 2 is the lean query row — just search and ONE
- * labelled "View & filters" affordance (aria-expanded + chevron). That affordance discloses an
- * inline row holding EVERY secondary control — domain filters, group, sort, "Save view", and
- * domain toggles — so the collapsed toolbar stays short (Luna target ≤~100px at 1280) and the
- * table starts ~74px earlier. The flat E7 wall-of-selects (commit 7ee4d5e) is superseded.
+ * Desktop anatomy (OD-WAY-89): row 1 is the ONE view axis — a labelled saved-view chip strip
+ * (presets + user-saved views together) FIRST-left, the presentation switch RIGHT. Row 2 is
+ * search followed by a compact inline row holding domain filters, group, sort, Save view, and
+ * domain toggles. The controls remain in normal document order without a desktop door.
  *
- * Phone shares this one grammar: the hosts' single "View & filters" outer disclosure IS this same
- * affordance, so the in-toolbar trigger is desktop-only and the panel renders expanded inside the
- * phone wrapper (which additionally collapses row 1 + search to keep the first record above the
- * fold — Luna Block 2(b) — a scope the row-2 trigger by design does not reach).
+ * Phone keeps the OD-REDESIGN-84 single outer "View & filters" disclosure; hosts render this same
+ * options row inside it (alongside their phone-specific collapsed row 1 and search).
  */
 export function CollectionToolbar<
   TPresentation extends string,
@@ -103,11 +98,8 @@ export function CollectionToolbar<
   const t = useT()
   const isDesktop = useIsDesktop()
   const [saveOpen, setSaveOpen] = useState(false)
-  const [optionsOpen, setOptionsOpen] = useState(false)
   const [viewName, setViewName] = useState('')
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const optionsTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const optionsRowId = useId()
 
   useEffect(() => {
     savedViews?.onLoad?.()
@@ -118,27 +110,13 @@ export function CollectionToolbar<
 
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
-  // Every secondary control lives behind the one "View & filters" door: domain filters, view-shape
-  // (group/sort), Save view, and domain toggles. The collapsed toolbar is row 1 + search + trigger.
-  // A reserved view has no rows, so the door (and everything behind it) is withheld (DO-6).
+  // Desktop shows secondary controls inline; phones render this row inside the host's single
+  // View & filters row. Reserved views with no rows keep the controls withheld (DO-6).
   const hasViewOptions = !reserved && (filters.length > 0 || Boolean(savedViews) || Boolean(toggles))
-  // First option is each choice's rest state; a dot on the collapsed trigger says "the view is
-  // shaped by a filter you can't currently see" so the door never hides an active filter silently.
-  const viewOptionsActive = filters.some(
-    filter => filter.options.length > 0 && filter.value !== filter.options[0].value,
-  )
 
   function closeSaveView() {
     setSaveOpen(false)
     saveTriggerRef.current?.focus()
-  }
-
-  // I3 (issue #379): Escape closes the "View & filters" door and leaves focus on the trigger —
-  // the disclosure's focus home. stopPropagation shields the window keyboard layer so an Escape
-  // here closes the door, never the record drawer behind it.
-  function closeOptions() {
-    setOptionsOpen(false)
-    optionsTriggerRef.current?.focus()
   }
 
   async function saveView() {
@@ -221,10 +199,8 @@ export function CollectionToolbar<
         ) : null}
       </div>
 
-      {/* Lean query row (OD-84.1): search leads; the ONE labelled "View & filters" disclosure
-          trigger trails right. Every filter/group/sort/toggle lives behind it, so the collapsed
-          toolbar is just row 1 + this one line. The trigger is desktop-only — phone hosts expose
-          the identical door via their outer wrapper, and this panel renders expanded within it. */}
+      {/* Query row (OD-WAY-89): search leads; desktop secondary controls follow in the always
+          visible options row. Phone hosts expose that row through their single outer disclosure. */}
       {reserved ? null : (
       <div className="collection-toolbar__query">
         {search ? (
@@ -243,61 +219,21 @@ export function CollectionToolbar<
           </label>
         ) : null}
 
-        {hasViewOptions && isDesktop ? (
-          <>
-            <div className="collection-toolbar__query-spacer" />
-            <button
-              type="button"
-              ref={optionsTriggerRef}
-              className="collection-toolbar__options-trigger"
-              aria-expanded={optionsOpen}
-              aria-controls={optionsRowId}
-              onClick={() => setOptionsOpen(open => !open)}
-              onKeyDown={(event) => {
-                if (!optionsOpen || event.key !== 'Escape') return
-                event.preventDefault()
-                event.stopPropagation()
-                closeOptions()
-              }}
-            >
-              {t('common.viewAndFilters')}
-              {viewOptionsActive ? (
-                <span className="collection-toolbar__options-dot" aria-hidden="true" />
-              ) : null}
-              <svg
-                className={`collection-toolbar__options-chevron${optionsOpen ? ' collection-toolbar__options-chevron--open' : ''}`}
-                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          </>
-        ) : null}
       </div>
       )}
 
-      {hasViewOptions && (optionsOpen || !isDesktop) ? (
+      {hasViewOptions ? (
         <div
-          id={optionsRowId}
           className="collection-toolbar__options"
           role="group"
           aria-label={t('common.viewAndFilters')}
-          // Phone gate: on phone this panel is the always-expanded CONTENT of the host's outer
-          // ViewOptionsDisclosure door — Escape must bubble up to close THAT door, not be eaten
-          // here (innermost-owner-wins across the two doors). That outer door also owns the
-          // Arrow/Home/End traversal (#382) for everything inside it, so a phone handler here
-          // would be a second owner of the same keys over the same DOM — two moves per press.
-          onKeyDown={isDesktop ? (event) => {
-            viewOptionsTraversal(event)
-            if (event.key !== 'Escape') return
-            event.preventDefault()
-            event.stopPropagation()
-            closeOptions()
-          } : undefined}
+          // Desktop owns traversal for its always-visible row. Phone traversal and Escape belong
+          // to the host's outer ViewOptionsDisclosure.
+          onKeyDown={isDesktop ? viewOptionsTraversal : undefined}
         >
           {filters.map((filter) => (
             <label key={filter.id} className="collection-toolbar__option-field">
-              <span>{filter.label}</span>
+              {!isDesktop ? <span>{filter.label}</span> : null}
               <Select
                 id={`collection-filter-${filter.id}`}
                 aria-label={filter.label}
@@ -321,8 +257,7 @@ export function CollectionToolbar<
                 else setSaveOpen(true)
               }}
               onKeyDown={(event) => {
-                // Innermost OPEN disclosure wins: with the save row open, Escape closes THAT row
-                // only; a second Escape then closes the "View & filters" door.
+                // The nested save row owns Escape so it closes without affecting the toolbar row.
                 if (!saveOpen || event.key !== 'Escape') return
                 event.preventDefault()
                 event.stopPropagation()

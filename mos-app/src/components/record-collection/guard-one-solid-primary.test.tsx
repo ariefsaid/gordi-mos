@@ -43,7 +43,7 @@ function stubDesktopMatchMedia() {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
-      matches: query.includes('768'), // desktop; the in-toolbar "View & filters" trigger renders
+      matches: query.includes('768'), // desktop inline options row
       media: query, onchange: null,
       addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
     }),
@@ -92,9 +92,8 @@ describe('GUARD-PRIMARY: the collection toolbar never grows a resting solid-prim
     expect(solidPrimaries()).toHaveLength(0)
   })
 
-  it('GUARD-PRIMARY: the disclosed "View & filters" row renders ZERO .btn-primary — "Save view" stays ghost (the incident)', () => {
+  it('GUARD-PRIMARY: the inline options row renders ZERO .btn-primary — "Save view" stays ghost (the incident)', () => {
     renderToolbar()
-    fireEvent.click(screen.getByRole('button', { name: /view & filters/i }))
     expect(solidPrimaries()).toHaveLength(0)
     // The exact regression: the Save-view TRIGGER must not be the solid primary variant.
     const saveTrigger = screen.getByRole('button', { name: /save view/i })
@@ -103,7 +102,6 @@ describe('GUARD-PRIMARY: the collection toolbar never grows a resting solid-prim
 
   it('GUARD-PRIMARY: even the transient save-confirm row shows AT MOST one .btn-primary', () => {
     renderToolbar()
-    fireEvent.click(screen.getByRole('button', { name: /view & filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /save view/i }))
     expect(solidPrimaries().length).toBeLessThanOrEqual(1)
   })
