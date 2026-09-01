@@ -36,7 +36,7 @@ describe('computePlanSummary — the summary-rule derivation (DD-WAY-40, #401)',
     expect(s.ariaLabel).toBe('kitchen.plan.summary.aria')
     expect(s.metrics).toEqual([
       { key: 'plannedTotal', label: 'kitchen.kpi.plannedTotal', value: '100' },
-      { key: 'dishesPlanned', label: 'kitchen.plan.summary.dishesPlanned', value: '3' },
+      { key: 'dishesPlanned', label: 'kitchen.plan.summary.itemsPlanned', value: '3' },
     ])
   })
 

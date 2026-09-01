@@ -229,8 +229,8 @@ function KitchenReviewDecision({
 
   const noteLabel =
     pending === 'reject'
-      ? t('kitchen.review.noteAriaReject', { dish: log.wip_item_name })
-      : t('kitchen.review.noteAriaApprove', { dish: log.wip_item_name })
+      ? t('kitchen.review.noteAriaReject', { item: log.wip_item_name })
+      : t('kitchen.review.noteAriaApprove', { item: log.wip_item_name })
   const notePlaceholder =
     pending === 'reject'
       ? t('kitchen.review.notePlaceholder.reject')
@@ -242,7 +242,7 @@ function KitchenReviewDecision({
   // With the label rendered once as content, the busy state reaches both readings for free.
   const confirmLabel = t(
     pending === 'reject' ? 'kitchen.review.confirm.reject' : 'kitchen.review.confirm.approve',
-    { dish: log.wip_item_name },
+    { item: log.wip_item_name },
   )
 
   return (
@@ -252,7 +252,7 @@ function KitchenReviewDecision({
           <button
             type="button"
             className="btn btn-outline krow-btn"
-            aria-label={t('kitchen.review.approveAria', { dish: log.wip_item_name })}
+            aria-label={t('kitchen.review.approveAria', { item: log.wip_item_name })}
             disabled={approveDisabled || submitting}
             title={approveDisabled ? approveDisabledReason : undefined}
             onClick={startApprove}
@@ -268,7 +268,7 @@ function KitchenReviewDecision({
           <button
             type="button"
             className="btn btn-ghost krow-btn"
-            aria-label={t('kitchen.review.rejectAria', { dish: log.wip_item_name })}
+            aria-label={t('kitchen.review.rejectAria', { item: log.wip_item_name })}
             disabled={submitting}
             onClick={startReject}
           >

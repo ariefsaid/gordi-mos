@@ -144,7 +144,7 @@ export function WipItemStepper({
         <input
           type="number"
           inputMode="decimal"
-          aria-label={t('kitchen.qty.producedAria', { dish: itemName })}
+          aria-label={t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
           value={qty_porsi > 0 ? qty_porsi : ''}
           placeholder={planQty > 0 ? String(planQty) : '0'}
@@ -166,7 +166,7 @@ export function WipItemStepper({
           <button
             type="button"
             className="kls-unit kls-unit-change"
-            aria-label={t('kitchen.log.unit.changeAria', { dish: itemName })}
+            aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
             disabled={disabled}
             onClick={() => setUnitPickerOpen(true)}
           >
@@ -187,7 +187,7 @@ export function WipItemStepper({
         {offersUnitChange && unitPickerOpen && (
           <Select
             className="kls-unit-select"
-            aria-label={t('kitchen.log.unit.selectAria', { dish: itemName })}
+            aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
             value={line.item_unit_id ?? ''}
             disabled={disabled}
             autoFocus

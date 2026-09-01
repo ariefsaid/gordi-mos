@@ -323,7 +323,7 @@ describe('Error state — fetch failure', () => {
     mockListCaptureFormItems.mockRejectedValue(new Error('network error'))
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByText(/couldn’t load the dish list/i)).toBeInTheDocument()
+      expect(screen.getByText(/couldn’t load the item list/i)).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
     })
   })
@@ -1156,12 +1156,12 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
 
 // task 10c — search-mini filters rows (desktop)
 describe('OD-K-5: search-mini filters', () => {
-  it('typing in Find a dish narrows the table to matching dishes', async () => {
+  it('typing in Find an item narrows the table to matching dishes', async () => {
     setDesktopMatchMedia(true)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.change(screen.getByRole('searchbox', { name: /find a dish/i }), { target: { value: 'nasi' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: /find an item/i }), { target: { value: 'nasi' } })
     // only Nasi Goreng remains
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
@@ -1173,7 +1173,7 @@ describe('OD-K-5: search-mini filters', () => {
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
     // The search box is pre-filled from the URL and the table is already narrowed — no retype.
-    expect(screen.getByRole('searchbox', { name: /find a dish/i })).toHaveValue('nasi')
+    expect(screen.getByRole('searchbox', { name: /find an item/i })).toHaveValue('nasi')
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 })
@@ -1241,7 +1241,7 @@ describe('OD-K-5: sticky-footer tally', () => {
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '20' } })
 
-    expect(screen.getByText(/1 dish/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 item/i)).toBeInTheDocument()
     expect(screen.getByText(/20 portions/i)).toBeInTheDocument()
   })
 })

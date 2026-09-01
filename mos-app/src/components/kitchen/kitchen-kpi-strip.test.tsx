@@ -40,11 +40,11 @@ describe('KitchenKpiStrip — desktop branch', () => {
     expect(within(region).getByText('4')).toBeInTheDocument()
   })
 
-  it('renders the delta chips: "6 dishes", off-plan "+35", short "−46 units short"', () => {
+  it('renders the delta chips: "6 items", off-plan "+35", short "−46 units short"', () => {
     render(<KitchenKpiStrip kpis={KPIS} isDesktop />)
     const region = screen.getByRole('region', { name: /plan vs actual summary/i })
     // Planned-total delta: dish count
-    expect(within(region).getByText(/6 dishes/i)).toBeInTheDocument()
+    expect(within(region).getByText(/6 items/i)).toBeInTheDocument()
     // Made-sofar: behind plan by 40 → destructive delta
     expect(within(region).getByText(/−40 vs plan/i)).toBeInTheDocument()
     // off-plan sub

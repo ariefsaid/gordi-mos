@@ -9,15 +9,15 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { KitchenToolbar } from './kitchen-toolbar'
 
 describe('KitchenToolbar — search-mini', () => {
-  it('renders a searchbox with the default placeholder "Find a dish"', () => {
+  it('renders a searchbox with the default placeholder "Find an item"', () => {
     render(<KitchenToolbar search="" onSearchChange={() => {}} />)
     const input = screen.getByRole('searchbox')
-    expect(input).toHaveAttribute('placeholder', 'Find a dish')
+    expect(input).toHaveAttribute('placeholder', 'Find an item')
   })
 
   it('honours a custom searchPlaceholder', () => {
-    render(<KitchenToolbar search="" onSearchChange={() => {}} searchPlaceholder="Find a dish to plan" />)
-    expect(screen.getByRole('searchbox')).toHaveAttribute('placeholder', 'Find a dish to plan')
+    render(<KitchenToolbar search="" onSearchChange={() => {}} searchPlaceholder="Find an item to plan" />)
+    expect(screen.getByRole('searchbox')).toHaveAttribute('placeholder', 'Find an item to plan')
   })
 
   it('fires onSearchChange on type', () => {

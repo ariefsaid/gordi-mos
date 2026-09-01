@@ -429,7 +429,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByText(/planned total/i)).toBeInTheDocument()
-    expect(screen.getByText(/dishes planned/i)).toBeInTheDocument()
+    expect(screen.getByText(/items planned/i)).toBeInTheDocument()
     expect(screen.queryByText(/active action/i)).toBeNull()
     expect(screen.queryByText(/plan status/i)).toBeNull()
     expect(screen.queryByText(/write surface/i)).toBeNull()
@@ -596,7 +596,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     fireEvent.change(
-      screen.getByRole('searchbox', { name: /find a dish in the plan/i }),
+      screen.getByRole('searchbox', { name: /find an item in the plan/i }),
       { target: { value: 'nasi' } },
     )
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
@@ -611,7 +611,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
       </MemoryRouter>,
     )
     await screen.findByText('Nasi Goreng')
-    expect(screen.getByRole('searchbox', { name: /find a dish in the plan/i })).toHaveValue('nasi')
+    expect(screen.getByRole('searchbox', { name: /find an item in the plan/i })).toHaveValue('nasi')
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
@@ -632,10 +632,10 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     fireEvent.change(
-      screen.getByRole('searchbox', { name: /find a dish in the plan/i }),
+      screen.getByRole('searchbox', { name: /find an item in the plan/i }),
       { target: { value: 'zzz' } },
     )
-    expect(await screen.findByText(/no dishes match your filter/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no items match your filter/i)).toBeInTheDocument()
   })
 
   it('(#401) the read-only face explains itself and offers the log CTA', async () => {
@@ -662,7 +662,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan perencanaan' })).toBeInTheDocument()
     expect(screen.getByText('Total rencana')).toBeInTheDocument()
-    expect(screen.getByText('Menu direncanakan')).toBeInTheDocument()
+    expect(screen.getByText('Item direncanakan')).toBeInTheDocument()
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 

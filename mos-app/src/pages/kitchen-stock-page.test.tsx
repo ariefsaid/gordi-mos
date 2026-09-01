@@ -286,20 +286,20 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     })
 
     mockFetchStock.mockResolvedValueOnce([
-      { wip_item_id: 'w9', wip_item_name: 'Fresh Dish', category: null, stok: 7, tersedia: 7 },
+      { wip_item_id: 'w9', wip_item_name: 'Fresh Milk', category: null, stok: 7, tersedia: 7 },
     ]) // switch #2 — the latest read
     fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
       target: { value: streamOption(BRANCH_RAD.id, 'bar') },
     })
-    await screen.findByText('Fresh Dish')
+    await screen.findByText('Fresh Milk')
 
     // NOW the stale response arrives.
     resolveStale([
-      { wip_item_id: 'w8', wip_item_name: 'Stale Dish', category: null, stok: 99, tersedia: 99 },
+      { wip_item_id: 'w8', wip_item_name: 'Stale Bread', category: null, stok: 99, tersedia: 99 },
     ])
     // Flush the stale continuation, then assert the newer stream's rows still win.
-    await waitFor(() => expect(screen.queryByText('Stale Dish')).toBeNull())
-    expect(screen.getByText('Fresh Dish')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Stale Bread')).toBeNull())
+    expect(screen.getByText('Fresh Milk')).toBeInTheDocument()
   })
 
   it('FR-003: an EMPTY stream still offers the picker (no implicit wall) and switching away works', async () => {

@@ -35,7 +35,7 @@ function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
       {
         label: 'Planned total',
         value: hasPlan ? String(plannedTotal) : '0',
-        delta: `${plannedDishCount} dishes`,
+        delta: `${plannedDishCount} items`,
         deltaTone: 'neutral',
         deltaDot: false,
         sub: 'portions',
