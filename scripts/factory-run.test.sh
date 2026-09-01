@@ -56,6 +56,12 @@ out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" ad
 printf '%s' "$out" | grep -q "PATH1=$repo/scripts/gh-shim"; t "gh shim still leads PATH over the pinned node" $?
 printf '%s' "$out" | grep -q "PATH2=$tmp/nvm/versions/node/v42.10.0/bin"; t "highest matching .nvmrc major bin dir is next in PATH" $?
 
+# An empty higher version must not outrank the highest version with an executable node.
+mkdir -p "$tmp/nvm/versions/node/v42.11.0/bin"
+out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "partial higher pin still runs the stub" $?
+printf '%s' "$out" | grep -q "PATH2=$tmp/nvm/versions/node/v42.10.0/bin"; t "highest executable node wins over partial install" $?
+
 # A major must be exact: .nvmrc 4 must not select v42.
 printf '4\n' > "$repo/mos-app/.nvmrc"
 out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
@@ -76,6 +82,13 @@ out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" ad
 [ "$rc" -eq 0 ]; t "absent .nvmrc still runs the factory" $?
 printf '%s' "$out" | grep -q "mos-app/.nvmrc absent — using inherited node"; t "absent .nvmrc emits a clean warning" $?
 [ "$(printf '%s' "$out" | grep -c 'factory-run:.*nvmrc')" -eq 1 ]; t "absent .nvmrc emits one warning" $?
+
+# A whitespace-only pin is treated like an absent pin and warns once.
+printf ' \t\n' > "$repo/mos-app/.nvmrc"
+out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "whitespace-only .nvmrc still runs the factory" $?
+printf '%s' "$out" | grep -q "mos-app/.nvmrc absent — using inherited node"; t "whitespace-only .nvmrc emits a clean warning" $?
+[ "$(printf '%s' "$out" | grep -c 'factory-run:.*nvmrc')" -eq 1 ]; t "whitespace-only .nvmrc emits one warning" $?
 
 # The session's own node matching the .nvmrc major is fine — no pin, no warning.
 printf '99\n' > "$repo/mos-app/.nvmrc"

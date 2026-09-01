@@ -36,15 +36,19 @@ unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
 nvmrc=""
 if [ -f "$top/mos-app/.nvmrc" ]; then
   nvmrc="$(tr -d '[:space:]' < "$top/mos-app/.nvmrc")"
-else
+fi
+if [ -z "$nvmrc" ]; then
   echo "⚠ factory-run: mos-app/.nvmrc absent — using inherited node" >&2
 fi
 nvm_node=""
 if [ -n "$nvmrc" ]; then
   nvm_major="${nvmrc#v}"; nvm_major="${nvm_major%%.*}"
   nvm_matches=("${NVM_DIR:-$HOME/.nvm}"/versions/node/v"$nvm_major".*/bin)
-  if [ -d "${nvm_matches[0]%/bin}" ]; then
-    nvm_node="$(printf '%s\n' "${nvm_matches[@]}" | sort -V | tail -n 1)"
+  nvm_matches=($(for dir in "${nvm_matches[@]}"; do
+    [ -x "$dir/node" ] && printf '%s\n' "$dir"
+  done | sort -V))
+  if [ "${#nvm_matches[@]}" -gt 0 ] && [ -d "${nvm_matches[0]}" ]; then
+    nvm_node="${nvm_matches[${#nvm_matches[@]} - 1]}"
   fi
   if [ -z "$nvm_node" ]; then
     cur_v="$(node -v 2>/dev/null || true)"
