@@ -28,9 +28,9 @@ default:
 # start here: two cheap read-only runs, end to end
 demo:
     @echo "1/2  adw_prompt: one agent, one prompt"
-    uv run adws/adw_prompt.py --config {{config}} --agent scout "reply with a one-line summary of this repo"
+    bash scripts/factory-run.sh adw_prompt.py --config {{config}} --agent scout "reply with a one-line summary of this repo"
     @echo "\n2/2  adw_scout: read-only recon"
-    uv run adws/adw_scout.py --config {{config}} "list the top-level directories in this repo and what each is for. change nothing."
+    bash scripts/factory-run.sh adw_scout.py --config {{config}} "list the top-level directories in this repo and what each is for. change nothing."
     @echo "\nboth done. now run:  just sessions    (or: just obs)"
 
 # ── run a workflow ──────────────────────────────────────────────────────────
@@ -38,27 +38,27 @@ demo:
 
 # one agent, one prompt: just prompt "summarize this repo"
 prompt *ARGS:
-    uv run adws/adw_prompt.py --config {{config}} "$@"
+    bash scripts/factory-run.sh adw_prompt.py --config {{config}} "$@"
 
 # read-only recon: just scout "where is auth handled"
 scout *ARGS:
-    uv run adws/adw_scout.py --config {{config}} "$@"
+    bash scripts/factory-run.sh adw_scout.py --config {{config}} "$@"
 
 # plan only: just plan "add a /health endpoint"
 plan *ARGS:
-    uv run adws/adw_plan.py --config {{config}} "$@"
+    bash scripts/factory-run.sh adw_plan.py --config {{config}} "$@"
 
 # planner, builder, commit: just plan-build "add a /health endpoint"
 plan-build *ARGS:
-    uv run adws/adw_plan_build.py --config {{config}} "$@"
+    bash scripts/factory-run.sh adw_plan_build.py --config {{config}} "$@"
 
 # plan, build, test, commit: just sdlc "add a /health endpoint"
 sdlc *ARGS:
-    uv run adws/adw_plan_build_test.py --config {{config}} "$@"
+    bash scripts/factory-run.sh adw_plan_build_test.py --config {{config}} "$@"
 
 # the full chain, plus review and docs: just simple-sdlc "add a /health endpoint"
 simple-sdlc *ARGS:
-    uv run adws/adw_simple_sdlc.py --config {{config}} "$@"
+    bash scripts/factory-run.sh adw_simple_sdlc.py --config {{config}} "$@"
 
 # ── watch it ────────────────────────────────────────────────────────────────
 # Reads never block a running workflow, the db is WAL. Poll as hard as you like.

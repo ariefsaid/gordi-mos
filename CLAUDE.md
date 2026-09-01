@@ -8,7 +8,7 @@
 > an enumeration hint) · secrets **or their coordinates** (vault/item/env-var names, internal
 > hostnames, endpoints, tenant ids).
 >
-> Instead: weaknesses → private security advisory (`gh api .../security-advisories`), described
+> Instead: weaknesses → private security advisory (`scripts/gh-post.sh api --method POST .../security-advisories` — raw write-mode `gh api` is hook-denied), described
 > publicly only **after** the fix ships. Anything documentary → `docs/`, gitignored, its own local
 > repo. Blunt on purpose: code syncs to GitHub, docs stay local — per-file judgment is what failed.
 >
@@ -28,8 +28,9 @@ follow-ups. Ships at `https://ops.gordi.id/mos`.
 independent review → PR → auto-merge to dev → next. Its machinery binds outside the skill too:
 
 1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
-2. Build. The factory (`adws/`) is the default executor; a subagent dispatch needs a logged lane
-   first — `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
+2. Build. The factory is the default executor, dispatched ONLY via `bash scripts/factory-run.sh`
+   (never bare `uv run adws/…` — the wrapper carries the gh no-auth layer). A subagent dispatch
+   needs a logged lane first — `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
 3. Review: three lenses as parallel subagents. Never your own read.
 4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
    `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
