@@ -220,10 +220,10 @@ scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out clas
 # The SIGPIPE regression: a >64KB path list with ONE unlisted path must still run the lane —
 # grep -q early-exit killed the producer and read the match as absent (flash round 4, 5/5 repro).
 rm -f "$tmp/npm-calls" "$STAMP"
-mkdir -p "$tmp/repo/scripts/bulk" "$tmp/repo/shared"
+mkdir -p "$tmp/repo/scripts/bulk" "$tmp/repo/a-unlisted"
 for i in $(seq 1 4999); do : > "$tmp/repo/scripts/bulk/file-$i-padding-padding-padding.sh"; done
-: > "$tmp/repo/shared/needle.ts"
-G add scripts/bulk shared; G commit -qm "bulk + one unlisted"
+: > "$tmp/repo/a-unlisted/needle.ts"   # sorts BEFORE scripts/ so the old -q form early-exits — the can-fail ordering
+G add scripts/bulk a-unlisted; G commit -qm "bulk + one unlisted"
 run
 if [ -s "$tmp/npm-calls" ]; then pass=$((pass+1)); printf '  ok    scope: 64KB+ diff with one unlisted path still runs the lane (SIGPIPE race)\n'
 else fail=$((fail+1)); printf '  FAIL  scope: SIGPIPE race — big diff skipped the lane\n'; fi
