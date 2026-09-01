@@ -204,3 +204,15 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* OD-WAY-86 (#141): title line carries the age badge on a nudged row — the design-system
+   neutral Pill (dotless: age is metadata, not status), held rigid beside the title. */
+.inbox-row__titleline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.inbox-row__age {
+  flex: none;
+}

@@ -33,10 +33,12 @@ beforeEach(() => {
 
 describe('useNotifications (AC-P3-IB-002/003)', () => {
   it('AC-P3-IB-002: loads notifications, unread-first then newest, and derives the unread count', async () => {
+    const now = Date.now()
+    const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()
     mockList.mockResolvedValue([
-      row('a', true, '2026-07-01T00:00:00Z'), // read, oldest
-      row('b', false, '2026-07-02T00:00:00Z'), // unread
-      row('c', false, '2026-07-03T00:00:00Z'), // unread, newest
+      row('a', true, iso(3)), // read, oldest
+      row('b', false, iso(2)), // unread
+      row('c', false, iso(1)), // unread, newest
     ])
     const { result } = renderHook(() => useNotifications())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -109,6 +111,34 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
 
     expect(result.current.notifications[0].handled_at).toBeNull()
     expect(result.current.notifications[0].read_at).toBeNull()
+  })
+
+  it('OD-WAY-86 (#141) AC-141-1: an untriaged item older than 48h sorts above younger unread items', async () => {
+    const now = Date.now()
+    const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()
+    mockList.mockResolvedValue([
+      row('young', false, iso(1)), // unread, 1h old
+      row('aged', false, iso(75)), // untriaged, >48h — nudges
+      row('oldread', true, iso(100)), // read — sinks below unread
+    ])
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.notifications.map((n) => n.id)).toEqual(['aged', 'young', 'oldread'])
+  })
+
+  it('OD-WAY-86 (#141) AC-141-3: a same-day re-render (optimistic markRead) does not reshuffle the nudged row', async () => {
+    const now = Date.now()
+    const iso = (hoursAgo: number) => new Date(now - hoursAgo * 3_600_000).toISOString()
+    mockList.mockResolvedValue([row('young', false, iso(1)), row('aged', false, iso(75))])
+    mockMark.mockResolvedValue(undefined)
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      await result.current.markRead('young')
+    })
+    // The optimistic flip updates the row in place; the nudged row keeps its position.
+    expect(result.current.notifications.map((n) => n.id)).toEqual(['aged', 'young'])
+    expect(result.current.notifications[1].read_at).not.toBeNull()
   })
 
   it('OD-WAY-88 (#549): markHandled on an already-handled row is a no-op', async () => {
