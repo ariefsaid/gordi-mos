@@ -129,3 +129,5 @@ jobs:
         run: bash scripts/gh-shim.test.sh
       - name: factory-run shim-carrier self-test
         run: bash scripts/factory-run.test.sh
+      - name: worktree npm-seed hardlink self-test
+        run: bash scripts/worktree-npm-seed.test.sh
