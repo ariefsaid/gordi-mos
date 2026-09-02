@@ -13,7 +13,9 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { Breadcrumb } from '@/shell/breadcrumb'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { RecordCollectionChromeProvider } from '@/lib/record-collection/record-collection-context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
@@ -39,17 +41,27 @@ vi.mock('../../lib/db/directory', () => ({
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
+vi.mock('@/lib/db/user-views-collection', () => ({
+  listCollectionViews: vi.fn(),
+  getCollectionView: vi.fn(),
+  createCollectionView: vi.fn(),
+  renameCollectionView: vi.fn(),
+  archiveCollectionView: vi.fn(),
+}))
 
 import { listTasks, getTask, updateTaskFields } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { listCollectionViews } from '@/lib/db/user-views-collection'
+import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
 import { TasksWorkspace } from './tasks-workspace'
 import { taskCollectionDescriptor } from './task-collection-adapter'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskFields = vi.mocked(updateTaskFields)
+const mockListCollectionViews = vi.mocked(listCollectionViews)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
@@ -185,6 +197,7 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  mockListCollectionViews.mockResolvedValue([])
 })
 
 describe('FR-V3-013 — live Tasks collection wiring', () => {
@@ -197,6 +210,39 @@ describe('FR-V3-013 — live Tasks collection wiring', () => {
     await waitFor(() => expect(screen.getByText('One loader task')).toBeInTheDocument())
     expect(load).toHaveBeenCalledTimes(1)
     expect(document.querySelector('[data-collection-status="ready"]')).toBeTruthy()
+  })
+})
+
+describe('AC-573 — saved-view chrome uses fetched state', () => {
+  it('shows a fetched custom saved-view name in TasksWorkspace and Breadcrumb', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    const customView: PersistedCollectionView = {
+      id: 'custom-view', name: 'My queue', scope: 'private', kind: 'collection', context: 'work',
+      lifecycle: 'active', archivedAt: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+      spec: taskCollectionDescriptor.savedViews.buildSpec({
+        query: taskCollectionDescriptor.query.neutral,
+        presentation: 'table',
+      }),
+    }
+    mockListCollectionViews.mockResolvedValue([customView])
+
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={authedState}>
+          <MemoryRouter initialEntries={['/work/tasks?saved=custom-view']}>
+            <OverlayHostProvider>
+              <RecordCollectionChromeProvider>
+                <TasksWorkspace />
+                <nav aria-label="Breadcrumb"><Breadcrumb /></nav>
+              </RecordCollectionChromeProvider>
+            </OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'My queue' })).toBeInTheDocument())
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('My queue')
   })
 })
 

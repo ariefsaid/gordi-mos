@@ -8,6 +8,7 @@ import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { usePublishRecordCollectionChrome } from '@/lib/record-collection/record-collection-context'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -39,6 +40,7 @@ import { updateTaskFields } from '@/lib/db/tasks'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
+import { getActiveTaskView } from './task-collection-view'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -110,20 +112,13 @@ function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
   return 'all'
 }
 
-function viewLabel(view: TaskCollectionView, t: ReturnType<typeof useT>): string {
-  switch (view) {
-    case 'my-work': return t('tasks.saved.mine')
-    case 'overdue': return t('tasks.saved.overdue')
-    case 'followups': return t('tasks.saved.followups')
-    default: return t('tasks.saved.all')
-  }
-}
-
+// #573 rebase note: the door summary's base is the ONE collection-query label (activeView),
+// never a second view→label map — a fourth disagreeing render is the defect this branch kills.
 function taskDisclosureSummary(
   query: TaskCollectionQuery,
   t: ReturnType<typeof useT>,
+  base: string,
 ): { summary: string; hasActiveFilters: boolean } {
-  const base = viewLabel(query.view, t)
   const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
   const hasIndependentFilter = Object.keys(TASK_COLLECTION_NEUTRAL_QUERY).some((key) => {
     if (excludedKeys.has(key)) return false
@@ -210,9 +205,28 @@ export function TasksWorkspace({
     controller.setQuery({ ...controller.state.query, ...patch })
   }, [controller])
 
+  const activeView = getActiveTaskView({
+    query: state.query,
+    savedViews: state.savedViews.items,
+    labels: {
+      all: t('tasks.saved.all'),
+      'my-work': t('tasks.saved.mine'),
+      'my-pic': t('tasks.saved.mine'),
+      'my-supervisor': t('tasks.saved.mine'),
+      overdue: t('tasks.saved.overdue'),
+      followups: t('tasks.saved.followups'),
+    },
+  })
+  usePublishRecordCollectionChrome({
+    collectionId: 'tasks',
+    activeViewLabel: activeView.label,
+    hasNonDefaultView: activeView.hasNonDefaultView,
+  })
+
   const handleViewChange = useCallback((view: TaskCollectionView) => {
     setQuery({
       view,
+      savedViewId: null,
       overdueOnly: view === 'overdue' ? true : view === 'all' ? false : controller.state.query.overdueOnly,
     })
     onSavedViewChange?.(legacyViewFor(view))
@@ -474,7 +488,7 @@ export function TasksWorkspace({
       reserved={reservedFollowups}
       savedViews={{
         label: t('tasks.savedViews'),
-        selectedId: state.savedViews.items.find((item) => item.id === query.savedViewId)?.id ?? null,
+        selectedId: activeView.savedViewId,
         operation: state.savedViews.operation,
         items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
         onLoad: () => { void controller.loadSavedViews() },
@@ -517,7 +531,7 @@ export function TasksWorkspace({
   // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
   // disclosure (whose whole content is now just those chips) would be a door hiding the only
   // way out — render the chips directly instead.
-  const taskDisclosure = taskDisclosureSummary(query, t)
+  const taskDisclosure = taskDisclosureSummary(query, t, activeView.label)
   const controls = captureFirstMobile && !reservedFollowups ? (
       <ViewOptionsDisclosure
       open={mobileOptionsOpen}
@@ -579,7 +593,7 @@ export function TasksWorkspace({
               controller={controller}
               resultHeader={{
                 collectionLabel: t('tasks.title'),
-                viewLabel: viewLabel(query.view, t),
+                viewLabel: activeView.label,
                 // DO-6: the Follow-ups view never shows the task-count — null renders the honest
                 // "—" placeholder instead of mislabeling tasks as follow-up scope.
                 count: stats === null || followupsView ? null : stats.total,
