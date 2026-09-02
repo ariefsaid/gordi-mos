@@ -25,6 +25,15 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+# The main tree is the PARENT OF THE COMMON GIT DIR — not `git rev-parse --show-toplevel`, which
+# is wherever the sweep was INVOKED from (#635: run from a linked worktree, the real main checkout
+# was evaluated like any other worktree and listed "-> remove"; git refused, but only by luck).
+# Realpath both sides: git prints resolved paths while callers may sit behind symlinks (macOS
+# /var → /private/var), so raw string compares misfire in both directions.
+real_of() { (cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"; }
+MAIN_TREE="$(real_of "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")")"
+FROM_TREE="$(real_of "$(git rev-parse --show-toplevel)")"
+
 TARGET="dev"
 REMOTE=""
 MAX_AGE_DAYS=2
@@ -105,7 +114,8 @@ git worktree list --porcelain | awk '
   /^$/         { print (ref == "" ? w "|DETACHED" : w "|" ref); w = ""; ref = ""; next }
   END          { if (w != "") print (ref == "" ? w "|DETACHED" : w "|" ref) }
 ' | while IFS='|' read -r path ref; do
-  [ "$path" = "$(git rev-parse --show-toplevel)" ] && continue   # never the main tree
+  [ "$(real_of "$path")" = "$MAIN_TREE" ] && continue  # never the main tree (#635: common git dir, not cwd)
+  [ "$(real_of "$path")" = "$FROM_TREE" ] && continue  # never the tree the sweep itself runs from
   case "$ref" in
     refs/heads/*)
       br="${ref#refs/heads/}"
