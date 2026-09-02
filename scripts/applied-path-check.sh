@@ -279,6 +279,72 @@ say "$(head_of "$OUT/migrated.txt") facts"
 GREEN_RC=0
 diff -u "$OUT/fresh.txt" "$OUT/migrated.txt" > "$OUT/drift.diff" || GREEN_RC=1
 if [ "$GREEN_RC" -ne 0 ]; then
+  # Seed asymmetry (#472): FRESH is seeded from the working tree's seed*.sql, APPLIED from the
+  # BASELINE's, and `migration up` never re-seeds — a real deployed database isn't re-seeded
+  # either. So a seed edit to a migration-owned table's CONTENT, with no migration to carry it,
+  # produces a diff whose every fact is table CONTENT (CATALOG) and nothing about SCHEMA
+  # (CONSTRAINT/RLS/POLICY/FUNCTION). That is not the chain failing to converge — it is a seed
+  # edit that needs a migration to actually reach a deployed database, and the generic "does NOT
+  # match a fresh one" message sends the reader hunting a migration bug that is not there.
+  #
+  # `|| true`: no line matching means grep exits 1, which under `set -o pipefail` fails the whole
+  # pipeline — a bare assignment (not behind `||`/`if`) then aborts the script right here under
+  # `set -e`, with no message printed at all. Same shape as PENDING_N and PRE_DELTA above.
+  DRIFT_KINDS="$(grep -oE '^[+-][A-Z]+\|' "$OUT/drift.diff" | sed 's/^.//;s/|$//' | sort -u || true)"
+  if [ "$DRIFT_KINDS" = "CATALOG" ]; then
+    # A CATALOG-only diff is not automatically a seed edit. CATALOG's NAME field carries the
+    # stable-column list (applied-path-fingerprint.sql), so a plain column add/drop or a grant
+    # revoke — neither of which moves a CONSTRAINT/RLS/POLICY/FUNCTION fact — ALSO shows up as a
+    # CATALOG-only diff, and would wrongly get the seed headline. Two independent gates, both
+    # required, so this message only claims a cause it actually checked:
+    #   (a) the column list itself (field 3) must be IDENTICAL between the + and - sides for
+    #       every object — if it moved, this is schema, not content, and the classification is
+    #       wrong regardless of what caused it.
+    #   (b) supabase/seed*.sql must actually differ from the baseline, or nothing supports
+    #       blaming a seed edit for what changed.
+    #
+    # (a) itself splits each CATALOG line on `|` to read field 3 — but the fingerprint's own name
+    # field can BE a quoted identifier, and Postgres allows `|` inside one. A column or table
+    # named `"a|b"` then splits into an EXTRA field, shifting $3 to a truncated fragment of the
+    # real name: a genuine rename could compare equal by accident and, with a real seed edit also
+    # present, get wrongly classified as SEED-DRIFT (cross-family review). Fail-safe: if any
+    # CATALOG line has more fields than the fingerprint's fixed shape
+    # (kind|object|name|detail = 4) or carries a `"` at all, the split cannot be trusted — skip
+    # the classification entirely rather than risk reading the wrong field.
+    CATALOG_LINES="$(grep -E '^[+-]CATALOG\|' "$OUT/drift.diff" || true)"
+    CATALOG_UNSAFE=0
+    if [ -n "$CATALOG_LINES" ]; then
+      if printf '%s\n' "$CATALOG_LINES" | awk -F'|' 'NF>4{f=1} END{exit !f}'; then
+        CATALOG_UNSAFE=1
+      fi
+      printf '%s\n' "$CATALOG_LINES" | grep -qF '"' && CATALOG_UNSAFE=1
+    fi
+    CATALOG_COLS_PLUS="$(grep '^+CATALOG|' "$OUT/drift.diff" | awk -F'|' '{print $2"|"$3}' | sort -u || true)"
+    CATALOG_COLS_MINUS="$(grep '^-CATALOG|' "$OUT/drift.diff" | awk -F'|' '{print $2"|"$3}' | sort -u || true)"
+    # Compares BASELINE_SHA against the actual working tree (not HEAD): FRESH is built from the
+    # working tree via copy_worktree, uncommitted edits included, so that is what "did the seed
+    # actually change" has to mean here — a diff against HEAD would miss an uncommitted edit.
+    # `git diff --name-only` alone sees tracked files only, so a brand-new, never-`git add`-ed
+    # supabase/seed*.sql — which copy_worktree DOES pick up into FRESH — would read as "no seed
+    # change" and this classification would wrongly fall through to the generic message. That
+    # miss is the SAFE direction (never a false SEED-DRIFT), but it is still a miss, so untracked
+    # seed files are counted too.
+    SEED_TRACKED_DIFF="$(git diff --name-only "$BASELINE_SHA" -- 'supabase/seed*.sql' 2>/dev/null || true)"
+    SEED_UNTRACKED="$(git ls-files --others --exclude-standard -- 'supabase/seed*.sql' 2>/dev/null || true)"
+    SEED_DIFFERS="${SEED_TRACKED_DIFF}${SEED_UNTRACKED}"
+    if [ "$CATALOG_UNSAFE" = "0" ] && [ "$CATALOG_COLS_PLUS" = "$CATALOG_COLS_MINUS" ] \
+       && [ -n "$SEED_DIFFERS" ]; then
+      echo "✗ SEED-DRIFT — every differing fact is table CONTENT, not schema:" >&2
+      echo "  supabase/seed*.sql was edited but no migration carries the change, so the applied path" >&2
+      echo "  (not re-seeded after migration up, same as a real deployed database) still has the" >&2
+      echo "  BASELINE's row content while a fresh reset has the working tree's. Add a migration" >&2
+      echo "  (DML) if a deployed database needs this content too — or if the difference is inert," >&2
+      echo "  it is still true drift from the fresh path and this check is right to refuse it." >&2
+      head -60 "$OUT/drift.diff" >&2
+      echo "  full diff: $OUT/drift.diff" >&2
+      exit 1
+    fi
+  fi
   echo "✗ DRIFT — a database migrated from $(git rev-parse --short "$BASELINE_SHA") does NOT match a fresh one:" >&2
   head -60 "$OUT/drift.diff" >&2
   echo "  full diff: $OUT/drift.diff" >&2

@@ -79,6 +79,18 @@ apply_stmt() {  # apply_stmt STATEMENT
       [ -n "$n" ] || { echo "fake supabase: could not read the policy name: $lc" >&2; exit 1; }
       grep -vxF "$n" "$S/pols" > "$S/pols.tmp" 2>/dev/null || : > "$S/pols.tmp"
       mv "$S/pols.tmp" "$S/pols" ;;
+    *"drop column if exists"*)
+      # Models a plain column drop — no CONSTRAINT/RLS/POLICY/FUNCTION fact moves, only the
+      # CATALOG name field (the fingerprint's stable-column list) changes. Section T3 uses this
+      # to prove a real schema drift of this shape does not get the seed-asymmetry headline.
+      n="$(fold_ident "$(ident_after "$stmt" if exists)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the column name: $lc" >&2; exit 1; }
+      grep -vxF "$n" "$S/cols" > "$S/cols.tmp" 2>/dev/null || : > "$S/cols.tmp"
+      mv "$S/cols.tmp" "$S/cols" ;;
+    *"add column"*)
+      n="$(fold_ident "$(ident_after "$stmt" add column)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the column name: $lc" >&2; exit 1; }
+      grep -qxF "$n" "$S/cols" || echo "$n" >> "$S/cols" ;;
     *"create policy"*)
       n="$(fold_ident "$(ident_after "$stmt" create policy)")"
       [ -n "$n" ] || { echo "fake supabase: could not read the policy name: $lc" >&2; exit 1; }
@@ -137,7 +149,39 @@ case "$1 $2" in
         fi ;;
     esac
     : > "$S/cons"; : > "$S/versions"
-    for f in "$W"/supabase/migrations/*.sql; do apply "$f"; done ;;
+    # The baseline column: `create table t (a text)` on every generation. A fresh reset always
+    # starts here; only add/drop column statements applied below move it (section T3).
+    echo a > "$S/cols"
+    for f in "$W"/supabase/migrations/*.sql; do apply "$f"; done
+    # `db reset` re-seeds; `migration up` (below) deliberately does not — mirroring the real
+    # Supabase CLI and a real deployed database, which is never re-seeded either (#472). Only
+    # non-comment, non-blank lines count as "content": the default fixture seed is a lone `--`
+    # comment, and that must model the same "nothing seeded" state as no seed file at all (K6).
+    : > "$S/seed"
+    for f in "$W"/supabase/seed*.sql; do
+      [ -e "$f" ] || continue
+      grep -v '^[[:space:]]*--' "$f" | grep -v '^[[:space:]]*$' >> "$S/seed" || true
+    done
+    # Section V's knob only: a fact that a fresh reset sets and that migration up (below) never
+    # restores, with NO real object class behind it — models a fingerprint row whose KIND isn't
+    # an uppercase word, so a defensive test of the classifier's own parsing doesn't need a real
+    # broken migration to trigger it. Off by default; every other fixture is untouched.
+    if [ "${STUB_LOWERCASE_ROW:-0}" = "1" ]; then
+      case "$W" in
+        */head) echo 1 > "$S/lowercase_flag" ;;
+        */base) echo 0 > "$S/lowercase_flag" ;;
+      esac
+    fi
+    # Section T4's knob only: a CATALOG name that IS a quoted identifier containing `|` — legal
+    # in Postgres, fatal to a naive `awk -F'|'` read of field 3. The suffix after the embedded
+    # pipe genuinely differs between the two builds (a real rename), while a naive split reads
+    # only the fragment before it and sees no difference at all. Off by default.
+    if [ "${STUB_QUOTED_PIPE:-0}" = "1" ]; then
+      case "$W" in
+        */head) echo right > "$S/quoted_pipe_suffix" ;;
+        */base) echo other > "$S/quoted_pipe_suffix" ;;
+      esac
+    fi ;;
   "migration up")
     for f in "$W"/supabase/migrations/*.sql; do
       v="$(basename "$f" | sed -n 's/^\([0-9][0-9]*\)_.*/\1/p')"
@@ -182,6 +226,32 @@ cat > /dev/null   # swallow the fingerprint SQL on stdin
   done
   echo "CATALOG|filler.vocab|code, name|<row><code>a</code></row>"
   if grep -qxF "t_cat_fkey" "$S/cons"; then echo "CATALOG|cat|code|<row><code>x</code></row>"; fi
+  # The seed's effect (#472): whatever `$S/seed` holds after the last db reset, never touched by
+  # migration up. `-` for "nothing seeded" so an absent seed file and a comment-only one (the
+  # default fixture) fingerprint identically — only real content should ever show up as drift.
+  SEED_MARKER="$(tr '\n' ' ' < "$S/seed" 2>/dev/null)"
+  echo "CATALOG|filler.seeded|marker|<row><v>${SEED_MARKER:--}</v></row>"
+  # A CATALOG row whose NAME field IS the column list — the real fingerprint's `stable_cols`
+  # shape (applied-path-fingerprint.sql). Section T3 drops a column via a real migration bug
+  # (no matching CONSTRAINT/RLS/POLICY/FUNCTION moves) and needs this to differ, not the marker
+  # row above, to prove the classifier reads field 3, not just "is everything CATALOG".
+  COLS="$(sort "$S/cols" 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+  echo "CATALOG|t|${COLS:-a}|<row><n>1</n></row>"
+  # Section V only (off by default): one row with a lowercase KIND — no real object class emits
+  # one — present after a fresh reset of the head tree, absent after the baseline is reset and
+  # migrated forward. Proves the classifier's own kind-parsing doesn't abort when a diff line
+  # doesn't start with an uppercase word, without needing a real broken migration to produce it.
+  if [ "${STUB_LOWERCASE_ROW:-0}" = "1" ] && [ "$(cat "$S/lowercase_flag" 2>/dev/null || echo 0)" = "1" ]; then
+    echo "extra|marker|-|present"
+  fi
+  # Section T4 only: a quoted identifier containing `|` as the CATALOG name. Whatever
+  # `$S/quoted_pipe_suffix` holds after the last db reset — "right" on a fresh head reset,
+  # "other" on the baseline, never touched by migration up, same asymmetry as the seed/lowercase
+  # knobs above.
+  if [ "${STUB_QUOTED_PIPE:-0}" = "1" ]; then
+    QP_SUFFIX="$(cat "$S/quoted_pipe_suffix" 2>/dev/null || echo right)"
+    echo "CATALOG|weird|\"left|${QP_SUFFIX}\"|<row><n>1</n></row>"
+  fi
 } | sort | { if [ -n "${STUB_DROP_KIND:-}" ]; then grep -v "^${STUB_DROP_KIND}|"; else cat; fi; }
 STUB
 chmod +x "$T/bin/supabase" "$T/bin/docker"
@@ -191,7 +261,7 @@ chmod +x "$T/bin/supabase" "$T/bin/docker"
 # GEN 2 (today's tree):          001 EDITED so fresh databases never get that CHECK, plus 002
 #                               which drops it conditionally and adds the catalog FK. Exactly the
 #                               shape that has a branch CI can never reach.
-# Four env knobs, set per fixture, all off by default so the shape above is what every existing
+# Five env knobs, set per fixture, all off by default so the shape above is what every existing
 # section still gets — and so 002_catalog.sql's first three lines keep their line NUMBERS, which
 # section L and section M assert on:
 #   MKREPO_GEN1_EXTRA   raw SQL appended to the BASELINE's 001 (an object only a deployed db has)
@@ -199,6 +269,8 @@ chmod +x "$T/bin/supabase" "$T/bin/docker"
 #   MKREPO_NO_LEGACY=1  omit the legacy CHECK pair entirely, for a fixture whose only conditional
 #                       drop is of some other object class
 #   MKREPO_SEEDLESS=1   the BASELINE COMMIT carries no seed*.sql at all
+#   MKREPO_SEED_GEN2    rewrites today's seed.sql with real (non-comment) content and no matching
+#                       migration — the seed-asymmetry shape (#472), section T
 mkrepo() {  # mkrepo DIR
   local R="$1"
   mkdir -p "$R/scripts/lib" "$R/supabase/migrations"
@@ -222,6 +294,11 @@ CFG
   ( cd "$R" && git init -q . && git add -A && git -c user.email=t@t -c user.name=t commit -qm gen1 )
   BASE_SHA="$( cd "$R" && git rev-parse HEAD )"
   [ "${MKREPO_SEEDLESS:-0}" = "1" ] && echo "-- nothing to seed" > "$R/supabase/seed.sql"
+  # MKREPO_SEED_GEN2: rewrite the WORKING TREE's (today's) seed.sql after the baseline commit,
+  # with no migration to carry the change — the seed-asymmetry shape (#472). Real content, not a
+  # `--` comment, so it is distinguishable from the "nothing seeded" default both fixtures start
+  # from (see the `db reset` seed stub above, which strips comments before comparing).
+  [ -z "${MKREPO_SEED_GEN2:-}" ] || printf '%s\n' "$MKREPO_SEED_GEN2" > "$R/supabase/seed.sql"
   cat > "$R/supabase/migrations/001_base.sql" <<'SQL'
 create table t (a text);
 SQL
@@ -890,6 +967,192 @@ if printf '%s' "$LAST_OUT" | grep -qF "✓ proven able to fail"; then
   bad "the --prove success line printed even though the restore failed"
 else
   ok "the --prove success line is withheld when the restore fails"
+fi
+
+echo "── T. seed asymmetry is diagnosed as SEED-DRIFT, not a migration defect (#472)"
+# FRESH seeds from the working tree, APPLIED from the baseline, and migration up never re-seeds
+# (the `db reset` stub above rebuilds $S/seed; `migration up` does not touch it). A seed edit with
+# no matching migration is real drift — the fix is not to silence it — but a generic "does NOT
+# match a fresh one" sends the reader hunting a migration bug that isn't there. This fixture's
+# ONLY change is the seed; the class-only check below is what tells the two messages apart.
+RT="$T/t-seed"; ( export MKREPO_SEED_GEN2="vocab: beta"; mkrepo "$RT" )
+rm -rf "$T/db"; rm -rf "$T/out-t"; mkdir -p "$T/out-t"
+run "$RT" "$T/out-t"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a seed-only difference is caught (rc=1) and diagnosed as SEED-DRIFT"
+else
+  bad "seed asymmetry was not flagged as SEED-DRIFT (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+if printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one"; then
+  bad "a pure seed diff still used the migration-flavoured DRIFT message"
+else
+  ok "the migration-flavoured DRIFT message is withheld for a seed-only diff"
+fi
+
+# T2 — control: a diff that ALSO touches schema (not seed-only) must keep the generic message.
+# Otherwise the classification is a blanket "never blame seeds" rather than an honest read of
+# which facts actually moved.
+RT2="$T/t-seed-mixed"
+( export MKREPO_SEED_GEN2="vocab: beta"; mkrepo "$RT2" )
+grep -v 'drop constraint if exists' "$RT2/supabase/migrations/002_catalog.sql" > "$RT2/x" \
+  && mv "$RT2/x" "$RT2/supabase/migrations/002_catalog.sql"
+( cd "$RT2" && git add -A && git -c user.email=t@t -c user.name=t commit -qm break >/dev/null )
+rm -rf "$T/db"; rm -rf "$T/out-t2"; mkdir -p "$T/out-t2"
+run "$RT2" "$T/out-t2"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a mixed CATALOG+CONSTRAINT drift keeps the generic DRIFT message"
+else
+  bad "a mixed drift was mis-classified as pure seed asymmetry (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+# T3 — control: a column-list-only CATALOG drift is NOT a seed edit. CATALOG's name field is the
+# fingerprint's stable-column list, so a plain column drop a migration forgot — no
+# CONSTRAINT/RLS/POLICY/FUNCTION fact moves — ALSO shows up as CATALOG-only, and must not get the
+# seed headline: no seed*.sql changed here at all. GEN1 (the baseline) carries an extra column
+# that GEN2's rewritten 001 never creates and no migration ever drops — a real oversight, the same
+# shape section B uses for a forgotten constraint drop, just one level down at the column.
+RT3="$T/t3-column"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN1_EXTRA="alter table t add column legacy_col text;"
+  mkrepo "$RT3" )
+rm -rf "$T/db"; rm -rf "$T/out-t3"; mkdir -p "$T/out-t3"
+run "$RT3" "$T/out-t3"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a column-list-only CATALOG drift keeps the generic DRIFT message, not SEED-DRIFT"
+else
+  bad "a forgotten column drop was mis-classified as seed asymmetry (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+if grep -qF "legacy_col" "$T/out-t3/drift.diff" 2>/dev/null; then
+  ok "the drift names the column that survived"
+else
+  bad "the drift did not name the surviving column (got: $(tr '\n' ' ' < "$T/out-t3/drift.diff" 2>/dev/null))"
+fi
+
+# T4 — control: NEITHER gate is provable alone unless a fixture makes them disagree. T (seed-only)
+# and T3 (column-only) each satisfy both gates at once by construction, so deleting either gate in
+# isolation leaves both of those green (cross-family review). This fixture has BOTH a real seed
+# edit (MKREPO_SEED_GEN2) AND a forgotten column drop (MKREPO_GEN1_EXTRA) in the SAME run: the
+# seed-diff gate is satisfied, so only the column-list gate stands between this and a wrong
+# SEED-DRIFT verdict — deleting it turns this case red.
+RT4="$T/t4-seed-and-column"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN1_EXTRA="alter table t add column legacy_col text;"
+  export MKREPO_SEED_GEN2="vocab: beta"
+  mkrepo "$RT4" )
+rm -rf "$T/db"; rm -rf "$T/out-t4"; mkdir -p "$T/out-t4"
+run "$RT4" "$T/out-t4"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a real seed edit alongside a forgotten column drop still keeps the generic message"
+else
+  bad "a column-list mismatch was outvoted by a real seed edit (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+echo "── T5. a quoted identifier containing | in the CATALOG name is not trusted to split (#472)"
+# The column-list gate reads field 3 of a CATALOG line by splitting on `|` — but the fingerprint's
+# NAME field can itself be a quoted identifier, and Postgres allows `|` inside one. A rename from
+# "left|other" to "left|right" then reads as the SAME field 3 ("left, truncated at the embedded
+# pipe) on both sides of the diff: the gate would see no column change and, with a real seed edit
+# also present, call it SEED-DRIFT on what is actually an unrelated rename (cross-family review).
+# STUB_QUOTED_PIPE emits exactly that CATALOG row; MKREPO_SEED_GEN2 supplies the real seed edit
+# the pre-fix code needed to reach the classification at all.
+RT5="$T/t5-quoted-pipe"; ( export MKREPO_SEED_GEN2="vocab: beta"; mkrepo "$RT5" )
+rm -rf "$T/db"; rm -rf "$T/out-t5"; mkdir -p "$T/out-t5"
+LAST_OUT="$( cd "$RT5" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+    APPLIED_PATH_MIN_PENDING="${MINP:-1}" STUB_QUOTED_PIPE=1 \
+    ./scripts/applied-path-check.sh --out "$T/out-t5" 2>&1 )"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a | inside a quoted CATALOG name falls through to the generic message, not SEED-DRIFT"
+else
+  bad "a quoted | identifier let the truncated field-3 read pass as unchanged (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+echo "── T6. an untracked NEW seed file still counts as a real seed change (#472)"
+# copy_worktree copies supabase/seed*.sql into FRESH regardless of git's index, so a seed file
+# that was never `git add`-ed is still what FRESH is built from. `git diff --name-only` alone
+# only sees tracked files, so a brand-new untracked seed would read as "no seed change" — the
+# safe direction (falls through to generic, never a false SEED-DRIFT) but still a miss. This adds
+# a seed file WITHOUT committing or staging it, on a fixture that is otherwise pure seed asymmetry
+# (no column drop), and requires the untracked file still to be recognised.
+RT6="$T/t6-untracked-seed"; mkrepo "$RT6"
+echo "vocab: untracked-gamma" > "$RT6/supabase/seed-extra.sql"
+rm -rf "$T/db"; rm -rf "$T/out-t6"; mkdir -p "$T/out-t6"
+run "$RT6" "$T/out-t6"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "an untracked new seed*.sql file is still counted as a real seed change (rc=1, SEED-DRIFT)"
+else
+  bad "an untracked seed file was invisible to the seed-diff gate (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+echo "── V. a kind-less drift line does not abort the classifier — it falls through, message intact"
+# The DRIFT_KINDS assignment is a pipeline under set -o pipefail: `grep -oE ...` matching NOTHING
+# exits 1, and even though sed/sort after it succeed, pipefail makes the ASSIGNMENT's own exit
+# status 1 — a bare `VAR="$(...)"` with no `||`/`if` around it then aborts the whole script under
+# `set -e`, printing NEITHER the SEED-DRIFT nor the generic DRIFT message (#472). STUB_LOWERCASE_ROW
+# forces exactly that: a drift line whose kind is lowercase, so nothing before the first `|`
+# matches `[A-Z]+`, on an otherwise-converging repo where nothing else differs.
+rm -rf "$T/db"; rm -rf "$T/out-v"; mkdir -p "$T/out-v"
+LAST_OUT="$( cd "$R" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+    APPLIED_PATH_MIN_PENDING="${MINP:-1}" STUB_LOWERCASE_ROW=1 \
+    ./scripts/applied-path-check.sh --out "$T/out-v" 2>&1 )"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one"; then
+  ok "a diff line with no uppercase KIND prefix still reaches the generic DRIFT message (rc=1)"
+else
+  bad "a kind-less drift line aborted the classifier instead of falling through (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+echo "── U. the fingerprint SQL's parens balance and it is not empty (#472)"
+# The fake docker above never executes SQL — it renders canned rows from two text files — so a
+# syntax error in scripts/lib/applied-path-fingerprint.sql would pass this whole suite while
+# guards.yml lists that file as covered by it. No local Postgres is available here — this file's
+# own header says so on purpose — so this does NOT parse or execute the SQL: strip `--` comments
+# and '…' string content, then require the parens balance and the file is non-empty. That catches
+# truncation and gross corruption, never a syntax error the parens don't reveal (an unbalanced
+# CASE/END, a missing comma). Real execution coverage lives in the integration/geometry lanes,
+# which boot Postgres and run this file for real.
+#
+# The stripper is calibrated to THIS file's dialect, not general SQL: applied-path-fingerprint.sql
+# carries no dollar-quoted (`$$`) body and no `E'...'` escape string today, so neither is handled
+# here — unlike the harness's own statement lexer (sections M/P2/Q), which has to survive
+# migrations that do. If the fingerprint SQL ever grows one, this check needs the same handling
+# or it will misjudge the balance.
+cat > "$T/parse-balance.pl" <<'PERL'
+#!/usr/bin/env perl
+# Strip `--` line comments and '...' string content (Postgres doubles a quote to escape one
+# inside a literal), then print the paren balance. 0 means every `(` in the actual SQL is closed.
+# Comments and string content are stripped FIRST because they can look unbalanced on their own —
+# e.g. this file's own volatile-default pattern matches a literal '(' via a regex escape inside a
+# string, which is one open paren with no close and would fail a naive whole-file count.
+use strict;
+use warnings;
+my $s = do { local $/; <> };
+$s =~ s/--[^\n]*//g;
+$s =~ s/'(?:[^']|'')*'/''/g;
+my $bal = ($s =~ tr/(//) - ($s =~ tr/)//);
+print $bal;
+PERL
+FP_BAL="$(perl "$T/parse-balance.pl" "$FP_SQL")"
+eq "the fingerprint SQL's parens balance once comments and string content are stripped" "$FP_BAL" "0"
+
+FP_CODE_LINES="$(grep -vE '^[[:space:]]*(--|$)' "$FP_SQL" | wc -l | tr -d ' ')"
+if [ "$FP_CODE_LINES" -gt 5 ]; then
+  ok "the fingerprint SQL has real statement content, not just a header ($FP_CODE_LINES lines)"
+else
+  bad "the fingerprint SQL looks like comments only ($FP_CODE_LINES lines)"
+fi
+
+# Control: this check must actually be able to fail, or it is decoration. A file truncated
+# mid-CTE leaves an opened `(` with no matching `)`.
+BADSQL="$T/bad-fingerprint.sql"
+head -40 "$FP_SQL" > "$BADSQL"
+BAD_BAL="$(perl "$T/parse-balance.pl" "$BADSQL")"
+if [ "$BAD_BAL" != "0" ]; then
+  ok "control: a truncated fingerprint file fails the balance check (bal=$BAD_BAL)"
+else
+  bad "control: a truncated fingerprint file still balanced — this check proves nothing"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
