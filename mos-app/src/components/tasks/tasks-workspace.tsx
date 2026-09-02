@@ -8,6 +8,7 @@ import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -119,29 +120,26 @@ function taskDisclosureSummary(
   t: ReturnType<typeof useT>,
   base: string,
 ): { summary: string; hasActiveFilters: boolean } {
-  const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
-  const hasIndependentFilter = Object.keys(TASK_COLLECTION_NEUTRAL_QUERY).some((key) => {
-    if (excludedKeys.has(key)) return false
-    const queryValue = query[key as keyof TaskCollectionQuery]
-    const neutralValue = TASK_COLLECTION_NEUTRAL_QUERY[key as keyof TaskCollectionQuery]
-    return queryValue !== neutralValue
+  const common = collectionDisclosureSummary({
+    query,
+    neutralQuery: TASK_COLLECTION_NEUTRAL_QUERY,
+    excludedKeys: ['layout', 'groupBy', 'sort', 'direction'],
+    base,
+    // my-pic/my-supervisor light this dot (view !== 'all') even though getActiveTaskView treats
+    // them as the default breadcrumb state (no leaf pushed) — intended: on the door they ARE
+    // filters on top of the base view, not a saved view of their own.
+    hasNonDefaultView: query.view !== 'all',
+    filterLabel: (currentQuery) => currentQuery.overdueOnly ? t('tasks.saved.overdue')
+      : currentQuery.status ? t('tasks.filter.status')
+        : currentQuery.businessUnitId ? t('tasks.filter.businessUnit')
+          : currentQuery.picId || currentQuery.supervisorId || currentQuery.personId ? t('tasks.filter.person')
+            : currentQuery.occurrenceId ? t('tasks.filter.occurrence')
+              : currentQuery.q.trim() ? t('tasks.filter.search')
+                : currentQuery.includeArchived ? t('tasks.filter.showArchived')
+                  : currentQuery.savedViewId ? t('common.savedView')
+                    : undefined,
   })
-  // my-pic/my-supervisor light this dot (view !== 'all') even though getActiveTaskView treats
-  // them as the default breadcrumb state (no leaf pushed) — intended: on the door they ARE
-  // filters on top of the base view, not a saved view of their own.
-  const hasActiveFilters = query.view !== 'all' || hasIndependentFilter
-  if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
-
-  const filterLabel = query.overdueOnly ? t('tasks.saved.overdue')
-    : query.status ? t('tasks.filter.status')
-      : query.businessUnitId ? t('tasks.filter.businessUnit')
-        : query.picId || query.supervisorId || query.personId ? t('tasks.filter.person')
-          : query.occurrenceId ? t('tasks.filter.occurrence')
-          : query.q.trim() ? t('tasks.filter.search')
-            : query.includeArchived ? t('tasks.filter.showArchived')
-              : query.savedViewId ? t('common.savedView')
-                : undefined
-  return { summary: filterLabel ? `${base} · ${filterLabel}` : base, hasActiveFilters }
+  return common
 }
 
 export function TasksWorkspace({

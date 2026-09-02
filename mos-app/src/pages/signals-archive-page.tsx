@@ -12,6 +12,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import {
   CollectionToolbar,
@@ -106,27 +107,22 @@ export function SignalsArchivePage() {
   })
 
   function signalDisclosureSummary(): { summary: string; hasActiveFilters: boolean } {
-    const base = activeSignalView.label
-    const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
-    const hasIndependentFilter = Object.keys(SIGNAL_COLLECTION_NEUTRAL_QUERY).some((key) => {
-      if (excludedKeys.has(key)) return false
-      const queryValue = query[key as keyof SignalCollectionQuery]
-      const neutralValue = SIGNAL_COLLECTION_NEUTRAL_QUERY[key as keyof SignalCollectionQuery]
-      return queryValue !== neutralValue
+    return collectionDisclosureSummary({
+      query,
+      neutralQuery: SIGNAL_COLLECTION_NEUTRAL_QUERY,
+      excludedKeys: ['layout', 'groupBy', 'sort', 'direction'],
+      base: activeSignalView.label,
+      // One source for "is this off the default view": activeSignalView.hasNonDefaultView (same
+      // savedViewId/view check getActiveSignalView already made), not a second view!=='all' here.
+      hasNonDefaultView: activeSignalView.hasNonDefaultView,
+      filterLabel: (currentQuery) => currentQuery.attention ? t('signals.archive.filterAttention')
+        : currentQuery.category ? t('signals.archive.filterCategory')
+          : currentQuery.teamId ? t('signals.archive.filterTeam')
+            : currentQuery.q.trim() ? t('signals.archive.searchLabel')
+              : currentQuery.showRetracted ? t('signals.archive.showRetracted')
+                : currentQuery.savedViewId ? t('common.savedView')
+                  : undefined,
     })
-    // One source for "is this off the default view": activeSignalView.hasNonDefaultView (same
-    // savedViewId/view check getActiveSignalView already made), not a second view!=='all' here.
-    const hasActiveFilters = activeSignalView.hasNonDefaultView || hasIndependentFilter
-    if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
-
-    const filterLabel = query.attention ? t('signals.archive.filterAttention')
-      : query.category ? t('signals.archive.filterCategory')
-        : query.teamId ? t('signals.archive.filterTeam')
-          : query.q.trim() ? t('signals.archive.searchLabel')
-            : query.showRetracted ? t('signals.archive.showRetracted')
-              : query.savedViewId ? t('common.savedView')
-                : undefined
-    return { summary: filterLabel ? `${base} · ${filterLabel}` : base, hasActiveFilters }
   }
 
   function setQuery(patch: Partial<SignalCollectionQuery>) {

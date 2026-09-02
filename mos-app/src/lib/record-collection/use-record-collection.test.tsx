@@ -234,35 +234,42 @@ describe('useRecordCollection (synced)', () => {
   // Issue #607: a desktop session narrowed to phone width used to keep presentation=table while
   // CSS alone hid the Table/Card switcher — a dead end with no way back to Feed. This proves the
   // hook reacts to the isDesktop PROP flipping (not just a fresh phone mount, already covered by
-  // AC-V3-013 in signals-archive-page.test.tsx), and that widening restores the desktop choice.
-  it('Issue #607: narrowing an already-mounted desktop session pins the collection default, and widening restores Table', async () => {
+  // AC-V3-013 in signals-archive-page.test.tsx), that widening restores the desktop choice, and
+  // that the URL's `layout` param — not just in-memory state — tracks the live presentation at
+  // every stage, with the whole saved query (view/attention included) round-tripping verbatim.
+  it('Issue #607: presentation and URL follow a desktop → 390px phone → desktop resize, restoring the saved Table view verbatim', async () => {
     const { rerender } = render(
-      <MemoryRouter initialEntries={['/signals?layout=table']}>
+      <MemoryRouter initialEntries={['/signals?layout=table&view=needs-attention&attention=Urgent']}>
         <Harness isDesktop />
       </MemoryRouter>,
     )
     await flush()
+    const savedQuery = { ...controllerRef!.state.query }
     expect(controllerRef?.state.presentation).toBe('table')
+    expect(new URLSearchParams(capturedSearch).get('layout')).toBe('table')
 
     // Narrow: presentation is constrained at the state layer, not merely hidden by CSS — a bare
     // switchPresentation('table') would still read 'table' here if the fix were a no-op.
     rerender(
-      <MemoryRouter initialEntries={['/signals?layout=table']}>
+      <MemoryRouter initialEntries={['/signals?layout=table&view=needs-attention&attention=Urgent']}>
         <Harness isDesktop={false} />
       </MemoryRouter>,
     )
     await flush()
     expect(controllerRef?.state.presentation).toBe('feed')
+    expect(new URLSearchParams(capturedSearch).get('layout')).toBe('feed')
 
     // Widen: the Table request that brought the user here is still compatible with the live
     // (unchanged) query, so it comes back rather than staying stuck on the phone default.
     rerender(
-      <MemoryRouter initialEntries={['/signals?layout=table']}>
+      <MemoryRouter initialEntries={['/signals?layout=table&view=needs-attention&attention=Urgent']}>
         <Harness isDesktop />
       </MemoryRouter>,
     )
     await flush()
     expect(controllerRef?.state.presentation).toBe('table')
+    expect(controllerRef?.state.query).toEqual(savedQuery)
+    expect(new URLSearchParams(capturedSearch).get('layout')).toBe('table')
   })
 
   // The Signal descriptor's Table presentation supports every query key, so a widen-restore to
