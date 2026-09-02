@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { countUnread } from '@/lib/db/notifications'
+import { onUnreadCountChanged } from './unread-count-bus'
 
 export interface UseUnreadCount {
   unreadCount: number
@@ -50,6 +51,10 @@ export function useUnreadCount(): UseUnreadCount {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // #582: react to a mark-read/mark-handled done by ANY mounted useNotifications() elsewhere in
+  // the shell (Inbox page, quick-triage panel) — not just a refetch this hook triggered itself.
+  useEffect(() => onUnreadCountChanged(() => void refresh()), [refresh])
 
   return { unreadCount, loading, refresh }
 }

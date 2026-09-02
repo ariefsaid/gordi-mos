@@ -24,8 +24,10 @@
   cursor: pointer;
   color: var(--foreground);
 }
+/* #585: wash token, not the solid action colour — see inbox-hover-wash.css.test.ts for the why
+   (also applies to .inbox-triage__filter:hover and .inbox-row__handle:hover below). */
 .inbox-row__button:hover {
-  background: var(--accent);
+  background: var(--surface-tertiary);
 }
 /* Dense feed-row affordance — inset ring (item #6): an outward +2 collides with the
    adjacent row. Token normalized to --accent (was --primary, the banned swap). */
@@ -106,7 +108,7 @@
   cursor: pointer;
 }
 .inbox-triage__filter:hover {
-  background: var(--accent);
+  background: var(--surface-tertiary);
 }
 .inbox-triage__filter:focus-visible {
   outline: 2px solid var(--accent);
@@ -157,7 +159,7 @@
   cursor: pointer;
 }
 .inbox-row__handle:hover {
-  background: var(--accent);
+  background: var(--surface-tertiary);
   color: var(--foreground);
 }
 .inbox-row__handle:focus-visible {
@@ -215,4 +217,15 @@
 }
 .inbox-row__age {
   flex: none;
+}
+
+/* #583: the created time — right-aligned end of the title-line grammar at both desktop and
+   phone widths. `margin-left: auto` packs it to the far right whether or not the age Pill (above)
+   is also present, since the title itself is the only flexible sibling in this row. */
+.inbox-row__time {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--font-size-mono);
+  color: var(--muted-foreground);
+  white-space: nowrap;
 }

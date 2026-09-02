@@ -17,15 +17,24 @@ export function initials(fullName: string): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
 }
 
-/** Format a duration between two ISO timestamps into a compact age string (e.g. "2h", "3d"). */
-export function formatAge(isoDate: string, now: Date): string {
+// Compact age-unit suffixes per locale. Mirrors formatDate's `locale: Locale = 'en'` pattern
+// (below) — every existing caller that passes no locale keeps the prior en-only output exactly.
+const AGE_UNITS: Record<Locale, { minute: string; hour: string; day: string }> = {
+  en: { minute: 'm', hour: 'h', day: 'd' },
+  id: { minute: 'mnt', hour: 'jam', day: 'hr' },
+}
+
+/** Format a duration between two ISO timestamps into a compact age string (e.g. "2h", "3d";
+ * "2jam", "3hr" for id) — the units alone are localized, matching a localized Pill next to it. */
+export function formatAge(isoDate: string, now: Date, locale: Locale = 'en'): string {
+  const units = AGE_UNITS[locale]
   const ms = now.getTime() - new Date(isoDate).getTime()
   const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes}m`
+  if (minutes < 60) return `${minutes}${units.minute}`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
+  if (hours < 24) return `${hours}${units.hour}`
   const days = Math.floor(hours / 24)
-  return `${days}d`
+  return `${days}${units.day}`
 }
 
 /** Format a YYYY-MM-DD date into a display string like "Wed 12 Jun".
