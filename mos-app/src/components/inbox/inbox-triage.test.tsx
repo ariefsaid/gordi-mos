@@ -4,6 +4,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { translateFor } from '@/i18n/use-t'
 import { InboxTriage, type InboxTriageProps } from './inbox-triage'
 import type { TriageNotificationRow } from './read-handled-semantics'
+import { formatAge } from '@/components/tasks/task-formatters'
 
 function trow(id: string, over?: Partial<TriageNotificationRow>): TriageNotificationRow {
   return {
@@ -102,6 +103,21 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.getByText('Title a')).toBeInTheDocument()
     expect(screen.getByText('Body a')).toBeInTheDocument()
     expect(screen.getByText('Title b')).toBeInTheDocument()
+  })
+
+  it('issue #583: each row renders its created time in the shared humane-age format, reused not reinvented', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at
+    try {
+      renderTriage({ rows: [trow('a')] })
+      // Same helper Activity already renders ages with (task-formatters.ts formatAge) — a second,
+      // reinvented format here would drift from it the first time either one changes.
+      const expected = formatAge('2026-07-20T00:00:00Z', new Date())
+      const row = screen.getByText('Title a').closest('.inbox-row')!
+      expect(within(row as HTMLElement).getByText(expected)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('an unread row is marked unread in its accessible name and style hook', () => {

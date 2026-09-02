@@ -9,6 +9,9 @@ import {
   type TriageNotificationRow,
 } from './read-handled-semantics'
 import { nudgeAgeDays } from './nudge-semantics'
+// #583: the compact "2h"/"3d" age grammar Activity already renders (task-formatters.ts) — reused
+// here rather than inventing a second created-time format for the same row shape.
+import { formatAge } from '@/components/tasks/task-formatters'
 
 /**
  * InboxTriage — the ONE chrome-free Inbox triage content surface (Issue 7). The same component
@@ -221,6 +224,7 @@ export function InboxTriage({
                             {t('inbox.age.days', { count: ageDays })}
                           </Pill>
                         ) : null}
+                        <span className="inbox-row__time">{formatAge(n.created_at, now)}</span>
                       </span>
                       {n.body ? <span className="inbox-row__body">{n.body}</span> : null}
                     </span>
