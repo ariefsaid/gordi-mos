@@ -718,7 +718,8 @@ export const messages = {
     // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
     // same key, same value, dropped here rather than duplicated (combination hazard fixed the same
     // way 6e7fe4c fixed it for Home+Inbox's common.help: earlier-merged pair stays).
-    'common.resultCount': "${count} items in your scope",
+    'common.resultCount.one': "${count} item in your scope",
+    'common.resultCount.other': "${count} items in your scope",
     'common.save': "Save",
     'common.saveCurrentView': "Save current view",
     'common.saveView': "Save view",
@@ -1950,7 +1951,8 @@ export const messages = {
     // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
     // same key, same value, dropped here rather than duplicated (combination hazard fixed the same
     // way 6e7fe4c fixed it for Home+Inbox's common.help: earlier-merged pair stays).
-    'common.resultCount': "${count} item dalam cakupan Anda",
+    'common.resultCount.one': "${count} item dalam cakupan Anda",
+    'common.resultCount.other': "${count} item dalam cakupan Anda",
     'common.save': "Simpan",
     'common.saveCurrentView': "Simpan tampilan saat ini",
     'common.saveView': "Simpan tampilan",

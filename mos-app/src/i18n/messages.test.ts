@@ -37,6 +37,21 @@ describe('i18n messages catalog', () => {
     expect('tasks.rowOpen' in messages.id).toBe(false)
   })
 
+  it('issue 579: common.resultCount has a singular noun in both locales', () => {
+    expect(interpolate(messages.en['common.resultCount.one'], { count: 1 })).toBe(
+      '1 item in your scope',
+    )
+    expect(interpolate(messages.en['common.resultCount.other'], { count: 2 })).toBe(
+      '2 items in your scope',
+    )
+    expect(interpolate(messages.id['common.resultCount.one'], { count: 1 })).toBe(
+      '1 item dalam cakupan Anda',
+    )
+    expect(interpolate(messages.id['common.resultCount.other'], { count: 2 })).toBe(
+      '2 item dalam cakupan Anda',
+    )
+  })
+
   it('AC-I02: with locale persisted as id, t("dest.home") returns "Beranda"', () => {
     localStorage.setItem('mos.locale', 'id')
     const { result } = renderHook(() => useT(), { wrapper })

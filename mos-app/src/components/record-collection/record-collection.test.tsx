@@ -266,6 +266,21 @@ describe('OD-REDESIGN-72/79: shared result-header framing', () => {
     expect(header).toHaveTextContent('3 items in your scope')
   })
 
+  it('renders the singular count noun when there is exactly one result (#579)', async () => {
+    const c = createRecordCollectionController(makeDescriptor(), INITIAL)
+    await ready(c)
+    render(
+      <RecordCollectionSurface
+        controller={c}
+        {...chrome}
+        resultHeader={{ collectionLabel: 'Tasks', viewLabel: 'Overdue', count: 1 }}
+      />,
+    )
+    const header = screen.getByTestId('collection-result-header')
+    expect(header).toHaveTextContent('1 item in your scope')
+    expect(header).not.toHaveTextContent('1 items')
+  })
+
   it('omits the result header when not provided (legacy callers opt in)', async () => {
     const c = createRecordCollectionController(makeDescriptor(), INITIAL)
     await ready(c)
