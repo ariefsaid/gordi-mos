@@ -23,25 +23,31 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
   const popoverRef = useRef<HTMLDivElement | null>(null)
   // #577/#621: on a right-column feed row the anchor can sit within a few px of the viewport's
   // right edge; the popover's own `left: 0` CSS default then pushes it (min-width 200px) past the
-  // window edge, hard-clipping options mid-word. `geometry` shifts it back on-screen and, if the
-  // popover itself is wider than the viewport, caps its width too (#621: it previously only
-  // shifted — a phone narrower than the 200px listbox could still overflow).
-  const [geometry, setGeometry] = useState<{ left: number; maxWidth: number } | null>(null)
+  // window edge, hard-clipping options mid-word. `left` shifts it back on-screen. (#631: this call
+  // site does NOT use clampPopoverGeometry's width-clamp — `.signal-category-picker` has a CSS
+  // `min-width: 200px` that overrides any narrower inline `max-width`, so applying one here would
+  // be dead weight.)
+  const [left, setLeft] = useState<number | null>(null)
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current
     const popover = popoverRef.current
     if (!anchor || !popover) return
+    // #631: reset before measuring. This node can already be carrying the max-width from a PRIOR
+    // reposition (e.g. computed at a narrower viewport); measuring straight off the DOM without
+    // resetting first would read that shrunk width back as if it were the popover's natural size,
+    // so a widened viewport could never recover the lost width.
+    popover.style.maxWidth = ''
     const anchorLeft = anchor.getBoundingClientRect().left
-    const { left, maxWidth } = clampPopoverGeometry({
+    const { left: clampedLeft } = clampPopoverGeometry({
       anchorLeft,
       popoverWidth: popover.getBoundingClientRect().width,
       viewportWidth: window.innerWidth,
     })
-    // `left` comes back in the same coordinate space as `anchorLeft` (viewport px); the popover
-    // is positioned `absolute` inside the `relative` anchor, so the style needs the offset FROM
-    // the anchor's own left edge, not the absolute viewport position.
-    setGeometry({ left: left - anchorLeft, maxWidth })
+    // `clampedLeft` comes back in the same coordinate space as `anchorLeft` (viewport px); the
+    // popover is positioned `absolute` inside the `relative` anchor, so the style needs the
+    // offset FROM the anchor's own left edge, not the absolute viewport position.
+    setLeft(clampedLeft - anchorLeft)
   }, [])
 
   useLayoutEffect(() => {
@@ -81,7 +87,7 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
           ref={(node) => { listboxProps.ref(node); popoverRef.current = node }}
           aria-label={t('signals.record.categoryPickerLabel')}
           className="signal-category-picker"
-          style={{ left: geometry?.left ?? 0, maxWidth: geometry?.maxWidth }}
+          style={{ left: left ?? 0 }}
         >
           {SIGNAL_CATEGORIES.map((option, index) => (
             <button
