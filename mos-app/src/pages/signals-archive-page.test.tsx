@@ -329,6 +329,26 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
   })
 
+  it('Issue #607: narrowing an already-open desktop Table renders the phone default, and widening restores Table', async () => {
+    const { rerender } = renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true')
+
+    // Narrow WITHOUT remounting — a bare CSS media query would hide the Feed/Table tabs here while
+    // the collection stayed on Table underneath, the dead end #607 reports.
+    desktopState.value = false
+    rerender(pageTree('/work/signals?layout=table'))
+    await waitFor(() => expect(screen.getByTestId('signal-feed')).toBeInTheDocument())
+    expect(screen.queryByRole('tab', { name: 'Table' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('layout=feed')
+
+    // Widen back — the Table the session started on comes back, not a permanent phone-default demotion.
+    desktopState.value = true
+    rerender(pageTree('/work/signals?layout=table'))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true'))
+    expect(screen.getByTestId('location')).toHaveTextContent('layout=table')
+  })
+
   it('Issue #379 I3: phone Escape on the open View & filters door closes it with focus on the trigger', async () => {
     desktopState.value = false
     renderPage('/work/signals?layout=table')

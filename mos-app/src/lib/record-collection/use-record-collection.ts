@@ -6,10 +6,11 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { createRecordCollectionController, type RecordCollectionController } from './engine'
-import { writeCollectionQuery } from './query-state'
+import { checkPresentationCompatibility, writeCollectionQuery } from './query-state'
 import type {
   CollectionOverlayHost,
   PresentationSwitchResult,
+  QueryKey,
   RecordCollectionDescriptor,
 } from './types'
 
@@ -70,26 +71,27 @@ export function useRecordCollection<
     TPresentation
   > | null>(null)
 
+  // What the URL/saved view asked for, independent of the phone constraint — restored verbatim if
+  // isDesktop flips back true while it's still a compatible presentation for the live query.
+  const desiredPresentationRef = useRef<TPresentation>(descriptor.defaultPresentation)
+  const wasDesktopRef = useRef(isDesktop)
+
   if (controllerRef.current === null) {
     let query: TQuery
-    let presentation: TPresentation
+    let desired: TPresentation
     if (urlMode === 'fixed' && fixedQuery) {
       query = fixedQuery
-      presentation = isDesktop
-        ? presentationOf(fixedQuery, descriptor.defaultPresentation)
-        : descriptor.defaultPresentation
+      desired = presentationOf(fixedQuery, descriptor.defaultPresentation)
     } else if (initialQuery && location.search === '') {
       query = initialQuery
-      presentation = isDesktop
-        ? presentationOf(initialQuery, descriptor.defaultPresentation)
-        : descriptor.defaultPresentation
+      desired = presentationOf(initialQuery, descriptor.defaultPresentation)
     } else {
       const parsed = descriptor.query.parse(new URLSearchParams(searchParams), descriptor.defaultPresentation)
       query = parsed.ok ? parsed.query : parsed.query ?? descriptor.query.neutral
-      presentation = isDesktop
-        ? presentationOf(query, descriptor.defaultPresentation)
-        : descriptor.defaultPresentation
+      desired = presentationOf(query, descriptor.defaultPresentation)
     }
+    desiredPresentationRef.current = desired
+    const presentation = isDesktop ? desired : descriptor.defaultPresentation
     controllerRef.current = createRecordCollectionController(
       { ...descriptor, host },
       { query, presentation, viewerId, accessRoles },
@@ -97,6 +99,26 @@ export function useRecordCollection<
   }
 
   const controller = controllerRef.current
+
+  // React to isDesktop FLIPPING (not merely being false) — a mount that starts on phone is already
+  // handled above by the constructor branch. Narrowing pins the presentation to the collection
+  // default at the state layer (Issue #607: CSS alone left a desktop session showing Table with its
+  // switcher tabs gone — a dead end). Widening restores what was asked for, but only if the query
+  // that accumulated while narrow still supports it; otherwise the default stands, same as a
+  // rejected switchPresentation would leave it.
+  useEffect(() => {
+    if (wasDesktopRef.current === isDesktop) return
+    wasDesktopRef.current = isDesktop
+    if (!isDesktop) {
+      desiredPresentationRef.current = controller.state.presentation
+      controller.constrainPresentation(descriptor.defaultPresentation)
+      return
+    }
+    const desired = desiredPresentationRef.current
+    if (desired !== controller.state.presentation && isPresentationCompatible(descriptor, controller.state.query, desired)) {
+      controller.constrainPresentation(desired)
+    }
+  }, [isDesktop, controller, descriptor])
   const state = useSyncExternalStore(controller.subscribe, () => controller.state, () => controller.state)
 
   // Re-bind the live overlay host every render. The controller is built once, but the ambient host
@@ -159,4 +181,32 @@ function presentationOf<TQuery extends object, TPresentation extends string>(
 ): TPresentation {
   const layout = (query as { layout?: unknown }).layout
   return typeof layout === 'string' ? (layout as TPresentation) : fallback
+}
+
+/** Would `target` accept the live query untouched? Mirrors the engine's own switchPresentation
+ *  check (query-state.ts) so a widen-restore never lands on a presentation the query can't support. */
+function isPresentationCompatible<
+  TRecord,
+  TId extends string,
+  TQuery extends object,
+  TContext,
+  TGroup,
+  TAction extends string,
+  TPresentation extends string,
+>(
+  descriptor: RecordCollectionDescriptor<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
+  query: TQuery,
+  target: TPresentation,
+): boolean {
+  const compatibleQueryKeys = {} as Record<TPresentation, readonly QueryKey<TQuery>[]>
+  for (const key of Object.keys(descriptor.presentations) as TPresentation[]) {
+    compatibleQueryKeys[key] = descriptor.presentations[key].compatibleQueryKeys
+  }
+  return checkPresentationCompatibility({
+    query,
+    schema: descriptor.query,
+    from: target,
+    to: target,
+    compatibleQueryKeys,
+  }).ok
 }

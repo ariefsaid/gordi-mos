@@ -45,6 +45,13 @@ export interface RecordCollectionController<
   bindOverlayHost(host: CollectionOverlayHost | undefined): void
   setQuery(next: TQuery): void
   switchPresentation(next: TPresentation): PresentationSwitchResult<TQuery, TPresentation>
+  /**
+   * Force the presentation directly, bypassing `checkPresentationCompatibility` — the same bypass
+   * the initial mount already relies on to pin a phone session to the collection default regardless
+   * of what the query asks for (Issue #607). Callers decide compatibility themselves; this never
+   * fails and never reports `queryIssues`.
+   */
+  constrainPresentation(next: TPresentation): void
   toggleSelected(id: TId): void
   selectVisible(ids: readonly TId[]): void
   clearSelection(): void
@@ -245,6 +252,11 @@ export function createRecordCollectionController<
       set({ presentation: next, queryIssues: [] })
       reproject() // same data, different presentation — no reload
       return result
+    },
+    constrainPresentation(next) {
+      if (state.presentation === next) return
+      set({ presentation: next, queryIssues: [] })
+      reproject()
     },
     toggleSelected(id) {
       const nextSel = new Set(state.selectedIds)
