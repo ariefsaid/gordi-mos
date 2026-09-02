@@ -26,6 +26,7 @@ import {
 } from '@/components/signals/signal-collection-actions'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
 import { firstLine } from '@/components/signals/signal-record-adapter'
+import { getActiveSignalView } from '@/components/signals/signal-collection-view'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { BOOT_SIGNAL_RECORD_ID } from '@/components/signals/signal-page-mode'
@@ -83,13 +84,26 @@ export function SignalsArchivePage() {
 
   // The active Signals view as a readable label — shared by the result header and the phone
   // "View & filters" disclosure summary so the two never drift (OD-REDESIGN-72/79 convergence).
+  // Mirrors task-collection-view.ts's getActiveTaskView (tasks-workspace.tsx's activeView): a
+  // fetched saved-view name wins over the built-in view label, so a custom Signals saved view
+  // names itself here too instead of collapsing to its underlying view's generic label.
   const signalViewLabel = (view: SignalCollectionQuery['view']) =>
     view === 'needs-attention' ? t('signals.archive.viewAttention')
       : view === 'retracted' ? t('signals.archive.viewRetracted')
         : t('signals.archive.viewAll')
+  const activeSignalView = getActiveSignalView({
+    query,
+    savedViews: controller.state.savedViews.items,
+    labels: {
+      all: signalViewLabel('all'),
+      'needs-attention': signalViewLabel('needs-attention'),
+      retracted: signalViewLabel('retracted'),
+    },
+  })
 
+  // currentQuery is always `query` — kept as a parameter to mirror taskDisclosureSummary's shape.
   function signalDisclosureSummary(currentQuery: SignalCollectionQuery): { summary: string; hasActiveFilters: boolean } {
-    const base = signalViewLabel(currentQuery.view)
+    const base = activeSignalView.label
     const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
     const hasIndependentFilter = Object.keys(SIGNAL_COLLECTION_NEUTRAL_QUERY).some((key) => {
       if (excludedKeys.has(key)) return false
@@ -372,7 +386,7 @@ export function SignalsArchivePage() {
               controller={controller}
               resultHeader={{
                 collectionLabel: t('nav.work.signals'),
-                viewLabel: signalViewLabel(query.view),
+                viewLabel: activeSignalView.label,
                 count: projection ? projection.visibleRecords.length : null,
               }}
               controls={signalControls}

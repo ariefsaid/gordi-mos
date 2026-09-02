@@ -1,8 +1,7 @@
 import { useLocation } from 'react-router-dom'
-import { useRecordCollectionChrome } from '@/lib/record-collection/record-collection-context'
 import { sectionForPath } from './sections'
 import { destinationForPath, allModules, primaryModuleForViewer } from './destinations'
-import { useBreadcrumbTitle } from './breadcrumb-title'
+import { useBreadcrumbTitle, useCollectionLeaf } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -19,7 +18,7 @@ export function Breadcrumb() {
   const auth = useAuth()
   const isNarrow = useIsNarrow()
   const t = useT()
-  const taskChrome = useRecordCollectionChrome('tasks')
+  const collectionLeaf = useCollectionLeaf()
 
   const destination = destinationForPath(pathname)
   // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
@@ -64,7 +63,7 @@ export function Breadcrumb() {
     } else if (dynamicTitle) {
       crumbs.push(dynamicTitle)
     } else {
-      if (pathname.startsWith('/work/tasks') && taskChrome?.hasNonDefaultView) crumbs.push(taskChrome.activeViewLabel)
+      if (pathname.startsWith('/work/tasks') && collectionLeaf?.hasNonDefaultView) crumbs.push(collectionLeaf.label)
     }
   } else if (destination.id === 'money') {
     if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))

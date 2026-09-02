@@ -8,7 +8,7 @@ import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
-import { usePublishRecordCollectionChrome } from '@/lib/record-collection/record-collection-context'
+import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -126,6 +126,9 @@ function taskDisclosureSummary(
     const neutralValue = TASK_COLLECTION_NEUTRAL_QUERY[key as keyof TaskCollectionQuery]
     return queryValue !== neutralValue
   })
+  // my-pic/my-supervisor light this dot (view !== 'all') even though getActiveTaskView treats
+  // them as the default breadcrumb state (no leaf pushed) — intended: on the door they ARE
+  // filters on top of the base view, not a saved view of their own.
   const hasActiveFilters = query.view !== 'all' || hasIndependentFilter
   if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
 
@@ -211,15 +214,12 @@ export function TasksWorkspace({
     labels: {
       all: t('tasks.saved.all'),
       'my-work': t('tasks.saved.mine'),
-      'my-pic': t('tasks.saved.mine'),
-      'my-supervisor': t('tasks.saved.mine'),
       overdue: t('tasks.saved.overdue'),
       followups: t('tasks.saved.followups'),
     },
   })
-  usePublishRecordCollectionChrome({
-    collectionId: 'tasks',
-    activeViewLabel: activeView.label,
+  useSetCollectionLeaf({
+    label: activeView.label,
     hasNonDefaultView: activeView.hasNonDefaultView,
   })
 
