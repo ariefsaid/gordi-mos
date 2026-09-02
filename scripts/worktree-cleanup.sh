@@ -14,6 +14,8 @@
 #
 # Protected (never deleted): main, dev, staging, and the branch currently checked out.
 # ponytail: only ever deletes MERGED branches — unmerged work is left alone, by design.
+# "Merged" = ancestry OR patch-content-already-upstream (this repo squash-merges every PR, so
+# a shipped branch's tip is never an ancestor — see is_merged() below).
 # Fail closed: a failed `git fetch --prune origin` aborts the sweep (a stale origin/<target>
 # must never drive removals), and a DIRTY worktree (uncommitted/untracked work) is kept, not
 # force-removed. (Ignored files don't count — traces under adws/adw_data/ are gitignored and
@@ -61,6 +63,29 @@ archive_or_keep() {
 # that still holds it.
 dirty() { [ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ]; }
 
+# This repo squash-merges every PR, so a shipped branch's tip is never an ancestor of the
+# target — ancestry alone would keep every worktree forever. Fall back to patch-content
+# equivalence: build a throwaway commit carrying the branch's CURRENT tree on top of the
+# branch/target merge-base, then ask `git cherry` whether that one patch already exists
+# upstream. Comparing a single synthetic commit (not each real commit individually) is what
+# makes this work across a multi-commit branch that a PR squashed into one — per-commit cherry
+# would show every real commit as unmatched even though their combined effect landed. It also
+# folds in the empty "wip: claim" divergence-guard commit for free: an empty commit changes
+# no tree, so it changes nothing about the branch's current tree either.
+is_merged() {
+  local branch="$1" target="$2" mb synth cherry_out
+  git merge-base --is-ancestor "$branch" "origin/$target" 2>/dev/null && return 0
+  mb="$(git merge-base "origin/$target" "$branch" 2>/dev/null)" || return 1
+  [ -n "$mb" ] || return 1
+  synth="$(git commit-tree "$branch^{tree}" -p "$mb" -m _ 2>/dev/null)" || return 1
+  [ -n "$synth" ] || return 1
+  # Fail closed on the destructive path: a FAILED cherry (nonzero exit) must read as "not
+  # merged", never as "no + lines" — checking only `grep` on cherry's stdout would let a
+  # cherry error (empty stdout, exit nonzero) pass as merged and drive `branch -D`.
+  cherry_out="$(git cherry "origin/$target" "$synth" 2>/dev/null)" || return 1
+  [ -z "$(printf '%s\n' "$cherry_out" | grep '^+')" ]
+}
+
 PROTECTED="main dev staging"
 CURRENT="$(git branch --show-current)"
 
@@ -84,7 +109,7 @@ git worktree list --porcelain | awk '
   case "$ref" in
     refs/heads/*)
       br="${ref#refs/heads/}"
-      if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
+      if is_merged "$br" "$TARGET"; then
         if dirty "$path"; then
           echo "  worktree (dirty, kept): $path [$br]"
           continue
@@ -136,7 +161,7 @@ for br in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
     echo "  local branch (kept, still checked out): $br"
     continue
   fi
-  if git merge-base --is-ancestor "$br" "origin/$TARGET" 2>/dev/null; then
+  if is_merged "$br" "$TARGET"; then
     echo "  local branch (merged): $br -> delete"
     git branch -D "$br" >/dev/null
   fi
@@ -146,7 +171,7 @@ done
 if [ "$REMOTE" = "--remote" ]; then
   for br in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/ | sed 's#^origin/##'); do
     case " $PROTECTED HEAD " in *" $br "*) continue;; esac
-    if git merge-base --is-ancestor "origin/$br" "origin/$TARGET" 2>/dev/null; then
+    if is_merged "origin/$br" "$TARGET"; then
       echo "  remote branch (merged): origin/$br -> delete"
       git push origin --delete "$br" >/dev/null 2>&1 || true
     fi
