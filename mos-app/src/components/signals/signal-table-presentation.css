@@ -143,3 +143,12 @@
 .signal-collection-table tbody tr.signal-table-row--urgent td:first-child {
   box-shadow: inset 2px 0 0 0 var(--warning);
 }
+
+/* Issue 580: the 390px phone reflow of this same table (DataTable's PhoneCards) drops each row into a
+   `.dt-card` — the tr/td urgent rule above never reaches it, which is why Urgent read as plain on a
+   phone. Same fill + rule, same reason, ported onto the card box: inset box-shadow so the rule
+   survives the card's own border-radius instead of squaring off a corner. */
+.dt-card.signal-table-row--urgent {
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  box-shadow: var(--shadow-rest), inset 2px 0 0 0 var(--warning);
+}
