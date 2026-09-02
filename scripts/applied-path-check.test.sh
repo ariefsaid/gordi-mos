@@ -950,5 +950,48 @@ else
   bad "a mixed drift was mis-classified as pure seed asymmetry (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
 fi
 
+echo "── U. the fingerprint SQL is parsed, not just swallowed by the stub (#472)"
+# The fake docker above never executes SQL — it renders canned rows from two text files — so a
+# syntax error in scripts/lib/applied-path-fingerprint.sql would pass this whole suite while
+# guards.yml lists that file as covered by it. No local Postgres is available here — this file's
+# own header says so on purpose — so this is a STRUCTURAL check, not an execution one: strip `--`
+# comments and '…' string content, then require the parens actually balance. Real execution
+# coverage lives in the integration/geometry lanes, which boot Postgres and run this file for real.
+cat > "$T/parse-balance.pl" <<'PERL'
+#!/usr/bin/env perl
+# Strip `--` line comments and '...' string content (Postgres doubles a quote to escape one
+# inside a literal), then print the paren balance. 0 means every `(` in the actual SQL is closed.
+# Comments and string content are stripped FIRST because they can look unbalanced on their own —
+# e.g. this file's own volatile-default pattern matches a literal '(' via a regex escape inside a
+# string, which is one open paren with no close and would fail a naive whole-file count.
+use strict;
+use warnings;
+my $s = do { local $/; <> };
+$s =~ s/--[^\n]*//g;
+$s =~ s/'(?:[^']|'')*'/''/g;
+my $bal = ($s =~ tr/(//) - ($s =~ tr/)//);
+print $bal;
+PERL
+FP_BAL="$(perl "$T/parse-balance.pl" "$FP_SQL")"
+eq "the fingerprint SQL's parens balance once comments and string content are stripped" "$FP_BAL" "0"
+
+FP_CODE_LINES="$(grep -vE '^[[:space:]]*(--|$)' "$FP_SQL" | wc -l | tr -d ' ')"
+if [ "$FP_CODE_LINES" -gt 5 ]; then
+  ok "the fingerprint SQL has real statement content, not just a header ($FP_CODE_LINES lines)"
+else
+  bad "the fingerprint SQL looks like comments only ($FP_CODE_LINES lines)"
+fi
+
+# Control: this check must actually be able to fail, or it is decoration. A file truncated
+# mid-CTE leaves an opened `(` with no matching `)`.
+BADSQL="$T/bad-fingerprint.sql"
+head -40 "$FP_SQL" > "$BADSQL"
+BAD_BAL="$(perl "$T/parse-balance.pl" "$BADSQL")"
+if [ "$BAD_BAL" != "0" ]; then
+  ok "control: a truncated fingerprint file fails the balance check (bal=$BAD_BAL)"
+else
+  bad "control: a truncated fingerprint file still balanced — this check proves nothing"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
