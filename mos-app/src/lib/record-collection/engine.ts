@@ -52,6 +52,19 @@ export interface RecordCollectionController<
    * fails and never reports `queryIssues`.
    */
   constrainPresentation(next: TPresentation): void
+  /**
+   * Would `next` accept the live query untouched? The same check `switchPresentation` runs before
+   * committing — exposed so a caller (the widen-restore effect) can decide whether to attempt a
+   * restore without duplicating `compatibleKeyMap` (Issue #614).
+   */
+  canSwitchPresentation(next: TPresentation): boolean
+  /**
+   * Tell the controller whether the host is currently desktop-width. Read only by `applySavedView`,
+   * which — like the initial mount and the hook's narrow/widen effect — must never leave a phone
+   * session on a saved view's desktop-only presentation (Issue #614). Pure bookkeeping: it does not
+   * itself change `state.presentation`.
+   */
+  setViewport(isDesktop: boolean): void
   toggleSelected(id: TId): void
   selectVisible(ids: readonly TId[]): void
   clearSelection(): void
@@ -119,6 +132,8 @@ export function createRecordCollectionController<
     presentation: TPresentation
     viewerId: string | null
     accessRoles: readonly string[]
+    /** Defaults to true (desktop) — matches every existing caller that never narrows. */
+    isDesktop?: boolean
   },
 ): RecordCollectionController<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation> {
   type State = RecordCollectionState<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>
@@ -146,6 +161,7 @@ export function createRecordCollectionController<
   let loadToken = 0
   let overlayHost = descriptor.host
   let sourceBuilder: (() => CollectionOpenSource<TQuery, TPresentation>) | null = null
+  let isDesktop = initial.isDesktop ?? true
 
   const emit = () => {
     for (const l of listeners) l()
@@ -258,6 +274,18 @@ export function createRecordCollectionController<
       set({ presentation: next, queryIssues: [] })
       reproject()
     },
+    canSwitchPresentation(next) {
+      return checkPresentationCompatibility<TQuery, TPresentation>({
+        query: state.query,
+        schema: descriptor.query,
+        from: next,
+        to: next,
+        compatibleQueryKeys: compatibleKeyMap(),
+      }).ok
+    },
+    setViewport(next) {
+      isDesktop = next
+    },
     toggleSelected(id) {
       const nextSel = new Set(state.selectedIds)
       if (nextSel.has(id)) nextSel.delete(id)
@@ -364,7 +392,12 @@ export function createRecordCollectionController<
         return compat
       }
       const nextQuery = { ...applied.query, ['savedViewId' as keyof TQuery]: id } as TQuery
-      set({ query: descriptor.query.normalize(nextQuery), presentation: applied.presentation })
+      // A phone session has no switcher to leave a wrong presentation reachable from — the same
+      // constraint the initial mount and the narrow/widen effect apply (Issue #614). The RESULT still
+      // reports the saved view's own presentation, not the constrained one: it is what the caller
+      // (the hook) remembers to restore on widen, mirroring what a narrow transition remembers.
+      const presentationToApply = isDesktop ? applied.presentation : descriptor.defaultPresentation
+      set({ query: descriptor.query.normalize(nextQuery), presentation: presentationToApply })
       setSavedViews({ operation: 'idle', error: null })
       runLoad()
       return { ok: true, query: nextQuery, presentation: applied.presentation }
