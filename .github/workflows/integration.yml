@@ -21,6 +21,9 @@ on:
       # simply did not trigger on it.
       - 'scripts/applied-path-check.sh'
       - 'scripts/lib/applied-path-fingerprint.sql'
+      # Both lanes run this lint (here + geometry.yml #565) — an edit to the lint itself must
+      # re-run the lane that validates it (#645).
+      - 'scripts/lint-security-definer.sh'
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
