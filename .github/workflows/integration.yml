@@ -24,6 +24,7 @@ on:
       # Both lanes run this lint (here + geometry.yml #565) — an edit to the lint itself must
       # re-run the lane that validates it (#645).
       - 'scripts/lint-security-definer.sh'
+      - 'scripts/lib/sql-blank.sh'
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
