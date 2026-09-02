@@ -118,5 +118,64 @@ else fail=$((fail+1)); printf '  FAIL  fetch failure keeps merged worktree on di
 git -C "$repo2" branch --list feat-gone | grep -q feat-gone
 t "fetch failure keeps merged branch" $? "branch feat-gone missing"
 
+# Squash-merge equivalence (this repo squash-merges every PR, so a shipped branch's tip is
+# never an ancestor of the target — ancestry alone would keep it forever):
+#   (a) a branch with 2 real commits + 1 empty "wip: claim" divergence-guard commit, where the
+#       target carries their squashed equivalent as ONE new commit -> swept + branch deleted.
+#   (b) a branch with unrelated unmerged work -> kept (never treated as merged).
+#   (c) a squash-merged branch whose worktree is dirty -> kept, same as any other dirty worktree.
+repo3="$tmp/repo3"
+mkdir -p "$repo3/.claude/worktrees"
+git -C "$repo3" init -q
+git -C "$repo3" config user.email t@t
+git -C "$repo3" config user.name t
+git -C "$repo3" checkout -q -b dev
+echo base > "$repo3/f.txt"; git -C "$repo3" add f.txt; git -C "$repo3" commit -qm base
+git -C "$repo3" remote add origin "$repo3"
+
+git -C "$repo3" worktree add -q -b feat-squashed "$repo3/.claude/worktrees/feat-squashed" dev
+echo one >> "$repo3/.claude/worktrees/feat-squashed/f.txt"
+git -C "$repo3/.claude/worktrees/feat-squashed" commit -qam "commit1"
+echo two >> "$repo3/.claude/worktrees/feat-squashed/f.txt"
+git -C "$repo3/.claude/worktrees/feat-squashed" commit -qam "commit2"
+git -C "$repo3/.claude/worktrees/feat-squashed" commit -q --allow-empty -m "wip: claim divergence guard"
+git -C "$repo3" merge --squash feat-squashed -q >/dev/null
+git -C "$repo3" commit -qm "squash merged feat-squashed"
+
+git -C "$repo3" worktree add -q -b feat-unmerged "$repo3/.claude/worktrees/feat-unmerged" dev
+echo unrelated >> "$repo3/.claude/worktrees/feat-unmerged/f.txt"
+git -C "$repo3/.claude/worktrees/feat-unmerged" commit -qam "not shipped"
+
+git -C "$repo3" worktree add -q -b feat-squashed-dirty "$repo3/.claude/worktrees/feat-squashed-dirty" dev
+echo three >> "$repo3/.claude/worktrees/feat-squashed-dirty/f.txt"
+git -C "$repo3/.claude/worktrees/feat-squashed-dirty" commit -qam "commit3"
+git -C "$repo3" merge --squash feat-squashed-dirty -q >/dev/null
+git -C "$repo3" commit -qm "squash merged feat-squashed-dirty"
+echo uncommitted >> "$repo3/.claude/worktrees/feat-squashed-dirty/f.txt"
+
+out="$(cd "$repo3" && bash "$SCRIPT" dev --max-age-days 2 2>&1)"
+printf '%s' "$out" | grep -q "worktree (merged): .*feat-squashed\]"; t "squash-merged worktree swept" $? "$out"
+if [ -d "$repo3/.claude/worktrees/feat-squashed" ]; then
+  fail=$((fail+1)); printf '  FAIL  squash-merged worktree removed from disk\n'
+else pass=$((pass+1)); printf '  ok    squash-merged worktree removed from disk\n'; fi
+git -C "$repo3" branch --list feat-squashed | grep -q feat-squashed
+[ $? -ne 0 ]; t "squash-merged branch deleted" $? "branch feat-squashed still present"
+
+if printf '%s' "$out" | grep -E "(merged|remove|delete).*feat-unmerged"; then
+  fail=$((fail+1)); printf '  FAIL  unmerged branch left untouched\n%s\n' "$out"
+else pass=$((pass+1)); printf '  ok    unmerged branch left untouched\n'; fi
+if [ -d "$repo3/.claude/worktrees/feat-unmerged" ]; then
+  pass=$((pass+1)); printf '  ok    unmerged worktree still on disk\n'
+else fail=$((fail+1)); printf '  FAIL  unmerged worktree still on disk\n'; fi
+git -C "$repo3" branch --list feat-unmerged | grep -q feat-unmerged
+t "unmerged branch kept" $? "branch feat-unmerged missing"
+
+printf '%s' "$out" | grep -q "dirty, kept.*feat-squashed-dirty"; t "squash-merged but dirty worktree kept" $? "$out"
+if [ -d "$repo3/.claude/worktrees/feat-squashed-dirty" ]; then
+  pass=$((pass+1)); printf '  ok    squash-merged dirty worktree still on disk\n'
+else fail=$((fail+1)); printf '  FAIL  squash-merged dirty worktree still on disk\n'; fi
+git -C "$repo3" branch --list feat-squashed-dirty | grep -q feat-squashed-dirty
+t "branch of kept squash-merged dirty worktree not deleted" $? "branch feat-squashed-dirty missing"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
