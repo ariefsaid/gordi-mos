@@ -884,6 +884,13 @@ if [ "$rc" != "0" ] && printf '%s' "$LAST_OUT" | grep -qF "restore FAILED"; then
 else
   bad "a --prove run with a failed restore did not surface it (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -3 | tr '\n' ' ')"
 fi
+# S3 — a log tail must never read as success: the closing "✓ proven able to fail" line is gated
+# on the restore having actually worked.
+if printf '%s' "$LAST_OUT" | grep -qF "✓ proven able to fail"; then
+  bad "the --prove success line printed even though the restore failed"
+else
+  ok "the --prove success line is withheld when the restore fails"
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
