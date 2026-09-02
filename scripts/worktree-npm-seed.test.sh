@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Self-test for scripts/worktree-npm-seed.sh — hardlink seeding on a lockfile match (with the
-# hardlink itself proven, not assumed), fallback to npm ci on any mismatch or missing source,
-# partial-copy cleanup before that fallback, and no-op on an already-current target.
+# hardlink itself proven, not assumed, and the per-tree tsc/Vite caches proven pruned from the
+# seeded copy), fallback to npm ci on any mismatch or missing source (including a FAILING npm
+# ci propagating its own exit code), partial-copy cleanup before that fallback, and no-op on
+# an already-current target.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/worktree-npm-seed.sh"
@@ -29,19 +31,25 @@ git -C "$repo" worktree add -q -b feat "$wt" HEAD
 
 # A fake npm on PATH so a fallback is provable without a real install: it records its args and
 # working directory, and — since a genuine node_modules never gets built from stubbed npm —
-# leaves the target's node_modules absent, which the assertions below also check.
+# leaves the target's node_modules absent, which the assertions below also check. STUB_FAIL=1
+# makes it fail like a real broken install, to prove the script doesn't swallow that failure.
+STUB_FAIL_RC=17
 fakebin="$tmp/fakebin"
 mkdir -p "$fakebin"
 cat > "$fakebin/npm" <<EOF
 #!/usr/bin/env bash
 printf '%s\t%s\n' "\$(pwd)" "\$*" >> "$tmp/npm-calls"
+if [ "\${STUB_FAIL:-0}" = "1" ]; then exit $STUB_FAIL_RC; fi
 EOF
 chmod +x "$fakebin/npm"
 run() { PATH="$fakebin:$PATH" bash "$SCRIPT" "$@"; }
 
 seed_main_nm() {
-  # A minimal but non-trivial node_modules: a nested package (proves recursion) plus the
-  # .package-lock.json state file npm ci itself would write.
+  # A minimal but non-trivial node_modules: a nested package (proves recursion), the
+  # .package-lock.json state file npm ci itself would write, and the three per-tree caches
+  # (tsc's incremental buildinfo dir + Vite's two cache dirs) that must NEVER survive a
+  # hardlink seed — cp -al would otherwise hand the target tsc's cached "no errors" verdict
+  # from main instead of a real check of the target's own sources.
   rm -rf "$repo/mos-app/node_modules"
   mkdir -p "$repo/mos-app/node_modules/.bin" "$repo/mos-app/node_modules/pkg-a"
   for b in tsc eslint stylelint vitest vite; do
@@ -49,6 +57,10 @@ seed_main_nm() {
     chmod +x "$repo/mos-app/node_modules/.bin/$b"
   done
   echo 'module.exports = 1;' > "$repo/mos-app/node_modules/pkg-a/index.js"
+  mkdir -p "$repo/mos-app/node_modules/.tmp" "$repo/mos-app/node_modules/.vite" "$repo/mos-app/node_modules/.vite-temp"
+  echo cached > "$repo/mos-app/node_modules/.tmp/marker"
+  echo cached > "$repo/mos-app/node_modules/.vite/marker"
+  echo cached > "$repo/mos-app/node_modules/.vite-temp/marker"
   cp "$repo/mos-app/package-lock.json" "$repo/mos-app/node_modules/.package-lock.json"
 }
 
@@ -78,6 +90,15 @@ state_dst_i="$(inode "$wt/mos-app/node_modules/.package-lock.json")"
 [ ! "$wt/mos-app/package-lock.json" -nt "$wt/mos-app/node_modules/.package-lock.json" ] \
   && ok "seeded-on-match: state file not stale by pre-pr-verify's test" \
   || bad "seeded-on-match: state file not stale by pre-pr-verify's test"
+# Gate-poisoning regression (found by review): none of the three per-tree caches may survive
+# into the seeded target — main's .tmp/.vite/.vite-temp markers proved present going in
+# (seed_main_nm creates them), so their absence here is the pruning step's doing, not an
+# accident of the fixture.
+[ -f "$repo/mos-app/node_modules/.tmp/marker" ] || bad "fixture sanity: main's .tmp marker exists"
+for d in .tmp .vite .vite-temp; do
+  [ ! -e "$wt/mos-app/node_modules/$d" ] && ok "seeded-on-match: $d pruned from target" \
+    || bad "seeded-on-match: $d pruned from target" "$d survived the seed"
+done
 
 ### 2. idempotent no-op: run again on an already-seeded target — no fallback, says so.
 rm -f "$tmp/npm-calls"
@@ -145,6 +166,22 @@ out5="$(run "$wt4" 2>&1)"; rc5=$?
 [ -f "$tmp/npm-calls" ] && grep -qF "$wt4/mos-app" "$tmp/npm-calls" \
   && ok "missing-source: fell back to npm ci" \
   || bad "missing-source: fell back to npm ci" "$out5"
+
+### 6. npm-ci-failure propagates: a fallback whose npm ci itself fails must NOT report success —
+### the script's own exit code must be the real npm failure's, not swallowed by the fallback's
+### unconditional `exit 0`.
+wt5="$tmp/wt5"
+git -C "$repo" worktree add -q -b feat5 "$wt5" HEAD
+echo '{"lockfileVersion":3,"other":true}' > "$wt5/mos-app/package-lock.json"  # forces fallback
+rm -f "$tmp/npm-calls"
+out6="$(STUB_FAIL=1 run "$wt5" 2>&1)"; rc6=$?
+[ "$rc6" -eq "$STUB_FAIL_RC" ] && ok "npm-ci-failure: script exit == npm's exit ($STUB_FAIL_RC)" \
+  || bad "npm-ci-failure: script exit == npm's exit ($STUB_FAIL_RC)" "rc=$rc6"
+[ -f "$tmp/npm-calls" ] && grep -qF "$wt5/mos-app" "$tmp/npm-calls" \
+  && ok "npm-ci-failure: npm ci still actually ran" \
+  || bad "npm-ci-failure: npm ci still actually ran" "$(cat "$tmp/npm-calls" 2>/dev/null)"
+printf '%s' "$out6" | grep -qi 'npm ci failed' && ok "npm-ci-failure: failure said on output" \
+  || bad "npm-ci-failure: failure said on output" "$out6"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

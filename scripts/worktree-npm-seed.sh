@@ -18,8 +18,17 @@ target_app="$target/mos-app"
 
 fallback() {
   echo "── worktree-npm-seed: $1 — falling back to npm ci"
-  (cd "$target_app" && npm ci --no-audit --no-fund)
-  exit 0
+  # Explicit if/else rather than relying on `set -e` to abort here: this function is often
+  # called from the right side of `||`, and whether -e still fires INSIDE a function called
+  # that way is exactly the kind of shell-version edge case not worth trusting — so a failing
+  # npm ci is caught and re-raised on purpose, not by hoping errexit propagates through it.
+  if (cd "$target_app" && npm ci --no-audit --no-fund); then
+    exit 0
+  else
+    rc=$?
+    echo "── worktree-npm-seed: npm ci failed (exit $rc)" >&2
+    exit "$rc"
+  fi
 }
 
 [ -d "$target_app" ] || fallback "target has no mos-app/"
@@ -68,12 +77,28 @@ if [ "$main_hash" != "$target_hash" ]; then
 fi
 
 echo "── worktree-npm-seed: lockfiles match — hardlinking node_modules from the main checkout"
+
+# An interrupt (Ctrl-C, a killed CI step) between here and the trap being cleared at the end
+# must not leave a half-seeded tree sitting untraced: the idempotency check above only looks
+# for the five build binaries + a fresh state file, both of which can already be in place by
+# the time an interrupt lands (cp -al finishes before the cache prune below runs) — so a
+# stray SIGINT/SIGTERM lands here, wipe the target clean instead of leaving it looking done.
+trap 'rm -rf "$target_nm"; echo "── worktree-npm-seed: interrupted — removed the partial tree" >&2; exit 130' INT TERM
+
 rm -rf "$target_nm"
 
 if ! cp -al "$main_nm" "$target_nm"; then
   rm -rf "$target_nm"
   fallback "cp -al failed partway"
 fi
+
+# tsc's incremental buildinfo (tsconfig's tsBuildInfoFile lives under node_modules/.tmp/) and
+# Vite's caches record absolute paths and mtimes from THIS run. cp -al hardlinks them, so tsc
+# in the target would keep writing that shared inode in place — after main's own typecheck
+# runs once, a seeded worktree's `tsc -b --noEmit` reads main's cached result instead of
+# checking the target's own sources, and reports success over a real type error. Per-tree
+# caches never survive a hardlink seed; only the packages themselves do.
+rm -rf "$target_nm/.tmp" "$target_nm/.vite" "$target_nm/.vite-temp"
 
 # Break the hardlink on the state file and re-copy it as a REGULAR file with a fresh mtime, so
 # pre-pr-verify's staleness check (package-lock.json -nt node_modules/.package-lock.json) reads
@@ -84,4 +109,5 @@ if ! rm -f "$target_state" || ! cp "$main_state" "$target_state"; then
   fallback "could not refresh the .package-lock.json state copy"
 fi
 
+trap - INT TERM
 echo "── worktree-npm-seed: seeded node_modules via hardlink"
