@@ -137,7 +137,16 @@ case "$1 $2" in
         fi ;;
     esac
     : > "$S/cons"; : > "$S/versions"
-    for f in "$W"/supabase/migrations/*.sql; do apply "$f"; done ;;
+    for f in "$W"/supabase/migrations/*.sql; do apply "$f"; done
+    # `db reset` re-seeds; `migration up` (below) deliberately does not — mirroring the real
+    # Supabase CLI and a real deployed database, which is never re-seeded either (#472). Only
+    # non-comment, non-blank lines count as "content": the default fixture seed is a lone `--`
+    # comment, and that must model the same "nothing seeded" state as no seed file at all (K6).
+    : > "$S/seed"
+    for f in "$W"/supabase/seed*.sql; do
+      [ -e "$f" ] || continue
+      grep -v '^[[:space:]]*--' "$f" | grep -v '^[[:space:]]*$' >> "$S/seed" || true
+    done ;;
   "migration up")
     for f in "$W"/supabase/migrations/*.sql; do
       v="$(basename "$f" | sed -n 's/^\([0-9][0-9]*\)_.*/\1/p')"
@@ -182,6 +191,11 @@ cat > /dev/null   # swallow the fingerprint SQL on stdin
   done
   echo "CATALOG|filler.vocab|code, name|<row><code>a</code></row>"
   if grep -qxF "t_cat_fkey" "$S/cons"; then echo "CATALOG|cat|code|<row><code>x</code></row>"; fi
+  # The seed's effect (#472): whatever `$S/seed` holds after the last db reset, never touched by
+  # migration up. `-` for "nothing seeded" so an absent seed file and a comment-only one (the
+  # default fixture) fingerprint identically — only real content should ever show up as drift.
+  SEED_MARKER="$(tr '\n' ' ' < "$S/seed" 2>/dev/null)"
+  echo "CATALOG|filler.seeded|marker|<row><v>${SEED_MARKER:--}</v></row>"
 } | sort | { if [ -n "${STUB_DROP_KIND:-}" ]; then grep -v "^${STUB_DROP_KIND}|"; else cat; fi; }
 STUB
 chmod +x "$T/bin/supabase" "$T/bin/docker"
@@ -191,7 +205,7 @@ chmod +x "$T/bin/supabase" "$T/bin/docker"
 # GEN 2 (today's tree):          001 EDITED so fresh databases never get that CHECK, plus 002
 #                               which drops it conditionally and adds the catalog FK. Exactly the
 #                               shape that has a branch CI can never reach.
-# Four env knobs, set per fixture, all off by default so the shape above is what every existing
+# Five env knobs, set per fixture, all off by default so the shape above is what every existing
 # section still gets — and so 002_catalog.sql's first three lines keep their line NUMBERS, which
 # section L and section M assert on:
 #   MKREPO_GEN1_EXTRA   raw SQL appended to the BASELINE's 001 (an object only a deployed db has)
@@ -199,6 +213,8 @@ chmod +x "$T/bin/supabase" "$T/bin/docker"
 #   MKREPO_NO_LEGACY=1  omit the legacy CHECK pair entirely, for a fixture whose only conditional
 #                       drop is of some other object class
 #   MKREPO_SEEDLESS=1   the BASELINE COMMIT carries no seed*.sql at all
+#   MKREPO_SEED_GEN2    rewrites today's seed.sql with real (non-comment) content and no matching
+#                       migration — the seed-asymmetry shape (#472), section T
 mkrepo() {  # mkrepo DIR
   local R="$1"
   mkdir -p "$R/scripts/lib" "$R/supabase/migrations"
@@ -222,6 +238,11 @@ CFG
   ( cd "$R" && git init -q . && git add -A && git -c user.email=t@t -c user.name=t commit -qm gen1 )
   BASE_SHA="$( cd "$R" && git rev-parse HEAD )"
   [ "${MKREPO_SEEDLESS:-0}" = "1" ] && echo "-- nothing to seed" > "$R/supabase/seed.sql"
+  # MKREPO_SEED_GEN2: rewrite the WORKING TREE's (today's) seed.sql after the baseline commit,
+  # with no migration to carry the change — the seed-asymmetry shape (#472). Real content, not a
+  # `--` comment, so it is distinguishable from the "nothing seeded" default both fixtures start
+  # from (see the `db reset` seed stub above, which strips comments before comparing).
+  [ -z "${MKREPO_SEED_GEN2:-}" ] || printf '%s\n' "$MKREPO_SEED_GEN2" > "$R/supabase/seed.sql"
   cat > "$R/supabase/migrations/001_base.sql" <<'SQL'
 create table t (a text);
 SQL
@@ -890,6 +911,43 @@ if printf '%s' "$LAST_OUT" | grep -qF "✓ proven able to fail"; then
   bad "the --prove success line printed even though the restore failed"
 else
   ok "the --prove success line is withheld when the restore fails"
+fi
+
+echo "── T. seed asymmetry is diagnosed as SEED-DRIFT, not a migration defect (#472)"
+# FRESH seeds from the working tree, APPLIED from the baseline, and migration up never re-seeds
+# (the `db reset` stub above rebuilds $S/seed; `migration up` does not touch it). A seed edit with
+# no matching migration is real drift — the fix is not to silence it — but a generic "does NOT
+# match a fresh one" sends the reader hunting a migration bug that isn't there. This fixture's
+# ONLY change is the seed; the class-only check below is what tells the two messages apart.
+RT="$T/t-seed"; ( export MKREPO_SEED_GEN2="vocab: beta"; mkrepo "$RT" )
+rm -rf "$T/db"; rm -rf "$T/out-t"; mkdir -p "$T/out-t"
+run "$RT" "$T/out-t"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a seed-only difference is caught (rc=1) and diagnosed as SEED-DRIFT"
+else
+  bad "seed asymmetry was not flagged as SEED-DRIFT (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+if printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one"; then
+  bad "a pure seed diff still used the migration-flavoured DRIFT message"
+else
+  ok "the migration-flavoured DRIFT message is withheld for a seed-only diff"
+fi
+
+# T2 — control: a diff that ALSO touches schema (not seed-only) must keep the generic message.
+# Otherwise the classification is a blanket "never blame seeds" rather than an honest read of
+# which facts actually moved.
+RT2="$T/t-seed-mixed"
+( export MKREPO_SEED_GEN2="vocab: beta"; mkrepo "$RT2" )
+grep -v 'drop constraint if exists' "$RT2/supabase/migrations/002_catalog.sql" > "$RT2/x" \
+  && mv "$RT2/x" "$RT2/supabase/migrations/002_catalog.sql"
+( cd "$RT2" && git add -A && git -c user.email=t@t -c user.name=t commit -qm break >/dev/null )
+rm -rf "$T/db"; rm -rf "$T/out-t2"; mkdir -p "$T/out-t2"
+run "$RT2" "$T/out-t2"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a mixed CATALOG+CONSTRAINT drift keeps the generic DRIFT message"
+else
+  bad "a mixed drift was mis-classified as pure seed asymmetry (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

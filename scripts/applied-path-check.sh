@@ -279,6 +279,25 @@ say "$(head_of "$OUT/migrated.txt") facts"
 GREEN_RC=0
 diff -u "$OUT/fresh.txt" "$OUT/migrated.txt" > "$OUT/drift.diff" || GREEN_RC=1
 if [ "$GREEN_RC" -ne 0 ]; then
+  # Seed asymmetry (#472): FRESH is seeded from the working tree's seed*.sql, APPLIED from the
+  # BASELINE's, and `migration up` never re-seeds — a real deployed database isn't re-seeded
+  # either. So a seed edit to a migration-owned table's CONTENT, with no migration to carry it,
+  # produces a diff whose every fact is table CONTENT (CATALOG) and nothing about SCHEMA
+  # (CONSTRAINT/RLS/POLICY/FUNCTION). That is not the chain failing to converge — it is a seed
+  # edit that needs a migration to actually reach a deployed database, and the generic "does NOT
+  # match a fresh one" message sends the reader hunting a migration bug that is not there.
+  DRIFT_KINDS="$(grep -oE '^[+-][A-Z]+\|' "$OUT/drift.diff" | sed 's/^.//;s/|$//' | sort -u)"
+  if [ "$DRIFT_KINDS" = "CATALOG" ]; then
+    echo "✗ SEED-DRIFT — every differing fact is table CONTENT, not schema:" >&2
+    echo "  supabase/seed*.sql was edited but no migration carries the change, so the applied path" >&2
+    echo "  (not re-seeded after migration up, same as a real deployed database) still has the" >&2
+    echo "  BASELINE's row content while a fresh reset has the working tree's. Add a migration" >&2
+    echo "  (DML) if a deployed database needs this content too — or if the difference is inert," >&2
+    echo "  it is still true drift from the fresh path and this check is right to refuse it." >&2
+    head -60 "$OUT/drift.diff" >&2
+    echo "  full diff: $OUT/drift.diff" >&2
+    exit 1
+  fi
   echo "✗ DRIFT — a database migrated from $(git rev-parse --short "$BASELINE_SHA") does NOT match a fresh one:" >&2
   head -60 "$OUT/drift.diff" >&2
   echo "  full diff: $OUT/drift.diff" >&2
