@@ -17,10 +17,24 @@
 #
 # Extracted from the `pgtap` and `db` CI jobs (#565), which carried this verbatim in both —
 # an acknowledged sync burden. One source of truth now; both jobs `run: bash` this file.
+#
+# Migrations dir is overridable (positional arg 1, else $MIGRATIONS_DIR, else
+# supabase/migrations) so the self-test can point this at disposable fixtures instead of the
+# real migration history.
 set -euo pipefail
 
+MIGRATIONS_DIR="${1:-${MIGRATIONS_DIR:-supabase/migrations}}"
+
+shopt -s nullglob
+files=("$MIGRATIONS_DIR"/*.sql)
+shopt -u nullglob
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "LINT FAIL: no .sql files found under $MIGRATIONS_DIR — refusing to pass a check that scanned nothing." >&2
+  exit 1
+fi
+
 failed=0
-for f in supabase/migrations/*.sql; do
+for f in "${files[@]}"; do
   body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
   if echo "$body" | grep -qi 'security definer'; then
     if ! echo "$body" | grep -qi 'revoke execute on function'; then

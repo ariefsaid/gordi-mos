@@ -58,8 +58,9 @@ jobs:
   # job (#565) — merged with the rendered-geometry guards so a dev PR boots Supabase once
   # instead of twice. This job is unaffected: it was never part of that duplication.
   db:
-    # Gated on base_ref rather than the trigger's branch list, so adding `dev` above for the fast
-    # lane cannot accidentally start the expensive browser tier on every dev PR.
+    # Gated on base_ref rather than the trigger's branch list, so this job's condition alone
+    # decides whether the expensive browser tier runs — it cannot accidentally start on a
+    # PR → dev, whatever branches the trigger above lists.
     if: github.event_name == 'push' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:

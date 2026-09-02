@@ -131,3 +131,5 @@ jobs:
         run: bash scripts/factory-run.test.sh
       - name: worktree npm-seed hardlink self-test
         run: bash scripts/worktree-npm-seed.test.sh
+      - name: SECURITY DEFINER revoke lint self-test
+        run: bash scripts/lint-security-definer.test.sh

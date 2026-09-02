@@ -41,7 +41,7 @@ concurrency:
 jobs:
   geometry:
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # bumped from 25 (#565): this job now also runs pgTAP + the applied-path check
+    timeout-minutes: 30 # this job runs pgTAP + the applied-path check in addition to the geometry guards
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -130,6 +130,14 @@ jobs:
       - name: Applied-path check — a migrated database matches a fresh one (#393)
         if: steps.scope.outputs.render == 'true'
         run: bash scripts/applied-path-check.sh --out artifacts/applied-path
+
+      - name: Upload applied-path artifacts on failure
+        if: failure() && steps.scope.outputs.render == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: geometry-applied-path
+          path: artifacts/applied-path/
+          retention-days: 7
 
       - name: Export Supabase env to GITHUB_ENV
         if: steps.scope.outputs.render == 'true'
