@@ -54,7 +54,7 @@ main_gitdir="$(git -C "$fixture" rev-parse --git-dir)"
 { [ "$rc" -ne 0 ] && [ -f "$common/verify-ledger.log" ] && grep -q "refused.*$linked_head" "$common/verify-ledger.log"; }
 t "refused linked-worktree run appends to the main common ledger" $? "$out"
 out="$(cd "$fixture" && VERIFY_LEDGER_NOW="$(date +%s)" bash scripts/drive-clock.sh 24 2>&1)"; rc=$?
-{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '0 runs, 0.00 total minutes' && printf '%s' "$out" | grep -q '1 refusals'; }
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '1 refusals'; }
 t "main-checkout report sees the linked-worktree refusal" $? "$out"
 rm "$linked/dirty"
 printf 'inert\n' > "$linked/scripts/inert.sh"

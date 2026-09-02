@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Wall-clock ledger report: scripts/drive-clock.sh [hours] (default 24).
-# Ledger records are tab-separated: start epoch, duration seconds, mode, HEAD sha.
+# Ledger records are tab-separated: start epoch, duration seconds, mode, HEAD sha. Runs exclude
+# refusals; total minutes includes refusal durations.
 # VERIFY_LEDGER_PATH overrides the common-git-dir ledger for self-tests. A missing ledger is zero;
 # malformed records in the reporting window fail closed; recover from ancient corruption by deleting
 # the ledger.
