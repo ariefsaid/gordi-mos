@@ -260,7 +260,8 @@ t "invocation worktree still on disk" $? "worktree feat-from-here missing"
 # resolved via `git rev-parse --show-toplevel` — wherever the sweep was INVOKED from. Run from
 # a linked worktree, traces were archived INTO that worktree instead of the main tree's
 # adws/adw_data/archive (and the invoking worktree is never removed, so the evidence rots in a
-# throwaway tree). Traces must land under the MAIN tree, realpaths compared.
+# throwaway tree). Both must resolve under the MAIN tree: traces land in the main tree's
+# archive, and the 90d prune removes a >90d entry there while a fresh entry survives.
 repo6="$tmp/repo6"
 mkdir -p "$repo6/.claude/worktrees"
 git -C "$repo6" init -q
@@ -278,6 +279,14 @@ git -C "$repo6" worktree add -q -b feat-invoker "$repo6/.claude/worktrees/feat-i
 git -C "$repo6" worktree add -q -b feat-traced "$repo6/.claude/worktrees/feat-traced" dev
 mkdir -p "$repo6/.claude/worktrees/feat-traced/adws/adw_data/sessions"
 echo trace > "$repo6/.claude/worktrees/feat-traced/adws/adw_data/sessions/x.jsonl"
+# The 90d prune root is the second archive path: an entry older than 90 days under the MAIN
+# tree's adws/adw_data/archive must be pruned by a sweep invoked from the linked worktree,
+# while a fresh entry survives.
+mkdir -p "$repo6/adws/adw_data/archive/stale-cap"
+echo keepsake > "$repo6/adws/adw_data/archive/stale-cap/run.jsonl"
+touch -t 202601010000 "$repo6/adws/adw_data/archive/stale-cap"
+mkdir -p "$repo6/adws/adw_data/archive/fresh-cap"
+echo keepsake > "$repo6/adws/adw_data/archive/fresh-cap/run.jsonl"
 
 out="$(cd "$repo6/.claude/worktrees/feat-invoker" && bash "$SCRIPT" dev 2>&1)"
 [ -f "$repo6/adws/adw_data/archive/feat-traced/sessions/x.jsonl" ]
@@ -285,6 +294,13 @@ t "trace archived under the MAIN tree's archive (sweep run from a linked worktre
 if [ -e "$repo6/.claude/worktrees/feat-invoker/adws/adw_data/archive/feat-traced" ]; then
   fail=$((fail+1)); printf '  FAIL  archive never lands inside the invoking worktree\n%s\n' "$out"
 else pass=$((pass+1)); printf '  ok    archive never lands inside the invoking worktree\n'; fi
+printf '%s' "$out" | grep -q "archive (pruned, >90d old): .*stale-cap"; t "90d prune hits the MAIN tree's archive (sweep run from a linked worktree)" $? "$out"
+if [ ! -e "$repo6/adws/adw_data/archive/stale-cap" ]; then
+  pass=$((pass+1)); printf '  ok    stale archive entry removed from disk (sweep run from a linked worktree)\n'
+else fail=$((fail+1)); printf '  FAIL  stale archive entry removed from disk (sweep run from a linked worktree)\n'; fi
+if [ -f "$repo6/adws/adw_data/archive/fresh-cap/run.jsonl" ]; then
+  pass=$((pass+1)); printf '  ok    fresh archive entry survives the prune (sweep run from a linked worktree)\n'
+else fail=$((fail+1)); printf '  FAIL  fresh archive entry survives the prune (sweep run from a linked worktree)\n'; fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
