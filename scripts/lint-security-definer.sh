@@ -23,6 +23,9 @@
 # real migration history.
 set -euo pipefail
 
+# Quoted identifiers containing embedded quotes are unsupported.
+source "$(dirname "$0")/lib/sql-blank.sh"
+
 MIGRATIONS_DIR="${1:-${MIGRATIONS_DIR:-supabase/migrations}}"
 
 shopt -s nullglob
@@ -63,7 +66,7 @@ normalise_defs_revokes() {
 
 failed=0
 for f in "${files[@]}"; do
-  body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
+  body=$(sql_blank_non_sql_extents < "$f")
   if echo "$body" | grep -qi 'security definer'; then
     missing=$(echo "$body" | normalise_defs_revokes)
     if [ -n "$missing" ]; then

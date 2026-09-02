@@ -62,6 +62,8 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
+source "$REPO/scripts/lib/sql-blank.sh"
+
 # The whole run is one lock hold: up to four resets and two migration chains. A sibling worktree
 # resetting in the middle would produce both false REDs and false GREENs.
 if [ "${MOS_DB_LOCK_HELD:-}" != "1" ]; then
@@ -423,76 +425,14 @@ while read -r v; do
         # cross-family review). The identifier is last, where a colon in it can shift nothing.
         printf '%s:%s:%s-%s:%s\n' "$kind" "$(basename "$f")" "$first" "$last" "$id" >> "$OUT/red/sabotage.txt"
       done
-    done < <(perl -0777 -ne '
+    done < <(sql_blank_non_sql_extents < "$f" | perl -0777 -ne '
       my $shadow = $_;
       my @qident;
       my $n = length($shadow);
-      # ONE left-to-right lex, the way Postgres reads a file: whichever of a `--` comment, a
-      # string literal, a dollar-quoted body or a `/* … */` block comment STARTS first owns its
-      # whole extent, and that
-      # extent is blanked to spaces — newlines kept, so line numbers stay true. Without it a
-      # `--` inside a literal erases the rest of the line and merges two statements, and a `;`
-      # inside a `do $$ … $$` body splits a statement that has none, which yields a phantom
-      # identifier that is in neither fresh.txt nor the red diff: a FALSE RED on the gate that
-      # runs immediately before a staging deploy (#472). The header above promises a DO block
-      # cannot be selected; this is what makes that true.
-      my $i = 0;
-      while ($i < $n) {
-        my $c = substr($shadow, $i, 1);
-        my $j;
-        if ($c eq "-" && substr($shadow, $i + 1, 1) eq "-") {
-          $j = index($shadow, "\n", $i); $j = $n if $j < 0;
-        } elsif ($c eq "\x27" || $c eq "\"") {
-          # `\x27\x27` doubles the quote in every string; a BACKSLASH escapes it only in an
-          # E\x27…\x27 string, which is the one form where standard_conforming_strings does not
-          # apply. Reading `\\\x27` as a terminator resumes lexing INSIDE the literal, so a
-          # `drop constraint if exists …` written in string content is selected as if it were
-          # SQL — an object no database ever had, absent from fresh.txt so always picked and
-          # absent from the red diff so step 6 reports "did NOT go red": a false RED on the gate
-          # that runs immediately before a staging deploy (#481 review). Same class as the
-          # dollar-quote bug above.
-          my $esc = ($c eq "\x27" && $i > 0
-                     && substr($shadow, $i - 1, 1) =~ /[Ee]/
-                     && ($i < 2 || substr($shadow, $i - 2, 1) !~ /[A-Za-z0-9_\$"]/));
-          $j = $i + 1;
-          while ($j < $n) {
-            if ($esc && substr($shadow, $j, 1) eq "\\") { $j += 2; next }
-            if (substr($shadow, $j, 1) ne $c) { $j++; next }
-            if (substr($shadow, $j + 1, 1) eq $c) { $j += 2; next }
-            $j++; last;
-          }
-          $j = $n if $j > $n;
-          # A quoted IDENTIFIER is stepped over in $shadow, never blanked: the selector still has
-          # to read its case out of it, because Postgres keeps the case and the fingerprint
-          # therefore does too. But its CONTENT must not reach the boundary scan — Postgres
-          # permits `;` and `--` inside a quoted name, and either one splits or truncates a
-          # statement that has neither (#481 cross-family review). So the extent is recorded and
-          # blanked in $split below, which is what the scan reads. Same length, so every offset
-          # and line number stays true.
-          if ($c eq "\"") { push @qident, [$i, $j]; $i = $j; next }
-        } elsif ($c eq "\$" && substr($shadow, $i) =~ /^(\$\$|\$[A-Za-z_][A-Za-z0-9_]*\$)/) {
-          my $tag = $1;
-          $j = index($shadow, $tag, $i + length($tag));
-          $j = ($j < 0) ? $n : $j + length($tag);
-        } elsif ($c eq "/" && substr($shadow, $i + 1, 1) eq "*") {
-          # Postgres block comments NEST: the body ends at the `*/` that BALANCES the opening
-          # `/*`, not at the first one, so this is a depth counter (#488). A first-`*/` reading
-          # leaves the tail of an outer comment live, and a `;` in that tail splits the real
-          # conditional after it — the nothing-else guard then refuses the statement and --prove
-          # covers less than it claims on a gate that runs before a staging deploy. An
-          # unterminated `/*` blanks to EOF, the same answer an unterminated literal gets.
-          $j = $i + 2; my $depth = 1;
-          while ($depth > 0 && $j < $n) {
-            my $two = substr($shadow, $j, 2);
-            if    ($two eq "/*") { $depth++; $j += 2 }
-            elsif ($two eq "*/") { $depth--; $j += 2 }
-            else                 { $j++ }
-          }
-          $j = $n if $j > $n;
-        } else { $i++; next }
-        my $seg = substr($shadow, $i, $j - $i); $seg =~ s/[^\n]/ /g;
-        substr($shadow, $i, $j - $i) = $seg;
-        $i = $j;
+      # Non-SQL extents were blanked by scripts/lib/sql-blank.sh before this parser ran. Only
+      # collect quoted identifiers here so statement boundaries can ignore semicolons in names.
+      while ($shadow =~ /"(?:[^"]|"")*"/g) {
+        push @qident, [$-[0], $+[0]];
       }
       my @at; my $ln = 1;
       for my $k (0 .. $n - 1) { $at[$k] = $ln; $ln++ if substr($shadow, $k, 1) eq "\n"; }
