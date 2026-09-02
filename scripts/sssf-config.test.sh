@@ -27,7 +27,7 @@ check_config() {
   #    provider (openrouter, fireworks, upstream's google default, …) is caught here
   while read -r m; do
     case "$m" in
-      zai/glm-5.3-flash|zai/glm-4.7|openai-codex/gpt-5.6-luna|bitdeer/deepseek-ai/DeepSeek-V4-Flash) ;;
+      zai/glm-5.3-flash|openai-codex/gpt-5.6-luna|bitdeer/deepseek-ai/DeepSeek-V4-Flash) ;;
       *) bad_out+="model not in the ruled substrate set: $m\n" ;;
     esac
   done < <(grep -E '^ *model: ' "$cfg" | awk '{print $2}')
