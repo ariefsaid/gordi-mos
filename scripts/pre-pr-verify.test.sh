@@ -39,6 +39,7 @@ git -C "$tmp/repo" checkout -q f
 if run; then ok "green battery passes"; else bad "green battery must pass"; fi
 if [ "$(cat "$STAMP" 2>/dev/null)" = "$HEAD" ]; then ok "stamp equals HEAD sha"; else bad "stamp missing or wrong sha"; fi
 [ "$(wc -l < "$ledger" 2>/dev/null | tr -d ' ')" = 2 ] && ok "green run appends one additional ledger record" || bad "green run ledger count is wrong"
+rm -rf "$tmp/repo/scripts/__pycache__"
 
 rm -f "$STAMP"
 printf '#!/bin/sh\ncase "$*" in *test*) exit 1;; *) exit 0;; esac\n' > "$tmp/bin/npm"
@@ -235,6 +236,32 @@ G add scripts/bulk a-unlisted; G commit -qm "bulk + one unlisted"
 run
 if [ -s "$tmp/npm-calls" ]; then pass=$((pass+1)); printf '  ok    scope: 64KB+ diff with one unlisted path still runs the lane (SIGPIPE race)\n'
 else fail=$((fail+1)); printf '  FAIL  scope: SIGPIPE race — big diff skipped the lane\n'; fi
+
+# ── Ledger serialization: linked worktrees share one ledger through the common git dir, so a
+# run must not append while another writer holds the ledger lock. The lock timeout is bounded,
+# so a holder that outlives it causes a non-fatal deferred append failure.
+rm -f "$STAMP"
+: > "$tmp/repo/untracked-race"   # instant refusal: no npm, no test lock, just the EXIT-trap append
+ledger_lock="$tmp/repo/.git/verify-ledger.lock"
+before="$(wc -l < "$ledger" 2>/dev/null | tr -d ' ')"; before="${before:-0}"
+bash "$PWD/scripts/lib/flock-run.sh" ledger-lock "$ledger_lock" 0 "" "" -- sleep 4 2>"$tmp/holder.log" &
+holder=$!
+n=0; until grep -q ACQUIRED "$tmp/holder.log" 2>/dev/null || [ "$n" -ge 100 ]; do sleep 0.1; n=$((n+1)); done
+( cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh ) >"$tmp/race.log" 2>&1 &
+race=$!
+n=0; until grep -q 'worktree is dirty' "$tmp/race.log" 2>/dev/null || [ "$n" -ge 100 ]; do sleep 0.1; n=$((n+1)); done
+sleep 1   # the bounded append is still waiting; an unlocked append would land immediately
+if [ "$(wc -l < "$ledger" | tr -d ' ')" = "$before" ]; then ok "run does not append while the ledger lock is held"
+else bad "appended while another writer held the ledger lock (append is not serialized)"; fi
+wait "$holder"
+wait "$race"; [ "$?" -ne 0 ] && ok "serialized run still refuses on the dirty tree" || bad "serialized run lost its refusal"
+rm -f "$tmp/repo/untracked-race"
+
+if (cd "$tmp/repo/mos-app" && PATH="$tmp/bin:$PATH" bash ../scripts/pre-pr-verify.sh) >/dev/null 2>&1; then
+  ok "relative subdirectory invocation reaches the repository root"
+else
+  bad "relative subdirectory invocation must reach the repository root"
+fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

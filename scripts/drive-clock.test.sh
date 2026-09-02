@@ -14,6 +14,13 @@ out="$(VERIFY_LEDGER_PATH="$ledger" VERIFY_LEDGER_NOW=2000000000 bash "$SCRIPT" 
 { [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '3 runs, 5.00 total minutes, 33.33% skipped, 1 refusals'; }
 t "sums records in the requested window and excludes old records" $? "$out"
 
+# A refusal burned real wall clock — its duration must meter into the total while staying a refusal.
+# Own ledger file: the corruption cases below append to $ledger and re-assert its exact totals.
+printf '1999999500\t300\trefused\t0123456789abcdef0123456789abcdef01234567\n' > "$tmp/refused.log"
+out="$(VERIFY_LEDGER_PATH="$tmp/refused.log" VERIFY_LEDGER_NOW=2000000000 bash "$SCRIPT" 24 2>&1)"; rc=$?
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '0 runs, 5.00 total minutes, 0.00% skipped, 1 refusals'; }
+t "refused run's duration meters into total minutes" $? "$out"
+
 out="$(VERIFY_LEDGER_PATH="$tmp/missing.log" VERIFY_LEDGER_NOW=2000000000 bash "$SCRIPT" 24 2>&1)"; rc=$?
 { [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '0 runs, 0.00 total minutes, 0.00% skipped, 0 refusals'; }
 t "absent ledger reports zero cleanly" $? "$out"
@@ -32,6 +39,8 @@ fixture="$tmp/worktree-fixture"; linked="$tmp/worktree-linked"
 git init -q "$fixture" && git -C "$fixture" config user.email t@t && git -C "$fixture" config user.name t
 mkdir -p "$fixture/scripts"
 cp "$SCRIPT" "$fixture/scripts/drive-clock.sh"
+mkdir -p "$fixture/scripts/lib"
+cp scripts/lib/flock-run.sh "$fixture/scripts/lib/"
 cp scripts/pre-pr-verify.sh scripts/reporting-snapshot.test.sh scripts/prose-budget.sh "$fixture/scripts/"
 cp scripts/reporting_snapshot.py scripts/reporting_local_env.py scripts/test_reporting_snapshot.py "$fixture/scripts/"
 touch "$fixture/file"; git -C "$fixture" add -A; git -C "$fixture" commit -qm init
@@ -45,7 +54,7 @@ main_gitdir="$(git -C "$fixture" rev-parse --git-dir)"
 { [ "$rc" -ne 0 ] && [ -f "$common/verify-ledger.log" ] && grep -q "refused.*$linked_head" "$common/verify-ledger.log"; }
 t "refused linked-worktree run appends to the main common ledger" $? "$out"
 out="$(cd "$fixture" && VERIFY_LEDGER_NOW="$(date +%s)" bash scripts/drive-clock.sh 24 2>&1)"; rc=$?
-{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '0 runs, 0.00 total minutes' && printf '%s' "$out" | grep -q '1 refusals'; }
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '1 refusals'; }
 t "main-checkout report sees the linked-worktree refusal" $? "$out"
 rm "$linked/dirty"
 printf 'inert\n' > "$linked/scripts/inert.sh"

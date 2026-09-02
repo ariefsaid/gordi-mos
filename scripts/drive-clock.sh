@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Wall-clock ledger report: scripts/drive-clock.sh [hours] (default 24).
-# Ledger records are tab-separated: start epoch, duration seconds, mode, HEAD sha.
+# Ledger records are tab-separated: start epoch, duration seconds, mode, HEAD sha. Runs exclude
+# refusals; total minutes includes refusal durations.
 # VERIFY_LEDGER_PATH overrides the common-git-dir ledger for self-tests. A missing ledger is zero;
 # malformed records in the reporting window fail closed; recover from ancient corruption by deleting
 # the ledger.
@@ -38,11 +39,11 @@ while IFS= read -r line || [ -n "$line" ]; do
       echo "clock: ERROR malformed ledger record" >&2
       exit 1
     fi
+    total_seconds=$((total_seconds + duration))
     if [ "$mode" = refused ]; then
       refusals=$((refusals + 1))
     else
       runs=$((runs + 1))
-      total_seconds=$((total_seconds + duration))
       [ "$mode" = skipped ] && skipped=$((skipped + 1))
     fi
   fi
