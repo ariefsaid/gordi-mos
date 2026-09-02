@@ -12,6 +12,10 @@ repo="$(cd "$repo" && pwd -P)"
 cp scripts/gh-shim/gh "$repo/scripts/gh-shim/gh"
 cp scripts/factory-preflight.py "$repo/scripts/factory-preflight.py"
 printf '%s\n' '#!/usr/bin/env python3' > "$repo/adws/adw_simple_sdlc.py"
+mkdir -p "$repo/adws/adw_modules"
+cat > "$repo/adws/adw_modules/data_types.py" <<'EOF'
+protected_files: list[str] = Field(default_factory=lambda: ["adws/**"])
+EOF
 chmod +x "$repo/scripts/gh-shim/gh"
 pass=0; fail=0
 
@@ -172,8 +176,19 @@ defaults:
   protected_files: [adws/**, scripts/pre-pr-verify.sh]
 EOF2
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "unreadable protected_files fallback refuses a barred path" $?
+printf '%s' "$out" | grep -q "adws/adw_modules/permissions.py"; t "fallback refusal names the offending path" $?
 printf '%s' "$out" | grep -q "pre-flight: could not read protected_files from"; t "flow-style protected_files emits the degradation note" $?
 printf '%s' "$out" | grep -q "using the built-in default list"; t "degradation note names the fallback" $?
+
+# An explicit empty list is readable configuration, not a request for the built-in fallback.
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files: []
+EOF2
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "explicit empty protected_files list does not refuse a barred path" $?
+printf '%s' "$out" | grep -q "could not read protected_files"; [ $? -ne 0 ]; t "explicit empty protected_files list does not trigger fallback" $?
 
 rm -f "$repo/adws/adw_sssf_config/sssf.config.yaml"
 

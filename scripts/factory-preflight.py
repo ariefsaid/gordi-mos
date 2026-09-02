@@ -52,6 +52,8 @@ def _yaml_list(text: str, key: str) -> list[str] | None:
     in_block = False
     for line in lines:
         if not in_block:
+            if re.match(rf"^\s*{re.escape(key)}:\s*\[\s*\]\s*(#.*)?$", line):
+                return []
             if re.match(rf"^\s*{re.escape(key)}:\s*(#.*)?$", line):
                 key_indent = len(line) - len(line.lstrip(" "))
                 in_block = True
