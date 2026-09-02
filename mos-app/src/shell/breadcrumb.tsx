@@ -1,11 +1,11 @@
 import { useLocation } from 'react-router-dom'
+import { useRecordCollectionChrome } from '@/lib/record-collection/record-collection-context'
 import { sectionForPath } from './sections'
 import { destinationForPath, allModules, primaryModuleForViewer } from './destinations'
 import { useBreadcrumbTitle } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import type { MessageKey } from '@/i18n/messages'
 
 // Shell breadcrumb — Redesign Step 2 (§9). `·` separator, last segment bold, no brand
 // prefix (brand lives in TopBar — OD-P4-11 dedup). Resolves the new destinations +
@@ -13,27 +13,13 @@ import type { MessageKey } from '@/i18n/messages'
 // task title via BreadcrumbTitleProvider (AC-019). Unknown/404 routes render nothing.
 // §Task-11 (Issue-8 gate): no `team` leaf — the Team-work view was removed until Issue 8 lands the
 // real Task team_id contract.
-// #410: leaf labels are catalog KEYS (translated at render), never literals — the saved-view
-// chips these leaves mirror already resolve the same keys.
-const VIEW_LEAF: Record<string, MessageKey> = {
-  mine: 'tasks.saved.mine',
-  overdue: 'followUps.overdue',
-  followups: 'tasks.saved.followups',
-}
-
-function viewLeafKey(search: string): MessageKey | null {
-  const params = new URLSearchParams(search)
-  const v = params.get('view')
-  if (!v || v === 'all') return null
-  return VIEW_LEAF[v] ?? null
-}
-
 export function Breadcrumb() {
-  const { pathname, search } = useLocation()
+  const { pathname } = useLocation()
   const dynamicTitle = useBreadcrumbTitle()
   const auth = useAuth()
   const isNarrow = useIsNarrow()
   const t = useT()
+  const taskChrome = useRecordCollectionChrome('tasks')
 
   const destination = destinationForPath(pathname)
   // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
@@ -78,8 +64,7 @@ export function Breadcrumb() {
     } else if (dynamicTitle) {
       crumbs.push(dynamicTitle)
     } else {
-      const v = viewLeafKey(search)
-      if (v) crumbs.push(t(v))
+      if (pathname.startsWith('/work/tasks') && taskChrome?.hasNonDefaultView) crumbs.push(taskChrome.activeViewLabel)
     }
   } else if (destination.id === 'money') {
     if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))

@@ -17,6 +17,7 @@ import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { useT } from '@/i18n/use-t'
+import { RecordCollectionChromeProvider } from '@/lib/record-collection/record-collection-context'
 
 // Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
 // `SignalComposerHost` mounts `SignalComposer` and reads the mention rosters; `SignalsArchivePage`
@@ -140,6 +141,7 @@ function ShellContent() {
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
     // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
     <BreadcrumbTitleProvider>
+      <RecordCollectionChromeProvider>
       <SkipLink />
       {/* R6-P2 (owner review r2): dvh, not vh, so the mobile browser's collapsing URL bar can't
           crop the bottom tab bar / content. h-dvh (dynamic HEIGHT), NOT min-h-dvh: the shell is a
@@ -243,6 +245,7 @@ function ShellContent() {
           header icon in the top-bar on every viewport (DESIGN.md No-FAB Rule — no floating FAB).
           Absent entirely when the flag is off (FR-P2-CF-003). */}
       {SHOW_ASSISTANT && <AssistantPanel />}
+      </RecordCollectionChromeProvider>
     </BreadcrumbTitleProvider>
   )
 }
