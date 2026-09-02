@@ -13,7 +13,11 @@ import { Button } from '@/components/ui/button'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
-import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
+import {
+  CollectionToolbar,
+  CollectionToolbarSearchField,
+  type CollectionToolbarSearch,
+} from '@/components/record-collection/collection-toolbar'
 import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
 import {
   signalCollectionDescriptor,
@@ -242,6 +246,16 @@ export function SignalsArchivePage() {
   const clearFilters = () =>
     setQuery({ q: '', attention: null, category: null, teamId: null, view: 'all' })
 
+  // #581: named once so the phone composition below can plant the same search field OUTSIDE the
+  // "View & filters" door while the toolbar instance (rendered either standalone on desktop, or
+  // INSIDE the door on phone) skips its own copy — see hideSearchRow.
+  const signalSearch: CollectionToolbarSearch = {
+    label: t('signals.archive.searchLabel'),
+    placeholder: t('signals.archive.searchPlaceholder'),
+    value: query.q,
+    onChange: (q) => setQuery({ q }),
+  }
+
   const signalToolbar = (
     <CollectionToolbar
       // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
@@ -252,6 +266,10 @@ export function SignalsArchivePage() {
           {t('signals.action.share')}
         </Button>
       )}
+      // #581: on phone this same toolbar instance renders INSIDE the "View & filters" door — the
+      // search field is already planted outside it (see signalControls below), so skip the
+      // toolbar's own copy there. Desktop renders the toolbar standalone and keeps its search row.
+      hideSearchRow={!isDesktop}
       presentation={{
         label: t('signals.archive.presentationLabel'),
         value: controller.state.presentation,
@@ -271,12 +289,7 @@ export function SignalsArchivePage() {
         ],
         onChange: (view) => setQuery({ view }),
       }}
-      search={{
-        label: t('signals.archive.searchLabel'),
-        placeholder: t('signals.archive.searchPlaceholder'),
-        value: query.q,
-        onChange: (q) => setQuery({ q }),
-      }}
+      search={signalSearch}
       filters={[
         // F6 (OD-REDESIGN-91 #21): "Needs attention" lives on the view chip ONLY — the duplicate
         // Attention filter dropdown died here. The needs-attention view already surfaces every
@@ -350,27 +363,32 @@ export function SignalsArchivePage() {
     />
   )
 
-  // Signals and Tasks share the same capture-first phone contract: the first record leads;
-  // presentation, filters, grouping, and saved views remain available behind one disclosure.
-  // The collection toolbar itself stays unchanged, so desktop keeps the full E7 control row.
+  // Signals and Tasks share the same capture-first phone contract: presentation, filters,
+  // grouping, and saved views stay behind one disclosure. Signals diverges from Tasks here
+  // (#581): the archive's job is search-and-revisit, so on phone the search input renders
+  // OUTSIDE that door — findable without opening it — while view options stay behind it. The
+  // collection toolbar itself stays unchanged for desktop, which keeps the full E7 control row.
   const signalDisclosure = signalDisclosureSummary()
   const signalControls = isDesktop ? signalToolbar : (
-    <ViewOptionsDisclosure
-      open={mobileOptionsOpen}
-      onToggle={() => setMobileOptionsOpen((open) => !open)}
-      onClose={() => setMobileOptionsOpen(false)}
-      label={t('signals.archive.viewAndFilters')}
-      summary={signalDisclosure.summary}
-      hasActiveFilters={signalDisclosure.hasActiveFilters}
-      panelId="mobile-signal-options-panel"
-      className="collection-mobile-options"
-      triggerClassName="collection-mobile-options-trigger"
-      summaryClassName="collection-mobile-options-summary"
-      chevronClassName="collection-mobile-options-chevron"
-      panelClassName="collection-mobile-options-panel"
-    >
-      {signalToolbar}
-    </ViewOptionsDisclosure>
+    <>
+      <CollectionToolbarSearchField search={signalSearch} />
+      <ViewOptionsDisclosure
+        open={mobileOptionsOpen}
+        onToggle={() => setMobileOptionsOpen((open) => !open)}
+        onClose={() => setMobileOptionsOpen(false)}
+        label={t('signals.archive.viewAndFilters')}
+        summary={signalDisclosure.summary}
+        hasActiveFilters={signalDisclosure.hasActiveFilters}
+        panelId="mobile-signal-options-panel"
+        className="collection-mobile-options"
+        triggerClassName="collection-mobile-options-trigger"
+        summaryClassName="collection-mobile-options-summary"
+        chevronClassName="collection-mobile-options-chevron"
+        panelClassName="collection-mobile-options-panel"
+      >
+        {signalToolbar}
+      </ViewOptionsDisclosure>
+    </>
   )
 
   return (

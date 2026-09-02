@@ -333,11 +333,12 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByTestId('location')).toHaveTextContent('layout=feed')
     const options = screen.getByRole('button', { name: /view & filters/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('searchbox', { name: /search signals/i })).not.toBeInTheDocument()
+    // #581: search lives outside the door now — reachable before it is ever opened.
+    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
 
     await userEvent.click(options)
     expect(options).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('searchbox', { name: /search signals/i })).toHaveLength(1)
     expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
   })
 
@@ -371,6 +372,26 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     fireEvent.keyDown(options, { key: 'Escape' })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(options).toHaveFocus()
+  })
+
+  it('Issue #581: at phone width the search input renders above/outside the View & filters door; view options stay behind it', async () => {
+    desktopState.value = false
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    const options = screen.getByRole('button', { name: /view & filters/i })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    // Search is reachable with the door still closed (its panel isn't even in the DOM yet) — it
+    // is not one of the things behind it.
+    expect(document.getElementById('mobile-signal-options-panel')).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+    // View options (e.g. Show retracted) are genuinely behind the door, not duplicated outside it.
+    expect(screen.queryByRole('switch', { name: /show retracted/i })).not.toBeInTheDocument()
+    openViewOptions()
+    expect(screen.getByRole('switch', { name: /show retracted/i })).toBeInTheDocument()
+    // Still exactly one search input — the toolbar instance inside the now-open door did not
+    // render a duplicate copy alongside the one planted outside it.
+    expect(screen.getAllByRole('searchbox', { name: /search signals/i })).toHaveLength(1)
   })
 
   it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {
