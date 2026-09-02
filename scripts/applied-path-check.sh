@@ -42,7 +42,8 @@
 #   MOS_APPLIED_PATH_BASELINE  same as --baseline
 #   MOS_DB_CONTAINER           override the stack's Postgres container name
 #
-# Exit: 0 converges · 1 DRIFT (or the proof did not hold) · 2 the check could not run meaningfully.
+# Exit: 0 converges · 1 DRIFT (or the proof did not hold, or the database was not restored) ·
+#       2 the check could not run meaningfully.
 #
 # ── WHAT IT GENERALISES OVER, AND WHAT IT DOES NOT ──────────────────────────────────────────────
 # Generalises: any number of pending migrations, any schema, any table, any constraint, any
@@ -112,15 +113,38 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/applied-path.XXXXXXXX")"
 # way: not to the e2e job that runs after it in CI, and not to whoever is working in the next
 # terminal. DB_DIRTY tracks whether the database still needs putting back.
 DB_DIRTY=0
+# RESTORE_FAILED makes a failed reset load-bearing on the script's own exit code (fail closed): a
+# caller that sees rc=0 needs it to mean the database really is back to a plain fresh reset, not
+# merely that the attempt was made. One attempt only — DB_DIRTY clears whether it succeeded or
+# not, so a second call (the explicit --prove call, then the EXIT trap) is a no-op rather than a
+# silent retry that could flip a recorded failure back to unnoticed.
+RESTORE_FAILED=0
 restore_db() {
   [ "$DB_DIRTY" = "1" ] || return 0
-  [ -d "${HEAD_TREE:-/nonexistent}/supabase" ] || return 0
-  echo "   restoring the local database to a plain fresh reset…"
-  supabase db reset --local --workdir "$HEAD_TREE" >/dev/null 2>&1 || \
-    echo "   ⚠ could not restore the database — run: supabase db reset" >&2
+  # DB_DIRTY clears immediately, before the reset even runs — not on success. Clearing only on
+  # success would let a second call (the explicit --prove call, then the EXIT trap) retry: slow
+  # when the first attempt already worked, and if that retry then succeeded it would leave
+  # RESTORE_FAILED stuck at 1 from the earlier failure — a false red on a database that ended up
+  # fine.
   DB_DIRTY=0
+  if [ ! -d "${HEAD_TREE:-/nonexistent}/supabase" ]; then
+    # The working tree restore_db resets FROM is gone — an unattemptable restore, which must not
+    # read as a completed one.
+    echo "   ✗ restore FAILED — the working tree is gone, nothing to reset back to" >&2
+    RESTORE_FAILED=1
+    return 0
+  fi
+  echo "   restoring the local database to a plain fresh reset…"
+  supabase db reset --local --workdir "$HEAD_TREE" >/dev/null 2>&1 || {
+    RESTORE_FAILED=1
+    echo "   ✗ restore FAILED — the database is left mid-reset, unusable by the next lock holder. Run: supabase db reset" >&2
+  }
 }
-trap 'restore_db; rm -rf "$WORK"' EXIT
+# The RESTORE_FAILED check runs BEFORE rm -rf, not after: under `set -e` a failing `rm` would
+# abort the rest of this trap right there, and an EXIT trap that never calls `exit` itself leaves
+# the shell's exit status exactly as an earlier `exit N` left it — so the one command that
+# overrides a GREEN result on a failed restore has to run no matter what `rm` does.
+trap 'restore_db; [ "$RESTORE_FAILED" = 0 ] || exit 1; rm -rf "$WORK"' EXIT
 if [ -n "$OUT" ]; then mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; else OUT="$WORK/out"; mkdir -p "$OUT"; fi
 
 FP_SQL="$REPO/scripts/lib/applied-path-fingerprint.sql"
@@ -563,5 +587,9 @@ echo
 restore_db
 say "evidence: $OUT (fresh.txt, pre.txt, migrated.txt, red/, SUMMARY.md)"
 [ "$FAILED" -eq 0 ] || fail "the proof did not hold"
-echo "✓ proven able to fail: green on the real migrations, red when the conditional is broken,"
-echo "  and a fresh reset cannot tell the difference."
+# Gated on RESTORE_FAILED: the trap below still turns this into a nonzero exit, but a log tail
+# ending on "✓ proven able to fail" must never be readable as success when the restore wasn't one.
+if [ "$RESTORE_FAILED" = 0 ]; then
+  echo "✓ proven able to fail: green on the real migrations, red when the conditional is broken,"
+  echo "  and a fresh reset cannot tell the difference."
+fi

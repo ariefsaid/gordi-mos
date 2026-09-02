@@ -121,6 +121,21 @@ W="$(workdir "$@")"
 echo "$W" >> "$S/workdirs"
 case "$1 $2" in
   "db reset")
+    # STUB_FAIL_RESTORE: fail the SECOND `db reset` against the head tree, never the first. The
+    # first is step [1] FRESH, which the harness needs to succeed to reach the point where there
+    # is anything to restore; the second is restore_db's own reset, which is the one this knob
+    # exists to break. Same workdir both times, so a call COUNT is what tells them apart.
+    case "$W" in
+      */head)
+        if [ "${STUB_FAIL_RESTORE:-0}" = "1" ]; then
+          n=$(( $(cat "$S/head_reset_n" 2>/dev/null || echo 0) + 1 ))
+          echo "$n" > "$S/head_reset_n"
+          if [ "$n" -ge 2 ]; then
+            echo "fake supabase: forced restore failure (STUB_FAIL_RESTORE)" >&2
+            exit 1
+          fi
+        fi ;;
+    esac
     : > "$S/cons"; : > "$S/versions"
     for f in "$W"/supabase/migrations/*.sql; do apply "$f"; done ;;
   "migration up")
@@ -840,6 +855,41 @@ if [ "$rc" = "0" ] && [ "$(awk -F: 'NR==1 {print $1}' "$T/out-r2/red/sabotage.tx
   ok "a : inside a quoted identifier cannot shift the class field (rc=0)"
 else
   bad "the colon shifted the evidence fields and the verdict read the wrong column (rc=$rc, got: $R2SAB)"
+fi
+
+echo "── S. a failed restore surfaces as a nonzero exit, never rc=0 (#489)"
+# The mutex guarded the ATTEMPT, not the OUTCOME: restore_db's `supabase db reset` failing was
+# swallowed by `||`, so the check reported rc=0 with the database left mid-reset for the next
+# lock holder. STUB_FAIL_RESTORE fails only the SECOND db-reset against the head tree — the FRESH
+# build at step [1] must still succeed, or there is no completed run left to prove this against.
+rm -rf "$T/db"; rm -rf "$T/out-s1"; mkdir -p "$T/out-s1"
+LAST_OUT="$( cd "$R" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+    APPLIED_PATH_MIN_PENDING="${MINP:-1}" STUB_FAIL_RESTORE=1 \
+    ./scripts/applied-path-check.sh --out "$T/out-s1" 2>&1 )"; rc=$?
+if [ "$rc" != "0" ] && printf '%s' "$LAST_OUT" | grep -qF "restore FAILED"; then
+  ok "a plain run whose restore fails exits nonzero, not rc=0 (rc=$rc)"
+else
+  bad "a failed restore did not surface (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -3 | tr '\n' ' ')"
+fi
+
+# S2 — the same knob under --prove, the exact shape reported in #489: the proof itself holds
+# (green), the restore message prints, and rc must still be nonzero rather than certifying a
+# database it never actually put back.
+rm -rf "$T/db"; rm -rf "$T/out-s2"; mkdir -p "$T/out-s2"
+LAST_OUT="$( cd "$R" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+    APPLIED_PATH_MIN_PENDING="${MINP:-1}" STUB_FAIL_RESTORE=1 \
+    ./scripts/applied-path-check.sh --out "$T/out-s2" --prove 2>&1 )"; rc=$?
+if [ "$rc" != "0" ] && printf '%s' "$LAST_OUT" | grep -qF "restore FAILED"; then
+  ok "a GREEN --prove run whose restore fails exits nonzero, not rc=0 (rc=$rc)"
+else
+  bad "a --prove run with a failed restore did not surface it (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -3 | tr '\n' ' ')"
+fi
+# S3 — a log tail must never read as success: the closing "✓ proven able to fail" line is gated
+# on the restore having actually worked.
+if printf '%s' "$LAST_OUT" | grep -qF "✓ proven able to fail"; then
+  bad "the --prove success line printed even though the restore failed"
+else
+  ok "the --prove success line is withheld when the restore fails"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
