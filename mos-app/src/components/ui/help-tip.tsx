@@ -30,6 +30,8 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
+import { clampPopoverGeometry } from './clamp-popover-offset'
+import { usePopoverReflow } from './use-popover-reflow'
 import './help-tip.css'
 
 export interface HelpTipProps {
@@ -69,20 +71,27 @@ export function HelpTip({ label, className }: HelpTipProps) {
     const button = buttonRef.current
     if (!button) return
     const rect = button.getBoundingClientRect()
-    const available = window.innerWidth - VIEWPORT_MARGIN * 2
-    const width = Math.min(PANEL_MAX_WIDTH, available)
-    // Centre on the glyph, then clamp so the panel stays fully on screen. A meta-slot "?" often
-    // sits within ~20px of the right edge on a phone; without the clamp the panel would overflow
-    // and the page would scroll sideways (PRODUCT.md: the body must never scroll horizontally).
-    const centred = rect.left + rect.width / 2 - width / 2
-    const left = Math.max(VIEWPORT_MARGIN, Math.min(centred, window.innerWidth - width - VIEWPORT_MARGIN))
-    setPlacement({ top: rect.bottom + ANCHOR_GAP, left, width })
+    // Centre on the glyph, then clamp (#621, shared with the admin ⋯ menu and the signal category
+    // picker) so the panel stays fully on screen. A meta-slot "?" often sits within ~20px of the
+    // right edge on a phone; without the clamp the panel would overflow and the page would scroll
+    // sideways (PRODUCT.md: the body must never scroll horizontally).
+    const centred = rect.left + rect.width / 2 - PANEL_MAX_WIDTH / 2
+    const { left, maxWidth } = clampPopoverGeometry({
+      anchorLeft: centred,
+      popoverWidth: PANEL_MAX_WIDTH,
+      viewportWidth: window.innerWidth,
+      margin: VIEWPORT_MARGIN,
+    })
+    setPlacement({ top: rect.bottom + ANCHOR_GAP, left, width: maxWidth })
   }, [])
 
   useLayoutEffect(() => {
     if (!open) return
     reposition()
   }, [open, reposition])
+
+  // A scroll or resize moves the anchor; recompute rather than leave the panel stranded.
+  usePopoverReflow(open, reposition)
 
   useEffect(() => {
     if (!open) return
@@ -100,22 +109,14 @@ export function HelpTip({ label, className }: HelpTipProps) {
       setPinned(false)
       setHovered(false)
     }
-    // A scroll or resize moves the anchor; recompute rather than leave the panel stranded.
-    function onReflow() {
-      reposition()
-    }
 
     document.addEventListener('keydown', onKeyDown, true)
     document.addEventListener('pointerdown', onPointerDown, true)
-    window.addEventListener('scroll', onReflow, true)
-    window.addEventListener('resize', onReflow)
     return () => {
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('pointerdown', onPointerDown, true)
-      window.removeEventListener('scroll', onReflow, true)
-      window.removeEventListener('resize', onReflow)
     }
-  }, [open, reposition])
+  }, [open])
 
   return (
     <span className={`help-tip-anchor${className ? ` ${className}` : ''}`}>
