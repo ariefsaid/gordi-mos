@@ -13,7 +13,11 @@ pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n%s\n' "$1" "${2:-}"; }
 
-inode() { stat -f '%i' "$1" 2>/dev/null || stat -c '%i' "$1"; }
+# `ls -di` prints the inode as its first field on both BSD (macOS) and GNU coreutils — unlike
+# `stat`, whose `-f`/`-c` format flags don't even mean the same thing across the two (GNU `-f`
+# is "filesystem status", not a format string), so a `stat -f || stat -c` fallback silently
+# extracts the wrong field on Linux instead of failing over.
+inode() { ls -di "$1" | awk '{print $1}'; }
 
 # A throwaway repo + a real linked worktree, so --git-common-dir resolves exactly as it does
 # for a drive worktree under .claude/worktrees/.
