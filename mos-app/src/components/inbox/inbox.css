@@ -115,11 +115,12 @@
   outline-offset: 2px;
 }
 /* #623: was `background: var(--accent); color: var(--foreground)` — near-black text on solid
-   action blue, 2.90:1 (well under the 4.5:1 AA floor; see the reverted index.css patch this
-   replaces). DESIGN.md's segmented "on" state (§Tabs / Segmented Controls, `seg` grammar —
-   also `.collection-toolbar__view--active`, the Tasks view chips) is the selected-chip token
-   pair used everywhere else in the app: `--background` pill + `--foreground` text + a lift,
-   never the solid accent fill. Matching it here instead of re-deriving a one-off pair. */
+   action blue, well under the 4.5:1 AA floor (contrast.test.ts pins the number; see the
+   reverted index.css patch this replaces). DESIGN.md's segmented "on" state (§Tabs / Segmented
+   Controls, `seg` grammar — segmented-track.css:69-74's `[aria-selected='true']` rule) is the
+   selected-chip token pair used everywhere else in the app: `--background` pill + `--foreground`
+   text + a lift, never the solid accent fill. Matching it here instead of re-deriving a one-off
+   pair. */
 .inbox-triage__filter[aria-pressed='true'] {
   background: var(--background);
   color: var(--foreground);

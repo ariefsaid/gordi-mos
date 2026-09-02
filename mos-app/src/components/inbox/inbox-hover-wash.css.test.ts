@@ -15,8 +15,8 @@
  *
  * #623 found the SAME failure mode on a different pseudo-state: the selected
  * (`[aria-pressed='true']`) filter chip painted `background: var(--accent); color:
- * var(--foreground)` — near-black text on solid blue, 2.90:1. So this guard now scans every
- * `:hover` OR `[aria-pressed=...]` rule, not just `:hover`.
+ * var(--foreground)` — near-black text on solid blue, well under AA (contrast.test.ts pins the
+ * number). So this guard now scans every `:hover` OR `[aria-pressed=...]` rule, not just `:hover`.
  *
  * This guard reads the raw CSS text (no cascade/DOM engine needed) and fails on ANY such rule in
  * inbox.css whose `background`/`background-color` CONTAINS `var(--accent)` while its `color`
@@ -78,7 +78,8 @@ describe('GUARD: inbox.css hover backgrounds never paint the solid action colour
 
   // #623: the selected-chip failure mode isn't a :hover rule, so the guard above wouldn't have
   // caught it. No `[aria-pressed=...]` rule may pair a `var(--accent)` background with plain
-  // `var(--foreground)` text — that combination is the near-black-on-solid-blue 2.90:1 failure.
+  // `var(--foreground)` text — that combination is the near-black-on-solid-blue failure
+  // (contrast.test.ts pins the number).
   const pressed = ariaPressedRules(css)
 
   it('finds at least one [aria-pressed] rule (a parse that found nothing would make the rest vacuous)', () => {
