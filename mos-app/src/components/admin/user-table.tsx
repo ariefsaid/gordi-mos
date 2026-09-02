@@ -324,7 +324,9 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
     // left-edge clamp (#621, shared with help-tip/the category picker): the menu's unclamped left
     // edge, if flush-right with the trigger at the estimated width, is `rect.right - MENU_MIN_WIDTH`;
     // clamping that and converting back to a right-offset is algebraically identical to clamping
-    // `right` directly, so this is a plumbing change only.
+    // `right` directly ONLY for a viewport >= MENU_MIN_WIDTH + 2 * MENU_SIDE_MARGIN (176px) —
+    // below that, clampPopoverGeometry's own width-clamp kicks in and MENU_MIN_WIDTH is no longer
+    // the real popover width, which this call site ignores (the returned `maxWidth` is discarded).
     const { left } = clampPopoverGeometry({
       anchorLeft: rect.right - MENU_MIN_WIDTH,
       popoverWidth: MENU_MIN_WIDTH,
