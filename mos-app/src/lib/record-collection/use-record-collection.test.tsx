@@ -231,6 +231,36 @@ describe('useRecordCollection (synced)', () => {
     expect(capturedSearch).toBe(before)
   })
 
+  // The collection journey must preserve the saved desktop presentation across both viewport
+  // transitions; a phone render uses the default presentation while narrow.
+  it('presentation follows a desktop → 390px phone → desktop resize and restores the saved Table view verbatim', async () => {
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/signals?layout=table&view=needs-attention&attention=Urgent']}>
+        <Harness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    const savedQuery = { ...controllerRef!.state.query }
+    expect(controllerRef?.state.presentation).toBe('table')
+
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=table&view=needs-attention&attention=Urgent']}>
+        <Harness isDesktop={false} />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(controllerRef?.state.presentation).toBe('feed')
+
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=table&view=needs-attention&attention=Urgent']}>
+        <Harness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(controllerRef?.state.presentation).toBe('table')
+    expect(controllerRef?.state.query).toEqual(savedQuery)
+  })
+
   // Issue #607: a desktop session narrowed to phone width used to keep presentation=table while
   // CSS alone hid the Table/Card switcher — a dead end with no way back to Feed. This proves the
   // hook reacts to the isDesktop PROP flipping (not just a fresh phone mount, already covered by
