@@ -24,10 +24,8 @@
   cursor: pointer;
   color: var(--foreground);
 }
-/* #585: `--accent` (aliases.css) is bound to the SOLID action blue (avatars/focus-ring), not a
-   wash — this hover used to flood the row with it, tanking title/body contrast. `--surface-tertiary`
-   is the neutral "hover fills" wash DESIGN.md's grammar actually means for row/filter/action hover
-   (the same token command-menu.css already uses for its own list-row hover). */
+/* #585: wash token, not the solid action colour — see inbox-hover-wash.css.test.ts for the why
+   (also applies to .inbox-triage__filter:hover and .inbox-row__handle:hover below). */
 .inbox-row__button:hover {
   background: var(--surface-tertiary);
 }
@@ -110,7 +108,7 @@
   cursor: pointer;
 }
 .inbox-triage__filter:hover {
-  background: var(--surface-tertiary); /* #585: wash, not the solid action colour — see row hover above */
+  background: var(--surface-tertiary);
 }
 .inbox-triage__filter:focus-visible {
   outline: 2px solid var(--accent);
@@ -161,7 +159,7 @@
   cursor: pointer;
 }
 .inbox-row__handle:hover {
-  background: var(--surface-tertiary); /* #585: wash, not the solid action colour — see row hover above */
+  background: var(--surface-tertiary);
   color: var(--foreground);
 }
 .inbox-row__handle:focus-visible {
@@ -227,7 +225,6 @@
 .inbox-row__time {
   flex: none;
   margin-left: auto;
-  padding-left: 6px;
   font-size: var(--font-size-mono);
   color: var(--muted-foreground);
   white-space: nowrap;

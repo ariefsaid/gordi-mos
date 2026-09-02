@@ -58,9 +58,11 @@ export function useNotifications(): UseNotifications {
       const readAt = new Date().toISOString()
       // Optimistic: flip read_at locally so the badge + row update immediately.
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: readAt } : n)))
-      announceUnreadCountChanged() // #582: tell the bell/rail/tab badges to re-fetch, not just this row list
       try {
         await markNotificationRead(id, readAt)
+        // #582: only AFTER the write resolves — announcing earlier let a subscriber's re-fetch
+        // race the write and read the pre-write count back (a stale-high badge).
+        announceUnreadCountChanged()
       } catch {
         // Revert on failure — the badge must not lie about unread state.
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: null } : n)))
@@ -78,10 +80,11 @@ export function useNotifications(): UseNotifications {
       const before = target
       // Optimistic: applyMarkHandled is the ratified semantics (read co-stamp for unread rows).
       setNotifications((prev) => prev.map((n) => (n.id === id ? applyMarkHandled(n, now) : n)))
-      // #582: handled co-stamps read on an unread row, so this can change the unread total too.
-      announceUnreadCountChanged()
       try {
         await markNotificationHandled(id, now, before.read_at == null ? now : null)
+        // #582: only AFTER the write resolves (handled co-stamps read on an unread row, so this
+        // can change the unread total too) — see markRead above for why the order matters.
+        announceUnreadCountChanged()
       } catch {
         // Revert on failure — the queue must not lie about handled state.
         setNotifications((prev) => prev.map((n) => (n.id === id ? before : n)))

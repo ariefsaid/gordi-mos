@@ -12,9 +12,10 @@
  * token (`--surface-tertiary`, aliases.css: "hover fills" — the same token command-menu.css
  * already uses for its own list-row hover), `--accent` stays reserved for focus rings/avatars.
  *
- * This guard reads the raw CSS text (no cascade/DOM engine needed) and fails on ANY `:hover`
- * rule in inbox.css whose `background` resolves to `var(--accent)` — so a future edit can't
- * silently reintroduce the solid wash under a new class name.
+ * This guard reads the raw CSS text (no cascade/DOM engine needed) and fails on ANY `:hover` rule
+ * in inbox.css whose `background`/`background-color` CONTAINS `var(--accent)` — a substring check,
+ * not just an exact match, so a future edit can't slip it in via a shorthand or multi-value
+ * background under a new class name either.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -40,12 +41,13 @@ describe('GUARD: inbox.css hover backgrounds never paint the solid action colour
   })
 
   for (const { selector, body } of hovers) {
-    const bg = /background\s*:\s*([^;]+);/.exec(body)?.[1]?.trim()
+    const bg = /background(?:-color)?\s*:\s*([^;]+);/.exec(body)?.[1]?.trim()
     if (!bg) continue
-    it(`${selector} background ("${bg}") is not the solid action colour`, () => {
-      expect(bg, `${selector} must not use var(--accent) as a hover wash — use var(--surface-tertiary)`).not.toBe(
-        'var(--accent)',
-      )
+    it(`${selector} background ("${bg}") does not contain the solid action colour`, () => {
+      expect(
+        bg.includes('var(--accent)'),
+        `${selector} must not use var(--accent) as a hover wash (even mixed into a shorthand/multi-value background) — use var(--surface-tertiary)`,
+      ).toBe(false)
     })
   }
 
@@ -54,7 +56,7 @@ describe('GUARD: inbox.css hover backgrounds never paint the solid action colour
     for (const selector of named) {
       const rule = hovers.find((h) => h.selector === selector)
       expect(rule, `expected a :hover rule for ${selector}`).toBeTruthy()
-      const bg = /background\s*:\s*([^;]+);/.exec(rule!.body)?.[1]?.trim()
+      const bg = /background(?:-color)?\s*:\s*([^;]+);/.exec(rule!.body)?.[1]?.trim()
       expect(bg, `${selector} must set a background`).toBe('var(--surface-tertiary)')
     }
   })

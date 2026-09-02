@@ -1,5 +1,6 @@
 import './inbox.css'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 import { Pill } from '@/components/ui/pill'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import {
@@ -104,6 +105,7 @@ export function InboxTriage({
   pendingIds,
 }: InboxTriageProps) {
   const t = useT()
+  const { locale } = useI18n()
   const pending = new Set(pendingIds ?? [])
   // One render-time boundary for every row (AC-141-3): a single shared `now` means every row's
   // day-bucket is judged against the SAME local midnight, so the queue can't disagree with itself.
@@ -224,7 +226,7 @@ export function InboxTriage({
                             {t('inbox.age.days', { count: ageDays })}
                           </Pill>
                         ) : null}
-                        <span className="inbox-row__time">{formatAge(n.created_at, now)}</span>
+                        <span className="inbox-row__time">{formatAge(n.created_at, now, locale)}</span>
                       </span>
                       {n.body ? <span className="inbox-row__body">{n.body}</span> : null}
                     </span>
