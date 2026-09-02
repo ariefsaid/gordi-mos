@@ -154,9 +154,9 @@ EOF
   # claim→merge: earliest "In flight" comment across the row's issues
   claim_min=""
   for i in $refs; do
-    comments="$(gh api --paginate "repos/{owner}/{repo}/issues/$i/comments" 2>/dev/null)" \
+    comments="$(gh api --paginate "repos/{owner}/{repo}/issues/$i/comments" 2>/dev/null | jq -s 'add')" \
       || { echo "✗ drive-cost: gh api comments for issue $i failed" >&2; exit 1; }
-    c="$(printf '%s' "$comments" | jq -r '([.[] | select((.body // "") | test("In flight"))][0].created_at) // empty')" \
+    c="$(printf '%s' "$comments" | jq -r '[.[] | select((.body // "") | test("In flight")) | .created_at] | sort | .[0] // empty')" \
       || { echo "✗ drive-cost: claim comments for issue $i unparsable" >&2; exit 1; }
     [ -n "$c" ] || continue
     ce="$(jq -rn --arg t "$c" 'try ($t | fromdateiso8601) catch empty')"
