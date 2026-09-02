@@ -15,9 +15,10 @@ export function getActiveTaskView({
   const saved = query.savedViewId === null
     ? undefined
     : savedViews.find((item) => item.id === query.savedViewId)
+  const isDefaultView = query.view === 'all' || query.view === 'my-pic' || query.view === 'my-supervisor'
   return {
     savedViewId: saved?.id ?? null,
-    label: saved?.name ?? labels[query.view],
-    hasNonDefaultView: query.savedViewId !== null || query.view !== 'all',
+    label: saved?.name ?? (isDefaultView ? labels.all : labels[query.view]),
+    hasNonDefaultView: query.savedViewId !== null || !isDefaultView,
   }
 }

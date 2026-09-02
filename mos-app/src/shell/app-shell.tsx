@@ -141,6 +141,7 @@ function ShellContent() {
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader)
     // and the Outlet (TaskSurface writer) share the dynamic-title channel (ADR-0013 D1 / OD-P4-9).
     <BreadcrumbTitleProvider>
+      {/* Keep this provider mounted here: stable children identity means setSnapshots re-renders only consumers; moving it breaks that bailout silently. */}
       <RecordCollectionChromeProvider>
       <SkipLink />
       {/* R6-P2 (owner review r2): dvh, not vh, so the mobile browser's collapsing URL bar can't

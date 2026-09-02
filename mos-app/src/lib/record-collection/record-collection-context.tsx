@@ -3,7 +3,6 @@ import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRe
 
 export type RecordCollectionChromeSnapshot = {
   collectionId: string
-  query: object
   activeViewLabel: string
   hasNonDefaultView: boolean
 }
@@ -51,7 +50,7 @@ export function usePublishRecordCollectionChrome(snapshot: RecordCollectionChrom
     return () => clear?.(snapshot.collectionId, publisher.current!)
   // publisher is stable for this mounted collection and intentionally owns cleanup.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publish, clear, snapshot.collectionId, snapshot.query, snapshot.activeViewLabel, snapshot.hasNonDefaultView])
+  }, [publish, clear, snapshot.collectionId, snapshot.activeViewLabel, snapshot.hasNonDefaultView])
 }
 
 export function useRecordCollectionChrome(collectionId: string): RecordCollectionChromeSnapshot | null {

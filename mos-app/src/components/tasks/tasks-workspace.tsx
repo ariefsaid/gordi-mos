@@ -219,7 +219,6 @@ export function TasksWorkspace({
   })
   usePublishRecordCollectionChrome({
     collectionId: 'tasks',
-    query: state.query,
     activeViewLabel: activeView.label,
     hasNonDefaultView: activeView.hasNonDefaultView,
   })
