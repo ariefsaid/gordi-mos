@@ -112,6 +112,8 @@ export function SignalsArchivePage() {
       neutralQuery: SIGNAL_COLLECTION_NEUTRAL_QUERY,
       excludedKeys: ['layout', 'groupBy', 'sort', 'direction'],
       base: activeSignalView.label,
+      // One source for "is this off the default view": activeSignalView.hasNonDefaultView (same
+      // savedViewId/view check getActiveSignalView already made), not a second view!=='all' here.
       hasNonDefaultView: activeSignalView.hasNonDefaultView,
       filterLabel: (currentQuery) => currentQuery.attention ? t('signals.archive.filterAttention')
         : currentQuery.category ? t('signals.archive.filterCategory')

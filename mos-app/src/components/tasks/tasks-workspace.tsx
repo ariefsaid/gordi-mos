@@ -125,6 +125,9 @@ function taskDisclosureSummary(
     neutralQuery: TASK_COLLECTION_NEUTRAL_QUERY,
     excludedKeys: ['layout', 'groupBy', 'sort', 'direction'],
     base,
+    // my-pic/my-supervisor light this dot (view !== 'all') even though getActiveTaskView treats
+    // them as the default breadcrumb state (no leaf pushed) — intended: on the door they ARE
+    // filters on top of the base view, not a saved view of their own.
     hasNonDefaultView: query.view !== 'all',
     filterLabel: (currentQuery) => currentQuery.overdueOnly ? t('tasks.saved.overdue')
       : currentQuery.status ? t('tasks.filter.status')
