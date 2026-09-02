@@ -10,6 +10,7 @@ import type {
   QueryKey,
   RecordCollectionDescriptor,
 } from './types'
+import type { CollectionViewSpec, PersistedCollectionView } from './collection-view-spec'
 import {
   signalCollectionQuery,
   signalPresentationCompatibleKeys,
@@ -79,6 +80,34 @@ function makeSignalDescriptor(): RecordCollectionDescriptor<
       recordType: 'signal',
       buildPanelEntry: (record) => ({ key: `signal:${record.id}`, owner: 'signals', tenant: 'record', label: record.body, content: null }),
       toCanonicalPage: (id) => ({ pathname: `/signals/${id}` }),
+    },
+  }
+}
+
+// A saved-view-capable variant, for Issue #614: `view` is the one saved view `applySavedView` can
+// fetch, its `spec` never inspected by parseAndValidate/applySpec below (fakes bypass the real
+// collection-view-spec parser, same as engine.test.ts's `as unknown as CollectionViewSpec` pattern) —
+// only its `presentation` field drives what the fake `applySpec` reports.
+function makeSignalDescriptorWithSavedView(
+  view: PersistedCollectionView,
+): RecordCollectionDescriptor<FakeSignal, string, SignalCollectionQuery, { viewerId: string | null }, FakeGroup, never, SignalCollectionPresentation> {
+  const base = makeSignalDescriptor()
+  return {
+    ...base,
+    savedViews: {
+      ...base.savedViews,
+      store: {
+        list: async () => [view],
+        get: async (id: string) => (id === view.id ? view : null),
+        create: vi.fn(),
+        rename: vi.fn(),
+        archive: vi.fn(),
+      },
+      parseAndValidate: () => ({ ok: true, spec: view.spec }),
+      applySpec: (spec) => ({
+        query: { ...signalCollectionQuery.neutral, layout: spec.presentation as SignalCollectionPresentation },
+        presentation: spec.presentation as SignalCollectionPresentation,
+      }),
     },
   }
 }
@@ -340,5 +369,125 @@ describe('useRecordCollection (synced)', () => {
     // would reject this exact move via switchPresentation, so the restore honors the same rule and
     // the permissive phone default stands instead.
     expect(xControllerRef?.state.presentation).toBe('table')
+  })
+
+  // Issue #614: applySavedView set presentation straight from the saved spec with no isDesktop
+  // awareness — a desktop-saved Table view applied on a PHONE landed on Table with the switcher
+  // hidden (a dead end), and the URL then carried layout=table on a phone, contradicting
+  // AC-V3-013 (a phone render always shows the collection default as ?layout).
+  it('Issue #614: applying a saved view whose spec asks for Table on a phone session renders the collection default instead, URL included', async () => {
+    const view: PersistedCollectionView = {
+      id: 'v-table', name: 'Desktop table view', scope: 'private', kind: 'collection', context: 'work',
+      lifecycle: 'active', spec: { presentation: 'table' } as unknown as CollectionViewSpec,
+      createdAt: '', updatedAt: '', archivedAt: null,
+    }
+    const descriptor = makeSignalDescriptorWithSavedView(view)
+    function PhoneHarness() {
+      const location = useLocation()
+      capturedSearch = location.search
+      const controller = useRecordCollection({
+        descriptor, urlMode: 'synced', isDesktop: false, viewerId: 'p-me', accessRoles: ['ops_lead'],
+      })
+      controllerRef = controller
+      return <div>{controller.state.presentation}</div>
+    }
+    render(
+      <MemoryRouter initialEntries={['/signals']}>
+        <PhoneHarness />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(controllerRef?.state.presentation).toBe('feed') // the collection default, pre-apply
+
+    await act(async () => {
+      const result = await controllerRef?.applySavedView('v-table')
+      expect(result?.ok).toBe(true)
+    })
+    await flush()
+    // Not 'table' — the saved view's own presentation never reaches state on a phone session.
+    expect(controllerRef?.state.presentation).toBe('feed')
+    expect(new URLSearchParams(capturedSearch).get('layout')).toBe('feed')
+  })
+
+  // A saved-view-capable variant of the asymmetric descriptor above (table default, card the
+  // restrictive alternate) — Issue #614's second half needs a saved view whose presentation the
+  // phone default does NOT already equal, to prove the widen-restore reads what the saved view
+  // asked for rather than whatever was captured at the last narrow transition.
+  function makeAsymmetricDescriptorWithSavedView(
+    view: PersistedCollectionView,
+  ): RecordCollectionDescriptor<FakeSignal, string, XQuery, { viewerId: string | null }, FakeGroup, never, XPresentation> {
+    const base = makeAsymmetricDescriptor()
+    return {
+      ...base,
+      savedViews: {
+        enabled: true,
+        store: {
+          list: async () => [view],
+          get: async (id: string) => (id === view.id ? view : null),
+          create: vi.fn(),
+          rename: vi.fn(),
+          archive: vi.fn(),
+        },
+        operations: ['apply'],
+        buildSpec: () => { throw new Error('unused') },
+        parseAndValidate: () => ({ ok: true, spec: view.spec }),
+        applySpec: (spec) => ({
+          query: { layout: spec.presentation as XPresentation, filter: null },
+          presentation: spec.presentation as XPresentation,
+        }),
+      },
+    }
+  }
+
+  it('Issue #614: a saved view (Card) applied while narrow is restored on widen — not the presentation captured at the narrow transition', async () => {
+    const view: PersistedCollectionView = {
+      id: 'v-card', name: 'Card view', scope: 'private', kind: 'collection', context: 'work',
+      lifecycle: 'active', spec: { presentation: 'card' } as unknown as CollectionViewSpec,
+      createdAt: '', updatedAt: '', archivedAt: null,
+    }
+    const descriptor = makeAsymmetricDescriptorWithSavedView(view)
+    function YHarness({ isDesktop = true }: { isDesktop?: boolean } = {}) {
+      const controller = useRecordCollection({
+        descriptor, urlMode: 'synced', isDesktop, viewerId: 'p-me', accessRoles: ['ops_lead'],
+      })
+      xControllerRef = controller
+      return <div>{controller.state.presentation}</div>
+    }
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/signals?layout=table']}>
+        <YHarness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(xControllerRef?.state.presentation).toBe('table') // desktop default, pre-narrow
+
+    // Narrow: the pre-narrow value ('table') gets captured as the naive "desired" — the very value
+    // the fix must NOT restore once a saved view supersedes it below.
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=table']}>
+        <YHarness isDesktop={false} />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(xControllerRef?.state.presentation).toBe('table') // already the default — unchanged
+
+    // While still narrow, apply the Card saved view. State stays constrained to the default
+    // (no switcher on a phone to leave a Card-only dead end reachable from), but the CONTROLLER's
+    // notion of "what was asked for" must move to Card.
+    await act(async () => {
+      const result = await xControllerRef?.applySavedView('v-card')
+      expect(result?.ok).toBe(true)
+    })
+    await flush()
+    expect(xControllerRef?.state.presentation).toBe('table')
+
+    // Widen: restores Card — the saved view just applied — not the stale pre-narrow 'table'.
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=table']}>
+        <YHarness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(xControllerRef?.state.presentation).toBe('card')
   })
 })

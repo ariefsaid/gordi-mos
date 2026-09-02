@@ -373,6 +373,33 @@ describe('RecordCollection engine', () => {
     expect(c.state.query.savedViewId).toBe('v-1')
   })
 
+  it('Issue #614: applying a saved view on a narrow (phone) session constrains state to the collection default, but the result still reports the saved view\'s own presentation for a later widen to restore', async () => {
+    const savedSpec = makeSpec({ ...TASK_COLLECTION_NEUTRAL_QUERY, picId: 'p-raka', status: 'Open' }, 'card')
+    const view: PersistedCollectionView = {
+      id: 'v-1', name: 'My open work', scope: 'private', kind: 'collection', context: 'work',
+      lifecycle: 'active', spec: savedSpec, createdAt: '', updatedAt: '', archivedAt: null,
+    }
+    const store = {
+      list: async () => [view],
+      get: async (id: string) => (id === 'v-1' ? view : null),
+      create: vi.fn(),
+      rename: vi.fn(),
+      archive: vi.fn(),
+    }
+    const c = createRecordCollectionController(makeDescriptor({ store }), { ...INITIAL, isDesktop: false })
+    await flush()
+    const result = await c.applySavedView('v-1')
+    expect(result.ok).toBe(true)
+    // State stays on the collection default (table) — a phone session has no switcher to leave a
+    // Card-only dead end reachable from (Issue #614, same rule as the initial mount and the
+    // narrow/widen effect already apply).
+    expect(c.state.presentation).toBe('table')
+    expect(c.state.query.picId).toBe('p-raka')
+    // The result carries what the SAVED VIEW asked for, not the constrained state — the hook uses
+    // this to remember what a later widen should restore.
+    if (result.ok) expect(result.presentation).toBe('card')
+  })
+
   it('FR-V3-007: invalid saved Task Team state and unsupported Supervisor grouping are rejected without mutation', async () => {
     const badSpec = { ...makeSpec(TASK_COLLECTION_NEUTRAL_QUERY, 'table'), grouping: { field: 'supervisor' } } as unknown as CollectionViewSpec
     const view: PersistedCollectionView = {

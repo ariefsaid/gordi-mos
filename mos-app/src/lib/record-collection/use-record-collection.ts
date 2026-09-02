@@ -6,11 +6,10 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { createRecordCollectionController, type RecordCollectionController } from './engine'
-import { checkPresentationCompatibility, writeCollectionQuery } from './query-state'
+import { writeCollectionQuery } from './query-state'
 import type {
   CollectionOverlayHost,
   PresentationSwitchResult,
-  QueryKey,
   RecordCollectionDescriptor,
 } from './types'
 
@@ -94,7 +93,7 @@ export function useRecordCollection<
     const presentation = isDesktop ? desired : descriptor.defaultPresentation
     controllerRef.current = createRecordCollectionController(
       { ...descriptor, host },
-      { query, presentation, viewerId, accessRoles },
+      { query, presentation, viewerId, accessRoles, isDesktop },
     )
   }
 
@@ -109,13 +108,14 @@ export function useRecordCollection<
   useEffect(() => {
     if (wasDesktopRef.current === isDesktop) return
     wasDesktopRef.current = isDesktop
+    controller.setViewport(isDesktop)
     if (!isDesktop) {
       desiredPresentationRef.current = controller.state.presentation
       controller.constrainPresentation(descriptor.defaultPresentation)
       return
     }
     const desired = desiredPresentationRef.current
-    if (desired !== controller.state.presentation && isPresentationCompatible(descriptor, controller.state.query, desired)) {
+    if (desired !== controller.state.presentation && controller.canSwitchPresentation(desired)) {
       controller.constrainPresentation(desired)
     }
   }, [isDesktop, controller, descriptor])
@@ -167,7 +167,14 @@ export function useRecordCollection<
       },
       applySavedView: async (id: string) => {
         const result = await controller.applySavedView(id)
-        if (result.ok) writeUrl(false)
+        if (result.ok) {
+          // The engine already constrained state.presentation to the collection default when narrow
+          // (Issue #614); `result.presentation` still carries what the saved view itself asked for,
+          // so THAT — not the value captured at the last narrow transition — is what a later widen
+          // must restore.
+          desiredPresentationRef.current = result.presentation
+          writeUrl(false)
+        }
         return result
       },
     }
@@ -181,32 +188,4 @@ function presentationOf<TQuery extends object, TPresentation extends string>(
 ): TPresentation {
   const layout = (query as { layout?: unknown }).layout
   return typeof layout === 'string' ? (layout as TPresentation) : fallback
-}
-
-/** Would `target` accept the live query untouched? Mirrors the engine's own switchPresentation
- *  check (query-state.ts) so a widen-restore never lands on a presentation the query can't support. */
-function isPresentationCompatible<
-  TRecord,
-  TId extends string,
-  TQuery extends object,
-  TContext,
-  TGroup,
-  TAction extends string,
-  TPresentation extends string,
->(
-  descriptor: RecordCollectionDescriptor<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
-  query: TQuery,
-  target: TPresentation,
-): boolean {
-  const compatibleQueryKeys = {} as Record<TPresentation, readonly QueryKey<TQuery>[]>
-  for (const key of Object.keys(descriptor.presentations) as TPresentation[]) {
-    compatibleQueryKeys[key] = descriptor.presentations[key].compatibleQueryKeys
-  }
-  return checkPresentationCompatibility({
-    query,
-    schema: descriptor.query,
-    from: target,
-    to: target,
-    compatibleQueryKeys,
-  }).ok
 }
