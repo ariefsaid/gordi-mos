@@ -53,7 +53,10 @@ done
 archive_or_keep() {
   local path="$1" dest ok
   [ -d "$path/adws/adw_data/sessions" ] || ls "$path"/adws/adw_data/sssf.db* >/dev/null 2>&1 || return 0
-  dest="$(git rev-parse --show-toplevel)/adws/adw_data/archive/$(basename "$path")"
+  # Archive into the MAIN tree — never the invoking toplevel (#637: run from a linked
+  # worktree, `--show-toplevel` pointed INTO that worktree, which is never removed, so the
+  # evidence rotted in a throwaway tree). Same seam as the #635 main-tree derivation.
+  dest="$MAIN_TREE/adws/adw_data/archive/$(basename "$path")"
   mkdir -p "$dest"
   ok=1
   [ ! -d "$path/adws/adw_data/sessions" ] || cp -R "$path/adws/adw_data/sessions" "$dest/" || ok=0
@@ -153,7 +156,8 @@ done
 git worktree prune
 
 # 4. Prune adws/adw_data/archive entries older than 90 days (AC-562-4).
-archive_root="$(git rev-parse --show-toplevel)/adws/adw_data/archive"
+# MAIN_TREE, not the invoking toplevel (#637 — same seam as the archive destination).
+archive_root="$MAIN_TREE/adws/adw_data/archive"
 if [ -d "$archive_root" ]; then
   find "$archive_root" -mindepth 1 -maxdepth 1 -type d -mmin +$((90 * 1440)) 2>/dev/null | while read -r d; do
     echo "  archive (pruned, >90d old): $d"
