@@ -151,7 +151,7 @@ agents:
       - write
 
   - name: scout
-    model: zai/glm-4.7             # routine recon tier; pinned explicitly like every slot
+    model: zai/glm-5.3-flash        # OD-WAY-91: GLM side is glm-5.3 family only, flash the default — glm-4.7 retired
     color: "#fbbf24"
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
