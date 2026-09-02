@@ -17,7 +17,10 @@
 # row with anthropic-family agents shows "–" in the pi cell — unknown, not 0.
 # Unlike drive-burn's 24h session window, pi cells sum EVERY session under the issue's slugs:
 # per-PR cost, so a long build's early sessions aren't dropped by the report window.
-# No merged PRs / missing dirs = report and exit 0. gh query failure = exit 1 (fail closed).
+# No merged PRs / missing dirs = report and exit 0. Any gh/jq failure = exit 1 (fail closed):
+# a list at gh's 1000-PR cap, a failed pr view / comment query, or an unparsable payload refuses
+# to report rather than printing a partially-guessed table. Absent data is not failure — no
+# review file, no "In flight" comment, no additions/deletions on the payload all print "?".
 # Self-test: scripts/drive-cost.test.sh
 set -uo pipefail
 
@@ -59,8 +62,13 @@ pi_tokens() { # issue number → totalTokens summed over every session slug anch
   printf '%s\n' "$raw" | awk '{s+=$1} END {printf "%d", s+0}'
 }
 
-prs="$(gh pr list --state merged --base dev --limit 100 --json number,title,headRefName,mergedAt 2>/dev/null)" \
+limit=1000 # gh's hard cap for --limit: a full page may hide more PRs — unknowable, so refuse
+prs="$(gh pr list --state merged --base dev --limit "$limit" --json number,title,headRefName,mergedAt 2>/dev/null)" \
   || { echo "✗ drive-cost: gh pr list failed" >&2; exit 1; }
+count="$(printf '%s' "$prs" | jq 'length')" \
+  || { echo "✗ drive-cost: pr list payload unparsable" >&2; exit 1; }
+[ "$count" -ge "$limit" ] \
+  && { echo "✗ drive-cost: gh pr list hit the ${limit}-PR cap — dev history may be truncated; refusing to report" >&2; exit 1; }
 window="$(printf '%s' "$prs" | jq -c --argjson cutoff "$cutoff" \
   '[.[] | select((.mergedAt | fromdateiso8601) >= $cutoff)] | sort_by(.mergedAt)')" \
   || { echo "✗ drive-cost: pr list payload unparsable" >&2; exit 1; }
@@ -69,14 +77,16 @@ window="$(printf '%s' "$prs" | jq -c --argjson cutoff "$cutoff" \
 rows=""
 loc_add=0; loc_del=0; pi_total=0; sf=0; n=0
 clocks=""
-while IFS=$'\t' read -r num title branch merged_at; do
+while IFS=$'\t' read -r num title branch; do
   n=$((n + 1))
   meta="$(gh pr view "$num" --json additions,deletions,mergedAt,body 2>/dev/null)" \
     || { echo "✗ drive-cost: gh pr view $num failed" >&2; exit 1; }
-  add="$(printf '%s' "$meta" | jq -r '.additions // 0')"
-  del="$(printf '%s' "$meta" | jq -r '.deletions // 0')"
-  body="$(printf '%s' "$meta" | jq -r '.body // ""')"
-  merged_e="$(printf '%s' "$meta" | jq -r '.mergedAt | fromdateiso8601')"
+  body="$(printf '%s' "$meta" | jq -r '.body // ""')" \
+    || { echo "✗ drive-cost: pr $num payload unparsable" >&2; exit 1; }
+  # missing additions/deletions print "?" — 0 is real data (an empty diff), absence is not
+  read -r add del merged_e < <(printf '%s' "$meta" \
+    | jq -r '[(.additions // "?"), (.deletions // "?"), (.mergedAt | fromdateiso8601)] | @tsv') \
+    || { echo "✗ drive-cost: pr $num payload unparsable" >&2; exit 1; }
 
   # issue refs: #N in title/body, else leading digits in the branch name (feat/639-…)
   refs="$(printf '%s\n%s\n' "$title" "$body" | grep -oE '#[0-9]+' | grep -oE '[0-9]+' | sort -nu)"
@@ -144,8 +154,10 @@ EOF
   # claim→merge: earliest "In flight" comment across the row's issues
   claim_min=""
   for i in $refs; do
-    c="$(gh api "repos/{owner}/{repo}/issues/$i/comments" 2>/dev/null \
-      | jq -r '([.[] | select((.body // "") | test("In flight"))][0].created_at) // empty' 2>/dev/null)"
+    comments="$(gh api --paginate "repos/{owner}/{repo}/issues/$i/comments" 2>/dev/null)" \
+      || { echo "✗ drive-cost: gh api comments for issue $i failed" >&2; exit 1; }
+    c="$(printf '%s' "$comments" | jq -r '([.[] | select((.body // "") | test("In flight"))][0].created_at) // empty')" \
+      || { echo "✗ drive-cost: claim comments for issue $i unparsable" >&2; exit 1; }
     [ -n "$c" ] || continue
     ce="$(jq -rn --arg t "$c" 'try ($t | fromdateiso8601) catch empty')"
     if [ -n "$ce" ] && { [ -z "$claim_min" ] || [ "$ce" -lt "$claim_min" ]; }; then claim_min=$ce; fi
@@ -158,8 +170,9 @@ EOF
   fi
 
   rows="${rows}| #$num | $issues | $builder | $reviewers_cell | $rounds | $vpath | +$add/-$del | $pi_cell | $clock |"$'\n'
-  loc_add=$((loc_add + add)); loc_del=$((loc_del + del))
-done < <(printf '%s' "$window" | jq -r '.[] | [.number, .title, .headRefName, .mergedAt] | @tsv')
+  [ "$add" != "?" ] && loc_add=$((loc_add + add)) # totals are sums of knowns; "?" never counts as 0
+  [ "$del" != "?" ] && loc_del=$((loc_del + del))
+done < <(printf '%s' "$window" | jq -r '.[] | [.number, .title, .headRefName] | @tsv')
 
 clock_cell="–"
 if [ -n "$clocks" ]; then

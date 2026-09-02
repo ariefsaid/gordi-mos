@@ -2,7 +2,9 @@
 # Self-test for scripts/drive-cost.sh — offline: fixture sessions dir + fixture reviews dir
 # + a stub gh on PATH returning canned JSON, with DRIVE_COST_NOW pinned (same pattern as
 # drive-decay.test.sh). Covers: one row parses fully; missing reviews dir → "?" cells and
-# exit 0; same-family flag fires; totals/median; the slug anchor (639 ≠ 6390); fail-closed gh.
+# exit 0; same-family flag fires; totals/median; the slug anchor (639 ≠ 6390); every gh
+# failure mode fails closed (pr list / pr view / comment query, 1000-cap, unparsable payload);
+# absent data stays "?" (no claim comment, missing additions/deletions) — never a guessed 0.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/drive-cost.sh"
@@ -19,13 +21,27 @@ cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
 [ "\${GH_STUB_FAIL:-0}" = 1 ] && exit 1
 case "\$1 \$2" in
-  "pr list") cat "$tmp/prs.json" ;;
-  "pr view") cat "$tmp/view-\$3.json" ;;
-  api\ *) n="\$(printf '%s' "\$2" | grep -oE '[0-9]+' | tail -1)"; cat "$tmp/comments-\$n.json" 2>/dev/null || echo '[]' ;;
+  "pr list")
+    [ "\${GH_STUB_LIMIT:-0}" = 1 ] && { cat "$tmp/prs-1000.json"; exit 0; }
+    cat "$tmp/prs.json" ;;
+  "pr view")
+    [ "\${GH_STUB_FAIL_VIEW:-0}" = 1 ] && exit 1
+    [ "\${GH_STUB_BAD_META:-0}" = 1 ] && { echo 'not-json'; exit 0; }
+    if [ "\${GH_STUB_NO_LOC:-0}" = 1 ] && [ "\$3" = 640 ]; then
+      printf '%s\n' '{"mergedAt":"2026-09-05T09:00:00Z","body":""}' # additions/deletions absent → "?", never 0
+      exit 0
+    fi
+    cat "$tmp/view-\$3.json" ;;
+  api\ *)
+    [ "\${GH_STUB_FAIL_API:-0}" = 1 ] && exit 1
+    [ "\${GH_NO_CLAIM:-0}" = 1 ] && { echo '[]'; exit 0; }
+    n="\$(printf '%s' "\$*" | grep -oE '[0-9]+' | tail -1)"; cat "$tmp/comments-\$n.json" 2>/dev/null || echo '[]' ;;
   *) exit 9 ;;
 esac
 EOF
 chmod +x "$tmp/bin/gh"
+# exactly gh's --limit cap: equality is ambiguous (more may exist) → the script must refuse
+jq -n '[range(1000) | {number:(7000+.),title:"bulk #7000",headRefName:"feat/7000-bulk",mergedAt:"2026-09-05T10:00:00Z"}]' > "$tmp/prs-1000.json"
 
 cat > "$tmp/prs.json" <<'EOF'
 [
@@ -116,6 +132,33 @@ t "empty window reports and exits 0" $?
 
 out="$(GH_STUB_FAIL=1 PI_SESSIONS_DIR="$tmp/sessions" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24 2>&1)"; rc=$?
 [ "$rc" -ne 0 ]; t "gh failure exits nonzero (fail closed)" $?
+
+# ── delta round (#639 review): every gh failure fails closed; absent data never reads 0 ──
+out="$(GH_STUB_LIMIT=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q '1000-PR cap'; }
+t "pr list at the 1000 cap fails closed (list may be truncated)" $?
+
+out="$(GH_STUB_FAIL_VIEW=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'gh pr view 641 failed'; }
+t "per-PR gh pr view failure fails closed, names the PR" $?
+
+out="$(GH_STUB_FAIL_API=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'issue 640 failed'; }
+t "claim-comment query failure fails closed, names the issue" $?
+
+out="$(GH_NO_CLAIM=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24)"; rc=$?
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qF '| #640 | #639 | anthropic/claude-sonnet-4-5 | opus-subagent ⚠same-family | 2 | M | +210/-15 | – | ? |'; }
+t "no In flight comment → clock '?' (data, not failure), exit 0" $?
+
+out="$(GH_STUB_NO_LOC=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24)"; rc=$?
+{ [ "$rc" -eq 0 ] \
+    && printf '%s' "$out" | grep -qF '| #640 | #639 | anthropic/claude-sonnet-4-5 | opus-subagent ⚠same-family | 2 | M | +?/-? | – | 3.2h |' \
+    && printf '%s' "$out" | grep -qF 'Totals: 2 PRs, +50/-8 LOC,'; }
+t "missing additions/deletions → '?' cell (never 0); totals sum knowns only" $?
+
+out="$(GH_STUB_BAD_META=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'pr 641 payload unparsable'; }
+t "unparsable pr-view payload fails closed (jq failure)" $?
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
