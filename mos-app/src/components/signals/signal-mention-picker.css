@@ -27,8 +27,14 @@
 }
 .mention-row:hover { background: var(--secondary); }
 /* GAP-8 (OD-91 #13): the shared listbox cursor — the combobox keeps focus on the textarea, so the
-   active option is marked via aria-activedescendant + this highlight (no DOM focus on the row). */
-.mention-row.is-active { background: var(--accent); }
+   active option is marked via aria-activedescendant + this highlight (no DOM focus on the row).
+   #578: the solid `--accent` fill painted over both the type badge and the name, sinking each
+   badge's own tint (person/team/bu, defined below) to invisible and the name text to low
+   contrast. `--accent-subtle` is the wash token the sibling category picker's own active/selected
+   state already uses (signal-card.css `.signal-category-option[aria-selected="true"]`) — a tint
+   light enough that the badge backgrounds and `--foreground` name text both keep their contrast
+   on top of it. */
+.mention-row.is-active { background: var(--accent-subtle); }
 .mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
 .mention-row .nm { font-weight: 500; color: var(--foreground); }
 
