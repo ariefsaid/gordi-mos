@@ -3,21 +3,25 @@ name: geometry
 # ─── WHY THIS LANE EXISTS ──────────────────────────────────────────────────────────────────
 # The rendered-geometry guards (mos-app/e2e/guards.geometry.spec.ts) are the only checks in the
 # repo that measure a REAL box — split-view parity, the 44×44 phone tap floor, the 8px separation
-# between adjacent targets, the café search's usable measure. Until now they ran ONLY in
-# integration.yml's `db` job, which is gated `github.event_name == 'push' || base_ref == 'main'`.
-# So on a PR → dev — where nearly all work lands — they never executed. #403 shipped an auth tap
-# floor whose whole claim was "guarded by rendered geometry" and the guard could not run in the
-# lane the merge went through. Same failure guards.yml already names: "a guard whose test never
-# runs is a control everyone believes is running."
-#
-# This lane is deliberately NARROW — one spec file plus the one journey that owns the fifth auth
-# surface — not the full e2e suite. The heavy suite stays PR → main (integration.yml's tiering
-# note explains why); this buys the geometry signal at the point the code actually lands.
+# between adjacent targets, the café search's usable measure. Before this lane existed they ran
+# ONLY in integration.yml's `db` job, which is gated `github.event_name == 'push' || base_ref ==
+# 'main'`. So on a PR → dev — where nearly all work lands — they never executed. #403 shipped an
+# auth tap floor whose whole claim was "guarded by rendered geometry" and the guard could not run
+# in the lane the merge went through. Same failure guards.yml already names: "a guard whose test
+# never runs is a control everyone believes is running."
 #
 # ⚠️ NOT YET A REQUIRED CHECK. `dev`'s only required status check is `verify`. Until an admin adds
 # `geometry` to dev's branch protection this reports but does not block. The structural twin that
 # DOES gate — mos-app/src/components/ui/tap-targets.css.test.ts, in `verify` — asserts both axes
 # of the 44px floor against the CSS source, so the floor is never resting on this lane alone.
+#
+# ─── #565: ALSO THE DEV-PR pgTAP + APPLIED-PATH LANE ───────────────────────────────────────
+# This job used to boot Supabase for the geometry guards ALONE, while integration.yml's `pgtap`
+# job separately booted Supabase for pgTAP + the applied-path check (#393) — both on the same
+# dev PR, in parallel, each paying the ~84s boot + (this job's) npm ci + Playwright install. That
+# `pgtap` job is gone; its two checks (`supabase test db`, `scripts/applied-path-check.sh`) now
+# run here, after the same boot, before the rendered-geometry guards. One boot, one lint, both
+# check groups — see the scope step below for exactly which changes make this run.
 
 on:
   # Deliberately NOT path-filtered, for the same reason verify.yml is not: a check skipped by a
@@ -37,7 +41,7 @@ concurrency:
 jobs:
   geometry:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30 # bumped from 25 (#565): this job now also runs pgTAP + the applied-path check
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -48,7 +52,17 @@ jobs:
       # top-level directory — boots the stack. An out-of-date allowlist costs a wasted run, never
       # an unrun gate. Note what is NOT inert here and IS inert in verify.yml: supabase/, because
       # these guards render the seeded app and a seed/migration change can move real pixels.
-      - name: Scope — can this change move a rendered pixel?
+      #
+      # #565: this now also gates the pgTAP + applied-path checks this job absorbed from the old
+      # `pgtap` job, whose own trigger was a POSITIVE path filter (supabase/**, mos-app/e2e/**,
+      # mos-app/playwright.config.*, mos-app/package-lock.json, plus the two applied-path harness
+      # files). Every one of those is already non-inert under INERT below EXCEPT the two harness
+      # files, which sit under scripts/ — inert here on purpose (scripts/ ships no pixels) but the
+      # applied-path check's own inputs, so they get an explicit carve-out. Net effect: this job
+      # runs at least everywhere either old job did (no regression), and additionally on any
+      # non-inert app change that isn't supabase/e2e-shaped (e.g. plain mos-app/src/** UI code) —
+      # widening where pgTAP/applied-path run, never narrowing where either used to run.
+      - name: Scope — can this change move a rendered pixel, or does it feed pgTAP/applied-path?
         id: scope
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -66,18 +80,23 @@ jobs:
           INERT='^(docs/|review/|adws/|\.claude/|scripts/|agents/|\.githooks/|\.github/|justfile$|\.env\.sample$|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
           CHANGED="$(git diff --name-only "$RANGE")"
           NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
-          if [ -n "$NOT_INERT" ]; then
+          # Carve-out: the applied-path harness's own inputs (#393) live under scripts/, which is
+          # otherwise inert here — a change to THESE two files must still run, even though nothing
+          # else in scripts/ would.
+          APPLIED_PATH_INPUTS="$(printf '%s\n' "$CHANGED" | grep -E '^scripts/(applied-path-check\.sh|lib/applied-path-fingerprint\.sql)$' || true)"
+          if [ -n "$NOT_INERT" ] || [ -n "$APPLIED_PATH_INPUTS" ]; then
             echo "render=true" >> "$GITHUB_OUTPUT"
-            echo "Running the geometry guards — these paths are not inert:"
-            printf '%s\n' "$NOT_INERT" | sed 's/^/  /'
+            echo "Running the DB checks — these paths are not inert:"
+            printf '%s\n' "$NOT_INERT" "$APPLIED_PATH_INPUTS" | sed '/^$/d;s/^/  /'
           else
             echo "render=false" >> "$GITHUB_OUTPUT"
             {
-              echo "### geometry: guards skipped"
+              echo "### geometry: DB checks skipped"
               echo ""
-              echo "Every changed path is inert (prose/config that cannot move a rendered pixel),"
-              echo "so the geometry guards were **not run**. A green check here means *nothing"
-              echo "renderable changed* — not that the geometry is green."
+              echo "Every changed path is inert (prose/config that cannot move a rendered pixel or"
+              echo "affect the schema), so pgTAP, the applied-path check, and the geometry guards"
+              echo "were **not run**. A green check here means *nothing renderable or DB-relevant"
+              echo "changed* — not that the DB or geometry is green."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -92,6 +111,25 @@ jobs:
         # Same exclusion list as integration.yml — proven to boot. auth/rest/kong are needed to
         # log the guards in; inbucket is needed by the AC-005 recovery round-trip.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      # ─── absorbed from the old `pgtap` job (#565) — see scripts/lint-security-definer.sh for
+      # what this checks; `db` in integration.yml runs the same script on the PR→main lane. ────
+      - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
+        if: steps.scope.outputs.render == 'true'
+        run: bash scripts/lint-security-definer.sh
+
+      - name: pgTAP suite
+        if: steps.scope.outputs.render == 'true'
+        run: supabase test db
+
+      # #393. Everything above starts from nothing, so every conditional migration has a branch
+      # CI structurally cannot reach. This builds a database from the DEPLOYED commit's tree,
+      # runs the real migration chain over it, and asserts the result is indistinguishable from
+      # a fresh reset. Exit 2 means the check could not run meaningfully — treat it as red.
+      # No `--prove` here (that stays on the `db` job, PR→main): this is the fast lane.
+      - name: Applied-path check — a migrated database matches a fresh one (#393)
+        if: steps.scope.outputs.render == 'true'
+        run: bash scripts/applied-path-check.sh --out artifacts/applied-path
 
       - name: Export Supabase env to GITHUB_ENV
         if: steps.scope.outputs.render == 'true'

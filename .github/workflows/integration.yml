@@ -3,15 +3,14 @@ name: integration
 on:
   push:
     branches: [main]
-  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify`; the heavy
-  # full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main smoke).
-  # On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
+  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify` + `geometry`;
+  # the heavy full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main
+  # smoke). On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
   # migrations/RLS, the e2e journeys, or this workflow's deps. Pushes to main always run it
   # (no paths filter on push), so every merge is fully validated post-merge.
   pull_request:
-    # `dev` added 2026-07-30 for the pgTAP FAST LANE (job `pgtap`) — see the tiering note below.
-    # The heavy `db` job stays PR→main only; it is gated on base_ref, not on this list.
-    branches: [main, dev]
+    # The heavy `db` job is PR→main only; it is gated on base_ref, not on this list.
+    branches: [main]
     paths:
       - 'supabase/**'
       - 'mos-app/e2e/**'
@@ -25,19 +24,21 @@ on:
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
-# ─── CI TIERING (adopted from PMO's ci.yml after comparing the two repos) ──────────────────
-# PR → dev    `verify` + `pgtap`  — Supabase + pgTAP, NO browser. Fast lane.
-# PR → main   `verify` + `db`     — Supabase + pgTAP + Playwright e2e. Authoritative gate.
-# push main   `verify` + `db`     — post-merge smoke.
+# ─── CI TIERING ─────────────────────────────────────────────────────────────────────────────
+# PR → dev    `verify` + `geometry` — ONE Supabase boot: pgTAP + applied-path + rendered-geometry
+#             guards, no Playwright e2e suite. Fast lane, lives in geometry.yml (#565).
+# PR → main   `verify` + `db`       — Supabase + pgTAP + Playwright e2e. Authoritative gate.
+# push main   `verify` + `db`       — post-merge smoke.
 #
-# WHY THE FAST LANE EXISTS. Until now gordi had no DB test on dev PRs at all: `integration` was
-# PR→main only, so PRs #113–#117 ran `verify` alone and the 637 pgTAP tests — including every
-# assertion written for the M-1/M-2 security remediation — had never executed in CI. Their first
-# automated run was the promotion PR, days after the migrations landed on `dev`. A migration that
-# broke RLS would have sat undetected on `dev` for that whole window.
-# pgTAP without Playwright is ~2 min against ~4, so the fast lane buys the RLS/tenancy signal at
-# roughly half the cost of the full gate, and buys it days earlier. This does NOT duplicate `db`:
-# `db` keeps the browser tier and remains the merge gate for main.
+# HISTORY. Until now gordi had no DB test on dev PRs at all: `integration` was PR→main only, so
+# PRs #113–#117 ran `verify` alone and the 637 pgTAP tests — including every assertion written for
+# the M-1/M-2 security remediation — had never executed in CI. A migration that broke RLS could
+# sit undetected on `dev` for days. A `pgtap` job here (branches: [main, dev]) was the fix, then
+# geometry.yml grew its OWN dev-PR Supabase boot for the rendered-geometry guards (#403) — the two
+# booted Supabase, npm-ci'd and ran in parallel on the same PR. #565 merged the `pgtap` job into
+# geometry.yml's job (still named `geometry`, still one dev-PR check) so a dev PR boots the stack
+# once and runs both check groups. `db` here is untouched: it is the PR→main / push-main lane and
+# was never part of the duplication.
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
 # read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
@@ -52,69 +53,10 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # ── FAST LANE: PR → dev. Supabase + pgTAP only, no browser. ───────────────────────────────
-  pgtap:
-    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          # The applied-path check (#393) builds a database from the supabase/ tree at the
-          # commit named in supabase/applied-path-baseline. A shallow clone does not have it.
-          fetch-depth: 0
-
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
-        with:
-          version: 2.104.0
-
-      - name: Start local Supabase stack (applies migrations + seed)
-        # Same exclusion list as `db` below — proven to boot. Further trimming is possible for a
-        # pgTAP-only run (no auth/mail needed), but an unproven `-x` name fails the whole job, and
-        # the boot is already the floor cost here. Not worth the risk for a few seconds.
-        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
-
-      # NOTE (2026-08-04): this lint appears in BOTH the `pgtap` and `db` jobs below — keep the two
-      # copies in step. `sed 's/--.*//'` strips `--` comments but NOT SQL *string literals*, so a
-      # `comment on function ... is '... SECURITY DEFINER ...'` tripped the gate on a function
-      # explicitly declared `security invoker`. COMMENT ON statements are now stripped too.
-      # Deliberately narrow: a `security definer` clause can never appear inside a COMMENT ON
-      # statement, so this cannot hide a real one. Stripping *all* quoted strings was rejected — one
-      # unbalanced quote anywhere would silently over-strip and turn a security gate into a false
-      # negative, far worse than the false positive it fixes. Found on `v4-redesign`, where a ported
-      # comment tripped it (PR #175). No file on `dev` trips it today; this lands ahead of that
-      # surface arriving.
-      - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
-        run: |
-          failed=0
-          for f in supabase/migrations/*.sql; do
-            body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
-            if echo "$body" | grep -qi 'security definer'; then
-              if ! echo "$body" | grep -qi 'revoke execute on function'; then
-                echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
-                failed=1
-              fi
-            fi
-          done
-          [ "$failed" -eq 0 ] || { echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;'" >&2; exit 1; }
-          echo "Lint OK: all SECURITY DEFINER migrations have revoke."
-
-      - name: pgTAP suite
-        run: supabase test db
-
-      # #393. Everything above starts from nothing, so every conditional migration has a branch
-      # CI structurally cannot reach. This builds a database from the DEPLOYED commit's tree,
-      # runs the real migration chain over it, and asserts the result is indistinguishable from
-      # a fresh reset. Exit 2 means the check could not run meaningfully — treat it as red.
-      - name: Applied-path check — a migrated database matches a fresh one (#393)
-        run: bash scripts/applied-path-check.sh --out artifacts/applied-path
-
-      - name: Stop stack
-        if: always()
-        run: supabase stop
-
   # ── AUTHORITATIVE GATE: PR → main, and the post-merge smoke on main. ──────────────────────
+  # The dev-PR fast lane (formerly the `pgtap` job here) now lives in geometry.yml's `geometry`
+  # job (#565) — merged with the rendered-geometry guards so a dev PR boots Supabase once
+  # instead of twice. This job is unaffected: it was never part of that duplication.
   db:
     # Gated on base_ref rather than the trigger's branch list, so adding `dev` above for the fast
     # lane cannot accidentally start the expensive browser tier on every dev PR.
@@ -143,30 +85,11 @@ jobs:
         # vector/analytics (log shipping). Re-add a name here if the app starts using it.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
+      # Logic lives in scripts/lint-security-definer.sh (#565) — this used to be inline here AND
+      # in the `pgtap` job that has since moved to geometry.yml, an acknowledged sync burden. One
+      # file, called from both dev-PR (geometry.yml) and main-PR (here) lanes.
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
-        # Defense-in-depth: prevents a recurrence of the _test_seed_role_tree audit Critical
-        # (2026-06-11) where a SECURITY DEFINER function was reachable via PostgREST because
-        # it lacked an explicit REVOKE. Each file that DEFINES a 'security definer' function
-        # must contain a matching 'revoke execute on function' in the same file.
-        # SQL line comments are stripped first so a mere *mention* of "security definer" in a
-        # comment (e.g. "writes are RPC-only via the SECURITY DEFINER approval RPC") is not a
-        # false positive — only an actual definer clause in executable SQL is flagged.
-        run: |
-          failed=0
-          for f in supabase/migrations/*.sql; do
-            body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
-            if echo "$body" | grep -qi 'security definer'; then
-              if ! echo "$body" | grep -qi 'revoke execute on function'; then
-                echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
-                failed=1
-              fi
-            fi
-          done
-          if [ "$failed" -eq 1 ]; then
-            echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;' after each SECURITY DEFINER function definition." >&2
-            exit 1
-          fi
-          echo "Lint OK: all SECURITY DEFINER migrations have revoke."
+        run: bash scripts/lint-security-definer.sh
 
       - name: pgTAP suite
         run: supabase test db
