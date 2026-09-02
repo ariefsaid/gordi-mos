@@ -233,6 +233,24 @@ describe('TaskSurface — view mode', () => {
     }))
   })
 
+  it('issue 584 review: posting a comment threads the viewer as actorId/actorName + the active locale', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    mockListComments.mockResolvedValue([])
+    renderSurface()
+
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    const box = screen.getByRole('textbox', { name: /^comment$/i })
+    fireEvent.change(box, { target: { value: 'On it' } })
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+
+    // #584 review: pins actorId/actorName/locale so a call-site regression (e.g. dropping the
+    // viewer wiring) fails here rather than silently shipping a blank-actor notification.
+    await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'task', entityId: 'task-abc', body: 'On it',
+      actorId: VIEWER_ID, actorName: 'Cahya Cafe', locale: 'en',
+    })))
+  })
+
   it('AC-R05: full width keeps the archived banner + Unarchive above the two columns', async () => {
     const { unarchiveTask } = await import('@/lib/db/tasks')
     vi.mocked(unarchiveTask).mockResolvedValue()

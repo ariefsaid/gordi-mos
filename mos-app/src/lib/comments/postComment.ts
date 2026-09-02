@@ -87,6 +87,7 @@ export async function postComment({
   entityType,
   entityId,
   body,
+  actorId,
   actorName,
   locale,
 }: {
@@ -94,7 +95,12 @@ export async function postComment({
   entityType: CommentEntityType
   entityId: string
   body: string
-  /** The commenting person's display name — names the notification title (#584). */
+  /** The commenting person's id — carried in metadata.actor so a future render (a locale switch,
+   *  a redesign) can recompose the title without re-parsing the frozen string (#584 review). */
+  actorId: string
+  /** The commenting person's display name — names the notification title (#584). Blank when the
+   *  caller has no resolved viewer yet (auth still loading); falls back to a real word rather than
+   *  producing "${blank} mentioned you in a task". */
   actorName: string
   /** The commenting person's active locale — the title is composed in THEIR locale, once, at
    *  insert; a recipient on the other locale still reads a real sentence, just not their own. */
@@ -118,8 +124,9 @@ export async function postComment({
   // abort the call (which would push the user to retry and duplicate the comment). Per-mention
   // errors are swallowed; NFR-P3-CM-001 (fail-quiet) already governs unresolvable slugs.
   const t = translateFor(locale)
+  const resolvedActorName = actorName.trim() || t('notifications.mention.someone')
   const title = t('notifications.mention.title', {
-    name: actorName,
+    name: resolvedActorName,
     entity: t(ENTITY_LABEL_KEY[entityType]),
   })
 
@@ -130,7 +137,11 @@ export async function postComment({
         p_severity: 'info',
         p_title: title,
         p_body: body.slice(0, 200),
-        p_metadata: { source: 'mention', entity: { type: entityType, id: entityId } },
+        p_metadata: {
+          source: 'mention',
+          entity: { type: entityType, id: entityId },
+          actor: { id: actorId, name: resolvedActorName },
+        },
       }),
     ),
   )

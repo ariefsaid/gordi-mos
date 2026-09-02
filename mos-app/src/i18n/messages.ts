@@ -226,6 +226,7 @@ export const messages = {
     // Issue #584 — the mention notification title, composed client-side at postComment (the row
     // carries no actor beyond metadata.entity, so this is where the actor + entity kind meet).
     'notifications.mention.title': '${name} mentioned you in a ${entity}',
+    'notifications.mention.someone': 'Someone',
     'notifications.mention.entity.task': 'task',
     'notifications.mention.entity.weekly_update': 'weekly update',
     'notifications.mention.entity.daily_log': 'daily log',
@@ -1522,6 +1523,7 @@ export const messages = {
     'inbox.target.type.followUp': 'AR Follow-up',
     'inbox.help': 'Semua yang ditujukan kepada Anda — sebutan, persetujuan, penugasan tugas — muncul di sini. Membuka satu baris menandainya sudah dibaca dan membawa Anda ke catatan asalnya. Pakai filter Belum dibaca untuk melihat yang belum Anda buka saja.',
     'notifications.mention.title': '${name} menyebut Anda dalam sebuah ${entity}',
+    'notifications.mention.someone': 'Seseorang',
     'notifications.mention.entity.task': 'tugas',
     'notifications.mention.entity.weekly_update': 'pembaruan mingguan',
     'notifications.mention.entity.daily_log': 'log harian',

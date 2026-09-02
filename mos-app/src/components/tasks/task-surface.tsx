@@ -249,8 +249,9 @@ function ViewSurface({
 
   async function handlePostComment(body: string) {
     if (!localTask) return
+    const actorId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
     const actorName = auth.status === 'authenticated' ? auth.viewer.person.full_name : ''
-    await postComment({ entityType: 'task', entityId: localTask.id, body, actorName, locale })
+    await postComment({ entityType: 'task', entityId: localTask.id, body, actorId, actorName, locale })
     const loadedComments = await listComments({ entityType: 'task', entityId: localTask.id }).catch(() => comments)
     setComments(loadedComments)
   }
