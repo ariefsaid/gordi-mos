@@ -492,7 +492,7 @@ while read -r v; do
         # come last so a `:` inside a "Quoted" one cannot shift the class field.
         print join(":", $at[$fs], $at[$end], $fs, $end, $kind, join("\t", @ids)), "\n";
       }
-    ' "$f" || true)
+    ' || true)
     [ -n "$spans" ] || continue
     # Blank each selected statement over its EXACT character extent — spaces for everything but
     # newlines, so every line number in red/sabotage.txt stays true. NOT a `-- ` prefix on every

@@ -158,5 +158,19 @@ else
   bad "matched revoke with differing spacing/quoting should have passed:"; sed 's/^/        /' /tmp/lintsecdef.out
 fi
 
+# 11. A large migration must still scan after grep finds an early SECURITY DEFINER clause.
+mkdir -p "$fixtures/large_body"
+{
+  printf '%s\n' 'create function mos.large_body() returns void language plpgsql security definer as $$ begin null; end; $$;'
+  for _ in $(seq 1 7000); do printf '%s\n' '-- padding'; done
+} > "$fixtures/large_body/0001_large.sql"
+rc=0
+out=$(bash scripts/lint-security-definer.sh "$fixtures/large_body" 2>&1) || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qi 'LINT FAIL'; then
+  ok "large migration scans SECURITY DEFINER body (rc=1)"
+else
+  bad "large migration should fail rc=1 with LINT FAIL; got rc=$rc, out: $out"
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
