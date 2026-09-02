@@ -900,6 +900,30 @@ else
   bad "the named-tag body leaked into the selection (rc=$rc, got: $P2SAB)"
 fi
 
+echo "── P3. a NESTED /* */ block comment is one extent (#488)"
+# Postgres block comments NEST — depth counting, not a first-`*/` stop. The lexer had no `/*`
+# branch at all, so inside a block comment a `;` ended statements that have none and a `--`
+# blanked to end of line; here the second `;` poisons the REAL conditional after the comment with
+# ` still outer */` residue, the nothing-else guard refuses the statement, and --prove covers one
+# statement less than it claims — rc=0, a proof smaller than advertised, on the gate that runs
+# before a staging deploy. The nesting is load-bearing: that `;` sits AFTER the inner `*/` but
+# INSIDE the outer comment, so a first-`*/` blanker leaves line 6 live and this fixture stays red.
+RP3="$T/p3-block-comment"
+( export MKREPO_GEN1_EXTRA='alter table t add constraint t_bc_check check (a is not null);'
+  export MKREPO_GEN2_EXTRA='/* preface; with a -- line and $$ too
+   /* nested; inner */
+   after inner; still outer */
+alter table t drop constraint if exists t_bc_check;'
+  mkrepo "$RP3" )
+rm -rf "$T/db"; rm -rf "$T/out-p3"; mkdir -p "$T/out-p3"
+run "$RP3" "$T/out-p3" --prove; rc=$?
+P3SAB="$(tr '\n' ' ' < "$T/out-p3/red/sabotage.txt" 2>/dev/null)"
+if [ "$rc" = "0" ] && grep -qxF "CONSTRAINT:002_catalog.sql:7-7:t_bc_check" "$T/out-p3/red/sabotage.txt" 2>/dev/null; then
+  ok "a conditional after a nested block comment is selected whole (rc=0)"
+else
+  bad "the block comment broke the statement after it (rc=$rc, got: $P3SAB)"
+fi
+
 echo "── R. a quoted identifier may contain ;  --  and :"
 # Postgres permits any character inside "…". The lexer STEPS OVER a quoted identifier so the
 # selector can read its case, which left its content live to the boundary scan: a `;` inside a

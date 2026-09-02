@@ -428,7 +428,8 @@ while read -r v; do
       my @qident;
       my $n = length($shadow);
       # ONE left-to-right lex, the way Postgres reads a file: whichever of a `--` comment, a
-      # string literal or a dollar-quoted body STARTS first owns its whole extent, and that
+      # string literal, a dollar-quoted body or a `/* … */` block comment STARTS first owns its
+      # whole extent, and that
       # extent is blanked to spaces — newlines kept, so line numbers stay true. Without it a
       # `--` inside a literal erases the rest of the line and merges two statements, and a `;`
       # inside a `do $$ … $$` body splits a statement that has none, which yields a phantom
@@ -473,6 +474,21 @@ while read -r v; do
           my $tag = $1;
           $j = index($shadow, $tag, $i + length($tag));
           $j = ($j < 0) ? $n : $j + length($tag);
+        } elsif ($c eq "/" && substr($shadow, $i + 1, 1) eq "*") {
+          # Postgres block comments NEST: the body ends at the `*/` that BALANCES the opening
+          # `/*`, not at the first one, so this is a depth counter (#488). A first-`*/` reading
+          # leaves the tail of an outer comment live, and a `;` in that tail splits the real
+          # conditional after it — the nothing-else guard then refuses the statement and --prove
+          # covers less than it claims on a gate that runs before a staging deploy. An
+          # unterminated `/*` blanks to EOF, the same answer an unterminated literal gets.
+          $j = $i + 2; my $depth = 1;
+          while ($depth > 0 && $j < $n) {
+            my $two = substr($shadow, $j, 2);
+            if    ($two eq "/*") { $depth++; $j += 2 }
+            elsif ($two eq "*/") { $depth--; $j += 2 }
+            else                 { $j++ }
+          }
+          $j = $n if $j > $n;
         } else { $i++; next }
         my $seg = substr($shadow, $i, $j - $i); $seg =~ s/[^\n]/ /g;
         substr($shadow, $i, $j - $i) = $seg;
