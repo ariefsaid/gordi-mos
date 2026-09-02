@@ -45,6 +45,7 @@ def _yaml_list(text: str, key: str, *, key_indent: int | None = None) -> list[st
 
     Not a YAML parser — just enough structure-sniffing for this repo's own
     config shape (a `key:` line followed by more-indented `- pattern` lines).
+    Assumes the config nests `defaults:` keys two spaces deeper.
     """
     lines = text.split("\n")
     items: list[str] = []
@@ -57,7 +58,8 @@ def _yaml_list(text: str, key: str, *, key_indent: int | None = None) -> list[st
             if re.match(r"^\s*defaults:\s*(#.*)?$", line) and indent == section_indent:
                 in_defaults = True
             continue
-        if key_indent is not None and indent <= section_indent and line.strip():
+        if (key_indent is not None and indent <= section_indent and line.strip()
+                and not line.lstrip().startswith("#")):
             break
         if not in_block:
             if key_indent is not None and indent != key_indent:

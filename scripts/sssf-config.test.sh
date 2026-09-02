@@ -104,9 +104,12 @@ spec = importlib.util.spec_from_file_location("factory_preflight", "scripts/fact
 preflight = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(preflight)
 config = Path(sys.argv[1])
-config.write_text("other:\n  protected_files: []\ndefaults:\n  protected_files:\n    - defaults-only/**\n")
+config.write_text("other:\n  protected_files: []\ndefaults:\n  protected_files:\n    - defaults-only/**\n# A column-0 comment is still inside the defaults block.\n    - defaults-second/**\n")
 globs, _ = preflight.load_config(Path.cwd(), config)
-assert globs == ["defaults-only/**"], globs
+assert globs == ["defaults-only/**", "defaults-second/**"], globs
+real_globs, _ = preflight.load_config(
+    Path.cwd(), Path("adws/adw_sssf_config/sssf.config.yaml"))
+assert real_globs and "adws/**" in real_globs, real_globs
 config.write_text("defaults:\n  protected_files: null\n")
 err = io.StringIO()
 with redirect_stderr(err):
