@@ -73,9 +73,9 @@ Two things to know before you rely on it:
   baseline comes from git, and the check refuses to continue unless the pre-migration database is
   demonstrably different from a fresh one.
 
-CI runs it on the `pgtap` fast lane and, with `--prove`, on the `db` job — the gate immediately
-before a staging deploy. The proof run publishes its green/red contrast to the job summary and
-keeps the fingerprints as a build artifact.
+CI runs it on the `geometry` job's dev-PR fast lane and, with `--prove`, on the `db` job — the
+gate immediately before a staging deploy. The proof run publishes its green/red contrast to the
+job summary and keeps the fingerprints as a build artifact.
 
 ## Production email (Resend) — OD-P1-11
 
