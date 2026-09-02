@@ -10,6 +10,7 @@ mkdir -p "$repo/mos-app" "$repo/adws" "$repo/scripts/gh-shim"
 git -C "$repo" init -q
 repo="$(cd "$repo" && pwd -P)"
 cp scripts/gh-shim/gh "$repo/scripts/gh-shim/gh"
+cp scripts/factory-preflight.py "$repo/scripts/factory-preflight.py"
 printf '%s\n' '#!/usr/bin/env python3' > "$repo/adws/adw_simple_sdlc.py"
 chmod +x "$repo/scripts/gh-shim/gh"
 pass=0; fail=0
@@ -95,6 +96,43 @@ printf '99\n' > "$repo/mos-app/.nvmrc"
 out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "matching-major inherited node runs" $?
 printf '%s' "$out" | grep -q "not found"; [ $? -ne 0 ]; t "no warning when the inherited node already matches" $?
+
+# Barred-path pre-flight (#590): a brief naming a builder-barred path refuses before the ADW
+# ever execs, instead of burning a full build that permissions.py::enforce() rolls back anyway.
+mkdir -p "$repo/adws/adw_sssf_config"
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files:
+    - adws/**
+    - scripts/pre-pr-verify.sh
+EOF2
+barred_brief="Please update adws/adw_modules/permissions.py to relax the check."
+clean_brief="Add a reports endpoint and mos-app/src/pages/Reports.tsx."
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "barred brief refuses before exec, with a dedicated exit code" $?
+printf '%s' "$out" | grep -q "adws/adw_modules/permissions.py"; t "refusal names the offending path" $?
+printf '%s' "$out" | grep -q "lane-exempt.sh"; t "refusal points at the Director lane" $?
+printf '%s' "$out" | grep -q -- "--allow-barred"; t "refusal names the override" $?
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$clean_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "clean brief passes the pre-flight and execs the stub" $?
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" --allow-barred adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "--allow-barred overrides a genuine barred-path refusal" $?
+
+# The list must come from the vendored source of truth, never a copy in the wrapper: mutate the
+# fixture's protected_files and the verdict flips both ways on the SAME brief text.
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files:
+    - scripts/pre-pr-verify.sh
+EOF2
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "removing adws/** from the fixture's list un-bars the same brief" $?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "Do not touch scripts/pre-pr-verify.sh while fixing this." 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "the remaining fixture entry still bars (list is read live, not cached)" $?
+rm -f "$repo/adws/adw_sssf_config/sssf.config.yaml"
 
 if bash "$wrapper" no_such_adw.py >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  unknown ADW must refuse\n'
