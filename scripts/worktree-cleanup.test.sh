@@ -218,5 +218,43 @@ else fail=$((fail+1)); printf '  FAIL  worktree survives a failed cherry call\n%
 git -C "$repo4" branch --list feat-squashed | grep -q feat-squashed
 t "branch survives a failed cherry call" $? "branch feat-squashed missing"
 
+# Ticket #635: the "never the main tree" guard compared worktree paths to
+# `git rev-parse --show-toplevel` — wherever the sweep was INVOKED from. Run from a LINKED
+# worktree, the real main checkout was evaluated like any other worktree and, when its branch
+# read as merged, listed "-> remove" (git refused the removal; nothing lost, but only by luck).
+# The main tree must NEVER be listed/removed, and neither may the worktree the sweep runs from.
+repo5="$tmp/repo5"
+mkdir -p "$repo5/.claude/worktrees"
+git -C "$repo5" init -q
+git -C "$repo5" config user.email t@t
+git -C "$repo5" config user.name t
+git -C "$repo5" checkout -q -b dev
+# Ignore .claude/worktrees/ like the real repo does — without it the main tree reads DIRTY
+# (the linked worktree dir is untracked) and the dirty guard would mask the #635 bug.
+printf '.claude/worktrees/\n' > "$repo5/.gitignore"
+echo base > "$repo5/f.txt"; git -C "$repo5" add f.txt .gitignore; git -C "$repo5" commit -qm base
+git -C "$repo5" remote add origin "$repo5"
+# Branch sits AT dev, so it is trivially merged — the sweep from inside it must skip both the
+# main tree (on dev) and itself.
+git -C "$repo5" worktree add -q -b feat-from-here "$repo5/.claude/worktrees/feat-from-here" dev
+# Git prints REALPATHS in `worktree list` (macOS /var → /private/var), so the asserts compare
+# against the resolved form too — same realpath lesson the fix itself must learn.
+repo5_real="$(cd "$repo5" && pwd -P)"
+wt_real="$(cd "$repo5/.claude/worktrees/feat-from-here" && pwd -P)"
+
+out="$(cd "$repo5/.claude/worktrees/feat-from-here" && bash "$SCRIPT" dev 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "sweep from a linked worktree exits zero" $? "$out"
+if printf '%s' "$out" | grep -Fq "worktree (merged): $repo5_real [dev]"; then
+  fail=$((fail+1)); printf '  FAIL  main tree never listed for removal (sweep run from linked worktree)\n%s\n' "$out"
+else pass=$((pass+1)); printf '  ok    main tree never listed for removal (sweep run from linked worktree)\n'; fi
+if [ -f "$repo5/f.txt" ]; then
+  pass=$((pass+1)); printf '  ok    main tree still on disk\n'
+else fail=$((fail+1)); printf '  FAIL  main tree still on disk\n'; fi
+if printf '%s' "$out" | grep -Fq "$wt_real"; then
+  fail=$((fail+1)); printf '  FAIL  invocation worktree never listed for removal\n%s\n' "$out"
+else pass=$((pass+1)); printf '  ok    invocation worktree never listed for removal\n'; fi
+[ -d "$repo5/.claude/worktrees/feat-from-here" ]
+t "invocation worktree still on disk" $? "worktree feat-from-here missing"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
