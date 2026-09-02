@@ -146,9 +146,14 @@
 
 /* Issue 580: the 390px phone reflow of this same table (DataTable's PhoneCards) drops each row into a
    `.dt-card` — the tr/td urgent rule above never reaches it, which is why Urgent read as plain on a
-   phone. Same fill + rule, same reason, ported onto the card box: inset box-shadow so the rule
-   survives the card's own border-radius instead of squaring off a corner. */
-.dt-card.signal-table-row--urgent {
+   phone. Same fill + rule, same reason, ported onto the card box: inset box-shadow instead of
+   border-left because collection-grammar.css's archive flat-surface floor
+   (`.signal-collection-presentation .dt-card { box-shadow: none }`) strips box-shadow at 0-2-0 —
+   a bare `.dt-card.signal-table-row--urgent` ties that specificity and loses on import order (this
+   stylesheet loads before collection-grammar.css), so the selector is scoped to 0-3-0 to win
+   outright. No var(--shadow-rest) here: the archive card is flat by that same floor, so this rule
+   only ever ADDS the inset warning rule, never a raised shadow. */
+.signal-collection-presentation .dt-card.signal-table-row--urgent {
   background: color-mix(in srgb, var(--warning) 7%, transparent);
-  box-shadow: var(--shadow-rest), inset 2px 0 0 0 var(--warning);
+  box-shadow: inset 2px 0 0 0 var(--warning);
 }
