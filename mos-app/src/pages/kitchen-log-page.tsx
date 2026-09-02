@@ -177,6 +177,15 @@ export function KitchenLogPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  // #586: `lines` stages ONE row per item across every movement segment (produce, each
+  // transfer) — a qty typed under Produce was still there, unchanged, when the segment
+  // switched to a Transfer that never touched that item, and Submit filed it under
+  // whichever segment was active at the click. Smaller honest fix than per-(item,movement)
+  // storage: a switch with anything staged goes through the SAME confirm the Discard button
+  // already uses (DESIGN.md Overlays), and only a confirmed switch clears `lines` before the
+  // new movement takes effect. `pendingMovement` holds the tab the person clicked while that
+  // confirm is open; null means no switch is pending.
+  const [pendingMovement, setPendingMovement] = useState<KitchenMovement | null>(null)
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
@@ -284,8 +293,28 @@ export function KitchenLogPage() {
     })
   }, [movement, wipItems, planMap, stockMap])
 
+  // #586: a movement switch with nothing staged is free (nothing would be lost); with
+  // staged quantities, the switch is held behind `pendingMovement` until the confirm
+  // dialog below resolves it — MovementSeg is controlled by `movement`, so leaving it
+  // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement) {
-    setMovement(next)
+    const staged = Object.values(lines).some(l => l.qty_porsi > 0)
+    if (!staged) {
+      setMovement(next)
+      return
+    }
+    setPendingMovement(next)
+  }
+
+  function confirmMovementSwitch() {
+    if (!pendingMovement) return
+    setLines(buildLines(wipItems, planMap, stockMap, pendingMovement))
+    setMovement(pendingMovement)
+    setPendingMovement(null)
+  }
+
+  function cancelMovementSwitch() {
+    setPendingMovement(null)
   }
 
   // Switching the stream re-reads the plan, the stock and the actuals, because all three
@@ -870,6 +899,24 @@ export function KitchenLogPage() {
             tone="destructive"
             onConfirm={async () => performDiscard()}
             onCancel={() => setDiscardConfirmOpen(false)}
+          />
+
+          {/* #586: the SAME unsaved-entries confirm as Discard, held behind a movement-tab
+              click while anything is staged — a switch never silently carries one movement's
+              qty into another's submit. */}
+          <ConfirmDialog
+            open={pendingMovement !== null}
+            title={t('kitchen.log.movementSwitch.confirmTitle')}
+            body={t('kitchen.log.movementSwitch.confirmBody', {
+              count: stagedCount,
+              qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+              actionType: deriveActionLabel(t, movement, branches),
+            })}
+            confirmLabel={t('kitchen.log.movementSwitch.confirm')}
+            cancelLabel={t('common.cancel')}
+            tone="destructive"
+            onConfirm={async () => confirmMovementSwitch()}
+            onCancel={cancelMovementSwitch}
           />
         </form>
       </div>

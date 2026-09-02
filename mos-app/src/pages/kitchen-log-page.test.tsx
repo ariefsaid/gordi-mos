@@ -1771,3 +1771,77 @@ describe('issue 455: document title', () => {
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.log')))
   })
 })
+
+// #586: `lines` staged ONE row per item across every movement segment. Type a qty under
+// Produce, click a Transfer tab that never touches that item, and the OLD code left the
+// same qty sitting there under Transfer too — with the tally footer still counting it and
+// Submit filing it under whichever segment was active. RED on the pre-fix page: no dialog
+// ever opens (handleMovementChange called setMovement directly), so `findByRole('dialog')`
+// times out, and the switched-to tab keeps showing the stale 15 instead of a blank field.
+describe('issue 586: a movement switch with staged entries goes through the unsaved-entries confirm', () => {
+  it('switching tabs with a staged qty opens the confirm dialog and keeps the OLD tab selected until it resolves', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+    expect((ayamInput as HTMLInputElement).value).toBe('15')
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+
+    // The confirm is open, and the segmented control has NOT switched yet — the movement
+    // stays Produce (a controlled tab strip) until the dialog resolves.
+    const dialog = await screen.findByRole('dialog')
+    expect(screen.getByRole('tab', { name: /^production$/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'false')
+    expect(within(dialog).getByText(/1 typed quantity/i)).toBeInTheDocument()
+  })
+
+  it('confirming the switch clears the staged qty and moves the tab to Transfer', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
+    })
+    // The line staged under Produce (15) is gone — it never rides into the Transfer
+    // segment's tally or a Transfer submit (the exact defect this test guards against).
+    const transferInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect((transferInput as HTMLInputElement).value).toBe('')
+    expect(screen.queryByText(/1 item/i)).toBeNull()
+  })
+
+  it('cancelling the switch keeps the staged qty AND the original tab selected', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
+
+    expect(screen.getByRole('tab', { name: /^production$/i })).toHaveAttribute('aria-selected', 'true')
+    expect((screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }) as HTMLInputElement).value).toBe('15')
+  })
+
+  it('switching tabs with NOTHING staged switches immediately — no dialog', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
+    })
+  })
+})
