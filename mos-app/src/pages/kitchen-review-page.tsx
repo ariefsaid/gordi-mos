@@ -30,7 +30,8 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { movementKey, streamKey } from '@/lib/kitchen-action-label'
+import { movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import type { Translate } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
@@ -79,6 +80,19 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
  */
 function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
+}
+
+/**
+ * #587: the canonical stream label (branch · activity — the same `streamLabel` the
+ * picker/#440 statement uses everywhere else in Café) for ONE row. "All streams" groups
+ * by action_type only (movementKey), so a group can hold rows from more than one stream
+ * with nothing on the row naming which — this is what names it. `streamCatalog` already
+ * carries the branch object per (branch_id, activity) pair (FR-005); a row whose pair
+ * fell out of the live catalog renders streamLabel's own "—" rather than guessing.
+ */
+function rowStreamLabel(t: Translate, streamCatalog: ProductionStream[], log: ReviewLogRow): string {
+  const stream = streamCatalog.find(s => s.branch.id === log.branch_id && s.activity === log.activity) ?? null
+  return streamLabel(t, stream)
 }
 
 /** Format an ISO timestamp to HH:MM (WIB, fixed +7 offset — NFR-007). */
@@ -721,6 +735,12 @@ export function KitchenReviewPage() {
         return (
           <>
             <span className="krow-name">{log.wip_item_name}</span>
+            {/* #587: "All streams" groups rows from every stream under one action_type
+                heading with nothing naming which — this is that name, shown only when
+                more than one stream could be in the group (the filter is on ALL_STREAMS). */}
+            {streamFilter === ALL_STREAMS && (
+              <span className="krow-stream">{rowStreamLabel(t, streamCatalog, log)}</span>
+            )}
             <span className="krow-variance">
               <Tag color={offPlan ? 'amber' : 'green'}>
                 <span className="krow-dot" aria-hidden="true" />
@@ -813,6 +833,11 @@ export function KitchenReviewPage() {
           </Tag>
         </div>
         <div className="krow-card-meta">
+          {/* #587: same rule as the desktop column — only shown when the group could hold
+              more than one stream's rows. */}
+          {streamFilter === ALL_STREAMS && (
+            <span className="krow-stream">{rowStreamLabel(t, streamCatalog, log)}</span>
+          )}
           <span className="krow-qty">
             <span className="krow-meta">{t('kitchen.review.qty.plan')}</span> <strong>{planQty}</strong>
             <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{log.qty_porsi}</strong>

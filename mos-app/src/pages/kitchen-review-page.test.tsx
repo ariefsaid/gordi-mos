@@ -1041,3 +1041,70 @@ describe('issue 455: document title', () => {
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.review')))
   })
 })
+
+// #587: with the stream filter at its at-rest default ("All streams"), the queue groups
+// rows by action_type ONLY (movementKey) — a "Production" group can hold Nasi Goreng from
+// Rumah Rames·Kitchen and another row from Radiant·Bar with nothing on either row (or the
+// shared group header) naming which stream it belongs to. RED on the pre-fix page: neither
+// column render nor the phone card ever read streamFilter/streamCatalog, so no ".krow-stream"
+// node exists and `getByText` for the canonical label ("Radiant · Bar") finds nothing.
+describe('issue 587: the row names its own stream in the All-streams view', () => {
+  const RADIANT_LOG: ReviewLogRow = {
+    ...PROD_LOG, id: 'log-prod-radiant', branch_id: RADIANT_ID, activity: 'bar',
+    wip_item_id: 'w9', wip_item_name: 'Kopi Susu',
+  }
+
+  it('desktop: both rows in the same "Production" group are labelled with their OWN canonical stream', async () => {
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue({
+      matches: true,
+      media: '(min-width: 768px)',
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList)
+    try {
+      mockList.mockResolvedValue([PROD_LOG, RADIANT_LOG])
+      mockPlan.mockResolvedValue({ w1: { produce: 8 }, w9: { produce: 3 } })
+      render(<KitchenReviewPage />, { wrapper })
+      await screen.findByText('Nasi Goreng')
+      await screen.findByText('Kopi Susu')
+      // ONE "Production" group (grouping is still by action_type only — #587 names the
+      // stream on the ROW, it does not split the group).
+      const groupLabels = document.querySelectorAll('.dt-group-label')
+      expect(groupLabels).toHaveLength(1)
+      expect(groupLabels[0].textContent).toBe('Production')
+      const nasiRow = screen.getByText('Nasi Goreng').closest('tr')!
+      const kopiRow = screen.getByText('Kopi Susu').closest('tr')!
+      expect(within(nasiRow).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
+      expect(within(kopiRow).getByText('Radiant · Bar')).toBeInTheDocument()
+    } finally {
+      matchMediaSpy.mockRestore()
+    }
+  })
+
+  it('phone: the card names its own stream in the meta line', async () => {
+    mockList.mockResolvedValue([PROD_LOG, RADIANT_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 }, w9: { produce: 3 } })
+    render(<KitchenReviewPage />, { wrapper })
+    const nasiCard = (await screen.findByText('Nasi Goreng')).closest<HTMLElement>('.krow-card')!
+    const kopiCard = (await screen.findByText('Kopi Susu')).closest<HTMLElement>('.krow-card')!
+    expect(within(nasiCard).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
+    expect(within(kopiCard).getByText('Radiant · Bar')).toBeInTheDocument()
+  })
+
+  it('scoped to ONE stream, the row carries no stream label (nothing to disambiguate)', async () => {
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    const filter = screen.getByRole('combobox')
+    fireEvent.change(filter, { target: { value: `${BRANCH_ID}|kitchen` } })
+    await waitFor(() => expect(filter).toHaveValue(`${BRANCH_ID}|kitchen`))
+    // the SELECT itself legitimately carries this stream's name as an <option> — the
+    // assertion is on the queue row, never on the filter control.
+    expect(document.querySelector('.krow-stream')).toBeNull()
+  })
+})

@@ -81,6 +81,15 @@
   display: inline-flex;
   align-items: center;
 }
+/* #587: the row's own stream — shown only in the "All streams" view, where one
+   action_type group can hold more than one stream's rows with nothing else naming
+   which. Muted like the other secondary meta text (.krow-meta), not a value that
+   competes with the item name. */
+.krow-stream {
+  color: var(--muted-foreground);
+  margin-right: 8px;
+  white-space: nowrap;
+}
 /* dot inside the variance Tag — status carries dot+text, never color alone (WCAG 1.4.1) */
 .krow-dot {
   display: inline-block;
