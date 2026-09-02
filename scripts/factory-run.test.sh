@@ -10,6 +10,7 @@ mkdir -p "$repo/mos-app" "$repo/adws" "$repo/scripts/gh-shim"
 git -C "$repo" init -q
 repo="$(cd "$repo" && pwd -P)"
 cp scripts/gh-shim/gh "$repo/scripts/gh-shim/gh"
+cp scripts/factory-preflight.py "$repo/scripts/factory-preflight.py"
 printf '%s\n' '#!/usr/bin/env python3' > "$repo/adws/adw_simple_sdlc.py"
 chmod +x "$repo/scripts/gh-shim/gh"
 pass=0; fail=0
@@ -95,6 +96,107 @@ printf '99\n' > "$repo/mos-app/.nvmrc"
 out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "matching-major inherited node runs" $?
 printf '%s' "$out" | grep -q "not found"; [ $? -ne 0 ]; t "no warning when the inherited node already matches" $?
+
+# Barred-path pre-flight (#590): a brief naming a builder-barred path refuses before the ADW
+# ever execs, instead of burning a full build that permissions.py::enforce() rolls back anyway.
+mkdir -p "$repo/adws/adw_sssf_config"
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files:
+    - adws/**
+    - scripts/pre-pr-verify.sh
+EOF2
+barred_brief="Please update adws/adw_modules/permissions.py to relax the check."
+clean_brief="Add a reports endpoint and mos-app/src/pages/Reports.tsx."
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "barred brief refuses before exec, with a dedicated exit code" $?
+printf '%s' "$out" | grep -q "adws/adw_modules/permissions.py"; t "refusal names the offending path" $?
+printf '%s' "$out" | grep -q "lane-exempt.sh"; t "refusal points at the Director lane" $?
+printf '%s' "$out" | grep -q -- "--allow-barred"; t "refusal names the override" $?
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$clean_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "clean brief passes the pre-flight and execs the stub" $?
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" --allow-barred adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "--allow-barred overrides a genuine barred-path refusal" $?
+
+# The list must come from the vendored source of truth, never a copy in the wrapper: mutate the
+# fixture's protected_files and the verdict flips both ways on the SAME brief text.
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files:
+    - scripts/pre-pr-verify.sh
+EOF2
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "removing adws/** from the fixture's list un-bars the same brief" $?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "Do not touch scripts/pre-pr-verify.sh while fixing this." 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "the remaining fixture entry still bars (list is read live, not cached)" $?
+
+# data_dir is excluded BEFORE matching (#590 review): permissions.py::always_writable() grants
+# EVERY agent the session runtime under data_dir, so a findings-rerun brief that cites its own
+# adws/adw_data/<id>/raw_output.jsonl must pass here exactly as enforce() would let it through —
+# without this exclusion the pre-flight refuses work enforce() would have permitted.
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files:
+    - adws/**
+  data_dir: adws/adw_data
+EOF2
+findings_brief="Findings rerun: see adws/adw_data/a1b2c3d4/raw_output.jsonl for the prior failure."
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$findings_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "a findings-rerun brief citing its own data_dir path is not barred (#590)" $?
+
+# --config (#590 review): the pre-flight must check the SAME config the ADW will actually run
+# under, not always the default path — both flag forms, since argparse accepts either.
+mkdir -p "$repo/altcfg"
+cat > "$repo/altcfg/other.config.yaml" <<'EOF2'
+defaults:
+  protected_files:
+    - mos-app/special.ts
+EOF2
+alt_brief="Please edit mos-app/special.ts for the new layout."
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$alt_brief" --config altcfg/other.config.yaml 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "an alternate --config's own list bars a path the default config wouldn't" $?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$alt_brief" --config=altcfg/other.config.yaml 2>&1)"; rc=$?
+[ "$rc" -eq 3 ]; t "the --config=path equals-form is honored too" $?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$alt_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "without --config the default config governs, and it doesn't bar mos-app/special.ts" $?
+rm -rf "$repo/altcfg"
+
+# Silent-degradation note (#590 review): a config that EXISTS but whose protected_files can't be
+# read by this parser (flow style here) must fall back to the built-in default AUDIBLY — an
+# invisible narrowing would look like a clean pass while quietly checking a shorter list.
+cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
+defaults:
+  protected_files: [adws/**, scripts/pre-pr-verify.sh]
+EOF2
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
+printf '%s' "$out" | grep -q "pre-flight: could not read protected_files from"; t "flow-style protected_files emits the degradation note" $?
+printf '%s' "$out" | grep -q "using the built-in default list"; t "degradation note names the fallback" $?
+
+rm -f "$repo/adws/adw_sssf_config/sssf.config.yaml"
+
+# Missing python3 (#590 review): the pre-flight is best-effort scaffolding around the real gate
+# (enforce()); its own absence must never hard-fail the factory door. Rather than strip a whole
+# directory off PATH (python3 shares its directory with git/bash/etc on plenty of setups), build
+# an isolated PATH of symlinks to just what the rest of the wrapper needs — python3 excluded by
+# never being linked in, portable to wherever this machine actually keeps it.
+mkdir -p "$tmp/nopy"
+for bin in git mktemp tr sort env bash; do
+  src="$(command -v "$bin" 2>/dev/null)" && ln -sf "$src" "$tmp/nopy/$bin"
+done
+cp "$tmp/bin/uv" "$tmp/bin/node" "$tmp/nopy/"
+out="$(cd "$repo" && PATH="$tmp/nopy" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "missing python3 does not hard-fail the door" $?
+printf '%s' "$out" | grep -q "pre-flight skipped: python3 not found"; t "missing python3 is announced, not silent" $?
+
+# Un-derivable brief (#590 review): when brief derivation finds nothing (an equals-form
+# --findings=text, or a positional buried after flags with no --findings marker), the
+# pre-flight is skipped — silently skipping it would look identical to a clean pass.
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py --findings=barred-adws-adw_modules-mention 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "an undetected brief arg still runs the factory (fail open)" $?
+printf '%s' "$out" | grep -q "pre-flight skipped: no brief argument found"; t "an undetected brief arg is announced, not silently skipped" $?
 
 if bash "$wrapper" no_such_adw.py >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  unknown ADW must refuse\n'

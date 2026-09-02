@@ -2,20 +2,50 @@
 # The door to the factory: run an ADW with the gh shim leading PATH, so every shell the factory's
 # agents spawn obeys the GitHub write firewall (reads pass, writes refuse toward gh-post.sh).
 #
-#   scripts/factory-run.sh adw_simple_sdlc.py brief-472.md [--builder fe_builder …]
+#   scripts/factory-run.sh [--allow-barred] adw_simple_sdlc.py brief-472.md [--builder fe_builder …]
 #
 # This wrapper exists because adws/** is VENDORED (byte-identity to the upstream pin, enforced
 # by vendor-sssf.test.sh) — a shim prepend edited into adw_modules/utils.py was silently
 # destroyed by the next vendor run, with its proof run green minutes earlier (2026-08-28).
 # MOS-side behavior around the factory lives in scripts/, never inside adws/.
+#
+# --allow-barred skips the barred-path pre-flight (scripts/factory-preflight.py) below — see its
+# refusal text for when that override is the right call.
 # Self-test: scripts/factory-run.test.sh
 set -uo pipefail
 
-[ $# -ge 1 ] || { echo "usage: factory-run.sh <adw_script.py> [args…]" >&2; exit 2; }
+allow_barred=0
+if [ "${1:-}" = "--allow-barred" ]; then allow_barred=1; shift; fi
+[ $# -ge 1 ] || { echo "usage: factory-run.sh [--allow-barred] <adw_script.py> [args…]" >&2; exit 2; }
 top="$(git rev-parse --show-toplevel)" || exit 2
 adw="$1"; shift
 case "$adw" in */*|.*) echo "✗ factory-run: ADW must be a bare filename under adws/ (got '$adw')" >&2; exit 2 ;; esac
 [ -f "$top/adws/$adw" ] || { echo "✗ factory-run: no such ADW: adws/$adw" >&2; exit 2; }
+
+# Cheap pre-flight (#590): catches a brief that targets a builder-barred path before the
+# build burns tokens on it. See factory-preflight.py's docstring for what it checks and why
+# it can be wrong in either direction, and its refusal text for the override.
+if [ "$allow_barred" -eq 0 ]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "⚠ pre-flight skipped: python3 not found" >&2
+  else
+    brief_arg=""
+    if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then
+      brief_arg="$1"
+    else
+      prev=""
+      for arg in "$@"; do
+        [ "$prev" = "--findings" ] && { brief_arg="$arg"; break; }
+        prev="$arg"
+      done
+    fi
+    if [ -z "$brief_arg" ]; then
+      echo "⚠ pre-flight skipped: no brief argument found in '$*'" >&2
+    else
+      python3 "$top/scripts/factory-preflight.py" "$top" "$brief_arg" "$@" || exit 3
+    fi
+  fi
+fi
 
 # Two layers, honestly bounded. (1) POLITE: the gh shim is prepended so most child shells
 # resolve gh to the refusal message — but uv REWRITES the child PATH (it prepends the resolved
