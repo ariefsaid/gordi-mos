@@ -34,7 +34,11 @@
    state already uses (signal-card.css `.signal-category-option[aria-selected="true"]`) — a tint
    light enough that the badge backgrounds and `--foreground` name text both keep their contrast
    on top of it. */
-.mention-row.is-active { background: var(--accent-subtle); }
+/* `:hover` and `.is-active` are equal specificity (one class each); listing `.is-active:hover`
+   too makes the active wash win structurally instead of by rule ORDER (a later edit that moved
+   `:hover` below this would otherwise silently flip which one painted). */
+.mention-row.is-active,
+.mention-row.is-active:hover { background: var(--accent-subtle); }
 .mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
 .mention-row .nm { font-weight: 500; color: var(--foreground); }
 
@@ -49,6 +53,15 @@
 .type-badge--person { background: var(--accent-subtle); color: var(--text-on-accent-tint); }
 .type-badge--team { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
 .type-badge--bu { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
+/* #578: on the active row the person badge's OWN --accent-subtle wash (above) sits on top of the
+   row's --accent-subtle wash (same token, same hue) — two stacked 10%-blue layers compound into a
+   darker, more saturated blue that measured 3.99:1 against the blue badge text (below AA) with
+   only 1.13:1 separation from the row wash under it. An opaque `--ds-color-blue` chip with
+   inverted (white) text is a fixed pair unaffected by whatever wash sits under it — 5.29:1 in
+   both themes (`--ds-color-blue` / `--ds-font-color-inverted` are both theme-invariant), pinned in
+   src/styles/tokens/contrast.test.ts. Team/BU keep their own tint here — their hues don't collide
+   with the row's blue wash the way person's does. */
+.mention-row.is-active .type-badge--person { background: var(--ds-color-blue); color: var(--ds-font-color-inverted); }
 
 .mention-empty { padding: 10px 12px; font-size: var(--font-size-mono); color: var(--muted-foreground); } /* typeset: was 12.5px off-ramp; matches the .mention-row list it replaces when empty */
 
