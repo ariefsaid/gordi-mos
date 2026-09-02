@@ -81,6 +81,23 @@
   display: inline-flex;
   align-items: center;
 }
+/* #587: the row's own stream — shown only in the "All streams" view, where one
+   action_type group can hold more than one stream's rows with nothing else naming
+   which. Muted like the other secondary meta text (.krow-meta), not a value that
+   competes with the item name. */
+.krow-stream {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+/* Fix round: the desktop table cell has no flex gap between its inline children, so
+   .krow-stream needs its own trailing space there. The phone card's meta line
+   (.krow-card-meta) already spaces its children via column-gap — a margin-right here
+   would have DOUBLED that gap. `td` only ever wraps the desktop table's content (the
+   phone card is built from <div>s), so this scopes cleanly to the table without a new
+   class or a DataTable change. */
+td .krow-stream {
+  margin-right: 8px;
+}
 /* dot inside the variance Tag — status carries dot+text, never color alone (WCAG 1.4.1) */
 .krow-dot {
   display: inline-block;

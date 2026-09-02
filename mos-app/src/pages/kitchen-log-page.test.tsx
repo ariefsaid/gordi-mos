@@ -1771,3 +1771,160 @@ describe('issue 455: document title', () => {
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.log')))
   })
 })
+
+// #586: `lines` staged ONE row per item across every movement segment. Type a qty under
+// Produce, click a Transfer tab that never touches that item, and the OLD code left the
+// same qty sitting there under Transfer too — with the tally footer still counting it and
+// Submit filing it under whichever segment was active. RED on the pre-fix page: no dialog
+// ever opens (handleMovementChange called setMovement directly), so `findByRole('dialog')`
+// times out, and the switched-to tab keeps showing the stale 15 instead of a blank field.
+describe('issue 586: a movement switch with staged entries goes through the unsaved-entries confirm', () => {
+  it('switching tabs with a staged qty opens the confirm dialog and keeps the OLD tab selected until it resolves', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+    expect((ayamInput as HTMLInputElement).value).toBe('15')
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+
+    // The confirm is open, and the segmented control has NOT switched yet — the movement
+    // stays Produce (a controlled tab strip) until the dialog resolves.
+    const dialog = await screen.findByRole('dialog')
+    expect(screen.getByRole('tab', { name: /^production$/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'false')
+    expect(within(dialog).getByText(/1 typed quantity/i)).toBeInTheDocument()
+  })
+
+  it('confirming the switch clears the staged qty and moves the tab to Transfer', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
+    })
+    // The line staged under Produce (15) is gone — it never rides into the Transfer
+    // segment's tally or a Transfer submit (the exact defect this test guards against).
+    // A positive read of the reset footer, not just the absence of the old "1 item" text
+    // (which would pass just as happily on a footer showing some OTHER stale count).
+    const transferInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect((transferInput as HTMLInputElement).value).toBe('')
+    expect(document.querySelector('.kl-tally-num')?.textContent).toBe('0 items · 0 portions')
+  })
+
+  it('cancelling the switch keeps the staged qty AND the original tab selected', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
+
+    expect(screen.getByRole('tab', { name: /^production$/i })).toHaveAttribute('aria-selected', 'true')
+    expect((screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }) as HTMLInputElement).value).toBe('15')
+  })
+
+  it('switching tabs with NOTHING staged switches immediately — no dialog', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
+    })
+  })
+
+  // Review finding (fix round): ConfirmDialog's own contract is that its `busy` flag lives
+  // in the component instance and is reset only by unmounting (confirm-archive.tsx,
+  // route-leave-guard.tsx) — "on success the caller closes" is what resets it, never the
+  // primitive itself. A caller that renders <ConfirmDialog open={cond} .../> UNCONDITIONALLY
+  // never unmounts it, so `busy` (set true on the FIRST confirm click) survives the dialog
+  // closing and is still true the next time it opens: Confirm reads "Working…" and both
+  // buttons are disabled, with no way out but a reload. RED before the caller-side
+  // conditional-mount fix ({pendingMovement !== null && <ConfirmDialog ... />}): this test
+  // opened the second dialog and found the Confirm button already disabled and reading
+  // "Working…" — never having been clicked.
+  it('a second staged switch opens a FRESH, usable dialog — busy state from the first confirm does not carry over', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // First switch: stage, switch, confirm — this is the click that sets ConfirmDialog's
+    // internal `busy` true on an always-mounted instance.
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '15' } })
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    let dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    // Stage again under Transfer, then switch back to Production — the SECOND confirm.
+    const transferInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(transferInput, { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('tab', { name: /^production$/i }))
+    dialog = await screen.findByRole('dialog')
+
+    const confirmBtn = within(dialog).getByRole('button', { name: /switch and clear/i })
+    const cancelBtn = within(dialog).getByRole('button', { name: /cancel/i })
+    expect(confirmBtn).not.toBeDisabled()
+    expect(cancelBtn).not.toBeDisabled()
+    expect(confirmBtn).toHaveTextContent(/switch and clear/i)
+  })
+})
+
+// #586 AC (submit): the AC is that a quantity staged under one movement is never included
+// in a submit performed under another — asserted end to end here, not just on the staged
+// `lines` state. Stage Nasi Goreng (w2) under Produce, confirm a switch to Transfer, stage
+// a DIFFERENT item (Ayam Bakar, w1) under Transfer, and submit: the payload must hold ONLY
+// the Transfer line, never the cleared Produce one.
+describe('issue 586 AC: a confirmed switch — the SUBMIT payload never carries the old movement\'s line', () => {
+  it('submits only the line staged under the movement active at Submit time', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Stage Nasi Goreng (w2) on-plan under Produce (12 == plan 12 — no note needed).
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
+    })
+
+    // Stage Ayam Bakar (w1) under Transfer: at-tersedia (9 <= 9), off the absolute plan
+    // (10) so it needs a note (parity with the existing AC-022 "at-tersedia" case).
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '9' } })
+    fireEvent.blur(ayamInput)
+    const note = screen.getByRole('textbox', { name: /note for ayam bakar/i })
+    fireEvent.change(note, { target: { value: 'extra ship' } })
+
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).not.toBeDisabled()
+    fireEvent.click(submit)
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    // ONLY the Transfer line — the Produce-staged Nasi Goreng (12) is nowhere in the payload.
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w1', qty_porsi: 9,
+        action: 'transfer', destination_branch_id: BRANCH_RADIANT.id,
+      }),
+    ])
+  })
+})

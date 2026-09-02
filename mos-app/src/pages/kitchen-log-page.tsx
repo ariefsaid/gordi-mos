@@ -177,6 +177,16 @@ export function KitchenLogPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  // #586: `lines` stages ONE row per item across every movement segment (produce, each
+  // transfer) — a qty typed under Produce was still there, unchanged, when the segment
+  // switched to a Transfer that never touched that item, and Submit filed it under
+  // whichever segment was active at the click. Smaller honest fix than per-(item,movement)
+  // storage: a switch with anything staged goes through the ConfirmDialog primitive with the
+  // SAME destructive-confirm copy pattern Discard uses (DESIGN.md Overlays) — a second,
+  // separately-mounted instance, not the Discard dialog itself — and only a confirmed switch
+  // clears `lines` before the new movement takes effect. `pendingMovement` holds the tab the
+  // person clicked while that confirm is open; null means no switch is pending.
+  const [pendingMovement, setPendingMovement] = useState<KitchenMovement | null>(null)
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
@@ -284,8 +294,28 @@ export function KitchenLogPage() {
     })
   }, [movement, wipItems, planMap, stockMap])
 
+  // #586: a movement switch with nothing staged is free (nothing would be lost); with
+  // staged quantities, the switch is held behind `pendingMovement` until the confirm
+  // dialog below resolves it — MovementSeg is controlled by `movement`, so leaving it
+  // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement) {
-    setMovement(next)
+    const staged = Object.values(lines).some(l => l.qty_porsi > 0)
+    if (!staged) {
+      setMovement(next)
+      return
+    }
+    setPendingMovement(next)
+  }
+
+  function confirmMovementSwitch() {
+    if (!pendingMovement) return
+    setLines(buildLines(wipItems, planMap, stockMap, pendingMovement))
+    setMovement(pendingMovement)
+    setPendingMovement(null)
+  }
+
+  function cancelMovementSwitch() {
+    setPendingMovement(null)
   }
 
   // Switching the stream re-reads the plan, the stock and the actuals, because all three
@@ -856,21 +886,49 @@ export function KitchenLogPage() {
 
           {/* Destructive confirm — DESIGN.md Overlays: "one centered blocking dialog",
               replacing window.confirm. Only the staged quantities are at stake; search
-              and category filters are untouched by Discard. */}
-          <ConfirmDialog
-            open={discardConfirmOpen}
-            title={t('kitchen.log.discard.confirmTitle')}
-            body={t('kitchen.log.discard.confirmBody', {
-              count: stagedCount,
-              qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
-              actionType: deriveActionLabel(t, movement, branches),
-            })}
-            confirmLabel={t('kitchen.log.discard')}
-            cancelLabel={t('common.cancel')}
-            tone="destructive"
-            onConfirm={async () => performDiscard()}
-            onCancel={() => setDiscardConfirmOpen(false)}
-          />
+              and category filters are untouched by Discard.
+              ConfirmDialog's own contract (busy state lives in the component instance, reset
+              only by unmounting — confirm-archive.tsx, route-leave-guard.tsx) requires a
+              CONDITIONALLY MOUNTED caller: an always-rendered `open={bool}` instance keeps its
+              `busy` flag from the first confirm forever, so a second open shows a permanently
+              "Working…" Confirm with no way out. */}
+          {discardConfirmOpen && (
+            <ConfirmDialog
+              open
+              title={t('kitchen.log.discard.confirmTitle')}
+              body={t('kitchen.log.discard.confirmBody', {
+                count: stagedCount,
+                qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+                actionType: deriveActionLabel(t, movement, branches),
+              })}
+              confirmLabel={t('kitchen.log.discard')}
+              cancelLabel={t('common.cancel')}
+              tone="destructive"
+              onConfirm={async () => performDiscard()}
+              onCancel={() => setDiscardConfirmOpen(false)}
+            />
+          )}
+
+          {/* #586: the unsaved-entries confirm for a movement switch, held behind a movement-
+              tab click while anything is staged — a switch never silently carries one
+              movement's qty into another's submit. Conditionally mounted for the same reason
+              as the Discard dialog above (ConfirmDialog's busy-state contract). */}
+          {pendingMovement !== null && (
+            <ConfirmDialog
+              open
+              title={t('kitchen.log.movementSwitch.confirmTitle')}
+              body={t('kitchen.log.movementSwitch.confirmBody', {
+                count: stagedCount,
+                qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+                actionType: deriveActionLabel(t, movement, branches),
+              })}
+              confirmLabel={t('kitchen.log.movementSwitch.confirm')}
+              cancelLabel={t('common.cancel')}
+              tone="destructive"
+              onConfirm={async () => confirmMovementSwitch()}
+              onCancel={cancelMovementSwitch}
+            />
+          )}
         </form>
       </div>
     </PageFamilyFrame>
