@@ -3,7 +3,13 @@ import { act, render } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { OverlayHostProvider, useOverlayHost } from '@/shell/overlay-host'
 import { useRecordCollection } from './use-record-collection'
-import type { CollectionData, CollectionProjection, RecordCollectionDescriptor } from './types'
+import type {
+  CollectionData,
+  CollectionProjection,
+  CollectionQuerySchema,
+  QueryKey,
+  RecordCollectionDescriptor,
+} from './types'
 import {
   signalCollectionQuery,
   signalPresentationCompatibleKeys,
@@ -80,12 +86,18 @@ function makeSignalDescriptor(): RecordCollectionDescriptor<
 let capturedSearch = ''
 let controllerRef: ReturnType<typeof useRecordCollection<FakeSignal, string, SignalCollectionQuery, { viewerId: string | null }, FakeGroup, never, SignalCollectionPresentation>> | null = null
 
-function Harness() {
+// A stable descriptor instance — Harness re-renders with a new isDesktop prop across the resize
+// tests below, and a fresh descriptor object each render would be indistinguishable from a real
+// prop change to the effect that watches it.
+const SIGNAL_DESCRIPTOR = makeSignalDescriptor()
+
+function Harness({ isDesktop = true }: { isDesktop?: boolean } = {}) {
   const location = useLocation()
   capturedSearch = location.search
   const controller = useRecordCollection({
-    descriptor: makeSignalDescriptor(),
+    descriptor: SIGNAL_DESCRIPTOR,
     urlMode: 'synced',
+    isDesktop,
     viewerId: 'p-me',
     accessRoles: ['ops_lead'],
   })
@@ -188,5 +200,145 @@ describe('useRecordCollection (synced)', () => {
     expect(new URLSearchParams(capturedSearch).get('sort')).toBe('attention')
     expect(new URLSearchParams(capturedSearch).get('group')).toBe('team')
     expect(capturedSearch).toBe(before)
+  })
+
+  // Issue #607: a desktop session narrowed to phone width used to keep presentation=table while
+  // CSS alone hid the Table/Card switcher — a dead end with no way back to Feed. This proves the
+  // hook reacts to the isDesktop PROP flipping (not just a fresh phone mount, already covered by
+  // AC-V3-013 in signals-archive-page.test.tsx), and that widening restores the desktop choice.
+  it('Issue #607: narrowing an already-mounted desktop session pins the collection default, and widening restores Table', async () => {
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/signals?layout=table']}>
+        <Harness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(controllerRef?.state.presentation).toBe('table')
+
+    // Narrow: presentation is constrained at the state layer, not merely hidden by CSS — a bare
+    // switchPresentation('table') would still read 'table' here if the fix were a no-op.
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=table']}>
+        <Harness isDesktop={false} />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(controllerRef?.state.presentation).toBe('feed')
+
+    // Widen: the Table request that brought the user here is still compatible with the live
+    // (unchanged) query, so it comes back rather than staying stuck on the phone default.
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=table']}>
+        <Harness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(controllerRef?.state.presentation).toBe('table')
+  })
+
+  // The Signal descriptor's Table presentation supports every query key, so a widen-restore to
+  // Table can never be rejected there. To prove the restore genuinely re-checks compatibility
+  // (rather than restoring unconditionally), this uses a tiny descriptor where the DESIRED
+  // presentation ('card') is the restrictive one and the phone default ('table') is permissive —
+  // mirroring a real host whose compact card view can't render every filter its full table can.
+  type XPresentation = 'table' | 'card'
+  interface XQuery { layout: XPresentation; filter: string | null }
+  const X_NEUTRAL: XQuery = { layout: 'table', filter: null }
+  const xQuerySchema: CollectionQuerySchema<XQuery> = {
+    keys: ['layout', 'filter'],
+    neutral: X_NEUTRAL,
+    parse: (params, presentation) => ({
+      ok: true,
+      query: {
+        layout: (params.get('layout') as XPresentation | null) ?? (presentation as XPresentation),
+        filter: params.get('filter'),
+      },
+    }),
+    serialize: (query) => {
+      const p = new URLSearchParams()
+      if (query.layout !== X_NEUTRAL.layout) p.set('layout', query.layout)
+      if (query.filter !== X_NEUTRAL.filter) p.set('filter', query.filter ?? '')
+      return p
+    },
+    normalize: (query) => query,
+  }
+  function makeAsymmetricDescriptor(): RecordCollectionDescriptor<
+    FakeSignal, string, XQuery, { viewerId: string | null }, FakeGroup, never, XPresentation
+  > {
+    const pres = (id: XPresentation, compatibleQueryKeys: readonly QueryKey<XQuery>[]) => ({
+      id, label: id, compatibleQueryKeys,
+      capabilities: {
+        search: false, filterKeys: ['filter'] as const, sortKeys: [] as const, groupKeys: [] as const,
+        savedViews: false, selection: false, recordOpening: false, bulkActions: [] as readonly never[],
+      },
+      render: () => null,
+    })
+    return {
+      id: 'x-widget',
+      defaultPresentation: 'table',
+      query: xQuerySchema,
+      savedViews: {
+        enabled: false,
+        store: { list: async () => [], get: async () => null, create: vi.fn(), rename: vi.fn(), archive: vi.fn() },
+        operations: [],
+        buildSpec: () => { throw new Error('unused') },
+        parseAndValidate: () => ({ ok: false, issues: [] }),
+        applySpec: () => { throw new Error('unused') },
+      },
+      presentations: { table: pres('table', ['layout', 'filter']), card: pres('card', ['layout']) },
+      load: async () => ({ records: ROWS, context: { viewerId: 'p-me' } }) as CollectionData<FakeSignal, { viewerId: string | null }>,
+      project: (data): CollectionProjection<FakeSignal, FakeGroup> => ({
+        visibleRecords: data.records,
+        groups: [{ key: 'all', rows: data.records }],
+        totalRecords: data.records.length,
+        visibleRecordsAreFiltered: false,
+      }),
+      getId: (r) => r.id,
+      getAccess: () => ({ mode: 'full', visibleActions: [] }),
+    }
+  }
+  const X_DESCRIPTOR = makeAsymmetricDescriptor()
+  let xControllerRef: ReturnType<typeof useRecordCollection<FakeSignal, string, XQuery, { viewerId: string | null }, FakeGroup, never, XPresentation>> | null = null
+  function XHarness({ isDesktop = true }: { isDesktop?: boolean } = {}) {
+    const controller = useRecordCollection({
+      descriptor: X_DESCRIPTOR, urlMode: 'synced', isDesktop, viewerId: 'p-me', accessRoles: ['ops_lead'],
+    })
+    xControllerRef = controller
+    return <div>{controller.state.presentation}</div>
+  }
+
+  it('Issue #607: widening does not restore a presentation the query can no longer support', async () => {
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/signals?layout=card']}>
+        <XHarness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(xControllerRef?.state.presentation).toBe('card') // desired, no filter populated yet
+
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=card']}>
+        <XHarness isDesktop={false} />
+      </MemoryRouter>,
+    )
+    await flush()
+    expect(xControllerRef?.state.presentation).toBe('table') // phone default, 'card' is remembered
+
+    // While on the phone default Table, a filter gets set that Card cannot render (its
+    // compatibleQueryKeys is ['layout'] only) — exactly what setQuery-driven filtering on the
+    // phone default would produce.
+    act(() => xControllerRef?.setQuery({ layout: 'table', filter: 'urgent' }))
+    await flush()
+
+    rerender(
+      <MemoryRouter initialEntries={['/signals?layout=card']}>
+        <XHarness isDesktop />
+      </MemoryRouter>,
+    )
+    await flush()
+    // Restoring 'card' would silently orphan the populated filter — checkPresentationCompatibility
+    // would reject this exact move via switchPresentation, so the restore honors the same rule and
+    // the permissive phone default stands instead.
+    expect(xControllerRef?.state.presentation).toBe('table')
   })
 })
