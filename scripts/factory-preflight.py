@@ -40,22 +40,34 @@ TOKEN_RE = re.compile(r"[A-Za-z0-9_./-]+")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 
 
-def _yaml_list(text: str, key: str) -> list[str] | None:
+def _yaml_list(text: str, key: str, *, key_indent: int | None = None) -> list[str] | None:
     """Pull a top-level-ish `key:` block's `- item` list out of simple YAML.
 
     Not a YAML parser — just enough structure-sniffing for this repo's own
     config shape (a `key:` line followed by more-indented `- pattern` lines).
+    Assumes the config nests `defaults:` keys two spaces deeper.
     """
     lines = text.split("\n")
-    key_indent = None
     items: list[str] = []
     in_block = False
+    in_defaults = key_indent is None
+    section_indent = key_indent - 2 if key_indent is not None else None
     for line in lines:
+        indent = len(line) - len(line.lstrip(" "))
+        if key_indent is not None and not in_defaults:
+            if re.match(r"^\s*defaults:\s*(#.*)?$", line) and indent == section_indent:
+                in_defaults = True
+            continue
+        if (key_indent is not None and indent <= section_indent and line.strip()
+                and not line.lstrip().startswith("#")):
+            break
         if not in_block:
+            if key_indent is not None and indent != key_indent:
+                continue
             if re.match(rf"^\s*{re.escape(key)}:\s*\[\s*\]\s*(#.*)?$", line):
                 return []
             if re.match(rf"^\s*{re.escape(key)}:\s*(#.*)?$", line):
-                key_indent = len(line) - len(line.lstrip(" "))
+                key_indent = indent
                 in_block = True
             continue
         stripped = line.strip()
@@ -121,12 +133,18 @@ def load_config(top: Path, config_path: Path) -> tuple[list[str], str]:
     except OSError:
         pass
 
-    globs = _yaml_list(text, "protected_files") if text is not None else None
+    defaults_indent = None
+    if text is not None:
+        defaults = re.search(r"^([ ]*)defaults:\s*(#.*)?$", text, re.MULTILINE)
+        if defaults:
+            defaults_indent = len(defaults.group(1)) + 2
+    globs = (_yaml_list(text, "protected_files", key_indent=defaults_indent)
+             if text is not None and defaults_indent is not None else None)
     data_dir = _yaml_scalar(text, "data_dir") if text is not None else None
 
     if text is not None and globs is None:
         print(
-            f"pre-flight: could not read protected_files from {config_path}; "
+            f"pre-flight: protected_files is null/unreadable in {config_path}; "
             "using the built-in default list",
             file=sys.stderr,
         )
