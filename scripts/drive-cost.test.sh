@@ -35,7 +35,12 @@ case "\$1 \$2" in
   api\ *)
     [ "\${GH_STUB_FAIL_API:-0}" = 1 ] && exit 1
     [ "\${GH_NO_CLAIM:-0}" = 1 ] && { echo '[]'; exit 0; }
-    n="\$(printf '%s' "\$*" | grep -oE '[0-9]+' | tail -1)"; cat "$tmp/comments-\$n.json" 2>/dev/null || echo '[]' ;;
+    n="\$(printf '%s' "\$*" | grep -oE '[0-9]+' | tail -1)"
+    if [ "\$n" = 639 ]; then
+      cat "$tmp/comments-639-page1.json" "$tmp/comments-639-page2.json"
+    else
+      cat "$tmp/comments-\$n.json" 2>/dev/null || echo '[]'
+    fi ;;
   *) exit 9 ;;
 esac
 EOF
@@ -51,9 +56,14 @@ cat > "$tmp/prs.json" <<'EOF'
 EOF
 printf '%s\n' '{"additions":210,"deletions":15,"mergedAt":"2026-09-05T09:00:00Z","body":""}' > "$tmp/view-640.json"
 printf '%s\n' '{"additions":50,"deletions":8,"mergedAt":"2026-09-04T18:00:00Z","body":"Closes #640."}' > "$tmp/view-641.json"
-cat > "$tmp/comments-639.json" <<'EOF'
+cat > "$tmp/comments-639-page1.json" <<'EOF'
 [
  {"created_at":"2026-09-05T01:00:00Z","body":"noise — not a claim"},
+ {"created_at":"2026-09-05T06:00:00Z","body":"In flight (drive, 2026-09-05): a later claim on page 1"}
+]
+EOF
+cat > "$tmp/comments-639-page2.json" <<'EOF'
+[
  {"created_at":"2026-09-05T05:48:00Z","body":"In flight (drive, 2026-09-05): factory lane, branch feat/639-drive-cost-table. Do not re-dispatch."}
 ]
 EOF
