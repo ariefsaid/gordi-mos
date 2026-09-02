@@ -256,5 +256,35 @@ else pass=$((pass+1)); printf '  ok    invocation worktree never listed for remo
 [ -d "$repo5/.claude/worktrees/feat-from-here" ]
 t "invocation worktree still on disk" $? "worktree feat-from-here missing"
 
+# Ticket #637: BOTH archive paths (`archive_or_keep`'s destination and the 90d prune root)
+# resolved via `git rev-parse --show-toplevel` — wherever the sweep was INVOKED from. Run from
+# a linked worktree, traces were archived INTO that worktree instead of the main tree's
+# adws/adw_data/archive (and the invoking worktree is never removed, so the evidence rots in a
+# throwaway tree). Traces must land under the MAIN tree, realpaths compared.
+repo6="$tmp/repo6"
+mkdir -p "$repo6/.claude/worktrees"
+git -C "$repo6" init -q
+git -C "$repo6" config user.email t@t
+git -C "$repo6" config user.name t
+git -C "$repo6" checkout -q -b dev
+# Same ignore set as the real repo: traced paths must not read as dirty, and the linked
+# worktree dir must not make the main tree dirty.
+printf '.claude/worktrees/\nadws/adw_data/sessions/\nadws/adw_data/sssf.db*\nadws/adw_data/archive/\n' > "$repo6/.gitignore"
+echo base > "$repo6/f.txt"; git -C "$repo6" add f.txt .gitignore; git -C "$repo6" commit -qm base
+git -C "$repo6" remote add origin "$repo6"
+# The sweep is invoked from INSIDE this worktree (never removed — the #635 FROM_TREE guard).
+git -C "$repo6" worktree add -q -b feat-invoker "$repo6/.claude/worktrees/feat-invoker" dev
+# Separate merged worktree carrying a run trace — must be archived into the MAIN tree.
+git -C "$repo6" worktree add -q -b feat-traced "$repo6/.claude/worktrees/feat-traced" dev
+mkdir -p "$repo6/.claude/worktrees/feat-traced/adws/adw_data/sessions"
+echo trace > "$repo6/.claude/worktrees/feat-traced/adws/adw_data/sessions/x.jsonl"
+
+out="$(cd "$repo6/.claude/worktrees/feat-invoker" && bash "$SCRIPT" dev 2>&1)"
+[ -f "$repo6/adws/adw_data/archive/feat-traced/sessions/x.jsonl" ]
+t "trace archived under the MAIN tree's archive (sweep run from a linked worktree)" $? "$out"
+if [ -e "$repo6/.claude/worktrees/feat-invoker/adws/adw_data/archive/feat-traced" ]; then
+  fail=$((fail+1)); printf '  FAIL  archive never lands inside the invoking worktree\n%s\n' "$out"
+else pass=$((pass+1)); printf '  ok    archive never lands inside the invoking worktree\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
