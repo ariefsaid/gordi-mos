@@ -92,6 +92,31 @@ check_config "$CONFIG" "$tmp/gh-unmapped.py" >/dev/null \
   && bad "checker missed a roster model with no attribution trailer row (#343)" \
   || ok "checker catches a roster model with no attribution trailer row (#343)"
 
+# ── pre-flight parser scope: only defaults.protected_files is authoritative ──
+cat > "$tmp/scope-fixture.py" <<'PYEOF'
+import importlib.util
+import io
+import sys
+from contextlib import redirect_stderr
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("factory_preflight", "scripts/factory-preflight.py")
+preflight = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(preflight)
+config = Path(sys.argv[1])
+config.write_text("other:\n  protected_files: []\ndefaults:\n  protected_files:\n    - defaults-only/**\n")
+globs, _ = preflight.load_config(Path.cwd(), config)
+assert globs == ["defaults-only/**"], globs
+config.write_text("defaults:\n  protected_files: null\n")
+err = io.StringIO()
+with redirect_stderr(err):
+    globs, _ = preflight.load_config(Path.cwd(), config)
+assert "null/unreadable" in err.getvalue(), err.getvalue()
+PYEOF
+python3 "$tmp/scope-fixture.py" "$tmp/scope.yaml" >/dev/null 2>&1
+[ "$?" -eq 0 ] && ok "pre-flight reads protected_files only from defaults and explains null fallback" \
+  || bad "pre-flight incorrectly accepts an earlier protected_files key or mislabels null fallback"
+
 # ── #357 permission boundary: the runner's REAL matcher + enforce() ──────────
 # A scratch git repo seeds the control surfaces, a simulated unrestricted
 # builder (writes: None) makes changes, and the real permissions.enforce()

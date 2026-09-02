@@ -178,7 +178,7 @@ EOF2
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
 [ "$rc" -eq 3 ]; t "unreadable protected_files fallback refuses a barred path" $?
 printf '%s' "$out" | grep -q "adws/adw_modules/permissions.py"; t "fallback refusal names the offending path" $?
-printf '%s' "$out" | grep -q "pre-flight: could not read protected_files from"; t "flow-style protected_files emits the degradation note" $?
+printf '%s' "$out" | grep -q "pre-flight: protected_files is null/unreadable in"; t "flow-style protected_files emits the degradation note" $?
 printf '%s' "$out" | grep -q "using the built-in default list"; t "degradation note names the fallback" $?
 
 # An explicit empty list is readable configuration, not a request for the built-in fallback.
@@ -188,7 +188,7 @@ defaults:
 EOF2
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "explicit empty protected_files list does not refuse a barred path" $?
-printf '%s' "$out" | grep -q "could not read protected_files"; [ $? -ne 0 ]; t "explicit empty protected_files list does not trigger fallback" $?
+printf '%s' "$out" | grep -q "protected_files is null/unreadable"; [ $? -ne 0 ]; t "explicit empty protected_files list does not trigger fallback" $?
 
 rm -f "$repo/adws/adw_sssf_config/sssf.config.yaml"
 
