@@ -1858,16 +1858,8 @@ describe('issue 586: a movement switch with staged entries goes through the unsa
     })
   })
 
-  // Review finding (fix round): ConfirmDialog's own contract is that its `busy` flag lives
-  // in the component instance and is reset only by unmounting (confirm-archive.tsx,
-  // route-leave-guard.tsx) — "on success the caller closes" is what resets it, never the
-  // primitive itself. A caller that renders <ConfirmDialog open={cond} .../> UNCONDITIONALLY
-  // never unmounts it, so `busy` (set true on the FIRST confirm click) survives the dialog
-  // closing and is still true the next time it opens: Confirm reads "Working…" and both
-  // buttons are disabled, with no way out but a reload. RED before the caller-side
-  // conditional-mount fix ({pendingMovement !== null && <ConfirmDialog ... />}): this test
-  // opened the second dialog and found the Confirm button already disabled and reading
-  // "Working…" — never having been clicked.
+  // ConfirmDialog is safe both mounted styles; conditional mount kept for unmount-cleanup —
+  // confirm-dialog.tsx owns the contract this test exercises against a real caller.
   it('a second staged switch opens a FRESH, usable dialog — busy state from the first confirm does not carry over', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))

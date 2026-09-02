@@ -5,12 +5,15 @@
 // actions behind an explicit confirm step; non-destructive actions need no confirm.
 //
 // States: idle → submitting (onConfirm async) → success (caller closes) / error (inline alert, retry).
+// Supports both conditionally-mounted callers (open always true, unmount on close) and
+// callers that toggle open (component persists across close/reopen) — busy resets on the
+// open->false edge either way, so neither style can reopen pre-locked (#624).
 // a11y: role=dialog aria-modal, aria-labelledby heading, focus trap (Cancel auto-focuses — never
 //   auto-focus the destructive action button), Esc → onCancel, focus returns to the invoker on close.
 // Chrome: the shared --scrim dim + --z-modal tier (so a confirm always outranks any drawer it
 //   can be launched from — the confirm-behind-drawer bug, cohesion-debt item #3).
 
-import { useState, useId } from 'react'
+import { useState, useId, useEffect, useRef } from 'react'
 import { useT } from '@/i18n/use-t'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -61,19 +64,56 @@ export function ConfirmDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const titleId = useId()
+  const mountedRef = useRef(true)
+  // Bumped on every confirm click and on the open->false edge — the generation a settling
+  // promise must still match before it's allowed to touch state (see handleConfirm).
+  const genRef = useRef(0)
+
+  // Two supported caller styles (confirm-archive.tsx documents the contract): conditional
+  // mount (open is always true, caller unmounts on close — busy dies with the component) and
+  // callers that toggle open (component persists across close/reopen). The second style needs
+  // its own reset: without this effect, a resolved onConfirm leaves busy=true forever, so the
+  // NEXT open re-render starts disabled (Working…, Cancel, backdrop, Escape all locked) with no
+  // way out. Firing on the open->false edge covers it regardless of why open dropped (this
+  // success path, or the caller cancelling for an unrelated reason).
+  //
+  // Bumping genRef here also closes a race for the toggle-open style: close-while-pending +
+  // reopen + a NEW confirm would otherwise let the FIRST onConfirm's late settle re-enable the
+  // buttons mid-second-operation, or paint the first attempt's error over the second one in
+  // flight. Any promise captured before this edge is now stale and its settle is a no-op.
+  useEffect(() => {
+    if (!open) {
+      genRef.current++
+      setBusy(false)
+      setError('')
+    }
+  }, [open])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   if (!open) return null
 
   async function handleConfirm() {
     setError('')
     setBusy(true)
+    const gen = ++genRef.current
     try {
       await onConfirm()
+      // Belt-and-suspenders for the conditional-mount style too: if the caller's onConfirm
+      // resolves but leaves `open` true for a tick, don't leave the button stuck on Working….
+      // Guarded by mountedRef (the conditional-mount style's common case is the caller
+      // unmounting synchronously from inside onConfirm, before this line runs) AND by gen
+      // (a stale settle from a since-superseded attempt must not touch the current one).
+      if (mountedRef.current && gen === genRef.current) setBusy(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('common.unexpectedError'))
-      setBusy(false)
+      if (mountedRef.current && gen === genRef.current) {
+        setError(err instanceof Error ? err.message : t('common.unexpectedError'))
+        setBusy(false)
+      }
     }
-    // On success the caller closes (setBusy(false) not needed; component unmounts)
   }
 
   return (

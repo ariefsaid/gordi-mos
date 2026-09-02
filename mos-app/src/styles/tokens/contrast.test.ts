@@ -179,6 +179,22 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       const ratio = contrastRatio(TOKENS['--ds-font-color-inverted'], TOKENS['--ds-color-blue'])
       expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
+
+    // #623: the selected (aria-pressed) inbox filter chip painted `background: var(--accent);
+    // color: var(--foreground)` — text-primary on the solid action blue. Red-first: the OLD pair
+    // measures 2.94:1 in light (the issue's reported 2.90:1, same failure), well under AA.
+    it('OLD PAIR (red-first, #623): text-primary on ds-color-blue (the accent fill) fails AA', () => {
+      const ratio = contrastRatio(TOKENS['--text-primary'], TOKENS['--ds-color-blue'])
+      expect(ratio).toBeLessThan(4.5)
+    })
+
+    // The fix adopts the same selected-chip token pair DESIGN.md's segmented "on" state and
+    // .collection-toolbar__view--active (Tasks view chips) already use: --background + --foreground,
+    // not the solid accent fill.
+    it('NEW PAIR (#623): text-primary on surface-primary (the selected-chip background) ≥ 4.5:1', () => {
+      const ratio = contrastRatio(TOKENS['--text-primary'], TOKENS['--surface-primary'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
   })
 
   describe('Dark theme', () => {
@@ -263,6 +279,22 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
     // identical pair and ratio as the light-theme assertion above, proven once more for dark.
     it('ds-font-color-inverted-dark on the mention active-row person badge (opaque blue chip) ≥ 4.5:1 (#578)', () => {
       const ratio = contrastRatio(TOKENS['--ds-font-color-inverted-dark'], TOKENS['--ds-color-blue'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    // #623: `--ds-color-blue` is theme-invariant (same P3 value in theme-light.css and
+    // theme-dark.css), and dark's near-white `--text-primary-dark` already clears AA against it
+    // (4.75:1) — the old pair's failure was light-theme only. Recorded here (not a red-first
+    // assertion — nothing to prove failed) so the OLD pair's dark-theme number is on record next
+    // to the NEW one below, and a future palette change can't silently regress it unnoticed.
+    it('OLD PAIR reference (#623): text-primary-dark on ds-color-blue already clears AA', () => {
+      const ratio = contrastRatio(TOKENS['--text-primary-dark'], TOKENS['--ds-color-blue'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
+
+    // Pin the same selected-chip token pair as light: --background + --foreground.
+    it('NEW PAIR (#623): text-primary-dark on surface-primary-dark (the selected-chip background) ≥ 4.5:1', () => {
+      const ratio = contrastRatio(TOKENS['--text-primary-dark'], TOKENS['--surface-primary-dark'])
       expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
   })

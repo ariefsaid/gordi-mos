@@ -893,11 +893,8 @@ export function KitchenLogPage() {
           {/* Destructive confirm — DESIGN.md Overlays: "one centered blocking dialog",
               replacing window.confirm. Only the staged quantities are at stake; search
               and category filters are untouched by Discard.
-              ConfirmDialog's own contract (busy state lives in the component instance, reset
-              only by unmounting — confirm-archive.tsx, route-leave-guard.tsx) requires a
-              CONDITIONALLY MOUNTED caller: an always-rendered `open={bool}` instance keeps its
-              `busy` flag from the first confirm forever, so a second open shows a permanently
-              "Working…" Confirm with no way out. */}
+              ConfirmDialog is safe both mounted styles (confirm-dialog.tsx owns the contract);
+              conditional mount kept for unmount-cleanup. */}
           {discardConfirmOpen && (
             <ConfirmDialog
               open
@@ -917,8 +914,9 @@ export function KitchenLogPage() {
 
           {/* #586: the unsaved-entries confirm for a movement switch, held behind a movement-
               tab click while anything is staged — a switch never silently carries one
-              movement's qty into another's submit. Conditionally mounted for the same reason
-              as the Discard dialog above (ConfirmDialog's busy-state contract). */}
+              movement's qty into another's submit. ConfirmDialog is safe both mounted styles
+              (confirm-dialog.tsx owns the contract); conditional mount kept for
+              unmount-cleanup. */}
           {pendingMovement !== null && (
             <ConfirmDialog
               open

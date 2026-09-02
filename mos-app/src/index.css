@@ -422,21 +422,3 @@
    `.sk` / `.skeleton-bar` rules reference it (reduced-motion opt-outs stay local).
    ════════════════════════════════════════════════════════════════════════════ */
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-
-/* a11y audit fix (WCAG AA-3, worst offender in the audit): Inbox's selected filter tab
-   ("Semua"/"All", src/components/inbox/inbox.css .inbox-triage__filter[aria-pressed='true'])
-   pairs near-black --foreground text against an --accent background — and the mos-design-kit
-   aliases --accent to --ds-color-blue (styles/tokens/aliases.css), so the selected pill is
-   effectively solid primary blue. Measured 2.98:1: rgb(37,36,34) on rgb(62,99,221), well
-   under the 4.5:1 AA floor. The rule per DESIGN.md's own guidance: a blue-filled surface
-   needs the inverted/on-primary foreground, not near-black — swap in --primary-foreground,
-   the same near-white token every other solid-blue fill (primary button, active nav pill)
-   already uses. The owning stylesheet is a component file out of scope for this token-level
-   pass, so the fix lives here; the `:root` prefix is a deliberate specificity bump (not
-   !important) because inbox.css loads after index.css in the bundle and would otherwise win
-   the tie at equal specificity. Re-measured: --primary-foreground on this blue clears AA with
-   very large margin (same pairing DESIGN.md documents as ≥4.5:1 across the button's full
-   gradient range). */
-:root .inbox-triage__filter[aria-pressed='true'] {
-  color: var(--primary-foreground);
-}
