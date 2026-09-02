@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
@@ -49,6 +50,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
   const t = useT()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const { locale } = useI18n()
 
   const [state, setState] = useState<FetchState>('loading')
   const [detail, setDetail] = useState<SignalDetail | null>(null)
@@ -156,7 +158,8 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
   }
 
   async function handlePostComment(body: string) {
-    await postComment({ entityType: 'signal', entityId: signalId, body })
+    const actorName = auth.status === 'authenticated' ? auth.viewer.person.full_name : ''
+    await postComment({ entityType: 'signal', entityId: signalId, body, actorName, locale })
     setComments(await listComments({ entityType: 'signal', entityId: signalId }))
   }
 

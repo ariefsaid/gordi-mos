@@ -68,6 +68,8 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       entityType: 'task',
       entityId: 'task-1',
       body: 'Please review @riri and @unknown',
+      actorName: 'Ayu',
+      locale: 'en',
     })
 
     expect(id).toBe('comment-1')
@@ -77,13 +79,38 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
     expect(rec.schemas).toContain('shared')
     expect(rec.tables).toContain('people')
     expect(rec.filters).toContainEqual(['archived_at', null])
+    // #584: the title names the actor and the entity kind — never the bare "@mention in task"
+    // stacked mentions couldn't tell apart.
     expect(rec.rpcs).toEqual([
       ['create_notification', {
         p_owner: 'person-riri',
         p_severity: 'info',
-        p_title: '@mention in task',
+        p_title: 'Ayu mentioned you in a task',
         p_body: 'Please review @riri and @unknown',
         p_metadata: { source: 'mention', entity: { type: 'task', id: 'task-1' } },
+      }],
+    ])
+  })
+
+  it('issue 584: composes the title in the Indonesian locale when the actor is on id', async () => {
+    const { sb, rec } = makeSb()
+
+    await postComment({
+      sb: sb as unknown as CommentSupabase,
+      entityType: 'signal',
+      entityId: 'signal-1',
+      body: 'Tolong cek @riri',
+      actorName: 'Ayu',
+      locale: 'id',
+    })
+
+    expect(rec.rpcs).toEqual([
+      ['create_notification', {
+        p_owner: 'person-riri',
+        p_severity: 'info',
+        p_title: 'Ayu menyebut Anda dalam sebuah sinyal',
+        p_body: 'Tolong cek @riri',
+        p_metadata: { source: 'mention', entity: { type: 'signal', id: 'signal-1' } },
       }],
     ])
   })
@@ -91,7 +118,7 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
   it('does not call the definer helper when no mention resolves', async () => {
     const { sb, rec } = makeSb()
 
-    await postComment({ sb: sb as unknown as CommentSupabase, entityType: 'task', entityId: 'task-1', body: 'No mention @unknown' })
+    await postComment({ sb: sb as unknown as CommentSupabase, entityType: 'task', entityId: 'task-1', body: 'No mention @unknown', actorName: 'Ayu', locale: 'en' })
 
     expect(rec.rpcs).toEqual([])
   })
@@ -138,6 +165,8 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       entityType: 'task',
       entityId: 'task-1',
       body: 'Hey @riri',
+      actorName: 'Ayu',
+      locale: 'en',
     })
 
     // The comment row is the durable unit — its id is returned despite the mention failure.
