@@ -32,6 +32,33 @@ export interface CollectionToolbarSearch {
   onChange: (value: string) => void
 }
 
+/**
+ * The search input, standalone (#581). Same markup/classes the toolbar's own query row renders,
+ * factored out so a host can plant it OUTSIDE the phone "View & filters" door — a search-and-
+ * revisit surface (the Signals archive) needs its search reachable without opening the door,
+ * while sort/filter/group stay behind it. Desktop hosts keep using the toolbar's built-in row;
+ * this is for the one caller that needs the two halves split.
+ */
+export function CollectionToolbarSearchField({ search }: { search: CollectionToolbarSearch }) {
+  return (
+    <div className="collection-toolbar__query">
+      <label className="collection-toolbar__search">
+        <span className="sr-only">{search.label}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+        </svg>
+        <input
+          type="search"
+          aria-label={search.label}
+          placeholder={search.placeholder}
+          value={search.value}
+          onChange={(event) => search.onChange(event.target.value)}
+        />
+      </label>
+    </div>
+  )
+}
+
 export interface CollectionToolbarSavedViews {
   label: string
   selectedId: string | null
@@ -66,6 +93,12 @@ export interface CollectionToolbarProps<
    * body. Only the view chip strip survives: it is the door back out of the reserved view.
    */
   reserved?: boolean
+  /**
+   * #581: the caller has already rendered `CollectionToolbarSearchField` itself (outside a phone
+   * "View & filters" door) and does not want this toolbar's own query row duplicating it. Opt-in
+   * and off by default — every other caller (Tasks included) keeps rendering search here.
+   */
+  hideSearchRow?: boolean
 }
 
 /**
@@ -94,6 +127,7 @@ export function CollectionToolbar<
   primaryAction,
   className,
   reserved = false,
+  hideSearchRow = false,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -200,26 +234,11 @@ export function CollectionToolbar<
       </div>
 
       {/* Query row (OD-WAY-89): search leads; desktop secondary controls follow in the always
-          visible options row. Phone hosts expose that row through their single outer disclosure. */}
-      {reserved ? null : (
-      <div className="collection-toolbar__query">
-        {search ? (
-          <label className="collection-toolbar__search">
-            <span className="sr-only">{search.label}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              type="search"
-              aria-label={search.label}
-              placeholder={search.placeholder}
-              value={search.value}
-              onChange={(event) => search.onChange(event.target.value)}
-            />
-          </label>
-        ) : null}
-
-      </div>
+          visible options row. Phone hosts expose that row through their single outer disclosure —
+          UNLESS the host set hideSearchRow because it already planted the search field outside
+          that door itself (#581). */}
+      {reserved || hideSearchRow ? null : (
+        search ? <CollectionToolbarSearchField search={search} /> : <div className="collection-toolbar__query" />
       )}
 
       {hasViewOptions ? (

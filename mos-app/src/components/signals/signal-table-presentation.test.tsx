@@ -249,4 +249,20 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
       desktopState.value = true
     }
   })
+
+  it('issue 580: the phone reflow card carries the Urgent fill + rule the desktop table and feed use; non-Urgent stays plain', () => {
+    desktopState.value = false
+    try {
+      renderTable([
+        row({ id: 's-urgent', body: 'Gas leak', attention: 'Urgent' }),
+        row({ id: 's-calm', body: 'Grinder is down', attention: 'Needs attention' }),
+      ])
+      const urgentCard = screen.getByText('Gas leak').closest('.dt-card')
+      const calmCard = screen.getByText('Grinder is down').closest('.dt-card')
+      expect(urgentCard?.classList.contains('signal-table-row--urgent')).toBe(true)
+      expect(calmCard?.classList.contains('signal-table-row--urgent')).toBe(false)
+    } finally {
+      desktopState.value = true
+    }
+  })
 })

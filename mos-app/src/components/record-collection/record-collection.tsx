@@ -75,7 +75,11 @@ export function RecordCollectionSurface<
         <span className="record-collection-result__collection">{resultHeader.collectionLabel}</span>
       </span>
       <span className="record-collection-result__count tabular-nums">
-        {resultHeader.count === null ? '—' : t('common.resultCount', { count: resultHeader.count })}
+        {resultHeader.count === null
+          ? '—'
+          : t(resultHeader.count === 1 ? 'common.resultCount.one' : 'common.resultCount.other', {
+              count: resultHeader.count,
+            })}
       </span>
     </div>
   ) : null
