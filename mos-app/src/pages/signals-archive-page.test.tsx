@@ -16,6 +16,13 @@ vi.mock('@/lib/db/signals', async (importOriginal) => {
 vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
+vi.mock('@/lib/db/user-views-collection', () => ({
+  listCollectionViews: vi.fn(),
+  getCollectionView: vi.fn(),
+  createCollectionView: vi.fn(),
+  renameCollectionView: vi.fn(),
+  archiveCollectionView: vi.fn(),
+}))
 // The V3 collection Table renders in desktop mode here (deterministic), and the archive Feed's
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
 const desktopState = vi.hoisted(() => ({ value: true }))
@@ -52,11 +59,15 @@ vi.mock('@/components/signals/signal-record-host', async () => {
 
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
+import { listCollectionViews } from '@/lib/db/user-views-collection'
+import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
 import { SignalsArchivePage, SignalRecordPage } from './signals-archive-page'
+import { signalCollectionDescriptor } from '@/components/signals/signal-collection-adapter'
 
 const mockListReadableSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetPeople = vi.mocked(getPeople)
+const mockListCollectionViews = vi.mocked(listCollectionViews)
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
@@ -144,6 +155,7 @@ beforeEach(() => {
     { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
   ])
   mockGetPeople.mockResolvedValue(PEOPLE)
+  mockListCollectionViews.mockResolvedValue([])
 })
 
 describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', () => {
@@ -423,6 +435,35 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
 
     await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
     await waitFor(() => expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument())
+  })
+})
+
+// #610: a custom Signals saved view named itself only in tasks-workspace.tsx (via
+// getActiveTaskView) — this page's caption fell back to signalViewLabel(query.view), the
+// underlying view's generic label, ignoring savedViewId entirely. getActiveSignalView closes
+// that gap the same way Tasks already does: the result-header caption reads the FETCHED saved
+// view's name, while the URL keeps carrying only its id (?saved=<id>), never the name.
+describe('Issue 610 — a custom Signals saved view names itself in the caption', () => {
+  it('shows the fetched saved-view name in the result header; the URL carries only the id', async () => {
+    const customView: PersistedCollectionView = {
+      id: 'custom-signal-view', name: 'Radiant watch', scope: 'private', kind: 'collection', context: 'work',
+      lifecycle: 'active', archivedAt: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+      spec: signalCollectionDescriptor.savedViews.buildSpec({
+        query: signalCollectionDescriptor.query.neutral,
+        presentation: 'feed',
+      }),
+    }
+    mockListCollectionViews.mockResolvedValue([customView])
+
+    renderPage('/work/signals?saved=custom-signal-view')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    // The caption reads the fetched name, not the generic "All" view label the query alone maps to.
+    expect(screen.getByTestId('collection-result-header')).toHaveTextContent('Radiant watch')
+    expect(screen.getByTestId('collection-result-header')).not.toHaveTextContent('All')
+    // The URL is the id only — the name never round-trips through it.
+    expect(screen.getByTestId('location')).toHaveTextContent('saved=custom-signal-view')
+    expect(screen.getByTestId('location')).not.toHaveTextContent('Radiant')
   })
 })
 

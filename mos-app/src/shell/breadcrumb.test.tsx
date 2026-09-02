@@ -3,24 +3,21 @@ import { useMemo } from 'react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import { BreadcrumbTitleProvider } from './breadcrumb-title'
+import { BreadcrumbTitleProvider, useSetCollectionLeaf } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
 import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { useT } from '@/i18n/use-t'
-import { RecordCollectionChromeProvider, usePublishRecordCollectionChrome } from '@/lib/record-collection/record-collection-context'
 
 function TestCollectionChrome() {
   const { search } = useLocation()
   const t = useT()
   const view = new URLSearchParams(search).get('view')
   const canonical = view === 'mine' ? 'my-work' : view ?? 'all'
-  const snapshot = useMemo(() => ({
-    collectionId: 'tasks',
-    query: { view: canonical, savedViewId: null },
-    activeViewLabel: canonical === 'my-work' ? t('tasks.saved.mine') : canonical === 'overdue' ? t('followUps.overdue') : t('tasks.saved.followups'),
+  const leaf = useMemo(() => ({
+    label: canonical === 'my-work' ? t('tasks.saved.mine') : canonical === 'overdue' ? t('followUps.overdue') : t('tasks.saved.followups'),
     hasNonDefaultView: canonical !== 'all',
   }), [canonical, t])
-  usePublishRecordCollectionChrome(snapshot)
+  useSetCollectionLeaf(leaf)
   return null
 }
 
@@ -30,12 +27,10 @@ function renderBC(path: string) {
     <I18nProvider>
       <BreadcrumbTitleProvider>
         <MemoryRouter initialEntries={[path]}>
-          <RecordCollectionChromeProvider>
-            <TestCollectionChrome />
-            <Routes>
-              <Route path="*" element={<nav aria-label="Breadcrumb"><Breadcrumb /></nav>} />
-            </Routes>
-          </RecordCollectionChromeProvider>
+          <TestCollectionChrome />
+          <Routes>
+            <Route path="*" element={<nav aria-label="Breadcrumb"><Breadcrumb /></nav>} />
+          </Routes>
         </MemoryRouter>
       </BreadcrumbTitleProvider>
     </I18nProvider>,

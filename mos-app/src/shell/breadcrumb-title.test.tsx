@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import { BreadcrumbTitleProvider, useBreadcrumbTitle, useSetBreadcrumbTitle } from './breadcrumb-title'
+import { BreadcrumbTitleProvider, useBreadcrumbTitle, useSetBreadcrumbTitle, useCollectionLeaf, useSetCollectionLeaf } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
 
 // ── Helper: renders Breadcrumb inside the provider + a given route ────────────
@@ -109,6 +109,82 @@ describe('AC-S04b: BreadcrumbTitleProvider + hooks', () => {
       )
     })
     expect(captured).toBeNull()
+  })
+})
+
+// ── Cross-slot independence (the consolidation's central risk) ────────────────
+// title and collectionLeaf are two fields on ONE context value (not two contexts), so the risk
+// this refactor introduces is a writer for one field accidentally touching, or a cleanup
+// accidentally clearing, the OTHER field. These tests mount both writers together and prove each
+// slot's set/clear is scoped to itself.
+describe('breadcrumb-title: title and collectionLeaf are independent slots', () => {
+  function TitleWriter({ title }: { title: string }) {
+    useSetBreadcrumbTitle(title)
+    return null
+  }
+  function LeafWriter({ leaf }: { leaf: { label: string; hasNonDefaultView: boolean } }) {
+    useSetCollectionLeaf(leaf)
+    return null
+  }
+  function Readers({ onRead }: { onRead: (title: string | null, leaf: { label: string; hasNonDefaultView: boolean } | null) => void }) {
+    onRead(useBreadcrumbTitle(), useCollectionLeaf())
+    return null
+  }
+
+  it('setting/clearing the title leaves an already-set collection leaf untouched', () => {
+    let seenTitle: string | null = 'unset'
+    let seenLeaf: { label: string; hasNonDefaultView: boolean } | null = null
+    const { rerender } = render(
+      <BreadcrumbTitleProvider>
+        <LeafWriter leaf={{ label: 'My queue', hasNonDefaultView: true }} />
+        <TitleWriter title="Fix the login bug" />
+        <Readers onRead={(t, l) => { seenTitle = t; seenLeaf = l }} />
+      </BreadcrumbTitleProvider>,
+    )
+    expect(seenTitle).toBe('Fix the login bug')
+    expect(seenLeaf).toEqual({ label: 'My queue', hasNonDefaultView: true })
+
+    // Unmount ONLY the title writer (mirrors leaving a record while the Tasks list — and its
+    // published leaf — stays mounted underneath).
+    act(() => {
+      rerender(
+        <BreadcrumbTitleProvider>
+          <LeafWriter leaf={{ label: 'My queue', hasNonDefaultView: true }} />
+          <Readers onRead={(t, l) => { seenTitle = t; seenLeaf = l }} />
+        </BreadcrumbTitleProvider>,
+      )
+    })
+    expect(seenTitle).toBeNull()
+    // The leaf must survive the title's clear — a shared context value must not mean a shared slot.
+    expect(seenLeaf).toEqual({ label: 'My queue', hasNonDefaultView: true })
+  })
+
+  it('setting/clearing the collection leaf leaves an already-set title untouched', () => {
+    let seenTitle: string | null = 'unset'
+    let seenLeaf: { label: string; hasNonDefaultView: boolean } | null = { label: 'placeholder', hasNonDefaultView: false }
+    const { rerender } = render(
+      <BreadcrumbTitleProvider>
+        <TitleWriter title="Fix the login bug" />
+        <LeafWriter leaf={{ label: 'My queue', hasNonDefaultView: true }} />
+        <Readers onRead={(t, l) => { seenTitle = t; seenLeaf = l }} />
+      </BreadcrumbTitleProvider>,
+    )
+    expect(seenTitle).toBe('Fix the login bug')
+    expect(seenLeaf).toEqual({ label: 'My queue', hasNonDefaultView: true })
+
+    // Unmount ONLY the leaf writer (mirrors leaving the Tasks list while a Task drawer — and its
+    // published title — stays open above it).
+    act(() => {
+      rerender(
+        <BreadcrumbTitleProvider>
+          <TitleWriter title="Fix the login bug" />
+          <Readers onRead={(t, l) => { seenTitle = t; seenLeaf = l }} />
+        </BreadcrumbTitleProvider>,
+      )
+    })
+    expect(seenLeaf).toBeNull()
+    // The title must survive the leaf's clear.
+    expect(seenTitle).toBe('Fix the login bug')
   })
 })
 

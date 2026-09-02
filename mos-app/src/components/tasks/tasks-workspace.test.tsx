@@ -15,7 +15,7 @@ import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { Breadcrumb } from '@/shell/breadcrumb'
 import { OverlayHostProvider } from '@/shell/overlay-host'
-import { RecordCollectionChromeProvider } from '@/lib/record-collection/record-collection-context'
+import { BreadcrumbTitleProvider } from '@/shell/breadcrumb-title'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
@@ -231,10 +231,10 @@ describe('AC-573 — saved-view chrome uses fetched state', () => {
         <AuthContext.Provider value={authedState}>
           <MemoryRouter initialEntries={['/work/tasks?saved=custom-view']}>
             <OverlayHostProvider>
-              <RecordCollectionChromeProvider>
+              <BreadcrumbTitleProvider>
                 <TasksWorkspace />
                 <nav aria-label="Breadcrumb"><Breadcrumb /></nav>
-              </RecordCollectionChromeProvider>
+              </BreadcrumbTitleProvider>
             </OverlayHostProvider>
           </MemoryRouter>
         </AuthContext.Provider>
