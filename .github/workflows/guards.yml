@@ -50,9 +50,10 @@ on:
     # # check can still fail, so a change to the harness, its fingerprint, or the commit it
     # # treats as deployed re-runs it. `scripts/*.test.sh` above only covers the test file.
     # # Re: the fingerprint SQL specifically — this self-test has no Postgres to run it against,
-    # # so it only checks the file PARSES (comments/strings stripped, parens balance, real
-    # # content present); it does not execute it. Real execution coverage is the integration and
-    # # geometry lanes, which boot a stack and run this file for real (#472).
+    # # so it does not parse or execute the SQL: it strips comments/strings and checks the
+    # # parens balance and the file is non-empty, which catches truncation and gross corruption,
+    # # not a syntax error. Real execution coverage is the integration and geometry lanes, which
+    # # boot a stack and run this file for real (#472).
     # - 'scripts/applied-path-check.sh'
     # - 'scripts/lib/applied-path-fingerprint.sql'
     # - 'supabase/applied-path-baseline'
@@ -99,9 +100,9 @@ jobs:
         run: bash scripts/reporting-snapshot.test.sh
       - name: applied-path harness self-test (#393)
         # Behavioural: it builds a throwaway git repo and stubs the database, so it needs no
-        # Docker. Section H guts the harness and requires the suite to notice. Section U parses
-        # the fingerprint SQL (no Postgres here to execute it against — the integration/geometry
-        # lanes do that for real).
+        # Docker. Section H guts the harness and requires the suite to notice. Section U checks
+        # the fingerprint SQL's parens balance and that it is non-empty (no Postgres here to
+        # execute it against — the integration/geometry lanes do that for real).
         run: bash scripts/applied-path-check.test.sh
       - name: e2e-takes-the-db-lock self-test (#388)
         run: bash scripts/e2e-db-lock.test.sh

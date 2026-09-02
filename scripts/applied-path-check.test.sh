@@ -1029,13 +1029,21 @@ else
   bad "a kind-less drift line aborted the classifier instead of falling through (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
 fi
 
-echo "── U. the fingerprint SQL is parsed, not just swallowed by the stub (#472)"
+echo "── U. the fingerprint SQL's parens balance and it is not empty (#472)"
 # The fake docker above never executes SQL — it renders canned rows from two text files — so a
 # syntax error in scripts/lib/applied-path-fingerprint.sql would pass this whole suite while
 # guards.yml lists that file as covered by it. No local Postgres is available here — this file's
-# own header says so on purpose — so this is a STRUCTURAL check, not an execution one: strip `--`
-# comments and '…' string content, then require the parens actually balance. Real execution
-# coverage lives in the integration/geometry lanes, which boot Postgres and run this file for real.
+# own header says so on purpose — so this does NOT parse or execute the SQL: strip `--` comments
+# and '…' string content, then require the parens balance and the file is non-empty. That catches
+# truncation and gross corruption, never a syntax error the parens don't reveal (an unbalanced
+# CASE/END, a missing comma). Real execution coverage lives in the integration/geometry lanes,
+# which boot Postgres and run this file for real.
+#
+# The stripper is calibrated to THIS file's dialect, not general SQL: applied-path-fingerprint.sql
+# carries no dollar-quoted (`$$`) body and no `E'...'` escape string today, so neither is handled
+# here — unlike the harness's own statement lexer (sections M/P2/Q), which has to survive
+# migrations that do. If the fingerprint SQL ever grows one, this check needs the same handling
+# or it will misjudge the balance.
 cat > "$T/parse-balance.pl" <<'PERL'
 #!/usr/bin/env perl
 # Strip `--` line comments and '...' string content (Postgres doubles a quote to escape one
