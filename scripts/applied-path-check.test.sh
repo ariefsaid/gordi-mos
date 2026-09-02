@@ -275,6 +275,7 @@ mkrepo() {  # mkrepo DIR
   local R="$1"
   mkdir -p "$R/scripts/lib" "$R/supabase/migrations"
   cp "$HARNESS" "$R/scripts/applied-path-check.sh"; chmod +x "$R/scripts/applied-path-check.sh"
+  cp "$REPO/scripts/lib/sql-blank.sh" "$R/scripts/lib/sql-blank.sh"
   cp "$FP_SQL" "$R/scripts/lib/applied-path-fingerprint.sql"
   cat > "$R/supabase/config.toml" <<'CFG'
 project_id = "fake-mos"
@@ -456,6 +457,7 @@ echo "── I. control: --prove's OWN verdict must be able to fail"
 mutate_harness() {
   local r="$1" name="$2" expr="$3"
   cp "$HARNESS" "$r/scripts/applied-path-check.sh"
+  cp "$REPO/scripts/lib/sql-blank.sh" "$r/scripts/lib/sql-blank.sh"
   perl -0pi -e "$expr" "$r/scripts/applied-path-check.sh"
   chmod +x "$r/scripts/applied-path-check.sh"
   if cmp -s "$HARNESS" "$r/scripts/applied-path-check.sh"; then
@@ -472,6 +474,7 @@ RI1="$T/prove-red"
   export MKREPO_GEN2_EXTRA="alter table t drop constraint if exists t_ghost_check;"
   mkrepo "$RI1" )
 cp "$HARNESS" "$RI1/scripts/applied-path-check.sh"; chmod +x "$RI1/scripts/applied-path-check.sh"
+cp "$REPO/scripts/lib/sql-blank.sh" "$RI1/scripts/lib/sql-blank.sh"
 rm -rf "$T/db"; rm -rf "$T/out-i1"; mkdir -p "$T/out-i1"
 run "$RI1" "$T/out-i1" --prove; rc=$?
 if [ "$rc" != "0" ] && grep -qF "t_ghost_check" "$T/out-i1/red/sabotage.txt" 2>/dev/null \
@@ -499,6 +502,7 @@ RI2="$T/prove-fresh"
 alter table t drop constraint if exists t_temp_check;"
   mkrepo "$RI2" )
 cp "$HARNESS" "$RI2/scripts/applied-path-check.sh"; chmod +x "$RI2/scripts/applied-path-check.sh"
+cp "$REPO/scripts/lib/sql-blank.sh" "$RI2/scripts/lib/sql-blank.sh"
 rm -rf "$T/db"; rm -rf "$T/out-i2"; mkdir -p "$T/out-i2"
 run "$RI2" "$T/out-i2" --prove; rc=$?
 if [ "$rc" = "2" ] && printf '%s' "$LAST_OUT" | grep -qF "changed the FRESH database too"; then
@@ -519,12 +523,14 @@ fi
 echo "── J. the refusal guards G5 and G6 are themselves proven"
 # Both were unproven: removing either left the suite green (review finding).
 R9="$T/g5"; mkrepo "$R9"; cp "$HARNESS" "$R9/scripts/applied-path-check.sh"; chmod +x "$R9/scripts/applied-path-check.sh"
+cp "$REPO/scripts/lib/sql-blank.sh" "$R9/scripts/lib/sql-blank.sh"
 rm -rf "$T/db"; rm -rf "$T/out-j5"; mkdir -p "$T/out-j5"
 STUB_DROP_VERSION=1 run "$R9" "$T/out-j5"; rc=$?
 [ "$rc" = "2" ] && ok "G5 refuses when the chain did not record a pending version (rc=2)" \
   || bad "G5 did not refuse a chain missing a recorded version (rc=$rc)"
 
 R10="$T/g6"; mkrepo "$R10"; cp "$HARNESS" "$R10/scripts/applied-path-check.sh"; chmod +x "$R10/scripts/applied-path-check.sh"
+cp "$REPO/scripts/lib/sql-blank.sh" "$R10/scripts/lib/sql-blank.sh"
 rm -rf "$T/db"; rm -rf "$T/out-j6"; mkdir -p "$T/out-j6"
 STUB_DROP_KIND=POLICY run "$R10" "$T/out-j6"; rc=$?
 [ "$rc" = "2" ] && ok "G6 refuses when a whole fact class vanished from the fingerprint (rc=2)" \

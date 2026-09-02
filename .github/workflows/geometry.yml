@@ -83,7 +83,7 @@ jobs:
           # Carve-out: the applied-path harness's own inputs (#393) live under scripts/, which is
           # otherwise inert here — a change to THESE two files must still run, even though nothing
           # else in scripts/ would.
-          APPLIED_PATH_INPUTS="$(printf '%s\n' "$CHANGED" | grep -E '^scripts/(applied-path-check\.sh|lib/applied-path-fingerprint\.sql)$' || true)"
+          APPLIED_PATH_INPUTS="$(printf '%s\n' "$CHANGED" | grep -E '^scripts/(applied-path-check\.sh|lib/applied-path-fingerprint\.sql|lib/sql-blank\.sh)$' || true)"
           if [ -n "$NOT_INERT" ] || [ -n "$APPLIED_PATH_INPUTS" ]; then
             echo "render=true" >> "$GITHUB_OUTPUT"
             echo "Running the DB checks — these paths are not inert:"
