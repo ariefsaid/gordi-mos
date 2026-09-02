@@ -18,6 +18,8 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId, useMe
 import { createPortal } from 'react-dom'
 import { shouldFlipUp } from './menu-position'
 import { useMenuPopover } from '@/lib/use-menu-popover'
+import { clampPopoverGeometry } from '@/components/ui/clamp-popover-offset'
+import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import { useSearchParamState, useSearchParamReset } from '@/lib/use-search-param-state'
 import { Pill } from '@/components/ui/pill'
 import type { PillTone } from '@/components/ui/pill'
@@ -318,9 +320,18 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
     const rect = trigger.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-    // Right-align to the trigger's right edge; clamp so it doesn't overflow left.
-    const right = vw - rect.right
-    const clampedRight = Math.max(MENU_SIDE_MARGIN, Math.min(right, vw - MENU_MIN_WIDTH - MENU_SIDE_MARGIN))
+    // Right-align to the trigger's right edge; clamp so it doesn't overflow left. Reframed as a
+    // left-edge clamp (#621, shared with help-tip/the category picker): the menu's unclamped left
+    // edge, if flush-right with the trigger at the estimated width, is `rect.right - MENU_MIN_WIDTH`;
+    // clamping that and converting back to a right-offset is algebraically identical to clamping
+    // `right` directly, so this is a plumbing change only.
+    const { left } = clampPopoverGeometry({
+      anchorLeft: rect.right - MENU_MIN_WIDTH,
+      popoverWidth: MENU_MIN_WIDTH,
+      viewportWidth: vw,
+      margin: MENU_SIDE_MARGIN,
+    })
+    const clampedRight = vw - left - MENU_MIN_WIDTH
     if (shouldFlipUp(rect, ESTIMATED_MENU_HEIGHT, vh)) {
       setPosition({ bottom: vh - rect.top, right: clampedRight })
     } else {
@@ -338,17 +349,10 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
   // I3: the shared menu/popover contract — focus-enter, Arrow/Home/End, Esc, outside-click.
   useMenuPopover(open, close, menuContainerRef, triggerRef)
 
-  // Position-only concern (not part of I3): dismiss on scroll/resize to avoid drift.
-  useEffect(() => {
-    if (!open) return
-    const onScrollOrResize = () => setOpen(false)
-    window.addEventListener('scroll', onScrollOrResize, { capture: true })
-    window.addEventListener('resize', onScrollOrResize)
-    return () => {
-      window.removeEventListener('scroll', onScrollOrResize, { capture: true })
-      window.removeEventListener('resize', onScrollOrResize)
-    }
-  }, [open])
+  // Position-only concern (not part of I3): dismiss on scroll/resize to avoid drift (#621: shares
+  // the scroll/resize listener plumbing with help-tip's reposition-on-reflow, but this site's
+  // reflow is "close" rather than "reposition" — there is no live repositioning to fall back to).
+  usePopoverReflow(open, close)
 
   // Return focus to the trigger when the menu closes (Esc / outside-click / select).
   // Guarded by `wasOpenRef` so this never fires on a component's FIRST mount (e.g. a
