@@ -79,6 +79,18 @@ apply_stmt() {  # apply_stmt STATEMENT
       [ -n "$n" ] || { echo "fake supabase: could not read the policy name: $lc" >&2; exit 1; }
       grep -vxF "$n" "$S/pols" > "$S/pols.tmp" 2>/dev/null || : > "$S/pols.tmp"
       mv "$S/pols.tmp" "$S/pols" ;;
+    *"drop column if exists"*)
+      # Models a plain column drop — no CONSTRAINT/RLS/POLICY/FUNCTION fact moves, only the
+      # CATALOG name field (the fingerprint's stable-column list) changes. Section T3 uses this
+      # to prove a real schema drift of this shape does not get the seed-asymmetry headline.
+      n="$(fold_ident "$(ident_after "$stmt" if exists)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the column name: $lc" >&2; exit 1; }
+      grep -vxF "$n" "$S/cols" > "$S/cols.tmp" 2>/dev/null || : > "$S/cols.tmp"
+      mv "$S/cols.tmp" "$S/cols" ;;
+    *"add column"*)
+      n="$(fold_ident "$(ident_after "$stmt" add column)")"
+      [ -n "$n" ] || { echo "fake supabase: could not read the column name: $lc" >&2; exit 1; }
+      grep -qxF "$n" "$S/cols" || echo "$n" >> "$S/cols" ;;
     *"create policy"*)
       n="$(fold_ident "$(ident_after "$stmt" create policy)")"
       [ -n "$n" ] || { echo "fake supabase: could not read the policy name: $lc" >&2; exit 1; }
@@ -137,6 +149,9 @@ case "$1 $2" in
         fi ;;
     esac
     : > "$S/cons"; : > "$S/versions"
+    # The baseline column: `create table t (a text)` on every generation. A fresh reset always
+    # starts here; only add/drop column statements applied below move it (section T3).
+    echo a > "$S/cols"
     for f in "$W"/supabase/migrations/*.sql; do apply "$f"; done
     # `db reset` re-seeds; `migration up` (below) deliberately does not — mirroring the real
     # Supabase CLI and a real deployed database, which is never re-seeded either (#472). Only
@@ -146,7 +161,17 @@ case "$1 $2" in
     for f in "$W"/supabase/seed*.sql; do
       [ -e "$f" ] || continue
       grep -v '^[[:space:]]*--' "$f" | grep -v '^[[:space:]]*$' >> "$S/seed" || true
-    done ;;
+    done
+    # Section V's knob only: a fact that a fresh reset sets and that migration up (below) never
+    # restores, with NO real object class behind it — models a fingerprint row whose KIND isn't
+    # an uppercase word, so a defensive test of the classifier's own parsing doesn't need a real
+    # broken migration to trigger it. Off by default; every other fixture is untouched.
+    if [ "${STUB_LOWERCASE_ROW:-0}" = "1" ]; then
+      case "$W" in
+        */head) echo 1 > "$S/lowercase_flag" ;;
+        */base) echo 0 > "$S/lowercase_flag" ;;
+      esac
+    fi ;;
   "migration up")
     for f in "$W"/supabase/migrations/*.sql; do
       v="$(basename "$f" | sed -n 's/^\([0-9][0-9]*\)_.*/\1/p')"
@@ -196,6 +221,19 @@ cat > /dev/null   # swallow the fingerprint SQL on stdin
   # default fixture) fingerprint identically — only real content should ever show up as drift.
   SEED_MARKER="$(tr '\n' ' ' < "$S/seed" 2>/dev/null)"
   echo "CATALOG|filler.seeded|marker|<row><v>${SEED_MARKER:--}</v></row>"
+  # A CATALOG row whose NAME field IS the column list — the real fingerprint's `stable_cols`
+  # shape (applied-path-fingerprint.sql). Section T3 drops a column via a real migration bug
+  # (no matching CONSTRAINT/RLS/POLICY/FUNCTION moves) and needs this to differ, not the marker
+  # row above, to prove the classifier reads field 3, not just "is everything CATALOG".
+  COLS="$(sort "$S/cols" 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+  echo "CATALOG|t|${COLS:-a}|<row><n>1</n></row>"
+  # Section V only (off by default): one row with a lowercase KIND — no real object class emits
+  # one — present after a fresh reset of the head tree, absent after the baseline is reset and
+  # migrated forward. Proves the classifier's own kind-parsing doesn't abort when a diff line
+  # doesn't start with an uppercase word, without needing a real broken migration to produce it.
+  if [ "${STUB_LOWERCASE_ROW:-0}" = "1" ] && [ "$(cat "$S/lowercase_flag" 2>/dev/null || echo 0)" = "1" ]; then
+    echo "extra|marker|-|present"
+  fi
 } | sort | { if [ -n "${STUB_DROP_KIND:-}" ]; then grep -v "^${STUB_DROP_KIND}|"; else cat; fi; }
 STUB
 chmod +x "$T/bin/supabase" "$T/bin/docker"
@@ -948,6 +986,47 @@ if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh 
   ok "a mixed CATALOG+CONSTRAINT drift keeps the generic DRIFT message"
 else
   bad "a mixed drift was mis-classified as pure seed asymmetry (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+# T3 — control: a column-list-only CATALOG drift is NOT a seed edit. CATALOG's name field is the
+# fingerprint's stable-column list, so a plain column drop a migration forgot — no
+# CONSTRAINT/RLS/POLICY/FUNCTION fact moves — ALSO shows up as CATALOG-only, and must not get the
+# seed headline: no seed*.sql changed here at all. GEN1 (the baseline) carries an extra column
+# that GEN2's rewritten 001 never creates and no migration ever drops — a real oversight, the same
+# shape section B uses for a forgotten constraint drop, just one level down at the column.
+RT3="$T/t3-column"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN1_EXTRA="alter table t add column legacy_col text;"
+  mkrepo "$RT3" )
+rm -rf "$T/db"; rm -rf "$T/out-t3"; mkdir -p "$T/out-t3"
+run "$RT3" "$T/out-t3"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a column-list-only CATALOG drift keeps the generic DRIFT message, not SEED-DRIFT"
+else
+  bad "a forgotten column drop was mis-classified as seed asymmetry (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+if grep -qF "legacy_col" "$T/out-t3/drift.diff" 2>/dev/null; then
+  ok "the drift names the column that survived"
+else
+  bad "the drift did not name the surviving column (got: $(tr '\n' ' ' < "$T/out-t3/drift.diff" 2>/dev/null))"
+fi
+
+echo "── V. a kind-less drift line does not abort the classifier — it falls through, message intact"
+# The DRIFT_KINDS assignment is a pipeline under set -o pipefail: `grep -oE ...` matching NOTHING
+# exits 1, and even though sed/sort after it succeed, pipefail makes the ASSIGNMENT's own exit
+# status 1 — a bare `VAR="$(...)"` with no `||`/`if` around it then aborts the whole script under
+# `set -e`, printing NEITHER the SEED-DRIFT nor the generic DRIFT message (#472). STUB_LOWERCASE_ROW
+# forces exactly that: a drift line whose kind is lowercase, so nothing before the first `|`
+# matches `[A-Z]+`, on an otherwise-converging repo where nothing else differs.
+rm -rf "$T/db"; rm -rf "$T/out-v"; mkdir -p "$T/out-v"
+LAST_OUT="$( cd "$R" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+    APPLIED_PATH_MIN_PENDING="${MINP:-1}" STUB_LOWERCASE_ROW=1 \
+    ./scripts/applied-path-check.sh --out "$T/out-v" 2>&1 )"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one"; then
+  ok "a diff line with no uppercase KIND prefix still reaches the generic DRIFT message (rc=1)"
+else
+  bad "a kind-less drift line aborted the classifier instead of falling through (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
 fi
 
 echo "── U. the fingerprint SQL is parsed, not just swallowed by the stub (#472)"
