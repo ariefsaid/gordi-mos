@@ -73,11 +73,17 @@ dirty() { [ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ]; }
 # folds in the empty "wip: claim" divergence-guard commit for free: an empty commit changes
 # no tree, so it changes nothing about the branch's current tree either.
 is_merged() {
-  local branch="$1" target="$2" mb synth
+  local branch="$1" target="$2" mb synth cherry_out
   git merge-base --is-ancestor "$branch" "origin/$target" 2>/dev/null && return 0
   mb="$(git merge-base "origin/$target" "$branch" 2>/dev/null)" || return 1
+  [ -n "$mb" ] || return 1
   synth="$(git commit-tree "$branch^{tree}" -p "$mb" -m _ 2>/dev/null)" || return 1
-  [ -z "$(git cherry "origin/$target" "$synth" 2>/dev/null | grep '^+')" ]
+  [ -n "$synth" ] || return 1
+  # Fail closed on the destructive path: a FAILED cherry (nonzero exit) must read as "not
+  # merged", never as "no + lines" — checking only `grep` on cherry's stdout would let a
+  # cherry error (empty stdout, exit nonzero) pass as merged and drive `branch -D`.
+  cherry_out="$(git cherry "origin/$target" "$synth" 2>/dev/null)" || return 1
+  [ -z "$(printf '%s\n' "$cherry_out" | grep '^+')" ]
 }
 
 PROTECTED="main dev staging"

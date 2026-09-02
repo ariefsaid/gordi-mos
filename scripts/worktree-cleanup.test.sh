@@ -177,5 +177,46 @@ else fail=$((fail+1)); printf '  FAIL  squash-merged dirty worktree still on dis
 git -C "$repo3" branch --list feat-squashed-dirty | grep -q feat-squashed-dirty
 t "branch of kept squash-merged dirty worktree not deleted" $? "branch feat-squashed-dirty missing"
 
+# is_merged()'s squash-detection step ends in a command substitution (`git cherry ... | grep`)
+# feeding a `[ -z ... ]` test — that construct sees only stdout, never the exit status of the
+# pipeline it came from. A FAILED cherry call (e.g. an unfetchable/corrupt target ref) prints
+# nothing on stdout, which reads identically to "no unmerged patches" unless the exit status is
+# checked separately. Force that failure with a `git` shim so the fixture doesn't depend on
+# finding a real-world way to make cherry error out after merge-base/commit-tree already
+# succeeded: fail closed must mean "kept", never a `branch -D` on a guess.
+shim="$tmp/shimbin"
+mkdir -p "$shim"
+real_git="$(command -v git)"
+cat > "$shim/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "cherry" ] && [ -n "\${FAKE_CHERRY_FAIL:-}" ]; then
+  exit 17
+fi
+exec "$real_git" "\$@"
+EOF
+chmod +x "$shim/git"
+
+repo4="$tmp/repo4"
+mkdir -p "$repo4/.claude/worktrees"
+git -C "$repo4" init -q
+git -C "$repo4" config user.email t@t
+git -C "$repo4" config user.name t
+git -C "$repo4" checkout -q -b dev
+echo base > "$repo4/f.txt"; git -C "$repo4" add f.txt; git -C "$repo4" commit -qm base
+git -C "$repo4" remote add origin "$repo4"
+git -C "$repo4" worktree add -q -b feat-squashed "$repo4/.claude/worktrees/feat-squashed" dev
+echo one >> "$repo4/.claude/worktrees/feat-squashed/f.txt"
+git -C "$repo4/.claude/worktrees/feat-squashed" commit -qam c1
+git -C "$repo4" merge --squash feat-squashed -q >/dev/null
+git -C "$repo4" commit -qm squash
+
+out="$(cd "$repo4" && PATH="$shim:$PATH" FAKE_CHERRY_FAIL=1 bash "$SCRIPT" dev 2>&1)"
+printf '%s' "$out" | grep -q "kept, still checked out.*feat-squashed"; t "branch kept when cherry itself fails (fail closed)" $? "$out"
+if [ -d "$repo4/.claude/worktrees/feat-squashed" ]; then
+  pass=$((pass+1)); printf '  ok    worktree survives a failed cherry call\n'
+else fail=$((fail+1)); printf '  FAIL  worktree survives a failed cherry call\n%s\n' "$out"; fi
+git -C "$repo4" branch --list feat-squashed | grep -q feat-squashed
+t "branch survives a failed cherry call" $? "branch feat-squashed missing"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
