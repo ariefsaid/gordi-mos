@@ -101,25 +101,26 @@ export function SignalsArchivePage() {
     },
   })
 
-  // currentQuery is always `query` — kept as a parameter to mirror taskDisclosureSummary's shape.
-  function signalDisclosureSummary(currentQuery: SignalCollectionQuery): { summary: string; hasActiveFilters: boolean } {
+  function signalDisclosureSummary(): { summary: string; hasActiveFilters: boolean } {
     const base = activeSignalView.label
     const excludedKeys = new Set(['layout', 'groupBy', 'sort', 'direction'])
     const hasIndependentFilter = Object.keys(SIGNAL_COLLECTION_NEUTRAL_QUERY).some((key) => {
       if (excludedKeys.has(key)) return false
-      const queryValue = currentQuery[key as keyof SignalCollectionQuery]
+      const queryValue = query[key as keyof SignalCollectionQuery]
       const neutralValue = SIGNAL_COLLECTION_NEUTRAL_QUERY[key as keyof SignalCollectionQuery]
       return queryValue !== neutralValue
     })
-    const hasActiveFilters = currentQuery.view !== 'all' || hasIndependentFilter
+    // One source for "is this off the default view": activeSignalView.hasNonDefaultView (same
+    // savedViewId/view check getActiveSignalView already made), not a second view!=='all' here.
+    const hasActiveFilters = activeSignalView.hasNonDefaultView || hasIndependentFilter
     if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
 
-    const filterLabel = currentQuery.attention ? t('signals.archive.filterAttention')
-      : currentQuery.category ? t('signals.archive.filterCategory')
-        : currentQuery.teamId ? t('signals.archive.filterTeam')
-          : currentQuery.q.trim() ? t('signals.archive.searchLabel')
-            : currentQuery.showRetracted ? t('signals.archive.showRetracted')
-              : currentQuery.savedViewId ? t('common.savedView')
+    const filterLabel = query.attention ? t('signals.archive.filterAttention')
+      : query.category ? t('signals.archive.filterCategory')
+        : query.teamId ? t('signals.archive.filterTeam')
+          : query.q.trim() ? t('signals.archive.searchLabel')
+            : query.showRetracted ? t('signals.archive.showRetracted')
+              : query.savedViewId ? t('common.savedView')
                 : undefined
     return { summary: filterLabel ? `${base} · ${filterLabel}` : base, hasActiveFilters }
   }
@@ -352,7 +353,7 @@ export function SignalsArchivePage() {
   // Signals and Tasks share the same capture-first phone contract: the first record leads;
   // presentation, filters, grouping, and saved views remain available behind one disclosure.
   // The collection toolbar itself stays unchanged, so desktop keeps the full E7 control row.
-  const signalDisclosure = signalDisclosureSummary(query)
+  const signalDisclosure = signalDisclosureSummary()
   const signalControls = isDesktop ? signalToolbar : (
     <ViewOptionsDisclosure
       open={mobileOptionsOpen}

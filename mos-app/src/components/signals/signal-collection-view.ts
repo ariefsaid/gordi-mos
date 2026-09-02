@@ -14,13 +14,14 @@ export function getActiveSignalView({
   query: Pick<SignalCollectionQuery, 'view' | 'savedViewId'>
   savedViews: readonly Pick<PersistedCollectionView, 'id' | 'name'>[]
   labels: SignalCollectionViewLabels
-}): { savedViewId: string | null; label: string; hasNonDefaultView: boolean } {
+}): { label: string; hasNonDefaultView: boolean } {
+  // No savedViewId in the return: the caller already has it in its own query (used verbatim as
+  // the saved-views control's selectedId) — a second copy here would be an unread field, not a seam.
   const saved = query.savedViewId === null
     ? undefined
     : savedViews.find((item) => item.id === query.savedViewId)
   const isDefaultView = query.view === 'all'
   return {
-    savedViewId: saved?.id ?? null,
     label: saved?.name ?? (isDefaultView ? labels.all : labels[query.view]),
     hasNonDefaultView: query.savedViewId !== null || !isDefaultView,
   }
