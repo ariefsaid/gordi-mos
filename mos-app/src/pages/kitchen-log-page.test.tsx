@@ -1056,6 +1056,17 @@ describe('OD-K-5: the planned total + dish count render in the page-head meta li
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(document.querySelector('.kl-plan-sum')).toBeNull()
   })
+
+  // #588 — the dish count rendered as a bare '· 2' beside 'Planned total 20', with no label,
+  // while Plan states the same fact labeled ('Items planned 1'). The count now carries Plan's
+  // own shared vocabulary key (kitchen.plan.summary.itemsPlanned), so a reader doesn't have to
+  // guess what the second number means.
+  it('labels the dish count with Plan\'s shared "Items planned" vocabulary, not a bare count', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const head = screen.getByTestId('page-head')
+    expect(within(head).getByText('Items planned')).toBeInTheDocument()
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

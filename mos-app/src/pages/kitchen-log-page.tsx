@@ -748,7 +748,13 @@ export function KitchenLogPage() {
           {kpis.plannedTotal > 0 && (
             <span className="kl-plan-sum">
               {t('kitchen.kpi.plannedTotal')} <strong className="tabular">{kpis.plannedTotal}</strong>
-              <span className="kl-plan-dishes tabular">{kpis.plannedDishCount}</span>
+              {/* #588: this used to render as a bare '· 2' — the count with no label — while
+                  Plan states the identical fact labeled ("Items planned 1"). Reusing Plan's own
+                  key here (rather than minting a new one) is the smaller honest change: one
+                  vocabulary for "how many items", never "Dish" (OD-WAY-85). */}
+              <span className="kl-plan-dishes">
+                {t('kitchen.plan.summary.itemsPlanned')} <strong className="tabular">{kpis.plannedDishCount}</strong>
+              </span>
             </span>
           )}
         </span>
