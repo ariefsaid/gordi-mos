@@ -3,12 +3,23 @@ import { useState } from 'react'
 import { render, screen, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { CollectionToolbar } from './collection-toolbar'
 
 // Desktop media-query behavior is explicit here; jsdom's setup default is phone-sized.
 function stubDesktop() {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
     matches: true, media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(), onchange: null,
+  })))
+}
+
+// The shared viewport helper's 390px phone branch is the non-desktop media query.
+function stubPhone390() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes('max-width: 390px') ? true : false,
+    media: query,
     addEventListener: vi.fn(), removeEventListener: vi.fn(),
     addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(), onchange: null,
   })))
@@ -123,15 +134,37 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(screen.queryByText('Team')).not.toBeInTheDocument()
   })
 
-  it('keeps phone options available for the host outer disclosure with visible labels', () => {
-    render(<I18nProvider><CollectionToolbar
-      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
-      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
-      filters={[{ id: 'team', label: 'Team', value: '', options: [{ value: '', label: 'All teams' }], onChange: vi.fn() }]}
-    /></I18nProvider>)
-    expect(screen.queryByRole('button', { name: /view & filters/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
-    expect(screen.getByText('Team')).toBeInTheDocument()
+  it('at 390px, opens the outer View & filters door to reveal the E7 filter row', async () => {
+    stubPhone390()
+    function PhoneHarness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <ViewOptionsDisclosure
+          open={open}
+          onToggle={() => setOpen(value => !value)}
+          label="View & filters"
+          panelId="phone-toolbar-options"
+        >
+          <CollectionToolbar
+            presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+            views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+            filters={[{ id: 'team', label: 'Team', value: '', options: [{ value: '', label: 'All teams' }], onChange: vi.fn() }]}
+          />
+        </ViewOptionsDisclosure>
+      )
+    }
+
+    render(<I18nProvider><PhoneHarness /></I18nProvider>)
+    const trigger = screen.getByRole('button', { name: 'View & filters' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('combobox', { name: 'Team' })).not.toBeInTheDocument()
+
+    await userEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    const panel = screen.getByRole('group', { name: /view & filters/i })
+    expect(within(panel).getByText('Team')).toBeInTheDocument()
+    expect(within(panel).getByRole('combobox', { name: 'Team' })).toHaveValue('')
+    expect(within(panel).getByRole('option', { name: 'All teams' })).toBeInTheDocument()
   })
 
   it('omits unsupported capabilities instead of rendering disabled decorative controls', () => {
