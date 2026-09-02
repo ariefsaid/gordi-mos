@@ -33,19 +33,50 @@ if [ "${#files[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# The REVOKE must name the SAME function as the SECURITY DEFINER declaration — a revoke for some
+# other function in the same file leaves this one PUBLIC-reachable. The clause lives in the CREATE
+# FUNCTION header (always before the $$ body's first `;`), so each definer fn is matched with the
+# text from its `(` to the next `;`. Names are compared schema-qualified, whitespace/quotes
+# normalised; argument lists may differ in spelling and are ignored.
+normalise_defs_revokes() {
+  perl -0777 -ne '
+    my (@defs, %revoked);
+    while (/\bcreate\s+(?:or\s+replace\s+)?function\s+((?:"[^"]*"|\w+)(?:\.(?:"[^"]*"|\w+))*)\s*\(/gis) {
+      my $name = $1;
+      my $start = pos();
+      my $end = index($_, ";", $start);
+      $end = length($_) if $end < 0;
+      if (substr($_, $start, $end - $start) =~ /\bsecurity\s+definer\b/i) {
+        (my $n = $name) =~ s/"//g;
+        $n =~ s/\s+//g;
+        push @defs, lc $n;
+      }
+    }
+    while (/\brevoke\s+execute\s+on\s+function\s+((?:"[^"]*"|\w+)(?:\.(?:"[^"]*"|\w+))*)/gis) {
+      (my $n = $1) =~ s/"//g;
+      $n =~ s/\s+//g;
+      $revoked{lc $n} = 1;
+    }
+    print "$_\n" for grep { !$revoked{$_} } @defs;
+  '
+}
+
 failed=0
 for f in "${files[@]}"; do
   body=$(sed 's/--.*//' "$f" | perl -0777 -pe 's/comment\s+on\b[^;]*;//gis')
   if echo "$body" | grep -qi 'security definer'; then
-    if ! echo "$body" | grep -qi 'revoke execute on function'; then
-      echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
+    missing=$(echo "$body" | normalise_defs_revokes)
+    if [ -n "$missing" ]; then
+      while IFS= read -r fn; do
+        echo "LINT FAIL: $f has SECURITY DEFINER function $fn() without a matching 'revoke execute on function $fn'" >&2
+      done <<< "$missing"
       failed=1
     fi
   fi
 done
 
 if [ "$failed" -eq 1 ]; then
-  echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;' after each SECURITY DEFINER function definition." >&2
+  echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;' naming each SECURITY DEFINER function after its definition." >&2
   exit 1
 fi
-echo "Lint OK: all SECURITY DEFINER migrations have revoke."
+echo "Lint OK: every SECURITY DEFINER function has its own revoke."

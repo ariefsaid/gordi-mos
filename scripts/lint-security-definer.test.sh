@@ -64,5 +64,52 @@ else
   bad "empty migrations dir should fail closed, got rc=0: $out"
 fi
 
+# 5. Per-function match: definer fn A with a revoke for a DIFFERENT fn B — the B revoke must not
+#    satisfy A (a file-level match would let A stay PUBLIC-reachable). Must FAIL.
+mkdir -p "$fixtures/cross_fn"
+cat > "$fixtures/cross_fn/0001_cross.sql" <<'SQL'
+create function mos.alpha() returns void
+language plpgsql security definer as $$ begin null; end; $$;
+revoke execute on function mos.beta() from public, anon, authenticated;
+SQL
+rc=0
+out=$(bash scripts/lint-security-definer.sh "$fixtures/cross_fn" 2>&1) || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qi 'LINT FAIL'; then
+  ok "definer A + revoke for different fn B fails"
+else
+  bad "definer A + revoke for fn B should fail rc=1 with LINT FAIL; got rc=$rc, out: $out"
+fi
+
+# 6. Two SECURITY DEFINER fns with only one revoke — the un-revoked one is still reachable. Must FAIL.
+mkdir -p "$fixtures/two_defs"
+cat > "$fixtures/two_defs/0001_two.sql" <<'SQL'
+create function mos.alpha() returns void
+language plpgsql security definer as $$ begin null; end; $$;
+create function mos.beta() returns void
+language plpgsql security definer as $$ begin null; end; $$;
+revoke execute on function mos.alpha() from public, anon, authenticated;
+SQL
+rc=0
+out=$(bash scripts/lint-security-definer.sh "$fixtures/two_defs" 2>&1) || rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qi 'LINT FAIL'; then
+  ok "two definers with only one revoke fails"
+else
+  bad "two definers with one revoke should fail rc=1 with LINT FAIL; got rc=$rc, out: $out"
+fi
+
+# 7. Matched pair with differing spelling: quoted schema-qualified name and arg-list spacing in
+#    the revoke — whitespace/quoting normalised, schema.name compared. Must PASS.
+mkdir -p "$fixtures/spaced"
+cat > "$fixtures/spaced/0001_ok.sql" <<'SQL'
+create function mos.alpha(text, integer) returns void
+language plpgsql security definer as $$ begin null; end; $$;
+revoke execute on function "mos"."alpha"( text , integer ) from public, anon, authenticated;
+SQL
+if bash scripts/lint-security-definer.sh "$fixtures/spaced" >/tmp/lintsecdef.out 2>&1; then
+  ok "matched revoke with quoted name / arg-list spacing passes"
+else
+  bad "matched revoke with differing spacing/quoting should have passed:"; sed 's/^/        /' /tmp/lintsecdef.out
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
