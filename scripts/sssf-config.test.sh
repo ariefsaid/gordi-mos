@@ -39,6 +39,7 @@ check_config() {
   local p
   for p in 'adws/**' 'agents/**' '.githooks/**' '.github/**' 'scripts/vendor-*' \
            'scripts/with-*-lock.sh' 'scripts/lib/**' scripts/pre-pr-verify.sh \
+           scripts/factory-preflight.py \
            scripts/setup-hooks.sh 'scripts/audit-*.sh' 'scripts/*.test.sh' \
            'scripts/agent-git-shim/**' mos-app/package.json mos-app/vite.config.ts \
            mos-app/playwright.config.ts mos-app/tsconfig.json mos-app/eslint.config.js \

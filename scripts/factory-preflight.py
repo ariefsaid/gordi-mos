@@ -11,12 +11,19 @@ with --allow-barred). Never hard-fail on a parsing surprise: if the barred
 list or the brief can't be read, proceed and let enforce() do its job.
 
 The barred list is never duplicated here. It is read from whichever of the
-two vendored sources actually holds it: adws/adw_sssf_config/sssf.config.yaml
-(defaults.protected_files, the roster's live config) falling back to
-adws/adw_modules/data_types.py (ConfigDefaults' built-in default, used only
-when a config omits the key). No YAML/pydantic dependency: adws/** is
-vendored and this parser only needs to survive ITS current shape, not
-general YAML.
+two vendored sources actually holds it: the config named by --config (or the
+default path) at defaults.protected_files, the roster's live config, falling
+back to adws/adw_modules/data_types.py (ConfigDefaults' built-in default, used
+only when a config omits the key or can't be parsed — announced on stderr,
+since a silent narrowing to the 3-pattern default would otherwise look like a
+clean pass). No YAML/pydantic dependency: adws/** is vendored and this parser
+only needs to survive ITS current shape, not general YAML.
+
+Mirrors permissions.py::always_writable() too: defaults.data_dir (granted to
+every agent regardless of its writes list) is excluded from matching BEFORE
+protected_files, same precedence enforce() applies — otherwise a
+findings-rerun brief citing its own adw_data/<id>/raw_output.jsonl would
+refuse here while the real gate would have allowed it.
 """
 
 from __future__ import annotations
@@ -63,6 +70,14 @@ def _yaml_list(text: str, key: str) -> list[str] | None:
     return items or None
 
 
+def _yaml_scalar(text: str, key: str) -> str | None:
+    """Pull a top-level-ish `key: value` scalar out of simple YAML."""
+    match = re.search(rf"^\s*{re.escape(key)}:\s*(\S.*?)\s*(#.*)?$", text, re.MULTILINE)
+    if not match:
+        return None
+    return match.group(1).strip().strip('"').strip("'") or None
+
+
 def _data_types_default(text: str) -> list[str] | None:
     """The ConfigDefaults fallback list, for a config that omits the key."""
     match = re.search(
@@ -74,22 +89,58 @@ def _data_types_default(text: str) -> list[str] | None:
     return re.findall(r'"([^"]+)"', match.group(1)) or None
 
 
-def load_barred_globs(top: Path) -> list[str]:
-    yaml_path = top / "adws/adw_sssf_config/sssf.config.yaml"
+def _data_types_data_dir(text: str) -> str | None:
+    """The ConfigDefaults fallback data_dir, for a config that omits the key."""
+    match = re.search(r'data_dir:\s*str\s*=\s*"([^"]+)"', text)
+    return match.group(1) if match else None
+
+
+def default_config_path(top: Path) -> Path:
+    return top / "adws/adw_sssf_config/sssf.config.yaml"
+
+
+def load_config(top: Path, config_path: Path) -> tuple[list[str], str]:
+    """Returns (protected_files globs, data_dir), read with the same
+    precedence permissions.py applies at build time: the config named by
+    --config first, data_types.py's ConfigDefaults only for whichever of the
+    two keys the config doesn't yield.
+
+    `data_dir` quietly defaulting when a config just doesn't set it is
+    routine (the real roster config always sets it; a minimal fixture
+    usually doesn't). `protected_files` is different: a config that EXISTS
+    but fails to yield the list — flow style, anchors, block scalars,
+    anything past this parser's simple-YAML sniffing — silently narrows the
+    check to the 3-pattern built-in default, which would otherwise look like
+    a clean pass. That one gets a stderr line.
+    """
+    text = None
     try:
-        found = _yaml_list(yaml_path.read_text(encoding="utf-8"), "protected_files")
-        if found:
-            return found
+        text = config_path.read_text(encoding="utf-8")
     except OSError:
         pass
-    data_types_path = top / "adws/adw_modules/data_types.py"
-    try:
-        found = _data_types_default(data_types_path.read_text(encoding="utf-8"))
-        if found:
-            return found
-    except OSError:
-        pass
-    return []
+
+    globs = _yaml_list(text, "protected_files") if text is not None else None
+    data_dir = _yaml_scalar(text, "data_dir") if text is not None else None
+
+    if text is not None and globs is None:
+        print(
+            f"pre-flight: could not read protected_files from {config_path}; "
+            "using the built-in default list",
+            file=sys.stderr,
+        )
+
+    if globs is None or data_dir is None:
+        data_types_path = top / "adws/adw_modules/data_types.py"
+        try:
+            dt_text = data_types_path.read_text(encoding="utf-8")
+        except OSError:
+            dt_text = ""
+        if globs is None:
+            globs = _data_types_default(dt_text) or []
+        if data_dir is None:
+            data_dir = _data_types_data_dir(dt_text) or "adws/adw_data"
+
+    return globs, data_dir
 
 
 def read_brief(brief_arg: str) -> str:
@@ -146,15 +197,42 @@ def matches_barred(path: str, pattern: str) -> bool:
     return path == pattern
 
 
-def find_hits(tokens: set[str], globs: list[str]) -> list[tuple[str, str]]:
+def is_always_writable(path: str, data_dir: str) -> bool:
+    """Mirrors permissions.py::always_writable — the session runtime, granted
+    to every agent and checked BEFORE protected_files. A findings-rerun brief
+    that names its own adw_data/<id>/raw_output.jsonl must pass here exactly
+    as enforce() would let it pass at build time."""
+    return path.startswith(data_dir.rstrip("/") + "/")
+
+
+def find_hits(tokens: set[str], globs: list[str], data_dir: str) -> list[tuple[str, str]]:
     hits = []
     for token in tokens:
         normalized = token[2:] if token.startswith("./") else token
+        if is_always_writable(normalized, data_dir):
+            continue
         for pattern in globs:
             if matches_barred(normalized, pattern):
                 hits.append((token, pattern))
                 break
     return sorted(hits)
+
+
+def config_path_from_argv(top: Path, argv: list[str]) -> Path:
+    """The ADW's own --config resolution, so the pre-flight checks the SAME
+    config the build will run under. Accepts both `--config path` and
+    `--config=path`, matching argparse's handling in every adws/adw_*.py
+    entrypoint. A relative value is anchored at `top`, same as the default."""
+    for i, arg in enumerate(argv):
+        if arg == "--config" and i + 1 < len(argv):
+            value = argv[i + 1]
+        elif arg.startswith("--config="):
+            value = arg[len("--config="):]
+        else:
+            continue
+        path = Path(value)
+        return path if path.is_absolute() else top / path
+    return default_config_path(top)
 
 
 def main(argv: list[str]) -> int:
@@ -164,13 +242,15 @@ def main(argv: list[str]) -> int:
     brief_arg = argv[1] if len(argv) > 1 else ""
     if not brief_arg:
         return 0
+    adw_argv = argv[2:]
 
     try:
-        globs = load_barred_globs(top)
+        config_path = config_path_from_argv(top, adw_argv)
+        globs, data_dir = load_config(top, config_path)
         if not globs:
             return 0
         tokens = extract_tokens(read_brief(brief_arg))
-        hits = find_hits(tokens, globs)
+        hits = find_hits(tokens, globs, data_dir)
     except Exception as error:  # never block the factory on a parser bug
         print(f"⚠ factory-preflight: skipping barred-path check ({error})", file=sys.stderr)
         return 0

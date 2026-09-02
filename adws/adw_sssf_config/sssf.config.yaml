@@ -84,6 +84,7 @@ defaults:
     - scripts/with-*-lock.sh       # the gate's db/suite mutex wrappers
     - scripts/lib/**               # flock core behind the wrappers
     - scripts/pre-pr-verify.sh     # the local verify gate
+    - scripts/factory-preflight.py # barred-path pre-flight (#590) — no agent edits its own grader
     - scripts/setup-hooks.sh       # tracked-hook installer
     - scripts/audit-*.sh           # audit-register enforcement
     - scripts/*.test.sh            # EVERY guard self-test — CI's guard lane runs these

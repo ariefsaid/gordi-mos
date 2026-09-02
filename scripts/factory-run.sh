@@ -9,9 +9,8 @@
 # destroyed by the next vendor run, with its proof run green minutes earlier (2026-08-28).
 # MOS-side behavior around the factory lives in scripts/, never inside adws/.
 #
-# --allow-barred skips the barred-path pre-flight (scripts/factory-preflight.py) below — pass it
-# when the brief only MENTIONS a barred path (e.g. "do not touch scripts/pre-pr-verify.sh") rather
-# than asking to change one.
+# --allow-barred skips the barred-path pre-flight (scripts/factory-preflight.py) below — see its
+# refusal text for when that override is the right call.
 # Self-test: scripts/factory-run.test.sh
 set -uo pipefail
 
@@ -23,21 +22,29 @@ adw="$1"; shift
 case "$adw" in */*|.*) echo "✗ factory-run: ADW must be a bare filename under adws/ (got '$adw')" >&2; exit 2 ;; esac
 [ -f "$top/adws/$adw" ] || { echo "✗ factory-run: no such ADW: adws/$adw" >&2; exit 2; }
 
-# Cheap pre-flight (#590): the barred list is known at dispatch time, so catch a brief that
-# targets it BEFORE a ~20-minute build burns tokens only to hit permissions.py::enforce()'s
-# rollback at the end. Heuristic and best-effort — see factory-preflight.py's own docstring.
+# Cheap pre-flight (#590): catches a brief that targets a builder-barred path before the
+# build burns tokens on it. See factory-preflight.py's docstring for what it checks and why
+# it can be wrong in either direction, and its refusal text for the override.
 if [ "$allow_barred" -eq 0 ]; then
-  brief_arg=""
-  if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then
-    brief_arg="$1"
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "⚠ pre-flight skipped: python3 not found" >&2
   else
-    prev=""
-    for arg in "$@"; do
-      [ "$prev" = "--findings" ] && { brief_arg="$arg"; break; }
-      prev="$arg"
-    done
+    brief_arg=""
+    if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then
+      brief_arg="$1"
+    else
+      prev=""
+      for arg in "$@"; do
+        [ "$prev" = "--findings" ] && { brief_arg="$arg"; break; }
+        prev="$arg"
+      done
+    fi
+    if [ -z "$brief_arg" ]; then
+      echo "⚠ pre-flight skipped: no brief argument found in '$*'" >&2
+    else
+      python3 "$top/scripts/factory-preflight.py" "$top" "$brief_arg" "$@" || exit 3
+    fi
   fi
-  python3 "$top/scripts/factory-preflight.py" "$top" "$brief_arg" || exit 3
 fi
 
 # Two layers, honestly bounded. (1) POLITE: the gh shim is prepended so most child shells
