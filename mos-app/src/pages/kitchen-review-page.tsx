@@ -1010,7 +1010,16 @@ export function KitchenReviewPage() {
         <EmptyState
           variant="awaiting"
           title={t('kitchen.review.empty.title')}
-          copy={t('kitchen.review.empty.copy', { date: logDate })}
+          /* #589: scoped to one stream, "No submitted logs for <date>" read as "day done" even
+             while other streams still held pending rows — the date was named, the stream was
+             not. Naming the selected stream too (Stock's own empty copy already does this,
+             kitchen-stock-page.tsx) makes it "day done FOR THIS STREAM". The all-streams case
+             has no single stream to name, so it keeps the date-only sentence. */
+          copy={
+            selectedStream
+              ? t('kitchen.review.empty.copyStream', { stream: streamLabel(t, selectedStream), date: logDate })
+              : t('kitchen.review.empty.copy', { date: logDate })
+          }
           note={t('kitchen.review.empty.note')}
         >
           <button

@@ -306,9 +306,15 @@
   font-weight: 600;
   color: var(--foreground);
 }
-/* Dish count reads as a secondary count, not a second headline figure. */
+/* #588: the dish count is now labeled ("Items planned N", Plan's own vocabulary) rather than a
+   bare number, but it still reads as a secondary clause, not a second headline figure. */
 .kl-plan-dishes::before { content: '· '; }
 .kl-plan-dishes { color: var(--muted-foreground); }
+.kl-plan-dishes strong {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+}
 
 
 /* ── Scope block: the movement ────────────────────────────────────────────────

@@ -200,6 +200,25 @@ describe('KitchenReviewPage — states', () => {
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
   })
 
+  // #589: scoped to ONE stream while another stream still holds Submitted rows, the empty
+  // state named only the date ("No submitted logs for <date>") — a lead reading it could not
+  // tell whether the whole day was done or just this stream. It now names the selected stream
+  // too, mirroring Stock's own stream-scoped empty copy (kitchen-stock-page.tsx).
+  it('issue 589: stream-scoped empty state names the stream, not just the date', async () => {
+    // (Rumah Rames, kitchen) still has a Submitted row; (Radiant, bar) has none.
+    mockList.mockResolvedValue([PROD_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
+      target: { value: `${RADIANT_ID}|bar` },
+    })
+
+    expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
+    const emptyState = screen.getByTestId('empty-state')
+    expect(within(emptyState).getByText(/Radiant · Bar/)).toBeInTheDocument()
+  })
+
   it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />, { wrapper })
