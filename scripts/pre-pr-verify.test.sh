@@ -236,5 +236,31 @@ run
 if [ -s "$tmp/npm-calls" ]; then pass=$((pass+1)); printf '  ok    scope: 64KB+ diff with one unlisted path still runs the lane (SIGPIPE race)\n'
 else fail=$((fail+1)); printf '  FAIL  scope: SIGPIPE race — big diff skipped the lane\n'; fi
 
+# ── Ledger serialization: linked worktrees share one ledger through the common git dir, so a
+# run must not append while another writer holds the ledger lock — and concurrent appends
+# must each land as one intact record.
+rm -f "$STAMP"
+: > "$tmp/repo/untracked-race"   # instant refusal: no npm, no test lock, just the EXIT-trap append
+ledger_lock="$tmp/repo/.git/verify-ledger.lock"
+before="$(wc -l < "$ledger" 2>/dev/null | tr -d ' ')"; before="${before:-0}"
+"$PWD/scripts/lib/flock-run.sh" ledger-lock "$ledger_lock" 0 "" "" -- sleep 4 2>"$tmp/holder.log" &
+holder=$!
+n=0; until grep -q ACQUIRED "$tmp/holder.log" 2>/dev/null || [ "$n" -ge 100 ]; do sleep 0.1; n=$((n+1)); done
+( cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh ) >"$tmp/race.log" 2>&1 &
+race=$!
+n=0; until grep -q 'worktree is dirty' "$tmp/race.log" 2>/dev/null || [ "$n" -ge 100 ]; do sleep 0.1; n=$((n+1)); done
+sleep 1   # a generous beat: an unlocked append lands within milliseconds of the refusal
+if [ "$(wc -l < "$ledger" | tr -d ' ')" = "$before" ]; then ok "run does not append while the ledger lock is held"
+else bad "appended while another writer held the ledger lock (append is not serialized)"; fi
+wait "$holder"
+wait "$race"; [ "$?" -ne 0 ] && ok "serialized run still refuses on the dirty tree" || bad "serialized run lost its refusal"
+[ "$(wc -l < "$ledger" | tr -d ' ')" = "$((before + 1))" ] && ok "deferred append lands once the lock frees" || bad "deferred append never landed"
+( cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh ) >/dev/null 2>&1 & r1=$!
+( cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh ) >/dev/null 2>&1 & r2=$!
+wait "$r1"; wait "$r2"
+tail -n 2 "$ledger" | awk -F '\t' '$3 == "refused" && NF == 4 { n++ } END { exit !(n == 2) }' \
+  && ok "two concurrent appends produce two intact lines" || bad "concurrent appends corrupted the ledger"
+rm -f "$tmp/repo/untracked-race"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

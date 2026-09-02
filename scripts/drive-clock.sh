@@ -38,11 +38,11 @@ while IFS= read -r line || [ -n "$line" ]; do
       echo "clock: ERROR malformed ledger record" >&2
       exit 1
     fi
+    total_seconds=$((total_seconds + duration))
     if [ "$mode" = refused ]; then
       refusals=$((refusals + 1))
     else
       runs=$((runs + 1))
-      total_seconds=$((total_seconds + duration))
       [ "$mode" = skipped ] && skipped=$((skipped + 1))
     fi
   fi

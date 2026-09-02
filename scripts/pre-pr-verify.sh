@@ -16,6 +16,7 @@ cd "$(dirname "$0")/.."
 head="$(git rev-parse HEAD)"
 gitdir="$(git rev-parse --git-dir)"
 ledger_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 started_at="$(date +%s)"
 mode=full
 record_ledger() {
@@ -24,7 +25,9 @@ record_ledger() {
   ended_at="$(date +%s 2>/dev/null || printf '%s' "$started_at")"
   duration=$((ended_at - started_at))
   [ "$duration" -ge 0 ] || duration=0
-  { printf '%s\t%s\t%s\t%s\n' "$started_at" "$duration" "$mode" "$head" >> "$ledger_dir/verify-ledger.log"; } 2>/dev/null || :
+  { bash "$script_dir/lib/flock-run.sh" ledger-lock "$ledger_dir/verify-ledger.lock" 0 "" "the verification ledger" -- \
+      bash -c 'printf "%s\\t%s\\t%s\\t%s\\n" "$1" "$2" "$3" "$4" >> "$5"' \
+      _ "$started_at" "$duration" "$mode" "$head" "$ledger_dir/verify-ledger.log"; } 2>/dev/null || :
 }
 trap record_ledger EXIT
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
