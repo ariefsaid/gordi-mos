@@ -7,6 +7,7 @@ import {
 } from '@/lib/db/notifications'
 import { applyMarkHandled } from '@/components/inbox/read-handled-semantics'
 import { compareTriage } from '@/components/inbox/nudge-semantics'
+import { announceUnreadCountChanged } from './unread-count-bus'
 
 export interface UseNotifications {
   notifications: NotificationRow[]
@@ -57,11 +58,13 @@ export function useNotifications(): UseNotifications {
       const readAt = new Date().toISOString()
       // Optimistic: flip read_at locally so the badge + row update immediately.
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: readAt } : n)))
+      announceUnreadCountChanged() // #582: tell the bell/rail/tab badges to re-fetch, not just this row list
       try {
         await markNotificationRead(id, readAt)
       } catch {
         // Revert on failure — the badge must not lie about unread state.
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: null } : n)))
+        announceUnreadCountChanged()
       }
     },
     [notifications],
@@ -75,11 +78,14 @@ export function useNotifications(): UseNotifications {
       const before = target
       // Optimistic: applyMarkHandled is the ratified semantics (read co-stamp for unread rows).
       setNotifications((prev) => prev.map((n) => (n.id === id ? applyMarkHandled(n, now) : n)))
+      // #582: handled co-stamps read on an unread row, so this can change the unread total too.
+      announceUnreadCountChanged()
       try {
         await markNotificationHandled(id, now, before.read_at == null ? now : null)
       } catch {
         // Revert on failure — the queue must not lie about handled state.
         setNotifications((prev) => prev.map((n) => (n.id === id ? before : n)))
+        announceUnreadCountChanged()
       }
     },
     [notifications],
