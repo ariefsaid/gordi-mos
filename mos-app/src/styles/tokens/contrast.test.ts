@@ -99,6 +99,8 @@ const TOKENS = {
   // so their foreground must be too — dark --ds-font-color-inverted now = white (was 0.09 near-black).
   '--ds-color-blue':               { r: 0.276, g: 0.384, b: 0.837, a: 1 }, // The One Blue chip (both themes)
   '--ds-font-color-inverted-dark': { r: 1.0,   g: 1.0,   b: 1.0,   a: 1 }, // SYS-1 corrected dark value
+  // #578: light value — theme-invariant white, unlike the dark value SYS-1 had to correct.
+  '--ds-font-color-inverted':      { r: 1.0,   g: 1.0,   b: 1.0,   a: 1 },
   // SYS-4 (backfill census): theme-aware blue-on-blue-tint text (dark values).
   '--text-on-accent-tint-dark':    { r: 0.62,  g: 0.72,  b: 1.0,   a: 1 },
   '--ds-color-blue3-dark':         { r: 0.105, g: 0.141, b: 0.275, a: 1 }, // active rail pill fill (dark)
@@ -165,6 +167,17 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
     it('text-tertiary on surface-tertiary ≥ 3:1 (large/UI)', () => {
       const ratio = contrastRatio(TOKENS['--text-tertiary'], TOKENS['--surface-tertiary'])
       expect(ratio).toBeGreaterThanOrEqual(3)
+    })
+
+    // #578 follow-up: the @mention active-row person badge kept its own --accent-subtle (blue/10%)
+    // wash, painted OVER the active row's own --accent-subtle wash (same token) — two stacked 10%
+    // layers compound into a darker, MORE saturated blue (measured 3.99:1 against the blue badge
+    // text, below AA, with only 1.13:1 separation from the row wash under it — nearly the same
+    // colour). The fix makes the active-row person badge an OPAQUE `--ds-color-blue` chip with
+    // inverted (white) text instead: a fixed pair, unaffected by whatever wash sits under it.
+    it('ds-font-color-inverted on the mention active-row person badge (opaque blue chip) ≥ 4.5:1 (#578)', () => {
+      const ratio = contrastRatio(TOKENS['--ds-font-color-inverted'], TOKENS['--ds-color-blue'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
   })
 
@@ -241,6 +254,17 @@ describe('AC-007: AA contrast on warm palette (light + dark)', () => {
       const ratio = contrastRatio(TOKENS['--text-on-accent-tint-dark'], bg)
       expect(ratio).toBeGreaterThanOrEqual(4.5)
     })
+
+    // #578 follow-up: on the active row, the stacked accent-subtle-on-accent-subtle badge measured
+    // 7.63:1 in dark (still AA — the dark surface starts darker, so doubling the blue wash doesn't
+    // cross the badge text's floor the way it does in light) but only 1.09:1 separation from the
+    // row wash under it. The same opaque-chip fix used in light applies uniformly here too —
+    // `--ds-color-blue` / `--ds-font-color-inverted` are both theme-invariant, so this is the
+    // identical pair and ratio as the light-theme assertion above, proven once more for dark.
+    it('ds-font-color-inverted-dark on the mention active-row person badge (opaque blue chip) ≥ 4.5:1 (#578)', () => {
+      const ratio = contrastRatio(TOKENS['--ds-font-color-inverted-dark'], TOKENS['--ds-color-blue'])
+      expect(ratio).toBeGreaterThanOrEqual(4.5)
+    })
   })
 })
 
@@ -288,10 +312,12 @@ const RECONCILE: ReadonlyArray<readonly [keyof typeof TOKENS, string, string]> =
   ['--text-secondary', 'theme-light.css', 'ds-font-color-secondary'],
   ['--text-tertiary', 'theme-light.css', 'ds-font-color-tertiary'],
   ['--ds-color-blue', 'theme-light.css', 'ds-color-blue'],
+  ['--ds-font-color-inverted', 'theme-light.css', 'ds-font-color-inverted'],
   ['--surface-primary-dark', 'theme-dark.css', 'ds-background-primary'],
   ['--surface-secondary-dark', 'theme-dark.css', 'ds-background-secondary'],
   ['--text-primary-dark', 'theme-dark.css', 'ds-font-color-primary'],
   ['--text-secondary-dark', 'theme-dark.css', 'ds-font-color-secondary'],
+  ['--ds-font-color-inverted-dark', 'theme-dark.css', 'ds-font-color-inverted'],
 ]
 
 describe('AC-007: the contrast table is a transcription of the shipped CSS, not a wish', () => {

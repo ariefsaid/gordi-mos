@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
+import { clampPopoverOffset } from '@/components/ui/clamp-popover-offset'
 import { SIGNAL_CATEGORIES, type SignalCategory } from '@/lib/db/signals.types'
 
 // The shared 8-family category affordance (D28), extracted from signal-card + signal-record so the
@@ -17,6 +18,24 @@ export interface SignalCategoryPickerProps {
 export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryPickerProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+  // #577: on a right-column feed row the anchor can sit within a few px of the viewport's right
+  // edge; the popover's own `left: 0` CSS default then pushes it (min-width 200px) past the
+  // window edge, hard-clipping options mid-word. `leftOffset` shifts it back on-screen.
+  const [leftOffset, setLeftOffset] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const anchor = anchorRef.current
+    const popover = popoverRef.current
+    if (!anchor || !popover) return
+    setLeftOffset(clampPopoverOffset({
+      anchorLeft: anchor.getBoundingClientRect().left,
+      popoverWidth: popover.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+    }))
+  }, [open])
 
   function pick(next: SignalCategory) {
     onCategorize?.(next)
@@ -36,12 +55,18 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
   }
 
   return (
-    <span className="signal-category-picker-anchor">
+    <span className="signal-category-picker-anchor" ref={anchorRef}>
       <Button variant="ghost" onClick={() => setOpen((v) => !v)}>
         {t('signals.record.addCategory')}
       </Button>
       {open && (
-        <div {...listboxProps} aria-label={t('signals.record.categoryPickerLabel')} className="signal-category-picker">
+        <div
+          {...listboxProps}
+          ref={(node) => { listboxProps.ref(node); popoverRef.current = node }}
+          aria-label={t('signals.record.categoryPickerLabel')}
+          className="signal-category-picker"
+          style={{ left: leftOffset }}
+        >
           {SIGNAL_CATEGORIES.map((option, index) => (
             <button
               type="button"
