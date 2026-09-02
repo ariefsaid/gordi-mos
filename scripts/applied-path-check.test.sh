@@ -171,6 +171,16 @@ case "$1 $2" in
         */head) echo 1 > "$S/lowercase_flag" ;;
         */base) echo 0 > "$S/lowercase_flag" ;;
       esac
+    fi
+    # Section T4's knob only: a CATALOG name that IS a quoted identifier containing `|` — legal
+    # in Postgres, fatal to a naive `awk -F'|'` read of field 3. The suffix after the embedded
+    # pipe genuinely differs between the two builds (a real rename), while a naive split reads
+    # only the fragment before it and sees no difference at all. Off by default.
+    if [ "${STUB_QUOTED_PIPE:-0}" = "1" ]; then
+      case "$W" in
+        */head) echo right > "$S/quoted_pipe_suffix" ;;
+        */base) echo other > "$S/quoted_pipe_suffix" ;;
+      esac
     fi ;;
   "migration up")
     for f in "$W"/supabase/migrations/*.sql; do
@@ -233,6 +243,14 @@ cat > /dev/null   # swallow the fingerprint SQL on stdin
   # doesn't start with an uppercase word, without needing a real broken migration to produce it.
   if [ "${STUB_LOWERCASE_ROW:-0}" = "1" ] && [ "$(cat "$S/lowercase_flag" 2>/dev/null || echo 0)" = "1" ]; then
     echo "extra|marker|-|present"
+  fi
+  # Section T4 only: a quoted identifier containing `|` as the CATALOG name. Whatever
+  # `$S/quoted_pipe_suffix` holds after the last db reset — "right" on a fresh head reset,
+  # "other" on the baseline, never touched by migration up, same asymmetry as the seed/lowercase
+  # knobs above.
+  if [ "${STUB_QUOTED_PIPE:-0}" = "1" ]; then
+    QP_SUFFIX="$(cat "$S/quoted_pipe_suffix" 2>/dev/null || echo right)"
+    echo "CATALOG|weird|\"left|${QP_SUFFIX}\"|<row><n>1</n></row>"
   fi
 } | sort | { if [ -n "${STUB_DROP_KIND:-}" ]; then grep -v "^${STUB_DROP_KIND}|"; else cat; fi; }
 STUB
@@ -1010,6 +1028,63 @@ if grep -qF "legacy_col" "$T/out-t3/drift.diff" 2>/dev/null; then
   ok "the drift names the column that survived"
 else
   bad "the drift did not name the surviving column (got: $(tr '\n' ' ' < "$T/out-t3/drift.diff" 2>/dev/null))"
+fi
+
+# T4 — control: NEITHER gate is provable alone unless a fixture makes them disagree. T (seed-only)
+# and T3 (column-only) each satisfy both gates at once by construction, so deleting either gate in
+# isolation leaves both of those green (cross-family review). This fixture has BOTH a real seed
+# edit (MKREPO_SEED_GEN2) AND a forgotten column drop (MKREPO_GEN1_EXTRA) in the SAME run: the
+# seed-diff gate is satisfied, so only the column-list gate stands between this and a wrong
+# SEED-DRIFT verdict — deleting it turns this case red.
+RT4="$T/t4-seed-and-column"
+( export MKREPO_NO_LEGACY=1
+  export MKREPO_GEN1_EXTRA="alter table t add column legacy_col text;"
+  export MKREPO_SEED_GEN2="vocab: beta"
+  mkrepo "$RT4" )
+rm -rf "$T/db"; rm -rf "$T/out-t4"; mkdir -p "$T/out-t4"
+run "$RT4" "$T/out-t4"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a real seed edit alongside a forgotten column drop still keeps the generic message"
+else
+  bad "a column-list mismatch was outvoted by a real seed edit (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+echo "── T5. a quoted identifier containing | in the CATALOG name is not trusted to split (#472)"
+# The column-list gate reads field 3 of a CATALOG line by splitting on `|` — but the fingerprint's
+# NAME field can itself be a quoted identifier, and Postgres allows `|` inside one. A rename from
+# "left|other" to "left|right" then reads as the SAME field 3 ("left, truncated at the embedded
+# pipe) on both sides of the diff: the gate would see no column change and, with a real seed edit
+# also present, call it SEED-DRIFT on what is actually an unrelated rename (cross-family review).
+# STUB_QUOTED_PIPE emits exactly that CATALOG row; MKREPO_SEED_GEN2 supplies the real seed edit
+# the pre-fix code needed to reach the classification at all.
+RT5="$T/t5-quoted-pipe"; ( export MKREPO_SEED_GEN2="vocab: beta"; mkrepo "$RT5" )
+rm -rf "$T/db"; rm -rf "$T/out-t5"; mkdir -p "$T/out-t5"
+LAST_OUT="$( cd "$RT5" && PATH="$T/bin:$PATH" FAKE_DB="$T/db" MOS_DB_LOCK_HELD=1 \
+    APPLIED_PATH_MIN_PENDING="${MINP:-1}" STUB_QUOTED_PIPE=1 \
+    ./scripts/applied-path-check.sh --out "$T/out-t5" 2>&1 )"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "does NOT match a fresh one" \
+   && ! printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "a | inside a quoted CATALOG name falls through to the generic message, not SEED-DRIFT"
+else
+  bad "a quoted | identifier let the truncated field-3 read pass as unchanged (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
+fi
+
+echo "── T6. an untracked NEW seed file still counts as a real seed change (#472)"
+# copy_worktree copies supabase/seed*.sql into FRESH regardless of git's index, so a seed file
+# that was never `git add`-ed is still what FRESH is built from. `git diff --name-only` alone
+# only sees tracked files, so a brand-new untracked seed would read as "no seed change" — the
+# safe direction (falls through to generic, never a false SEED-DRIFT) but still a miss. This adds
+# a seed file WITHOUT committing or staging it, on a fixture that is otherwise pure seed asymmetry
+# (no column drop), and requires the untracked file still to be recognised.
+RT6="$T/t6-untracked-seed"; mkrepo "$RT6"
+echo "vocab: untracked-gamma" > "$RT6/supabase/seed-extra.sql"
+rm -rf "$T/db"; rm -rf "$T/out-t6"; mkdir -p "$T/out-t6"
+run "$RT6" "$T/out-t6"; rc=$?
+if [ "$rc" = "1" ] && printf '%s' "$LAST_OUT" | grep -q "SEED-DRIFT"; then
+  ok "an untracked new seed*.sql file is still counted as a real seed change (rc=1, SEED-DRIFT)"
+else
+  bad "an untracked seed file was invisible to the seed-diff gate (rc=$rc): $(printf '%s' "$LAST_OUT" | tail -5 | tr '\n' ' ')"
 fi
 
 echo "── V. a kind-less drift line does not abort the classifier — it falls through, message intact"
