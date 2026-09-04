@@ -330,13 +330,20 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
   // module shipped with one link and its five screens were unreachable from the nav at all. Now
   // that they render, Café follows the same rule Work does. Still "exactly one page" — the
   // invariant is unchanged and the case is stronger, because it now pins WHICH element holds it.
-  it('at /cafe/log, the Log child carries page and the Café parent carries location, exactly one page', () => {
+  it.each([
+    ['/cafe', 'Opening'],
+    ['/cafe/log', 'Log'],
+    ['/cafe/plan', 'Plan'],
+    ['/cafe/stock', 'Stock'],
+    ['/cafe/review', 'Review'],
+    ['/cafe/pushes', 'Pushes'],
+  ] as const)('at %s, the active Café sub-tab carries page and the Café parent carries location, exactly one page', (path, label) => {
     setAuthAs(['admin'])
-    renderRailNav('/cafe/log')
+    renderRailNav(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName('Log')
+    expect(pageLinks[0]).toHaveAccessibleName(label)
     expect(within(nav).getByRole('link', { name: 'Café' })).toHaveAttribute('aria-current', 'location')
   })
 

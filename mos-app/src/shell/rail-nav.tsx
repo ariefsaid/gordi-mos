@@ -1,6 +1,6 @@
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { DESTINATIONS, navUtility, isLive, modulesByBU, type Destination } from './destinations'
-import { visibleSections, type Section } from './sections'
+import { sectionHasPrefixChild, visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
 import type { RailCounts } from '@/lib/db/rail-counts'
 import { UserChip } from './user-chip'
@@ -165,7 +165,7 @@ export function RailCountBadge({ count, label, compact = false }: { count?: numb
 }
 
 // A Work child (always expanded). Default aria-current="page" when active.
-function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false }: { section: Section; onNavigate?: () => void; badge?: number; badgeLabelKey?: MessageKey; compact?: boolean }) {
+function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false, end = false }: { section: Section; onNavigate?: () => void; badge?: number; badgeLabelKey?: MessageKey; compact?: boolean; end?: boolean }) {
   const t = useT()
   const label = section.labelKey ? t(section.labelKey) : section.label
   const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
@@ -179,6 +179,7 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
   return (
     <NavLink
       to={section.path}
+      end={end}
       onClick={onNavigate}
       aria-label={accessibleName}
       data-label={compact ? label : undefined}
@@ -326,7 +327,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                     {kids.length > 0 && (
                       <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                         {kids.map((c) => (
-                          <WorkChild key={c.path} section={c} onNavigate={onNavigate} compact={compact} />
+                          <WorkChild key={c.path} section={c} onNavigate={onNavigate} compact={compact} end={sectionHasPrefixChild(c, kids)} />
                         ))}
                       </div>
                     )}

@@ -156,9 +156,9 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Work/)
   })
 
-  it('Café tab page at /cafe/log (café viewer)', () => {
+  it.each(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
     setCafeViewer()
-    renderTabBar('/cafe/log')
+    renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(page).toHaveLength(1)
