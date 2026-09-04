@@ -1069,83 +1069,39 @@ describe('OD-K-5: the planned total + dish count render in the page-head meta li
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DD-7 regression guard — the summary band reported TYPED production as LOGGED.
-//
-// The band derived "Made so far", "% complete", "−N vs plan" and "−N portions short" from
-// `lines` — the quantities typed INTO THE FORM, not the day's submitted production — while a
-// provenance note beneath it simultaneously read "No entries logged yet today". One second after
-// a successful submit the same band reset to "Made so far 0 / −548 vs plan" on a day when 548
-// portions HAD been logged. PRODUCT.md principle 4: a confident wrong number is the worst outcome
-// MOS can produce.
-//
-// The fix removed those metrics rather than restyling them, but the INVARIANT is what is guarded
-// here, not the deletion: nothing on the band may present a figure derived from unsaved form state
-// as if it were logged production, and no "nothing has been logged today" claim may be derived
-// from unsaved input either. (The sticky-footer tally is explicitly the staged-work counter —
-// "pending review on Submit" — so it is not a band claim and is deliberately out of scope.)
-const LOGGED_PRODUCTION_CLAIMS = [
-  /made so far/i,      // kitchen.kpi.madeSoFar
-  /% complete/i,       // kitchen.kpi.pctComplete
-  /vs plan/i,          // kitchen.kpi.madeSoFar.behind — "−N vs plan"
-  /portions short/i,   // kitchen.kpi.dishesRemaining.short — "−N portions short"
-  /logged yet today/i, // the provenance note — "No entries logged yet today"
-]
-
-describe('DD-7: the summary band never reports typed-but-unsaved quantities as logged production', () => {
-  // "The band" = everything the screen states ABOVE the capture form: the page head, plus any
-  // summary rendered between it and the form. Read structurally (not by class name) so the guard
-  // survives the band being restyled or moved — it is the CLAIM that is protected, not a selector.
-  function bandText(): string {
-    const head = screen.getByTestId('page-head').textContent ?? ''
-    const page = document.querySelector('.kl-page')
-    const form = document.getElementById('kitchen-log-form')
-    const aboveForm = page
-      ? Array.from(page.childNodes).filter(n => n !== form).map(n => n.textContent ?? '').join('')
-      : ''
-    return head + aboveForm
-  }
-
-  // Asserted at BOTH widths: the band that carried the defect was width-branched (desktop metric
-  // tiles / phone one-line summary), so a guard that only ran one branch could miss the other.
-  async function bandNeverClaimsLoggedProduction() {
+describe('OD-K-5: Log renders the derived KPI strip', () => {
+  it('reads submitted actuals, ignores typing, and updates after a successful submit', async () => {
+    setDesktopMatchMedia(true)
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // The band as it stands before anyone touches the form: the day's PLAN, and nothing that
-    // claims produced/complete/short figures.
-    const bandAtRest = bandText()
-    for (const claim of LOGGED_PRODUCTION_CLAIMS) {
-      expect(document.body.textContent).not.toMatch(claim)
-    }
+    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
 
-    // The floor worker types what they made for Ayam Bakar (plan 20). Staged only — the day's
-    // logged production is still exactly what it was, because nothing has been submitted.
-    const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    await act(async () => {
-      fireEvent.change(ayam, { target: { value: '7' } })
-      await Promise.resolve()
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '5' } })
+    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
+
+    fireEvent.blur(qtyInput)
+    fireEvent.change(await screen.findByRole('textbox', { name: /note for ayam bakar/i }), {
+      target: { value: 'extra batch' },
     })
-    expect((ayam as HTMLInputElement).value).toBe('7')
-    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }))
 
-    // The band is unmoved — it states the plan, which unsaved input cannot change. Not one figure
-    // above the form may move on a keystroke, whatever it is called…
-    expect(bandText()).toBe(bandAtRest)
-    // …and the surface still makes no produced/complete/short claim, nor the opposite claim that
-    // nothing has been logged today, on the strength of what is only typed into the form.
-    for (const claim of LOGGED_PRODUCTION_CLAIMS) {
-      expect(document.body.textContent).not.toMatch(claim)
-    }
-  }
-
-  it('DD-7: phone — typing a quantity moves no "made / % complete / vs plan" figure on the band, and no "nothing logged today" claim is derived from unsaved input', async () => {
-    await bandNeverClaimsLoggedProduction()
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    await waitFor(() => {
+      expect(within(screen.getByRole('region', { name: /plan vs actual summary/i })).getByText('5')).toBeInTheDocument()
+    })
+    expect(within(screen.getByRole('region', { name: /plan vs actual summary/i })).getByText(/−27 vs plan/i)).toBeInTheDocument()
   })
 
-  it('DD-7: desktop — the same invariant holds on the wide band', async () => {
+  it('shows the no-plan empty form when the selected day has no plan', async () => {
     setDesktopMatchMedia(true)
-    await bandNeverClaimsLoggedProduction()
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
   })
 })
 
@@ -1931,3 +1887,85 @@ describe('issue 586 AC: a confirmed switch — the SUBMIT payload never carries 
     ])
   })
 })
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DD-7 regression guard — the summary band reported TYPED production as LOGGED.
+//
+// The band derived "Made so far", "% complete", "−N vs plan" and "−N portions short" from
+// `lines` — the quantities typed INTO THE FORM, not the day's submitted production — while a
+// provenance note beneath it simultaneously read "No entries logged yet today". One second after
+// a successful submit the same band reset to "Made so far 0 / −548 vs plan" on a day when 548
+// portions HAD been logged. PRODUCT.md principle 4: a confident wrong number is the worst outcome
+// MOS can produce.
+//
+// The fix removed those metrics rather than restyling them, but the INVARIANT is what is guarded
+// here, not the deletion: nothing on the band may present a figure derived from unsaved form state
+// as if it were logged production, and no "nothing has been logged today" claim may be derived
+// from unsaved input either. (The sticky-footer tally is explicitly the staged-work counter —
+// "pending review on Submit" — so it is not a band claim and is deliberately out of scope.)
+const LOGGED_PRODUCTION_CLAIMS = [
+  /made so far/i,      // kitchen.kpi.madeSoFar
+  /% complete/i,       // kitchen.kpi.pctComplete
+  /vs plan/i,          // kitchen.kpi.madeSoFar.behind — "−N vs plan"
+  /portions short/i,   // kitchen.kpi.dishesRemaining.short — "−N portions short"
+  /logged yet today/i, // the provenance note — "No entries logged yet today"
+]
+
+describe('DD-7: the summary band never reports typed-but-unsaved quantities as logged production', () => {
+  // "The band" = everything the screen states ABOVE the capture form: the page head, plus any
+  // summary rendered between it and the form. Read structurally (not by class name) so the guard
+  // survives the band being restyled or moved — it is the CLAIM that is protected, not a selector.
+  function bandText(): string {
+    const head = screen.getByTestId('page-head').textContent ?? ''
+    const page = document.querySelector('.kl-page')
+    const form = document.getElementById('kitchen-log-form')
+    const aboveForm = page
+      ? Array.from(page.childNodes).filter(n => n !== form).map(n => n.textContent ?? '').join('')
+      : ''
+    return head + aboveForm
+  }
+
+  // Asserted at BOTH widths: the band that carried the defect was width-branched (desktop metric
+  // tiles / phone one-line summary), so a guard that only ran one branch could miss the other.
+  async function bandNeverClaimsLoggedProduction() {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // The band as it stands before anyone touches the form: the day's PLAN, and nothing that
+    // claims produced/complete/short figures.
+    const bandAtRest = bandText()
+    for (const claim of LOGGED_PRODUCTION_CLAIMS) {
+      expect(document.body.textContent).not.toMatch(claim)
+    }
+
+    // The floor worker types what they made for Ayam Bakar (plan 20). Staged only — the day's
+    // logged production is still exactly what it was, because nothing has been submitted.
+    const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await act(async () => {
+      fireEvent.change(ayam, { target: { value: '7' } })
+      await Promise.resolve()
+    })
+    expect((ayam as HTMLInputElement).value).toBe('7')
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+
+    // The band is unmoved — it states the plan, which unsaved input cannot change. Not one figure
+    // above the form may move on a keystroke, whatever it is called…
+    expect(bandText()).toBe(bandAtRest)
+    // …and the surface still makes no produced/complete/short claim, nor the opposite claim that
+    // nothing has been logged today, on the strength of what is only typed into the form.
+    for (const claim of LOGGED_PRODUCTION_CLAIMS) {
+      expect(document.body.textContent).not.toMatch(claim)
+    }
+  }
+
+  it('DD-7: phone — typing a quantity moves no "made / % complete / vs plan" figure on the band, and no "nothing logged today" claim is derived from unsaved input', async () => {
+    await bandNeverClaimsLoggedProduction()
+  })
+
+  it('DD-7: desktop — the same invariant holds on the wide band', async () => {
+    setDesktopMatchMedia(true)
+    await bandNeverClaimsLoggedProduction()
+  })
+})
+

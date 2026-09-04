@@ -15,7 +15,7 @@
 // Planned/Off-plan grouping, client-side search + category filter, group collapse,
 // Discard (confirmed). No new fetch/RPC/table/persistence/ESB.
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -61,6 +61,7 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
+import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
@@ -193,8 +194,23 @@ export function KitchenLogPage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [category, setCategory] = useSearchParamState('category', 'All')
 
-  // Derived KPIs (P-1) — pure useMemo over `lines`; no fetch/RPC/persistence.
-  const kpis = useKitchenKpis(lines)
+  // Staged KPIs drive only the pending-review footer. The strip must never read this editable
+  // capture state: DD-7/OD-K-5 require its figures to come from submitted day entries.
+  const stagedKpis = useKitchenKpis(lines)
+  const submittedKpiLines = useMemo(() => {
+    const base = buildLines(wipItems, planMap, stockMap, movement)
+    const key = movementKey(movement)
+    return Object.fromEntries(
+      Object.entries(base).map(([itemId, line]) => [itemId, {
+        ...line,
+        qty_porsi: actualsMap[itemId]?.[key] ?? 0,
+      }]),
+    )
+  }, [actualsMap, movement, planMap, stockMap, wipItems])
+  const kpis = useKitchenKpis(submittedKpiLines)
+  const hasSubmittedActuals = Object.values(actualsMap).some(
+    itemActuals => (itemActuals[movementKey(movement)] ?? 0) > 0,
+  )
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
   // generation's result may land. Without this, two rapid stream switches can resolve
@@ -466,6 +482,17 @@ export function KitchenLogPage() {
           // status / source / org_id / submitted_by NOT sent — server-stamped (NFR-003)
         })),
       )
+      const key = movementKey(movement)
+      setActualsMap(prev => {
+        const next = { ...prev }
+        for (const line of staged) {
+          next[line.wip_item_id] = {
+            ...next[line.wip_item_id],
+            [key]: (next[line.wip_item_id]?.[key] ?? 0) + line.qty_porsi,
+          }
+        }
+        return next
+      })
       setStatus({ kind: 'success', count: staged.length })
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
@@ -767,7 +794,10 @@ export function KitchenLogPage() {
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
 
-        {/* Derived KPI strip (P-1) — pure view over `lines`; one branch in the DOM */}
+        {/* The strip is a submitted-production claim, so keep it absent until this action has
+            saved day entries. In particular, an empty strip is more honest than a band that
+            DD-7 guards could mistake for staged capture state. */}
+        {hasSubmittedActuals && <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />}
 
         {submitError && (
           <div role="alert" className="kl-banner kl-banner-error kl-block">
@@ -855,7 +885,7 @@ export function KitchenLogPage() {
               <span className="kl-tally-num tabular">
                 {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
                 {' · '}
-                {t(kpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: kpis.madeSoFar })}
+                {t(stagedKpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: stagedKpis.madeSoFar })}
               </span>
               <span className="kl-tally-sub">{t('kitchen.log.footer.pendingReview')}</span>
             </div>
