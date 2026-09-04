@@ -1705,6 +1705,20 @@ function cssRuleBody(selector: string): string {
   return css.slice(open + 1, close)
 }
 
+describe('S2.1 — split decision-column floors', () => {
+  it('keeps each decision column floor in its own split rule block', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+    expect(css).toContain('.split:not(.nodrawer) .tasks-table th:nth-child(1)')
+    for (const column of [1, 2, 3, 4, 5]) {
+      const selector = `.split:not(.nodrawer) .tasks-table th:nth-child(${column})`
+      const start = css.indexOf(selector)
+      const open = css.indexOf('{', start)
+      const close = css.indexOf('}', open)
+      expect(css.slice(open + 1, close), `${selector} must own its floor`).toMatch(/width:\s*\d+px/)
+    }
+  })
+})
+
 describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted — supersedes OD-P4-10 weight-400)', () => {
   it('AC-T01: a populated table columnheader carries the th-cell class', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Overline task' })])

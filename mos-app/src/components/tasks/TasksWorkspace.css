@@ -31,7 +31,9 @@
      regime is unchanged), but hard-capped at the E7 record reading measure (520px) so a full-bleed
      wide layout keeps the record at its designed width and hands the slack to the table (item 7).
      minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport. */
-  grid-template-columns: minmax(0, 1fr) minmax(360px, min(44%, 520px));
+  /* The drawer yields before the decision table: 400px leaves the five-column floor room at
+     every split viewport, while the 360px minimum keeps the record usable. */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — it fills PageFrame's
      gutters so the table's right edge aligns with the account chip (no detached content on wide
@@ -295,44 +297,33 @@
 
 /* Intermediate widths: column PRIORITY (Wave 2c) — Task > Status > PIC > Due > Supervisor.
    Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
-@media (max-width: 1120px) {
+@media (max-width: 1099.98px) {
   .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { display: none; }
   .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 13%; }
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
   .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
 }
-/* Condensed (drawer-open split — owner-eyes item 3, supersedes the 2026-07-22 F4 hide-both rule).
-   The squashed split track is too narrow for the full 6-column decision set, so the condensed
-   tier follows its OWN priority spec:
-     • Title keeps the dominant share (width:auto takes the remaining track).
-     • Status pill + Due shrink to their own content (width:1% + nowrap) — Due NEVER truncates;
-       TaskRow drops the "Overdue ·" prefix in condensed so the red color carries the meaning.
-     • PIC renders AVATAR-ONLY (the name is hidden but kept in the cell's aria-label + title tooltip).
-     • Supervisor is DROPPED entirely — it is the lowest-priority decision column and already lives
-       in the drawer beside the table.
-   Keyed off the LAYOUT STATE (.split:not(.nodrawer)), not the `.assembly.condensed`
-   class: that class only tracked the route `drawerOpen` prop and never fired on the overlay-host
-   open path (the row-click drawer), so the table stayed un-condensed and every column truncated —
-   the real regression the owner saw. This selector is true for BOTH drawer paths. */
-/* The collection table is `table-layout: fixed`, so column widths are taken literally from these
-   rules (content min-width is ignored) — the condensed tier therefore uses explicit fixed widths
-   sized to their content: Title takes the remaining track (auto/dominant); Status/PIC/Due are just
-   wide enough that nothing clips; Supervisor is removed from the layout. */
+/* Drawer-open split: all five decision columns remain visible. Each floor is authored in its
+   own rule block so table-layout:fixed cannot starve Title or merge Supervisor into Due. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: auto; }  /* Title — dominant */
+.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 160px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
-.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; }  /* Status pill ("In Progress" is the widest) */
+.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
 .split:not(.nodrawer) .tasks-table th:nth-child(3),
-.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 48px; }  /* PIC — avatar-only */
+.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 128px; } /* PIC */
 .split:not(.nodrawer) .tasks-table th:nth-child(4),
-.split:not(.nodrawer) .tasks-table td:nth-child(4) { display: none; }  /* Supervisor — DROPPED */
+.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 120px; } /* Supervisor */
 .split:not(.nodrawer) .tasks-table th:nth-child(5),
-.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; }  /* Due — never truncates */
+.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
 .split:not(.nodrawer) .tasks-table th:nth-child(6),
-.split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; }  /* menu */
-/* PIC avatar-only in condensed — hide the name text (still in aria-label + the tooltip title). */
-.split:not(.nodrawer) .td-owner .own-name,
-.split:not(.nodrawer) .td-owner .owner-provenance { display: none; }
+.split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; } /* row menu */
+/* Business Unit is optional; when present it yields before Due, never shifting Due into the menu floor. */
+.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) th:nth-child(5),
+.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) td:nth-child(5) { width: 104px; } /* Business Unit */
+.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) th:nth-child(6),
+.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) td:nth-child(6) { width: 104px; } /* Due */
+.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) th:nth-child(7),
+.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) td:nth-child(7) { width: 40px; } /* row menu */
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */
