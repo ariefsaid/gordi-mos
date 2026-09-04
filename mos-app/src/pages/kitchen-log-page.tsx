@@ -260,6 +260,21 @@ export function KitchenLogPage() {
       ])
       const resolvedStream = catalog.stream
       const resolvedMovement = PRODUCE
+      // An empty successful item read is a complete empty state. Do not make follow-up
+      // plan/stock/actual reads turn that honest absence into a false load error.
+      if (items.length === 0) {
+        if (gen !== requestGen.current) return
+        setWipItems(items)
+        adoptStream(catalog)
+        setMovement(resolvedMovement)
+        setPlanMap({})
+        setStockMap({})
+        setActualsMap({})
+        setBuId(bu)
+        setLines({})
+        setStatus({ kind: 'ready' })
+        return
+      }
       const [plan, stock, actuals] = resolvedStream
         ? await Promise.all([
             fetchPlanMap(logDate, resolvedStream),
