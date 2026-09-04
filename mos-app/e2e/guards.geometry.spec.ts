@@ -138,19 +138,22 @@ test.describe('desktop geometry guards', () => {
       expect(scrollWidths.scrollWidth, `task card must not overflow at ${width}px`).toBe(scrollWidths.clientWidth)
     }
 
-    await page.setViewportSize({ width: 1152, height: 800 })
-    await page.goto('work/tasks')
-    await page.waitForURL(/\/work\/tasks$/)
-    const narrowRow = page.locator('tr.task-row').first()
-    await expect(narrowRow).toBeVisible()
-    await narrowRow.locator('td.td-supervisor').click()
-    await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
-    await expect(page.locator('.record-doc')).toBeVisible()
-    const narrowScrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({
-      scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
-    }))
-    console.log(JSON.stringify({ width: 1152, scrollWidths: narrowScrollWidths }))
-    expect(narrowScrollWidths.scrollWidth).toBe(narrowScrollWidths.clientWidth)
+    for (const width of [1152, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('work/tasks')
+      await page.waitForURL(/\/work\/tasks$/)
+      const narrowRow = page.locator('tr.task-row').first()
+      await expect(narrowRow).toBeVisible()
+      const narrowScrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({
+        scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
+      }))
+      console.log(JSON.stringify({ width, scrollWidths: narrowScrollWidths }))
+      expect(narrowScrollWidths.scrollWidth).toBe(narrowScrollWidths.clientWidth)
+      await narrowRow.locator('td.td-supervisor').click()
+      await expect(page.locator('.record-doc')).toBeVisible()
+      await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
+      await expect(page).toHaveURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
+    }
   })
 
   test('GUARD-PRIMARY: the Tasks page shows at most ONE solid-primary button — in every toolbar state', async ({ page }) => {
