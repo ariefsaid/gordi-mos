@@ -12,6 +12,12 @@
   box-sizing: border-box;
 }
 
+.kpu-tally {
+  margin: 0 0 12px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
 /* ── Dead-letter row treatment (DESIGN.md "Ops Log tokens" exception).
    warning/7% fill + 2px warning left rule — the one owner-approved side-stripe.
    Paired with text label + fill (never color-alone, WCAG 1.4.1). ── */

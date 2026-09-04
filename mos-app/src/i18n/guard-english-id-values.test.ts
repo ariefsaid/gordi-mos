@@ -75,6 +75,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.plan.pesanan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.log.footer.item.one', // ${count} item — same word in both locales (OD-WAY-85)
+  'kitchen.pushes.tally.push.one', // push — shared borrowed vocabulary
   'inbox.filter.withCount', // ${label} · ${count} — separator is punctuation, locale-neutral
 ])
 

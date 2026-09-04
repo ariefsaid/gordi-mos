@@ -113,6 +113,20 @@ const PENDING_ROW: EsbPushRow = {
   posted_at: null,
 }
 
+const HELD_ROW: EsbPushRow = {
+  id: 'push-5',
+  source_module: 'kitchen',
+  source_ref: 'TB-20260621-002',
+  endpoint: 'noop',
+  target_env: 'goo',
+  status: 'pending',
+  retry_count: 0,
+  last_error: null,
+  esb_doc_num: null,
+  created_at: '2026-06-21T01:00:00Z',
+  posted_at: null,
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   setViewport(true)
@@ -245,6 +259,7 @@ describe('KitchenPushesPage — states', () => {
     expect(emptyState.querySelector('.empty-title')).not.toBeNull()
     expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+    expect(screen.queryByText(/push(es)? · .*queued|push(es)? · .*menunggu/i)).toBeNull()
   })
 
   it('W4-4: empty state routes through EmptyState with exactly one refresh action', async () => {
@@ -280,6 +295,24 @@ describe('KitchenPushesPage — states', () => {
 // ── Populated state — columns and display ─────────────────────────────────────
 
 describe('KitchenPushesPage — populated (FR-074)', () => {
+  it('populated state shows the push tally orientation line above the table/cards', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW, PENDING_ROW, IN_FLIGHT_ROW, HELD_ROW])
+    const { container } = render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-001')
+
+    const tally = screen.getByText('4 pushes · 1 queued')
+    expect(tally).toBeInTheDocument()
+    expect(tally.compareDocumentPosition(container.querySelector('.kpu-cols-host')!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('pluralizes each tally count independently', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    render(<KitchenPushesPage />)
+    expect(await screen.findByText('1 push · 0 queued')).toBeInTheDocument()
+  })
+
   it('RI-IXD-6: desktop pushes uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
     setViewport(true)
     mockListPushes.mockResolvedValue([POSTED_ROW])
@@ -467,19 +500,6 @@ describe('KitchenPushesPage — all status values render', () => {
 // that into a real problem: intra-branch movements used to be one carried case of the
 // incumbent's and are now capturable from every stream, so the lead's one question here — is
 // anything stuck? — collects a growing pile of wrong answers unless held has its own word.
-const HELD_ROW: EsbPushRow = {
-  id: 'push-5',
-  source_module: 'kitchen',
-  source_ref: 'TB-20260621-002',
-  endpoint: 'noop',
-  target_env: 'goo',
-  status: 'pending',
-  retry_count: 0,
-  last_error: null,
-  esb_doc_num: null,
-  created_at: '2026-06-21T01:00:00Z',
-  posted_at: null,
-}
 
 describe('KitchenPushesPage — held vs posted (FR-052)', () => {
   it('FR-052: a held (intra-branch) row reads "held", not "pending"', async () => {
@@ -570,6 +590,7 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
       expect(screen.getAllByText('Gagal · berhenti').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
+      expect(screen.getByText('4 push · 1 menunggu')).toBeInTheDocument()
       expect(screen.queryByText('dead_letter')).toBeNull()
     } finally {
       localStorage.clear()
