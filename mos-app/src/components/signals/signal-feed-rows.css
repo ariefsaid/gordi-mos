@@ -140,6 +140,7 @@
   display: block;
   white-space: normal;
   overflow-wrap: anywhere;
+  text-decoration: none;
 }
 /* P1-4 (c): the visible title line is only ~22px tall, well under the 44px tap floor. Expand the
    real hit area to cover the whole record row (title + meta subline ≈ 50px) with a transparent
@@ -152,7 +153,6 @@
   position: absolute;
   inset: -3px 0;
 }
-.home-signal-body:hover .home-signal-body-text { text-decoration: underline; }
 .home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
 .home-signal-body--static { cursor: default; }
 .home-signal-body--static:hover .home-signal-body-text { text-decoration: none; }
