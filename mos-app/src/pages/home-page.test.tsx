@@ -367,7 +367,7 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
   it('DIV-G5: a failed Signals read shows the error + a working Retry — never "No Signals yet"', async () => {
     mockListSignals.mockRejectedValue(new Error('offline'))
     await renderHome(memberViewer)
-    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    const feed = await screen.findByRole('region', { name: /^Signals$/ })
     expect(within(feed).getByText(/couldn't load signals/i)).toBeInTheDocument()
     expect(within(feed).queryByText(/no signals yet/i)).toBeNull()
 

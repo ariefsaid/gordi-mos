@@ -188,7 +188,6 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .home-signal-sep { color: var(--muted-foreground); }
-.home-signal-when { white-space: nowrap; }
 .home-signal-location-chip,
 .home-signal-time-chip {
   display: inline-flex;

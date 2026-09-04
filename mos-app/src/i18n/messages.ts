@@ -2301,7 +2301,7 @@ export const messages = {
     'signals.composer.teamPlaceholder': 'Pilih tim…',
     'signals.composer.visibleTo': 'Terlihat oleh ${team}',
     'signals.composer.visibleToNotify': 'Terlihat oleh ${team} · beri tahu ${count} ${noun}',
-    'signals.feed.addSignal': '+ Sinyal',
+    'signals.feed.addSignal': 'Bagikan Sinyal',
     'signals.feed.clearSearch': 'Hapus pencarian',
     'signals.feed.empty': 'Belum ada Sinyal. Bagikan yang pertama di atas.',
     'signals.feed.error': 'Tidak dapat memuat Sinyal.',

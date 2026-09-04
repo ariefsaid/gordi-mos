@@ -7,7 +7,7 @@ import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useT } from '@/i18n/use-t'
 import { ErrorState } from '@/components/ui/state-kit'
 import { SignalRecordHost } from './signal-record-host'
-import { SignalFeedRows } from './signal-feed-rows'
+import { AMBIENT_CAP, SignalFeedRows } from './signal-feed-rows'
 import './signal-feed-section.css'
 
 // C3b (AC-426/FR-414): the Home ambient feed slot — the FYI-only tail of the Signals split
@@ -101,7 +101,9 @@ export function SignalFeedSection({
         {/* h2, matching its peer sections: this renders only on Home, where PageFamilyFrame owns
             the sole h1 and there is no intermediate level — an h3 skipped one (detector:
             skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
-        <h2 id={titleId} className="signal-feed-label">{t('signals.feed.title')} · {signals.length}</h2>
+        <h2 id={titleId} className="signal-feed-label">
+          {t('signals.feed.title')}{error ? '' : ` · ${Math.min(signals.length, AMBIENT_CAP)}`}
+        </h2>
       </div>
       {error ? (
         // The error/retry branch every engine collection has (DIV-G5): a failed load must never

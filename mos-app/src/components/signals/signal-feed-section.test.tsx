@@ -277,9 +277,16 @@ describe('FR-928: the Signals column is named Signals, and states no untraceable
     expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
   })
 
-  it('still renders a zero count when the read failed', async () => {
+  it('does not show a count when the read failed', async () => {
     renderSection({ signals: [], error: true })
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
-    expect(screen.getByRole('heading', { name: 'Signals · 0' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Signals · 0' })).not.toBeInTheDocument()
+  })
+
+  it('counts the ambient rows actually rendered after the feed cap', async () => {
+    renderSection({ signals: Array.from({ length: 11 }, (_, index) => row({ id: `s${index}` })) })
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(6))
+    expect(screen.getByRole('heading', { name: 'Signals · 6' })).toBeInTheDocument()
   })
 })

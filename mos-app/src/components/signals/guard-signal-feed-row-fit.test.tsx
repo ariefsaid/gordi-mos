@@ -16,7 +16,7 @@
  *      Grouping each "·" with the text it introduces makes an orphan structurally impossible, and
  *      that grouping IS assertable in jsdom.
  *
- * Plus the ambient-tail button weight: "+ Signal" sits in an AMBIENT tail, so it must not outrank
+ * Plus the ambient-tail button weight: "Share a Signal" sits in an AMBIENT tail, so it must not outrank
  * the overdue work above it with the one action blue.
  */
 import { describe, it, expect, vi } from 'vitest'
