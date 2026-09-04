@@ -6,12 +6,13 @@
 #                                             drive-burn grep sums every matching slug)
 #   gh pr view + first "In flight" comment    LOC ± and claim→merge wall clock
 #
-#   scripts/drive-cost.sh [hours]             (default 24)
+#   scripts/drive-cost.sh [hours]             (default 24); e.g. bash scripts/drive-cost.sh 72
 #
 # PI_SESSIONS_DIR overrides the sessions root, REVIEWS_DIR the reviews dir (both self-test;
 # a worktree may have no docs/reviews — those cells print "?" and the row still lands).
-# Heuristics, never guesses: builder/reviewer come only from labeled "Builder:"/"Reviewer:"
-# prose; anything absent prints "?". Same-family flags a row whose builder and reviewer both
+# Heuristics, never guesses: builder comes only from the first machine-readable "Builder:" header
+# line and the original reviewer from the first lens section's "Reviewer:" line; anything absent
+# prints "?". Same-family flags a row whose builder and original reviewer both
 # resolve to anthropic (sonnet/opus/claude), openai (openai/codex/gpt), or z.ai/glm.
 # KNOWN GAP (stated in the output header): Claude subagent tokens are metered nowhere, so a
 # row with anthropic-family agents shows "–" in the pi cell — unknown, not 0.
@@ -98,12 +99,32 @@ while IFS=$'\t' read -r num title branch; do
   bf="$reviews/${branch//\//-}.md"
   builder="?"; reviewers="?"; rounds="?"; vpath="?"
   if [ -f "$bf" ]; then
-    # parens die first (annotated model names), then sentence/continuation cuts — gpt-5.6 keeps its dot
-    norm='s/ \([^)]*\)//g; s/[—,].*$//; s/\. .*$//; s/\.$//; s/[[:space:]]*$//'
-    builder="$(grep -m1 'Builder:' "$bf" | sed -E 's/^.*Builder:[[:space:]]*//; '"$norm"'')"
+    # ### headings are ignored; they inherit the enclosing ## state (retro is always ##).
+    # Only labeled header/section records are data; prose that mentions either label is not.
+    builder="$(awk '
+      /^##[[:space:]]/ { exit }
+      /^Builder:[[:space:]]*/ { sub(/^Builder:[[:space:]]*/, ""); print $1; exit }
+    ' "$bf")"
     [ -n "$builder" ] || builder="?"
-    reviewers="$(grep 'Reviewer:' "$bf" | sed -E 's/^.*Reviewer:[[:space:]]*//; '"$norm" | sort -u)"
-    [ -n "$reviewers" ] || reviewers="?"
+    reviewer="$(awk '
+      /^##[[:space:]]/ {
+        in_lens = (tolower($0) !~ /^##[[:space:]]+cross-family retro([[:space:]]|$)/)
+        next
+      }
+      in_lens && /^Reviewer:[[:space:]]*/ {
+        sub(/^Reviewer:[[:space:]]*/, ""); print $1; exit
+      }
+    ' "$bf")"
+    [ -n "$reviewer" ] || reviewer="?"
+    retro_reviewer="$(awk '
+      tolower($0) ~ /^##[[:space:]]+cross-family retro([[:space:]]|$)/ { in_retro=1; next }
+      in_retro && /^##[[:space:]]/ { exit }
+      in_retro && /^Reviewer:[[:space:]]*/ {
+        sub(/^Reviewer:[[:space:]]*/, ""); print $1; exit
+      }
+    ' "$bf")"
+    reviewers="${reviewer}"
+    [ -n "$retro_reviewer" ] && reviewers="$reviewers (retro: $retro_reviewer)"
     rounds=1
     for r in $(grep -oE 'Round [0-9]+' "$bf" | awk '{print $2}'); do
       [ "$r" -gt "$rounds" ] && rounds=$r
@@ -114,26 +135,33 @@ while IFS=$'\t' read -r num title branch; do
       case "$k" in ''|*[!0-9]*) continue;; esac
       [ $((k + 1)) -gt "$rounds" ] && rounds=$((k + 1))
     done
-    vpath="$(grep -E '^Verdict:' "$bf" | sed -E 's/^Verdict:[[:space:]]*//' \
-      | awk '{ if ($0 == "MERGE WITH CHANGES") print "MWC"; else if ($0 == "DO NOT MERGE") print "DNM";
-              else if ($0 == "MERGE") print "M"; else if ($0 == "REQUEST CHANGES") print "RC";
-              else print substr($0, 1, 14) }' \
-      | awk 'p != $0 {print} {p = $0}' \
-      | awk 'NR>1 {printf "→"} {printf "%s", $0}')"
+    vpath="$(awk '
+      function verdict(v) {
+        sub(/^Verdict:[[:space:]]*/, "", v)
+        if (v == "MERGE WITH CHANGES") return "MWC"
+        if (v == "DO NOT MERGE") return "DNM"
+        if (v == "MERGE") return "M"
+        if (v == "REQUEST CHANGES") return "RC"
+        return substr(v, 1, 14)
+      }
+      /^##[[:space:]]/ {
+        in_lens = (tolower($0) !~ /^##[[:space:]]+cross-family retro([[:space:]]|$)/)
+        has_reviewer = 0
+        seen = 0
+        next
+      }
+      in_lens && /^Reviewer:[[:space:]]*/ { has_reviewer = 1; next }
+      in_lens && has_reviewer && !seen && /^Verdict:/ { print verdict($0); seen = 1 }
+    ' "$bf" | awk 'p != $0 {print} {p = $0}' | awk 'NR>1 {printf "→"} {printf "%s", $0}')"
     [ -n "$vpath" ] || vpath="?"
   fi
 
-  # same-family: builder's family matches any reviewer's — both unknown never flags
+  # The family judgment belongs to the original round, not a later retro reviewer.
   bfam="$(family "$builder")"; flag=""
-  if [ "$bfam" != "?" ]; then
-    while IFS= read -r r; do
-      [ -z "$r" ] && continue
-      [ "$(family "$r")" = "$bfam" ] && { flag=" ⚠same-family"; sf=$((sf + 1)); break; }
-    done <<EOF
-$reviewers
-EOF
+  if [ "$bfam" != "?" ] && [ "$(family "$reviewer")" = "$bfam" ]; then
+    flag=" ⚠same-family"; sf=$((sf + 1))
   fi
-  reviewers_cell="$(printf '%s\n' "$reviewers" | awk 'NR>1 {printf ", "} {printf "%s", $0}')$flag"
+  reviewers_cell="$reviewers$flag"
 
   # pi cell: any anthropic-family agent on the row → "–" (subagent spend unmetered; a number would read complete)
   claude=0
