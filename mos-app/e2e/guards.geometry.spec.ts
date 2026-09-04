@@ -194,6 +194,22 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await loginAs(page, VIEWER.email, VIEWER.password)
   })
 
+  test('GUARD-730: phone record header stays ≤56px, truncates its leaf before controls, and keeps Back ≥44px at 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('work/tasks')
+    const detailUrl = await createTaskViaUI(page, `Guard 730 ${'x'.repeat(51)}`)
+    await page.goto(detailUrl.slice(1))
+    await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
+
+    const header = await box(page.locator('[data-anatomy="header"]'))
+    const leaf = await box(page.locator('.top-bar__breadcrumb-leaf'))
+    const firstControl = await box(page.locator('[data-anatomy="header"] button').first())
+    const back = await box(page.getByRole('link', { name: /back to/i }))
+    expect(header.height, 'phone record header must stay one 56px row').toBeLessThanOrEqual(56)
+    expect(leaf.x + leaf.width, 'breadcrumb leaf must end before the first header control').toBeLessThan(firstControl.x)
+    expect(back.height, 'record Back must meet the phone tap floor').toBeGreaterThanOrEqual(44)
+  })
+
   test('GUARD-TAP: Tasks phone controls are ≥44px', async ({ page }) => {
     await page.goto('work/tasks')
     await expect(page.getByTestId('page-head')).toBeVisible()

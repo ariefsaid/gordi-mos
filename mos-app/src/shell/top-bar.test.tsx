@@ -199,7 +199,7 @@ describe('AC-S08: TopBar is a banner landmark', () => {
 
 // AC-S02/S03: brand column token + breadcrumb min-w-0
 describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
-  it('phone breadcrumb header reserves the control cluster and truncates its leaf', () => {
+  it('phone breadcrumb keeps the leaf inline and constrained beside the control cluster', () => {
     mockUseIsNarrow.mockReturnValue(true)
     const { container } = renderTopBar('/work/tasks')
     const header = container.querySelector('[data-anatomy="header"]')!
@@ -208,9 +208,9 @@ describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
     expect(header).toHaveClass('top-bar')
     expect(breadcrumbTrack).toHaveClass('top-bar__breadcrumb-track')
     expect(leaf).toHaveClass('top-bar__breadcrumb-leaf')
-    expect(topBarCss).toMatch(/\.top-bar\s*\{[^}]*display:\s*flex/)
     expect(topBarCss).toMatch(/\.top-bar__breadcrumb-track\s*\{[^}]*min-width:\s*0/)
-    expect(topBarCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.top-bar__breadcrumb-leaf\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/)
+    expect(topBarCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.top-bar__breadcrumb\s*\{[^}]*white-space:\s*nowrap[^}]*min-width:\s*0[^}]*overflow:\s*hidden/)
+    expect(topBarCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.top-bar__breadcrumb-leaf\s*\{[^}]*display:\s*inline-block[^}]*max-width:\s*100%[^}]*vertical-align:\s*bottom[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/)
   })
 
   it('AC-S02: brand column references --rail-w token and has border-r', () => {
