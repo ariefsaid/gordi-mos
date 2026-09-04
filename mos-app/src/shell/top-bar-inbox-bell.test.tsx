@@ -1,9 +1,8 @@
-// AC-V3-006 / AC-RPH-4 — the Inbox bell (desktop-only since #545/FR-002) quick-opens the SAME
-// InboxTriage surface as an ephemeral root in the ONE shared overlay host (no URL mutation, focus
-// returns to the bell on close, a row pushes the canonical record, internal Back returns to
-// triage); a desktop render without a mounted host falls back to the full `/inbox` route. At
-// <920px the bell does not render at all (#545 AC-002) — the bottom-tab Inbox entry is the
-// phone's door. Isolated file so the mocks don't perturb the broader top-bar layout tests.
+// AC-V3-006 / AC-RPH-4 — the Inbox bell quick-opens the SAME InboxTriage surface as an ephemeral
+// root in the ONE shared overlay host (no URL mutation, focus returns to the bell on close, a row
+// pushes the canonical record, internal Back returns to triage); a render without a mounted host
+// falls back to the full `/inbox` route. The compact header and bottom tab both remain phone doors.
+// Isolated file so the mocks don't perturb the broader top-bar layout tests.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -16,7 +15,9 @@ vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 const mockNarrow = vi.mocked(useIsNarrow)
 
-vi.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: () => ({ unreadCount: 0 }) }))
+vi.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: vi.fn() }))
+import { useUnreadCount } from '@/hooks/useUnreadCount'
+const mockUnreadCount = vi.mocked(useUnreadCount)
 
 vi.mock('@/hooks/useNotifications', () => ({ useNotifications: vi.fn() }))
 import { useNotifications } from '@/hooks/useNotifications'
@@ -74,6 +75,7 @@ function renderShell() {
 beforeEach(() => {
   vi.clearAllMocks()
   mockUse.mockReturnValue(hook())
+  mockUnreadCount.mockReturnValue({ unreadCount: 0, loading: false, refresh: vi.fn() })
 })
 
 describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
@@ -104,6 +106,17 @@ describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
     expect(screen.getByRole('group', { name: /filter notifications/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /open full page/i })).toBeNull()
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
+  })
+
+  it('phone: renders the header inbox tray with the unread row count', () => {
+    mockNarrow.mockReturnValue(true)
+    mockUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
+    mockUse.mockReturnValue(hook({ notifications: [notif(), notif({ id: 'n2', title: 'Hiring plan' })], unreadCount: 2 }))
+
+    renderShell()
+
+    expect(screen.getByRole('button', { name: 'Inbox, 2 unread' })).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
   it('desktop: closing the quick triage returns focus to the bell', () => {
