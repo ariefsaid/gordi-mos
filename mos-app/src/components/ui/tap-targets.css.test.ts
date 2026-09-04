@@ -16,6 +16,8 @@ const iconButtonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Ico
 const commandMenuCss = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
 const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
 const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
+const helpTipCss = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.css'), 'utf8')
+const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.tsx'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -98,6 +100,11 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
   it('SYS-2: raises the Signal mention rows (.mention-row) to 44px on phone', () => {
     const body = mediaBody(mentionPickerCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.mention-row[\s\S]*min-height:\s*44px/)
+  })
+
+  it('ticket 667: keeps the help-tip anchor inline while its button owns a ≥44px pseudo hit box', () => {
+    expect(helpTipTsx).not.toMatch(/help-tip-anchor tap-floor/)
+    expect(helpTipCss).toMatch(/\.help-tip::before\s*\{[^}]*inset:\s*-16px/)
   })
 })
 

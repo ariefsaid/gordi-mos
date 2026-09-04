@@ -83,6 +83,4 @@
     min-width: 44px;
     min-height: 44px;
   }
-  .tap-floor .mk-textinput__box { min-height: 44px; }
-  .tap-floor input:not([type='checkbox']) { min-height: 44px; }
 }

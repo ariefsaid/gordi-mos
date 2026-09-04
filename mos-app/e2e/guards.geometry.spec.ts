@@ -148,7 +148,7 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     await page.goto('')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapFloor(page, '.help-tip-anchor, .stream-band-link', 'Home #667', { axes: 'both', noOverflow: true })
+    await assertTapFloor(page, '.help-tip-anchor button, .stream-band-link', 'Home #667', { axes: 'both', noOverflow: true })
 
     await page.goto('work/signals')
     await expect(page.getByTestId('page-head')).toBeVisible()

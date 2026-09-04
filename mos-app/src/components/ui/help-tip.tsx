@@ -119,7 +119,7 @@ export function HelpTip({ label, className }: HelpTipProps) {
   }, [open])
 
   return (
-    <span className={`help-tip-anchor tap-floor${className ? ` ${className}` : ''}`}>
+    <span className={`help-tip-anchor${className ? ` ${className}` : ''}`}>
       <button
         ref={buttonRef}
         type="button"
