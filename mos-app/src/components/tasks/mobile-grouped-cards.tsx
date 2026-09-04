@@ -95,12 +95,13 @@ type TaskCardProps = {
   onEditTitle?: (taskId: string, title: string) => Promise<void>
   isNew?: boolean
   onDiscardNewTask?: () => void
+  onCreateError?: (message: string) => void
   /** Design fix wave item 4 — the generated-ownership source ("via <role name>"), Rule 11 reuse of
    * OwnerCell's provenance rendering. */
   provenanceRoleName?: string
 }
 
-function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -120,7 +121,10 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
     if (newCommitStarted.current) return
     if (!title) { onDiscardNewTask?.(); return }
     newCommitStarted.current = true
-    void onEditTitle?.(task.id, title)
+    void (onEditTitle?.(task.id, title) ?? Promise.resolve()).catch(() => {
+      onDiscardNewTask?.()
+      onCreateError?.(t('tasks.feedback.rollback'))
+    })
   }
 
   return (
@@ -193,6 +197,7 @@ export function MobileGroupedCards({
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   onAssignPending, provenanceByTaskDefId, onOpenTask, onEditTitle, draftTaskId, onDiscardNewTask,
 }: MobileGroupedCardsProps) {
+  const [createError, setCreateError] = useState<string | null>(null)
   const t = useT()
   const openTask = onOpenTask ?? (() => {})
   const provenanceFor = (task: TaskListRow): string | undefined =>
@@ -204,6 +209,8 @@ export function MobileGroupedCards({
   const isFlat = groups.length === 1 && groups[0].key === '__flat__'
   if (isFlat) {
     return (
+      <>
+        {createError && <span role="status" aria-live="polite" className="sr-only">{createError}</span>}
       <div className="mgc mgc-flat" role="list" aria-label={t('tasks.title')}>
         {groups[0].rows.map(task => (
           <div key={task.id} role="listitem">
@@ -217,15 +224,18 @@ export function MobileGroupedCards({
               onOpenTask={openTask}
               provenanceRoleName={provenanceFor(task)}
               onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
+              onCreateError={(message) => setCreateError(message)}
             />
           </div>
         ))}
       </div>
+      </>
     )
   }
 
   return (
     <div className="mgc" role="list" aria-label={t('tasks.title')}>
+      {createError && <span role="status" aria-live="polite" className="sr-only">{createError}</span>}
       {groups.map(group => (
         <div key={`mgc-${group.key}`} className="mgc-group">
           <div className="mgc-group-head collection-grammar-mobile-group">
@@ -314,6 +324,7 @@ export function MobileGroupedCards({
                 onOpenTask={openTask}
                 provenanceRoleName={provenanceFor(task)}
                 onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
+                onCreateError={(message) => setCreateError(message)}
               />
             </div>
           ))}

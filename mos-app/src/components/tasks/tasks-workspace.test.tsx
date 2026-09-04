@@ -60,6 +60,7 @@ import { taskCollectionDescriptor } from './task-collection-adapter'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
+const mockGetPeople = vi.mocked(getPeople)
 const mockUpdateTaskFields = vi.mocked(updateTaskFields)
 const mockCreateTask = vi.mocked(createTask)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
@@ -139,6 +140,7 @@ function makeSavedView(view: 'mine' | 'overdue' | 'followups' | 'all' | 'unknown
 function renderTable(
   props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {},
   auth: AuthState = authedState,
+  entries = ['/work/tasks'],
 ) {
   function Harness() {
     const initialSavedView = props.savedView ?? makeSavedView('all')
@@ -155,7 +157,7 @@ function renderTable(
   return render(
     <I18nProvider>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={['/work/tasks']}>
+        <MemoryRouter initialEntries={entries}>
           <OverlayHostProvider>
             <Harness />
           </OverlayHostProvider>
@@ -202,6 +204,17 @@ beforeEach(() => {
 })
 
 describe('D3e — Tasks create is an inline title row', () => {
+  it('keeps ?create=1 until a cold-cache context loads, then inserts the inline row', async () => {
+    let resolvePeople!: (people: typeof PEOPLE) => void
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    mockGetPeople.mockImplementationOnce(() => new Promise(resolve => { resolvePeople = resolve }))
+    renderTable({}, authedState, ['/work/tasks?create=1'])
+    expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
+    mockGetPeople.mockResolvedValue(PEOPLE)
+    await act(async () => { resolvePeople(PEOPLE) })
+    expect(await screen.findByRole('textbox', { name: /title/i })).toBeInTheDocument()
+  })
+
   it('clicking + Create task inserts a focused editable title row without a create panel', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
     renderTable()

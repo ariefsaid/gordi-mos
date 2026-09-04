@@ -754,7 +754,7 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     // selector rather than failing the check. Rows are found by where they point instead.
     const workRows = Array.from(
       document.querySelectorAll<HTMLElement>('[role="option"][data-to^="/work/"]'),
-    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks/new')
+    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks?create=1')
     expect(workRows.length).toBeGreaterThan(1)
     for (const row of workRows.slice(1)) {
       expect(row.getAttribute('data-child')).toBe('true')
@@ -771,7 +771,7 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     // data-child on its results cannot come out red — a cleared rung leaves the selector.
     const rows = Array.from(
       document.querySelectorAll<HTMLElement>('[role="option"][data-to^="/work/"]'),
-    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks/new')
+    ).filter((el) => el.getAttribute('data-to') !== '/work/tasks?create=1')
     expect(rows.length).toBeGreaterThan(2)
     for (const row of rows.slice(1)) expect(row.getAttribute('data-child')).toBe('true')
   })

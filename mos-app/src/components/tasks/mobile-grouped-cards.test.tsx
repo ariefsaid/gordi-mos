@@ -5,6 +5,7 @@
  * overdue-gating, and the "+ Create task" wiring.
  */
 import { describe, it, expect, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
@@ -64,6 +65,28 @@ function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {
 }
 
 describe('MobileGroupedCards', () => {
+  it('removes a rejected create draft and announces the rollback', async () => {
+    function Harness() {
+      const [draft, setDraft] = useState(true)
+      return <>
+        <MobileGroupedCards
+          {...BASE_PROPS}
+          groups={[{ ...BASE_PROPS.groups[0], rows: draft ? [makeTask({ id: 'draft', title: '' })] : [] }]}
+          draftTaskId={draft ? 'draft' : null}
+          onEditTitle={async () => { throw new Error('create failed') }}
+          onDiscardNewTask={() => setDraft(false)}
+        />
+        {!draft && <div data-testid="draft-removed" />}
+      </>
+    }
+    render(<MemoryRouter><Harness /></MemoryRouter>)
+    const input = screen.getByRole('textbox', { name: /title/i })
+    fireEvent.change(input, { target: { value: 'New task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByTestId('draft-removed')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/revert|couldn/i)
+  })
+
   it('renders a group header for each group with label and count', () => {
     renderCards()
     // Labels appear in .mgc-label spans

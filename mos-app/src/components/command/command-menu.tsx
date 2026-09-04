@@ -205,7 +205,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       const items: CommandItem[] = [
         { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
         { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
-        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks/new' },
+        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
       ]
       if (cafeLogAdmitted) {
         items.push({ id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action', to: CAFE_LOG_ROUTE })
@@ -378,7 +378,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     if (!item) return
     if (item.record) pushRecentTask(item.record)
     if (item.run) item.run()
-    else if (item.to) navigate(item.id === 'a-task' ? '/work/tasks?create=1' : item.to)
+    else if (item.to) navigate(item.to)
     onClose()
   }
 

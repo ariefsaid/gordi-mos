@@ -173,6 +173,8 @@ export function TasksWorkspace({
   const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
+  const createControlRef = useRef<HTMLElement | null>(null)
+  const returnFocusAfterDiscard = useRef(false)
 
   const controller = useRecordCollection({
     descriptor: taskCollectionDescriptor,
@@ -239,6 +241,7 @@ export function TasksWorkspace({
   // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
   // archive seam exactly (signals-archive-page.tsx).
   const [params, setParams] = useSearchParams()
+  const createIntentRef = useRef(new URLSearchParams(location.search).get('create') === '1')
   const recordId = taskRouteAdapter.readPanelId(location)
   const hadTaskSession = useRef(false)
   const suppressNextOpen = useRef(false)
@@ -391,7 +394,15 @@ export function TasksWorkspace({
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
   }, [controller, draftTask, viewerId])
-  const onDiscardNewTask = useCallback(() => setDraftTask(null), [])
+  const onDiscardNewTask = useCallback(() => {
+    returnFocusAfterDiscard.current = true
+    setDraftTask(null)
+  }, [])
+  useEffect(() => {
+    if (draftTask || !returnFocusAfterDiscard.current) return
+    returnFocusAfterDiscard.current = false
+    createControlRef.current?.focus()
+  }, [draftTask])
   const onCloseDrawer = useCallback(() => {
     if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
       void host.close()
@@ -416,12 +427,16 @@ export function TasksWorkspace({
   }, [dataContext, draftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
-    if (params.get('create') !== '1') return
-    onNewTask()
+    if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return
+    if (!draftTask) {
+      onNewTask()
+      return
+    }
+    createIntentRef.current = false
     const next = new URLSearchParams(params)
     next.delete('create')
     setParams(next, { replace: true })
-  }, [onNewTask, params, setParams])
+  }, [dataContext, draftTask, onNewTask, params, setParams])
   // H3 fix (owner review r2 gap — "Clear filters" didn't persist past reload): the shared
   // RecordCollection engine's URL sync (useRecordCollection's effect, via
   // lib/record-collection/query-state.ts writeCollectionQuery) infers which URL keys a query
@@ -542,13 +557,18 @@ export function TasksWorkspace({
     onSort,
     onOverdueFilter: () => setQuery({ overdueOnly: true }),
       onClearOverdue: () => setQuery({ overdueOnly: false }),
-    createHref: { pathname: '/work/tasks/new', search: currentSearch },
+    createHref: (() => {
+      const next = new URLSearchParams(params)
+      next.set('create', '1')
+      return { pathname: '/work/tasks', search: `?${next.toString()}` }
+    })(),
     dueRuns,
     followups: query.view === 'followups',
     followupsEnabled: SHOW_FOLLOWUPS,
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
     accessRoles, currentSearch, drawerOpen, draftTask, dueRuns, host.session, isDesktop, onAddTask,
+    params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onNewTask, onOpenTask, onClearFilters, onSort,
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
@@ -583,7 +603,7 @@ export function TasksWorkspace({
       jobSentence={t('job.tasks')}
       state={frameState}
       action={showNewTask ? (
-        <button type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
+        <button ref={(node) => { createControlRef.current = node }} type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
       ) : undefined}
       meta={
         // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
@@ -629,13 +649,13 @@ export function TasksWorkspace({
                 copy: emptyCopy,
                 create: query.view === 'followups' && SHOW_FOLLOWUPS
                   ? <FollowUpQueueEmbed />
-                  : <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                  : <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
                 title: t('tasks.empty.filteredTitle'),
                 copy: t('tasks.empty.filteredCopy'),
                 clear: onClearFilters,
-                create: <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
