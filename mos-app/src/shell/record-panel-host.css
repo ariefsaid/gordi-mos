@@ -40,7 +40,12 @@
 }
 .record-panel-btn__label { font-size: var(--font-size-label); font-weight: 500; white-space: nowrap; }
 
-@media (pointer: fine) {
+/* #708: this query carried no width guard, so ANY environment reporting a fine pointer — a
+ * resized desktop window, a non-touch mobile emulation — fired it at phone width too, tightening
+ * Close/Ask Deputy to 32×32 under the 44px floor. `and (min-width: 768px)` confines the tighten-
+ * down to genuine desktop; below that, `.record-panel-btn`'s base 44×44 rule is the only one that
+ * can match, so it always wins there — no specificity race needed. */
+@media (pointer: fine) and (min-width: 768px) {
   .record-panel-btn { width: 32px; height: 32px; }
   .record-panel-btn--labelled { width: auto; height: 32px; }
 }

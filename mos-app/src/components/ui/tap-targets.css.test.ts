@@ -18,6 +18,10 @@ const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/si
 const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
 const helpTipCss = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.css'), 'utf8')
 const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.tsx'), 'utf8')
+// #708: the Signal composer's attention pills (43.2×44 / 42.2×44 measured) and the record panel's
+// Close / Ask Deputy buttons (32×32, `.record-panel-btn`) sat under the phone tap floor.
+const attentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-attention-picker.css'), 'utf8')
+const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -105,6 +109,26 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
   it('ticket 667: keeps the help-tip anchor inline while its button owns a ≥44px pseudo hit box', () => {
     expect(helpTipTsx).not.toMatch(/help-tip-anchor tap-floor/)
     expect(helpTipCss).toMatch(/\.help-tip::before\s*\{[^}]*inset:\s*-16px/)
+  })
+
+  // #708: 43.2×44 / 42.2×44 measured — height already met the floor, width did not. Anchored with
+  // [^}]* (never [\s\S]*) so the match cannot cross into a LATER rule in the same file/media body.
+  it('issue 708: raises the Signal composer attention pills to a ≥44px width floor on phone', () => {
+    const body = mediaBody(attentionPickerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-attention-picker-option[^}]*min-width:\s*44px/)
+  })
+
+  // #708: `.record-panel-btn` already rests at 44×44 (P1-2), but the `@media (pointer: fine)`
+  // tighten-down carried no width guard — ANY environment reporting a fine pointer (a resized
+  // desktop window, a non-touch mobile emulation) fired it at phone width too, which is exactly
+  // how Close/Ask Deputy measured 32×32 under 767px. The fix narrows the query itself so the
+  // 32px rule can only win at ≥768px; that is a stronger claim than "a bigger min-width exists
+  // somewhere", so assert the query condition text directly.
+  it('issue 708: the record-panel-btn fine-pointer tighten-down only fires at desktop width (≥768px)', () => {
+    expect(recordPanelHostCss).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}/)
+    // Negative check: no OTHER bare `(pointer: fine)` block (unguarded by a min-width) remains
+    // for this file — a second unnarrowed block would silently reopen the same hole.
+    expect(recordPanelHostCss).not.toMatch(/@media \(pointer: fine\)\s*\{(?!\s*\})/)
   })
 })
 
