@@ -29,6 +29,7 @@ import { createTaskViaUI } from './helpers/tasks'
 import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
 import { MANAGER, ORPHAN, VIEWER } from './fixtures/users'
 import { ensureStream } from './helpers/cafe-stream'
+import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 // The e7 collection grammar owns mouse activation on a task title: a CLICK renames in place
 // (task-row.tsx onTitleClick), and Enter on the focused title is the open-the-record door. Both
@@ -46,7 +47,7 @@ async function box(locator: Locator) {
 }
 
 // ── Desktop regime (default Desktop Chrome viewport, 1440×900 ≥ the derived
-//    TASKS_SPLIT_MIN_WIDTH=1370 split threshold, DD-WAY-53) ────────────────────────────
+//    TASKS_SPLIT_MIN_WIDTH split threshold, DD-WAY-53) ────────────────────────────
 
 test.describe('desktop geometry guards', () => {
   test.beforeEach(async ({ page }) => {
@@ -96,19 +97,26 @@ test.describe('desktop geometry guards', () => {
 
   test('GUARD-R8: split exists only where decision columns fit; narrow rows open the page', async ({ page }) => {
     const columns = ['Task', 'Status', 'PIC', 'Supervisor', 'Due']
-    // 1370 = TASKS_SPLIT_MIN_WIDTH itself (the derived floor); 1440 = DESIGN.md's desktop
+    // TASKS_SPLIT_MIN_WIDTH is the derived floor itself; 1440 is DESIGN.md's desktop
     // reference width. Both are AT OR ABOVE the threshold, so both must render the split.
-    for (const width of [1370, 1440]) {
+    for (const width of [TASKS_SPLIT_MIN_WIDTH, 1440]) {
       await page.setViewportSize({ width, height: 800 })
       await page.goto('work/tasks')
       await page.waitForURL(/\/work\/tasks$/)
       const row = page.locator('tr.task-row').first()
       await expect(row).toBeVisible()
-      // Activate by the row's own title text, not a cell index: the PIC cell (nth-child(3))
-      // carries an inline edit trigger that stops click propagation, so a positional click
-      // there never opens the row at all — it silently proved nothing (round-3 finding).
-      const rowTitle = (await row.locator('td').first().innerText()).trim()
-      await page.getByText(rowTitle, { exact: true }).first().click()
+      // Activate via td.td-supervisor, a plain cell with no nested interactive element: the
+      // <tr>'s own onClick (unconditional onOpen) is the only handler left to catch the bubble.
+      // Three other doors were tried and rejected on the REAL stack (task-row.tsx): the title
+      // cell's innerText joins name + meta with a newline, so getByText(title, {exact:true})
+      // never matches it (round-3); the PIC cell (nth-child(3)) carries an inline edit trigger
+      // that stopPropagation()s, so a positional click there never opens the row (round-3); and
+      // `.task-row-link` — the title's own <Link> — calls beginEdit() instead of onOpen() for
+      // any row the viewer can rename (onTitleClick, task-row.tsx), so it silently enters inline
+      // rename instead of opening the drawer on the E2E fixture's own accountable-viewer row
+      // (round-5 finding: the class exists as instructed, but its click handler is "select to
+      // edit", not "open" — proven by running this guard against the live stack, not assumed).
+      await row.locator('td.td-supervisor').click()
       const drawer = page.getByRole('complementary', { name: /task detail/i })
       await expect(drawer).toBeVisible()
 
@@ -134,8 +142,7 @@ test.describe('desktop geometry guards', () => {
     await page.waitForURL(/\/work\/tasks$/)
     const narrowRow = page.locator('tr.task-row').first()
     await expect(narrowRow).toBeVisible()
-    const narrowRowTitle = (await narrowRow.locator('td').first().innerText()).trim()
-    await page.getByText(narrowRowTitle, { exact: true }).first().click()
+    await narrowRow.locator('td.td-supervisor').click()
     await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
     await expect(page.locator('.record-doc')).toBeVisible()
     const narrowScrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({

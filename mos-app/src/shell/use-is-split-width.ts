@@ -4,11 +4,11 @@ export const TASKS_RAIL_WIDTH = 232
 export const TASKS_FRAME_GUTTER_PX = 32
 export const TASKS_DRAWER_MAX_WIDTH = 400
 export const TASKS_SPLIT_GAP_PX = 12
-export const TASKS_TABLE_BORDER_PX = 2
+export const TASKS_TABLE_BORDER_PX = 2 // the .assembly card's 1px top + 1px bottom border
 export const TASKS_SPLIT_FLOOR_TOTAL = 660
 
 // Keep this arithmetic beside the media query: it is the viewport width at which the rail,
-// wide-frame gutters, drawer, gap, table floors, and scroll-container border all fit.
+// wide-frame gutters, drawer, gap, table floors, and the .assembly card's border all fit.
 export const TASKS_SPLIT_MIN_WIDTH =
   TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_DRAWER_MAX_WIDTH +
   TASKS_SPLIT_GAP_PX + TASKS_SPLIT_FLOOR_TOTAL + TASKS_TABLE_BORDER_PX

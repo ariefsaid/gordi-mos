@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
@@ -163,6 +163,34 @@ beforeEach(() => {
   vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
 })
+
+// Reads the live router location so a test can assert the URL a navigate() call lands on —
+// MemoryRouter never syncs to window.location, so this is the only window into it.
+function LocationRecorder({ onChange }: { onChange: (path: string) => void }) {
+  const location = useLocation()
+  onChange(location.pathname + location.search)
+  return null
+}
+
+// Same shell as renderAt, but with a LocationRecorder sibling so the round-5 regression test
+// can assert the post-navigate URL (renderAt alone has no way to read it back).
+function renderAtWithLocation(path: string, onLocationChange: (path: string) => void) {
+  return render(
+    <AuthContext.Provider value={authedState}>
+      <MemoryRouter initialEntries={[path]}>
+        <OverlayHostProvider>
+          <LocationRecorder onChange={onLocationChange} />
+          <Routes>
+            <Route path="/work/tasks" element={<TasksLayout />}>
+              <Route path="new" element={<TaskDrawer mode="create" />} />
+              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+            </Route>
+          </Routes>
+        </OverlayHostProvider>
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+}
 
 function renderAt(path: string) {
   return render(
@@ -402,6 +430,27 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
     expect(document.querySelector('.split')).toBeNull()
+  })
+
+  // Round-5 regression: a row click at split width opens the record via the ?record= overlay
+  // marker (tasks-workspace onOpenTask, splitLayout branch), not the /work/tasks/:id route — so
+  // useParams().taskId is undefined on this path. Keying the resize-promotion effect on taskId
+  // alone left the drawer (and the overflowing `.split`) mounted forever on this door: isSplit
+  // flips false, but `!taskId` short-circuits the effect before it ever navigates.
+  it('DD-WAY-53 (round-5): a drawer opened via ?record= (no :id in the route) still promotes to /work/tasks/:id on resize', async () => {
+    const widths = stubDynamicSplitWidth()
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    let currentPath = ''
+    renderAtWithLocation('/work/tasks?record=task-1', (path) => { currentPath = path })
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    expect(document.querySelector('.split')).toBeTruthy()
+    expect(currentPath).toBe('/work/tasks?record=task-1')
+
+    act(() => widths.setSplit(false))
+
+    await waitFor(() => expect(currentPath).toBe('/work/tasks/task-1'))
+    expect(currentPath).not.toContain('record')
   })
 
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {
