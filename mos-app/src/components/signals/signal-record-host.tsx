@@ -10,7 +10,7 @@ import {
   linkSignalTask, createFollowUpTask, loadMentionRosters, dedupeRecipients, summarizeLinkedTasks,
   type SignalDetail, type SignalRevisionRow, type MentionRosters,
 } from '@/lib/db/signals'
-import type { SignalCategory, StagedMention } from '@/lib/db/signals.types'
+import type { Attention, SignalCategory, StagedMention } from '@/lib/db/signals.types'
 import type { TeamOption } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption } from '@/lib/db/directory'
 import { listTasks } from '@/lib/db/tasks'
@@ -157,6 +157,11 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
     load()
   }
 
+  async function handleAttentionChange(attention: Attention) {
+    await correctSignal(signalId, { attention })
+    load()
+  }
+
   async function handlePostComment(body: string) {
     const actorId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
     const actorName = auth.status === 'authenticated' ? auth.viewer.person.full_name : ''
@@ -249,6 +254,12 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
   // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
   // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
   const retracted = signal.retracted_at !== null
+  // mos._guard_signals (20260805000006) treats attention as AUTHOR-ONLY content — a signal.retract
+  // holder who isn't the author gets 42501 — so the editor is offered to the author alone
+  // (DESIGN.md: do not render edit affordances that cannot succeed).
+  const onAttentionChange = !retracted && signal.author_id === viewerId
+    ? (attention: Attention) => { void handleAttentionChange(attention) }
+    : undefined
   const reach = retracted ? null : (
     <SignalReach
       mentions={mentionViews}
@@ -297,6 +308,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
           discussion,
           facts,
           history,
+          onAttentionChange,
           // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
           typeLabel: t('signals.record.title'),
         })}

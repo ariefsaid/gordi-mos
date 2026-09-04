@@ -112,10 +112,11 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     expect(screen.getByText(/Author One/)).toBeInTheDocument()
     expect(screen.getByText(/posted by/i)).toBeInTheDocument()
 
-    // No category or attention control at initial paint (capture-minimal, Rule 8).
+    // Category is post-capture enrichment; attention is an optional capture control.
     expect(screen.queryByRole('combobox', { name: /categor/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /categor/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /attention|urgent|fyi/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: /attention/i })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'FYI' })).toBeChecked()
 
     const shareButton = screen.getByRole('button', { name: /share signal/i })
     expect(shareButton).toBeDisabled()
@@ -141,6 +142,18 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     expect(call.body).toBe('The freezer alarm went off')
     expect(call.owningTeamId).toBe('team-hq')
     expect(call.mentions).toEqual([])
+    expect(call.attention).toBe('FYI')
+  })
+
+  it('posts Urgent when the optional attention control is raised', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Gas leak')
+    await userEvent.click(screen.getByRole('radio', { name: 'Urgent' }))
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].attention).toBe('Urgent')
   })
 })
 

@@ -111,6 +111,7 @@ export async function createSignal(input: CreateSignalInput): Promise<string> {
     p_body: input.body,
     p_owning_team_id: input.owningTeamId,
     p_occurred_at: input.occurredAt,
+    p_attention: input.attention ?? 'FYI',
     p_mentions: input.mentions.map((m) => ({ kind: m.kind, targetId: m.targetId })),
   })
   if (error) throw new Error(`createSignal failed — ${error.message}`)

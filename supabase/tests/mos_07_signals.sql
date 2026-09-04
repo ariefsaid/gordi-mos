@@ -16,7 +16,7 @@
 -- assertions are about. It shapes the fixture; it changes no policy.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(38);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -229,6 +229,14 @@ select throws_ok($$
     '[{"kind":"person","targetId":"00000000-0000-0000-0000-0000000000b4"}]'::jsonb)
 $$, '42501', null,
   'a cross-org mention target is rejected BEFORE anything is written — so a failed post leaves no orphan Signal behind');
+select mos.create_signal_with_mentions(
+  'Urgent post', '00000000-0000-0000-0000-000000005b01', now(), p_attention => 'Urgent');
+select is((select attention from mos.signals where body = 'Urgent post'),
+  'Urgent', 'the transactional post path stores an explicitly supplied attention value');
+select mos.create_signal_with_mentions(
+  'FYI positional post', '00000000-0000-0000-0000-000000005b01', now(), '[]'::jsonb);
+select is((select attention from mos.signals where body = 'FYI positional post'),
+  'FYI', 'the four-positional-argument transactional call defaults attention to FYI');
 
 -- ── The Signal→Task link ─────────────────────────────────────────────────────────────────────
 -- Its INSERT policy reaches three of the row's four columns: it pins org_id, pins created_by to the
