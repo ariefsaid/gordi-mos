@@ -35,12 +35,15 @@ describe('EmptyState', () => {
     expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 
-  it('renders the awaiting archetype with a muted retry note and one action', () => {
+  it.each([
+    ['en', 'today'],
+    ['id', 'hari ini'],
+  ] as const)('renders the awaiting archetype without an unsupported day claim (%s)', (locale, dayWord) => {
     render(
       <EmptyState
         variant="awaiting"
         title="No pushes yet"
-        copy={messages.en['kitchen.pushes.empty.copy']}
+        copy={messages[locale]['kitchen.pushes.empty.copy']}
         note="Pull again to check for new push activity."
       >
         <button type="button">Refresh</button>
@@ -50,7 +53,7 @@ describe('EmptyState', () => {
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
-    expect(screen.getByText('Nothing has been sent to the outlet system today.')).toBeInTheDocument()
+    expect(emptyState.querySelector('.empty-copy')).not.toHaveTextContent(new RegExp(dayWord, 'i'))
     expect(emptyState).not.toHaveTextContent(/ESB|outbox/i)
     expect(screen.getByText(/pull again to check for new push activity/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
