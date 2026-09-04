@@ -40,7 +40,7 @@ function mediaBody(query: string): string {
 }
 
 describe('GUARD-R1: split table + drawer share ONE track height at the split width', () => {
-  const body = mediaBody('min-width: 1100px')
+  const body = mediaBody('min-width: 1352px')
 
   it('GUARD-R1: the drawer-open split grid stretches its items', () => {
     // The exact fix: align-items:stretch scoped to the real split regime only. `start`

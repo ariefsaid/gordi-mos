@@ -27,8 +27,8 @@ export function TasksLayout() {
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
   const navigationType = useNavigationType()
-  // ≥1100px is the live push/squash split; below it the drawer floats as a modal
-  // overlay over a full-width (un-squashed) table, so the table must NOT condense.
+  // The live push/squash split starts only where all decision-column floors fit; below it
+  // row activation navigates to the standalone record page.
   const isSplit = useIsSplitWidth()
 
   // R6 (owner review r2): whether this render is the standalone full canonical page. Computed BEFORE

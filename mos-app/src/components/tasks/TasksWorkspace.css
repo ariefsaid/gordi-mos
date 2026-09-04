@@ -26,13 +26,7 @@
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  /* Rule 11 "one width" — matches the RecordPanelHost .record-split track (drawer.css). The drawer
-     column is minmax(360px, min(44%, 520px)): 44% at the ≤1180 widths where it always sat (so that
-     regime is unchanged), but hard-capped at the E7 record reading measure (520px) so a full-bleed
-     wide layout keeps the record at its designed width and hands the slack to the table (item 7).
-     minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport. */
-  /* The drawer yields before the decision table: 400px leaves the five-column floor room at
-     every split viewport, while the 360px minimum keeps the record usable. */
+  /* minmax(0,1fr) prevents table content from stretching the track past the viewport. */
   grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — it fills PageFrame's
@@ -52,8 +46,8 @@
    drawer becomes a flex column that FILLS that height and OWNS its overflow via an internal scroll —
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
-   Scoped to ≥1100px because below the split threshold the drawer is a modal overlay, not a column. */
-@media (min-width: 1100px) {
+   Scoped to the decision-column split threshold because below it the drawer is not a column. */
+@media (min-width: 1352px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -303,8 +297,7 @@
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
   .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
 }
-/* Drawer-open split: all five decision columns remain visible. Each floor is authored in its
-   own rule block so table-layout:fixed cannot starve Title or merge Supervisor into Due. */
+/* Split floors keep each decision column and the row menu measurable. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
 .split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 160px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),

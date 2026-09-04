@@ -332,16 +332,16 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   // AC-110/113: below the split threshold the drawer floats over a full-width table
   // (overlay/mobile), so the table must NOT condense. Priority columns render; Activity
   // is drawer-only in every mode.
-  it('AC-113: below 1100px the table is NOT condensed even with a task open (drawer is a modal overlay)', async () => {
-    stubWidths({ split: false, desktop: true }) // <1100px but ≥768 → overlay/modal regime
+  it('DD-WAY-53: below the decision-column threshold a non-link row click opens the record page', async () => {
+    stubWidths({ split: false, desktop: true })
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
-    renderAt('/work/tasks/task-1')
+    renderAt('/work/tasks')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
-    // Overlay regime never condenses (the drawer floats over a full-width table).
-    expect(document.querySelector('.assembly.condensed')).toBeNull()
-    // Activity is drawer-only in every mode (Wave 2c priority trim).
-    expect(screen.queryByRole('columnheader', { name: /activity/i })).toBeNull()
+    fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
+    expect(document.querySelector('.split')).toBeNull()
+    expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
   })
 
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {

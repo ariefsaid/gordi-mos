@@ -93,30 +93,46 @@ test.describe('desktop geometry guards', () => {
     }).toBeLessThanOrEqual(2)
   })
 
-  test('GUARD-R8: drawer-open split keeps all five decision columns measurable without page overflow', async ({ page }) => {
-    for (const width of [1152, 1280, 1440]) {
+  test('GUARD-R8: split exists only where decision columns fit; narrow rows open the page', async ({ page }) => {
+    const columns = ['Task', 'Status', 'PIC', 'Supervisor', 'Due']
+    for (const width of [1352, 1440]) {
       await page.setViewportSize({ width, height: 800 })
       await page.goto('work/tasks')
       await page.waitForURL(/\/work\/tasks$/)
-      const row = page.locator('tr.task-row a.task-row-link').first()
+      const row = page.locator('tr.task-row').first()
       await expect(row).toBeVisible()
-      await row.click()
-      await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
+      await row.locator('td:nth-child(3)').click()
+      const drawer = page.getByRole('complementary', { name: /task detail/i })
+      await expect(drawer).toBeVisible()
 
-      const columns = ['Task', 'Status', 'PIC', 'Supervisor', 'Due']
+      const rects = []
       for (const column of columns) {
         const header = page.locator('.tasks-table thead th').filter({ hasText: column }).first()
-        const widthText = await header.evaluate((element) => {
-          const rect = element.getBoundingClientRect()
-          return { width: rect.width, content: element.scrollWidth }
-        })
-        expect(widthText.width, `${column} must fit its nowrap content at ${width}px`).toBeGreaterThanOrEqual(widthText.content)
+        const widthText = await header.evaluate((element) => ({
+          rect: element.getBoundingClientRect().toJSON(),
+          content: element.scrollWidth,
+        }))
+        rects.push({ column, ...widthText })
+        expect(widthText.rect.width, `${column} must fit its content at ${width}px`).toBeGreaterThanOrEqual(widthText.content)
       }
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth),
-        `drawer-open tasks must not scroll horizontally at ${width}px`,
-      ).toBe(width)
+      const scrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({
+        scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
+      }))
+      console.log(JSON.stringify({ width, rects, scrollWidths }))
+      expect(scrollWidths.scrollWidth, `task card must not overflow at ${width}px`).toBe(scrollWidths.clientWidth)
     }
+
+    await page.setViewportSize({ width: 1152, height: 800 })
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+    await page.locator('tr.task-row').first().locator('td:nth-child(3)').click()
+    await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
+    await expect(page.locator('.record-doc')).toBeVisible()
+    const narrowScrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({
+      scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
+    }))
+    console.log(JSON.stringify({ width: 1152, scrollWidths: narrowScrollWidths }))
+    expect(narrowScrollWidths.scrollWidth).toBe(narrowScrollWidths.clientWidth)
   })
 
   test('GUARD-PRIMARY: the Tasks page shows at most ONE solid-primary button — in every toolbar state', async ({ page }) => {
