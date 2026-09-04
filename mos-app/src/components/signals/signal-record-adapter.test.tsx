@@ -65,7 +65,8 @@ describe('wrapSignalRecord (OD-REDESIGN-90 JTBD anatomy)', () => {
 
   it('AC-V3-009 (reframed): a retracted Signal is read-only, drops reach + discussion, keeps message(tombstone) + facts', () => {
     const detail = makeDetail(makeSignal({ retracted_at: '2026-07-21T00:00:00Z', retract_reason: 'Duplicate report' }))
-    const adapter = wrapSignalRecord(makeInput({ detail, history: null }))
+    const adapter = wrapSignalRecord(makeInput({ detail, history: null, tombstoneLabel: 'This Signal was retracted.' }))
+    expect(adapter.title).toBe('This Signal was retracted.')
     expect(adapter.permission.readOnly).toBe(true)
     // The retract reason is the message-region tombstone — never a second whole-record note (LAW-6).
     expect(adapter.permission.reason).toBeUndefined()

@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
 import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
+import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -17,8 +18,16 @@ import './signal-composer-host.css'
 // open() — it never navigates to a route (FR-417). Mounted once at the shell root (app-shell.tsx)
 // so the composer survives across route changes and there is exactly one drawer host (Rule 6).
 
+export interface SignalComposerPrefill {
+  body: string
+  owningTeamId: string
+  occurredAt: string
+  attention: 'FYI' | 'Needs attention' | 'Urgent'
+  mentions: StagedMention[]
+}
+
 export interface SignalComposerContextValue {
-  open: () => void
+  open: (prefill?: SignalComposerPrefill) => void
   /** Increments on each successful Share — feed/archive surfaces watch it to reload so a freshly
    * posted Signal appears without a manual refresh (AC-430). */
   postCount: number
@@ -40,11 +49,12 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
+  const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
 
-  const close = useCallback(() => setIsOpen(false), [])
-  const open = useCallback(() => setIsOpen(true), [])
+  const close = useCallback(() => { setIsOpen(false); setPrefill(undefined) }, [])
+  const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
-  const handleShared = useCallback(() => { setPostCount((n) => n + 1); setIsOpen(false) }, [])
+  const handleShared = useCallback(() => { setPostCount((n) => n + 1); setPrefill(undefined); setIsOpen(false) }, [])
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
@@ -91,6 +101,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}
               onShared={handleShared}
+              prefill={prefill}
             />
           </div>
         </ModalShell>

@@ -192,9 +192,9 @@ export function SignalsArchivePage() {
         />
       ),
       pageTo: { pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() },
-      content: <SignalRecordHost signalId={recordId} mode="panel" />,
+      content: <SignalRecordHost signalId={recordId} mode="panel" onReload={controller.retry} />,
     }
-  }, [openSignalBody, recordId, searchWithoutRecord, t])
+  }, [controller.retry, openSignalBody, recordId, searchWithoutRecord, t])
 
   useEffect(() => {
     if (!signalEntry) {
@@ -258,7 +258,7 @@ export function SignalsArchivePage() {
       // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
       // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
       primaryAction={(
-        <Button variant="primary" onClick={openSignalComposer}>
+        <Button variant="primary" onClick={() => openSignalComposer()}>
           {t('signals.action.share')}
         </Button>
       )}

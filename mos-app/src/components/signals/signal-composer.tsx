@@ -7,6 +7,7 @@ import {
   listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
+import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
 import { SignalMentionPicker, type SignalMentionPickerHandle } from './signal-mention-picker'
@@ -31,6 +32,7 @@ export interface SignalComposerProps {
   teamMembers?: MemberLookup
   buMembers?: MemberLookup
   onShared?: (id: string) => void
+  prefill?: SignalComposerPrefill
 }
 
 function toDatetimeLocalValue(date: Date): string {
@@ -40,20 +42,20 @@ function toDatetimeLocalValue(date: Date): string {
 
 export function SignalComposer({
   authorId, authorName, canCreateForTeam = false, canMentionBu = false,
-  teamMembers = {}, buMembers = {}, onShared,
+  teamMembers = {}, buMembers = {}, onShared, prefill,
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [teamsLoaded, setTeamsLoaded] = useState(false)
-  const [teamId, setTeamId] = useState('')
+  const [teamId, setTeamId] = useState(prefill?.owningTeamId ?? '')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
   const [site, setSite] = useState<SiteOption | null>(null)
   const [people, setPeople] = useState<MentionCandidate[]>([])
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
-  const [body, setBody] = useState('')
-  const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocalValue(new Date()))
-  const [attention, setAttention] = useState<Attention>('FYI')
-  const [mentions, setMentions] = useState<StagedMention[]>([])
+  const [body, setBody] = useState(prefill?.body ?? '')
+  const [occurredAt, setOccurredAt] = useState(() => prefill ? toDatetimeLocalValue(new Date(prefill.occurredAt)) : toDatetimeLocalValue(new Date()))
+  const [attention, setAttention] = useState<Attention>(prefill?.attention ?? 'FYI')
+  const [mentions, setMentions] = useState<StagedMention[]>(prefill?.mentions ?? [])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,13 +78,14 @@ export function SignalComposer({
       // OD-REDESIGN-91 #19 (F4): a single eligible Team auto-picks; with more than one the poster
       // MUST pick the owning Team — no pre-select, no arbitrary first (Share stays disabled until
       // a Team is chosen).
-      if (teamOptions.length === 1) setTeamId(teamOptions[0].id)
+      if (prefill?.owningTeamId && teamOptions.some((team) => team.id === prefill.owningTeamId)) setTeamId(prefill.owningTeamId)
+      else if (teamOptions.length === 1) setTeamId(teamOptions[0].id)
       setPeople(peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })))
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam])
+  }, [authorId, canCreateForTeam, prefill])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).

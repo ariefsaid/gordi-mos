@@ -16,6 +16,7 @@
 import { useState, useId, useEffect, useRef } from 'react'
 import { useT } from '@/i18n/use-t'
 import { ErrorState } from '@/components/ui/state-kit'
+import { TextInput } from '@/components/ui/text-input'
 import { ModalShell } from '@/components/ui/modal-shell'
 
 export interface ConfirmDialogProps {
@@ -37,6 +38,11 @@ export interface ConfirmDialogProps {
    * Default: 'primary'.
    */
   tone?: 'primary' | 'destructive'
+  /** Optional required reason field for consequential actions. */
+  reasonLabel?: string
+  reason?: string
+  onReasonChange?: (reason: string) => void
+  reasonRequired?: boolean
   /** Async action fired on confirm click. Throw to surface an error state. */
   onConfirm: () => Promise<void>
   /** Called on Cancel or Esc. */
@@ -51,6 +57,10 @@ export function ConfirmDialog({
   cancelLabel,
   busyLabel,
   tone = 'primary',
+  reasonLabel,
+  reason = '',
+  onReasonChange,
+  reasonRequired = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -141,6 +151,18 @@ export function ConfirmDialog({
           {body}
         </p>
 
+        {reasonLabel && onReasonChange && (
+          <div className="mb-4">
+            <TextInput
+              label={reasonLabel}
+              required={reasonRequired}
+              value={reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+              fullWidth
+            />
+          </div>
+        )}
+
         {error && (
           <div className="mb-4">
             <ErrorState message={error} />
@@ -161,7 +183,7 @@ export function ConfirmDialog({
             type="button"
             className={`btn ${tone === 'destructive' ? 'btn-destructive' : 'btn-primary'}`}
             onClick={handleConfirm}
-            disabled={busy}
+            disabled={busy || (reasonRequired && !reason.trim())}
           >
             {busy ? (busyLabel ?? t('common.working')) : confirmLabel}
           </button>

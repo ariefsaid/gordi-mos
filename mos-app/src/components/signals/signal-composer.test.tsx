@@ -72,6 +72,23 @@ beforeEach(() => {
   mockCreateSignal.mockResolvedValue('signal-new')
 })
 
+describe('SignalComposer — repost prefill', () => {
+  it('submits staged mention rows carried by a reposted draft', async () => {
+    renderComposer({
+      prefill: {
+        body: 'The freezer alarm went off @Peer Person', owningTeamId: 'team-hq',
+        occurredAt: '2026-07-16T02:00:00Z', attention: 'Needs attention',
+        mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
+      },
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: /share signal/i })).toBeEnabled())
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({
+      mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
+    })))
+  })
+})
+
 // SIG-2 — a viewer with no team memberships gets an honest empty state, not a dead composer.
 describe('SignalComposer — no-team empty state (SIG-2)', () => {
   it('renders an empty state explaining why, instead of an empty select + forever-disabled submit', async () => {
