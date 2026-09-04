@@ -982,7 +982,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           <TextInput
             id="task-title"
             type="text"
-            className="tc-input"
+            className="tc-input tap-floor"
             fullWidth
             error={Boolean(titleError)}
             value={title}

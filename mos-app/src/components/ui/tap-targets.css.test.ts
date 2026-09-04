@@ -40,6 +40,8 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\[data-touch-target='true'\][\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.tap-target-phone--icon[\s\S]*min-width:\s*44px/)
     expect(body).toMatch(/\.tap-target-phone--icon[\s\S]*min-height:\s*44px/)
+    expect(body).toMatch(/\.tap-floor[\s\S]*min-width:\s*44px/)
+    expect(body).toMatch(/\.tap-floor[\s\S]*min-height:\s*44px/)
   })
 
   it('raises the dashboard window selector track, tabs, and custom date controls to 44px on phone', () => {

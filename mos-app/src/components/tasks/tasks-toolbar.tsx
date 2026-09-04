@@ -186,7 +186,7 @@ export function TasksToolbar({
       ]}
       toggles={(
         <>
-          <label className="collection-toolbar__toggle">
+          <label className="collection-toolbar__toggle tap-floor">
             <input
               type="checkbox"
               checked={query.includeArchived}

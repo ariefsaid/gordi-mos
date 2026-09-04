@@ -259,7 +259,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
           <button
             type="button"
             ref={editButtonRef}
-            className={`record-field__edit record-field__edit--${spec.control}`}
+            className={`record-field__edit tap-floor record-field__edit--${spec.control}`}
             data-field-edit={spec.key}
             aria-label={t('record.field.edit', { label: spec.label })}
             aria-describedby={labelId}

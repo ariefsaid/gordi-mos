@@ -34,7 +34,7 @@ export function HomeObjectivesDoor() {
             not repeat the heading above it (DESIGN.md Don't — "don't repeat a value under a
             control that the row or card already renders"); the section's accessible name carries
             the subject. */}
-        <Link to="/work/objectives" className="stream-band-link">{t('home.objectives.drill')}</Link>
+        <Link to="/work/objectives" className="stream-band-link tap-floor">{t('home.objectives.drill')}</Link>
       </div>
       <p className="home-objectives-rollup">{t('home.objectives.rollup')}</p>
     </section>
