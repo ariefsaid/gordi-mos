@@ -711,7 +711,10 @@ export function KitchenLogPage() {
     return (
       <div className="kl-card">
         <div className="kl-card-head">
-          <span className="kl-card-name">{item.name}</span>
+          <div className="kl-card-identity">
+            <span className="kl-card-name">{item.name}</span>
+            {item.category && <span className="kl-card-category">{item.category}</span>}
+          </div>
           <WipItemStepper
             itemName={item.name}
             line={line}
@@ -740,11 +743,14 @@ export function KitchenLogPage() {
             once for the whole group (DataTable groups.hint), so repeating it per row was the
             exact "true of every row → not information" pattern that dropped the status-pill
             fill (kl-status below). Off-plan rows are now silent at rest, same as planned rows. */}
-        {line.qty_porsi > 0 && (
-          <div className="kl-card-meta">
+        <div className="kl-card-meta">
+          <span className="kl-card-stock">
+            <span>Stock</span> <strong className="tabular">{line.stok}</strong>
+          </span>
+          {line.qty_porsi > 0 && (
             <span className={`kl-status kl-status--${status.tone}`}>{statusLabel(t, line.qty_porsi, line.plan_qty)}</span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     )
   }
