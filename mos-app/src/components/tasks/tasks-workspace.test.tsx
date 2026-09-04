@@ -19,6 +19,7 @@ import { BreadcrumbTitleProvider } from '@/shell/breadcrumb-title'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -115,7 +116,8 @@ function stubMatchMedia(split = true, desktop = true, narrow = !desktop) {
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes('1100')) matches = split
+      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
+      else if (query.includes('1100')) matches = split
       else if (query.includes('919')) matches = narrow // useIsNarrow — rail collapsed / FAB present
       else if (query.includes('768')) matches = desktop
       return {
@@ -1704,6 +1706,20 @@ function cssRuleBody(selector: string): string {
   const close = css.indexOf('}', open)
   return css.slice(open + 1, close)
 }
+
+describe('S2.1 — split decision-column floors', () => {
+  it('keeps each decision column floor in its own split rule block', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+    expect(css).toContain('.split:not(.nodrawer) .tasks-table th:nth-child(1)')
+    for (const column of [1, 2, 3, 4, 5]) {
+      const selector = `.split:not(.nodrawer) .tasks-table th:nth-child(${column})`
+      const start = css.indexOf(selector)
+      const open = css.indexOf('{', start)
+      const close = css.indexOf('}', open)
+      expect(css.slice(open + 1, close), `${selector} must own its floor`).toMatch(/width:\s*\d+px/)
+    }
+  })
+})
 
 describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted — supersedes OD-P4-10 weight-400)', () => {
   it('AC-T01: a populated table columnheader carries the th-cell class', async () => {

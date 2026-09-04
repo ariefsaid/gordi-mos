@@ -1,6 +1,6 @@
 import './record-panel-host.css'
 import { useEffect, useRef, type ReactNode } from 'react'
-import { useIsSplitWidth } from './use-is-split-width'
+import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 import { useIsDesktop } from './use-is-desktop'
 import { useIsNarrow } from './use-is-narrow'
 import { CloseIcon, BackIcon } from './icons'
@@ -79,7 +79,7 @@ export function RecordPanelHost({
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
   escapeCapture = false, escapeOnDocument = false, companion = false,
 }: RecordPanelHostProps) {
-  const isSplit = useIsSplitWidth()
+  const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
   const isNarrow = useIsNarrow()
   const isModal = layout === 'companion' ? isNarrow : !isSplit

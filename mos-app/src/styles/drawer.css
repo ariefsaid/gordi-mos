@@ -13,8 +13,8 @@
    The generic push/squash grid any RecordPanelHost tenant page (Signals archive,
    …) uses so its list squashes and the non-modal <aside> record panel sits BESIDE
    it at >=1100px — identical side/width to the Task drawer's split (spec FR-3).
-   Same drawer-width track as the Tasks .split grid — minmax(360px, 44%) (Rule 11 — one width).
-   Below 1100px the host renders its own modal overlay, so pages drop this class
+   This generic record track is percentage-based; Tasks .split has its own fixed 400px named
+   track because its decision-column threshold must be arithmetic. Below 1100px the host renders its own modal overlay, so pages drop this class
    and the list runs full-width underneath. */
 .record-split {
   display: grid;
@@ -22,7 +22,8 @@
      panel occupies a 40–45% desktop track (not 33vw), so the opened record has room
      while the collection keeps enough context beside it (DESIGN.md experience-contract
      Rule 8-desktop: rail + header + frame + collection + 40–45% panel, no clip).
-     Same minmax(360px, 44%) track is reused by TasksWorkspace .split (Rule 11 — one width). */
+     TasksWorkspace .split deliberately uses its own fixed 400px named track; this generic panel
+     remains percentage-based for non-Tasks hosts. */
   grid-template-columns: minmax(0, 1fr) minmax(360px, 44%);
   align-items: start; gap: 12px;
 }
@@ -39,10 +40,11 @@
    The shell OverlayHostSlot sits above the page Outlet (no page-level .record-split wrapper),
    so a shell-owned non-modal panel (Bell quick-triage, future shell overlays) would otherwise
    render as an unpositioned auto-width <aside>. This rule gives it the SAME right-anchored
-   desktop track as a collection .record-split panel — reusing minmax(360px, 44%) via the
-   clamp (Rule 11 — one width; no new token). It floats over the main content (z-drawer) so the
-   underlying page stays mounted and interactive. Below the split threshold RecordPanelHost
-   switches to its modal regime (.drawer-modal), so this rule is desktop-only. */
+   desktop track as a collection .record-split panel — using the generic percentage track for
+   non-Tasks hosts. It floats over the main content (z-drawer) so the underlying page stays mounted
+   and interactive. Below the split threshold RecordPanelHost switches to its modal regime
+   (.drawer-modal), so this rule is desktop-only. */
+/* 1100px is the generic shell overlay breakpoint; Tasks uses its named decision-column threshold. */
 @media (min-width: 1100px) {
   .drawer-shell-split {
     position: fixed;
@@ -114,6 +116,7 @@
   }
 }
 
+/* 1100px is the generic shell overlay breakpoint; Tasks uses its named decision-column threshold. */
 @media (min-width: 1100px) {
   .drawer.overlay-companion-host--with-record {
     right: calc(max(360px, 44vw) + 12px);

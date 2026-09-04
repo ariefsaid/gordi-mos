@@ -50,7 +50,11 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // DD-WAY-53: 1280×720 (Desktop Chrome's default) sits below TASKS_SPLIT_MIN_WIDTH=1370,
+    // so specs that open the Tasks drawer by row click and wait for the panel to mount would
+    // fail here even though nothing regressed. DESIGN.md's desktop reference width (1440×900)
+    // is comfortably above the threshold.
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
   ],
   webServer: {
     // --strictPort: a busy derived port must FAIL LOUDLY here, never auto-hop ports.

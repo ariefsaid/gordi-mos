@@ -13,7 +13,7 @@
 // the Tasks OverlayHostSlot's onClose drops ?record= (replace, suppressing the re-open) BEFORE the
 // host close commits, so the record cannot self-resurrect.
 //
-// Runs at the default desktop viewport (≥1100px) — the live split-view drawer via
+// Runs at the default desktop viewport (1440px; ≥1370px → live non-modal split) — the live split-view drawer via
 // TasksWorkspace/OverlayHostSlot, the SAME surface the census drove. Requires the live local stack +
 // global-setup seed (never staging). Oracle: the drawer's visibility (what "the record closes" means
 // to the user) plus the ?record= query being gone from the address bar.

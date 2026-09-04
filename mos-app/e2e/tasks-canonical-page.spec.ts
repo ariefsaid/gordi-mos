@@ -4,7 +4,7 @@
 //   OD-63-2: a normal in-list click opens the split drawer (table stays mounted).
 //   OD-62:   Mark complete sets a task to Done; no RACI grammar on any Task surface.
 // Requires the live stack (supabase up on 44321) + the global-setup seed.
-// Runs at the default desktop viewport (≥1100px → live non-modal split).
+// Runs at the default desktop viewport (1440px; ≥1370px → live non-modal split).
 
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'

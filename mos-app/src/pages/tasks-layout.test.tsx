@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
@@ -41,6 +41,7 @@ import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -62,13 +63,53 @@ function stubMatchMedia(matches: boolean) {
   })
 }
 
+// Dynamic split-width stub: the split query starts matching and can be flipped mid-test
+// (simulating a window resize) via `setSplit`, notifying useIsSplitWidth's own change
+// listener — exactly the seam a real `matchMedia` change event drives.
+function stubDynamicSplitWidth() {
+  let split = true
+  const listeners = new Set<(e: MediaQueryListEvent) => void>()
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => {
+      // record-panel-host / rail-compact key off the generic 1100px overlay breakpoint (a
+      // DIFFERENT hook, useIsWideOverlayWidth) to decide panel presentation — it must track
+      // the same split state here or the drawer never renders as a `complementary` panel.
+      const isSplitQuery = query.includes(`${TASKS_SPLIT_MIN_WIDTH}`) || query.includes('1100')
+      return {
+        get matches() {
+          if (isSplitQuery) return split
+          if (query.includes('768')) return true // desktop
+          return false // narrow (919) stays false — desktop throughout
+        },
+        media: query,
+        onchange: null,
+        addEventListener: (_type: string, cb: (e: MediaQueryListEvent) => void) => {
+          if (isSplitQuery) listeners.add(cb)
+        },
+        removeEventListener: (_type: string, cb: (e: MediaQueryListEvent) => void) => {
+          listeners.delete(cb)
+        },
+        dispatchEvent: () => false,
+      }
+    },
+  })
+  return {
+    setSplit(next: boolean) {
+      split = next
+      listeners.forEach((cb) => cb({ matches: next } as MediaQueryListEvent))
+    },
+  }
+}
+
 // Width-aware stub: control split (≥1100) and desktop (≥768) independently.
 function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boolean }) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes('1100')) matches = split
+      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
+      else if (query.includes('1100')) matches = split
       else if (query.includes('768')) matches = desktop
       else if (query.includes('919')) matches = !desktop // useIsNarrow (max-width)
       return {
@@ -122,6 +163,34 @@ beforeEach(() => {
   vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
 })
+
+// Reads the live router location so a test can assert the URL a navigate() call lands on —
+// MemoryRouter never syncs to window.location, so this is the only window into it.
+function LocationRecorder({ onChange }: { onChange: (path: string) => void }) {
+  const location = useLocation()
+  onChange(location.pathname + location.search)
+  return null
+}
+
+// Same shell as renderAt, but with a LocationRecorder sibling so the round-5 regression test
+// can assert the post-navigate URL (renderAt alone has no way to read it back).
+function renderAtWithLocation(path: string, onLocationChange: (path: string) => void) {
+  return render(
+    <AuthContext.Provider value={authedState}>
+      <MemoryRouter initialEntries={[path]}>
+        <OverlayHostProvider>
+          <LocationRecorder onChange={onLocationChange} />
+          <Routes>
+            <Route path="/work/tasks" element={<TasksLayout />}>
+              <Route path="new" element={<TaskDrawer mode="create" />} />
+              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+            </Route>
+          </Routes>
+        </OverlayHostProvider>
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+}
 
 function renderAt(path: string) {
   return render(
@@ -332,16 +401,56 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   // AC-110/113: below the split threshold the drawer floats over a full-width table
   // (overlay/mobile), so the table must NOT condense. Priority columns render; Activity
   // is drawer-only in every mode.
-  it('AC-113: below 1100px the table is NOT condensed even with a task open (drawer is a modal overlay)', async () => {
-    stubWidths({ split: false, desktop: true }) // <1100px but ≥768 → overlay/modal regime
+  it('DD-WAY-53: below the decision-column threshold a non-link row click opens the record page', async () => {
+    stubWidths({ split: false, desktop: true })
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    renderAt('/work/tasks')
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
+    fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
+    expect(document.querySelector('.split')).toBeNull()
+    expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+  })
+
+  // Round-4 regression: a drawer opened at/above TASKS_SPLIT_MIN_WIDTH must not survive a
+  // resize below it. The route never changes (still /work/tasks/task-1), so only the
+  // isSplit flip can drive the promotion — this proves TasksLayout reacts to it instead of
+  // leaving the stale `.split` (table + drawer) mounted and overflowing.
+  it('DD-WAY-53: an open drawer promotes to the record page when a resize drops below the split threshold', async () => {
+    const widths = stubDynamicSplitWidth()
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
     renderAt('/work/tasks/task-1')
-    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
-    // Overlay regime never condenses (the drawer floats over a full-width table).
-    expect(document.querySelector('.assembly.condensed')).toBeNull()
-    // Activity is drawer-only in every mode (Wave 2c priority trim).
-    expect(screen.queryByRole('columnheader', { name: /activity/i })).toBeNull()
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    expect(document.querySelector('.split')).toBeTruthy()
+
+    act(() => widths.setSplit(false))
+
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
+    expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+    expect(document.querySelector('.split')).toBeNull()
+  })
+
+  // Round-5 regression: a row click at split width opens the record via the ?record= overlay
+  // marker (tasks-workspace onOpenTask, splitLayout branch), not the /work/tasks/:id route — so
+  // useParams().taskId is undefined on this path. Keying the resize-promotion effect on taskId
+  // alone left the drawer (and the overflowing `.split`) mounted forever on this door: isSplit
+  // flips false, but `!taskId` short-circuits the effect before it ever navigates.
+  it('DD-WAY-53 (round-5): a drawer opened via ?record= (no :id in the route) still promotes to /work/tasks/:id on resize', async () => {
+    const widths = stubDynamicSplitWidth()
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    let currentPath = ''
+    renderAtWithLocation('/work/tasks?record=task-1', (path) => { currentPath = path })
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    expect(document.querySelector('.split')).toBeTruthy()
+    expect(currentPath).toBe('/work/tasks?record=task-1')
+
+    act(() => widths.setSplit(false))
+
+    await waitFor(() => expect(currentPath).toBe('/work/tasks/task-1'))
+    expect(currentPath).not.toContain('record')
   })
 
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {

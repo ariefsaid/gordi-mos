@@ -1,5 +1,5 @@
 import { useIsNarrow } from './use-is-narrow'
-import { useIsSplitWidth } from './use-is-split-width'
+import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 import { useRailCollapsePref } from './use-rail-collapse-pref'
 
 export interface RailCompactState {
@@ -32,7 +32,8 @@ export interface RailCompactState {
  */
 export function useRailCompact(): RailCompactState {
   const isNarrow = useIsNarrow()
-  const isSplit = useIsSplitWidth()
+  const isSplit = useIsWideOverlayWidth()
+  // Tasks uses a separate decision-column fit; rail labels have their own 1100px fit.
   const { collapsed } = useRailCollapsePref()
   const collapsible = !isNarrow && isSplit
   // !isSplit → the 920–1099.98px band: compact regardless of what is stored.

@@ -26,12 +26,8 @@
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  /* Rule 11 "one width" — matches the RecordPanelHost .record-split track (drawer.css). The drawer
-     column is minmax(360px, min(44%, 520px)): 44% at the ≤1180 widths where it always sat (so that
-     regime is unchanged), but hard-capped at the E7 record reading measure (520px) so a full-bleed
-     wide layout keeps the record at its designed width and hands the slack to the table (item 7).
-     minmax(0,1fr) not bare 1fr so wide card/table content can't stretch the track past the viewport. */
-  grid-template-columns: minmax(0, 1fr) minmax(360px, min(44%, 520px));
+  /* minmax(0,1fr) prevents table content from stretching the track past the viewport. */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — it fills PageFrame's
      gutters so the table's right edge aligns with the account chip (no detached content on wide
@@ -50,8 +46,8 @@
    drawer becomes a flex column that FILLS that height and OWNS its overflow via an internal scroll —
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
-   Scoped to ≥1100px because below the split threshold the drawer is a modal overlay, not a column. */
-@media (min-width: 1100px) {
+   Scoped to the decision-column split threshold because below it the drawer is not a column. */
+@media (min-width: 1370px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -295,44 +291,33 @@
 
 /* Intermediate widths: column PRIORITY (Wave 2c) — Task > Status > PIC > Due > Supervisor.
    Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
-@media (max-width: 1120px) {
+@media (max-width: 1099.98px) {
   .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { display: none; }
   .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 13%; }
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
   .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
 }
-/* Condensed (drawer-open split — owner-eyes item 3, supersedes the 2026-07-22 F4 hide-both rule).
-   The squashed split track is too narrow for the full 6-column decision set, so the condensed
-   tier follows its OWN priority spec:
-     • Title keeps the dominant share (width:auto takes the remaining track).
-     • Status pill + Due shrink to their own content (width:1% + nowrap) — Due NEVER truncates;
-       TaskRow drops the "Overdue ·" prefix in condensed so the red color carries the meaning.
-     • PIC renders AVATAR-ONLY (the name is hidden but kept in the cell's aria-label + title tooltip).
-     • Supervisor is DROPPED entirely — it is the lowest-priority decision column and already lives
-       in the drawer beside the table.
-   Keyed off the LAYOUT STATE (.split:not(.nodrawer)), not the `.assembly.condensed`
-   class: that class only tracked the route `drawerOpen` prop and never fired on the overlay-host
-   open path (the row-click drawer), so the table stayed un-condensed and every column truncated —
-   the real regression the owner saw. This selector is true for BOTH drawer paths. */
-/* The collection table is `table-layout: fixed`, so column widths are taken literally from these
-   rules (content min-width is ignored) — the condensed tier therefore uses explicit fixed widths
-   sized to their content: Title takes the remaining track (auto/dominant); Status/PIC/Due are just
-   wide enough that nothing clips; Supervisor is removed from the layout. */
+/* Split floors keep each decision column and the row menu measurable. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: auto; }  /* Title — dominant */
+.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 160px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
-.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; }  /* Status pill ("In Progress" is the widest) */
+.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
 .split:not(.nodrawer) .tasks-table th:nth-child(3),
-.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 48px; }  /* PIC — avatar-only */
+.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 128px; } /* PIC */
 .split:not(.nodrawer) .tasks-table th:nth-child(4),
-.split:not(.nodrawer) .tasks-table td:nth-child(4) { display: none; }  /* Supervisor — DROPPED */
+.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 120px; } /* Supervisor */
 .split:not(.nodrawer) .tasks-table th:nth-child(5),
-.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; }  /* Due — never truncates */
+.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
 .split:not(.nodrawer) .tasks-table th:nth-child(6),
-.split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; }  /* menu */
-/* PIC avatar-only in condensed — hide the name text (still in aria-label + the tooltip title). */
-.split:not(.nodrawer) .td-owner .own-name,
-.split:not(.nodrawer) .td-owner .owner-provenance { display: none; }
+.split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; } /* row menu */
+/* Due + row-menu floors are sized by CLASS, not column position, in every state (split or
+   rest): the optional Business Unit column shifts every later column's nth-child index, so
+   an nth-child-based floor lands on the wrong column once BU is on — measured on dev at
+   REST (drawer shut) with BU on: Due clipped to 40px against a 64px need. One rule, no
+   split/nodrawer or :has() gate (those were tautological — same 104px the nth-child(5) rule
+   already set within the split, and never reached at rest at all). */
+.tasks-table .th-due, .tasks-table .td-due { width: 104px; }
+.tasks-table .th-menu, .tasks-table .td-menu { width: 40px; }
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */

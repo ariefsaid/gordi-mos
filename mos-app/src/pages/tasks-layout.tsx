@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react'
-import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
@@ -26,9 +26,16 @@ export function TasksLayout() {
   const { taskId } = useParams()
   const isNew = useMatch('/work/tasks/new')
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  // The open record, however it is open: the route param (`/work/tasks/:id`, the standalone
+  // page or the "Open full page" escalation) or the ?record= overlay marker a split-layout row
+  // click writes instead (tasks-workspace onOpenTask, splitLayout branch). The resize-promotion
+  // effect below must react to either — a row click never touches :id, so keying on taskId alone
+  // left the drawer stuck open (round-4 regression).
+  const openRecordId = taskId ?? searchParams.get('record') ?? undefined
   const navigationType = useNavigationType()
-  // ≥1100px is the live push/squash split; below it the drawer floats as a modal
-  // overlay over a full-width (un-squashed) table, so the table must NOT condense.
+  // The live push/squash split starts only where all decision-column floors fit; below it
+  // row activation navigates to the standalone record page.
   const isSplit = useIsSplitWidth()
 
   // R6 (owner review r2): whether this render is the standalone full canonical page. Computed BEFORE
@@ -37,6 +44,29 @@ export function TasksLayout() {
   // "Tasks — Gordi MOS" would clobber the child's record title on every mount.
   const pageMode = isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && Boolean(taskId)
   useDocumentTitle(pageMode ? null : t('common.docTitle', { page: t('nav.tasks') }))
+
+  // Resize promotion (round-4 fix, round-5 fix): a drawer opened at/above the split threshold
+  // stays mounted if the viewport later shrinks below it — the record id doesn't change, so the
+  // route alone never re-evaluates isTaskPageMode. Without this, `.split` keeps rendering table +
+  // drawer side by side below the width that fits them, overflowing `.tasks-scroll`. When isSplit
+  // flips false while a record is open (keyed on `openRecordId`, not the route param alone — a
+  // splitLayout row click opens via `?record=` with no `:id` in the route, so `taskId` is
+  // undefined on that path), promote it to the record PAGE the same way a row click below the
+  // threshold would: navigate to `/work/tasks/:id` with the "Open full page" state, keeping the
+  // collection's other query params and dropping `record` (the panel-open marker some Tasks doors
+  // use).
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (isSplit || pageMode || !openRecordId || isNew) return
+    const next = new URLSearchParams(location.search)
+    next.delete('record')
+    const search = next.toString()
+    navigate(
+      { pathname: `/work/tasks/${openRecordId}`, search: search ? `?${search}` : '' },
+      { state: { taskSurface: 'page' } },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSplit])
 
   // Optimistic status overrides fed by the open drawer (AC-103) so the table row
   // reflects an inline status change without a full reload.

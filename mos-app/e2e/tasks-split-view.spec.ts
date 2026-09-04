@@ -4,7 +4,7 @@
 //        in-place was retired by GAP-2 (OD-REDESIGN-91 #7); see the test for the rewrite rationale.
 //   J3 (AC-108): create-in-drawer → /tasks/:newId → the new row appears in the table.
 // Requires the live stack (supabase up on 44321) + the global-setup seed.
-// Runs at the default desktop viewport (≥1100px → live non-modal split).
+// Runs at the default desktop viewport (1440px; ≥1370px → live non-modal split).
 
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'

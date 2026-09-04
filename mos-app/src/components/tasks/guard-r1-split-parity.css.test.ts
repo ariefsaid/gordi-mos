@@ -17,6 +17,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 const css = readFileSync(
   resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'),
@@ -40,7 +41,7 @@ function mediaBody(query: string): string {
 }
 
 describe('GUARD-R1: split table + drawer share ONE track height at the split width', () => {
-  const body = mediaBody('min-width: 1100px')
+  const body = mediaBody(`min-width: ${TASKS_SPLIT_MIN_WIDTH}px`)
 
   it('GUARD-R1: the drawer-open split grid stretches its items', () => {
     // The exact fix: align-items:stretch scoped to the real split regime only. `start`

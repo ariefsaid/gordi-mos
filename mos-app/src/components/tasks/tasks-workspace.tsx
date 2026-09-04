@@ -283,6 +283,13 @@ export function TasksWorkspace({
   // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
   // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
   const onOpenTask = useCallback((taskId: string) => {
+    if (!splitLayout) {
+      const next = new URLSearchParams(params)
+      next.delete('record')
+      const search = next.toString()
+      navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
+      return
+    }
     // An explicit open is the user's intent, so it clears every "this record is closing" memory
     // the guards below keep. Those guards exist to stop an AUTOMATIC resurrection of a record the
     // user just closed — they must never outlive the close itself. A browser Back drops the host
@@ -296,7 +303,7 @@ export function TasksWorkspace({
     const next = new URLSearchParams(params)
     next.set('record', taskId)
     setParams(next)
-  }, [params, setParams])
+  }, [navigate, params, setParams, splitLayout])
 
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
