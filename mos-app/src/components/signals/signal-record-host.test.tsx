@@ -71,7 +71,7 @@ const baseSignal = {
   created_at: '2026-07-16T02:00:00Z',
 }
 
-function authedViewer(personId = VIEWER_ID): AuthState {
+function authedViewer(personId = VIEWER_ID): Extract<AuthState, { status: 'authenticated' }> {
   return {
     status: 'authenticated',
     viewer: {
