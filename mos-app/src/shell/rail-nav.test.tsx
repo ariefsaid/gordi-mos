@@ -74,6 +74,19 @@ beforeEach(() => {
 // Supersedes OD-REDESIGN-68's flat/no-overline rendering — CLAUDE.md's owner-artifact-deviations
 // note records that treatment as an undetected deviation from the owner's actual artifact
 // (OD-68, 2026-07-18), not a ratified end-state.
+describe('rail current-state tint contract', () => {
+  it('keeps the page filled while the parent location is named by type only', () => {
+    const pageRule = currentRuleBody('page')
+    const locationRule = currentRuleBody('location')
+
+    // Red-first: before the fix both markers were covered by the same fill treatment.
+    expect(pageRule).toMatch(/background\s*:/)
+    expect(locationRule).toMatch(/background\s*:\s*(?:transparent|none)\s*;/)
+    expect(locationRule).toMatch(/font-weight\s*:/)
+    expect(locationRule).toMatch(/color\s*:/)
+  })
+})
+
 describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
   // OD-WAY-51 (owner ruling) replaces OD-REDESIGN-68's job-role-name scoping: navigation mirrors
   // what the ROUTE admits. The module routes are ungated, so every authenticated viewer — including
@@ -645,6 +658,13 @@ const declared = (selector: string, prop: string): string | undefined =>
     .find((d) => d.startsWith(`${prop}:`))
     ?.slice(prop.length + 1)
     .trim()
+
+function currentRuleBody(state: 'page' | 'location'): string {
+  const selector = `.rail-item[aria-current='${state}']`
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = railCss.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm'))
+  return match?.[1] ?? ''
+}
 
 describe('DD-WAY-33 (#439): the rail type ladder', () => {
   it('no CADENCE — nor any other Work sub-family eyebrow — renders, at either rail width', () => {

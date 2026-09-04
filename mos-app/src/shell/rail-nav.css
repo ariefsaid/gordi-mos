@@ -54,13 +54,22 @@
   color: var(--muted-foreground);
 }
 
-/* Active — unchanged treatment (blue tint + The One Blue + 600), now expressed once
-   and winning at BOTH rungs on specificity. */
-.rail-item--dest.rail-item--active,
-.rail-item--child.rail-item--active {
+/* Active page keeps the filled tint; its parent location is named by type and colour only. */
+.rail-item--dest.rail-item--active:not([aria-current='location']),
+.rail-item--child.rail-item--active:not([aria-current='location']) {
   font-weight: 600;
   color: var(--text-on-accent-tint);
   background: var(--ds-color-blue3);
+}
+
+.rail-item[aria-current='page'] {
+  background: var(--ds-color-blue3);
+}
+
+.rail-item[aria-current='location'] {
+  background: transparent;
+  font-weight: 600;
+  color: var(--foreground);
 }
 
 /* The rung's icon dimension. The nav glyphs carry width/height ATTRIBUTES (18px); a CSS
