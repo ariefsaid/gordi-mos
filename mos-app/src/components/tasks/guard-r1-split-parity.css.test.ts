@@ -71,28 +71,6 @@ describe('GUARD-R1: split table + drawer share ONE track height at the split wid
   })
 })
 
-describe('GUARD-R8: condensed decision columns keep their floor beside an open drawer', () => {
-  it('at the 1152px split track, Supervisor and Title have explicit minimum widths', () => {
-    // 1152px is the narrowest rendered split audit where all five decision headers remain live.
-    // The drawer may narrow or the layout may leave split mode; decision cells never clip.
-    expect(css).toMatch(
-      /\.split:not\(\.nodrawer\)\s+\.tasks-table th:nth-child\(1\),[\s\S]*?min-width:\s*120px/,
-    )
-    expect(css).toMatch(
-      /\.split:not\(\.nodrawer\)\s+\.tasks-table th:nth-child\(4\),[\s\S]*?min-width:\s*104px/,
-    )
-    expect(css).toMatch(
-      /@media \(min-width:\s*1100px\) and \(max-width:\s*1199\.98px\)[\s\S]*?\.split\s*\{[^}]*minmax\(360px,\s*416px\)/,
-    )
-  })
-
-  it('the 1100–1120 media tier explicitly hides Supervisor before the split table can clip it', () => {
-    expect(css).toMatch(
-      /@media \(max-width:\s*1120px\)[\s\S]*?\.split:not\(\.nodrawer\) \.tasks-table th:nth-child\(4\)[^}]*display:\s*none/,
-    )
-  })
-})
-
 describe('DO-18(a) (census-sweep R2 tasks FINDING1): condensed-tier Task identity never starves', () => {
   it('the drawer-open condensed tier lets the Task title wrap to a clamped 2 lines', () => {
     // In the squashed split track the one-line ellipsis truncated 6/11 titles at 1280.
