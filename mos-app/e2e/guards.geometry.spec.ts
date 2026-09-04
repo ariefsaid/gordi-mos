@@ -128,7 +128,8 @@ test.describe('desktop geometry guards', () => {
           content: element.scrollWidth,
         }))
         rects.push({ column, ...widthText })
-        expect(widthText.rect.width, `${column} must fit its content at ${width}px`).toBeGreaterThanOrEqual(widthText.content)
+        // Sub-pixel layout rounding: half a pixel is not a squeezed column.
+        expect(Math.round(widthText.rect.width), `${column} must fit its content at ${width}px`).toBeGreaterThanOrEqual(widthText.content)
       }
       const scrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({
         scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
