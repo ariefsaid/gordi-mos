@@ -1,11 +1,5 @@
 -- Diagnosis journey for #709.
--- Governing read-back policy: signals_select USING (mos.can_read_signal(id)); its read gate admits
--- R1 active membership of the owning Team (plus R2--R5), not authorship or post authorization.
--- The composer deliberately widens its owning-Team source to listAllTeams for canCreateForTeam,
--- while CONTEXT.md says a Signal is owned by a Team and PRODUCT.md says permission shapes the UI.
--- Recommendation if this journey is red: narrow that composer source to Teams the author can read,
--- preserving the default-deny DB policy; widen the policy only if cross-Team unreadable posts are
--- an explicitly ratified product behavior.
+-- Contract: read is default-deny by membership/role; posting is allowed by capability. If this journey is green, narrow the composer → #715.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(8);
@@ -25,6 +19,12 @@ values ('00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d2',
         '00000000-0000-0000-0000-000000005b01', true);
 
+reset role;
+create temp table signal_readback_probe (
+  foreign_id uuid,
+  own_id uuid
+) on commit drop;
+grant all on signal_readback_probe to authenticated;
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
@@ -36,10 +36,6 @@ select ok(not exists (
     and team_id = '00000000-0000-0000-0000-000000005b03'
 ), 'JOURNEY foreign: author is not a member of T');
 
-create temp table signal_readback_probe (
-  foreign_id uuid,
-  own_id uuid
-) on commit drop;
 insert into signal_readback_probe (foreign_id)
 select mos.create_signal_with_mentions(
   p_body => 'Foreign owning team read-back probe',
