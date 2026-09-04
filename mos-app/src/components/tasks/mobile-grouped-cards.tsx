@@ -141,7 +141,7 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
           {isNew ? (
-            <input ref={inputRef} className="task-title-input collection-grammar-title" value={draft}
+            <input ref={inputRef} className="task-title-input collection-grammar-title tap-floor" value={draft}
               aria-label={t('tasks.inlineEdit.aria')} onChange={(event) => setDraft(event.target.value)}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => {

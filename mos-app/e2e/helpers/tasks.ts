@@ -2,38 +2,51 @@
 import { expect, type Page } from '@playwright/test'
 
 /**
- * Open the Create Task form from the Tasks list page, fill the required fields,
- * submit, and return the new task's detail URL.
- * Assumes the caller has already navigated to the tasks list (/tasks).
+ * Create a task through the real UI and return the new task's detail URL.
+ * Assumes the caller has already navigated to the tasks list (/work/tasks).
+ *
+ * #671 retired the /work/tasks/new create FORM: create is now an inline draft row with its
+ * title focused, committed with Enter, and the route only survives as a redirect to
+ * `/work/tasks?create=1` (mos-app/src/router.tsx defines the RouteRedirect; router.test.tsx's Tasks
+ * nesting test covers the retired route shape).
+ * The create door itself is width-dependent — the page-head button on desktop, the actions
+ * FAB on phone, where the head button is deliberately absent (one door per width).
  */
 export async function createTaskViaUI(
   page: Page,
   title: string,
 ): Promise<string> {
-  // Click "+ Create task" from the toolbar or empty state. The label is `tasks.new`, which reads
-  // "+ Create task" — not "+ New task". This ONE stale locator blocked five specs at once
-  // (tasks-record-close ×2, tasks-browser-back-dirty-veto ×2, guards.geometry GUARD-R1) because
-  // they all create their fixture task through this helper, so every assertion after it was
-  // unreachable and had never been evaluated.
-  const newTaskLink = page.getByRole('link', { name: /create task/i })
-  await newTaskLink.click()
-  await page.waitForURL(/\/tasks\/new$/)
+  const headDoor = page.getByRole('button', { name: /create task/i })
+  const fab = page.getByRole('button', { name: /open actions/i })
+  // Both doors mount only once the collection reports ready — wait for whichever this width owns.
+  await expect
+    .poll(async () => (await headDoor.count()) + (await fab.count()), {
+      message: '[createTaskViaUI] no create door on the Tasks surface',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0)
+  if (await headDoor.count() > 0) {
+    await headDoor.first().click()
+  } else {
+    await fab.click()
+    await page.getByRole('option', { name: 'Create task', exact: true }).click()
+  }
 
-  // The create surface mounts BESIDE the persistent table (split-view, ADR-0007),
-  // so scope to the create form — the toolbar has its own BU/search controls.
-  const form = page.getByRole('form', { name: /create task form/i })
-  await form.getByLabel('Title').fill(title)
+  // The draft row mounts in edit mode with the title field focused — no form, no route change.
+  const titleField = page.getByRole('textbox', { name: 'Edit task title' })
+  await expect(titleField).toBeVisible({ timeout: 10_000 })
+  await titleField.fill(title)
+  await titleField.press('Enter')
 
-  // OD-REDESIGN-3/14/41: Team and PIC prefill; Supervisor is an explicit required choice.
-  await expect(form.getByLabel('Team')).not.toHaveValue('')
-  await expect(form.getByLabel(/^pic$/i)).not.toHaveValue('')
-  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
-
-  // GAP-6 / OD-REDESIGN-91 #11: creation returns to the originating collection with a highlight.
-  await form.getByRole('button', { name: /create task/i }).click()
-  await page.waitForURL(/\/work\/tasks\?.*highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
-  const newId = page.url().match(/highlight=([0-9a-f-]{36})/)?.[1] ?? ''
-  await expect(page.locator('tr.task-row', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
-  if (!newId) throw new Error('[createTaskViaUI] could not read the new task id from ?highlight=')
-  return `/work/tasks/${newId}`
+  // The committed task replaces the draft row: same title, but a real record id in its href
+  // (the draft's own id is `new-task-<ts>`), on the table row and the phone card alike.
+  const created = page.locator('a[href*="/work/tasks/"]').filter({ hasText: title }).first()
+  let href = ''
+  await expect
+    .poll(async () => {
+      href = (await created.getAttribute('href').catch(() => null)) ?? ''
+      return /\/work\/tasks\/[0-9a-f-]{36}$/.test(href)
+    }, { message: `[createTaskViaUI] "${title}" never landed as a saved task row`, timeout: 15_000 })
+    .toBe(true)
+  return `/work/tasks/${href.match(/[0-9a-f-]{36}/)![0]}`
 }
