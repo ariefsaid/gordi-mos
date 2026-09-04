@@ -141,9 +141,9 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
 
   const fields = params.get('fields')
   if (fields !== null) {
-    const allowed: readonly TaskCollectionVisibleField[] = ['title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity']
+    const allowed: readonly TaskCollectionVisibleField[] = ['title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'activity']
     const parsed = fields.split(',').filter((field): field is TaskCollectionVisibleField => allowed.includes(field as TaskCollectionVisibleField))
-    query.visibleFields = [...new Set([...TASK_DECISION_FIELDS, ...parsed])]
+    query.visibleFields = [...new Set([...parsed, ...TASK_DECISION_FIELDS])]
   }
 
   query.businessUnitId = params.get('bu')

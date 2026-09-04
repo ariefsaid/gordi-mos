@@ -283,23 +283,25 @@
    Due column can NEVER be clipped off-screen at 1280px. .tasks-scroll (overflow-x:auto)
    is the safety net only for absurdly narrow shells. */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
-/* Priority col widths: menu stays fixed, while the decision columns use proportions so
-   the Task identity column can never collapse to zero at the normal 1024px shell. The previous
-   fixed-pixel sum consumed the entire table (Task measured 0px in the live render). */
-.tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: auto; }   /* Task — the identity column absorbs all slack (E7/pre-E7: title never starves) */
-.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 12%; }    /* Status */
-.tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 15%; }    /* PIC / Ownership */
-.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* Supervisor */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 14%; }    /* Due */
-.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 40px; }   /* row menu */
+/* Class-based map: optional columns can move, so widths must never depend on slot position. */
+.tasks-table .th-title, .tasks-table .td-title { width: auto; }
+.tasks-table .th-status, .tasks-table .td-status { width: 12%; }
+.tasks-table .th-pic, .tasks-table .td-pic { width: 15%; }
+.tasks-table .th-supervisor, .tasks-table .td-supervisor { width: 15%; }
+.tasks-table .th-due, .tasks-table .td-due { width: 14%; }
+.tasks-table .th-business-unit, .tasks-table .td-business-unit { width: 15%; }
+.tasks-table .th-workline, .tasks-table .td-workline { width: 15%; }
+.tasks-table .th-objective, .tasks-table .td-objective { width: 15%; }
+.tasks-table .th-activity, .tasks-table .td-activity { width: 14%; }
+.tasks-table .th-menu, .tasks-table .td-menu { width: 40px; }
 
 /* Intermediate widths: column PRIORITY (Wave 2c) — Task > Status > PIC > Due > Supervisor.
    Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
 @media (max-width: 1120px) {
-  .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { display: none; }
-  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 13%; }
-  .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
-  .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
+  .tasks-table .th-supervisor, .tasks-table .td-supervisor { display: none; }
+  .tasks-table .th-status, .tasks-table .td-status { width: 13%; }
+  .tasks-table .th-pic, .tasks-table .td-pic { width: 16%; }
+  .tasks-table .th-due, .tasks-table .td-due { width: 21%; }
 }
 /* Condensed (drawer-open split — owner-eyes item 3, supersedes the 2026-07-22 F4 hide-both rule).
    The squashed split track is too narrow for the full 6-column decision set, so the condensed
@@ -318,18 +320,18 @@
    rules (content min-width is ignored) — the condensed tier therefore uses explicit fixed widths
    sized to their content: Title takes the remaining track (auto/dominant); Status/PIC/Due are just
    wide enough that nothing clips; Supervisor is removed from the layout. */
-.split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: auto; }  /* Title — dominant */
-.split:not(.nodrawer) .tasks-table th:nth-child(2),
-.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; }  /* Status pill ("In Progress" is the widest) */
-.split:not(.nodrawer) .tasks-table th:nth-child(3),
-.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 48px; }  /* PIC — avatar-only */
-.split:not(.nodrawer) .tasks-table th:nth-child(4),
-.split:not(.nodrawer) .tasks-table td:nth-child(4) { display: none; }  /* Supervisor — DROPPED */
-.split:not(.nodrawer) .tasks-table th:nth-child(5),
-.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; }  /* Due — never truncates */
-.split:not(.nodrawer) .tasks-table th:nth-child(6),
-.split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; }  /* menu */
+.split:not(.nodrawer) .tasks-table .th-title,
+.split:not(.nodrawer) .tasks-table .td-title { width: auto; }
+.split:not(.nodrawer) .tasks-table .th-status,
+.split:not(.nodrawer) .tasks-table .td-status { width: 108px; }
+.split:not(.nodrawer) .tasks-table .th-pic,
+.split:not(.nodrawer) .tasks-table .td-pic { width: 48px; }
+.split:not(.nodrawer) .tasks-table .th-supervisor,
+.split:not(.nodrawer) .tasks-table .td-supervisor { display: none; }
+.split:not(.nodrawer) .tasks-table .th-due,
+.split:not(.nodrawer) .tasks-table .td-due { width: 104px; }
+.split:not(.nodrawer) .tasks-table .th-menu,
+.split:not(.nodrawer) .tasks-table .td-menu { width: 40px; }
 /* PIC avatar-only in condensed — hide the name text (still in aria-label + the tooltip title). */
 .split:not(.nodrawer) .td-owner .own-name,
 .split:not(.nodrawer) .td-owner .owner-provenance { display: none; }
@@ -455,7 +457,7 @@ tr:focus-within .row-menu { visibility: visible; }
 }
 .assembly.condensed .td-owner .owner-provenance { display: none; }
 /* Business unit column (mockup '.bu') — muted, truncates */
-.td-bu { font-size: var(--font-size-mono); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-business-unit, .td-workline, .td-objective, .td-activity { font-size: var(--font-size-mono); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Due-date coloring ── */
 .due-overdue { color: var(--status-lost-text); font-weight: 600; font-size: var(--font-size-body-lg); }
@@ -692,7 +694,7 @@ tr.grp td { padding: 0; }
    - td-workline: truncates long work-line names (same as td-bu treatment)
    - td-objective: muted secondary text, truncates
    - td-empty: the "—" placeholder (muted, not primary text weight)
-   Column widths sit in the nth-child colgroup rules below. */
+   Column widths sit in the class-based rules below. */
 .td-workline {
   font-size: var(--font-size-mono); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -720,7 +722,7 @@ tr.grp td { padding: 0; }
 /* ── Cascade D1 column widths: REMOVED (Wave 2c) ──────────────────────────────
    The Work-line + Objective + Team + Source + Activity columns moved to the record
    drawer (OD-62). The 7-column priority widths are authored in the `.tasks-table`
-   block above; this former 10-col nth-child override is deleted so it can't shadow
+   block above; this former wide-column override is deleted so it can't shadow
    the priority grid. The Work-line group-by dimension + workload caption remain
    (FR-231/232/233/236) — only the table COLUMNS were trimmed. */
 

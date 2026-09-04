@@ -12,6 +12,7 @@ import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
+import { TASK_DECISION_FIELDS } from './task-collection-query'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
@@ -22,6 +23,8 @@ import { formatDate } from './task-formatters'
 import { RowMenu } from './row-menu'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
+
+const fieldClass = (field: string) => field === 'businessUnit' ? 'business-unit' : field
 
 export type TaskRowProps = {
   task: TaskListRow
@@ -111,16 +114,15 @@ export function TaskRow({
     : '—'
   const isArchived = task.archived_at != null
   const optionalCell = (field: TaskCollectionVisibleField) => {
-    if (!visibleFields.includes(field)) return null
+    if (!visibleFields.includes(field) || TASK_DECISION_FIELDS.includes(field)) return null
     const values: Partial<Record<TaskCollectionVisibleField, string>> = {
       businessUnit: businessUnitName,
       workline: workLineName,
       objective: objectiveName,
-      source: sourceName,
       activity: task.last_activity_at ? formatDate(task.last_activity_at.slice(0, 10), locale) : '',
     }
     const value = values[field] ?? ''
-    return <td key={field} className={`td-cell td-${field}`} data-field={field}>{value || <span className="td-empty">—</span>}</td>
+    return <td key={field} className={`td-cell td-${fieldClass(field)}`} data-field={field}>{value || <span className="td-empty">—</span>}</td>
   }
   const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
   const panelState = { taskSurface: 'panel' as const }
@@ -293,7 +295,7 @@ export function TaskRow({
         onOpen(task.id)
       }}
     >
-      <td className="td-main">
+      <td className="td-main td-title">
         {editing ? (
           // Edit mode: the title text is replaced in place by a bound input (no nested anchor).
           // The onClick stopPropagation keeps a click inside the field from bubbling to the row
@@ -392,7 +394,7 @@ export function TaskRow({
           </span>
         ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />}
       </td>
-      <td className="td-cell td-owner">
+      <td className="td-cell td-owner td-pic">
         {onEditPic ? (picEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
             <Select autoFocus aria-label="Edit task PIC" value={picInline.draft} disabled={picInline.pending} aria-busy={picInline.pending || undefined}
@@ -404,7 +406,7 @@ export function TaskRow({
         ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
-      <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>
+      <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
             <input autoFocus type="date" aria-label="Due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
@@ -413,7 +415,7 @@ export function TaskRow({
           </span>
         ) : <button type="button" className="inline-cell-trigger" aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
       </td>
-      {visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).map(optionalCell)}
+      {visibleFields.filter((field) => !TASK_DECISION_FIELDS.includes(field)).map(optionalCell)}
       <td className="td-cell td-menu">
         <RowMenu taskId={task.id} recordSearch={recordSearch} />
       </td>

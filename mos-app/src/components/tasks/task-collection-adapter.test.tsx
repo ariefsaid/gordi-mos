@@ -212,9 +212,9 @@ describe('§Task-11: the Team-work view is removed until Issue 8', () => {
     const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('fields=objective,businessUnit,activity,title,status,pic,supervisor,due'), 'table')
     expect(parsed.ok).toBe(true)
     if (!parsed.ok) throw new Error('fields must parse')
-    expect(parsed.query.visibleFields).toEqual(['title', 'pic', 'supervisor', 'status', 'due', 'objective', 'businessUnit', 'activity'])
+    expect(parsed.query.visibleFields).toEqual(['objective', 'businessUnit', 'activity', 'title', 'status', 'pic', 'supervisor', 'due'])
     const serialized = taskCollectionDescriptor.query.serialize(parsed.query)
-    expect(serialized.get('fields')).toBe('title,pic,supervisor,status,due,objective,businessUnit,activity')
+    expect(serialized.get('fields')).toBe('objective,businessUnit,activity,title,status,pic,supervisor,due')
   })
 
   it('§Task-11: a supported view (?view=my-work) still parses cleanly', () => {

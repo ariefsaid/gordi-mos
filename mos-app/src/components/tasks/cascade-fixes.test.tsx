@@ -200,7 +200,7 @@ describe('RI-3 — Task column width and scroll container', () => {
     const close = css.indexOf('}', open)
     const body = css.slice(open + 1, close)
     expect(body).toMatch(/min-width:/)
-    const taskRuleSelector = '.tasks-table th:nth-child(1), .tasks-table td:nth-child(1)'
+    const taskRuleSelector = '.tasks-table .th-title, .tasks-table .td-title'
     const taskRuleIdx = css.indexOf(taskRuleSelector)
     expect(taskRuleIdx).toBeGreaterThanOrEqual(0)
     const taskRuleOpen = css.indexOf('{', taskRuleIdx)
@@ -210,14 +210,18 @@ describe('RI-3 — Task column width and scroll container', () => {
     // Secondary columns (2..5) at the base tier: all %-shares, summing < 70% so the auto
     // Task column always keeps a readable share.
     const shares: number[] = []
-    for (const col of [2, 3, 4, 5]) {
-      const sel = `.tasks-table th:nth-child(${col}), .tasks-table td:nth-child(${col})`
+    for (const sel of [
+      '.tasks-table .th-status, .tasks-table .td-status',
+      '.tasks-table .th-pic, .tasks-table .td-pic',
+      '.tasks-table .th-supervisor, .tasks-table .td-supervisor',
+      '.tasks-table .th-due, .tasks-table .td-due',
+    ]) {
       const colIdx = css.indexOf(sel)
-      expect(colIdx, `expected a width rule for column ${col}`).toBeGreaterThanOrEqual(0)
+      expect(colIdx, 'expected a class-based width rule').toBeGreaterThanOrEqual(0)
       const colOpen = css.indexOf('{', colIdx)
       const colClose = css.indexOf('}', colOpen)
       const match = css.slice(colOpen + 1, colClose).match(/width:\s*(\d+(?:\.\d+)?)%/)
-      expect(match, `column ${col} must use a bounded %-share, not a fixed px width`).toBeTruthy()
+      expect(match, 'secondary columns must use bounded %-shares').toBeTruthy()
       shares.push(Number(match![1]))
     }
     expect(shares.reduce((a, b) => a + b, 0)).toBeLessThan(70)

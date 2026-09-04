@@ -25,7 +25,7 @@ export type CollectionViewLayout = { density: 'compact' | 'comfortable' }
 
 export type TaskCollectionVisibleField =
   | 'title' | 'status' | 'pic' | 'supervisor' | 'due' | 'businessUnit'
-  | 'workline' | 'objective' | 'source' | 'activity'
+  | 'workline' | 'objective' | 'activity'
 export type SignalCollectionVisibleField =
   | 'message' | 'author' | 'team' | 'occurredAt' | 'attention' | 'category' | 'retracted'
 export type EventCollectionVisibleField = 'title' | 'time' | 'venue' | 'outbound' | 'businessUnit' | 'coordinator'
@@ -112,7 +112,7 @@ const TASK_PRESENTATIONS: readonly TaskCollectionPresentation[] = ['table', 'car
 const TASK_SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 const TASK_GROUP_FIELDS: readonly TaskCollectionGroup[] = ['status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const TASK_VISIBLE: readonly TaskCollectionVisibleField[] = [
-  'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
+  'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'activity',
 ]
 const TASK_VIEWS = ['all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups']
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']

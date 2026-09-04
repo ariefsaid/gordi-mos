@@ -325,8 +325,8 @@ export function CollectionToolbar<
                       <span>{field.label}</span>
                       {fields.onMove && !field.required && fields.visible.includes(field.value) ? (
                         <span className="collection-toolbar__field-order" aria-label={`${field.label} order`}>
-                          <button type="button" aria-label={`Move ${field.label} up`} onClick={() => fields.onMove?.(field.value, 'up')}>↑</button>
-                          <button type="button" aria-label={`Move ${field.label} down`} onClick={() => fields.onMove?.(field.value, 'down')}>↓</button>
+                          <button type="button" className="tap-floor" aria-label={`Move ${field.label} up`} onClick={() => fields.onMove?.(field.value, 'up')}>↑</button>
+                          <button type="button" className="tap-floor" aria-label={`Move ${field.label} down`} onClick={() => fields.onMove?.(field.value, 'down')}>↓</button>
                         </span>
                       ) : null}
                     </label>

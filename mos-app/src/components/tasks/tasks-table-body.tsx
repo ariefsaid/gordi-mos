@@ -20,8 +20,11 @@ import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
 import { useT } from '@/i18n/use-t'
+import { TASK_DECISION_FIELDS } from './task-collection-query'
 
 type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
+
+const fieldClass = (field: string) => field === 'businessUnit' ? 'business-unit' : field
 
 // Flat visible-row model (group headers + expanded-group leaf rows) — the shape
 // the plain + virtualized bodies iterate over.
@@ -65,8 +68,6 @@ export type TasksTableBodyProps = {
 
   // ── Desktop table: thead sort + select-all ────────────────────────────────
   sortCol: SortCol
-  /** Optional fields selected in the current URL-backed view. */
-  showBusinessUnit?: boolean
   /** Ordered field list; decision columns are rendered first, optional fields follow it. */
   visibleFields?: readonly import('@/lib/record-collection/collection-view-spec').TaskCollectionVisibleField[]
   /** thead column-header click → cycle the sort for that column. */
@@ -120,7 +121,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   const {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
-    sortCol, onSort, ariaSort, sortIndicator, visibleFields = ['title', 'pic', 'supervisor', 'status', 'due'],
+    sortCol, onSort, ariaSort, sortIndicator, visibleFields = TASK_DECISION_FIELDS,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
@@ -208,33 +209,14 @@ export function TasksTableBody(props: TasksTableBodyProps) {
       <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.title')}>
         <thead>
           <tr>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('task')}>
-                {t('tasks.label.task')}{sortIndicator('task')}
-              </button>
-            </th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('status')}>
-                {t('tasks.filter.status')}{sortIndicator('status')}
-              </button>
-            </th>
-            <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`} aria-sort={ariaSort('owner')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('owner')}>
-                {t('tasks.pic')}{sortIndicator('owner')}
-              </button>
-            </th>
-            <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
-                {t('tasks.dueLabel')}{sortIndicator('due')}
-              </button>
-            </th>
-            {visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).map((field) => {
-              const labels: Record<string, string> = { businessUnit: t('tasks.filter.businessUnit'), workline: t('tasks.filter.projectProcess'), objective: t('tasks.objective'), source: t('tasks.source'), activity: t('tasks.feed.activity') }
-              return <th key={field} scope="col" className="th-cell">{labels[field]}</th>
+            {visibleFields.map((field) => {
+              // Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18).
+              // Keep the sort control inside the header cell so its focus target follows the rendered column.
+              const sortable = field === 'title' ? 'task' : field === 'pic' ? 'owner' : field === 'status' || field === 'due' ? field : null
+              const label = field === 'title' ? t('tasks.label.task') : field === 'pic' ? t('tasks.pic') : field === 'supervisor' ? t('tasks.supervisor') : field === 'status' ? t('tasks.filter.status') : field === 'due' ? t('tasks.dueLabel') : field === 'businessUnit' ? t('tasks.filter.businessUnit') : field === 'workline' ? t('tasks.filter.projectProcess') : field === 'objective' ? t('tasks.objective') : t('tasks.feed.activity')
+              return <th key={field} scope="col" className={`th-cell th-${fieldClass(field)}${sortable ? ` th-sortable${sortCol === sortable ? ' th-sorted' : ''}` : ''}`} aria-sort={sortable ? ariaSort(sortable) : undefined}>
+                {sortable ? <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort(sortable)}>{label}{sortIndicator(sortable)}</button> : label}
+              </th>
             })}
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
             <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />
@@ -246,7 +228,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             const totalSize = rowVirtualizer.getTotalSize()
             // Wave 2c: both desktop modes share the 6-column priority set
             // (Task + Status + PIC + Supervisor + Due + menu), plus ordered optional fields.
-            const colSpan = 6 + visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).length
+            const colSpan = visibleFields.length + 1
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (

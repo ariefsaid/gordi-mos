@@ -140,7 +140,6 @@ export function TasksToolbar({
           { value: 'businessUnit', label: t('tasks.filter.businessUnit') },
           { value: 'workline', label: t('tasks.filter.projectProcess') },
           { value: 'objective', label: t('tasks.objective') },
-          { value: 'source', label: t('tasks.source') },
           { value: 'activity', label: t('tasks.feed.activity') },
         ] satisfies readonly CollectionToolbarField[],
         onToggle: onFieldToggle,
