@@ -76,14 +76,13 @@
 }
 
 /* Desktop fine-pointer density — the E7 kv rhythm (~34-40px per row). The 44px min-height on the
-   RESTING value activation target is a TOUCH floor (pointer:coarse ergonomics), not an NFR-V3-006
-   requirement: NFR-V3-006 guards the EDIT-mode controls (.record-field__control / the shared
-   select / .record-field__retry), which keep their 44px floor unconditionally. A fine pointer
-   (desktop mouse) needs no 44px resting target, so editable rows tighten to E7's rhythm — the
-   editable rows were 52px pitch (44px target + 2px border + 6px gap), past E7's ~40px. Touch/phone
-   (pointer:coarse) keep the 44px resting target. Label + read-only value paddings shift with the
-   target so label↔value stay baseline-aligned. */
-@media (pointer: fine) {
+   RESTING value activation target is the phone floor at ANY pointer, not an NFR-V3-006 requirement:
+   NFR-V3-006 guards the EDIT-mode controls (.record-field__control / the shared select /
+   .record-field__retry), which keep their 44px floor unconditionally. At desktop width, a fine
+   pointer (desktop mouse) tightens the resting target to E7's rhythm — the editable rows were 52px
+   pitch (44px target + 2px border + 6px gap), past E7's ~40px. Label + read-only value paddings
+   shift with the target so label↔value stay baseline-aligned. */
+@media (pointer: fine) and (min-width: 768px) {
   .record-field__edit {
     min-height: 32px;
     padding-top: 4px;

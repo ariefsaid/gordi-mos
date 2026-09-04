@@ -415,6 +415,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
             aria-controls="cm-list"
             aria-activedescendant={activeId}
             aria-label={t('commandMenu.inputLabel')}
+            className="tap-floor"
             placeholder={t('commandMenu.inputPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}

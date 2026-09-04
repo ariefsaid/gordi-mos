@@ -205,7 +205,7 @@ export function RecordPanelHost({
       )}
       <button
         type="button"
-        className="record-panel-btn"
+        className="record-panel-btn tap-floor"
         aria-label={t('record.close')}
         title={t('record.close')}
         onClick={() => onClose('explicit-close')}
