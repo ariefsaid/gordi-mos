@@ -14,6 +14,7 @@ export type ModalShellProps = {
   closeOnEscape?: boolean
   surface?: 'centered' | 'sheet'
   phoneMode?: 'centered' | 'fullscreen'
+  className?: string
 }
 
 /**
@@ -33,6 +34,7 @@ export function ModalShell({
   closeOnEscape = true,
   surface = 'centered',
   phoneMode = 'centered',
+  className,
 }: ModalShellProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
@@ -118,7 +120,7 @@ export function ModalShell({
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
-        className="modal-shell__surface"
+        className={`modal-shell__surface${className ? ` ${className}` : ''}`}
         data-surface={surface}
         data-phone-mode={phoneMode}
         tabIndex={-1}
