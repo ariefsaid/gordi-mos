@@ -30,7 +30,8 @@ as $$
           join shared.roles r on r.id = pr.role_id
           where pr.person_id = shared.current_person_id() and pr.org_id = shared.current_org_id()
             and r.business_unit_id = tm.business_unit_id)
-        or ( -- R3 strictly higher BU visibility rank
+        or ( -- R3 strictly higher BU visibility rank. Every rank defaults to 0, so this is INERT
+             -- until an admin configures ranks — fail-closed by construction.
           coalesce((select max(coalesce(bu.signal_visibility_rank, 0))
                     from shared.person_roles pr
                     join shared.roles r on r.id = pr.role_id
@@ -54,7 +55,7 @@ as $$
                 join shared.roles r2 on r2.id = pr2.role_id
                 where pr2.person_id = shared.current_person_id() and r2.business_unit_id = sm.target_bu_id))))
         )
-        or shared.can('signal.read_all') -- R5 override
+        or shared.can('signal.read_all') -- R5 override; the capability is unregistered, so inert
       )
   )
 $$;

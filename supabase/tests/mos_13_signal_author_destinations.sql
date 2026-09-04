@@ -1,7 +1,7 @@
 -- Destination reads prove the read half independently of the signal.create_for_team post gate.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(5);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 
@@ -38,13 +38,6 @@ select set_eq($$ select id from mos.teams_author_can_read_back() where id = '000
 
 select set_eq($$ select id from mos.teams_author_can_read_back('00000000-0000-0000-0000-0000000000d1') $$,
   array[]::uuid[], 'a foreign p_author_id returns an empty set');
-
--- Mutation proof: replacing mos._can_read_signal_rules with `select true` makes the absent Team X
--- assertion above print this measured failure, so that assertion cannot pass on post-only access:
--- not ok - have: {00000000-0000-0000-0000-000000005b03}, want: {}
--- The mutation is not applied here because a green suite must leave the canonical gate intact.
-select ok(true, 'read-back assertions depend on the canonical read gate');
-select ok(true, 'destination list remains scoped to the current organisation');
 
 select * from finish();
 rollback;

@@ -167,7 +167,9 @@ export async function listReadableAuthorTeams(authorId: string): Promise<TeamOpt
   return (data ?? []) as TeamOption[]
 }
 
-/** The author's active membership Teams, primary first, for use-due-runs and cafe-opening-page. */
+/** The author's active membership Teams (owning-Team select options), primary first. Not a full
+ * effective-dated evaluation — approximates "active" as `effective_to is null` for the picker's
+ * convenience; RLS (`mos.can_post_signal_for_team`) is the write-time authority. */
 export async function listAuthorTeams(personId: string): Promise<TeamOption[]> {
   const { data: memberships, error: mErr } = await shared()
     .from('team_memberships')

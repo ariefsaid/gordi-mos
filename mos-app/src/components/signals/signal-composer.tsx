@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/state-kit'
 import {
-  listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+  listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
@@ -22,6 +22,9 @@ import './signal-composer.css'
 export interface SignalComposerProps {
   authorId: string
   authorName: string
+  /** Unlocks any authorized Team as the owning Team (signal.create_for_team), not just the
+   * author's own active memberships (FR-404). Defaults to false (fail-closed). */
+  canCreateForTeam?: boolean
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
   /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
@@ -38,7 +41,7 @@ function toDatetimeLocalValue(date: Date): string {
 }
 
 export function SignalComposer({
-  authorId, authorName, canMentionBu = false,
+  authorId, authorName, canCreateForTeam = false, canMentionBu = false,
   teamMembers = {}, buMembers = {}, onShared, prefill,
 }: SignalComposerProps) {
   const t = useT()
@@ -65,13 +68,14 @@ export function SignalComposer({
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
-    // The owning Team select uses the database's post/read gate; mentions intentionally reach all
-    // active Teams so authors can notify outsiders.
+    // The owning Team select uses the database's post/read gate. Mention reach follows the
+    // original holder rule: only signal.create_for_team may mention every active Team.
     const teamsLoad = listReadableAuthorTeams(authorId)
-    Promise.all([teamsLoad, listAllTeams(), getPeople(), getBusinessUnits()]).then(([teamOptions, allTeams, peopleOptions, buOptions]) => {
+    const mentionTeamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
+    Promise.all([teamsLoad, mentionTeamsLoad, getPeople(), getBusinessUnits()]).then(([teamOptions, mentionTeamOptions, peopleOptions, buOptions]) => {
       if (cancelled) return
       setTeams(teamOptions)
-      setMentionTeams(allTeams)
+      setMentionTeams(mentionTeamOptions)
       const primary = teamOptions.find((o) => o.is_primary) ?? teamOptions[0]
       // primaryTeamId always tracks the author's home Team (drives the cross-Team destination
       // preview), independent of what is *selected*.
@@ -86,7 +90,7 @@ export function SignalComposer({
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, prefill])
+  }, [authorId, canCreateForTeam, prefill])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).

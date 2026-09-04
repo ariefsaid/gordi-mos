@@ -10,6 +10,7 @@ vi.mock('@/lib/db/signals', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/signals')>('@/lib/db/signals')
   return {
     listReadableAuthorTeams: vi.fn(),
+    listAuthorTeams: vi.fn(),
     listAllTeams: vi.fn(),
     getTeamSite: vi.fn(),
     createSignal: vi.fn(),
@@ -21,11 +22,12 @@ vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal } from '@/lib/db/signals'
+import { listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { SignalComposer } from './signal-composer'
 
 const mockListReadableAuthorTeams = vi.mocked(listReadableAuthorTeams)
+const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetTeamSite = vi.mocked(getTeamSite)
 const mockCreateSignal = vi.mocked(createSignal)
@@ -38,13 +40,8 @@ const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
   { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-retail', site_id: 'site-radiant', is_primary: false },
 ]
-// #715: the mocked destination RPC omits this readable-only Team because it is not postable.
-const TEAM_UNREADABLE: TeamOption = {
-  id: 'team-warehouse', name: 'Warehouse Ops', business_unit_id: 'bu-warehouse', site_id: 'site-warehouse', is_primary: false,
-}
 // OD-REDESIGN-91 #19: a single eligible Team auto-picks, so the default author is on ONE team —
 // the common journey. The multi-team must-pick journey has its own describe block below.
-// The mocked read-back RPC returns the eligible destination set.
 const SOLE_TEAM: TeamOption[] = [TEAMS[0]]
 const BUS: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 const PEOPLE: PersonOption[] = [{ id: AUTHOR_ID, full_name: 'Author One' }, { id: 'person-peer', full_name: 'Peer Person' }]
@@ -69,6 +66,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
 beforeEach(() => {
   vi.resetAllMocks()
   mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
+  mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
   mockListAllTeams.mockResolvedValue(TEAMS)
   mockGetTeamSite.mockResolvedValue(null)
   mockGetBusinessUnits.mockResolvedValue(BUS)
@@ -214,15 +212,20 @@ describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', (
 })
 
 describe('SignalComposer — read-back-only Team options (#715)', () => {
-  it('offers exactly the teams returned by the database read-back RPC', async () => {
+  it('narrows the owning-Team select but keeps create_for_team mentions wide', async () => {
     mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
-    renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
+    mockListAllTeams.mockResolvedValue(TEAMS)
+    renderComposer({ canCreateForTeam: true })
+    await waitFor(() => {
+      expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID)
+      expect(mockListAllTeams).toHaveBeenCalled()
+    })
 
     const teamSelect = await screen.findByRole('combobox', { name: /team/i })
-    expect(within(teamSelect).getByRole('option', { name: 'HQ Operations' })).toBeInTheDocument()
-    expect(within(teamSelect).queryByRole('option', { name: TEAM_UNREADABLE.name })).not.toBeInTheDocument()
-    expect(mockListReadableAuthorTeams).toHaveBeenCalledTimes(1)
+    expect(within(teamSelect).queryByRole('option', { name: 'Radiant Operations' })).not.toBeInTheDocument()
+
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
+    expect(await findMentionOption(/Radiant Operations/)).toBeInTheDocument()
   })
 })
 
