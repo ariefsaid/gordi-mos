@@ -64,6 +64,8 @@ export type TaskRowProps = {
   showBusinessUnit?: boolean
   isNew?: boolean
   onDiscardNewTask?: () => void
+  createError?: boolean
+  onRetryCreate?: () => void
 }
 
 function InlineCommitFeedback({ error, retry, liveMessage }: { error: boolean; retry: () => void; liveMessage: string }) {
@@ -81,7 +83,7 @@ export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask,
+  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -118,6 +120,8 @@ export function TaskRow({
   // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
   // shared panel's close returns focus to the invoking element.
   const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current) }, [])
   const inline = useInlineCommit<string>({
     value: task.title,
     onCommit: (next) => (onEditTitle ? onEditTitle(task.id, next) : undefined),
@@ -234,18 +238,20 @@ export function TaskRow({
       beginEdit()
     }
   }
-  // Mouse activation follows the e7 grammar: selecting a title edits it in place. The canonical
-  // href remains available for open-in-new-tab and non-editable rows retain opener behavior.
+  // Mouse activations. A single click OPENS the record; a double-click EDITS. To keep the two from
+  // racing, defer editable title opens by one double-click window; a double-click cancels it.
   const onTitleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (canEdit) beginEdit()
-    else onOpen(task.id)
+    if (!canEdit) { onOpen(task.id); return }
+    if (openTimer.current) clearTimeout(openTimer.current)
+    openTimer.current = setTimeout(() => { openTimer.current = null; onOpen(task.id) }, 200)
   }
   const onTitleDoubleClick = (e: React.MouseEvent) => {
     if (!canEdit) return
     e.preventDefault()
     e.stopPropagation()
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
     beginEdit()
   }
 
@@ -324,6 +330,14 @@ export function TaskRow({
         {/* OD-REDESIGN-22 (D-C1): a failed rename surfaces a VISIBLE error + Retry — not a sr-only
             rollback the sighted user never sees. Retry re-sends the preserved attempt. The sr-only
             live region still announces the revert for AT. */}
+        {createError && (
+          <span role="alert" className="task-row-save-error">
+            Task created, link failed
+            <button type="button" className="task-row-retry" onClick={(e) => { e.stopPropagation(); onRetryCreate?.() }}>
+              {t('record.field.retry')}
+            </button>
+          </span>
+        )}
         {saveError && (
           <span role="alert" className="task-row-save-error">
             {t('record.field.saveError')}

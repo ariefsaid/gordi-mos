@@ -8,17 +8,12 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-// createFollowUpTask reuses the canonical createTask (Rule 11) — mocked here, exercised for real
-// in tasks.test.ts.
-vi.mock('./tasks', () => ({ createTask: vi.fn() }))
-
 import {
   listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
-  acknowledgeSignal, linkSignalTask, createFollowUpTask,
+  acknowledgeSignal, linkSignalTask,
   listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
   listSignalRevisions, loadMentionRosters, summarizeLinkedTasks,
 } from './signals'
-import * as tasksDal from './tasks'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -288,7 +283,7 @@ describe('retractSignal', () => {
   })
 })
 
-// ── acknowledgeSignal / linkSignalTask / createFollowUpTask (B5, FR-412/413) ─
+// ── acknowledgeSignal / linkSignalTask (B5, FR-412/413) ─────────────────────
 describe('acknowledgeSignal', () => {
   it('inserts an acknowledgement without sending person_id (DB default stamps the caller)', async () => {
     const rec = freshRec()
@@ -320,24 +315,6 @@ describe('linkSignalTask', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.signal_tasks': [{ data: null, error: { message: 'nope' } }] }, rec)
     await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).rejects.toThrow(/nope/)
-  })
-})
-
-describe('createFollowUpTask', () => {
-  it('creates the Task via the canonical createTask, then links it to the Signal (Rule 11 — reuse)', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'mos.signal_tasks': [{ data: null, error: null }] }, rec)
-    vi.mocked(tasksDal.createTask).mockResolvedValue(TASK_ID)
-
-    const taskInput = {
-      title: 'Repair freezer', businessUnitId: 'bu-1',
-      responsiblePersonId: AUTHOR_ID, accountablePersonId: AUTHOR_ID, createdBy: AUTHOR_ID,
-    }
-    const id = await createFollowUpTask(SIGNAL_ID, taskInput)
-
-    expect(tasksDal.createTask).toHaveBeenCalledWith(taskInput)
-    expect(id).toBe(TASK_ID)
-    expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
   })
 })
 

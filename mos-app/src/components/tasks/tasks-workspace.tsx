@@ -174,7 +174,10 @@ export function TasksWorkspace({
   const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
+  const [draftLinkError, setDraftLinkError] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
   const draftSourceSignalRef = useRef<string | null>(null)
+  const createdDraftTaskRef = useRef<string | null>(null)
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
 
@@ -398,17 +401,26 @@ export function TasksWorkspace({
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
-      const taskId = await createTask({
+      const createdTaskId = createdDraftTaskRef.current ?? await createTask({
         title,
         businessUnitId: draftTask.business_unit_id,
         responsiblePersonId: draftTask.responsible_person_id,
         accountablePersonId: draftTask.accountable_person_id,
         createdBy: viewerId,
       })
+      createdDraftTaskRef.current = createdTaskId
       if (draftSourceSignalRef.current) {
-        await linkSignalTask(draftSourceSignalRef.current, taskId)
-        draftSourceSignalRef.current = null
+        try {
+          await linkSignalTask(draftSourceSignalRef.current, createdTaskId)
+          draftSourceSignalRef.current = null
+          setDraftLinkError(false)
+        } catch {
+          setDraftLinkError(true)
+          setAnnouncement('Task created, link failed')
+          return
+        }
       }
+      createdDraftTaskRef.current = null
       setDraftTask(null)
       controller.retry()
       return
@@ -416,6 +428,10 @@ export function TasksWorkspace({
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
   }, [controller, draftTask, viewerId])
+  const onRetryDraftLink = useCallback(() => {
+    if (!draftTask) return
+    void onEditTitle(draftTask.id, draftTask.title)
+  }, [draftTask, onEditTitle])
   const onDiscardNewTask = useCallback(() => {
     returnFocusAfterDiscard.current = true
     setDraftTask(null)
@@ -434,6 +450,9 @@ export function TasksWorkspace({
   }, [currentSearch, drawerOpen, host, navigate])
   const onNewTask = useCallback((prefillParam = '') => {
     if (!dataContext || draftTask) return
+    setDraftLinkError(false)
+    setAnnouncement('')
+    createdDraftTaskRef.current = null
     const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
     const prefill = new URLSearchParams(prefillParam)
     draftSourceSignalRef.current = params.get('sourceSignal')
@@ -581,6 +600,8 @@ export function TasksWorkspace({
     onEditPic,
     draftTask,
     onDiscardNewTask,
+    draftLinkError,
+    onRetryDraftLink,
     onCloseDrawer,
     onNewTask,
     onAddTask,
@@ -602,7 +623,7 @@ export function TasksWorkspace({
     accessRoles, currentSearch, drawerOpen, draftTask, dueRuns, host.session, isDesktop, onAddTask,
     params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onNewTask, onOpenTask, onClearFilters, onSort,
-    query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
+    query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink,
   ])
 
   // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
@@ -663,6 +684,7 @@ export function TasksWorkspace({
         </span>
       }
     >
+      {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
       <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
         <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>

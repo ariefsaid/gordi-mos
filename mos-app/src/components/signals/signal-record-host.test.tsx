@@ -315,7 +315,7 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
-    await userEvent.click(screen.getByRole('button', { name: /create follow-up task/i }))
+    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
 
     expect(screen.queryByRole('textbox', { name: /task title/i })).not.toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent(

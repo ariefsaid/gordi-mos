@@ -30,7 +30,6 @@
 // the region model on purpose — the regions are the attention ranking, and a standing reference
 // door is not something that needs the viewer today.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -80,7 +79,6 @@ const NO_NAMES: ReadonlyMap<string, string> = new Map()
 
 export function HomePage() {
   const t = useT()
-  const navigate = useNavigate()
   useDocumentTitle(t('common.docTitle', { page: t('nav.home') }))
   const { locale } = useI18n()
   const auth = useAuth()
@@ -453,9 +451,11 @@ export function HomePage() {
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
-              onCreateTask={(signal) => {
+              createTaskHref={(signal) => {
                 const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
-                if (personId && businessUnitId) navigate(signalTaskCreateHref(signal, businessUnitId, personId))
+                return personId && businessUnitId
+                  ? signalTaskCreateHref(signal, businessUnitId, personId)
+                  : undefined
               }}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}

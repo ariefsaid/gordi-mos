@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase'
-import { createTask, type CreateTaskInput } from './tasks'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
 } from './signals.types'
@@ -139,7 +138,7 @@ export async function retractSignal(id: string, reason: string): Promise<void> {
   if (error) throw new Error(`retractSignal failed — ${error.message}`)
 }
 
-// ── acknowledgeSignal / linkSignalTask / createFollowUpTask (B5, FR-412/413) ─
+// ── acknowledgeSignal / linkSignalTask (B5, FR-412/413) ─────────────────────
 
 /** Any reader may acknowledge a Signal at most once (the unique(signal_id,person_id) constraint
  * rejects a repeat). person_id is never sent — the DB default stamps the caller. */
@@ -152,14 +151,6 @@ export async function acknowledgeSignal(signalId: string): Promise<void> {
 export async function linkSignalTask(signalId: string, taskId: string): Promise<void> {
   const { error } = await mos().from('signal_tasks').insert({ signal_id: signalId, task_id: taskId })
   if (error) throw new Error(`linkSignalTask failed — ${error.message}`)
-}
-
-/** Create a follow-up Task via the canonical task DAL (Rule 11 — reuse, never re-implement task
- * creation) and link it to the Signal. Returns the new Task id. */
-export async function createFollowUpTask(signalId: string, input: CreateTaskInput): Promise<string> {
-  const taskId = await createTask(input)
-  await linkSignalTask(signalId, taskId)
-  return taskId
 }
 
 // ── composer option loaders (B6) — shared.teams/sites/team_memberships ───────
