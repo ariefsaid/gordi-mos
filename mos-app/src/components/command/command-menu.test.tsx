@@ -202,10 +202,10 @@ describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Tas
     expect(screen.queryByRole('option', { name: /^New$/i })).toBeNull()
   })
 
-  it('AC-015: Create Task activates → navigates to /work/tasks/new + closes', () => {
+  it('AC-015: Create Task activates → opens inline creation on Tasks + closes', () => {
     const { onClose } = renderMenu()
     fireEvent.click(screen.getByRole('option', { name: /Create Task/i }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/new')
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks?create=1')
     expect(onClose).toHaveBeenCalled()
   })
 

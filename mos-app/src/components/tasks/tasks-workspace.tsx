@@ -36,8 +36,8 @@ import {
   TaskCollectionRuntimeProvider,
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
-import type { TaskStatus } from '@/lib/db/tasks.types'
-import { updateTaskFields } from '@/lib/db/tasks'
+import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import { createTask, updateTaskFields } from '@/lib/db/tasks'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -172,6 +172,7 @@ export function TasksWorkspace({
   const currentSearch = location.search
   const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
+  const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
 
   const controller = useRecordCollection({
     descriptor: taskCollectionDescriptor,
@@ -374,9 +375,23 @@ export function TasksWorkspace({
   // TaskRow's useInlineCommit rolls the row back optimistically. The edited title lives in the row's
   // own draft; the status-only onTaskChanged override channel is untouched (title is not part of it).
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
+    if (draftTask?.id === taskId) {
+      if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
+      await createTask({
+        title,
+        businessUnitId: draftTask.business_unit_id,
+        responsiblePersonId: draftTask.responsible_person_id,
+        accountablePersonId: draftTask.accountable_person_id,
+        createdBy: viewerId,
+      })
+      setDraftTask(null)
+      controller.retry()
+      return
+    }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [viewerId])
+  }, [controller, draftTask, viewerId])
+  const onDiscardNewTask = useCallback(() => setDraftTask(null), [])
   const onCloseDrawer = useCallback(() => {
     if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
       void host.close()
@@ -384,18 +399,29 @@ export function TasksWorkspace({
     }
     if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
   }, [currentSearch, drawerOpen, host, navigate])
-  const onNewTask = useCallback(() => {
-    navigate({ pathname: '/work/tasks/new', search: currentSearch })
-  }, [currentSearch, navigate])
-  const onAddTask = useCallback((prefillParam: string) => {
-    const params = new URLSearchParams(currentSearch)
-    if (prefillParam) {
-      const prefill = new URLSearchParams(prefillParam)
-      prefill.forEach((value, key) => params.set(key, value))
-    }
-    const search = params.toString()
-    navigate({ pathname: '/work/tasks/new', search: search ? `?${search}` : '' })
-  }, [currentSearch, navigate])
+  const onNewTask = useCallback((prefillParam = '') => {
+    if (!dataContext || draftTask) return
+    const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
+    const prefill = new URLSearchParams(prefillParam)
+    const now = new Date().toISOString()
+    setDraftTask({
+      id: `new-task-${Date.now()}`,
+      org_id: '', title: '', business_unit_id: prefill.get('bu') ?? query.businessUnitId ?? dataContext.businessUnits[0]?.id ?? '',
+      status: query.status ?? 'Open', responsible_person_id: prefill.get('r') ?? query.picId ?? viewerId ?? firstPerson,
+      accountable_person_id: query.supervisorId ?? viewerId ?? firstPerson, consulted_person_ids: [], informed_person_ids: [],
+      description: null, due_date: null, objective_id: null, work_line_id: null,
+      last_activity_at: now, archived_at: null, created_by: viewerId ?? '',
+      created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
+    })
+  }, [dataContext, draftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId])
+  const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
+  useEffect(() => {
+    if (params.get('create') !== '1') return
+    onNewTask()
+    const next = new URLSearchParams(params)
+    next.delete('create')
+    setParams(next, { replace: true })
+  }, [onNewTask, params, setParams])
   // H3 fix (owner review r2 gap — "Clear filters" didn't persist past reload): the shared
   // RecordCollection engine's URL sync (useRecordCollection's effect, via
   // lib/record-collection/query-state.ts writeCollectionQuery) infers which URL keys a query
@@ -442,7 +468,6 @@ export function TasksWorkspace({
         blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
         overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
       }
-  const hasRows = projection !== null && projection.visibleRecords.length > 0
   // Census R2 DO-6 (follow-ups F1/F2): on the Follow-ups view the loaded records are TASKS, so any
   // count derived from `stats` mislabels tasks as follow-up scope ("11 items in your scope" above a
   // coming-soon body). While the view is the reserved placeholder the toolbar also drops every
@@ -456,7 +481,7 @@ export function TasksWorkspace({
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
   // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
   // 768–919 band must never show both doors.
-  const showNewTask = !drawerOpen && state.status === 'ready' && hasRows && query.view !== 'followups' && !isNarrow
+  const showNewTask = !drawerOpen && state.status === 'ready' && query.view !== 'followups' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -507,6 +532,8 @@ export function TasksWorkspace({
     statusOverrides: runtimeStatusOverrides,
     onOpenTask,
     onEditTitle,
+    draftTask,
+    onDiscardNewTask,
     onCloseDrawer,
     onNewTask,
     onAddTask,
@@ -521,8 +548,8 @@ export function TasksWorkspace({
     followupsEnabled: SHOW_FOLLOWUPS,
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
-    accessRoles, currentSearch, drawerOpen, dueRuns, host.session, isDesktop, onAddTask,
-    onCloseDrawer, onEditTitle, onNewTask, onOpenTask, onClearFilters, onSort,
+    accessRoles, currentSearch, drawerOpen, draftTask, dueRuns, host.session, isDesktop, onAddTask,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onNewTask, onOpenTask, onClearFilters, onSort,
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
 
@@ -556,7 +583,7 @@ export function TasksWorkspace({
       jobSentence={t('job.tasks')}
       state={frameState}
       action={showNewTask ? (
-        <Link to={{ pathname: '/work/tasks/new', search: currentSearch }} className="btn btn-primary">{t('tasks.new')}</Link>
+        <button type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
       ) : undefined}
       meta={
         // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads

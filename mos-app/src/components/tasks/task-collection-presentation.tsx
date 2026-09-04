@@ -51,8 +51,10 @@ export interface TaskCollectionRuntime {
   /** Inline title-edit commit (E7 collection promise) — persists via the shared updateTaskFields
    * path. Rejects to drive the row's optimistic rollback. Inert in the descriptor-only default. */
   onEditTitle: (taskId: string, title: string) => Promise<void>
+  draftTask: TaskListRow | null
+  onDiscardNewTask: () => void
   onCloseDrawer: () => void
-  onNewTask: () => void
+  onNewTask: (prefillParam?: string) => void
   onAddTask: (prefillParam: string) => void
   onRetry: () => void
   onClearFilters: () => void
@@ -109,6 +111,8 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   statusOverrides: new Map(),
   onOpenTask: () => {},
   onEditTitle: async () => {},
+  draftTask: null,
+  onDiscardNewTask: () => {},
   onCloseDrawer: () => {},
   onNewTask: () => {},
   onAddTask: () => {},
@@ -350,10 +354,17 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   void selectedIds
   void onToggleSelected
   const { isCollapsed: isCollapsedPreference, toggleCollapsed } = useTaskCollapsePreference(query.groupBy)
-  const groups = useMemo(
-    () => buildRenderGroups(projection, context, query, runtime.statusOverrides, t),
-    [context, projection, query, runtime.statusOverrides, t],
-  )
+  const groups = useMemo<RenderGroup[]>(() => {
+    const next = buildRenderGroups(projection, context, query, runtime.statusOverrides, t)
+    const draft = runtime.draftTask
+    if (!draft) return next
+    if (next.length === 0) {
+      return [{ key: '__flat__', label: '', rows: [draft], overdue: 0, prefillParam: '' }]
+    }
+    return next.map((group, index) => index === 0
+      ? { ...group, rows: [draft, ...group.rows] }
+      : group)
+  }, [context, projection, query, runtime.draftTask, runtime.statusOverrides, t])
   const { flatRows, leafTasks } = useMemo(
     () => buildFlatRows(groups, query.groupBy, isCollapsedPreference),
     [groups, isCollapsedPreference, query.groupBy],
@@ -468,6 +479,8 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
         onEditTitle={runtime.onEditTitle}
+        isNew={task.id === runtime.draftTask?.id}
+        onDiscardNewTask={runtime.onDiscardNewTask}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={runtime.recordSearch}
         provenanceRoleName={task.generated_from_task_def_id
@@ -552,6 +565,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         createHref={runtime.createHref}
         onAssignPending={runtime.canResolvePending ? occurrence.open : undefined}
         provenanceByTaskDefId={new Map(context.provenanceByTaskDefId)}
+        onEditTitle={runtime.onEditTitle}
+        draftTaskId={runtime.draftTask?.id}
+        onDiscardNewTask={runtime.onDiscardNewTask}
       />
       {occurrence.runId && (
         <OccurrenceAssignDialog

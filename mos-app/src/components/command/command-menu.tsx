@@ -133,7 +133,7 @@ type RecordsState =
 
 // Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
 // Ask Deputy opens the AssistantPanel; Share Signal calls onShareSignal (opens the shared Signal
-// composer host — never a route navigation, AC-428/FR-417); Create Task navigates /work/tasks/new.
+// composer host — never a route navigation, AC-428/FR-417); Create Task opens inline on Tasks.
 function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
 }
@@ -378,7 +378,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     if (!item) return
     if (item.record) pushRecentTask(item.record)
     if (item.run) item.run()
-    else if (item.to) navigate(item.to)
+    else if (item.to) navigate(item.id === 'a-task' ? '/work/tasks?create=1' : item.to)
     onClose()
   }
 
