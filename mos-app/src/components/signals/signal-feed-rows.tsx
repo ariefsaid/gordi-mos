@@ -38,7 +38,7 @@ export interface SignalFeedRowsProps {
 /** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
  *  without limit is the wall of text again, just rotated 90 degrees." The archive Feed IS the full
  *  collection, so it is never capped — hiding records there would defeat the surface's whole job. */
-const AMBIENT_CAP = 6
+export const AMBIENT_CAP = 6
 
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
@@ -167,13 +167,18 @@ export function SignalFeedRows({
                     {teamName && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span>{teamName}</span>
+                        <span className="home-signal-location-chip">{teamName}</span>
                       </span>
                     )}
                     <span className="home-signal-meta-item">
                       <span className="home-signal-sep" aria-hidden="true">·</span>
-                      <span className="home-signal-when">{formatWibDateTime(signal.occurred_at)}</span>
+                      <span className="home-signal-time-chip">{formatWibDateTime(signal.occurred_at)}</span>
                     </span>
+                    {teamName && (
+                      <span className="home-signal-visible-to">
+                        {t('signals.composer.visibleTo', { team: teamName })}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="home-signal-tail">

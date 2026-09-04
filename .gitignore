@@ -99,6 +99,8 @@ supabase/seed.local-*.sql
 .playwright-cli/
 # design-shots render output (scratch; the design-shots workflow publishes a workflow artifact only)
 shots-out/
+# Local render evidence from build briefs.
+mos-app/renders/
 scripts/__pycache__/
 # stray agent-browser output file (`--full-page` taken as a filename, not a flag)
 /--full-page

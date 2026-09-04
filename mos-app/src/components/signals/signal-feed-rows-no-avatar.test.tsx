@@ -50,11 +50,13 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
     expect(container.querySelector('.home-signal-avatar')).toBeNull()
   })
 
-  it('the meta line still reads author · team · time, with nothing orphaned', () => {
+  it('the meta line carries the author, location/time chips, and visibility', () => {
     const { container } = renderFeed(variant)
     const meta = container.querySelector('.home-signal-meta')!
     expect(within(meta as HTMLElement).getByText('Author One')).toBeInTheDocument()
     expect(within(meta as HTMLElement).getByText('HQ Operations')).toBeInTheDocument()
-    expect(meta.textContent?.startsWith('Author One·HQ Operations·')).toBe(true)
+    expect(meta.querySelector('.home-signal-location-chip')).toHaveTextContent('HQ Operations')
+    expect(meta.querySelector('.home-signal-time-chip')).toHaveTextContent(/2026/)
+    expect(within(meta as HTMLElement).getByText('Visible to HQ Operations')).toBeInTheDocument()
   })
 })

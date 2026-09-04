@@ -188,7 +188,22 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .home-signal-sep { color: var(--muted-foreground); }
-.home-signal-when { white-space: nowrap; }
+.home-signal-location-chip,
+.home-signal-time-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.home-signal-visible-to {
+  flex-basis: 100%;
+  color: var(--muted-foreground);
+}
 
 .home-signal-tail {
   flex: none;

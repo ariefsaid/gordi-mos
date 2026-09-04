@@ -243,7 +243,7 @@ describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () 
   it('renders the Focused tabs + the Signals column for a member', async () => {
     await renderHome(memberViewer)
     expect(await screen.findByRole('tablist')).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: 'Signals' })).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: /^Signals · \d+$/ })).toBeInTheDocument()
     expect(mockListRevenue).not.toHaveBeenCalled()
   })
 })
@@ -335,7 +335,7 @@ describe('OD-REDESIGN-82: Home is chromeless — no card-shell chrome on the lay
   it('the Signals column is a SECTION landmark, and neither it nor the tab strip carries card-shell chrome', async () => {
     await renderHome(financeViewer)
     const shellClasses = ['bg-card', 'border', 'border-border', 'rounded-lg', 'shadow-rest']
-    const feed = await screen.findByRole('region', { name: 'Signals' })
+    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
     expect(feed.tagName).toBe('SECTION')
     for (const c of shellClasses) expect(feed).not.toHaveClass(c)
 
@@ -356,7 +356,7 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
     mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Riri Barista' }])
 
     await renderHome(memberViewer)
-    const feed = await screen.findByRole('region', { name: 'Signals' })
+    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
     expect(within(feed).getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument()
     await waitFor(() => expect(within(feed).getByText('Riri Barista')).toBeInTheDocument())
     expect(within(feed).getByText('Bar Kemang')).toBeInTheDocument()
@@ -367,7 +367,7 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
   it('DIV-G5: a failed Signals read shows the error + a working Retry — never "No Signals yet"', async () => {
     mockListSignals.mockRejectedValue(new Error('offline'))
     await renderHome(memberViewer)
-    const feed = await screen.findByRole('region', { name: 'Signals' })
+    const feed = await screen.findByRole('region', { name: /^Signals$/ })
     expect(within(feed).getByText(/couldn't load signals/i)).toBeInTheDocument()
     expect(within(feed).queryByText(/no signals yet/i)).toBeNull()
 
@@ -382,7 +382,7 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
       expect(screen.getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument())
   })
 
-  it('states no Signals count anywhere — a number beside an unfinished read would be a guess (DIV-G5)', async () => {
+  it('shows a zero Signals count when the read is empty (DIV-G5)', async () => {
     // The header tally is built from the four REGION counts only; Signals is a column, not a
     // region, so wiring it must not have invented a fifth number for it to sum.
     let resolveSignals!: (rows: SignalRow[]) => void
@@ -400,8 +400,9 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
       resolveSignals([])
       await Promise.resolve(); await Promise.resolve()
     })
-    const feed = await screen.findByRole('region', { name: 'Signals' })
+    const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
     expect(within(feed).getByText(/no signals yet/i)).toBeInTheDocument()
+    expect(within(feed).getByRole('heading', { name: 'Signals · 0' })).toBeInTheDocument()
   })
 })
 
