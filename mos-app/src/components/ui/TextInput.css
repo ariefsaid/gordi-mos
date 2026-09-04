@@ -41,5 +41,5 @@
    at desktop widths while every phone consumer inherits the floor from this one seam. */
 @media (max-width: 767.98px) {
   .mk-textinput__box { min-height: 44px; }
-  .mk-textinput__field { min-height: 44px; }
+  .mk-textinput__field { min-height: 44px; /* Native input is the measured/focusable element; the box floor alone leaves it short. */ }
 }
