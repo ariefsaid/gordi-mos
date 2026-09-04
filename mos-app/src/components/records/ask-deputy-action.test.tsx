@@ -89,6 +89,14 @@ describe('AskDeputyAction (V3 brave slice 1 — record-scoped Ask Deputy)', () =
     expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
   })
 
+  // #718: `.record-panel-btn` (record-panel-host.css) already rests at 44×44 unconditionally —
+  // the redundant `tap-floor` class added a second, now-dead 44px pin on top of a base that
+  // already meets it.
+  it('issue 718: does not carry the redundant tap-floor class (record-panel-btn base is already 44px)', () => {
+    renderWithPanel(<AskDeputyAction draft="About Task: X" />)
+    expect(screen.getByRole('button', { name: 'Ask Deputy' }).className).not.toMatch(/\btap-floor\b/)
+  })
+
   it('the seed is single-shot: after adopting it, a later plain reopen does not resurrect the reference', async () => {
     renderWithPanel(<AskDeputyAction draft="About Task: Replace grinder burrs" />)
 

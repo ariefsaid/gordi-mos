@@ -503,7 +503,11 @@
 .dw-iconbtn:hover { background: var(--accent); color: var(--foreground); }
 .dw-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
-@media (pointer: fine) {
+/* #718: this query carried no width guard (same class as #708's record-panel-btn fix), so ANY
+ * environment reporting a fine pointer — a resized desktop window, a non-touch mobile emulation —
+ * fired it at phone width too, tightening the drawer icon buttons under the 44px floor.
+ * `and (min-width: 768px)` confines the tighten-down to genuine desktop. */
+@media (pointer: fine) and (min-width: 768px) {
   .dw-iconbtn { width: 30px; height: 30px; }
 }
 
