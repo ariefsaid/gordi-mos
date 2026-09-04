@@ -127,7 +127,7 @@
   min-width: 190px;
   padding: 8px;
   background: var(--surface-primary);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-popover);
 }
