@@ -6,7 +6,7 @@
 #                                             drive-burn grep sums every matching slug)
 #   gh pr view + first "In flight" comment    LOC ± and claim→merge wall clock
 #
-#   scripts/drive-cost.sh [hours]             (default 24)
+#   scripts/drive-cost.sh [hours]             (default 24); e.g. bash scripts/drive-cost.sh 72
 #
 # PI_SESSIONS_DIR overrides the sessions root, REVIEWS_DIR the reviews dir (both self-test;
 # a worktree may have no docs/reviews — those cells print "?" and the row still lands).
@@ -99,6 +99,7 @@ while IFS=$'\t' read -r num title branch; do
   bf="$reviews/${branch//\//-}.md"
   builder="?"; reviewers="?"; rounds="?"; vpath="?"
   if [ -f "$bf" ]; then
+    # ### headings are ignored; they inherit the enclosing ## state (retro is always ##).
     # Only labeled header/section records are data; prose that mentions either label is not.
     builder="$(awk '
       /^##[[:space:]]/ { exit }

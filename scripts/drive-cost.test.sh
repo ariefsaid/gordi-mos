@@ -82,8 +82,8 @@ mkdir -p "$tmp/reviews"
 cat > "$tmp/reviews/feat-639-drive-cost-table.md" <<'EOF'
 # Review — feat/639-drive-cost-table @ abc1234
 
+Builder was a sonnet subagent; the Builder: field was left blank in prose.
 Builder: sonnet-subagent
-Builder was a sonnet subagent; prose must not replace the machine-readable line.
 Round 2 — confirm; Round 1's refusal:
 feat-639-drive-cost-table.round1.md.
 
@@ -104,7 +104,7 @@ cat > "$tmp/reviews/feat-640-lexer-window.md" <<'EOF'
 # Review — feat/640-lexer-window @ 25ba02be
 
 Builder was a sonnet subagent. Reviewer: opus-subagent (header prose only).
-This preamble must not contribute a verdict: Verdict: DO NOT MERGE
+Verdict: DO NOT MERGE — this preamble must not contribute a verdict.
 
 ## spec
 Reviewer: glm-5.3-flash (spec)
@@ -127,6 +127,7 @@ printf '%s' "$out" | grep -qF '| #640 | #639 | sonnet-subagent | opus-subagent (
 t "row 1 parses fully: builder/reviewer/rounds/verdict/LOC/pi/clock + same-family flag" $?
 printf '%s' "$out" | grep -qF '| #641 | #640 | ? | glm-5.3-flash | 1 | MWC→M | +50/-8 | 340 | 28.0h |'
 t "prose-only builder is unknown and does not flag" $?
+printf '%s' "$out" | grep -qF '| #641 | #640 | ? | glm-5.3-flash | 1 | MWC→M | +50/-8 | 340 | 28.0h |'
 t "row 2 parses fully: cross-family, numeric pi tokens, verdict path MWC→M" $?
 printf '%s' "$out" | grep -qF 'Totals: 2 PRs, +260/-23 LOC, 1.7k pi tokens (pi-metered only), median claim→merge 15.6h, same-family 1/2 rows.'
 t "totals: LOC sum, pi floor, median clock, same-family count" $?
