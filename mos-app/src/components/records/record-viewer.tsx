@@ -11,7 +11,7 @@
 // never renders a confirmation dialog. Field commits route through onCommitField;
 // dirty state forwards to onDirtyChange so the tenant can attach the Issue 4
 // OverlayEntry.leaveGuard. Related links call onOpenRelated (or their href).
-import { useId, type ReactNode } from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { reportError } from '@/lib/telemetry'
 import { Button, type ButtonVariant } from '@/components/ui/button'
@@ -80,18 +80,20 @@ export function RecordFieldList({
   onCommitField,
   onDirtyChange,
   fieldCommitsFrozen = false,
+  excludeKeys = [],
 }: {
   section: RecordMetadataSection
   onCommitField?: (key: string, value: RecordValue) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
   fieldCommitsFrozen?: boolean
+  excludeKeys?: readonly string[]
 }): ReactNode {
   const commit = onCommitField ?? noopCommit
   return (
     <>
       <h3 className="record-viewer__section-title">{section.label}</h3>
       <div className="record-viewer__fields">
-        {section.fields.map((field) => (
+        {section.fields.filter((field) => !excludeKeys.includes(field.key)).map((field) => (
           <RecordField
             key={field.key}
             spec={field}
@@ -121,6 +123,25 @@ export function RecordViewer({
   const t = useT()
   const titleId = useId()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
+  const taskAnatomy = adapter.kind === 'task' && adapter.headerFields != null
+  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'activity'>('details')
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const tabLabels = {
+    details: t('tasks.record.tab.details'),
+    checklist: t('tasks.checklistTitle'),
+    activity: t('tasks.feed.activity'),
+  }
+  const selectTab = (tab: 'details' | 'checklist' | 'activity') => setActiveTab(tab)
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, tab: 'details' | 'checklist' | 'activity') => {
+    const tabs = ['details', 'checklist', 'activity'] as const
+    const index = tabs.indexOf(tab)
+    const nextIndex = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : -1
+    if (nextIndex < 0) return
+    event.preventDefault()
+    const next = tabs[nextIndex]
+    selectTab(next)
+    tabRefs.current[nextIndex]?.focus()
+  }
 
   const body = (() => {
     if (loading) {
@@ -142,6 +163,7 @@ export function RecordViewer({
       <RecordBody
         adapter={adapter}
         mode={mode}
+        activeTab={taskAnatomy ? activeTab : undefined}
         onOpenRelated={onOpenRelated}
         onDirtyChange={onDirtyChange}
         onCommitField={onCommitField ?? (async () => noopCommit())}
@@ -156,9 +178,48 @@ export function RecordViewer({
       className={`record-viewer record-viewer--${mode}`}
       data-record-kind={adapter.kind}
       data-record-mode={mode}
-      {...(showIdentityHeader ? { 'aria-labelledby': titleId } : { 'aria-label': adapter.title })}
+      {...(showIdentityHeader && !taskAnatomy ? { 'aria-labelledby': titleId } : { 'aria-label': adapter.title })}
     >
-      {showIdentityHeader && (
+      {taskAnatomy && adapter.headerFields && (
+        <header className="record-viewer__pinned-header" data-record-header="pinned" data-viewer-region="identity">
+          <div className="record-viewer__pinned-title">
+            {adapter.headerFields.filter((field) => field.key === 'title').map((field) => (
+              <RecordField
+                key={field.key}
+                spec={field}
+                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
+                onDirtyChange={onDirtyChange}
+                commitsFrozen={fieldCommitsFrozen}
+                heading={field.key === 'title'}
+              />
+            ))}
+          </div>
+          <div className="record-viewer__pinned-status">
+            {adapter.headerFields.filter((field) => field.key === 'status').map((field) => (
+              <RecordField
+                key={field.key}
+                spec={field}
+                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
+                onDirtyChange={onDirtyChange}
+                commitsFrozen={fieldCommitsFrozen}
+              />
+            ))}
+            <button type="button" className="record-viewer__activity-affordance" onClick={() => selectTab('activity')}>
+              {tabLabels.activity}
+            </button>
+          </div>
+        </header>
+      )}
+      {taskAnatomy && (
+        <div className="record-viewer__tabs" role="tablist" aria-label={t('tasks.record.tabsAria')}>
+          {(['details', 'checklist', 'activity'] as const).map((tab, index) => (
+            <button key={tab} ref={(element) => { tabRefs.current[index] = element }} type="button" role="tab" id={`record-tab-${tab}`} aria-controls={`record-panel-${tab}`} aria-selected={activeTab === tab} tabIndex={activeTab === tab ? 0 : -1} className={activeTab === tab ? 'is-active' : ''} onClick={() => selectTab(tab)} onKeyDown={(event) => onTabKeyDown(event, tab)}>
+              {tabLabels[tab]}
+            </button>
+          ))}
+        </div>
+      )}
+      {showIdentityHeader && !taskAnatomy && (
         <header className="record-viewer__identity" data-viewer-region="identity">
           {adapter.eyebrow && <p className="record-viewer__eyebrow">{adapter.eyebrow}</p>}
           <p className="record-viewer__type">{adapter.typeLabel}</p>
@@ -167,7 +228,11 @@ export function RecordViewer({
           </Heading>
         </header>
       )}
-      {body}
+      {taskAnatomy ? (
+        <div id={`record-panel-${activeTab}`} role="tabpanel" aria-labelledby={`record-tab-${activeTab}`} tabIndex={0}>
+          {body}
+        </div>
+      ) : body}
     </section>
   )
 }
@@ -175,6 +240,7 @@ export function RecordViewer({
 function RecordBody({
   adapter,
   mode,
+  activeTab,
   onOpenRelated,
   onDirtyChange,
   onCommitField,
@@ -183,6 +249,7 @@ function RecordBody({
 }: {
   adapter: RecordViewerAdapter
   mode: RecordViewerMode
+  activeTab?: 'details' | 'checklist' | 'activity'
   onOpenRelated?: (relation: RecordRelation) => void
   onDirtyChange?: (dirty: boolean) => void
   onCommitField: (key: string, value: RecordValue) => Promise<void>
@@ -198,10 +265,15 @@ function RecordBody({
   // so gating on !readOnly alone showed the hint on a record with nothing to edit. Gate on the
   // presence of a genuinely editable field — Task (editable fields) still shows it, Signal never does.
   const hasEditableField = adapter.metadata.some((section) => section.fields.some((f) => f.editable))
+  const visibleSlots = activeTab === undefined
+    ? adapter.contentSlots
+    : activeTab === 'details'
+      ? adapter.contentSlots.filter((slot) => slot.id !== 'checklist' && slot.id !== 'activity')
+      : adapter.contentSlots.filter((slot) => slot.id === activeTab)
 
   return (
     <>
-      {adapter.metadata.map((section) => (
+      {(activeTab === undefined || activeTab === 'details') && adapter.metadata.map((section) => (
         <section key={section.id} className="record-viewer__section" data-viewer-region="metadata" aria-label={section.label}>
           <RecordFieldList
             section={section}
@@ -212,7 +284,7 @@ function RecordBody({
         </section>
       ))}
 
-      {adapter.relations.length > 0 && (
+      {(activeTab === undefined || activeTab === 'details') && adapter.relations.length > 0 && (
         <section className="record-viewer__section" data-viewer-region="relations" aria-label="Related records">
           <ul className="record-viewer__relations">
             {adapter.relations.map((rel) => (
@@ -232,7 +304,7 @@ function RecordBody({
         </section>
       )}
 
-      {adapter.contentSlots.map((slot) => (
+      {visibleSlots.map((slot) => (
         <section
           key={slot.id}
           className="record-viewer__section"
@@ -244,7 +316,7 @@ function RecordBody({
         </section>
       ))}
 
-      {adapter.activity.length > 0 && (
+      {activeTab === undefined && adapter.activity.length > 0 && (
         <section className="record-viewer__section" data-viewer-region="activity" aria-label="Activity">
           <ul className="record-viewer__activity">
             {adapter.activity.map((item) => (
@@ -260,7 +332,7 @@ function RecordBody({
         </section>
       )}
 
-      <footer className="record-viewer__section" data-viewer-region="actions">
+      {activeTab !== undefined && activeTab !== 'details' ? null : <footer className="record-viewer__section" data-viewer-region="actions">
         {readOnly && adapter.permission.reason && (
           <p className="record-viewer__permission-note" role="note">
             {adapter.permission.reason}
@@ -292,7 +364,7 @@ function RecordBody({
         {!readOnly && hasEditableField && (
           <p className="record-viewer__edit-hint">{t('record.editHint')}</p>
         )}
-      </footer>
+      </footer>}
     </>
   )
 }

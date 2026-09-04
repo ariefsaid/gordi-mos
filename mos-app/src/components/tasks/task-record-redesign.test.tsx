@@ -105,6 +105,15 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     // name of BU `team-cafe`) is DISTINCT and still renders; only the Team field is gone.
     expect(screen.queryByText('Team')).toBeNull()
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('record-details').querySelector('[data-record-header="pinned"]')).toBeTruthy()
+    expect(screen.getByRole('tablist')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Details' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Checklist' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Activity' })).toBeInTheDocument()
+    expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
+    expect(screen.getByText('Source')).toBeInTheDocument()
+    expect(screen.getAllByText('Today opening').length).toBeGreaterThan(0)
     expect(screen.getByText('PIC')).toBeInTheDocument()
     // Value-first document grammar: ownership fields render their VALUE first, then swap in the
     // edit control on activation (click the row). PIC + Supervisor are editable person selects;

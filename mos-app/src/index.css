@@ -259,6 +259,7 @@
      numerals), not a replacement for it — kept distinct on purpose. */
   --font-size-kpi-value:  23px;   /* KPI/headline numeral — DESIGN.md "KPI values reuse ~23px/600" */
   --font-size-heading:    20px;   /* section/card heading — DESIGN.md heading */
+  --record-title-max-lines: 2;     /* pinned task title clamp */
   --font-size-subheading: 18px;   /* sub-section header, empty-state title — DESIGN.md subheading */
   --font-size-body-lg:    15px;   /* emphasized body — record titles, primary row text, lead copy.
                                      MINTED OD-REDESIGN-91 #6/B4: the ~65-use 15px family is lawful. */

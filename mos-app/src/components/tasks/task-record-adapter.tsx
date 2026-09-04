@@ -357,6 +357,13 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
 
   // 1. Content (LEADS) — Description prose directly beneath the identity title; Status pill + Due
   //    ride with it (LAW-2 — urgency adjacent to the content it qualifies, not a downstream block).
+  const titleField = editSpec({
+    key: 'title',
+    label: 'title',
+    control: 'text',
+    value: task.title,
+    displayValue: task.title,
+  })
   const content: RecordMetadataSection = {
     id: 'content',
     label: L.detailsSection,
@@ -500,6 +507,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     id: task.id,
     title: task.title,
     typeLabel: L.typeLabel,
+    headerFields: [titleField, content.fields.find((field) => field.key === 'status')!],
     metadata: [],
     relations: [],
     contentSlots,
@@ -528,6 +536,7 @@ function fieldSectionSlot(section: RecordMetadataSection): RecordContentSlot {
         onCommitField={ctx.onCommitField}
         onDirtyChange={ctx.onDirtyChange}
         fieldCommitsFrozen={ctx.fieldCommitsFrozen}
+        excludeKeys={section.id === 'content' ? ['status'] : []}
       />
     ),
   }

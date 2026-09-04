@@ -57,6 +57,8 @@ export interface RecordFieldProps {
   onDirtyChange?: (dirty: boolean) => void
   /** See the header note above (D1 fix): true while a host leave-guard dialog is open. */
   commitsFrozen?: boolean
+  /** Render the resting value as the record's semantic title heading. */
+  heading?: boolean
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -71,14 +73,14 @@ const OPTION_CONTROLS: ReadonlySet<RecordFieldControl> = new Set([
 
 // Controls whose VALUE reads as an entity chip in the document (a person, a team, a
 // linked record). Status renders as its own interactive pill; everything else is prose.
-const CHIP_CONTROLS: ReadonlySet<RecordFieldControl> = new Set(['person', 'team', 'relation'])
+const CHIP_CONTROLS: ReadonlySet<RecordFieldControl> = new Set(['select', 'person', 'team', 'relation'])
 
 function toInputValue(value: RecordValue): string {
   if (value === null || value === undefined) return ''
   return String(value)
 }
 
-export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFrozen = false }: RecordFieldProps) {
+export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFrozen = false, heading = false }: RecordFieldProps) {
   const t = useT()
   const labelId = useId()
   const controlId = useId()
@@ -228,9 +230,13 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
           {spec.label}
         </span>
         <div className="record-field__value-cell">
-          <div className="record-field__value" aria-labelledby={labelId}>
-            {renderValueNode(spec)}
-          </div>
+          {heading ? (
+            <h1 className="record-field__value record-field__heading">{renderValueNode(spec)}</h1>
+          ) : (
+            <div className="record-field__value" aria-labelledby={labelId}>
+              {renderValueNode(spec)}
+            </div>
+          )}
           {reason && <p className="record-field__reason">{reason}</p>}
         </div>
       </div>
@@ -263,9 +269,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             data-field-edit={spec.key}
             aria-label={t('record.field.edit', { label: spec.label })}
             aria-describedby={labelId}
+            aria-haspopup={spec.control === 'status' ? 'listbox' : undefined}
             onClick={beginEdit}
           >
-            <span className="record-field__value">{renderValueNode(spec)}</span>
+            {heading ? <h1 className="record-field__value record-field__heading">{renderValueNode(spec)}</h1> : <span className="record-field__value">{renderValueNode(spec)}</span>}
             <span className="record-field__edit-affordance" aria-hidden="true">
               {PENCIL}
             </span>
@@ -438,11 +445,15 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
       <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
         <span className="record-field__pill-dot" aria-hidden="true" />
         {spec.displayValue}
+        <span aria-hidden="true" className="record-field__pill-caret" />
       </span>
     )
   }
   if (CHIP_CONTROLS.has(spec.control) && !empty) {
     return <span className="record-field__chip">{spec.displayValue}</span>
+  }
+  if (spec.control === 'date' && !empty) {
+    return <span className="record-field__inline-pill">{spec.displayValue}</span>
   }
   return <>{spec.displayValue}</>
 }
