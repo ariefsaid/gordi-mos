@@ -72,11 +72,6 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   }, [isOpen])
 
   const accessRoles = viewer?.accessRoles ?? []
-  // #715: the same role data resolveViewer() already loaded — the composer narrows its
-  // canCreateForTeam-widened Team list to ones the viewer can read back (mos.can_read_signal R2).
-  const readableBusinessUnitIds = (viewer?.roles ?? [])
-    .map((role) => role.business_unit_id)
-    .filter((id): id is string => id !== null)
 
   return (
     <SignalComposerContext.Provider value={{ open, postCount }}>
@@ -103,7 +98,6 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               authorName={viewer.person.full_name}
               canCreateForTeam={can(accessRoles, 'signal.create_for_team')}
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
-              readableBusinessUnitIds={readableBusinessUnitIds}
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}
               onShared={handleShared}

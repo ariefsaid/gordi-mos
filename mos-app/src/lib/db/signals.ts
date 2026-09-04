@@ -159,9 +159,15 @@ export async function linkSignalTask(signalId: string, taskId: string): Promise<
 
 type TeamJoinRow = { id: string; name: string; business_unit_id: string; site_id: string | null }
 
-/** The author's active membership Teams (owning-Team select options), primary first. Not a full
- * effective-dated evaluation — approximates "active" as `effective_to is null` for the picker's
- * convenience; RLS (`mos.can_post_signal_for_team`) is the write-time authority. */
+/** Teams where a Signal posted by the current author would remain readable. The database owns
+ * the complete can_read_signal policy; this RPC returns ready-to-render options in one call. */
+export async function listReadableAuthorTeams(authorId: string): Promise<TeamOption[]> {
+  const { data, error } = await mos().rpc('teams_author_can_read_back', { p_author_id: authorId })
+  if (error) throw new Error(`listReadableAuthorTeams failed — ${error.message}`)
+  return (data ?? []) as TeamOption[]
+}
+
+/** The author's active membership Teams (owning-Team select options), primary first. */
 export async function listAuthorTeams(personId: string): Promise<TeamOption[]> {
   const { data: memberships, error: mErr } = await shared()
     .from('team_memberships')
