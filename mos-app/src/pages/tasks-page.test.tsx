@@ -896,7 +896,7 @@ const CAPABLE_AUTH: AuthState = {
 // docs/specs/occurrence-as-tasks.spec.md §5). "Process Run" must NEVER appear as UI vocabulary
 // anywhere in this page (FR-611). Design fix wave item 1: the row list is COLLAPSED BY DEFAULT
 // (design-review step-6 CRITICAL — a full-width due-row flood buried the Tasks table) — every test
-// below reveals it via the single attention pill (item 3(a) fold) before interacting with a row.
+// below uses the two attention pills: the due-runs pill opens the disclosure, while the overdue pill applies the overdue filter.
 describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   const DUE_ROW: DueProcessRun = {
     work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
@@ -904,31 +904,59 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     period_key: '2026-07-17', scheduled_date: '2026-07-17',
   }
 
-  // Item 3(a): the former "N due to start" pill folded into the ONE attention pill, which
-  // carries the runs disclosure (aria-expanded) when due work exists. The goal-oracle is
-  // unchanged (a capable viewer reveals + starts a due run, collapsed by default); only the
-  // control that reveals it changed from a bespoke trigger to the shared attention pill.
+  // The due-runs pill carries the runs disclosure (aria-expanded) when due work exists, while the separate overdue pill applies the overdue filter.
   async function expandDueRuns() {
-    const trigger = await screen.findByRole('button', { name: /need attention/i })
+    const trigger = await screen.findByRole('button', { name: /runs? due to start/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(trigger)
     await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
   }
 
-  it('the attention pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
+  it('the due-runs pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
     mockListTasks.mockResolvedValue([])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
-    const trigger = await screen.findByRole('button', { name: '1 need attention' })
+    const trigger = await screen.findByRole('button', { name: '1 run due to start' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
 
     await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
+    // A due-runs pill must not also apply the overdue task filter.
+    expect(_capturedLocation?.search).not.toMatch(/overdue=1/)
     // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
     // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
     expect(screen.getByRole('button', { name: 'Start · Café HQ daily opening' })).toBeInTheDocument()
+  })
+
+  it('the overdue pill applies its filter without opening the due-runs disclosure', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
+    mockListDueRuns.mockResolvedValue([])
+    renderPage(CAPABLE_AUTH)
+
+    const pill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
+    fireEvent.click(pill)
+    await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue/i })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
+  })
+
+  it('when both sources are non-zero, each pill performs only its own action', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    renderPage(CAPABLE_AUTH)
+
+    const duePill = await screen.findByRole('button', { name: '1 run due to start' })
+    const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
+    expect(duePill).toBeInTheDocument()
+    expect(overduePill).toBeInTheDocument()
+
+    fireEvent.click(duePill)
+    await waitFor(() => expect(duePill).toHaveAttribute('aria-expanded', 'true'))
+    expect(_capturedLocation?.search).not.toMatch(/overdue=1/)
+
+    fireEvent.click(overduePill)
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/overdue=1/))
   })
 
   it('the due-runs trigger is absent for a viewer without process.start', async () => {
