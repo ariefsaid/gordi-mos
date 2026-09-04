@@ -9,15 +9,11 @@
 //     revert via a role=status live region (the same optimistic idiom Tasks already
 //     uses — reused here, not re-invented; see task-surface.tsx `announce`).
 //
-// ── Native-select reading (why this hook is TEXT/NUMBER only) ──────────────────
-// A native <select> (and the equivalent listbox popovers — e.g. PersonPicker)
-// has NO free-typing draft: picking an option IS the user's commit intent, so those
-// surfaces commit eagerly on change — that is the CORRECT I5 reading for a select, not
-// a violation. For a select, "Escape discards" means Escape-while-open closes the
-// native dropdown without changing the value (browser-native) — there is no draft to
-// restore. The draft/restore model in this hook applies STRICTLY to free-entry
-// text/number inputs, where a keystroke is not yet a commit. Do not route selects
-// through this hook — doing so would break their correct eager commit.
+// ── Native-select reading ──────────────────────────────────────────────────────
+// A native <select> has no free-typing draft: picking an option IS the user's commit
+// intent, so callers use commit(override) from onChange. The hook still owns pending,
+// rollback, retry, and announcements; only the draft/restore model is reserved for
+// free-entry text/number inputs. Escape on a native dropdown remains browser-native.
 //
 // The caller supplies `onCommit`; if it returns a rejecting Promise the hook drives the
 // rollback + announce. A void (synchronous) `onCommit` simply commits with no async

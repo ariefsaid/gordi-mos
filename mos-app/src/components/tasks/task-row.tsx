@@ -6,7 +6,7 @@
 //
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
-import type { ReactNode, Ref } from 'react'
+import type { Ref } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
@@ -65,34 +65,15 @@ export type TaskRowProps = {
   onDiscardNewTask?: () => void
 }
 
-function InlineTextCell({ value, ariaLabel, onCommit, display }: { value: string; ariaLabel: string; onCommit: (value: string) => Promise<void>; display: ReactNode }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const [pending, setPending] = useState(false)
-  useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
-  const finish = () => {
-    if (pending) return
-    setEditing(false)
-    if (draft === value) return
-    setPending(true)
-    void onCommit(draft).finally(() => setPending(false))
-  }
-  return editing ? <input autoFocus type="date" aria-label={ariaLabel} value={draft} disabled={pending} onChange={(e) => setDraft(e.target.value)} onBlur={finish} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setDraft(value); setEditing(false) } if (e.key === 'Enter') { e.preventDefault(); finish() } }} /> : <button type="button" className="inline-cell-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true) }}>{display}</button>
-}
-
-function InlineSelectCell({ value, options, labels = new Map(), ariaLabel, onCommit, display }: { value: string; options: readonly string[]; labels?: ReadonlyMap<string, string>; ariaLabel: string; onCommit: (value: string) => Promise<void>; display: ReactNode }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const [pending, setPending] = useState(false)
-  useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
-  const finish = () => {
-    if (pending) return
-    setEditing(false)
-    if (draft === value) return
-    setPending(true)
-    void onCommit(draft).finally(() => setPending(false))
-  }
-  return editing ? <Select autoFocus aria-label={ariaLabel} value={draft} disabled={pending} onChange={(e) => setDraft(e.target.value)} onBlur={finish} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setDraft(value); setEditing(false) } if (e.key === 'Enter') { e.preventDefault(); finish() } }}>{options.map((option) => <option key={option} value={option}>{labels.get(option) ?? option}</option>)}</Select> : <button type="button" className="inline-cell-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true) }}>{display}</button>
+function InlineCommitFeedback({ error, retry, liveMessage }: { error: boolean; retry: () => void; liveMessage: string }) {
+  const t = useT()
+  return <>
+    {error && <span role="alert" className="task-row-save-error">
+      {t('record.field.saveError')}
+      <button type="button" className="task-row-retry" onClick={(event) => { event.stopPropagation(); retry() }}>{t('record.field.retry')}</button>
+    </span>}
+    {liveMessage && <span role="status" aria-live="polite" className="sr-only">{liveMessage}</span>}
+  </>
 }
 
 export function TaskRow({
@@ -143,6 +124,25 @@ export function TaskRow({
   })
   const { draft, setDraft, pending, error: saveError, retry, commit, cancel, liveMessage } = inline
   const displayTitle = draft
+
+  const [statusEditing, setStatusEditing] = useState(false)
+  const statusInline = useInlineCommit<TaskListRow['status']>({
+    value: task.status,
+    onCommit: (next) => (onEditStatus ? onEditStatus(task.id, next) : undefined),
+    rollbackMessage: t('tasks.feedback.rollback'),
+  })
+  const [picEditing, setPicEditing] = useState(false)
+  const picInline = useInlineCommit<string>({
+    value: task.responsible_person_id,
+    onCommit: (next) => (onEditPic ? onEditPic(task.id, next) : undefined),
+    rollbackMessage: t('tasks.feedback.rollback'),
+  })
+  const [dueEditing, setDueEditing] = useState(false)
+  const dueInline = useInlineCommit<string>({
+    value: task.due_date ?? '',
+    onCommit: (next) => (onEditDue ? onEditDue(task.id, next || null) : undefined),
+    rollbackMessage: t('tasks.feedback.rollback'),
+  })
 
   useEffect(() => {
     if (editing) {
@@ -323,10 +323,27 @@ export function TaskRow({
         )}
       </td>
       <td className="td-cell td-status td-nowrap">
-        {onEditStatus ? <InlineSelectCell value={task.status} options={['Open', 'In Progress', 'Blocked', 'Done']} ariaLabel="Edit task status" onCommit={(value) => onEditStatus(task.id, value as TaskListRow['status'])} display={<StatusPill status={task.status} />} /> : <StatusPill status={task.status} />}
+        {onEditStatus ? (statusEditing ? (
+          <span className="inline-status-editor">
+            <Select autoFocus aria-label="Edit task status" value={statusInline.draft} disabled={statusInline.pending} aria-busy={statusInline.pending || undefined}
+              onChange={(event) => { statusInline.commit(event.target.value as TaskListRow['status']) }}
+              onKeyDown={(event) => { statusInline.onKeyDown(event); if (event.key === 'Escape') setStatusEditing(false) }}>
+              {(['Open', 'In Progress', 'Blocked', 'Done'] as const).map((status) => <option key={status} value={status}>{status}</option>)}
+            </Select>
+            <InlineCommitFeedback {...statusInline} />
+          </span>
+        ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />}
       </td>
       <td className="td-cell td-owner">
-        {onEditPic ? <InlineSelectCell value={task.responsible_person_id} options={personOptions.map((person) => person.id)} labels={new Map(personOptions.map((person) => [person.id, person.full_name]))} ariaLabel="Edit task PIC" onCommit={(value) => onEditPic(task.id, value)} display={<PicCell fullName={ownerName} provenance={provenanceRoleName} />} /> : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
+        {onEditPic ? (picEditing ? (
+          <span onClick={(event) => event.stopPropagation()}>
+            <Select autoFocus aria-label="Edit task PIC" value={picInline.draft} disabled={picInline.pending} aria-busy={picInline.pending || undefined}
+              onChange={(event) => { picInline.commit(event.target.value) }} onKeyDown={(event) => { picInline.onKeyDown(event); if (event.key === 'Escape') setPicEditing(false) }}>
+              {personOptions.map((person) => <option key={person.id} value={person.id}>{person.full_name}</option>)}
+            </Select>
+            <InlineCommitFeedback {...picInline} />
+          </span>
+        ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
       {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
           the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).
@@ -336,7 +353,13 @@ export function TaskRow({
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
       {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>
-        {onEditDue ? <InlineTextCell value={task.due_date ?? ''} ariaLabel="Edit task due date" onCommit={(value) => onEditDue(task.id, value || null)} display={dueText} /> : dueText}
+        {onEditDue ? (dueEditing ? (
+          <span onClick={(event) => event.stopPropagation()}>
+            <input autoFocus type="date" aria-label="Edit task due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
+              onChange={(event) => dueInline.setDraft(event.target.value)} onKeyDown={(event) => { dueInline.onKeyDown(event); if (event.key === 'Escape') setDueEditing(false) }} onBlur={() => { dueInline.onBlur(); setDueEditing(false) }} />
+            <InlineCommitFeedback {...dueInline} />
+          </span>
+        ) : <button type="button" className="inline-cell-trigger" aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
       </td>
       <td className="td-cell td-menu">
         <RowMenu taskId={task.id} recordSearch={recordSearch} />

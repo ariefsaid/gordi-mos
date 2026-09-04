@@ -136,10 +136,6 @@ export function TasksToolbar({
           { value: 'status', label: t('tasks.filter.status'), required: true },
           { value: 'due', label: t('tasks.dueLabel'), required: true },
           { value: 'businessUnit', label: t('tasks.filter.businessUnit') },
-          { value: 'workline', label: t('tasks.filter.projectProcess') },
-          { value: 'objective', label: t('tasks.objective') },
-          { value: 'source', label: 'Source' },
-          { value: 'activity', label: t('tasks.filter.sortActivity') },
         ] satisfies readonly CollectionToolbarField[],
         onToggle: onFieldToggle,
       }}

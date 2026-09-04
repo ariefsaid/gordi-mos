@@ -272,13 +272,18 @@ describe('CollectionToolbar — Fields chooser', () => {
       fields={{
         label: 'Fields', options: [
           { value: 'title', label: 'Title', required: true },
+          { value: 'pic', label: 'PIC', required: true },
+          { value: 'supervisor', label: 'Supervisor', required: true },
           { value: 'status', label: 'Status', required: true },
+          { value: 'due', label: 'Due', required: true },
           { value: 'businessUnit', label: 'Business Unit', required: false },
-        ], visible: ['title', 'status'], onToggle,
+        ], visible: ['title', 'pic', 'supervisor', 'status', 'due'], onToggle,
       }}
     /></I18nProvider>)
     await userEvent.click(screen.getByRole('button', { name: 'Fields' }))
-    expect(screen.getByRole('checkbox', { name: 'Title' })).toBeDisabled()
+    const checkboxes = screen.getAllByRole('checkbox')
+    expect(checkboxes).toHaveLength(6)
+    expect(checkboxes.filter((checkbox) => checkbox.hasAttribute('disabled'))).toHaveLength(5)
     await userEvent.click(screen.getByRole('checkbox', { name: 'Business Unit' }))
     expect(onToggle).toHaveBeenCalledWith('businessUnit', true)
   })

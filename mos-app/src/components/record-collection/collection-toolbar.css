@@ -123,7 +123,7 @@
   position: absolute;
   z-index: 2;
   top: calc(100% + 4px);
-  right: 0;
+  left: 0;
   min-width: 190px;
   padding: 8px;
   background: var(--surface-primary);

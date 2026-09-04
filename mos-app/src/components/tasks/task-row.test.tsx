@@ -197,16 +197,16 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
 
   it('shows the Enter/Escape helper only beside the active title input', () => {
     renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
-    expect(screen.queryByText('Enter saves · Esc discards')).toBeNull()
+    expect(screen.queryByText('Enter saves · Tab moves · Esc discards')).toBeNull()
     const input = openEditor()
-    const hint = screen.getByText('Enter saves · Esc discards')
-    expect(input.parentElement).toHaveTextContent('Enter saves · Esc discards')
-    expect(screen.getAllByText(/Enter saves · Esc discards/)).toHaveLength(1)
+    const hint = screen.getByText('Enter saves · Tab moves · Esc discards')
+    expect(input.parentElement).toHaveTextContent('Enter saves · Tab moves · Esc discards')
+    expect(screen.getAllByText(/Enter saves · Tab moves · Esc discards/)).toHaveLength(1)
     expect(hint).toHaveClass('task-title-edit-keyhint')
     expect(hint).toHaveAttribute('id')
     expect(input).toHaveAttribute('aria-describedby', hint.getAttribute('id'))
     fireEvent.keyDown(input, { key: 'Escape' })
-    expect(screen.queryByText('Enter saves · Esc discards')).toBeNull()
+    expect(screen.queryByText('Enter saves · Tab moves · Esc discards')).toBeNull()
   })
 
   it('commits an edited title (F2 → type → Enter) and shows it in the row', async () => {
@@ -353,16 +353,50 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
 })
 
 describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
-  it('clicking the title enters edit mode and Escape restores; Enter commits', async () => {
+  it('routes status and PIC picks through the shared commit contract', async () => {
+    const onEditStatus = vi.fn().mockResolvedValue(undefined)
+    const onEditPic = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditStatus, onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
+    fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'Done' } })
+    fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
+    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'p-2' } })
+    expect(onEditStatus).toHaveBeenCalledWith('task-7', 'Done')
+    expect(onEditPic).toHaveBeenCalledWith('task-7', 'p-2')
+  })
+
+  it('Escape on the date field restores the saved date without committing', () => {
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditDue })
+    const trigger = screen.getByRole('button', { name: 'Edit task due date' })
+    fireEvent.click(trigger)
+    const input = screen.getByLabelText('Edit task due date')
+    fireEvent.change(input, { target: { value: '2026-06-30' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onEditDue).not.toHaveBeenCalled()
+    expect(screen.getByText('Overdue · Fri 12 Jun')).toBeInTheDocument()
+  })
+
+  it('a rejected PIC write rolls back and announces the revert', async () => {
+    const onEditPic = vi.fn().mockRejectedValue(new Error('write failed'))
+    renderRow({ onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
+    fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'p-2' } })
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/reverted/i))
+    expect(screen.getByRole('alert')).toHaveTextContent(/retry/i)
+    expect(screen.getByRole('combobox')).toHaveValue('p-1')
+  })
+
+  it('clicking the title enters edit mode and Escape restores the saved title', () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
     fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
     const input = screen.getByLabelText('Edit task title')
     fireEvent.change(input, { target: { value: 'Updated title' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(onEditTitle).toHaveBeenCalledWith('task-7', 'Updated title')
-    await waitFor(() => expect(screen.queryByLabelText('Edit task title')).toBeNull())
-    expect(screen.getByText('Updated title')).toBeInTheDocument()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onEditTitle).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument()
   })
 })
 

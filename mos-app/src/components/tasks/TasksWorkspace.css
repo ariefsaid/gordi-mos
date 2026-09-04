@@ -225,6 +225,7 @@
 }
 
 .inline-cell-trigger {
+  min-height: 32px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -235,6 +236,15 @@
 }
 
 .inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inline-status-editor {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 10%, var(--secondary));
+}
+.inline-status-editor .mk-select__box { background: transparent; border-color: transparent; }
 
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
