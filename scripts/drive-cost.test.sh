@@ -82,8 +82,9 @@ mkdir -p "$tmp/reviews"
 cat > "$tmp/reviews/feat-639-drive-cost-table.md" <<'EOF'
 # Review — feat/639-drive-cost-table @ abc1234
 
-Builder: anthropic/claude-sonnet-4-5 (dispatched subagent). Reviewer: opus-subagent
-(same harness/family, pi reviewers down). Round 2 — confirm; Round 1's refusal:
+Builder: sonnet-subagent
+Builder was a sonnet subagent; prose must not replace the machine-readable line.
+Round 2 — confirm; Round 1's refusal:
 feat-639-drive-cost-table.round1.md.
 
 ## spec
@@ -94,22 +95,23 @@ Verdict: MERGE
 Reviewer: opus-subagent (code-quality)
 Verdict: MERGE
 
-## security
-Reviewer: opus-subagent (security)
+## Cross-family retro
+Reviewer: glm-5.3-flash (retro)
 Verdict: MERGE
 EOF
 printf '%s\n' '# Round 1 — refusal (findings repaired in the canonical confirm)' > "$tmp/reviews/feat-639-drive-cost-table.round1.md"
 cat > "$tmp/reviews/feat-640-lexer-window.md" <<'EOF'
 # Review — feat/640-lexer-window @ 25ba02be
 
-Builder: openai-codex/gpt-5.6-luna (fall-through from the bitdeer rung). Reviewer: zai/glm-5.3-flash (cross-family), full three-lens pass.
+Builder was a sonnet subagent. Reviewer: opus-subagent (header prose only).
+This preamble must not contribute a verdict: Verdict: DO NOT MERGE
 
 ## spec
-Reviewer: zai/glm-5.3-flash (spec)
+Reviewer: glm-5.3-flash (spec)
 Verdict: MERGE WITH CHANGES
 
 ## code-quality
-Reviewer: zai/glm-5.3-flash (code-quality)
+Reviewer: glm-5.3-flash (code-quality)
 Verdict: MERGE
 EOF
 
@@ -121,9 +123,10 @@ printf '%s' "$out" | grep -qF 'Claude subagent tokens are not metered anywhere �
 t "fixed unmetered-tokens header note present" $?
 printf '%s' "$out" | grep -qF '| PR | issue(s) | builder | reviewer(s) | rounds | verdict path | LOC | pi tokens | claim→merge |'
 t "table header row present" $?
-printf '%s' "$out" | grep -qF '| #640 | #639 | anthropic/claude-sonnet-4-5 | opus-subagent ⚠same-family | 2 | M | +210/-15 | – | 3.2h |'
+printf '%s' "$out" | grep -qF '| #640 | #639 | sonnet-subagent | opus-subagent (retro: glm-5.3-flash) ⚠same-family | 2 | M | +210/-15 | – | 3.2h |'
 t "row 1 parses fully: builder/reviewer/rounds/verdict/LOC/pi/clock + same-family flag" $?
-printf '%s' "$out" | grep -qF '| #641 | #640 | openai-codex/gpt-5.6-luna | zai/glm-5.3-flash | 1 | MWC→M | +50/-8 | 340 | 28.0h |'
+printf '%s' "$out" | grep -qF '| #641 | #640 | ? | glm-5.3-flash | 1 | MWC→M | +50/-8 | 340 | 28.0h |'
+t "prose-only builder is unknown and does not flag" $?
 t "row 2 parses fully: cross-family, numeric pi tokens, verdict path MWC→M" $?
 printf '%s' "$out" | grep -qF 'Totals: 2 PRs, +260/-23 LOC, 1.7k pi tokens (pi-metered only), median claim→merge 15.6h, same-family 1/2 rows.'
 t "totals: LOC sum, pi floor, median clock, same-family count" $?
@@ -157,12 +160,12 @@ out="$(GH_STUB_FAIL_API=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/revi
 t "claim-comment query failure fails closed, names the issue" $?
 
 out="$(GH_NO_CLAIM=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24)"; rc=$?
-{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qF '| #640 | #639 | anthropic/claude-sonnet-4-5 | opus-subagent ⚠same-family | 2 | M | +210/-15 | – | ? |'; }
+{ [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qF '| #640 | #639 | sonnet-subagent | opus-subagent (retro: glm-5.3-flash) ⚠same-family | 2 | M | +210/-15 | – | ? |'; }
 t "no In flight comment → clock '?' (data, not failure), exit 0" $?
 
 out="$(GH_STUB_NO_LOC=1 PI_SESSIONS_DIR="$tmp/sessions" REVIEWS_DIR="$tmp/reviews" DRIVE_COST_NOW=$NOW bash "$SCRIPT" 24)"; rc=$?
 { [ "$rc" -eq 0 ] \
-    && printf '%s' "$out" | grep -qF '| #640 | #639 | anthropic/claude-sonnet-4-5 | opus-subagent ⚠same-family | 2 | M | +?/-? | – | 3.2h |' \
+    && printf '%s' "$out" | grep -qF '| #640 | #639 | sonnet-subagent | opus-subagent (retro: glm-5.3-flash) ⚠same-family | 2 | M | +?/-? | – | 3.2h |' \
     && printf '%s' "$out" | grep -qF 'Totals: 2 PRs, +50/-8 LOC,'; }
 t "missing additions/deletions → '?' cell (never 0); totals sum knowns only" $?
 
