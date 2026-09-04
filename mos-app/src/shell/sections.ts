@@ -84,6 +84,11 @@ export const CAFE_SECTIONS: Section[] = [
 ]
 
 
+// A section with a deeper sibling needs `end` so its NavLink stops prefix-matching.
+export function sectionHasPrefixChild(section: Section, sections: readonly Section[]): boolean {
+  return sections.some((sibling) => sibling !== section && sibling.path.startsWith(section.path + '/'))
+}
+
 /**
  * The links a viewer may actually see: the ship gate first, then capability gates resolved through
  * `can()`, then access-role gates through the viewer's roles. One helper so the rail and the phone
@@ -95,10 +100,6 @@ export const CAFE_SECTIONS: Section[] = [
  * rather than beside them — and why the same array closes the route in `router.tsx`, so a link can
  * never survive a path that stopped routing.
  */
-export function sectionHasPrefixChild(section: Section, sections: readonly Section[]): boolean {
-  return sections.some((sibling) => sibling !== section && sibling.path.startsWith(section.path + '/'))
-}
-
 export function visibleSections(sections: readonly Section[], accessRoles: readonly string[]): Section[] {
   return sections.filter(
     (s) =>

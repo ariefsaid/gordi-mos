@@ -139,7 +139,7 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
   {
     bu: 'rail.retailOps',
     items: [
-      // Café carries its five working screens, not just its root. The port shipped this module
+      // Café carries its Opening tab plus five working screens. The port shipped this module
       // with a single `/cafe` link while CAFE_SECTIONS held all six paths, correctly labelled and
       // imported by nothing but a breadcrumb lookup — so Log, Plan, Stock, Review and Pushes, the
       // one module with live kitchen staff on it, became reachable only by typing a URL.
