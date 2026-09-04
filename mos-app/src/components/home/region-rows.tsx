@@ -165,7 +165,7 @@ export function RegionDrillLink({ region }: { region: HomeRegion }) {
   const t = useT()
   if (region.drillTo?.count == null) return null
   return (
-    <Link to={region.drillTo.route} className="stream-band-link">
+    <Link to={region.drillTo.route} className="stream-band-link tap-floor">
       {t('home.stream.allTasks', { count: region.drillTo.count })}
     </Link>
   )

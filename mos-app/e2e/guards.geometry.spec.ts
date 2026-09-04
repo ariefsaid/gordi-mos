@@ -139,6 +139,42 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await expect(page.getByTestId('page-head')).toBeVisible()
     await assertTapFloor(page, TAP_SAMPLE, 'Signals')
   })
+
+  // #667: named phone controls are sampled at the 390px audit width, not hidden behind the
+  // broad surface census. These selectors identify the hit-area wrappers, while visual glyphs
+  // may remain at the compact desktop size.
+  test('GUARD-TAP #667: named MVP controls meet the 44px floor at 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await page.goto('')
+    await expect(page.getByTestId('page-head')).toBeVisible()
+    await assertTapFloor(page, '.help-tip-anchor button, .stream-band-link', 'Home #667', { axes: 'both', noOverflow: true })
+
+    await page.goto('work/signals')
+    await expect(page.getByTestId('page-head')).toBeVisible()
+    await page.locator('[data-testid="signal-row"], .signal-row, [role="button"]').filter({ visible: true }).first().click().catch(() => undefined)
+    await expect(page.getByRole('button', { name: 'Ask Deputy' })).toBeVisible()
+    await assertTapFloor(page, '.record-panel-btn.tap-floor', 'Signals record #667', { axes: 'both' })
+
+    await page.goto('work/tasks')
+    await expect(page.getByTestId('page-head')).toBeVisible()
+    await assertTapFloor(page, '.collection-toolbar__search.tap-floor, .collection-toolbar__toggle.tap-floor:has(.archived-checkbox)', 'Tasks toolbar #667', { axes: 'both', noOverflow: true })
+    await page.getByRole('button', { name: /create task/i }).click()
+    await expect(page.getByRole('complementary', { name: /create task/i })).toBeVisible()
+    await assertTapFloor(page, '.tc-input.tap-floor', 'Tasks create title #667', { axes: 'both', noOverflow: true })
+    await page.keyboard.press('Escape')
+    const title = `Tap floor guard ${Date.now()}`
+    await createTaskViaUI(page, title)
+    await page.goto('work/tasks')
+    await page.getByText(title).first().click()
+    await expect(page.getByRole('button', { name: /edit/i }).first()).toBeVisible()
+    await assertTapFloor(page, '.record-field__edit.tap-floor, .record-panel-btn.tap-floor', 'Tasks record chrome #667', { axes: 'both', noOverflow: true })
+
+    await page.goto('cafe/review')
+    await ensureStream(page)
+    await expect(page.getByTestId('page-head')).toBeVisible()
+    await assertTapFloor(page, '.dt-cards-group-toggle.tap-floor, .dt-group-toggle.tap-floor', 'Café Review #667', { axes: 'both', noOverflow: true })
+  })
 })
 
 // ── The auth cards (GUARD-TAP, #403 — v4 port-sweep slice of #290) ─────────────────────

@@ -258,7 +258,7 @@ function GroupHeaderRow<Row>({
         <div className="dt-group-bar">
           <button
             type="button"
-            className="dt-group-toggle"
+            className="dt-group-toggle tap-floor"
             aria-expanded={!collapsed}
             aria-label={collapsed
               ? t('table.group.expand', { group: group.label ?? '' })
@@ -513,7 +513,7 @@ function PhoneCards<Row>({
             <div className="dt-cards-group">
               <button
                 type="button"
-                className="dt-cards-group-toggle"
+                className="dt-cards-group-toggle tap-floor"
                 aria-expanded={!collapsed.has(group.key)}
                 aria-label={collapsed.has(group.key)
                   ? t('table.group.expand', { group: group.label ?? '' })

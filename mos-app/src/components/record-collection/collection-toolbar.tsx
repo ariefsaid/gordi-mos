@@ -42,7 +42,7 @@ export interface CollectionToolbarSearch {
 export function CollectionToolbarSearchField({ search }: { search: CollectionToolbarSearch }) {
   return (
     <div className="collection-toolbar__query">
-      <label className="collection-toolbar__search">
+      <label className="collection-toolbar__search tap-floor">
         <span className="sr-only">{search.label}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />

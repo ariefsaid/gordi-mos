@@ -45,7 +45,21 @@ async function measure(page: Page, selector: string, surface: string): Promise<B
   const boxes: Box[] = []
   for (let i = 0; i < count; i += 1) {
     const el = controls.nth(i)
-    const b = await el.boundingBox()
+    const b = await el.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      const before = getComputedStyle(node, '::before')
+      const px = (value: string) => Number.parseFloat(value) || 0
+      const left = px(before.left)
+      const top = px(before.top)
+      const right = left + px(before.width)
+      const bottom = top + px(before.height)
+      return {
+        x: rect.x + Math.min(0, left),
+        y: rect.y + Math.min(0, top),
+        width: Math.max(rect.width, right) - Math.min(0, left),
+        height: Math.max(rect.height, bottom) - Math.min(0, top),
+      }
+    })
     if (!b) continue
     let label = (await el.innerText().catch(() => '')).trim().slice(0, 40).replace(/\s+/g, ' ')
     if (!label) label = `input[type=${await el.getAttribute('type')}]`
