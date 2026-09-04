@@ -518,8 +518,11 @@ describe('DIV-G5 (home-layout-preference.spec.md §7): a failed shared-tasks rea
     mockListTasks.mockRejectedValue(new Error('network failure'))
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load this list. Refresh to try again."))
+    // #711: the copy named a "Refresh" control that isn't there — the button reads "Retry".
+    // DESIGN.md's state kit: an error names a cause and the action it ACTUALLY offers.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't load this list. Retry.")
+    expect(alert).not.toHaveTextContent(/refresh/i)
 
     const viewerId = financeViewer.viewer.person.id
     mockListTasks.mockResolvedValue([overdueTaskRow(viewerId)])

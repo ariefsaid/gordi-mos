@@ -708,3 +708,17 @@ describe('issue 426 — record-scoped Ask Deputy on both Signal doors', () => {
     expect(screen.getByTestId('pending-draft')).toHaveTextContent('About Signal: The freezer alarm went off')
   })
 })
+
+describe('issue 711 — the plain (unfiltered) empty state speaks its own voice, not the filtered one', () => {
+  // Before the fix, `signals.archive.empty` always interpolated the live query — with no query
+  // typed, that rendered the filtered-empty voice ('No Signals match "".') for a collection that
+  // is genuinely, unfilteredly empty. This must read as "nothing here yet", not "your search found
+  // nothing".
+  it('reads as unfiltered-empty (never `match ""`) when there is no active query and no Signals exist', async () => {
+    mockListReadableSignals.mockResolvedValue([])
+    renderPage()
+    const empty = await screen.findByTestId('empty-state')
+    expect(within(empty).queryByText(/match/i)).toBeNull()
+    expect(within(empty).getByText(/no signals yet/i)).toBeInTheDocument()
+  })
+})

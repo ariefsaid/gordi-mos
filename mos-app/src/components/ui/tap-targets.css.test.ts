@@ -23,6 +23,8 @@ const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-t
 const attentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-attention-picker.css'), 'utf8')
 const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
 const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
+// #711: search-field floor is defined in collection-toolbar.css.
+const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -130,6 +132,12 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     // Negative check: no OTHER bare `(pointer: fine)` block (unguarded by a min-width) remains
     // for this file — a second unnarrowed block would silently reopen the same hole.
     expect(recordPanelHostCss).not.toMatch(/@media \(pointer: fine\)\s*\{(?!\s*\})/)
+  })
+
+  it('ticket 711: raises the collection-toolbar search FIELD itself (not just its wrapping box) to 44px on phone', () => {
+    const body = mediaBody(collectionToolbarCss, '@media (max-width: 767px)')
+    expect(body).toMatch(/\.collection-toolbar__search\s*\{[^}]*min-height:\s*44px/)
+    expect(body).toMatch(/\.collection-toolbar__search input[^}]*min-height:\s*44px/)
   })
 
   it('issue \u0023705: gives Plan item links a real 44px phone hit box without changing their visual box', () => {

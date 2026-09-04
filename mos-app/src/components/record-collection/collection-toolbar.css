@@ -301,6 +301,9 @@
   .collection-toolbar__option-field .mk-select__box { width: 100%; max-width: none; height: 44px; }
   .collection-toolbar__select .mk-select__box { height: 44px; max-width: min(220px, 70vw); }
   .collection-toolbar__search { min-height: 44px; max-width: none; }
+  /* #711: the box floors to 44px, but `align-items: center` keeps the field from stretching to
+     fill it — the evidence pass measured the real `<input>` at 21.8px. Floor the field too. */
+  .collection-toolbar__search input { min-height: 44px; }
   .collection-toolbar__view { min-height: 44px; }
   .collection-toolbar__save { align-items: stretch; flex-wrap: wrap; }
   .collection-toolbar__save-field { flex: 1 1 100%; }
