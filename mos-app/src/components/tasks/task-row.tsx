@@ -14,6 +14,7 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
+import { statusTone } from './status-tone'
 import { Select } from '@/components/ui/select'
 import { PicCell } from './pic-cell'
 import { formatDate } from './task-formatters'
@@ -131,12 +132,30 @@ export function TaskRow({
     onCommit: (next) => (onEditStatus ? onEditStatus(task.id, next) : undefined),
     rollbackMessage: t('tasks.feedback.rollback'),
   })
+  const statusCommitPending = useRef(false)
+  useEffect(() => {
+    if (statusInline.pending) statusCommitPending.current = true
+    else if (statusCommitPending.current) {
+      statusCommitPending.current = false
+      if (!statusInline.error) setStatusEditing(false)
+    }
+  }, [statusInline.error, statusInline.pending])
+
   const [picEditing, setPicEditing] = useState(false)
   const picInline = useInlineCommit<string>({
     value: task.responsible_person_id,
     onCommit: (next) => (onEditPic ? onEditPic(task.id, next) : undefined),
     rollbackMessage: t('tasks.feedback.rollback'),
   })
+  const picCommitPending = useRef(false)
+  useEffect(() => {
+    if (picInline.pending) picCommitPending.current = true
+    else if (picCommitPending.current) {
+      picCommitPending.current = false
+      if (!picInline.error) setPicEditing(false)
+    }
+  }, [picInline.error, picInline.pending])
+
   const [dueEditing, setDueEditing] = useState(false)
   const dueInline = useInlineCommit<string>({
     value: task.due_date ?? '',
@@ -324,7 +343,7 @@ export function TaskRow({
       </td>
       <td className="td-cell td-status td-nowrap">
         {onEditStatus ? (statusEditing ? (
-          <span className="inline-status-editor">
+          <span className={`inline-status-editor inline-status-editor--${statusTone(statusInline.draft)}`}>
             <Select autoFocus aria-label="Edit task status" value={statusInline.draft} disabled={statusInline.pending} aria-busy={statusInline.pending || undefined}
               onChange={(event) => { statusInline.commit(event.target.value as TaskListRow['status']) }}
               onKeyDown={(event) => { statusInline.onKeyDown(event); if (event.key === 'Escape') setStatusEditing(false) }}>
@@ -336,7 +355,7 @@ export function TaskRow({
       </td>
       <td className="td-cell td-owner">
         {onEditPic ? (picEditing ? (
-          <span onClick={(event) => event.stopPropagation()}>
+          <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
             <Select autoFocus aria-label="Edit task PIC" value={picInline.draft} disabled={picInline.pending} aria-busy={picInline.pending || undefined}
               onChange={(event) => { picInline.commit(event.target.value) }} onKeyDown={(event) => { picInline.onKeyDown(event); if (event.key === 'Escape') setPicEditing(false) }}>
               {personOptions.map((person) => <option key={person.id} value={person.id}>{person.full_name}</option>)}
@@ -354,8 +373,8 @@ export function TaskRow({
       {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
-          <span onClick={(event) => event.stopPropagation()}>
-            <input autoFocus type="date" aria-label="Edit task due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
+          <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
+            <input autoFocus type="date" aria-label="Due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
               onChange={(event) => dueInline.setDraft(event.target.value)} onKeyDown={(event) => { dueInline.onKeyDown(event); if (event.key === 'Escape') setDueEditing(false) }} onBlur={() => { dueInline.onBlur(); setDueEditing(false) }} />
             <InlineCommitFeedback {...dueInline} />
           </span>

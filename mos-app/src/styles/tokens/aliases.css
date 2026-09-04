@@ -64,4 +64,5 @@
      search: 160px ≈ 18 monospace characters, enough for a dish name (#378, measured
      against the live Café Log/Plan toolbars at 1440 and 390). */
   --control-measure-search: 160px;
+  --control-height: 32px;
 }

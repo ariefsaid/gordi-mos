@@ -131,6 +131,7 @@
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-popover);
 }
+.collection-toolbar__fields-menu .collection-toolbar__toggle:last-child { margin-bottom: 0; }
 
 .collection-toolbar__options {
   display: flex;
@@ -190,6 +191,7 @@
   align-items: center;
   gap: 6px;
   min-height: 32px;
+  margin-bottom: 8px;
   color: var(--muted-foreground);
   font-size: var(--font-size-mono);
   white-space: nowrap;

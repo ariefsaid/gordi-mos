@@ -13,6 +13,7 @@ import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
 import './status-pill.css'
 import { useT } from '@/i18n/use-t'
+import { statusTone } from './status-tone'
 
 export type { TaskStatus }
 
@@ -31,13 +32,6 @@ type StatusPillProps = {
    * is untouched.
    */
   openTreatment?: 'flagged' | 'neutral'
-}
-
-const STATUS_COLOR: Record<TaskStatus, TagColor> = {
-  'In Progress': 'blue',
-  'Blocked': 'red',
-  'Open': 'amber',
-  'Done': 'green',
 }
 
 // The design-kit Tag palette is intentionally soft, but its light text tokens for
@@ -60,7 +54,7 @@ export function StatusPill({ status, label, openTreatment = 'flagged' }: StatusP
         ? t('tasks.status.blocked')
         : t('tasks.status.done')
   const neutralOpen = status === 'Open' && openTreatment === 'neutral'
-  const color: TagColor = neutralOpen ? 'gray' : STATUS_COLOR[status]
+  const color: TagColor = neutralOpen ? 'gray' : statusTone(status)
   const textColor = neutralOpen ? 'var(--muted-foreground)' : STATUS_TEXT_COLOR[status]
   // NO aria-label: the visible text IS the accessible name. Status pickers render
   // StatusPill inside a role=option / button, and an aria-label would override the

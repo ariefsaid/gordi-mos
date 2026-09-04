@@ -238,13 +238,32 @@
 .inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .inline-status-editor {
   display: inline-flex;
-  min-height: 32px;
+  height: var(--control-height);
+  max-height: var(--control-height);
   align-items: center;
-  padding: 2px 4px;
+  padding: 0 4px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning) 10%, var(--secondary));
 }
-.inline-status-editor .mk-select__box { background: transparent; border-color: transparent; }
+.inline-status-editor--amber { background: color-mix(in srgb, var(--ds-tag-background-amber) 100%, transparent); }
+.inline-status-editor--blue { background: color-mix(in srgb, var(--ds-tag-background-blue) 100%, transparent); }
+.inline-status-editor--red { background: color-mix(in srgb, var(--ds-tag-background-red) 100%, transparent); }
+.inline-status-editor--green { background: color-mix(in srgb, var(--ds-tag-background-green) 100%, transparent); }
+.inline-status-editor .mk-select__box,
+.inline-editor-control .mk-select__box {
+  height: var(--control-height);
+  background: transparent;
+  border-color: transparent;
+}
+.inline-editor-control {
+  display: inline-flex;
+  height: var(--control-height);
+  max-height: var(--control-height);
+  align-items: center;
+}
+.inline-editor-control input[type="date"] {
+  height: var(--control-height);
+  max-height: var(--control-height);
+}
 
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
