@@ -348,6 +348,7 @@ export function KitchenPushesPage() {
   // lead triages by, rendered only when non-zero so a healthy outbox head stays quiet.
   const deadLetterCount = rows.filter(r => r.status === 'dead_letter').length
   const failedCount = rows.filter(r => r.status === 'failed').length
+  const queuedCount = rows.filter(r => r.status === 'pending' && !isHeld(r)).length
   const headMeta = (deadLetterCount > 0 || failedCount > 0)
     ? (
         <span className="kpu-meta-line">
@@ -403,7 +404,11 @@ export function KitchenPushesPage() {
           media query switches the column set at the wrong moments. This host is the
           container the column rules query. */}
       {load.kind === 'ready' && rows.length > 0 && (
-        <div className="kpu-cols-host">
+        <>
+          <p className="kpu-tally" aria-label={t('kitchen.pushes.tally.aria')}>
+            {t('kitchen.pushes.tally', { count: rows.length, queued: queuedCount })}
+          </p>
+          <div className="kpu-cols-host">
           <DataTable
             columns={pushColumns(t)}
             rows={rows}
@@ -415,7 +420,8 @@ export function KitchenPushesPage() {
             rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
             caption={t('kitchen.pushes.caption')}
           />
-        </div>
+          </div>
+        </>
       )}
     </PageFamilyFrame>
   )

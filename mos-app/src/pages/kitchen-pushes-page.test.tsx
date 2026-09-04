@@ -280,6 +280,18 @@ describe('KitchenPushesPage — states', () => {
 // ── Populated state — columns and display ─────────────────────────────────────
 
 describe('KitchenPushesPage — populated (FR-074)', () => {
+  it('populated state shows the push tally orientation line above the table/cards', async () => {
+    mockListPushes.mockResolvedValue([POSTED_ROW, PENDING_ROW, IN_FLIGHT_ROW])
+    const { container } = render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-001')
+
+    const tally = screen.getByText('3 pushes · 1 queued')
+    expect(tally).toBeInTheDocument()
+    expect(tally.compareDocumentPosition(container.querySelector('.kpu-cols-host')!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
   it('RI-IXD-6: desktop pushes uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {
     setViewport(true)
     mockListPushes.mockResolvedValue([POSTED_ROW])
@@ -570,6 +582,7 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
       expect(screen.getAllByText('Gagal · berhenti').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
+      expect(screen.getByText('4 push · 1 menunggu')).toBeInTheDocument()
       expect(screen.queryByText('dead_letter')).toBeNull()
     } finally {
       localStorage.clear()

@@ -650,6 +650,8 @@ export const messages = {
     // ── Café stock + pushes (#198 — the v4 port of the read-only stock view and the
     // ERP push queue) ─────────────────────────────────────────────────────────────
     'kitchen.pushes.caption': 'Café delivery activity',
+    'kitchen.pushes.tally': '${count} pushes · ${queued} queued',
+    'kitchen.pushes.tally.aria': 'Push tally',
     'kitchen.pushes.col.batch': 'Batch',
     'kitchen.pushes.col.created': 'Created',
     'kitchen.pushes.col.endpoint': 'Endpoint',
@@ -1905,6 +1907,8 @@ export const messages = {
     'kitchen.review.tag.offPlan': 'di luar rencana',
     'kitchen.review.tag.onPlan': 'sesuai rencana',
     'kitchen.pushes.caption': 'Aktivitas pengiriman Kafe',
+    'kitchen.pushes.tally': '${count} push · ${queued} menunggu',
+    'kitchen.pushes.tally.aria': 'Ringkasan push',
     'kitchen.pushes.col.batch': 'Batch',
     'kitchen.pushes.col.created': 'Dibuat',
     'kitchen.pushes.col.endpoint': 'Endpoint',

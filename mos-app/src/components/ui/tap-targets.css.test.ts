@@ -22,6 +22,7 @@ const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-t
 // Close / Ask Deputy buttons (32×32, `.record-panel-btn`) sat under the phone tap floor.
 const attentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-attention-picker.css'), 'utf8')
 const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -129,6 +130,10 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     // Negative check: no OTHER bare `(pointer: fine)` block (unguarded by a min-width) remains
     // for this file — a second unnarrowed block would silently reopen the same hole.
     expect(recordPanelHostCss).not.toMatch(/@media \(pointer: fine\)\s*\{(?!\s*\})/)
+  it('ticket 667: gives Plan item links a 44px phone hit box without changing their visual box', () => {
+    const body = mediaBody(kitchenPlanCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.kp-row-link\s*\{[^}]*position:\s*relative/)
+    expect(body).toMatch(/\.kp-row-link::before\s*\{[^}]*inset:\s*-12px/)
   })
 })
 

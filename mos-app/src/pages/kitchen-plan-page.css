@@ -126,6 +126,18 @@
   color: var(--primary);
   text-decoration: underline;
 }
+@media (max-width: 767.98px) {
+  /* Keep the compact label unchanged while the invisible tap floor reaches 44px. */
+  .kp-row-link {
+    position: relative;
+  }
+  .kp-row-link::before {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
 .kp-row-link:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
