@@ -25,6 +25,10 @@ export interface SignalComposerProps {
   /** Unlocks any authorized Team as the owning Team (signal.create_for_team), not just the
    * author's own active memberships (FR-404). Defaults to false (fail-closed). */
   canCreateForTeam?: boolean
+  /** Business Units the viewer holds a role in (mos.can_read_signal R2) — narrows the
+   * canCreateForTeam-widened Team list to ones the viewer can read back afterward (#715). Ignored
+   * without canCreateForTeam: membership alone already guarantees read-back there (R1). */
+  readableBusinessUnitIds?: string[]
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
   /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
@@ -35,13 +39,17 @@ export interface SignalComposerProps {
   prefill?: SignalComposerPrefill
 }
 
+// Stable reference for the readableBusinessUnitIds default — a fresh `[]` literal per render would
+// re-trigger the team-load effect (below) on every render via its dependency array.
+const NO_READABLE_BUS: string[] = []
+
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 export function SignalComposer({
-  authorId, authorName, canCreateForTeam = false, canMentionBu = false,
+  authorId, authorName, canCreateForTeam = false, canMentionBu = false, readableBusinessUnitIds = NO_READABLE_BUS,
   teamMembers = {}, buMembers = {}, onShared, prefill,
 }: SignalComposerProps) {
   const t = useT()
@@ -67,7 +75,17 @@ export function SignalComposer({
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
-    const teamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
+    // #715: canCreateForTeam unlocks any Team as a POST target (FR-404), but the mos.can_read_signal
+    // gate is default-deny — a Team outside the author's membership and role Business Units returns
+    // a Signal the author can never read back. Narrow listAllTeams() to the same R1 (membership) /
+    // R2 (role Business Unit) rules the read gate applies, reusing the membership read either path
+    // already makes (no extra query beyond it).
+    const teamsLoad = canCreateForTeam
+      ? Promise.all([listAllTeams(), listAuthorTeams(authorId)]).then(([allTeams, memberTeams]) => {
+          const memberIds = new Set(memberTeams.map((team) => team.id))
+          return allTeams.filter((team) => memberIds.has(team.id) || readableBusinessUnitIds.includes(team.business_unit_id))
+        })
+      : listAuthorTeams(authorId)
     Promise.all([teamsLoad, getPeople(), getBusinessUnits()]).then(([teamOptions, peopleOptions, buOptions]) => {
       if (cancelled) return
       setTeams(teamOptions)
@@ -85,7 +103,7 @@ export function SignalComposer({
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam, prefill])
+  }, [authorId, canCreateForTeam, readableBusinessUnitIds, prefill])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).

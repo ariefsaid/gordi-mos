@@ -38,6 +38,11 @@ const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
   { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-retail', site_id: 'site-radiant', is_primary: false },
 ]
+// #715: a Team in a BU the viewer has no membership or role in — read-unreachable (mos.can_read_signal
+// default-denies). Distinct business_unit_id from TEAMS so the membership/role proxy actually excludes it.
+const TEAM_UNREADABLE: TeamOption = {
+  id: 'team-warehouse', name: 'Warehouse Ops', business_unit_id: 'bu-warehouse', site_id: 'site-warehouse', is_primary: false,
+}
 // OD-REDESIGN-91 #19: a single eligible Team auto-picks, so the default author is on ONE team —
 // the common journey. The multi-team must-pick journey has its own describe block below, and
 // listAllTeams (the canCreateForTeam widening) still returns the full set.
@@ -209,6 +214,33 @@ describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', (
   })
 })
 
+describe('SignalComposer — read-back-only Team options (#715)', () => {
+  it('with canCreateForTeam, offers only Teams the viewer is a member of — never a Team outside membership and role Business Units it could not read back afterward', async () => {
+    mockListAuthorTeams.mockResolvedValue(SOLE_TEAM) // member of team-hq only
+    mockListAllTeams.mockResolvedValue([...TEAMS, TEAM_UNREADABLE])
+    renderComposer({ canCreateForTeam: true })
+    await waitFor(() => expect(mockListAllTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
+
+    const teamSelect = await screen.findByRole('combobox', { name: /team/i })
+    // Read-reachable via membership (R1).
+    expect(within(teamSelect).getByRole('option', { name: 'HQ Operations' })).toBeInTheDocument()
+    // Neither a membership nor (without an explicit role Business Unit) a role Business Unit — excluded.
+    expect(within(teamSelect).queryByRole('option', { name: 'Radiant Operations' })).not.toBeInTheDocument()
+    expect(within(teamSelect).queryByRole('option', { name: 'Warehouse Ops' })).not.toBeInTheDocument()
+  })
+
+  it('with canCreateForTeam and an explicit role Business Unit, also offers Teams in that Business Unit', async () => {
+    mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
+    mockListAllTeams.mockResolvedValue([...TEAMS, TEAM_UNREADABLE])
+    renderComposer({ canCreateForTeam: true, readableBusinessUnitIds: ['bu-warehouse'] })
+    await waitFor(() => expect(mockListAllTeams).toHaveBeenCalled())
+
+    const teamSelect = await screen.findByRole('combobox', { name: /team/i })
+    expect(within(teamSelect).getByRole('option', { name: 'Warehouse Ops' })).toBeInTheDocument()
+  })
+})
+
 describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #20)', () => {
   it('#10: Shift+Enter posts the Signal; plain Enter is a newline (not a post)', async () => {
     renderComposer() // single team auto-picks, so only the body is needed
@@ -374,7 +406,11 @@ describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () =>
   })
 
   it('shows a cross-Team destination preview "Post to <Team> · <attention> · notify N" when the author changes the owning Team', async () => {
-    renderComposer({ canCreateForTeam: true, teamMembers: { 'team-radiant': ['person-peer'] } })
+    // #715: team-radiant is outside the author's own membership (SOLE_TEAM) — a cross-Team post
+    // to it is only offered when the viewer can read it back, here via a bu-retail role.
+    renderComposer({
+      canCreateForTeam: true, teamMembers: { 'team-radiant': ['person-peer'] }, readableBusinessUnitIds: ['bu-retail'],
+    })
     await waitFor(() => expect(mockListAllTeams).toHaveBeenCalled())
 
     const teamSelect = await screen.findByRole('combobox', { name: /team/i })
