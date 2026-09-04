@@ -130,10 +130,10 @@ describe('GUARD: a meta separator can never wrap onto a line of its own', () => 
   })
 })
 
-describe('GUARD: the ambient "+ Signal" door is secondary weight, not the one action blue', () => {
+describe('GUARD: the ambient "Share a Signal" door is secondary weight, not the one action blue', () => {
   it('renders with the shared secondary button variant', () => {
     renderRows({ onShareClick: vi.fn() })
-    const add = screen.getByRole('button', { name: '+ Signal' })
+    const add = screen.getByRole('button', { name: 'Share a Signal' })
     expect(add.className).toMatch(/\bbtn-outline\b/)
     expect(add.className).not.toMatch(/\bbtn-primary\b/)
   })

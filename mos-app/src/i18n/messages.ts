@@ -1067,7 +1067,7 @@ export const messages = {
     'signals.composer.teamPlaceholder': 'Choose a team…',
     'signals.composer.visibleTo': 'Visible to ${team}',
     'signals.composer.visibleToNotify': 'Visible to ${team} · notify ${count} ${noun}',
-    'signals.feed.addSignal': '+ Signal',
+    'signals.feed.addSignal': 'Share a Signal',
     'signals.feed.clearSearch': 'Clear search',
     'signals.feed.empty': 'No Signals yet. Share the first one above.',
     'signals.feed.error': "Couldn't load Signals.",

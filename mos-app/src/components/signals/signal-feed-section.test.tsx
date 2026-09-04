@@ -87,6 +87,20 @@ beforeEach(() => {
 })
 
 describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => {
+  it('renders the Home feed door, live count, location/time chips, and visibility line', async () => {
+    renderSection({ signals: [
+      row({ id: 's1', body: 'Freezer alarm went off' }),
+      row({ id: 's2', body: 'Grinder is running slowly' }),
+    ]})
+
+    expect(screen.getByRole('button', { name: 'Share a Signal' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
+    const feed = screen.getByTestId('signal-feed')
+    expect(feed.querySelectorAll('.home-signal-location-chip')).toHaveLength(2)
+    expect(feed.querySelectorAll('.home-signal-time-chip')).toHaveLength(2)
+    expect(screen.getAllByText('Visible to HQ Operations')).toHaveLength(2)
+  })
+
   it('renders the passed FYI Signals with the resolved author/Team names', async () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
@@ -99,7 +113,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   // plus a create button, because the row's shape read as search and behaved as a composer.
   it('the create-Signal button opens the shared composer host (C1/C2)', async () => {
     renderSection()
-    await userEvent.click(screen.getByRole('button', { name: /\+ Signal/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Share a Signal/i }))
     expect(openSignalComposer).toHaveBeenCalledTimes(1)
   })
 
@@ -184,7 +198,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   it('shows the empty-state (composer still present) when there are no FYI Signals', async () => {
     renderSection({ signals: [] })
     await waitFor(() => expect(screen.getByText(/No Signals yet/i)).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /\+ Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
   })
 
   // Issue 360 (AC-430): the composer host bumps postCount on each successful Share; the section must
@@ -247,12 +261,12 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
 describe('FR-928: the Signals column is named Signals, and states no untraceable count', () => {
   it('the heading is "Signals" — the word the picker and the destination already use', async () => {
     renderSection()
-    const head = await screen.findByRole('heading', { name: /^signals$/i })
+    const head = await screen.findByRole('heading', { name: /^signals · 1$/i })
     expect(head).toBeInTheDocument()
     expect(screen.queryByText(/^recent$/i)).not.toBeInTheDocument()
   })
 
-  it('never renders an "N today" count beside the heading — the feed is not day-scoped', async () => {
+  it('renders the live total count beside the heading', async () => {
     renderSection({
       signals: [
         row({ id: 's1', body: 'The freezer alarm went off' }),
@@ -260,12 +274,12 @@ describe('FR-928: the Signals column is named Signals, and states no untraceable
       ],
     })
     await waitFor(() => expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument())
-    expect(screen.queryByText(/today/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
   })
 
-  it('still renders no count when the read failed', async () => {
+  it('still renders a zero count when the read failed', async () => {
     renderSection({ signals: [], error: true })
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
-    expect(screen.queryByText(/today/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals · 0' })).toBeInTheDocument()
   })
 })

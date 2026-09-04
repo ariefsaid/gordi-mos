@@ -101,7 +101,7 @@ export function SignalFeedSection({
         {/* h2, matching its peer sections: this renders only on Home, where PageFamilyFrame owns
             the sole h1 and there is no intermediate level — an h3 skipped one (detector:
             skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
-        <h2 id={titleId} className="signal-feed-label">{t('signals.feed.title')}</h2>
+        <h2 id={titleId} className="signal-feed-label">{t('signals.feed.title')} · {signals.length}</h2>
       </div>
       {error ? (
         // The error/retry branch every engine collection has (DIV-G5): a failed load must never

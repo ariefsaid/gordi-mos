@@ -167,13 +167,18 @@ export function SignalFeedRows({
                     {teamName && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span>{teamName}</span>
+                        <span className="home-signal-location-chip">{teamName}</span>
                       </span>
                     )}
                     <span className="home-signal-meta-item">
                       <span className="home-signal-sep" aria-hidden="true">·</span>
-                      <span className="home-signal-when">{formatWibDateTime(signal.occurred_at)}</span>
+                      <span className="home-signal-time-chip">{formatWibDateTime(signal.occurred_at)}</span>
                     </span>
+                    {teamName && (
+                      <span className="home-signal-visible-to">
+                        {t('signals.composer.visibleTo', { team: teamName })}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="home-signal-tail">
