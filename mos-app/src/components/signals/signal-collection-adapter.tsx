@@ -186,6 +186,7 @@ export const signalPresentationCompatibleKeys: Readonly<
 export interface SignalCollectionContext {
   authorNamesById: ReadonlyMap<string, string>
   teamNamesById: ReadonlyMap<string, string>
+  businessUnitIdsByTeamId?: ReadonlyMap<string, string>
   siteNamesByTeamId: ReadonlyMap<string, string>
   viewerId: string | null
 }
@@ -476,6 +477,7 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
       context: {
         authorNamesById: new Map(people.map((person) => [person.id, person.full_name])),
         teamNamesById: new Map(teams.map((team) => [team.id, team.name])),
+        businessUnitIdsByTeamId: new Map(teams.map((team) => [team.id, team.business_unit_id])),
         siteNamesByTeamId: new Map(),
         viewerId,
       },

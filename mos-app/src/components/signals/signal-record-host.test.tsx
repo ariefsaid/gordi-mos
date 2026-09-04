@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
@@ -23,14 +24,13 @@ vi.mock('@/lib/db/signals', async (importOriginal) => {
     correctSignal: vi.fn(),
     acknowledgeSignal: vi.fn(),
     linkSignalTask: vi.fn(),
-    createFollowUpTask: vi.fn(),
     retractSignal: vi.fn(),
     loadMentionRosters: vi.fn(),
   }
 })
 import {
   getSignal, listSignalRevisions, listAllTeams, getTeamSite, correctSignal, acknowledgeSignal,
-  linkSignalTask, createFollowUpTask, retractSignal, loadMentionRosters,
+  linkSignalTask, retractSignal, loadMentionRosters,
 } from '@/lib/db/signals'
 
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
@@ -59,7 +59,6 @@ const mockGetTeamSite = vi.mocked(getTeamSite)
 const mockCorrectSignal = vi.mocked(correctSignal)
 const mockAcknowledgeSignal = vi.mocked(acknowledgeSignal)
 const mockLinkSignalTask = vi.mocked(linkSignalTask)
-const mockCreateFollowUpTask = vi.mocked(createFollowUpTask)
 const mockRetractSignal = vi.mocked(retractSignal)
 const mockLoadMentionRosters = vi.mocked(loadMentionRosters)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
@@ -97,11 +96,19 @@ function authedViewer(personId = VIEWER_ID): Extract<AuthState, { status: 'authe
   }
 }
 
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{location.pathname}{location.search}</output>
+}
+
 function renderHost(props: Partial<React.ComponentProps<typeof SignalRecordHost>> = {}) {
   return render(
-    <I18nProvider>
-      <SignalRecordHost signalId={SIGNAL_ID} {...props} />
-    </I18nProvider>,
+    <MemoryRouter>
+      <I18nProvider>
+        <SignalRecordHost signalId={SIGNAL_ID} {...props} />
+        <LocationProbe />
+      </I18nProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -303,29 +310,17 @@ describe('SignalRecordHost — comment thread reuse (postComment/listComments, R
   })
 })
 
-describe('SignalRecordHost — Create follow-up Task (createFollowUpTask, FR-413)', () => {
-  it('opens a minimal title form prefilled from the Signal body and creates the follow-up Task', async () => {
-    mockCreateFollowUpTask.mockResolvedValue('task-new')
+describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P-23/OD-39)', () => {
+  it('navigates to the canonical Task create intent with Signal context prefilled', async () => {
     renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: /create follow-up task/i }))
-    const titleInput = screen.getByRole('textbox', { name: /task title/i })
-    expect(titleInput).toHaveValue('The freezer alarm went off')
 
-    mockGetSignal.mockResolvedValueOnce({
-      signal: baseSignal, mentions: [], acknowledgements: [],
-      tasks: [{ id: 'st1', signal_id: SIGNAL_ID, task_id: 'task-new', created_by: VIEWER_ID }],
-    })
-    await userEvent.click(screen.getByRole('button', { name: /^save$|^create$/i }))
-
-    expect(mockCreateFollowUpTask).toHaveBeenCalledWith(SIGNAL_ID, expect.objectContaining({
-      title: 'The freezer alarm went off',
-      businessUnitId: BU_ID,
-      responsiblePersonId: VIEWER_ID,
-      accountablePersonId: VIEWER_ID,
-      createdBy: VIEWER_ID,
-    }))
+    expect(screen.queryByRole('textbox', { name: /task title/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/work/tasks?create=1&createTitle=The+freezer+alarm+went+off&createBu=bu-retail&createPic=person-author-a&sourceSignal=signal-1',
+    )
   })
 })
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { useT } from '@/i18n/use-t'
@@ -10,7 +11,7 @@ import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import {
   getSignal, listSignalRevisions, listAllTeams, getTeamSite, correctSignal, acknowledgeSignal,
-  linkSignalTask, createFollowUpTask, retractSignal, loadMentionRosters, dedupeRecipients, summarizeLinkedTasks,
+  linkSignalTask, retractSignal, loadMentionRosters, dedupeRecipients, summarizeLinkedTasks,
   type SignalDetail, type SignalRevisionRow, type MentionRosters,
 } from '@/lib/db/signals'
 import type { Attention, SignalCategory, StagedMention } from '@/lib/db/signals.types'
@@ -25,6 +26,7 @@ import {
 } from './signal-record'
 import { RecordViewer } from '@/components/records/record-viewer'
 import { wrapSignalRecord, firstLine } from './signal-record-adapter'
+import { signalTaskCreateHref } from './signal-task-intent'
 import './signal-record-host.css'
 
 // C3 (KNOWN GAP 2): signal-record.tsx is a set of presentational region renderers — this host is
@@ -53,6 +55,7 @@ function personName(people: PersonOption[], id: string, fallback: string): strin
 
 export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload }: SignalRecordHostProps) {
   const t = useT()
+  const navigate = useNavigate()
   const auth = useAuth()
   const { open: openComposer } = useSignalComposer()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -69,8 +72,6 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   const [comments, setComments] = useState<CommentRow[]>([])
   const [rosters, setRosters] = useState<MentionRosters>({ teamMembers: {}, buMembers: {} })
 
-  const [followUpOpen, setFollowUpOpen] = useState(false)
-  const [followUpTitle, setFollowUpTitle] = useState('')
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkTaskId, setLinkTaskId] = useState('')
   const [retractOpen, setRetractOpen] = useState(false)
@@ -192,24 +193,9 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setComments(await listComments({ entityType: 'signal', entityId: signalId }))
   }
 
-  function toggleFollowUp() {
-    if (followUpOpen) { setFollowUpOpen(false); return }
-    setFollowUpTitle(signal.body)
-    setFollowUpOpen(true)
-  }
-
-  async function submitFollowUp() {
-    if (!viewerId || !team || !followUpTitle.trim()) return
-    await createFollowUpTask(signalId, {
-      title: followUpTitle.trim(),
-      businessUnitId: team.business_unit_id,
-      responsiblePersonId: viewerId,
-      accountablePersonId: viewerId,
-      createdBy: viewerId,
-    })
-    setFollowUpOpen(false)
-    setFollowUpTitle('')
-    load()
+  function openTaskComposer() {
+    if (!viewerId || !team) return
+    navigate(signalTaskCreateHref(signal, team.business_unit_id, viewerId))
   }
 
   async function submitLink() {
@@ -226,26 +212,9 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }))
   const hasAcknowledged = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
 
-  // The toggled create-follow-up / link-existing forms live inside the Reach action register so a
-  // form opens beside the action that spawned it (not orphaned at the foot of the document).
+  // Link-existing remains record-local; Task creation uses the one canonical Tasks composer.
   const actionForms = (
     <>
-      {followUpOpen && (
-        <form
-          className="signal-record-followup-form"
-          aria-label={t('signals.record.createFollowUpTask')}
-          onSubmit={(e) => { e.preventDefault(); void submitFollowUp() }}
-        >
-          <input
-            aria-label={t('signals.record.followUpTitleLabel')}
-            value={followUpTitle}
-            onChange={(e) => setFollowUpTitle(e.target.value)}
-          />
-          <Button type="submit" variant="primary" disabled={!followUpTitle.trim()}>
-            {t('signals.record.followUpSave')}
-          </Button>
-        </form>
-      )}
       {linkOpen && (
         linkableTasks.length === 0 ? (
           <EmptyState title={t('signals.record.noLinkableTasks')} />
@@ -295,7 +264,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         personId: ack.person_id, personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
       }))}
       linkedTasksSummary={linkedTasksSummary}
-      onCreateFollowUpTask={toggleFollowUp}
+      onCreateFollowUpTask={openTaskComposer}
       onLinkExistingTask={() => setLinkOpen((open) => !open)}
       onRetract={canRetract ? () => setRetractOpen(true) : undefined}
       actionForms={actionForms}

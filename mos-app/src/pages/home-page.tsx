@@ -30,6 +30,7 @@
 // the region model on purpose — the regions are the attention ranking, and a standing reference
 // door is not something that needs the viewer today.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -64,6 +65,7 @@ import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { isShipGated } from '@/lib/ship-gate'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -78,6 +80,7 @@ const NO_NAMES: ReadonlyMap<string, string> = new Map()
 
 export function HomePage() {
   const t = useT()
+  const navigate = useNavigate()
   useDocumentTitle(t('common.docTitle', { page: t('nav.home') }))
   const { locale } = useI18n()
   const auth = useAuth()
@@ -220,6 +223,7 @@ export function HomePage() {
   // rows paint with a name the page could still fail to fetch.
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
+  const [teamBusinessUnits, setTeamBusinessUnits] = useState<ReadonlyMap<string, string>>(NO_NAMES)
   const [signalsState, setSignalsState] = useState<FetchState>('loading')
   const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
@@ -234,6 +238,7 @@ export function HomePage() {
         if (!isMountedRef.current || signalsTokenRef.current !== token) return
         setSignals(rows)
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
+        setTeamBusinessUnits(new Map(teams.map(team => [team.id, team.business_unit_id])))
         setSignalsState('ready')
       })
       .catch(() => {
@@ -448,6 +453,10 @@ export function HomePage() {
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
+              onCreateTask={(signal) => {
+                const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
+                if (personId && businessUnitId) navigate(signalTaskCreateHref(signal, businessUnitId, personId))
+              }}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}

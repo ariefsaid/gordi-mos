@@ -38,6 +38,7 @@ import {
 } from './task-collection-presentation'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
+import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -173,6 +174,7 @@ export function TasksWorkspace({
   const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
+  const draftSourceSignalRef = useRef<string | null>(null)
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
 
@@ -396,13 +398,17 @@ export function TasksWorkspace({
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
-      await createTask({
+      const taskId = await createTask({
         title,
         businessUnitId: draftTask.business_unit_id,
         responsiblePersonId: draftTask.responsible_person_id,
         accountablePersonId: draftTask.accountable_person_id,
         createdBy: viewerId,
       })
+      if (draftSourceSignalRef.current) {
+        await linkSignalTask(draftSourceSignalRef.current, taskId)
+        draftSourceSignalRef.current = null
+      }
       setDraftTask(null)
       controller.retry()
       return
@@ -430,17 +436,18 @@ export function TasksWorkspace({
     if (!dataContext || draftTask) return
     const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
     const prefill = new URLSearchParams(prefillParam)
+    draftSourceSignalRef.current = params.get('sourceSignal')
     const now = new Date().toISOString()
     setDraftTask({
       id: `new-task-${Date.now()}`,
-      org_id: '', title: '', business_unit_id: prefill.get('bu') ?? query.businessUnitId ?? dataContext.businessUnits[0]?.id ?? '',
-      status: query.status ?? 'Open', responsible_person_id: prefill.get('r') ?? query.picId ?? viewerId ?? firstPerson,
+      org_id: '', title: prefill.get('title') ?? params.get('createTitle') ?? '', business_unit_id: prefill.get('bu') ?? params.get('createBu') ?? query.businessUnitId ?? dataContext.businessUnits[0]?.id ?? '',
+      status: query.status ?? 'Open', responsible_person_id: prefill.get('r') ?? params.get('createPic') ?? query.picId ?? viewerId ?? firstPerson,
       accountable_person_id: query.supervisorId ?? viewerId ?? firstPerson, consulted_person_ids: [], informed_person_ids: [],
       description: null, due_date: null, objective_id: null, work_line_id: null,
       last_activity_at: now, archived_at: null, created_by: viewerId ?? '',
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
-  }, [dataContext, draftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId])
+  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
     if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return
@@ -450,7 +457,7 @@ export function TasksWorkspace({
     }
     createIntentRef.current = false
     const next = new URLSearchParams(params)
-    next.delete('create')
+    for (const key of ['create', 'createTitle', 'createBu', 'createPic', 'sourceSignal']) next.delete(key)
     setParams(next, { replace: true })
   }, [dataContext, draftTask, onNewTask, params, setParams])
   // H3 fix (owner review r2 gap — "Clear filters" didn't persist past reload): the shared
