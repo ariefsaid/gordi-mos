@@ -55,9 +55,10 @@ function deputySeed(body: string): string {
 
 export function SignalsArchivePage() {
   const t = useT()
-  const auth = useAuth()
   useDocumentTitle(t('common.docTitle', { page: t('nav.signals') }))
   const host = useOverlayHost()
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -71,7 +72,7 @@ export function SignalsArchivePage() {
     descriptor: signalCollectionDescriptor,
     urlMode: 'synced',
     isDesktop,
-    viewerId: auth.status === 'authenticated' ? auth.viewer.person.id : null,
+    viewerId,
     accessRoles: auth.status === 'authenticated' ? auth.viewer.accessRoles : [],
   })
   const query = controller.state.query

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -61,6 +61,45 @@ function stubMatchMedia(matches: boolean) {
       addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
     }),
   })
+}
+
+// Dynamic split-width stub: the split query starts matching and can be flipped mid-test
+// (simulating a window resize) via `setSplit`, notifying useIsSplitWidth's own change
+// listener — exactly the seam a real `matchMedia` change event drives.
+function stubDynamicSplitWidth() {
+  let split = true
+  const listeners = new Set<(e: MediaQueryListEvent) => void>()
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => {
+      // record-panel-host / rail-compact key off the generic 1100px overlay breakpoint (a
+      // DIFFERENT hook, useIsWideOverlayWidth) to decide panel presentation — it must track
+      // the same split state here or the drawer never renders as a `complementary` panel.
+      const isSplitQuery = query.includes(`${TASKS_SPLIT_MIN_WIDTH}`) || query.includes('1100')
+      return {
+        get matches() {
+          if (isSplitQuery) return split
+          if (query.includes('768')) return true // desktop
+          return false // narrow (919) stays false — desktop throughout
+        },
+        media: query,
+        onchange: null,
+        addEventListener: (_type: string, cb: (e: MediaQueryListEvent) => void) => {
+          if (isSplitQuery) listeners.add(cb)
+        },
+        removeEventListener: (_type: string, cb: (e: MediaQueryListEvent) => void) => {
+          listeners.delete(cb)
+        },
+        dispatchEvent: () => false,
+      }
+    },
+  })
+  return {
+    setSplit(next: boolean) {
+      split = next
+      listeners.forEach((cb) => cb({ matches: next } as MediaQueryListEvent))
+    },
+  }
 }
 
 // Width-aware stub: control split (≥1100) and desktop (≥768) independently.
@@ -344,6 +383,25 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(document.querySelector('.split')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+  })
+
+  // Round-4 regression: a drawer opened at/above TASKS_SPLIT_MIN_WIDTH must not survive a
+  // resize below it. The route never changes (still /work/tasks/task-1), so only the
+  // isSplit flip can drive the promotion — this proves TasksLayout reacts to it instead of
+  // leaving the stale `.split` (table + drawer) mounted and overflowing.
+  it('DD-WAY-53: an open drawer promotes to the record page when a resize drops below the split threshold', async () => {
+    const widths = stubDynamicSplitWidth()
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    renderAt('/work/tasks/task-1')
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
+    expect(document.querySelector('.split')).toBeTruthy()
+
+    act(() => widths.setSplit(false))
+
+    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
+    expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+    expect(document.querySelector('.split')).toBeNull()
   })
 
   it('AC-107: /tasks/new renders the create drawer beside the table', async () => {

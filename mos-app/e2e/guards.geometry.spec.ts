@@ -45,7 +45,8 @@ async function box(locator: Locator) {
   return b!
 }
 
-// ── Desktop regime (default Desktop Chrome viewport, 1280×720 ≥ the 1100px split) ──────
+// ── Desktop regime (default Desktop Chrome viewport, 1440×900 ≥ the derived
+//    TASKS_SPLIT_MIN_WIDTH=1370 split threshold, DD-WAY-53) ────────────────────────────
 
 test.describe('desktop geometry guards', () => {
   test.beforeEach(async ({ page }) => {
@@ -95,13 +96,19 @@ test.describe('desktop geometry guards', () => {
 
   test('GUARD-R8: split exists only where decision columns fit; narrow rows open the page', async ({ page }) => {
     const columns = ['Task', 'Status', 'PIC', 'Supervisor', 'Due']
-    for (const width of [1352, 1440]) {
+    // 1370 = TASKS_SPLIT_MIN_WIDTH itself (the derived floor); 1440 = DESIGN.md's desktop
+    // reference width. Both are AT OR ABOVE the threshold, so both must render the split.
+    for (const width of [1370, 1440]) {
       await page.setViewportSize({ width, height: 800 })
       await page.goto('work/tasks')
       await page.waitForURL(/\/work\/tasks$/)
       const row = page.locator('tr.task-row').first()
       await expect(row).toBeVisible()
-      await row.locator('td:nth-child(3)').click()
+      // Activate by the row's own title text, not a cell index: the PIC cell (nth-child(3))
+      // carries an inline edit trigger that stops click propagation, so a positional click
+      // there never opens the row at all — it silently proved nothing (round-3 finding).
+      const rowTitle = (await row.locator('td').first().innerText()).trim()
+      await page.getByText(rowTitle, { exact: true }).first().click()
       const drawer = page.getByRole('complementary', { name: /task detail/i })
       await expect(drawer).toBeVisible()
 
@@ -125,7 +132,10 @@ test.describe('desktop geometry guards', () => {
     await page.setViewportSize({ width: 1152, height: 800 })
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
-    await page.locator('tr.task-row').first().locator('td:nth-child(3)').click()
+    const narrowRow = page.locator('tr.task-row').first()
+    await expect(narrowRow).toBeVisible()
+    const narrowRowTitle = (await narrowRow.locator('td').first().innerText()).trim()
+    await page.getByText(narrowRowTitle, { exact: true }).first().click()
     await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
     await expect(page.locator('.record-doc')).toBeVisible()
     const narrowScrollWidths = await page.locator('.tasks-scroll').evaluate((element) => ({

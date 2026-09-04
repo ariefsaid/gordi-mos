@@ -310,13 +310,14 @@
 .split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
 .split:not(.nodrawer) .tasks-table th:nth-child(6),
 .split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; } /* row menu */
-/* Business Unit is optional and yields before decision columns when the drawer is open. */
-.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .th-business-unit,
-.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .td-business-unit { display: none; }
-.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .th-due,
-.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .td-due { width: 104px; }
-.split:not(.nodrawer) .tasks-table .th-menu,
-.split:not(.nodrawer) .tasks-table .td-menu { width: 40px; }
+/* Due + row-menu floors are sized by CLASS, not column position, in every state (split or
+   rest): the optional Business Unit column shifts every later column's nth-child index, so
+   an nth-child-based floor lands on the wrong column once BU is on — measured on dev at
+   REST (drawer shut) with BU on: Due clipped to 40px against a 64px need. One rule, no
+   split/nodrawer or :has() gate (those were tautological — same 104px the nth-child(5) rule
+   already set within the split, and never reached at rest at all). */
+.tasks-table .th-due, .tasks-table .td-due { width: 104px; }
+.tasks-table .th-menu, .tasks-table .td-menu { width: 40px; }
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */

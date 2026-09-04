@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -37,6 +37,27 @@ export function TasksLayout() {
   // "Tasks — Gordi MOS" would clobber the child's record title on every mount.
   const pageMode = isTaskPageMode({ taskId, isNew: Boolean(isNew), state: location.state, navigationType }) && Boolean(taskId)
   useDocumentTitle(pageMode ? null : t('common.docTitle', { page: t('nav.tasks') }))
+
+  // Resize promotion (round-4 fix): a drawer opened at/above the split threshold stays mounted
+  // if the viewport later shrinks below it — the record id doesn't change, so the route alone
+  // never re-evaluates isTaskPageMode. Without this, `.split` keeps rendering table + drawer
+  // side by side below the width that fits them, overflowing `.tasks-scroll`. When isSplit flips
+  // false while a record is open in the drawer (not already the standalone page), promote it to
+  // the record PAGE the same way a row click below the threshold would: navigate to
+  // `/work/tasks/:id` with the "Open full page" state, keeping the collection's other query
+  // params and dropping `record` (the panel-open marker some Tasks doors use).
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (isSplit || pageMode || !taskId || isNew) return
+    const next = new URLSearchParams(location.search)
+    next.delete('record')
+    const search = next.toString()
+    navigate(
+      { pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' },
+      { state: { taskSurface: 'page' } },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSplit])
 
   // Optimistic status overrides fed by the open drawer (AC-103) so the table row
   // reflects an inline status change without a full reload.
