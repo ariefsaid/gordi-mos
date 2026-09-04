@@ -176,6 +176,7 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
     )
     expect(await screen.findByRole('region', { name: /access restricted/i })).toBeInTheDocument()
     expect(screen.getByText(/available to ops leads/i)).toBeInTheDocument()
+    expect(screen.getByRole('region')).not.toHaveTextContent(/\bESB\b/i)
     expect(mockListPushes).not.toHaveBeenCalled()
   })
 
@@ -303,8 +304,11 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
   it('renders a semantic table with the required column headers', async () => {
     setViewport(true)
     mockListPushes.mockResolvedValue([POSTED_ROW])
-    render(<KitchenPushesPage />)
+    const { container } = render(<KitchenPushesPage />)
     await screen.findByText('PR-20260621-001')
+
+    // Rule 12: the whole rendered screen uses floor language, not the integration acronym.
+    expect(container).not.toHaveTextContent(/\bESB\b/i)
 
     const table = screen.getByRole('table')
     expect(table).toBeInTheDocument()
@@ -567,6 +571,24 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
       expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
       expect(screen.queryByText('dead_letter')).toBeNull()
+    } finally {
+      localStorage.clear()
+    }
+  })
+
+  it('AC-1 id locale: the whole Pushes screen avoids the integration acronym', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      mockListPushes.mockResolvedValue([POSTED_ROW])
+      const { container } = render(
+        <MemoryRouter>
+          <I18nProvider>
+            <KitchenPushesPage />
+          </I18nProvider>
+        </MemoryRouter>,
+      )
+      await screen.findByText('PR-20260621-001')
+      expect(container).not.toHaveTextContent(/\bESB\b/i)
     } finally {
       localStorage.clear()
     }
