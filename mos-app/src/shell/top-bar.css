@@ -1,25 +1,24 @@
 .top-bar__breadcrumb-track {
   min-width: 0;
+  flex: 1;
 }
 
 .top-bar__breadcrumb {
+  display: flex;
+  flex: 1;
   min-width: 0;
 }
 
-@media (max-width: 767.98px) {
-  .top-bar__breadcrumb {
-    white-space: nowrap;
-    min-width: 0;
-    overflow: hidden;
-  }
+.top-bar__breadcrumb-content {
+  display: contents;
+}
 
-  .top-bar__breadcrumb-leaf {
-    display: inline-block;
-    max-width: 100%;
-    vertical-align: bottom;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.top-bar__breadcrumb-fixed {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.top-bar__breadcrumb-leaf {
+  flex: 1 1 auto;
+  min-width: 0;
 }
