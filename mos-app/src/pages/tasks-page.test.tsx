@@ -927,7 +927,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
     // A due-runs pill must not also apply the overdue task filter.
-    expect(_capturedLocation?.search).not.toMatch(/overdueOnly/)
+    expect(_capturedLocation?.search).not.toMatch(/overdue=1/)
     // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
     // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
     expect(screen.getByRole('button', { name: 'Start · Café HQ daily opening' })).toBeInTheDocument()
@@ -938,10 +938,28 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     mockListDueRuns.mockResolvedValue([])
     renderPage(CAPABLE_AUTH)
 
-    const pill = await screen.findByRole('button', { name: /overdue/i })
+    const pill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
     fireEvent.click(pill)
     await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue/i })).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
+  })
+
+  it('when both sources are non-zero, each pill performs only its own action', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
+    mockListDueRuns.mockResolvedValue([DUE_ROW])
+    renderPage(CAPABLE_AUTH)
+
+    const duePill = await screen.findByRole('button', { name: '1 run due to start' })
+    const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
+    expect(duePill).toBeInTheDocument()
+    expect(overduePill).toBeInTheDocument()
+
+    fireEvent.click(duePill)
+    await waitFor(() => expect(duePill).toHaveAttribute('aria-expanded', 'true'))
+    expect(_capturedLocation?.search).not.toMatch(/overdue=1/)
+
+    fireEvent.click(overduePill)
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/overdue=1/))
   })
 
   it('the due-runs trigger is absent for a viewer without process.start', async () => {

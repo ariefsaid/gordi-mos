@@ -27,8 +27,7 @@ export type TasksToolbarProps = {
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: CollectionToolbarSavedViews
-  /** The recurring-runs-due-to-start source. Its count folds into the single attention pill
-   * (item 3(a)); the pill also toggles this list's disclosure when due work exists. */
+  /** The recurring-runs-due-to-start source renders its own pill and toggles this list's disclosure. */
   dueRuns?: UseDueRunsResult
   /** DO-6: the active view is a reserved placeholder — only the view chips render (no dead
    * search/filters/presentation controls above a coming-soon body). */
@@ -96,9 +95,7 @@ export function TasksToolbar({
     return t('tasks.saved.followups')
   }
 
-  // One source per pill: due runs disclose their list; overdue tasks apply their filter.
   const dueCount = dueRuns?.due.length ?? 0
-  const hasAttention = overdueCount > 0 || dueCount > 0
 
   return (
     <CollectionToolbar
@@ -206,20 +203,26 @@ export function TasksToolbar({
             />
             <span>{t('tasks.filter.showArchived')}</span>
           </label>
-          {/* The pill names its source and performs only that source's action. */}
-          {hasAttention ? (
+          {/* Each pill names one source and performs only that source's action. */}
+          {dueCount > 0 ? (
             <button
               type="button"
               className="overdue-filter-btn"
-              aria-label={dueCount > 0
-                ? t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })
-                : t('tasks.filter.overdueAria', { count: overdueCount })}
-              aria-expanded={dueCount > 0 ? (dueRuns?.expanded ?? false) : undefined}
-              onClick={dueCount > 0 ? dueRuns?.toggleExpanded : onOverdueFilter}
+              aria-label={t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })}
+              aria-expanded={dueRuns?.expanded ?? false}
+              onClick={dueRuns?.toggleExpanded}
             >
-              {dueCount > 0
-                ? t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })
-                : t('tasks.filter.overdueCount', { count: overdueCount })}
+              {t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })}
+            </button>
+          ) : null}
+          {overdueCount > 0 ? (
+            <button
+              type="button"
+              className="overdue-filter-btn"
+              aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
+              onClick={onOverdueFilter}
+            >
+              {t('tasks.filter.overdueCount', { count: overdueCount })}
             </button>
           ) : null}
           {query.overdueOnly ? (

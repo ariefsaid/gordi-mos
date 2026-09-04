@@ -7,7 +7,7 @@ import type { DueProcessRun } from '@/lib/db/processes.types'
 import './due-runs.css'
 
 // DueRunsList (design fix wave item 1b). Renders the actual due-occurrence rows + Start actions —
-// ONLY when the DueRunsTrigger's disclosure is expanded. Mounted by the host AFTER the Tasks
+// ONLY when the toolbar pill's disclosure is expanded. Mounted by the host AFTER the Tasks
 // table (not between the toolbar and the table) so the table stays the first substantive content
 // on the page regardless of collapse state (design-review step-6 CRITICAL).
 
