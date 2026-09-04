@@ -896,7 +896,7 @@ const CAPABLE_AUTH: AuthState = {
 // docs/specs/occurrence-as-tasks.spec.md §5). "Process Run" must NEVER appear as UI vocabulary
 // anywhere in this page (FR-611). Design fix wave item 1: the row list is COLLAPSED BY DEFAULT
 // (design-review step-6 CRITICAL — a full-width due-row flood buried the Tasks table) — every test
-// below reveals it via the single attention pill (item 3(a) fold) before interacting with a row.
+// below uses the two attention pills: the due-runs pill opens the disclosure, while the overdue pill applies the overdue filter.
 describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   const DUE_ROW: DueProcessRun = {
     work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
@@ -904,10 +904,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     period_key: '2026-07-17', scheduled_date: '2026-07-17',
   }
 
-  // Item 3(a): the former "N due to start" pill folded into the ONE attention pill, which
-  // carries the runs disclosure (aria-expanded) when due work exists. The goal-oracle is
-  // unchanged (a capable viewer reveals + starts a due run, collapsed by default); only the
-  // control that reveals it changed from a bespoke trigger to the shared attention pill.
+  // The due-runs pill carries the runs disclosure (aria-expanded) when due work exists, while the separate overdue pill applies the overdue filter.
   async function expandDueRuns() {
     const trigger = await screen.findByRole('button', { name: /runs? due to start/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
@@ -915,7 +912,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
   }
 
-  it('the attention pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
+  it('the due-runs pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
     mockListTasks.mockResolvedValue([])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
