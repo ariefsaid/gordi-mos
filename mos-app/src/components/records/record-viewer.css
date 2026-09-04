@@ -83,7 +83,7 @@
    editable rows were 52px pitch (44px target + 2px border + 6px gap), past E7's ~40px. Touch/phone
    (pointer:coarse) keep the 44px resting target. Label + read-only value paddings shift with the
    target so label↔value stay baseline-aligned. */
-@media (pointer: fine) {
+@media (pointer: fine) and (min-width: 768px) {
   .record-field__edit {
     min-height: 32px;
     padding-top: 4px;

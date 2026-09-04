@@ -25,6 +25,7 @@ const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record
 const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
 // #711: search-field floor is defined in collection-toolbar.css.
 const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
+const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -144,6 +145,10 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     const body = mediaBody(kitchenPlanCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.kp-row-link\s*\{[^}]*position:\s*relative/)
     expect(body).toMatch(/\.kp-row-link::before\s*\{[^}]*height:\s*44px[^}]*transform:\s*translateY\(-50%\)/)
+  })
+
+  it('ticket 702: keeps the record edit affordance floor on phone for fine pointers', () => {
+    expect(recordViewerCss).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field__edit\s*\{[^}]*?min-height:\s*32px/)
   })
 })
 

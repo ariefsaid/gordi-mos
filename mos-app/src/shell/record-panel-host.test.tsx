@@ -120,7 +120,7 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
   // CSS-scoped mobile-sheet context (.drawer-modal.drawer-fullscreen), so ANY other coarse-pointer
   // host of this same button class (the TaskSurface standalone full-page record-chrome row) fell
   // through unconditionally to 32px — the exact bug Luna measured. The coarse-pointer pattern
-  // (record-viewer.css `@media (pointer: fine)` tighten-down) inverts the default: 44px is the
+  // (record-viewer.css `@media (pointer: fine) and (min-width: 768px)` tighten-down) inverts the default: 44px is the
   // RESTING size everywhere, and only a genuine fine pointer (desktop mouse) tightens to 32px.
   it('defaults to the 44px touch floor and tightens to the 32px control token only for a fine pointer at desktop width', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')

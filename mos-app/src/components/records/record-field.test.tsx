@@ -266,7 +266,7 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
     // The default (touch) resting target stays at the 44px floor.
     expect(css).toMatch(/\.record-field__edit\s*\{[\s\S]*?min-height:\s*44px/)
     // A pointer:fine block tightens the resting target below 44px.
-    expect(css).toMatch(/@media \(pointer: fine\)[\s\S]*\.record-field__edit[\s\S]*min-height:\s*32px/)
+    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*\.record-field__edit[\s\S]*min-height:\s*32px/)
   })
 
   // DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — a read-only
@@ -274,6 +274,6 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
   // so a non-editor persona sees the same document cadence as an editor.
   it('DO-23(a): read-only values share the editable row pitch in both pointer tiers', () => {
     expect(css).toMatch(/\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*46px/)
-    expect(css).toMatch(/@media \(pointer: fine\)[\s\S]*\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*34px/)
+    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*34px/)
   })
 })
