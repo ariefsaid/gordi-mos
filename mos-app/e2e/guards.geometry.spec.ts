@@ -104,6 +104,24 @@ test.describe('desktop geometry guards', () => {
     const gap = firstChip.x - (label.x + label.width)
     expect(gap, 'label→chip seam must be a real gap, not a fused blob').toBeGreaterThanOrEqual(8)
   })
+
+  test('GUARD-R8: at 1440px an open create panel never clips decision columns', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.goto('work/tasks')
+    await page.getByRole('button', { name: /create task/i }).click()
+    await expect(page.getByRole('complementary', { name: /create task/i })).toBeVisible()
+
+    const tableViewport = page.locator('.tasks-scroll')
+    const viewport = await box(tableViewport)
+    for (const name of ['Task', 'PIC', 'Supervisor', 'Status', 'Due']) {
+      const header = page.getByRole('columnheader', { name: new RegExp(`^${name}$`, 'i') })
+      await expect(header, `${name} decision column must remain visible`).toBeVisible()
+      const rect = await box(header)
+      expect(rect.width, `${name} decision column must have a rendered width`).toBeGreaterThan(0)
+      expect(rect.x, `${name} decision column must not start outside the table`).toBeGreaterThanOrEqual(viewport.x)
+      expect(rect.x + rect.width, `${name} decision column must not clip horizontally`).toBeLessThanOrEqual(viewport.x + viewport.width + 1)
+    }
+  })
 })
 
 // ── Phone/coarse regime (375×812 — the ≤767.98px tap-target floor, P1-4) ───────────────

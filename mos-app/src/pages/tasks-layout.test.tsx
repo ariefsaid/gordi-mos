@@ -636,6 +636,17 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(backLink).toHaveAttribute('href', '/work/tasks')
   })
 
+  it('S2.11: a phone full-page record has no collapse-to-split control', async () => {
+    stubWidths({ split: false, desktop: false })
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Phone task' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Phone task' })
+
+    expect(document.querySelector('.record-page-collapse')).toBeNull()
+    expect(screen.queryByRole('button', { name: /back to split view/i })).toBeNull()
+  })
+
   // F3 (E7 floor): the drawer and the expanded@split pseudo-full-page already carry the
   // record-scoped Ask Deputy affordance via RecordPanelHost's chrome (task-drawer.tsx
   // hostActions, showPanelUtility=false there). The standalone canonical page (this

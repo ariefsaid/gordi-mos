@@ -96,6 +96,7 @@ export function TasksLayout() {
  */
 function TaskRecordPage({ taskId }: { taskId: string }) {
   const t = useT()
+  const isSplit = useIsSplitWidth()
   const navigate = useNavigate()
   const location = useLocation()
   const [title, setTitle] = useState<string | null>(null)
@@ -137,7 +138,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         backTo={{ pathname: '/work/tasks', search: location.search }}
         backLabel={t('tasks.title')}
         deputyDraft={title ? t('assistant.askAbout.task', { title }) : null}
-        trailing={
+        trailing={isSplit ? (
           <button
             type="button"
             className="record-page-collapse"
@@ -149,7 +150,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
               <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
             </svg>
           </button>
-        }
+        ) : null}
       />
       <TaskSurface
         taskId={taskId}
