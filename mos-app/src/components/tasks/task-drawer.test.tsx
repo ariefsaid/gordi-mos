@@ -28,6 +28,7 @@ import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskDrawer } from './task-drawer'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 const mockGetTask = vi.mocked(getTask)
 const VIEWER_ID = 'viewer-person-id'
@@ -38,7 +39,8 @@ function stubWidths({ split, band, desktop }: { split: boolean; band?: boolean; 
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes('1100')) matches = split
+      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
+      else if (query.includes('1100')) matches = split
       else if (query.includes('920')) matches = band ?? false
       else if (query.includes('768')) matches = desktop ?? true
       return {

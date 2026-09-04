@@ -30,6 +30,7 @@
  * class's owning guard and oracle DEFINITION, not the register of every head that inherits it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -102,7 +103,8 @@ function stubMatchMedia(split = true, desktop = true) {
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes('1100')) matches = split
+      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
+      else if (query.includes('1100')) matches = split
       else if (query.includes('768')) matches = desktop
       return {
         matches, media: query, onchange: null,

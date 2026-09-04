@@ -19,6 +19,7 @@ import { BreadcrumbTitleProvider } from '@/shell/breadcrumb-title'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -115,7 +116,8 @@ function stubMatchMedia(split = true, desktop = true, narrow = !desktop) {
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes('1100')) matches = split
+      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
+      else if (query.includes('1100')) matches = split
       else if (query.includes('919')) matches = narrow // useIsNarrow — rail collapsed / FAB present
       else if (query.includes('768')) matches = desktop
       return {

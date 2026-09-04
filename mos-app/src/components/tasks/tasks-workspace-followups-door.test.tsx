@@ -14,6 +14,7 @@ import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { FollowUpRow } from '@/lib/db/follow-ups'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 vi.mock('@/config/features', async () => {
   const actual = await vi.importActual<typeof import('@/config/features')>('@/config/features')
@@ -85,7 +86,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
-      matches: query.includes('768') || query.includes('1100'),
+      matches: query.includes('768') || query.includes('1100') || query.includes(`${TASKS_SPLIT_MIN_WIDTH}`),
       media: query, onchange: null,
       addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
     }),

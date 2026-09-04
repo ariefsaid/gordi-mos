@@ -9,11 +9,11 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 
-// OD-REDESIGN-84.2 (P1-1): TopBar now also reads the split-width regime (the brand column's
-// width must track Rail's own compact boundary). Mocked + defaulted to "split" (wide) below so
+// OD-REDESIGN-84.2 (P1-1): TopBar reads the rail's generic wide-width regime (the brand
+// column's width must track Rail's own compact boundary). Mocked + defaulted to wide below so
 // every pre-existing test keeps rendering the full-width brand unless it opts into compact.
-vi.mock('./use-is-split-width')
-import { useIsSplitWidth } from './use-is-split-width'
+vi.mock('./use-is-wide-overlay-width')
+import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
@@ -29,7 +29,7 @@ vi.mock('../config/features', () => ({
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
-const mockUseIsSplitWidth = vi.mocked(useIsSplitWidth)
+const mockUseIsWideOverlayWidth = vi.mocked(useIsWideOverlayWidth)
 
 import { TopBar } from './top-bar'
 
@@ -87,7 +87,7 @@ beforeEach(() => {
   localStorage.clear()
   mockUseAuth.mockReturnValue({ status: 'authenticated', viewer, signOut: vi.fn() })
   mockUseIsNarrow.mockReturnValue(false)
-  mockUseIsSplitWidth.mockReturnValue(true)
+  mockUseIsWideOverlayWidth.mockReturnValue(true)
 })
 
 // AC-014: top bar layout — brand · breadcrumb · spacer · Search⌘K · Inbox · Deputy;
@@ -211,7 +211,7 @@ describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
   // --rail-w-compact and drops the "Gordi MOS" wordmark (72px only fits the mark), keeping
   // the divider aligned with the rail's own compact boundary.
   it('P1-1: at the compact rail regime, the brand column narrows to --rail-w-compact and drops the wordmark', () => {
-    mockUseIsSplitWidth.mockReturnValue(false)
+    mockUseIsWideOverlayWidth.mockReturnValue(false)
     const { container } = renderTopBar()
     const brandCol = container.querySelector('[style*="--rail-w-compact"]') as HTMLElement | null
     expect(brandCol).not.toBeNull()

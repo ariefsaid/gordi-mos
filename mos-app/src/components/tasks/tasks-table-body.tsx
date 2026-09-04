@@ -225,11 +225,11 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               </button>
             </th>
             <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
-            {showBusinessUnit ? <th scope="col" className="th-cell">{t('tasks.filter.businessUnit')}</th> : null}
+            {showBusinessUnit ? <th scope="col" className="th-cell th-business-unit">{t('tasks.filter.businessUnit')}</th> : null}
             {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
                 inside the first paint. Project/Process, Objective, Team, Source, Activity
                 moved to the drawer (OD-62). */}
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
+            <th scope="col" className={`th-cell th-sortable th-due${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
                 {t('tasks.dueLabel')}{sortIndicator('due')}

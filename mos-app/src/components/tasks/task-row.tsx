@@ -393,7 +393,7 @@ export function TaskRow({
           This is column PRIORITY, not data removal. */}
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
       {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
-      <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>
+      <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
             <input autoFocus type="date" aria-label="Due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}

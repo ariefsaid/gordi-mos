@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react'
 
-// 232px rail + 48px desktop frame gutters + 400px drawer + 12px gap + (160 + 108 + 128 + 120 + 104 + 40)px table/menu floors.
-export const TASKS_SPLIT_MIN_WIDTH = 1352
-const QUERY = `(min-width: ${TASKS_SPLIT_MIN_WIDTH}px) and (min-width: 1100px)`
+export const TASKS_RAIL_WIDTH = 232
+export const TASKS_FRAME_GUTTER_PX = 32
+export const TASKS_DRAWER_MAX_WIDTH = 400
+export const TASKS_SPLIT_GAP_PX = 12
+export const TASKS_TABLE_BORDER_PX = 2
+export const TASKS_SPLIT_FLOOR_TOTAL = 660
+
+// Keep this arithmetic beside the media query: it is the viewport width at which the rail,
+// wide-frame gutters, drawer, gap, table floors, and scroll-container border all fit.
+export const TASKS_SPLIT_MIN_WIDTH =
+  TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_DRAWER_MAX_WIDTH +
+  TASKS_SPLIT_GAP_PX + TASKS_SPLIT_FLOOR_TOTAL + TASKS_TABLE_BORDER_PX
+const QUERY = `(min-width: ${TASKS_SPLIT_MIN_WIDTH}px)`
 
 /**
  * The table + drawer render as a live push/squash split only when the decision columns fit.

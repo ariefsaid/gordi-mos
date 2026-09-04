@@ -47,7 +47,7 @@
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
    Scoped to the decision-column split threshold because below it the drawer is not a column. */
-@media (min-width: 1352px) {
+@media (min-width: 1370px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -310,13 +310,13 @@
 .split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
 .split:not(.nodrawer) .tasks-table th:nth-child(6),
 .split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; } /* row menu */
-/* Business Unit is optional; when present it yields before Due, never shifting Due into the menu floor. */
-.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) th:nth-child(5),
-.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) td:nth-child(5) { width: 104px; } /* Business Unit */
-.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) th:nth-child(6),
-.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) td:nth-child(6) { width: 104px; } /* Due */
-.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) th:nth-child(7),
-.split:not(.nodrawer) .tasks-table:has(thead th:nth-child(7)) td:nth-child(7) { width: 40px; } /* row menu */
+/* Business Unit is optional and yields before decision columns when the drawer is open. */
+.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .th-business-unit,
+.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .td-business-unit { display: none; }
+.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .th-due,
+.split:not(.nodrawer) .tasks-table:has(.th-business-unit) .td-due { width: 104px; }
+.split:not(.nodrawer) .tasks-table .th-menu,
+.split:not(.nodrawer) .tasks-table .td-menu { width: 40px; }
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */

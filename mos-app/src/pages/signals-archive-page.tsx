@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { useAuth } from '@/auth/use-auth'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { useIsSplitWidth } from '@/shell/use-is-split-width'
+import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
@@ -57,9 +56,7 @@ export function SignalsArchivePage() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('nav.signals') }))
   const host = useOverlayHost()
-  const auth = useAuth()
-  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const isSplit = useIsSplitWidth()
+  const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [params, setParams] = useSearchParams()
@@ -72,8 +69,8 @@ export function SignalsArchivePage() {
     descriptor: signalCollectionDescriptor,
     urlMode: 'synced',
     isDesktop,
-    viewerId,
-    accessRoles: auth.status === 'authenticated' ? auth.viewer.accessRoles : [],
+    viewerId: null,
+    accessRoles: [],
   })
   const query = controller.state.query
   const projection = controller.state.projection

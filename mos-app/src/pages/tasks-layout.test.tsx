@@ -41,6 +41,7 @@ import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
+import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -68,7 +69,8 @@ function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boole
     writable: true,
     value: (query: string) => {
       let matches = false
-      if (query.includes('1100')) matches = split
+      if (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`)) matches = split
+      else if (query.includes('1100')) matches = split
       else if (query.includes('768')) matches = desktop
       else if (query.includes('919')) matches = !desktop // useIsNarrow (max-width)
       return {
