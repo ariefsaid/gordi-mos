@@ -18,4 +18,4 @@ export interface SignalRow {
 export interface StagedMention { kind: MentionKind; targetId: string; label: string }
 export interface TeamOption { id: string; name: string; business_unit_id: string; site_id: string | null; is_primary: boolean }
 export interface SiteOption { id: string; name: string }
-export interface CreateSignalInput { body: string; owningTeamId: string; occurredAt: string; mentions: StagedMention[] }
+export interface CreateSignalInput { body: string; owningTeamId: string; occurredAt: string; attention?: Attention; mentions: StagedMention[] }

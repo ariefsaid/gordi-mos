@@ -210,6 +210,7 @@ describe('createSignal', () => {
       'create_signal_with_mentions',
       {
         p_body: 'Freezer alarm went off @Peer',
+        p_attention: 'FYI',
         p_owning_team_id: TEAM_ID,
         p_occurred_at: '2026-07-16T02:00:00Z',
         p_mentions: [{ kind: 'person', targetId: 'person-peer' }],
@@ -224,7 +225,7 @@ describe('createSignal', () => {
     await createSignal({ body: 'No mentions here', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] })
     expect(rec.rpcs).toEqual([[
       'create_signal_with_mentions',
-      { p_body: 'No mentions here', p_owning_team_id: TEAM_ID, p_occurred_at: '2026-07-16T02:00:00Z', p_mentions: [] },
+      { p_body: 'No mentions here', p_owning_team_id: TEAM_ID, p_occurred_at: '2026-07-16T02:00:00Z', p_attention: 'FYI', p_mentions: [] },
     ]])
   })
 
