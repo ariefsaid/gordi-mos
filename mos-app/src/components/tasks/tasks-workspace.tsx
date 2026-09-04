@@ -542,15 +542,6 @@ export function TasksWorkspace({
         blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
         overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
       }
-  // #712 (design-528 evidence, S1.6/DD-10): the attention pill folds this stats.overdue count
-  // (derived from these SAME loaded rows) with the due-to-start count from useDueRuns — a
-  // DIFFERENT read (listDueRuns), fetched independently of the task list. A blanket-empty task
-  // read left the pill showing a nonzero "N need attention" beside "0 total" — two figures from
-  // different sources disagreeing on one screen. Only fold in the due-to-start count once the
-  // list itself has loaded rows to point the "need attention" claim at; while `stats` is
-  // null (unloaded) or its total is 0 (blanket-empty), withhold the due-runs source from the
-  // toolbar so the pill has nothing to show.
-  const listHasRows = stats !== null && stats.total > 0
   // Census R2 DO-6 (follow-ups F1/F2): on the Follow-ups view the loaded records are TASKS, so any
   // count derived from `stats` mislabels tasks as follow-up scope ("11 items in your scope" above a
   // coming-soon body). While the view is the reserved placeholder the toolbar also drops every
@@ -596,7 +587,7 @@ export function TasksWorkspace({
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
-      dueRuns={listHasRows ? dueRuns : undefined}
+      dueRuns={dueRuns}
       reserved={reservedFollowups}
       savedViews={{
         label: t('tasks.savedViews'),
@@ -740,13 +731,12 @@ export function TasksWorkspace({
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
             />
-            {/* The due-runs list renders AFTER the surface (table stays first content). #712: it
-                only surfaces once the task list itself has rows (listHasRows, above) — its only
-                trigger is the toolbar's attention pill, which withholds due-runs data for the same
-                reason (see the listHasRows comment above stats). */}
+            {/* The due-runs list renders AFTER the surface (table stays first content) and, unlike
+                the presentation, on EVERY state — a capable viewer with due work but zero tasks yet
+                must still be able to expand and start a run. */}
             <DueRunsList
-              due={listHasRows ? dueRuns.due : []}
-              expanded={listHasRows && dueRuns.expanded}
+              due={dueRuns.due}
+              expanded={dueRuns.expanded}
               startingKey={dueRuns.startingKey}
               startError={dueRuns.startError}
               onStart={dueRuns.handleStart}

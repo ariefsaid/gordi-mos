@@ -28,7 +28,7 @@ export function DueRunsTrigger({ due, expanded, onToggle }: DueRunsTriggerProps)
       aria-expanded={expanded}
       onClick={onToggle}
     >
-      <span>{t('processes.due.summary', { count: due.length })}</span>
+      <span>{t(due.length === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: due.length })}</span>
       <Chevron className={`due-runs-chev${expanded ? '' : ' due-runs-chev-collapsed'}`} />
     </button>
   )

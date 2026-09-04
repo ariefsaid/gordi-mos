@@ -24,16 +24,16 @@ describe('DueRunsTrigger (design fix wave item 1)', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('renders a compact "N due to start" summary button when due work exists, collapsed by default (aria-expanded=false)', () => {
-    renderTrigger({ due: [DUE_ROW, DUE_ROW], expanded: false })
-    const btn = screen.getByRole('button', { name: /2 due to start/i })
+  it('renders the labelled source count for three due runs, collapsed by default (aria-expanded=false)', () => {
+    renderTrigger({ due: [DUE_ROW, DUE_ROW, DUE_ROW], expanded: false })
+    const btn = screen.getByRole('button', { name: '3 runs due to start' })
     expect(btn).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('reflects expanded=true via aria-expanded and fires onToggle on click', () => {
     const onToggle = vi.fn()
     renderTrigger({ due: [DUE_ROW], expanded: true, onToggle })
-    const btn = screen.getByRole('button', { name: /1 due to start/i })
+    const btn = screen.getByRole('button', { name: '1 run due to start' })
     expect(btn).toHaveAttribute('aria-expanded', 'true')
     fireEvent.click(btn)
     expect(onToggle).toHaveBeenCalled()

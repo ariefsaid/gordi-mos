@@ -909,21 +909,18 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   // unchanged (a capable viewer reveals + starts a due run, collapsed by default); only the
   // control that reveals it changed from a bespoke trigger to the shared attention pill.
   async function expandDueRuns() {
-    const trigger = await screen.findByRole('button', { name: /need attention/i })
+    const trigger = await screen.findByRole('button', { name: /runs? due to start/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(trigger)
     await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
   }
 
   it('the attention pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
-    // #712: at least one ad-hoc task keeps this fixture off the blanket-empty edge (see the
-    // dedicated test below) — this test's own goal-oracle is capability + start behavior, not
-    // the zero-task count-mismatch case.
-    mockListTasks.mockResolvedValue([makeTask({ id: 'seed', title: 'Seed task' })])
+    mockListTasks.mockResolvedValue([])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
-    const trigger = await screen.findByRole('button', { name: '1 need attention' })
+    const trigger = await screen.findByRole('button', { name: '1 run due to start' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
 
@@ -954,8 +951,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   })
 
   it('clicking Start · <process name> calls startRun and refreshes the task list', async () => {
-    // #712: non-empty seed task keeps this off the blanket-empty edge — see note above.
-    mockListTasks.mockResolvedValue([makeTask({ id: 'seed', title: 'Seed task' })])
+    mockListTasks.mockResolvedValue([])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     const spawnResult: SpawnResult = { run_id: 'run-1', created: 1, pending: 1, idempotent: false }
     mockStartRun.mockResolvedValue(spawnResult)
@@ -1173,31 +1169,5 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     }
     expect(screen.getByLabelText(/^group$/i)).toHaveValue('occurrence')
     expect(document.body.textContent).not.toMatch(/Process Run/)
-  })
-})
-
-// #712 (design-528 evidence, S1.6/DD-10): the attention pill folds task-derived "overdue" with
-// process-derived "due to start" (Item 3(a) above) into one blended count. That fold is a
-// DIFFERENT read (listDueRuns) than the one the task list and its "0 total" meta line render
-// from — so a blanket-empty task read left the pill showing a nonzero "N need attention" right
-// beside "0 total", two figures from different sources disagreeing on one screen. The count is
-// honest once the list itself has loaded rows to point at (see the seeded fixtures above); while
-// it is blanket-empty there is nothing on screen for "need attention" to refer to, so it hides.
-describe('Issue 712 — attention pill vs. blanket-empty task list', () => {
-  const DUE_ROW: DueProcessRun = {
-    work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
-    owning_team_id: 'team-1', team_name: 'HQ Operations',
-    period_key: '2026-07-17', scheduled_date: '2026-07-17',
-  }
-
-  it('shows no attention figure when the task read is blanket-empty, even though a due-to-start run exists', async () => {
-    mockListTasks.mockResolvedValue([])
-    mockListDueRuns.mockResolvedValue([DUE_ROW])
-    renderPage(CAPABLE_AUTH)
-
-    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toBe('0 open · 0 total')
-    // The "N need attention" pill would contradict the "0 total" beside it — must not render.
-    expect(screen.queryByRole('button', { name: /need attention/i })).not.toBeInTheDocument()
   })
 })

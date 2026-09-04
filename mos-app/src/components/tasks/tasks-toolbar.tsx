@@ -222,7 +222,7 @@ export function TasksToolbar({
               type="button"
               className="overdue-filter-btn"
               aria-label={dueCount > 0
-                ? t('tasks.filter.attentionCount', { count: attentionCount })
+                ? t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })
                 : t('tasks.filter.overdueAria', { count: overdueCount })}
               aria-expanded={dueCount > 0 ? (dueRuns?.expanded ?? false) : undefined}
               onClick={() => {
@@ -231,7 +231,7 @@ export function TasksToolbar({
               }}
             >
               {dueCount > 0
-                ? t('tasks.filter.attentionCount', { count: attentionCount })
+                ? t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })
                 : t('tasks.filter.overdueCount', { count: overdueCount })}
             </button>
           ) : null}
