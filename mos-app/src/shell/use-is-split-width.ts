@@ -4,7 +4,7 @@ export const TASKS_RAIL_WIDTH = 232
 export const TASKS_FRAME_GUTTER_PX = 32
 export const TASKS_DRAWER_MAX_WIDTH = 400
 export const TASKS_SPLIT_GAP_PX = 12
-export const TASKS_TABLE_BORDER_PX = 2 // the .assembly card's 1px top + 1px bottom border
+export const TASKS_TABLE_BORDER_PX = 2 // the .assembly card's 1px left + 1px right border (a width budget)
 export const TASKS_SPLIT_FLOOR_TOTAL = 660
 
 // Keep this arithmetic beside the media query: it is the viewport width at which the rail,
