@@ -286,12 +286,15 @@ describe('Unauthenticated state', () => {
 
 // ── empty state (no WIP items) ────────────────────────────────────────────────
 describe('Empty state — no WIP items (FR-011)', () => {
-  it('shows "No active WIP items" message', async () => {
+  it('resolved-empty item read renders the honest empty form, not an error', async () => {
     mockListCaptureFormItems.mockResolvedValue([])
+    // An empty item roster must not turn an unnecessary plan read into a false item-read error.
+    mockFetchPlanMap.mockRejectedValue(new Error('no plan read should be needed'))
     await renderPage()
     await waitFor(() => {
       expect(screen.getByText(/no active wip items/i)).toBeInTheDocument()
     })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   // Half B convergence: missing WIP-item configuration is never the 'quiet' ✓ earned-all-clear
@@ -319,13 +322,14 @@ describe('Empty state — no WIP items (FR-011)', () => {
 
 // ── error state ───────────────────────────────────────────────────────────────
 describe('Error state — fetch failure', () => {
-  it('shows retry message when WIP fetch fails', async () => {
+  it('rejected item read renders the error alert with Retry, not the empty form', async () => {
     mockListCaptureFormItems.mockRejectedValue(new Error('network error'))
     await renderPage()
     await waitFor(() => {
       expect(screen.getByText(/couldn’t load the item list/i)).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
     })
+    expect(screen.queryByText(/no active wip items/i)).not.toBeInTheDocument()
   })
 
   it('retries on retry click', async () => {
