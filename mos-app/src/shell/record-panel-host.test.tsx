@@ -141,7 +141,10 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
     renderHost({ title: 'Signal', onClose })
     expect(document.querySelector('.record-panel-chrome')).toBeTruthy()
     expect(screen.getByText('Signal', { selector: '.record-panel-title' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^close$/i }))
+    const close = screen.getByRole('button', { name: /^close$/i })
+    expect(close).toHaveAttribute('aria-label', 'Close')
+    expect(close).toHaveClass('record-panel-btn', 'tap-floor')
+    fireEvent.click(close)
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 

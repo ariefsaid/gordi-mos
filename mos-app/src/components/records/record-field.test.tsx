@@ -259,14 +259,14 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
     expect(css).toMatch(/\.record-field__retry[\s\S]*min-height:\s*44px/)
   })
 
-  // F5 density: the RESTING value activation target (.record-field__edit) is a touch floor, not an
-  // NFR-guarded edit-mode control. On a fine pointer (desktop mouse) it tightens to E7's kv rhythm
-  // so editable rows stop reading at 52px; the EDIT-mode controls above keep 44px unconditionally.
-  it('tightens the resting value target to the E7 kv rhythm on a fine pointer (touch keeps 44px)', () => {
-    // The default (touch) resting target stays at the 44px floor.
+  // F5 density: the RESTING value activation target (.record-field__edit) keeps the 44px phone
+  // floor at ANY pointer. At desktop width, a fine pointer tightens it to E7's kv rhythm; the
+  // EDIT-mode controls above keep 44px unconditionally.
+  it('tightens the resting value target to the E7 kv rhythm on a fine pointer (phone keeps 44px at any pointer)', () => {
+    // The default phone resting target stays at the 44px floor for every pointer type.
     expect(css).toMatch(/\.record-field__edit\s*\{[\s\S]*?min-height:\s*44px/)
-    // A pointer:fine block tightens the resting target below 44px.
-    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*\.record-field__edit[\s\S]*min-height:\s*32px/)
+    // A guarded pointer:fine block tightens only the desktop resting target below 44px.
+    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field__edit\s*\{[^}]*?min-height:\s*32px/)
   })
 
   // DO-23(a) (census-sweep R2 task-record P3-1): permission-invariant row rhythm — a read-only
@@ -274,6 +274,6 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
   // so a non-editor persona sees the same document cadence as an editor.
   it('DO-23(a): read-only values share the editable row pitch in both pointer tiers', () => {
     expect(css).toMatch(/\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*46px/)
-    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*\.record-field--readonly \.record-field__value\s*\{[\s\S]*?min-height:\s*34px/)
+    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field--readonly \.record-field__value\s*\{[^}]*?min-height:\s*34px/)
   })
 })

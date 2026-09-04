@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
@@ -69,6 +71,14 @@ afterEach(() => vi.useRealTimers())
 
 // ── AC-K07 ──────────────────────────────────────────────────────────────────
 describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
+  it('phone floor: the rendered combobox input carries the 44px tap target', () => {
+    const buttonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Button.css'), 'utf8')
+    renderMenu()
+    const input = screen.getByRole('combobox')
+    expect(input).toHaveClass('tap-floor')
+    expect(buttonCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*?\.tap-floor\s*\{[^}]*min-height:\s*44px/)
+  })
+
   it('AC-K07: renders role=dialog with aria-modal and an accessible name', () => {
     renderMenu()
     const dialog = screen.getByRole('dialog', { name: 'Command menu' })
