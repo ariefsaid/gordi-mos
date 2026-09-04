@@ -73,7 +73,7 @@ const OPTION_CONTROLS: ReadonlySet<RecordFieldControl> = new Set([
 
 // Controls whose VALUE reads as an entity chip in the document (a person, a team, a
 // linked record). Status renders as its own interactive pill; everything else is prose.
-const CHIP_CONTROLS: ReadonlySet<RecordFieldControl> = new Set(['person', 'team', 'relation'])
+const CHIP_CONTROLS: ReadonlySet<RecordFieldControl> = new Set(['select', 'person', 'team', 'relation'])
 
 function toInputValue(value: RecordValue): string {
   if (value === null || value === undefined) return ''
@@ -445,6 +445,7 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
       <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
         <span className="record-field__pill-dot" aria-hidden="true" />
         {spec.displayValue}
+        <span aria-hidden="true" className="record-field__pill-caret" />
       </span>
     )
   }

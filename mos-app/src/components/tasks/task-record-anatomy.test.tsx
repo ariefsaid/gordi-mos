@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, within } from '@testing-library/react'
+import { render, within, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -85,7 +85,12 @@ function observedVector(container: HTMLElement): string[] {
 describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', () => {
   it('observed section-order vector === declared [content, ownership, relations, checklist, activity]', () => {
     const { container } = renderRecord()
-    expect(observedVector(container)).toEqual([...DECLARED])
+    const slots = new Set<string>()
+    for (const tab of within(container).getAllByRole('tab')) {
+      fireEvent.click(tab)
+      container.querySelectorAll('[data-content-slot]').forEach((node) => slots.add((node as HTMLElement).dataset.contentSlot!))
+    }
+    expect([...slots]).toEqual([...DECLARED])
   })
 
   it('F1 — content leads: the first body region after identity is content, with no metadata region before it (AC-ANAT-006)', () => {
@@ -119,6 +124,7 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
 
   it('F4 — no raw diff dump; the event log lives in exactly ONE region (activity)', () => {
     const { container } = renderRecord()
+    fireEvent.click(within(container).getByRole('tab', { name: 'Activity' }))
     const activityRegions = [...container.querySelectorAll('[data-content-slot]')].filter((n) =>
       n.querySelector('.record-viewer__activity'),
     )

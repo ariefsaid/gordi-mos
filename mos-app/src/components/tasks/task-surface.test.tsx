@@ -168,17 +168,17 @@ describe('TaskSurface — view mode', () => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
     // Left panel: status + typed ownership always visible (decision-drivers above the fold)
-    expect(screen.getAllByText('Open').length).toBeGreaterThan(0)
+    expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     expect(screen.getByText('PIC')).toBeInTheDocument()
     expect(screen.getByText('Supervisor')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
-    // Content-first anatomy (OD-REDESIGN-90): Checklist and Activity are separate stacked regions
-    // (the tabbed feed is retired), so both are directly visible — no tab to click.
-    expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
+    expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
   })
 
   it('AC-I02: Indonesian locale localizes the task record chrome and feed', async () => {
@@ -190,13 +190,13 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
     expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
     expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
-    // Content-first anatomy: Checklist and Activity are stacked regions (the tabbed feed is retired),
-    // localized. Assert the Indonesian Activity region, the collapsed combined empty line, and the
-    // composer/complete actions.
-    expect(screen.getByRole('region', { name: 'Aktivitas' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Checklist' }))
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Aktivitas' }))
+    expect(screen.getByRole('region', { name: 'Aktivitas' })).toBeInTheDocument()
     expect(screen.getByText(/jadilah yang pertama berkomentar/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kirim komentar' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Detail' }))
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     expect(screen.queryByText('Task details')).toBeNull()
     localStorage.removeItem('mos.locale')
@@ -209,13 +209,19 @@ describe('TaskSurface — view mode', () => {
     // Content-first anatomy: content (Task details) leads, then ownership, relations, and the
     // Checklist + Activity regions stacked below — one column, one shared RecordViewer, no tabs.
     expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
     // The shared RecordViewer owns identity + every ordered content slot, content-first.
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
-    const regions = [...document.querySelectorAll('[data-content-slot]')].map((n) => (n as HTMLElement).dataset.contentSlot)
-    expect(regions).toEqual(['content', 'ownership', 'relations', 'checklist', 'activity'])
+    const regions = new Set<string>()
+    for (const tab of ['Details', 'Checklist', 'Activity']) {
+      fireEvent.click(screen.getByRole('tab', { name: tab }))
+      document.querySelectorAll('[data-content-slot]').forEach((n) => regions.add((n as HTMLElement).dataset.contentSlot!))
+    }
+    expect([...regions]).toEqual(['content', 'ownership', 'relations', 'checklist', 'activity'])
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
@@ -226,6 +232,7 @@ describe('TaskSurface — view mode', () => {
 
     renderSurface()
 
+    fireEvent.click(await screen.findByRole('tab', { name: /activity/i }))
     await waitFor(() => expect(screen.getByText('Please check the blocker')).toBeInTheDocument())
     expect(mockListComments).toHaveBeenCalledWith(expect.objectContaining({
       entityType: 'task',
@@ -239,6 +246,7 @@ describe('TaskSurface — view mode', () => {
     renderSurface()
 
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     const box = screen.getByRole('textbox', { name: /^comment$/i })
     fireEvent.change(box, { target: { value: 'On it' } })
     fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
@@ -331,7 +339,7 @@ describe('TaskSurface — mutation handlers', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockResolvedValue()
     renderSurface()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Drain reservoir'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Drain reservoir' }))
     await waitFor(() =>
@@ -343,7 +351,7 @@ describe('TaskSurface — mutation handlers', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
     renderSurface()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Drain reservoir'))
     const cb = () => screen.getByRole('checkbox', { name: 'Drain reservoir' }) as HTMLInputElement
     expect(cb().checked).toBe(false)
@@ -429,7 +437,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     const { addChecklistItem } = await import('@/lib/db/tasks')
     vi.mocked(addChecklistItem).mockResolvedValue()
     renderDrawer()
-    // Content-first anatomy: the checklist add field is directly visible (no tab to open).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     const input = await screen.findByLabelText(/add checklist item/i)
     fireEvent.change(input, { target: { value: 'Buy beans' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -444,7 +452,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
     renderSurface()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Wipe counter'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Wipe counter' }))
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -479,25 +487,28 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
   }]
 
-  it('AC-R06 (drawer): compact single-column record — content leads, ownership + checklist + activity stacked, no tabs', async () => {
+  it('AC-R06 (drawer): compact single-column record — content leads with tabs present', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     // Variant B anatomy: the persistent tabs accompany the directly-visible regions.
     expect(screen.getByRole('tablist')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
   })
 
-  it('AC-R06 (drawer): content leads and ownership + checklist are both directly visible (no tab to switch)', async () => {
+  it('AC-R06 (drawer): tabs are present for record sections', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
-    // Checklist is a stacked region, directly visible — not behind a tab.
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     await waitFor(() => expect(screen.getByText('Inspect coil')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /details/i }))
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
   })
 

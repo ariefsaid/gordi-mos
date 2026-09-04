@@ -212,14 +212,15 @@ describe('AC-070 — detail page renders task fields', () => {
     // false-positive on the test's own fixture names "Consulted Person"/"Informed Person").
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted \(C\)|Informed \(I\)/)).toBeNull()
 
-    // Activity region (content-first: a stacked region, no longer a tab)
+    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
 
+    fireEvent.click(screen.getByRole('tab', { name: /details/i }))
     // Description renders once, in the content region prose (the Notes feed tab was a fossil,
     // deleted deliberately — owner-eyes item 11 / commit b031937; journey step updated, goal intact).
     expect(screen.getAllByText(/espresso machine on floor 2 is broken/i).length).toBeGreaterThan(0)
 
-    // Content-first anatomy: the Checklist is a directly-visible stacked region (no tab to click).
+    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByText('Inspect heating element')).toBeTruthy()
     expect(screen.getByText('Order parts')).toBeTruthy()
   }, 10_000)
@@ -323,7 +324,7 @@ describe('AC-074 — checklist add / toggle', () => {
   it('adds an item: addChecklistItem called, item appears', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderDetail()
-    // Content-first anatomy: the checklist add field is directly visible (no tab to open).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     const input = await screen.findByPlaceholderText(/add a step/i)
     fireEvent.change(input, { target: { value: 'Buy a new gasket' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -337,7 +338,7 @@ describe('AC-074 — checklist add / toggle', () => {
     const checklist = makeChecklist([{ id: 'item-0', label: 'Inspect coil', is_done: false }])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Inspect coil'))
 
     const checkbox = screen.getByRole('checkbox', { name: /inspect coil/i })
@@ -355,7 +356,7 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Step A'))
 
     // Move "Step A" down (move-down button on the first item)
@@ -376,7 +377,7 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Step B'))
 
     // Move "Step B" up — use the specific aria-label on its move-up button
@@ -395,7 +396,7 @@ describe('AC-074 — checklist add / toggle', () => {
     ])
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDetail()
-    // Content-first anatomy: the checklist is a directly-visible stacked region (no tab).
+    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Remove me'))
 
     const deleteBtn = screen.getByRole('button', { name: /delete checklist item remove me/i })
@@ -420,6 +421,7 @@ describe('AC-075 / AC-P3-CM-004 — activity log + comments', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events })
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
 
     // Events must appear — newest (status_changed at 10:00) should be first in DOM
     const log = screen.getByRole('region', { name: /activity/i })
