@@ -1233,6 +1233,17 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(screen.getByRole('table', { name: /café production log/i })).toBeInTheDocument()
     expect(document.querySelector('.dt-cards')).toBeNull()
   })
+
+  it('phone capture cards show the item category caption and current stock figure', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const card = screen.getByText('Ayam Bakar').closest('.kl-card')
+    expect(card).not.toBeNull()
+    expect(within(card as HTMLElement).getByText('Main')).toBeInTheDocument()
+    expect(within(card as HTMLElement).getByText('3')).toBeInTheDocument()
+    expect(within(card as HTMLElement).getByText(/stock/i)).toBeInTheDocument()
+  })
 })
 
 // GAP-4 / OD-REDESIGN-91 #9 — the route-leave dirty guard. The live-reproduced loss (staged

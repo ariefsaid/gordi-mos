@@ -254,6 +254,16 @@
   gap: 12px;
   min-width: 0;
 }
+.kl-card-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kl-card-category {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
 .kl-card-name {
   font-size: var(--font-size-body-lg);
   font-weight: 600;
