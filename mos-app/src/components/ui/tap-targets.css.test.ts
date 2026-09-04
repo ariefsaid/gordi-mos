@@ -78,8 +78,9 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
   // consumer (task-create form, record fields, future surfaces) inherits it — min-height beats
   // the per-surface height overrides (e.g. the create form's 36px rhythm) only on phone.
   it('DO-15(a): raises the shared field primitives (TextInput/Select/DateField) to 44px on phone', () => {
-    expect(mediaBody(textInputCss, '@media (max-width: 767.98px)'))
-      .toMatch(/\.mk-textinput__box[\s\S]*min-height:\s*44px/)
+    const textInputBody = mediaBody(textInputCss, '@media (max-width: 767.98px)')
+    expect(textInputBody).toMatch(/\.mk-textinput__box[\s\S]*min-height:\s*44px/)
+    expect(textInputBody).toMatch(/\.mk-textinput__field[\s\S]*min-height:\s*44px/)
     const selectBody = mediaBody(selectCss, '@media (max-width: 767.98px)')
     expect(selectBody).toMatch(/\.mk-select__box[\s\S]*min-height:\s*44px/)
     expect(selectBody).toMatch(/\.mk-select__field[\s\S]*min-height:\s*44px/)
