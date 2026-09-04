@@ -25,6 +25,8 @@ export interface SignalFeedRowsProps {
   teamNamesById: Record<string, string>
   onShareClick?: () => void
   onCategorize?: (signalId: string, category: SignalCategory) => void
+  onCreateTask?: (signal: SignalRow) => void
+  createTaskHref?: (signal: SignalRow) => string | undefined
   onOpen?: (signal: SignalRow) => void
   /**
    * `ambient` (default) — the Home tail: no per-row state fill, so Home reads as one calm system.
@@ -41,7 +43,7 @@ export interface SignalFeedRowsProps {
 export const AMBIENT_CAP = 6
 
 export function SignalFeedRows({
-  signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onOpen,
+  signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onCreateTask, createTaskHref, onOpen,
   variant = 'ambient',
 }: SignalFeedRowsProps) {
   const t = useT()
@@ -130,6 +132,7 @@ export function SignalFeedRows({
             }
             const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
             const teamName = teamNamesById[signal.owning_team_id] ?? ''
+            const taskHref = createTaskHref?.(signal)
             // F3 (OD-REDESIGN-91 #18): the archive row-fill is URGENT ONLY — the amber fill + 2px
             // rule is the "act now" top tier. Needs attention keeps its amber pill on a calm row.
             // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
@@ -185,6 +188,17 @@ export function SignalFeedRows({
                   <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
                     {attentionLabel(t, signal.attention)}
                   </span>
+                  {(onCreateTask || taskHref) && (
+                    taskHref ? (
+                      <Link to={taskHref} className="btn btn-outline home-signal-create-task">
+                        {t('tasks.new')}
+                      </Link>
+                    ) : (
+                      <button type="button" className="btn btn-outline home-signal-create-task" onClick={() => onCreateTask?.(signal)}>
+                        {t('tasks.new')}
+                      </button>
+                    )
+                  )}
                   <SignalCategoryPicker
                     category={signal.category}
                     onCategorize={onCategorize ? (category) => onCategorize(signal.id, category) : undefined}

@@ -25,6 +25,8 @@ export interface SignalFeedSectionProps {
   authorNamesById: ReadonlyMap<string, string>
   /** Team id → display name, from the shared feed's resolved context. */
   teamNamesById: ReadonlyMap<string, string>
+  onCreateTask?: (signal: SignalRow) => void
+  createTaskHref?: (signal: SignalRow) => string | undefined
   /** The shared read's initial-load state — Home's own skeleton regions cover it (NFR-405). */
   loading?: boolean
   /** The shared read failed — render ErrorState + Retry, never an empty-looking all-clear (DIV-G5). */
@@ -38,7 +40,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 }
 
 export function SignalFeedSection({
-  signals, authorNamesById, teamNamesById, loading = false, error = false, onReload,
+  signals, authorNamesById, teamNamesById, onCreateTask, createTaskHref, loading = false, error = false, onReload,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -116,6 +118,8 @@ export function SignalFeedSection({
           teamNamesById={namesToRecord(teamNamesById)}
           onShareClick={openSignalComposer}
           onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
+          onCreateTask={onCreateTask}
+          createTaskHref={createTaskHref}
           onOpen={(signal) => openRecord(signal.id)}
         />
       )}

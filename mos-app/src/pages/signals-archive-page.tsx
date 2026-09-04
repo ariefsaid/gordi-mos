@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
+import { useAuth } from '@/auth/use-auth'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
@@ -56,6 +57,8 @@ export function SignalsArchivePage() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('nav.signals') }))
   const host = useOverlayHost()
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const isSplit = useIsSplitWidth()
   const isDesktop = useIsDesktop()
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -69,8 +72,8 @@ export function SignalsArchivePage() {
     descriptor: signalCollectionDescriptor,
     urlMode: 'synced',
     isDesktop,
-    viewerId: null,
-    accessRoles: [],
+    viewerId,
+    accessRoles: auth.status === 'authenticated' ? auth.viewer.accessRoles : [],
   })
   const query = controller.state.query
   const projection = controller.state.projection

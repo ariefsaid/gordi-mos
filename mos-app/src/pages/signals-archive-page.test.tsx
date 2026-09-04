@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { AuthContext, type AuthState } from '@/auth/context'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
@@ -102,11 +103,24 @@ function DraftProbe() {
   return <output data-testid="pending-draft">{pendingDraft ?? ''}</output>
 }
 
-function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null) {
+const archiveAuth: AuthState = {
+  status: 'authenticated',
+  viewer: {
+    person: {
+      id: 'viewer-1', org_id: 'org-1', user_id: 'user-1', full_name: 'Viewer', email: 'viewer@example.test',
+      must_change_password: false, archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    },
+    roles: [], isManager: false, accessRoles: [],
+  },
+  signOut: async () => {},
+}
+
+function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState) {
   return (
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
-        <AgentRuntimeProvider runtime={runtime}>
+        <AuthContext.Provider value={auth ?? { status: 'unauthenticated' }}>
+          <AgentRuntimeProvider runtime={runtime}>
           <OverlayHostProvider>
             <LocationProbe />
             <DraftProbe />
@@ -114,14 +128,15 @@ function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = 
               <Route path="/work/signals" element={<SignalsArchivePage />} />
             </Routes>
           </OverlayHostProvider>
-        </AgentRuntimeProvider>
+          </AgentRuntimeProvider>
+        </AuthContext.Provider>
       </MemoryRouter>
     </I18nProvider>
   )
 }
 
-function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null) {
-  return render(pageTree(initialPath, runtime))
+function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState) {
+  return render(pageTree(initialPath, runtime, auth))
 }
 
 // OD-REDESIGN-84.1: the filters/group/sort/toggles (incl. Show retracted) live behind the one
@@ -392,6 +407,12 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // Still exactly one search input — the toolbar instance inside the now-open door did not
     // render a duplicate copy alongside the one planted outside it.
     expect(screen.getAllByRole('searchbox', { name: /search signals/i })).toHaveLength(1)
+  })
+
+  it('authenticated archive Feed rows render the Create task control', async () => {
+    renderPage('/work/signals?layout=feed', null, archiveAuth)
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(screen.getAllByRole('link', { name: /create task/i }).length).toBeGreaterThan(0)
   })
 
   it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {

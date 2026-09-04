@@ -56,6 +56,8 @@ export interface TaskCollectionRuntime {
   onEditPic: (taskId: string, personId: string) => Promise<void>
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
+  draftLinkError: boolean
+  onRetryDraftLink: () => void
   onCloseDrawer: () => void
   onNewTask: (prefillParam?: string) => void
   onAddTask: (prefillParam: string) => void
@@ -119,6 +121,8 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onEditPic: async () => {},
   draftTask: null,
   onDiscardNewTask: () => {},
+  draftLinkError: false,
+  onRetryDraftLink: () => {},
   onCloseDrawer: () => {},
   onNewTask: () => {},
   onAddTask: () => {},
@@ -492,6 +496,8 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
         isNew={task.id === runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
+        createError={task.id === runtime.draftTask?.id && runtime.draftLinkError}
+        onRetryCreate={runtime.onRetryDraftLink}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={runtime.recordSearch}
         provenanceRoleName={task.generated_from_task_def_id

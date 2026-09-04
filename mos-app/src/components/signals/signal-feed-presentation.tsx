@@ -6,6 +6,7 @@
 // state. The collection contract also provides onOpenRecord — wire it through so browser Back
 // preserves the collection query state (FR-V3-OPENER).
 import { SignalFeedRows } from './signal-feed-rows'
+import { signalTaskCreateHref } from './signal-task-intent'
 import { useSignalCollectionActions } from './signal-collection-actions'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
@@ -27,6 +28,12 @@ export function SignalFeedPresentation({
   string
 >) {
   const actions = useSignalCollectionActions()
+  const createTaskHref = context.viewerId && context.businessUnitIdsByTeamId
+    ? (signal: SignalRow) => {
+        const businessUnitId = context.businessUnitIdsByTeamId?.get(signal.owning_team_id)
+        return businessUnitId ? signalTaskCreateHref(signal, businessUnitId, context.viewerId!) : undefined
+      }
+    : undefined
   return (
       <SignalFeedRows
         variant="archive"
@@ -36,6 +43,7 @@ export function SignalFeedPresentation({
         // D-D2: the archive Feed's Share door is hosted by the CollectionToolbar (layout-independent),
         // so the in-feed ambient-only Share row is intentionally not wired here.
         onCategorize={actions.onCategorize}
+        createTaskHref={createTaskHref}
         onOpen={onOpenRecord ? (signal) => onOpenRecord(signal) : undefined}
       />
   )

@@ -64,6 +64,7 @@ import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { isShipGated } from '@/lib/ship-gate'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -220,6 +221,7 @@ export function HomePage() {
   // rows paint with a name the page could still fail to fetch.
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
+  const [teamBusinessUnits, setTeamBusinessUnits] = useState<ReadonlyMap<string, string>>(NO_NAMES)
   const [signalsState, setSignalsState] = useState<FetchState>('loading')
   const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
@@ -234,6 +236,7 @@ export function HomePage() {
         if (!isMountedRef.current || signalsTokenRef.current !== token) return
         setSignals(rows)
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
+        setTeamBusinessUnits(new Map(teams.map(team => [team.id, team.business_unit_id])))
         setSignalsState('ready')
       })
       .catch(() => {
@@ -448,6 +451,12 @@ export function HomePage() {
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
+              createTaskHref={(signal) => {
+                const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
+                return personId && businessUnitId
+                  ? signalTaskCreateHref(signal, businessUnitId, personId)
+                  : undefined
+              }}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}

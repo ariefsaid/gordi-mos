@@ -63,7 +63,7 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
     const region = document.querySelector('[data-signal-region="reach"]') as HTMLElement
     const cluster = region.querySelector('[data-signal-actions]')!
     // Every mutating verb is inside the single cluster.
-    for (const name of [/create follow-up task/i, /link existing task/i, /acknowledge/i]) {
+    for (const name of [/create task/i, /link existing task/i, /acknowledge/i]) {
       expect(within(cluster as HTMLElement).getByRole('button', { name })).toBeInTheDocument()
     }
   })

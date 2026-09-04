@@ -64,6 +64,8 @@ export type TaskRowProps = {
   showBusinessUnit?: boolean
   isNew?: boolean
   onDiscardNewTask?: () => void
+  createError?: boolean
+  onRetryCreate?: () => void
 }
 
 function InlineCommitFeedback({ error, retry, liveMessage }: { error: boolean; retry: () => void; liveMessage: string }) {
@@ -81,7 +83,7 @@ export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask,
+  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -118,6 +120,8 @@ export function TaskRow({
   // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
   // shared panel's close returns focus to the invoking element.
   const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current) }, [])
   const inline = useInlineCommit<string>({
     value: task.title,
     onCommit: (next) => (onEditTitle ? onEditTitle(task.id, next) : undefined),
@@ -162,6 +166,10 @@ export function TaskRow({
     onCommit: (next) => (onEditDue ? onEditDue(task.id, next || null) : undefined),
     rollbackMessage: t('tasks.feedback.rollback'),
   })
+
+  useEffect(() => {
+    if (createError) newCommitStarted.current = false
+  }, [createError])
 
   useEffect(() => {
     if (editing) {
@@ -239,6 +247,7 @@ export function TaskRow({
   const onTitleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
     if (canEdit) beginEdit()
     else onOpen(task.id)
   }
@@ -324,6 +333,14 @@ export function TaskRow({
         {/* OD-REDESIGN-22 (D-C1): a failed rename surfaces a VISIBLE error + Retry — not a sr-only
             rollback the sighted user never sees. Retry re-sends the preserved attempt. The sr-only
             live region still announces the revert for AT. */}
+        {createError && (
+          <span role="alert" className="task-row-save-error">
+            {t('tasks.create.linkFailed')}
+            <button type="button" className="task-row-retry" onClick={(e) => { e.stopPropagation(); onRetryCreate?.() }}>
+              {t('record.field.retry')}
+            </button>
+          </span>
+        )}
         {saveError && (
           <span role="alert" className="task-row-save-error">
             {t('record.field.saveError')}
