@@ -82,14 +82,9 @@ test('AC-630: Start a due occurrence → single-holder Task groups under the cap
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
 
-  // STALE→fixed: item 3(a) of the design fix wave folded the separate "N overdue" and "N due to
-  // start" pills into ONE count-labeled attention pill (critic-cited "Wall-of-Options" at w1024;
-  // src/components/tasks/tasks-toolbar.tsx, tasks.filter.attentionCount = "${count} need
-  // attention" in src/i18n/messages.ts). Clicking it still opens the overdue filter AND expands
-  // the due-runs disclosure (useDueRuns.toggleExpanded) when due work exists — the collapsed-by-
-  // default behavior (design-review step-6 CRITICAL) this test depends on is unchanged.
-  // Desktop: the attention pill is in the inline View & filters options row.
-  await page.getByRole('button', { name: /need attention/i }).click()
+  // The toolbar pill names its source and opens only the due-runs disclosure.
+  // Desktop: it is in the inline View & filters options row.
+  await page.getByRole('button', { name: /runs? due to start/i }).click()
 
   const dueRow = page.locator('li.due-runs-row')
     .filter({ hasText: 'Café HQ daily opening' })

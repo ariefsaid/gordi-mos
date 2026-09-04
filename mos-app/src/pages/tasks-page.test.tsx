@@ -926,9 +926,22 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
 
     await expandDueRuns()
     await waitFor(() => screen.getByText('Café HQ daily opening'))
+    // A due-runs pill must not also apply the overdue task filter.
+    expect(_capturedLocation?.search).not.toMatch(/overdueOnly/)
     // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
     // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
     expect(screen.getByRole('button', { name: 'Start · Café HQ daily opening' })).toBeInTheDocument()
+  })
+
+  it('the overdue pill applies its filter without opening the due-runs disclosure', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
+    mockListDueRuns.mockResolvedValue([])
+    renderPage(CAPABLE_AUTH)
+
+    const pill = await screen.findByRole('button', { name: /overdue/i })
+    fireEvent.click(pill)
+    await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue/i })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })
 
   it('the due-runs trigger is absent for a viewer without process.start', async () => {

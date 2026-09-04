@@ -1,24 +1,4 @@
-/* DueRunsTrigger + DueRunsList (design fix wave item 1) — a thin due-occurrence disclosure over the
-   DS tokens (DESIGN.md). The trigger is a compact toggle rendered inline in the Tasks toolbar
-   (F5 design fix, 2026-07-22 — no separate row/band of its own); the list only renders on demand,
-   AFTER the Tasks table, so it never floods/buries the table (design-review step-6 CRITICAL). */
-.due-runs-trigger {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 32px; padding: 0 10px;
-  border: 1px solid var(--input); border-radius: var(--radius-sm);
-  background: var(--background); color: var(--foreground);
-  font: inherit; font-size: var(--font-size-body); font-weight: 600; cursor: pointer;
-}
-.due-runs-trigger:hover { background: var(--accent); }
-.due-runs-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.due-runs-chev { color: var(--muted-foreground); transition: transform var(--dur-med) ease; }
-/* IXD-1: the ONE shared Chevron, rotated −90° when collapsed (down = expanded) — mirrors the
-   group-header caret convention (group-header-row.tsx). */
-.due-runs-chev-collapsed { transform: rotate(-90deg); }
-@media (prefers-reduced-motion: reduce) {
-  .due-runs-chev { transition: none; }
-}
-
+/* DueRunsList styles for the disclosure rendered after the tasks table. */
 .due-runs-panel {
   padding: 12px; border-top: 1px solid var(--border);
 }
