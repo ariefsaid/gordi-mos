@@ -345,7 +345,12 @@ export function TaskRow({
         {onEditStatus ? (statusEditing ? (
           <span className={`inline-status-editor inline-status-editor--${statusTone(statusInline.draft)}`}>
             <Select autoFocus aria-label="Edit task status" value={statusInline.draft} disabled={statusInline.pending} aria-busy={statusInline.pending || undefined}
-              onChange={(event) => { statusInline.commit(event.target.value as TaskListRow['status']) }}
+              onChange={(event) => {
+                const next = event.target.value as TaskListRow['status']
+                statusCommitPending.current = true
+                statusInline.commit(next)
+                if (next === task.status) setStatusEditing(false)
+              }}
               onKeyDown={(event) => { statusInline.onKeyDown(event); if (event.key === 'Escape') setStatusEditing(false) }}>
               {(['Open', 'In Progress', 'Blocked', 'Done'] as const).map((status) => <option key={status} value={status}>{status}</option>)}
             </Select>

@@ -368,6 +368,13 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     expect(screen.getByRole('button', { name: /Done/ })).toBeInTheDocument()
   })
 
+  it('re-picking the current status closes the editor', () => {
+    renderRow({ onEditStatus: vi.fn() })
+    fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Edit task status' }), { target: { value: 'Blocked' } })
+    expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull()
+  })
+
   it('Escape on the date field restores the saved date without committing', () => {
     const onEditDue = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditDue })
