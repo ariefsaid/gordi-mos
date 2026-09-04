@@ -5,7 +5,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   EventsIcon, MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, PeopleIcon,
+  ProfileIcon, PeopleIcon, OpeningIcon,
   LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
@@ -70,7 +70,7 @@ export const CAFE_SECTIONS: Section[] = [
   // rail a column of identical cups told apart by tooltip alone, and #439 made the icon the sole
   // rung carrier in that regime. Not borrowed marks — a borrowed one is either a live duplicate
   // or a duplicate waiting for its twin to leave SHIP_GATED_PATHS.
-  { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: CafeIcon },
+  { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: OpeningIcon },
   { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
@@ -84,18 +84,16 @@ export const CAFE_SECTIONS: Section[] = [
 ]
 
 /**
- * The Café module's NAV children — the five working screens, derived from CAFE_SECTIONS rather
- * than re-listed, so the two can never drift.
- *
- * `/cafe` itself is excluded: it is the module's home, which the rail already links via
- * `primaryPath`, and until the opening surface ports it forwards to the Log. Listing it as a
- * sixth child would show a viewer "Opening" pointing at a screen that is not the opening.
+ * The Café module's NAV children — the Opening tab plus five working screens, derived from
+ * CAFE_SECTIONS rather than re-listed, so the two can never drift. Including Opening gives the
+ * module root a real active sub-tab while the Café parent remains an aria-current="location"
+ * ancestor, preserving the one-page marker contract on every Café route.
  *
  * This list exists because the port shipped the Café module with ONE link (`/cafe`) while
  * CAFE_SECTIONS held all six and was imported by nothing but a breadcrumb lookup — dead data, and
  * five working screens with no way to reach them but a typed URL.
  */
-export const CAFE_MODULE_SECTIONS: Section[] = CAFE_SECTIONS.filter((s) => s.path !== '/cafe')
+export const CAFE_MODULE_SECTIONS: Section[] = CAFE_SECTIONS
 
 /**
  * The links a viewer may actually see: the ship gate first, then capability gates resolved through

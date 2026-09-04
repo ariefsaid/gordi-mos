@@ -373,6 +373,26 @@ export function CafeIcon() {
   )
 }
 
+// OpeningIcon — the Café module's opening checklist sub-tab.
+export function OpeningIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 3h14v18H5z" />
+      <path d="m8 8 1.5 1.5L12 7M8 13l1.5 1.5L12 12M8 18l1.5 1.5L12 17M14 9h3M14 14h3M14 19h3" />
+    </svg>
+  )
+}
+
 // EcommerceIcon — a shopping bag, the Ecommerce Module.
 export function EcommerceIcon() {
   return (

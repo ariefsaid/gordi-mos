@@ -185,33 +185,35 @@ describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
   })
 })
 
-// The Café module carries its five working screens as `children`, with Review + Pushes gated on
+// The Café module carries its Opening tab plus five working screens as `children`, with Review + Pushes gated on
 // the SAME access roles their routes enforce. The port shipped this module with one link and left
 // CAFE_SECTIONS — all six paths, correctly labelled — imported by nothing but a breadcrumb lookup.
-describe('Café module — the five screens are in the nav, gated as their routes are', () => {
+describe('Café module — the tab strip is in the nav, gated as its routes are', () => {
   const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
 
-  it('carries all five working screens as children, derived from CAFE_SECTIONS', () => {
+  it('carries Opening and all five working screens as children, derived from CAFE_SECTIONS', () => {
     expect(cafe.children?.map((c) => c.path)).toEqual([
+      '/cafe',
       '/cafe/log',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/review',
       '/cafe/pushes',
     ])
-    // Derived, not re-listed: CAFE_SECTIONS minus the module home. Re-listing is how the two drift.
-    expect(cafe.children).toEqual(CAFE_SECTIONS.filter((s) => s.path !== '/cafe'))
+    // Derived, not re-listed: CAFE_SECTIONS is the tab-strip source of truth.
+    expect(cafe.children).toEqual(CAFE_SECTIONS)
   })
 
   it('a plain kitchen member sees Log, Plan and Stock — and not Review or Pushes', () => {
     const visible = visibleSections(cafe.children ?? [], ['member']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe/log', '/cafe/plan', '/cafe/stock'])
+    expect(visible).toEqual(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock'])
   })
 
   it('ops_lead and admin also see Review and Pushes', () => {
     for (const role of ['ops_lead', 'admin']) {
       const visible = visibleSections(cafe.children ?? [], [role]).map((c) => c.path)
       expect(visible, role).toEqual([
+        '/cafe',
         '/cafe/log',
         '/cafe/plan',
         '/cafe/stock',
@@ -227,7 +229,7 @@ describe('Café module — the five screens are in the nav, gated as their route
   // it is the dispatch surface, and opening review per stream opened nothing about posting.
   it('a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
     const visible = visibleSections(cafe.children ?? [], ['supervisor']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review'])
+    expect(visible).toEqual(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review'])
   })
 
   it("each gated nav entry carries the same role list as the route gate that OWNS it", () => {

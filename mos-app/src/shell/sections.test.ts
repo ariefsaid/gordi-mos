@@ -107,13 +107,11 @@ describe('T5: sectionForPath — fallbacks', () => {
 })
 
 describe('the Café children carry marks of their own (#457)', () => {
-  // Before this, all five borrowed the parent's cup: five rail rungs, one picture. Swapping them
-  // all back to CafeIcon passed every test in the repo, so this is the cheapest thing that fails
-  // on that — and it names the offending component, where the geometry guard names a signature.
-  it('the five children use five distinct components', () => {
+  // Each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
+  it('the six children use six distinct components', () => {
     const icons = CAFE_MODULE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(5)
-    expect(new Set(icons).size).toBe(5)
+    expect(icons).toHaveLength(6)
+    expect(new Set(icons).size).toBe(6)
   })
 
   it('none of them is a mark another destination already draws', () => {

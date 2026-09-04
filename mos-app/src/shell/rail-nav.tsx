@@ -89,28 +89,29 @@ const itemBase = (isActive: boolean, compact = false, rung: 'dest' | 'child' = '
 // never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
 function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean }) {
   const t = useT()
+  const { pathname } = useLocation()
   const to = d.primaryPath ?? d.links[0].path
+  const active = to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(to + '/')
   const label = t(d.labelKey)
   const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
   const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : undefined
   return (
-    <NavLink
+    <Link
       to={to}
-      end={to === '/'}
       onClick={onNavigate}
       aria-label={accessibleName}
       // Rule 5: exactly one aria-current="page" in the rail. A parent that renders its own
       // children is a LOCATION, never the page — the active child carries "page". Work sets this
       // explicitly in its own branch; a module with children needs the same, or at /cafe/log both
-      // the Café parent (prefix match) and the Log child would claim "page".
-      aria-current={parentOfChildren ? 'location' : undefined}
+      // the Café parent (prefix match) and the Log child would claim "page". Link is intentional:
+      // NavLink overwrites a parent's explicit location marker with page on the module root.
+      aria-current={parentOfChildren ? 'location' : active ? 'page' : undefined}
       data-label={compact ? label : undefined}
-      className={({ isActive }) => itemBase(isActive, compact)}
+      className={itemBase(active, compact)}
     >
-      {() => (
-        /* DD-WAY-33: the icon carries no colour class of its own — it inherits the rung's
+        {/* DD-WAY-33: the icon carries no colour class of its own — it inherits the rung's
            colour (destination = `foreground`, active = `--text-on-accent-tint`), so glyph and
-           label move together up and down the ladder instead of being pinned apart. */
+           label move together up and down the ladder instead of being pinned apart. */}
         <>
           <span>
             <d.Icon />
@@ -118,8 +119,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
-      )}
-    </NavLink>
+    </Link>
   )
 }
 
@@ -179,6 +179,7 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false 
   return (
     <NavLink
       to={section.path}
+      end={section.path === '/cafe'}
       onClick={onNavigate}
       aria-label={accessibleName}
       data-label={compact ? label : undefined}
