@@ -159,15 +159,15 @@ export async function linkSignalTask(signalId: string, taskId: string): Promise<
 
 type TeamJoinRow = { id: string; name: string; business_unit_id: string; site_id: string | null }
 
-/** Teams where a Signal posted by the current author would remain readable. The database owns
- * the complete can_read_signal policy; this RPC returns ready-to-render options in one call. */
+/** Teams where a Signal posted by the current author is both postable and readable back. The
+ * database owns both gates; this RPC returns ready-to-render options in one call. */
 export async function listReadableAuthorTeams(authorId: string): Promise<TeamOption[]> {
   const { data, error } = await mos().rpc('teams_author_can_read_back', { p_author_id: authorId })
   if (error) throw new Error(`listReadableAuthorTeams failed — ${error.message}`)
   return (data ?? []) as TeamOption[]
 }
 
-/** The author's active membership Teams (owning-Team select options), primary first. */
+/** The author's active membership Teams, primary first, for use-due-runs and cafe-opening-page. */
 export async function listAuthorTeams(personId: string): Promise<TeamOption[]> {
   const { data: memberships, error: mErr } = await shared()
     .from('team_memberships')

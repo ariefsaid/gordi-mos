@@ -22,9 +22,6 @@ import './signal-composer.css'
 export interface SignalComposerProps {
   authorId: string
   authorName: string
-  /** Unlocks any authorized Team as the owning Team (signal.create_for_team), not just the
-   * author's own active memberships (FR-404). Defaults to false (fail-closed). */
-  canCreateForTeam?: boolean
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
   /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
@@ -41,7 +38,7 @@ function toDatetimeLocalValue(date: Date): string {
 }
 
 export function SignalComposer({
-  authorId, authorName, canCreateForTeam = false, canMentionBu = false,
+  authorId, authorName, canMentionBu = false,
   teamMembers = {}, buMembers = {}, onShared, prefill,
 }: SignalComposerProps) {
   const t = useT()
@@ -87,7 +84,7 @@ export function SignalComposer({
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam, prefill])
+  }, [authorId, prefill])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).

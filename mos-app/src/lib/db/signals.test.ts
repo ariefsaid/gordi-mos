@@ -11,7 +11,7 @@ vi.mock('../supabase', () => {
 import {
   listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask,
-  listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
+  listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
   listSignalRevisions, loadMentionRosters, summarizeLinkedTasks,
 } from './signals'
 import { supabase } from '@/lib/supabase'
@@ -319,6 +319,29 @@ describe('linkSignalTask', () => {
 })
 
 // ── composer option loaders (B6) ──────────────────────────────────────────────
+describe('listReadableAuthorTeams', () => {
+  it('calls the destination RPC with the author id and returns its rows', async () => {
+    const rec = freshRec()
+    const rows = [{ id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: null, is_primary: true }]
+    mockSupabase({ 'rpc.teams_author_can_read_back': [{ data: rows, error: null }] }, rec)
+
+    await expect(listReadableAuthorTeams(AUTHOR_ID)).resolves.toEqual(rows)
+    expect(rec.rpcs).toEqual([['teams_author_can_read_back', { p_author_id: AUTHOR_ID }]])
+  })
+
+  it('throws on an RPC error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.teams_author_can_read_back': [{ data: null, error: { message: 'boom' } }] }, rec)
+    await expect(listReadableAuthorTeams(AUTHOR_ID)).rejects.toThrow(/boom/)
+  })
+
+  it('returns [] when the RPC data is null', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.teams_author_can_read_back': [{ data: null, error: null }] }, rec)
+    await expect(listReadableAuthorTeams(AUTHOR_ID)).resolves.toEqual([])
+  })
+})
+
 describe('listAuthorTeams', () => {
   it('reads active team_memberships for the person, joins client-side to teams, primary first', async () => {
     const rec = freshRec()

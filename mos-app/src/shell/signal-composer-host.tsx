@@ -96,7 +96,6 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
             <SignalComposer
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
-              canCreateForTeam={can(accessRoles, 'signal.create_for_team')}
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}

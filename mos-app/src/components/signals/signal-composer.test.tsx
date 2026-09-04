@@ -37,8 +37,7 @@ const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
   { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-retail', site_id: 'site-radiant', is_primary: false },
 ]
-// #715: a Team in a BU the viewer has no membership or role in — read-unreachable (mos.can_read_signal
-// default-denies). Distinct business_unit_id from TEAMS so the membership/role proxy actually excludes it.
+// #715: the mocked destination RPC omits this readable-only Team because it is not postable.
 const TEAM_UNREADABLE: TeamOption = {
   id: 'team-warehouse', name: 'Warehouse Ops', business_unit_id: 'bu-warehouse', site_id: 'site-warehouse', is_primary: false,
 }
@@ -214,13 +213,13 @@ describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', (
 
 describe('SignalComposer — read-back-only Team options (#715)', () => {
   it('offers exactly the teams returned by the database read-back RPC', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue([...SOLE_TEAM, TEAM_UNREADABLE])
-    renderComposer({ canCreateForTeam: true })
+    mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
+    renderComposer()
     await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
 
     const teamSelect = await screen.findByRole('combobox', { name: /team/i })
     expect(within(teamSelect).getByRole('option', { name: 'HQ Operations' })).toBeInTheDocument()
-    expect(within(teamSelect).getByRole('option', { name: 'Warehouse Ops' })).toBeInTheDocument()
+    expect(within(teamSelect).queryByRole('option', { name: TEAM_UNREADABLE.name })).not.toBeInTheDocument()
     expect(mockListReadableAuthorTeams).toHaveBeenCalledTimes(1)
   })
 })
@@ -391,7 +390,7 @@ describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () =>
 
   it('shows a cross-Team destination preview "Post to <Team> · <attention> · notify N" when the author changes the owning Team', async () => {
     mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
-    renderComposer({ canCreateForTeam: true, teamMembers: { 'team-radiant': ['person-peer'] } })
+    renderComposer({ teamMembers: { 'team-radiant': ['person-peer'] } })
     await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
 
     const teamSelect = await screen.findByRole('combobox', { name: /team/i })

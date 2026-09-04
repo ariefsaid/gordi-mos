@@ -2,7 +2,7 @@
 -- role visibility. R4 is out of scope here: explicit mentions do not identify a destination Team.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 set local role authenticated;
@@ -37,11 +37,20 @@ update shared.team_memberships
    set effective_to = null
  where person_id = '00000000-0000-0000-0000-0000000000d4';
 
+-- A readable-only R2 destination is excluded, while the author's postable/readable Team remains.
+insert into shared.person_roles (org_id, person_id, role_id)
+values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-0000000000f2');
+set local role authenticated;
+select set_eq($$ select id from mos.teams_author_can_read_back() $$,
+  array['00000000-0000-0000-0000-000000005b02']::uuid[], 'R2/R1 intersection: readable-only Team is excluded and postable/readable Team is included');
+reset role;
+delete from shared.person_roles where person_id = '00000000-0000-0000-0000-0000000000d4';
+
 -- R2: a role scoped to the owning BU opens it, and removing that role closes it.
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
 select set_eq($$ select id from mos.teams_author_can_read_back() $$,
-  array['00000000-0000-0000-0000-000000005b01','00000000-0000-0000-0000-000000005b02']::uuid[], 'R2: BU-scoped role reads both Teams');
+  array[]::uuid[], 'R2: BU-scoped role without a postable Team returns no destinations');
 reset role;
 delete from shared.person_roles where person_id = '00000000-0000-0000-0000-0000000000d2';
 set local role authenticated;
@@ -55,7 +64,7 @@ values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
 select set_eq($$ select id from mos.teams_author_can_read_back() $$,
-  array['00000000-0000-0000-0000-000000005b01','00000000-0000-0000-0000-000000005b02']::uuid[], 'R3: higher BU rank reads both Teams');
+  array[]::uuid[], 'R3: higher BU rank without a postable Team returns no destinations');
 reset role;
 delete from shared.person_roles where person_id = '00000000-0000-0000-0000-0000000000d7';
 set local role authenticated;
@@ -72,7 +81,7 @@ delete from shared.person_roles where person_id = '00000000-0000-0000-0000-00000
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"000000000000000000000000000000d5","access_roles":["member"]}';
 select set_eq($$ select id from mos.teams_author_can_read_back() $$,
-  array['00000000-0000-0000-0000-000000005b01','00000000-0000-0000-0000-000000005b02']::uuid[], 'R5: signal.read_all opens every active Team');
+  array[]::uuid[], 'R5: signal.read_all without a postable Team returns no destinations');
 reset role;
 delete from shared.role_capabilities where role = 'member' and capability = 'signal.read_all';
 set local role authenticated;
