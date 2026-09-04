@@ -6,10 +6,11 @@ import { EmptyState } from '@/components/ui/state-kit'
 import {
   listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
-import type { TeamOption, SiteOption, StagedMention, MentionKind } from '@/lib/db/signals.types'
+import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
 import { SignalMentionPicker, type SignalMentionPickerHandle } from './signal-mention-picker'
+import { SignalAttentionPicker } from './signal-attention-picker'
 import './signal-composer.css'
 
 // FB-style Signal composer (PORT convergence `sigComposer` — Rule 11). Capture-minimal (Rule 8 /
@@ -51,6 +52,7 @@ export function SignalComposer({
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState('')
   const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocalValue(new Date()))
+  const [attention, setAttention] = useState<Attention>('FYI')
   const [mentions, setMentions] = useState<StagedMention[]>([])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
@@ -102,7 +104,7 @@ export function SignalComposer({
   // resolves the noun in the active locale and threads it as ${noun}.
   const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
   const shieldLine = !selectedTeam ? '' : isCrossTeam
-    ? t('signals.composer.postTo', { team: selectedTeam.name, attention: 'FYI', count: notifyCount, noun: notifyNoun })
+    ? t('signals.composer.postTo', { team: selectedTeam.name, attention, count: notifyCount, noun: notifyNoun })
     : notifyCount > 0
       ? t('signals.composer.visibleToNotify', { team: selectedTeam.name, count: notifyCount, noun: notifyNoun })
       : t('signals.composer.visibleTo', { team: selectedTeam.name })
@@ -134,7 +136,7 @@ export function SignalComposer({
     setError(null)
     try {
       const occurredIso = new Date(occurredAt).toISOString()
-      const id = await createSignal({ body: trimmedBody, owningTeamId: teamId, occurredAt: occurredIso, mentions })
+      const id = await createSignal({ body: trimmedBody, owningTeamId: teamId, occurredAt: occurredIso, attention, mentions })
       setBody('')
       setMentions([])
       setMentionToken(null)
@@ -210,6 +212,8 @@ export function SignalComposer({
           />
         )}
       </div>
+
+      <SignalAttentionPicker value={attention} onChange={setAttention} />
 
       <div className="signal-composer-row">
         <Select

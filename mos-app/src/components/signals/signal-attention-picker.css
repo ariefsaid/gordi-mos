@@ -1,0 +1,10 @@
+.signal-attention-picker { display: flex; flex-direction: column; gap: 6px; }
+.signal-attention-picker-label { font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500; }
+.signal-attention-picker-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.signal-attention-picker-option {
+  min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: var(--background); color: var(--muted-foreground); font: inherit; font-size: var(--font-size-label);
+  cursor: pointer;
+}
+.signal-attention-picker-option[aria-checked='true'] { border-color: var(--ring); background: var(--secondary); color: var(--foreground); font-weight: 600; }
+.signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

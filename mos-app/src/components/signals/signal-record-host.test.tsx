@@ -178,6 +178,31 @@ describe('SignalRecordHost — Acknowledge wiring (FR-412)', () => {
 })
 
 describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () => {
+  it('lets the author raise attention and records the correction', async () => {
+    mockCorrectSignal.mockResolvedValue(undefined)
+    mockUseAuth.mockReturnValue(authedViewer('person-dewi'))
+    renderHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+
+    mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, attention: 'Urgent', edited_at: '2026-07-16T05:00:00Z' }, mentions: [], acknowledgements: [], tasks: [] })
+    await userEvent.click(screen.getByRole('button', { name: /edit attention/i }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Urgent' }))
+
+    expect(mockCorrectSignal).toHaveBeenCalledWith(SIGNAL_ID, { attention: 'Urgent' })
+    await waitFor(() => expect(screen.getByText('Urgent')).toBeInTheDocument())
+  })
+
+  it('offers the attention editor to the author only — a signal.retract deputy gets no editor (gate refuses non-author content, 42501)', async () => {
+    const deputy = authedViewer('person-peer')
+    deputy.viewer.accessRoles = ['signal.retract']
+    mockUseAuth.mockReturnValue(deputy)
+    renderHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+
+    expect(screen.queryByRole('button', { name: /edit attention/i })).toBeNull()
+    expect(mockCorrectSignal).not.toHaveBeenCalled()
+  })
+
   it('opens the category picker and calls correctSignal with the chosen family', async () => {
     mockCorrectSignal.mockResolvedValue(undefined)
     renderHost()

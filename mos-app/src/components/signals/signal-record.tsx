@@ -6,6 +6,7 @@ import type { PersonOption } from '@/lib/db/directory'
 import { attentionSlug, type Attention, type MentionKind, type SignalCategory } from '@/lib/db/signals.types'
 import { attentionLabel } from './signal-attention-label'
 import { SignalCategoryPicker } from './signal-category-picker'
+import { SignalAttentionPicker } from './signal-attention-picker'
 import './signal-card.css'
 import './signal-record.css'
 
@@ -47,13 +48,15 @@ export interface LinkedTasksSummary {
 // line; the full body always renders here so the heading is never an ellipsized slice — F2). The
 // attention level + occurred time ride WITH it (LAW-2), never hoisted to a downstream facts block.
 export function SignalMessage({
-  body, attention, occurredLabel, retracted, retractReason,
+  body, attention, occurredLabel, retracted, retractReason, canEditAttention, onAttentionChange,
 }: {
   body: string
   attention: Attention
   occurredLabel: string
   retracted?: boolean
   retractReason?: string | null
+  canEditAttention?: boolean
+  onAttentionChange?: (attention: Attention) => void
 }) {
   const t = useT()
   if (retracted) {
@@ -66,11 +69,27 @@ export function SignalMessage({
   return (
     <div className="signal-message">
       <div className="signal-message-urgency">
-        <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attentionLabel(t, attention)}</span>
+        {canEditAttention && onAttentionChange ? (
+          <SignalAttentionEditor value={attention} onChange={onAttentionChange} />
+        ) : (
+          <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attentionLabel(t, attention)}</span>
+        )}
         <span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span>
       </div>
       <p className="signal-message-body">{body}</p>
     </div>
+  )
+}
+
+function SignalAttentionEditor({ value, onChange }: { value: Attention; onChange: (value: Attention) => void }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return open ? (
+    <SignalAttentionPicker value={value} onChange={(next) => { onChange(next); setOpen(false) }} />
+  ) : (
+    <Button variant="ghost" onClick={() => setOpen(true)} aria-label={t('signals.record.editAttention')}>
+      <span className={`signal-attention signal-attention--${attentionSlug(value)}`}>{attentionLabel(t, value)}</span>
+    </Button>
   )
 }
 

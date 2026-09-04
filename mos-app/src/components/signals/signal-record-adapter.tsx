@@ -21,6 +21,7 @@ import type {
   RecordContentSlot,
   RecordViewerAdapter,
 } from '@/components/records/record-viewer.types'
+import type { Attention } from '@/lib/db/signals.types'
 
 /** The record's identity name = the body's first line, UNTRUNCATED (OD-REDESIGN-90 / F2: the
  *  heading is never an ellipsized slice of the content — the full body always renders in the
@@ -35,6 +36,8 @@ export interface WrapSignalRecordInput {
   occurredLabel: string
   /** Region 2 node built by the host (needs handlers/state); null when retracted. */
   reach: ReactNode | null
+  /** Optional author/deputy attention editor for the message region. */
+  onAttentionChange?: (attention: Attention) => void
   /** Region 3 node built by the host; null when retracted. */
   discussion: ReactNode | null
   /** Region 4 node (quiet provenance + category control) built by the host. */
@@ -68,6 +71,8 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
         body={signal.body}
         attention={signal.attention}
         occurredLabel={occurredLabel}
+        canEditAttention={!!input.onAttentionChange}
+        onAttentionChange={input.onAttentionChange}
         retracted={retracted}
         retractReason={signal.retract_reason}
       />
