@@ -109,3 +109,4 @@ scripts/__pycache__/
 # See the banner in CLAUDE.md before adding anything to the public tree.
 docs/
 adws/adw_data/archive/
+renders/
