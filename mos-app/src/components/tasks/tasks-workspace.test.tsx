@@ -35,6 +35,9 @@ vi.mock('../../lib/db/tasks', () => ({
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
 }))
+vi.mock('../../lib/db/signals', () => ({
+  linkSignalTask: vi.fn(),
+}))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
@@ -50,6 +53,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 }))
 
 import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
+import { linkSignalTask } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -64,6 +68,7 @@ const mockGetPeople = vi.mocked(getPeople)
 const mockUpdateTaskFields = vi.mocked(updateTaskFields)
 const mockCreateTask = vi.mocked(createTask)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
+const mockLinkSignalTask = vi.mocked(linkSignalTask)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
@@ -245,6 +250,82 @@ describe('D3e — Tasks create is an inline title row', () => {
     fireEvent.keyDown(titleInput, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
     expect(mockCreateTask).not.toHaveBeenCalled()
+  })
+})
+
+describe('Create from Signal convergence', () => {
+  it('a draft commit with a source intent calls linkSignalTask(sourceSignal, createdId)', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockCreateTask.mockResolvedValue('created-from-signal')
+    mockLinkSignalTask.mockResolvedValue(undefined)
+    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
+    fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
+
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Signal title' } })
+    fireEvent.keyDown(title, { key: 'Enter' })
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith('signal-42', 'created-from-signal'))
+  })
+
+  it('a unique link violation is treated as success', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockCreateTask.mockResolvedValue('created-unique')
+    mockLinkSignalTask.mockRejectedValue(Object.assign(new Error('linkSignalTask failed'), { code: '23505' }))
+    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
+    fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Signal title' } })
+    fireEvent.keyDown(title, { key: 'Enter' })
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(mockCreateTask).toHaveBeenCalledTimes(1)
+  })
+
+  it('retry updates a changed draft title and re-links without recreating', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockCreateTask.mockResolvedValue('created-retry')
+    mockLinkSignalTask.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined)
+    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
+    fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Original' } })
+    fireEvent.keyDown(title, { key: 'Enter' })
+    await screen.findByRole('alert')
+    fireEvent.doubleClick(screen.getByText('Original'))
+    const edited = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(edited, { target: { value: 'Edited after failure' } })
+    fireEvent.keyDown(edited, { key: 'Enter' })
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(2))
+    expect(mockCreateTask).toHaveBeenCalledTimes(1)
+    expect(mockUpdateTaskFields).toHaveBeenCalledWith('created-retry', { title: 'Edited after failure' }, VIEWER_ID)
+  })
+
+  it('discard after a link failure announces the created task is unlinked and clears the ref', async () => {
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockCreateTask.mockResolvedValue('created-discard')
+    mockLinkSignalTask.mockRejectedValue(new Error('offline'))
+    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
+    fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Original' } })
+    fireEvent.keyDown(title, { key: 'Enter' })
+    await screen.findByRole('alert')
+    fireEvent.doubleClick(screen.getByText('Original'))
+    fireEvent.keyDown(await screen.findByRole('textbox', { name: /title/i }), { key: 'Escape' })
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/exists.*unlinked/i))
+    expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
+  })
+
+  it('the id locale renders the translated link-failure announcement', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    mockListTasks.mockResolvedValue([makeTask()])
+    mockCreateTask.mockResolvedValue('created-id')
+    mockLinkSignalTask.mockRejectedValue(new Error('offline'))
+    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
+    fireEvent.click(await screen.findByRole('button', { name: /create task|buat tugas/i }))
+    const title = await screen.findByRole('textbox')
+    fireEvent.change(title, { target: { value: 'Original' } })
+    fireEvent.keyDown(title, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Tugas dibuat, tautan gagal'))
   })
 })
 

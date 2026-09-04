@@ -150,7 +150,9 @@ export async function acknowledgeSignal(signalId: string): Promise<void> {
 /** Link a Signal to an existing Task (the many-to-many signal_tasks bridge, D25/OD-39). */
 export async function linkSignalTask(signalId: string, taskId: string): Promise<void> {
   const { error } = await mos().from('signal_tasks').insert({ signal_id: signalId, task_id: taskId })
-  if (error) throw new Error(`linkSignalTask failed — ${error.message}`)
+  // Retrying an interrupted create can race with the original insert. The bridge's unique key
+  // makes that retry idempotent: the desired state already exists.
+  if (error && error.code !== '23505') throw new Error(`linkSignalTask failed — ${error.message}`)
 }
 
 // ── composer option loaders (B6) — shared.teams/sites/team_memberships ───────

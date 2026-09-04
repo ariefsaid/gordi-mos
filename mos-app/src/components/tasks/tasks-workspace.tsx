@@ -176,8 +176,9 @@ export function TasksWorkspace({
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
   const [announcement, setAnnouncement] = useState('')
-  const draftSourceSignalRef = useRef<string | null>(null)
+  const draftSourceSignalRef = useRef<string | null>(new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useRef<string | null>(null)
+  const draftTitleRef = useRef('')
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
 
@@ -401,7 +402,9 @@ export function TasksWorkspace({
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
-      const createdTaskId = createdDraftTaskRef.current ?? await createTask({
+      draftTitleRef.current = title
+      const existingTaskId = createdDraftTaskRef.current
+      const createdTaskId = existingTaskId ?? await createTask({
         title,
         businessUnitId: draftTask.business_unit_id,
         responsiblePersonId: draftTask.responsible_person_id,
@@ -409,15 +412,21 @@ export function TasksWorkspace({
         createdBy: viewerId,
       })
       createdDraftTaskRef.current = createdTaskId
+      if (existingTaskId) await updateTaskFields(createdTaskId, { title }, viewerId)
       if (draftSourceSignalRef.current) {
         try {
           await linkSignalTask(draftSourceSignalRef.current, createdTaskId)
           draftSourceSignalRef.current = null
           setDraftLinkError(false)
-        } catch {
-          setDraftLinkError(true)
-          setAnnouncement('Task created, link failed')
-          return
+        } catch (error) {
+          if (error instanceof Error && 'code' in error && error.code === '23505') {
+            draftSourceSignalRef.current = null
+            setDraftLinkError(false)
+          } else {
+            setDraftLinkError(true)
+            setAnnouncement(t('tasks.create.linkFailed'))
+            return
+          }
         }
       }
       createdDraftTaskRef.current = null
@@ -427,15 +436,22 @@ export function TasksWorkspace({
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [controller, draftTask, viewerId])
+  }, [controller, draftTask, t, viewerId])
   const onRetryDraftLink = useCallback(() => {
     if (!draftTask) return
-    void onEditTitle(draftTask.id, draftTask.title)
+    void onEditTitle(draftTask.id, draftTitleRef.current || draftTask.title)
   }, [draftTask, onEditTitle])
   const onDiscardNewTask = useCallback(() => {
     returnFocusAfterDiscard.current = true
+    if (createdDraftTaskRef.current && draftSourceSignalRef.current) {
+      setAnnouncement(t('tasks.create.linkFailedDiscard'))
+    }
+    draftSourceSignalRef.current = null
+    createdDraftTaskRef.current = null
+    draftTitleRef.current = ''
+    setDraftLinkError(false)
     setDraftTask(null)
-  }, [])
+  }, [t])
   useEffect(() => {
     if (draftTask || !returnFocusAfterDiscard.current) return
     returnFocusAfterDiscard.current = false
@@ -453,9 +469,10 @@ export function TasksWorkspace({
     setDraftLinkError(false)
     setAnnouncement('')
     createdDraftTaskRef.current = null
+    draftTitleRef.current = ''
     const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
     const prefill = new URLSearchParams(prefillParam)
-    draftSourceSignalRef.current = params.get('sourceSignal')
+    draftSourceSignalRef.current = params.get('sourceSignal') ?? draftSourceSignalRef.current
     const now = new Date().toISOString()
     setDraftTask({
       id: `new-task-${Date.now()}`,

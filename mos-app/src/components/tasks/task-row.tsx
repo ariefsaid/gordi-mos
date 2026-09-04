@@ -168,6 +168,10 @@ export function TaskRow({
   })
 
   useEffect(() => {
+    if (createError) newCommitStarted.current = false
+  }, [createError])
+
+  useEffect(() => {
     if (editing) {
       const el = inputRef.current
       el?.focus()
@@ -238,20 +242,19 @@ export function TaskRow({
       beginEdit()
     }
   }
-  // Mouse activations. A single click OPENS the record; a double-click EDITS. To keep the two from
-  // racing, defer editable title opens by one double-click window; a double-click cancels it.
+  // Mouse activation follows the e7 grammar: selecting a title edits it in place. The canonical
+  // href remains available for open-in-new-tab and non-editable rows retain opener behavior.
   const onTitleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!canEdit) { onOpen(task.id); return }
-    if (openTimer.current) clearTimeout(openTimer.current)
-    openTimer.current = setTimeout(() => { openTimer.current = null; onOpen(task.id) }, 200)
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
+    if (canEdit) beginEdit()
+    else onOpen(task.id)
   }
   const onTitleDoubleClick = (e: React.MouseEvent) => {
     if (!canEdit) return
     e.preventDefault()
     e.stopPropagation()
-    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
     beginEdit()
   }
 
@@ -332,7 +335,7 @@ export function TaskRow({
             live region still announces the revert for AT. */}
         {createError && (
           <span role="alert" className="task-row-save-error">
-            Task created, link failed
+            {t('tasks.create.linkFailed')}
             <button type="button" className="task-row-retry" onClick={(e) => { e.stopPropagation(); onRetryCreate?.() }}>
               {t('record.field.retry')}
             </button>
