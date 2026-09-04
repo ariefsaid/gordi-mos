@@ -25,6 +25,7 @@ const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record
 const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
 // #711: search-field floor is defined in collection-toolbar.css.
 const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
+const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-feed-rows.tsx'), 'utf8')
 // #718: same class as #702/#708 — a bare `@media (pointer: fine)` fires at ANY width once a
 // fine pointer is reported (a resized desktop window, a non-touch mobile emulation), reopening
 // the phone-floor hole the `and (min-width: 768px)` guard exists to close. #708 fixed this one
@@ -144,6 +145,10 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     const body = mediaBody(collectionToolbarCss, '@media (max-width: 767px)')
     expect(body).toMatch(/\.collection-toolbar__search\s*\{[^}]*min-height:\s*44px/)
     expect(body).toMatch(/\.collection-toolbar__search input[^}]*min-height:\s*44px/)
+  })
+
+  it('ticket 732: keeps the Home feed See more disclosure on the shared phone tap floor', () => {
+    expect(signalFeedRowsTsx).toMatch(/className="signal-feed-link signal-feed-link--more tap-floor"/)
   })
 
   it('issue \u0023705: gives Plan item links a real 44px phone hit box without changing their visual box', () => {

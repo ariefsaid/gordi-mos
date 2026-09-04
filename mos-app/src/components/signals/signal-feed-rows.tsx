@@ -211,7 +211,7 @@ export function SignalFeedRows({
       )}
 
       {hidden > 0 && (
-        <Link to={moreHref} className="signal-feed-link signal-feed-link--more">
+        <Link to={moreHref} className="signal-feed-link signal-feed-link--more tap-floor">
           {t('signals.feed.seeMore', { count: hidden })}
         </Link>
       )}
