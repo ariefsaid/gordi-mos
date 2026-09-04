@@ -408,7 +408,11 @@ export function SignalsArchivePage() {
                 count: projection ? projection.visibleRecords.length : null,
               }}
               controls={signalControls}
-              empty={{ title: t('signals.archive.empty', { query: query.q }) }}
+              empty={{
+                title: query.q.trim()
+                  ? t('signals.archive.empty', { query: query.q })
+                  : t('signals.archive.emptyUnfiltered'),
+              }}
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
               loadingLabel={t('signals.archive.loading')}
