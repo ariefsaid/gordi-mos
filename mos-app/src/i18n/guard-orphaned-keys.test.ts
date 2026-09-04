@@ -40,6 +40,7 @@ const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   'money.cut.': 'global-toolbar.tsx / dashboard-page.tsx — t(`money.cut.${stem}` …) incl. plural .one/.other',
   'followUps.action.': 'follow-up-queue-table.tsx / follow-ups-page.tsx — t(`followUps.action.${verb}`)',
   'admin.role.': 'admin-users.types.ts — t(`admin.role.${slug}`) and `${slug}.desc`',
+  'kitchen.pushes.tally.': 'kitchen-pushes-page.tsx — plural tally keys are selected by count',
 }
 
 function sourceFiles(dir: string, out: string[] = []): string[] {

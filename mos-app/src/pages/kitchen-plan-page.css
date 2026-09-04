@@ -134,7 +134,11 @@
   .kp-row-link::before {
     content: '';
     position: absolute;
-    inset: -12px;
+    left: -12px;
+    right: -12px;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
   }
 }
 

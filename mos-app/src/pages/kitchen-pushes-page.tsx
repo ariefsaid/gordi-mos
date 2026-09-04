@@ -65,6 +65,12 @@ function isHeld(row: EsbPushRow): boolean {
   return row.endpoint === 'noop' && row.status !== 'failed' && row.status !== 'dead_letter'
 }
 
+function pushTally(t: ReturnType<typeof useT>, count: number, queued: number): string {
+  const pushKey = `kitchen.pushes.tally.push.${count === 1 ? 'one' : 'other'}` as MessageKey
+  const queuedKey = `kitchen.pushes.tally.queued.${queued === 1 ? 'one' : 'other'}` as MessageKey
+  return `${t(pushKey, { count })} · ${t(queuedKey, { count: queued })}`
+}
+
 // #402: labels come from the catalog — never the database's word. dead_letter is the
 // RED tag on the AMBER row (OD-WAY-74 #4); its text uses the ratified AA-darkened red
 // (--status-lost-text — same fix as StatusPill 'Blocked'), not the kit's tag-text-red.
@@ -344,7 +350,7 @@ export function KitchenPushesPage() {
     )
   }
 
-  // #422: the page head answers "what is stuck", not only "how many" — the two counts a
+  // #422: the page head answers "what is stuck", not only "how many" — the counts a
   // lead triages by, rendered only when non-zero so a healthy outbox head stays quiet.
   const deadLetterCount = rows.filter(r => r.status === 'dead_letter').length
   const failedCount = rows.filter(r => r.status === 'failed').length
@@ -405,21 +411,21 @@ export function KitchenPushesPage() {
           container the column rules query. */}
       {load.kind === 'ready' && rows.length > 0 && (
         <>
-          <p className="kpu-tally" aria-label={t('kitchen.pushes.tally.aria')}>
-            {t('kitchen.pushes.tally', { count: rows.length, queued: queuedCount })}
+          <p className="kpu-tally">
+            {pushTally(t, rows.length, queuedCount)}
           </p>
           <div className="kpu-cols-host">
-          <DataTable
-            columns={pushColumns(t)}
-            rows={rows}
-            isDesktop={isDesktop}
-            renderCard={pushCardRenderer(t)}
-            // #416: fixed-layout column widths — the table fits its frame instead of
-            // pushing Created/Posted off screen behind a page-wide scrollbar.
-            tableClassName="kpu-cols"
-            rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
-            caption={t('kitchen.pushes.caption')}
-          />
+            <DataTable
+              columns={pushColumns(t)}
+              rows={rows}
+              isDesktop={isDesktop}
+              renderCard={pushCardRenderer(t)}
+              // #416: fixed-layout column widths — the table fits its frame instead of
+              // pushing Created/Posted off screen behind a page-wide scrollbar.
+              tableClassName="kpu-cols"
+              rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
+              caption={t('kitchen.pushes.caption')}
+            />
           </div>
         </>
       )}

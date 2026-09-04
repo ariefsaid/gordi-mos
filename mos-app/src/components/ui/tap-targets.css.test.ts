@@ -130,10 +130,12 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     // Negative check: no OTHER bare `(pointer: fine)` block (unguarded by a min-width) remains
     // for this file — a second unnarrowed block would silently reopen the same hole.
     expect(recordPanelHostCss).not.toMatch(/@media \(pointer: fine\)\s*\{(?!\s*\})/)
-  it('ticket 667: gives Plan item links a 44px phone hit box without changing their visual box', () => {
+  })
+
+  it('issue \u0023705: gives Plan item links a real 44px phone hit box without changing their visual box', () => {
     const body = mediaBody(kitchenPlanCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.kp-row-link\s*\{[^}]*position:\s*relative/)
-    expect(body).toMatch(/\.kp-row-link::before\s*\{[^}]*inset:\s*-12px/)
+    expect(body).toMatch(/\.kp-row-link::before\s*\{[^}]*height:\s*44px[^}]*transform:\s*translateY\(-50%\)/)
   })
 })
 
