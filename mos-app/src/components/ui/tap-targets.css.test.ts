@@ -25,6 +25,11 @@ const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record
 const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
 // #711: search-field floor is defined in collection-toolbar.css.
 const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
+// #718: same class as #702/#708 — a bare `@media (pointer: fine)` fires at ANY width once a
+// fine pointer is reported (a resized desktop window, a non-touch mobile emulation), reopening
+// the phone-floor hole the `and (min-width: 768px)` guard exists to close. #708 fixed this one
+// rule at a time (presence pins only); this asserts the ABSENCE class-wide so a later bare rule
+// can't slip back in the way TaskSurface.css's did.
 const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
@@ -149,6 +154,35 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
 
   it('ticket 702: keeps the record edit affordance floor on phone for fine pointers', () => {
     expect(recordViewerCss).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field__edit\s*\{[^}]*?min-height:\s*32px/)
+  })
+
+  // #718: #708 only pinned the ONE rule it measured (record-panel-host.css), so a bare
+  // `(pointer: fine)` elsewhere — TaskSurface.css's `.dw-iconbtn`, the same shrink-at-phone-width
+  // bug — kept the census green. This scans every stylesheet the census reads: every occurrence
+  // of `(pointer: fine)` must be immediately followed by ` and (min-width: 768px)`, full stop,
+  // regardless of which selector the block guards.
+  it('issue 718: no stylesheet the census reads carries a bare @media (pointer: fine) block', () => {
+    const stylesheets: Array<[string, string]> = [
+      ['Button.css', buttonCss],
+      ['window-selector.css', windowSelectorCss],
+      ['cut-toggle.css', cutToggleCss],
+      ['TextInput.css', textInputCss],
+      ['Select.css', selectCss],
+      ['DateField.css', dateFieldCss],
+      ['TaskSurface.css', taskSurfaceCss],
+      ['IconButton.css', iconButtonCss],
+      ['command-menu.css', commandMenuCss],
+      ['signal-composer.css', signalComposerCss],
+      ['signal-mention-picker.css', mentionPickerCss],
+      ['help-tip.css', helpTipCss],
+      ['signal-attention-picker.css', attentionPickerCss],
+      ['record-panel-host.css', recordPanelHostCss],
+      ['record-viewer.css', recordViewerCss],
+    ]
+    const bareFinePointer = /\(pointer: fine\)(?!\s*and\s*\(min-width:\s*768px\))/g
+    for (const [name, css] of stylesheets) {
+      expect(css.match(bareFinePointer), `${name} has a bare @media (pointer: fine) block`).toBeNull()
+    }
   })
 })
 

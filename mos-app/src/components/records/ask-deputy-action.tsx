@@ -35,7 +35,7 @@ export function AskDeputyAction({ draft }: AskDeputyActionProps) {
   return (
     <button
       type="button"
-      className="record-panel-btn tap-floor"
+      className="record-panel-btn"
       aria-label={t('assistant.askAboutRecord')}
       title={t('assistant.askAboutRecord')}
       onClick={() => openPanel(draft)}
