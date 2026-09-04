@@ -1,0 +1,24 @@
+.top-bar__breadcrumb-track {
+  min-width: 0;
+  flex: 1;
+}
+
+.top-bar__breadcrumb {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.top-bar__breadcrumb-content {
+  display: contents;
+}
+
+.top-bar__breadcrumb-fixed {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.top-bar__breadcrumb-leaf {
+  flex: 1 1 auto;
+  min-width: 0;
+}

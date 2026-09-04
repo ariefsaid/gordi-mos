@@ -33,6 +33,10 @@
 .record-page-back:hover { color: var(--foreground); background: var(--secondary); }
 .record-page-back:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
+@media (max-width: 767.98px) {
+  .record-page-back { min-height: 44px; }
+}
+
 /* Kind-specific trailing control (Task's collapse-to-split "resize back to drawer"). */
 .record-page-collapse {
   width: 32px; height: 32px; border-radius: var(--radius-sm);

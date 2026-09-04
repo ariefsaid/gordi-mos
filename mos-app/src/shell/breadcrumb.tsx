@@ -80,20 +80,20 @@ export function Breadcrumb() {
   // home / events (Signals) / inbox / profile / ecommerce / roastery → bare destLabel.
 
   return (
-    <span style={{ fontSize: 'var(--font-size-body-lg)' }}>
+    <span className="top-bar__breadcrumb-content" style={{ fontSize: 'var(--font-size-body-lg)' }}>
       {crumbs.length === 1 ? (
-        <b className="truncate text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+        <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
           {crumbs[0]}
         </b>
       ) : (
         <>
           {crumbs.slice(0, -1).map((label) => (
-            <span key={label}>
+            <span key={label} className="top-bar__breadcrumb-fixed">
               <span className="text-muted-foreground">{label}</span>
               <span className="mx-[7px]" aria-hidden="true">·</span>
             </span>
           ))}
-          <b className="truncate text-foreground font-semibold" title={crumbs[crumbs.length - 1]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+          <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={crumbs[crumbs.length - 1]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
             {crumbs[crumbs.length - 1]}
           </b>
         </>

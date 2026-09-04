@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import { useOptionalOverlayHost } from './overlay-host'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
+import './top-bar.css'
 
 type TopBarProps = {
   /** Opens the ⌘K command menu (wired in AppShell). */
@@ -203,7 +204,7 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
   return (
     <header
       data-anatomy="header"
-      className="bg-background border-b border-border flex items-stretch flex-none"
+      className="top-bar bg-background border-b border-border flex items-stretch flex-none"
       style={{ height: 'var(--header-h)', gridArea: 'topbar' }}
     >
       {/* Brand lockup — width = --rail-w so the right divider coincides with the rail boundary (ADR-0013 D1).
@@ -229,8 +230,8 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           v4 shell rebuild (Task 2): now ALSO rendered at <920px, in the space freed by deleting
           the hamburger — it's the phone's only current-location signal once the page's own H1
           scrolls out of view, and it lives in this fixed header row so it survives scrolling. */}
-      <div className={`flex items-center flex-1 min-w-0${isNarrow ? ' px-2' : ' px-4'}`}>
-        <nav aria-label="Breadcrumb">
+      <div className={`top-bar__breadcrumb-track flex items-center flex-1 min-w-0${isNarrow ? ' px-2' : ' px-4'}`}>
+        <nav className="top-bar__breadcrumb" aria-label="Breadcrumb">
           <Breadcrumb />
         </nav>
       </div>
