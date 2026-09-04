@@ -6,6 +6,7 @@ import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { formatDate } from './task-formatters'
+import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { ObjectiveHint } from './objective-hint'
@@ -77,6 +78,9 @@ export type MobileGroupedCardsProps = {
   /** Design fix wave item 4 — task_def_id → pic_role NAME (from useOccurrenceGroups), backing each
    * card's "via <role name>" generated-ownership line. Undefined outside occurrence grouping. */
   provenanceByTaskDefId?: Map<string, string>
+  onEditTitle?: (taskId: string, title: string) => Promise<void>
+  draftTaskId?: string | null
+  onDiscardNewTask?: () => void
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
@@ -88,12 +92,16 @@ type TaskCardProps = {
   supervisorName: string
   recordSearch?: string
   onOpenTask: (taskId: string) => void
+  onEditTitle?: (taskId: string, title: string) => Promise<void>
+  isNew?: boolean
+  onDiscardNewTask?: () => void
+  onCreateError?: (message: string) => void
   /** Design fix wave item 4 — the generated-ownership source ("via <role name>"), Rule 11 reuse of
    * OwnerCell's provenance rendering. */
   provenanceRoleName?: string
 }
 
-function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -104,6 +112,20 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
   const dueText = task.due_date
     ? (taskOverdue ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }) : formatDate(task.due_date, locale))
     : '—'
+  const [draft, setDraft] = useState(task.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const newCommitStarted = useRef(false)
+  useEffect(() => { if (isNew) inputRef.current?.focus() }, [isNew])
+  const finish = () => {
+    const title = draft.trim()
+    if (newCommitStarted.current) return
+    if (!title) { onDiscardNewTask?.(); return }
+    newCommitStarted.current = true
+    void (onEditTitle?.(task.id, title) ?? Promise.resolve()).catch(() => {
+      onDiscardNewTask?.()
+      onCreateError?.(t('tasks.feedback.rollback'))
+    })
+  }
 
   return (
     <article data-testid="task-card" className="task-card collection-grammar-card">
@@ -118,7 +140,17 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
       >
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
-          <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
+          {isNew ? (
+            <input ref={inputRef} className="task-title-input collection-grammar-title" value={draft}
+              aria-label={t('tasks.inlineEdit.aria')} onChange={(event) => setDraft(event.target.value)}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); finish() }
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onDiscardNewTask?.() }
+              }} onBlur={finish} />
+          ) : (
+            <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
+          )}
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
@@ -163,8 +195,9 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
 export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
-  onAssignPending, provenanceByTaskDefId, onOpenTask,
+  onAssignPending, provenanceByTaskDefId, onOpenTask, onEditTitle, draftTaskId, onDiscardNewTask,
 }: MobileGroupedCardsProps) {
+  const [createError, setCreateError] = useState<string | null>(null)
   const t = useT()
   const openTask = onOpenTask ?? (() => {})
   const provenanceFor = (task: TaskListRow): string | undefined =>
@@ -176,6 +209,8 @@ export function MobileGroupedCards({
   const isFlat = groups.length === 1 && groups[0].key === '__flat__'
   if (isFlat) {
     return (
+      <>
+        {createError && <span role="status" aria-live="polite" className="sr-only">{createError}</span>}
       <div className="mgc mgc-flat" role="list" aria-label={t('tasks.title')}>
         {groups[0].rows.map(task => (
           <div key={task.id} role="listitem">
@@ -188,15 +223,19 @@ export function MobileGroupedCards({
               recordSearch={recordSearch}
               onOpenTask={openTask}
               provenanceRoleName={provenanceFor(task)}
+              onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
+              onCreateError={(message) => setCreateError(message)}
             />
           </div>
         ))}
       </div>
+      </>
     )
   }
 
   return (
     <div className="mgc" role="list" aria-label={t('tasks.title')}>
+      {createError && <span role="status" aria-live="polite" className="sr-only">{createError}</span>}
       {groups.map(group => (
         <div key={`mgc-${group.key}`} className="mgc-group">
           <div className="mgc-group-head collection-grammar-mobile-group">
@@ -284,6 +323,8 @@ export function MobileGroupedCards({
                 recordSearch={recordSearch}
                 onOpenTask={openTask}
                 provenanceRoleName={provenanceFor(task)}
+                onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
+                onCreateError={(message) => setCreateError(message)}
               />
             </div>
           ))}

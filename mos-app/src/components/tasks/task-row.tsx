@@ -55,13 +55,15 @@ export type TaskRowProps = {
    * Returns a Promise so the useInlineCommit primitive drives the optimistic pending + rollback.
    */
   onEditTitle?: (taskId: string, title: string) => Promise<void>
+  isNew?: boolean
+  onDiscardNewTask?: () => void
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle,
+  onEditTitle, isNew = false, onDiscardNewTask,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -92,8 +94,9 @@ export function TaskRow({
   // announces the revert. Rendering `draft` (not task.title) is what makes the optimistic edit
   // survive the async round-trip without the row needing its own copy of the collection cache.
   const canEdit = Boolean(onEditTitle)
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(isNew)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const newCommitStarted = useRef(false)
   // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
   // shared panel's close returns focus to the invoking element.
   const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
@@ -111,15 +114,23 @@ export function TaskRow({
     if (editing) {
       const el = inputRef.current
       el?.focus()
-      el?.select()
+      if (!isNew) el?.select()
     }
-  }, [editing])
+  }, [editing, isNew])
 
   const beginEdit = () => { if (canEdit && !editing) setEditing(true) }
   // Enter/blur COMMIT the trimmed draft; an empty or unchanged draft is a no-op restore (never a
   // blank title). Escape DISCARDS. Exiting edit mode is owned here (useInlineCommit is mode-less).
   const finishEdit = () => {
     const next = draft.trim()
+    if (isNew) {
+      if (newCommitStarted.current) return
+      if (!next) { onDiscardNewTask?.(); return }
+      newCommitStarted.current = true
+      commit(next)
+      setEditing(false)
+      return
+    }
     if (!next || next === task.title) { cancel(); setEditing(false); return }
     commit(next)
     setEditing(false)
@@ -140,7 +151,8 @@ export function TaskRow({
       // window listener cleanly here.
       e.preventDefault()
       e.stopPropagation()
-      cancel()
+      if (isNew) onDiscardNewTask?.()
+      else cancel()
       setEditing(false)
     }
     // Tab is left to native focus movement; onBlur commits the draft as it leaves.

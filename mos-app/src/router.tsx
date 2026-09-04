@@ -193,8 +193,8 @@ const routeTable: RouteObject[] = [
             children: [
               {
                 path: 'new',
-                element: withSuspense(<TaskDrawer mode="create" />),
-                handle: pageHandle('focused-record'),
+                element: <RouteRedirect to="/work/tasks?create=1" />,
+                handle: redirectHandle('/work/tasks?create=1'),
               },
               {
                 path: ':taskId',
@@ -273,8 +273,8 @@ const routeTable: RouteObject[] = [
           },
           {
             path: 'tasks/new',
-            element: <RouteRedirect to="/work/tasks/new" />,
-            handle: redirectHandle('/work/tasks/new'),
+            element: <RouteRedirect to="/work/tasks?create=1" />,
+            handle: redirectHandle('/work/tasks?create=1'),
           },
           {
             path: 'tasks/:taskId',

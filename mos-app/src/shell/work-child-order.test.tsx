@@ -251,7 +251,7 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     // byte-exact and case-sensitive, so `/Work/Signals`, `/work/signals?` and `/work/signals/` —
     // all one destination to react-router — were invisible here and re-typed sequences in any of
     // those spellings passed green.
-    const targets = Array.from(v.container.querySelectorAll<HTMLElement>('[data-to]'))
+    const targets = Array.from(v.container.querySelectorAll<HTMLElement>('[data-to]:not(.action)'))
       .map((el) => routeKey(el.getAttribute('data-to') ?? ''))
       .filter((t) => t.startsWith('/work'))
     const parent = routeKey(DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks')

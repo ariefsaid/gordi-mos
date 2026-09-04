@@ -121,7 +121,6 @@ describe('AC-019: every route but the index and login loads on demand, behind on
 // It is also the ledger every later surface ticket edits: porting a surface flips exactly one row.
 const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenance: string]> = [
   ['/work/tasks', TasksLayout, 'dev'],
-  ['/work/tasks/new', TaskDrawer, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
   // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
   // Updates surface). #193 ported the archive but never flipped these two rows, so this ledger

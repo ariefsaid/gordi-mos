@@ -106,6 +106,9 @@ export type TasksTableBodyProps = {
   /** Design fix wave item 4 — threaded through to MobileGroupedCards' "via <role name>"
    * generated-ownership line. */
   provenanceByTaskDefId?: Map<string, string>
+  onEditTitle?: (taskId: string, title: string) => Promise<void>
+  draftTaskId?: string | null
+  onDiscardNewTask?: () => void
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
@@ -119,6 +122,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
+    onEditTitle, draftTaskId, onDiscardNewTask,
   } = props
 
   if (loading) {
@@ -184,6 +188,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         objectiveMap={objectiveMap}
         onAssignPending={onAssignPending}
         provenanceByTaskDefId={provenanceByTaskDefId}
+        onEditTitle={onEditTitle}
+        draftTaskId={draftTaskId}
+        onDiscardNewTask={onDiscardNewTask}
       />
     )
   }

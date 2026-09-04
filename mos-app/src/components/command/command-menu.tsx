@@ -133,7 +133,7 @@ type RecordsState =
 
 // Universal actions (stable order — Rule 7 forbids reordering them). verb+object.
 // Ask Deputy opens the AssistantPanel; Share Signal calls onShareSignal (opens the shared Signal
-// composer host — never a route navigation, AC-428/FR-417); Create Task navigates /work/tasks/new.
+// composer host — never a route navigation, AC-428/FR-417); Create Task opens inline on Tasks.
 function matches(label: string, q: string): boolean {
   return label.toLowerCase().includes(q.trim().toLowerCase())
 }
@@ -205,7 +205,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       const items: CommandItem[] = [
         { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
         { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
-        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks/new' },
+        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
       ]
       if (cafeLogAdmitted) {
         items.push({ id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action', to: CAFE_LOG_ROUTE })

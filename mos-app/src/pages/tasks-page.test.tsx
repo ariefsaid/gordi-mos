@@ -629,7 +629,7 @@ describe('a11y — aria roles and labels', () => {
     renderPage()
     await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
     const link = screen.getByRole('link', { name: /\+ create task/i })
-    expect(link.getAttribute('href')).toContain('/work/tasks/new')
+    expect(link.getAttribute('href')).toContain('/work/tasks?create=1')
   })
 })
 

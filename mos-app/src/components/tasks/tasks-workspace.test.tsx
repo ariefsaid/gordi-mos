@@ -49,7 +49,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   archiveCollectionView: vi.fn(),
 }))
 
-import { listTasks, getTask, updateTaskFields } from '@/lib/db/tasks'
+import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -60,7 +60,9 @@ import { taskCollectionDescriptor } from './task-collection-adapter'
 
 const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
+const mockGetPeople = vi.mocked(getPeople)
 const mockUpdateTaskFields = vi.mocked(updateTaskFields)
+const mockCreateTask = vi.mocked(createTask)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
 
 const VIEWER_ID = 'viewer-id'
@@ -138,6 +140,7 @@ function makeSavedView(view: 'mine' | 'overdue' | 'followups' | 'all' | 'unknown
 function renderTable(
   props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {},
   auth: AuthState = authedState,
+  entries = ['/work/tasks'],
 ) {
   function Harness() {
     const initialSavedView = props.savedView ?? makeSavedView('all')
@@ -154,7 +157,7 @@ function renderTable(
   return render(
     <I18nProvider>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={['/work/tasks']}>
+        <MemoryRouter initialEntries={entries}>
           <OverlayHostProvider>
             <Harness />
           </OverlayHostProvider>
@@ -198,6 +201,51 @@ beforeEach(() => {
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   mockListCollectionViews.mockResolvedValue([])
+})
+
+describe('D3e — Tasks create is an inline title row', () => {
+  it('keeps ?create=1 until a cold-cache context loads, then inserts the inline row', async () => {
+    let resolvePeople!: (people: typeof PEOPLE) => void
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    mockGetPeople.mockImplementationOnce(() => new Promise(resolve => { resolvePeople = resolve }))
+    renderTable({}, authedState, ['/work/tasks?create=1'])
+    expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
+    mockGetPeople.mockResolvedValue(PEOPLE)
+    await act(async () => { resolvePeople(PEOPLE) })
+    expect(await screen.findByRole('textbox', { name: /title/i })).toBeInTheDocument()
+  })
+
+  it('clicking + Create task inserts a focused editable title row without a create panel', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    renderTable()
+
+    await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '+ Create task' }))
+
+    const titleInput = await screen.findByRole('textbox', { name: /title/i })
+    expect(titleInput).toHaveFocus()
+    expect(titleInput).not.toBeDisabled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+
+    fireEvent.change(titleInput, { target: { value: 'New inline task' } })
+    mockCreateTask.mockResolvedValue('created-task')
+    fireEvent.keyDown(titleInput, { key: 'Enter' })
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
+    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({ title: 'New inline task' })
+  })
+
+  it('Escape discards the inline row without writing', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    renderTable()
+    await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '+ Create task' }))
+    const titleInput = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.keyDown(titleInput, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
+    expect(mockCreateTask).not.toHaveBeenCalled()
+  })
 })
 
 describe('FR-V3-013 — live Tasks collection wiring', () => {
@@ -359,7 +407,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     stubMatchMedia(true, true)
     const desktop = renderTable()
     await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.getByRole('link', { name: '+ Create task' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
     desktop.unmount()
 
     // Phone: no in-page header create button — the single phone create door is the global FAB

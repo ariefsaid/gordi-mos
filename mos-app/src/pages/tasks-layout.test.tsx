@@ -438,12 +438,12 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
   })
 
-  it('AC-109: n navigates to the create drawer', async () => {
+  it('AC-109: n inserts an inline title editor', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'First row' })])
     renderAt('/work/tasks')
     await waitFor(() => screen.getByText('First row'))
     fireEvent.keyDown(window, { key: 'n' })
-    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /title/i })).toHaveFocus())
   })
 
   it('AC-109: Esc closes the open drawer (back to /tasks, table full width)', async () => {
