@@ -39,7 +39,7 @@ function Opener() {
   const { open, postCount } = useSignalComposer()
   return (
     <>
-      <button type="button" onClick={open}>open-composer</button>
+      <button type="button" onClick={() => open()}>open-composer</button>
       <span data-testid="post-count">{postCount}</span>
     </>
   )

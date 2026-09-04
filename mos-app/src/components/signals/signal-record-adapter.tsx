@@ -38,6 +38,7 @@ export interface WrapSignalRecordInput {
   reach: ReactNode | null
   /** Optional author/deputy attention editor for the message region. */
   onAttentionChange?: (attention: Attention) => void
+  onRepost?: () => void
   /** Region 3 node built by the host; null when retracted. */
   discussion: ReactNode | null
   /** Region 4 node (quiet provenance + category control) built by the host. */
@@ -75,6 +76,7 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
         onAttentionChange={input.onAttentionChange}
         retracted={retracted}
         retractReason={signal.retract_reason}
+        onRepost={input.onRepost}
       />
     ),
   }

@@ -258,7 +258,7 @@ export function SignalsArchivePage() {
       // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
       // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
       primaryAction={(
-        <Button variant="primary" onClick={openSignalComposer}>
+        <Button variant="primary" onClick={() => openSignalComposer()}>
           {t('signals.action.share')}
         </Button>
       )}

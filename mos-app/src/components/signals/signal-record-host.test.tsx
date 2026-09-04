@@ -24,12 +24,13 @@ vi.mock('@/lib/db/signals', async (importOriginal) => {
     acknowledgeSignal: vi.fn(),
     linkSignalTask: vi.fn(),
     createFollowUpTask: vi.fn(),
+    retractSignal: vi.fn(),
     loadMentionRosters: vi.fn(),
   }
 })
 import {
   getSignal, listSignalRevisions, listAllTeams, getTeamSite, correctSignal, acknowledgeSignal,
-  linkSignalTask, createFollowUpTask, loadMentionRosters,
+  linkSignalTask, createFollowUpTask, retractSignal, loadMentionRosters,
 } from '@/lib/db/signals'
 
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
@@ -41,6 +42,14 @@ import { listTasks } from '@/lib/db/tasks'
 vi.mock('@/lib/comments/postComment', () => ({ listComments: vi.fn(), postComment: vi.fn() }))
 import { listComments, postComment } from '@/lib/comments/postComment'
 
+vi.mock('@/shell/signal-composer-host', () => ({
+  useSignalComposer: vi.fn(),
+}))
+import { useSignalComposer } from '@/shell/signal-composer-host'
+
+const mockOpenComposer = vi.fn()
+const mockUseSignalComposer = vi.mocked(useSignalComposer)
+
 import { SignalRecordHost } from './signal-record-host'
 
 const mockGetSignal = vi.mocked(getSignal)
@@ -51,6 +60,7 @@ const mockCorrectSignal = vi.mocked(correctSignal)
 const mockAcknowledgeSignal = vi.mocked(acknowledgeSignal)
 const mockLinkSignalTask = vi.mocked(linkSignalTask)
 const mockCreateFollowUpTask = vi.mocked(createFollowUpTask)
+const mockRetractSignal = vi.mocked(retractSignal)
 const mockLoadMentionRosters = vi.mocked(loadMentionRosters)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
@@ -98,6 +108,7 @@ function renderHost(props: Partial<React.ComponentProps<typeof SignalRecordHost>
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(authedViewer())
+  mockUseSignalComposer.mockReturnValue({ open: mockOpenComposer, postCount: 0 })
   mockGetSignal.mockResolvedValue({
     signal: baseSignal,
     mentions: [{ id: 'm1', signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null, revoked_at: null }],
@@ -148,6 +159,35 @@ describe('SignalRecordHost — resolves names + mentions from the DAL', () => {
     expect(within(facts).getByText('Retail Ops')).toBeInTheDocument()
     expect(within(facts).getByText('Gordi HQ')).toBeInTheDocument()
     expect(screen.getByText('@Peer Person')).toBeInTheDocument()
+  })
+})
+
+describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
+  it('offers retract to the author, requires a reason, retracts, and opens a prefilled repost composer', async () => {
+    mockUseAuth.mockReturnValue(authedViewer(VIEWER_ID))
+    mockGetSignal.mockResolvedValue({ signal: { ...baseSignal, author_id: VIEWER_ID }, mentions: [], acknowledgements: [], tasks: [] })
+    mockRetractSignal.mockResolvedValue(undefined)
+    renderHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: /^retract$/i }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('textbox', { name: /reason/i })).toBeRequired()
+    expect(within(dialog).getByRole('button', { name: /retract/i })).toBeDisabled()
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /reason/i }), 'Wrong provenance')
+    mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, author_id: VIEWER_ID, retracted_at: '2026-07-17T02:00:00Z', retract_reason: 'Wrong provenance' }, mentions: [], acknowledgements: [], tasks: [] })
+    await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
+
+    expect(mockRetractSignal).toHaveBeenCalledWith(SIGNAL_ID, 'Wrong provenance')
+    await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /^repost$/i }))
+    expect(mockOpenComposer).toHaveBeenCalledWith(expect.objectContaining({ body: baseSignal.body, owningTeamId: TEAM_ID }))
+  })
+
+  it('hides retract from a plain viewer', async () => {
+    renderHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /^retract$/i })).toBeNull()
   })
 })
 

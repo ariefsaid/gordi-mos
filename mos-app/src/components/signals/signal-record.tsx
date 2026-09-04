@@ -48,11 +48,12 @@ export interface LinkedTasksSummary {
 // line; the full body always renders here so the heading is never an ellipsized slice — F2). The
 // attention level + occurred time ride WITH it (LAW-2), never hoisted to a downstream facts block.
 export function SignalMessage({
-  body, attention, occurredLabel, retracted, retractReason, canEditAttention, onAttentionChange,
+  body, attention, occurredLabel, retracted, retractReason, canEditAttention, onAttentionChange, onRepost,
 }: {
   body: string
   attention: Attention
   occurredLabel: string
+  onRepost?: () => void
   retracted?: boolean
   retractReason?: string | null
   canEditAttention?: boolean
@@ -61,9 +62,10 @@ export function SignalMessage({
   const t = useT()
   if (retracted) {
     return (
-      <p className="signal-tombstone">
-        {t('signals.retracted')} {retractReason ? <span>{retractReason}</span> : null}
-      </p>
+      <div className="signal-tombstone">
+        <p>{t('signals.retracted')} {retractReason ? <span>{retractReason}</span> : null}</p>
+        {onRepost && <Button variant="primary" onClick={onRepost}>{t('signals.record.repost')}</Button>}
+      </div>
     )
   }
   return (
@@ -101,7 +103,7 @@ export function SignalReach({
   mentions, shieldLine,
   canAcknowledge, hasAcknowledged, onAcknowledge,
   acknowledgements, linkedTasksSummary,
-  onCreateFollowUpTask, onLinkExistingTask, actionForms,
+  onCreateFollowUpTask, onLinkExistingTask, onRetract, actionForms,
 }: {
   mentions: SignalMentionView[]
   shieldLine?: string
@@ -112,6 +114,7 @@ export function SignalReach({
   linkedTasksSummary?: LinkedTasksSummary
   onCreateFollowUpTask?: () => void
   onLinkExistingTask?: () => void
+  onRetract?: () => void
   actionForms?: ReactNode
 }) {
   const t = useT()
@@ -146,6 +149,7 @@ export function SignalReach({
             {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.record.acknowledge')}
           </Button>
         )}
+        {onRetract && <Button variant="outline" onClick={onRetract}>{t('signals.record.retract')}</Button>}
       </div>
 
       {actionForms}

@@ -37,6 +37,11 @@ export interface ConfirmDialogProps {
    * Default: 'primary'.
    */
   tone?: 'primary' | 'destructive'
+  /** Optional required reason field for consequential actions. */
+  reasonLabel?: string
+  reason?: string
+  onReasonChange?: (reason: string) => void
+  reasonRequired?: boolean
   /** Async action fired on confirm click. Throw to surface an error state. */
   onConfirm: () => Promise<void>
   /** Called on Cancel or Esc. */
@@ -51,6 +56,10 @@ export function ConfirmDialog({
   cancelLabel,
   busyLabel,
   tone = 'primary',
+  reasonLabel,
+  reason = '',
+  onReasonChange,
+  reasonRequired = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -141,6 +150,18 @@ export function ConfirmDialog({
           {body}
         </p>
 
+        {reasonLabel && onReasonChange && (
+          <label className="mb-4 block text-sm" style={{ color: 'var(--foreground)' }}>
+            <span className="mb-1 block">{reasonLabel}</span>
+            <input
+              required={reasonRequired}
+              value={reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+              className="input w-full"
+            />
+          </label>
+        )}
+
         {error && (
           <div className="mb-4">
             <ErrorState message={error} />
@@ -161,7 +182,7 @@ export function ConfirmDialog({
             type="button"
             className={`btn ${tone === 'destructive' ? 'btn-destructive' : 'btn-primary'}`}
             onClick={handleConfirm}
-            disabled={busy}
+            disabled={busy || (reasonRequired && !reason.trim())}
           >
             {busy ? (busyLabel ?? t('common.working')) : confirmLabel}
           </button>
