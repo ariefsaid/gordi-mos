@@ -128,6 +128,8 @@ export interface RecordViewerAdapter {
   title: string
   typeLabel: string
   eyebrow?: string
+  /** Optional task action-header fields rendered above the persistent tab strip. */
+  headerFields?: readonly RecordFieldSpec[]
   metadata: readonly RecordMetadataSection[]
   relations: readonly RecordRelation[]
   contentSlots: readonly RecordContentSlot[]

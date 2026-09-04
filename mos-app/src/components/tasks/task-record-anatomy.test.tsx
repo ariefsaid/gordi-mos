@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -106,8 +106,8 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     const h1 = container.querySelector('h1')!
     expect(h1.textContent).toBe(LONG_TITLE)
     expect(h1.textContent!.endsWith('…')).toBe(false)
-    // No content region re-renders the title as a field row (no duplicate name).
-    expect(container.querySelector('[data-field-key="title"]')).toBeNull()
+    // The pinned action header owns the editable title field.
+    expect(container.querySelector('[data-field-key="title"]')).toBeTruthy()
   })
 
   it('F3 — a read-only Task carries at most ONE whole-record note and no per-field provenance captions', () => {
@@ -136,7 +136,28 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
   it('Status + Due ride with the content region (LAW-2), not a downstream metadata block', () => {
     const { container } = renderRecord()
     const content = container.querySelector('[data-content-slot="content"]')!
-    expect(content.querySelector('[data-field-key="status"]')).toBeTruthy()
+    expect(container.querySelector('[data-record-header="pinned"] [data-field-key="status"]')).toBeTruthy()
     expect(content.querySelector('[data-field-key="dueDate"]')).toBeTruthy()
+  })
+
+  it('tasks-redesign-B: pins the action header, tabs the record, and edits the title inline', () => {
+    const { container } = renderRecord()
+    expect(container.querySelector('[data-record-header="pinned"]')).toBeTruthy()
+    expect(within(container).getByRole('tablist')).toBeInTheDocument()
+    for (const label of ['Details', 'Checklist', 'Activity']) {
+      expect(within(container).getByRole('tab', { name: label })).toBeInTheDocument()
+    }
+    expect(container.querySelector('[data-field-key="title"]')).toBeTruthy()
+    expect(container.querySelector('[data-field-key="status"] .record-field__pill')).toBeTruthy()
+  })
+
+  it('tasks-redesign-B: renders provenance when a task is generated from a process', () => {
+    const { container } = renderRecord({
+      detail: makeDetail(makeTask({ work_line_id: 'process-1' })),
+      workLines: [{ id: 'process-1', name: 'Café Opening', type: 'process' }],
+      generatedFromLabel: 'Café Opening',
+    })
+    expect(container.querySelector('[data-field-key="source"]')).toHaveTextContent('Café Opening')
+    expect(container.querySelector('[data-field-key="generatedFrom"]')).toHaveTextContent('Café Opening')
   })
 })

@@ -656,7 +656,7 @@ function ViewSurface({
           {onCollapseToSplit && (
             <button
               type="button"
-              className="dw-iconbtn"
+              className="dw-iconbtn dw-collapse-split"
               aria-label={t('tasks.backToSplit')}
               title={t('tasks.backToSplit')}
               onClick={() => onCollapseToSplit()}

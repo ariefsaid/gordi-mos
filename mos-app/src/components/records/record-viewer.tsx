@@ -11,7 +11,7 @@
 // never renders a confirmation dialog. Field commits route through onCommitField;
 // dirty state forwards to onDirtyChange so the tenant can attach the Issue 4
 // OverlayEntry.leaveGuard. Related links call onOpenRelated (or their href).
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { reportError } from '@/lib/telemetry'
 import { Button, type ButtonVariant } from '@/components/ui/button'
@@ -80,18 +80,20 @@ export function RecordFieldList({
   onCommitField,
   onDirtyChange,
   fieldCommitsFrozen = false,
+  excludeKeys = [],
 }: {
   section: RecordMetadataSection
   onCommitField?: (key: string, value: RecordValue) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
   fieldCommitsFrozen?: boolean
+  excludeKeys?: readonly string[]
 }): ReactNode {
   const commit = onCommitField ?? noopCommit
   return (
     <>
       <h3 className="record-viewer__section-title">{section.label}</h3>
       <div className="record-viewer__fields">
-        {section.fields.map((field) => (
+        {section.fields.filter((field) => !excludeKeys.includes(field.key)).map((field) => (
           <RecordField
             key={field.key}
             spec={field}
@@ -121,6 +123,8 @@ export function RecordViewer({
   const t = useT()
   const titleId = useId()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
+  const taskAnatomy = adapter.kind === 'task' && adapter.headerFields != null
+  const [activeTab, setActiveTab] = useState('details')
 
   const body = (() => {
     if (loading) {
@@ -156,9 +160,48 @@ export function RecordViewer({
       className={`record-viewer record-viewer--${mode}`}
       data-record-kind={adapter.kind}
       data-record-mode={mode}
-      {...(showIdentityHeader ? { 'aria-labelledby': titleId } : { 'aria-label': adapter.title })}
+      {...(showIdentityHeader && !taskAnatomy ? { 'aria-labelledby': titleId } : { 'aria-label': adapter.title })}
     >
-      {showIdentityHeader && (
+      {taskAnatomy && adapter.headerFields && (
+        <header className="record-viewer__pinned-header" data-record-header="pinned" data-viewer-region="identity">
+          <div className="record-viewer__pinned-title">
+            {adapter.headerFields.filter((field) => field.key === 'title').map((field) => (
+              <RecordField
+                key={field.key}
+                spec={field}
+                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
+                onDirtyChange={onDirtyChange}
+                commitsFrozen={fieldCommitsFrozen}
+                heading={field.key === 'title'}
+              />
+            ))}
+          </div>
+          <div className="record-viewer__pinned-status">
+            {adapter.headerFields.filter((field) => field.key === 'status').map((field) => (
+              <RecordField
+                key={field.key}
+                spec={field}
+                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
+                onDirtyChange={onDirtyChange}
+                commitsFrozen={fieldCommitsFrozen}
+              />
+            ))}
+            <button type="button" className="record-viewer__activity-affordance" onClick={() => setActiveTab('activity')}>
+              Activity
+            </button>
+          </div>
+        </header>
+      )}
+      {taskAnatomy && (
+        <div className="record-viewer__tabs" role="tablist" aria-label="Task record sections">
+          {(['details', 'checklist', 'activity'] as const).map((tab) => (
+            <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} className={activeTab === tab ? 'is-active' : ''} onClick={() => setActiveTab(tab)}>
+              {tab[0].toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+      )}
+      {showIdentityHeader && !taskAnatomy && (
         <header className="record-viewer__identity" data-viewer-region="identity">
           {adapter.eyebrow && <p className="record-viewer__eyebrow">{adapter.eyebrow}</p>}
           <p className="record-viewer__type">{adapter.typeLabel}</p>

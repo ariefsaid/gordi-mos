@@ -168,7 +168,7 @@ describe('TaskSurface — view mode', () => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
     // Left panel: status + typed ownership always visible (decision-drivers above the fold)
-    expect(screen.getByText('Open')).toBeInTheDocument()
+    expect(screen.getAllByText('Open').length).toBeGreaterThan(0)
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     expect(screen.getByText('PIC')).toBeInTheDocument()
     expect(screen.getByText('Supervisor')).toBeInTheDocument()
@@ -211,7 +211,7 @@ describe('TaskSurface — view mode', () => {
     expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
-    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('tablist')).toBeInTheDocument()
     // The shared RecordViewer owns identity + every ordered content slot, content-first.
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     const regions = [...document.querySelectorAll('[data-content-slot]')].map((n) => (n as HTMLElement).dataset.contentSlot)
@@ -483,8 +483,8 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    // Content-first anatomy: no tabbed feed — Checklist and Activity are directly-visible regions.
-    expect(screen.queryByRole('tablist')).toBeNull()
+    // Variant B anatomy: the persistent tabs accompany the directly-visible regions.
+    expect(screen.getByRole('tablist')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
