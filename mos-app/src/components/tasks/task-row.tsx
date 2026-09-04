@@ -11,6 +11,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
@@ -61,7 +62,9 @@ export type TaskRowProps = {
   onEditDue?: (taskId: string, dueDate: string | null) => Promise<void>
   onEditPic?: (taskId: string, personId: string) => Promise<void>
   personOptions?: readonly { id: string; full_name: string }[]
-  showBusinessUnit?: boolean
+  visibleFields?: readonly TaskCollectionVisibleField[]
+  workLineName?: string
+  objectiveName?: string
   isNew?: boolean
   onDiscardNewTask?: () => void
   createError?: boolean
@@ -83,7 +86,9 @@ export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
+  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [],
+  visibleFields = TASK_DECISION_FIELDS, workLineName = '', objectiveName = '',
+  isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -105,6 +110,18 @@ export function TaskRow({
       : formatDate(task.due_date, locale))
     : '—'
   const isArchived = task.archived_at != null
+  const optionalCell = (field: TaskCollectionVisibleField) => {
+    if (!visibleFields.includes(field)) return null
+    const values: Partial<Record<TaskCollectionVisibleField, string>> = {
+      businessUnit: businessUnitName,
+      workline: workLineName,
+      objective: objectiveName,
+      source: sourceName,
+      activity: task.last_activity_at ? formatDate(task.last_activity_at.slice(0, 10), locale) : '',
+    }
+    const value = values[field] ?? ''
+    return <td key={field} className={`td-cell td-${field}`} data-field={field}>{value || <span className="td-empty">—</span>}</td>
+  }
   const recordTo = { pathname: `/work/tasks/${task.id}`, search: recordSearch }
   const panelState = { taskSurface: 'panel' as const }
 
@@ -386,13 +403,7 @@ export function TaskRow({
           </span>
         ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
-      {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
-          the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).
-          Work-line/Project-Process, Objective, Team, Source, Activity moved to the
-          record drawer/full page (where the typed Task already shows them — OD-62).
-          This is column PRIORITY, not data removal. */}
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
-      {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
       <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
@@ -402,6 +413,7 @@ export function TaskRow({
           </span>
         ) : <button type="button" className="inline-cell-trigger" aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
       </td>
+      {visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).map(optionalCell)}
       <td className="td-cell td-menu">
         <RowMenu taskId={task.id} recordSearch={recordSearch} />
       </td>

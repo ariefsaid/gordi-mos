@@ -208,13 +208,13 @@ describe('§Task-11: the Team-work view is removed until Issue 8', () => {
     expect(parsed.issues.some((issue) => issue.key === 'view')).toBe(true)
   })
 
-  it('D3d: visible optional fields round-trip through the URL while decision fields remain present', () => {
-    const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('fields=title,status,pic,supervisor,due,businessUnit'), 'table')
+  it('D3d: visible optional fields preserve the deep-link order after fixed decision fields', () => {
+    const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('fields=objective,businessUnit,activity,title,status,pic,supervisor,due'), 'table')
     expect(parsed.ok).toBe(true)
     if (!parsed.ok) throw new Error('fields must parse')
-    expect(parsed.query.visibleFields).toContain('businessUnit')
+    expect(parsed.query.visibleFields).toEqual(['title', 'pic', 'supervisor', 'status', 'due', 'objective', 'businessUnit', 'activity'])
     const serialized = taskCollectionDescriptor.query.serialize(parsed.query)
-    expect(serialized.get('fields')).toBe('title,pic,supervisor,status,due,businessUnit')
+    expect(serialized.get('fields')).toBe('title,pic,supervisor,status,due,objective,businessUnit,activity')
   })
 
   it('§Task-11: a supported view (?view=my-work) still parses cleanly', () => {

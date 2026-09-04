@@ -577,9 +577,18 @@ export function TasksWorkspace({
       onViewChange={handleViewChange}
       onFieldToggle={(field, visible) => {
         const next = visible
-          ? [...new Set([...query.visibleFields, field as TaskCollectionQuery['visibleFields'][number]])]
+          ? [...query.visibleFields, field as TaskCollectionQuery['visibleFields'][number]]
           : query.visibleFields.filter((candidate) => candidate !== field)
-        setQuery({ visibleFields: next })
+        setQuery({ visibleFields: [...new Set(next)] })
+      }}
+      onFieldMove={(field, direction) => {
+        const optional = query.visibleFields.filter((candidate) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(candidate))
+        const index = optional.indexOf(field as typeof optional[number])
+        const nextIndex = direction === 'up' ? index - 1 : index + 1
+        if (index < 0 || nextIndex < 0 || nextIndex >= optional.length) return
+        const reordered = [...optional]
+        ;[reordered[index], reordered[nextIndex]] = [reordered[nextIndex], reordered[index]]
+        setQuery({ visibleFields: [...['title', 'pic', 'supervisor', 'status', 'due'] as const, ...reordered] })
       }}
       overdueCount={stats?.overdue ?? 0}
       onOverdueFilter={() => setQuery({ overdueOnly: true })}

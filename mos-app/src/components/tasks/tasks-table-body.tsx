@@ -67,6 +67,8 @@ export type TasksTableBodyProps = {
   sortCol: SortCol
   /** Optional fields selected in the current URL-backed view. */
   showBusinessUnit?: boolean
+  /** Ordered field list; decision columns are rendered first, optional fields follow it. */
+  visibleFields?: readonly import('@/lib/record-collection/collection-view-spec').TaskCollectionVisibleField[]
   /** thead column-header click → cycle the sort for that column. */
   onSort: (col: SortCol) => void
   /** aria-sort for a column (active col → its direction, else 'none'). */
@@ -118,7 +120,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   const {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
-    sortCol, onSort, ariaSort, sortIndicator, showBusinessUnit = false,
+    sortCol, onSort, ariaSort, sortIndicator, visibleFields = ['title', 'pic', 'supervisor', 'status', 'due'],
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
@@ -213,7 +215,6 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               </button>
             </th>
             <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('status')}>
                 {t('tasks.filter.status')}{sortIndicator('status')}
               </button>
@@ -225,16 +226,16 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               </button>
             </th>
             <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
-            {showBusinessUnit ? <th scope="col" className="th-cell">{t('tasks.filter.businessUnit')}</th> : null}
-            {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
-                inside the first paint. Project/Process, Objective, Team, Source, Activity
-                moved to the drawer (OD-62). */}
             <th scope="col" className={`th-cell th-sortable${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
                 {t('tasks.dueLabel')}{sortIndicator('due')}
               </button>
             </th>
+            {visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).map((field) => {
+              const labels: Record<string, string> = { businessUnit: t('tasks.filter.businessUnit'), workline: t('tasks.filter.projectProcess'), objective: t('tasks.objective'), source: t('tasks.source'), activity: t('tasks.feed.activity') }
+              return <th key={field} scope="col" className="th-cell">{labels[field]}</th>
+            })}
             {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
             <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />
           </tr>
@@ -244,8 +245,8 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
             // Wave 2c: both desktop modes share the 6-column priority set
-            // (Task + Status + PIC + Supervisor + Due + menu).
-            const colSpan = showBusinessUnit ? 7 : 6
+            // (Task + Status + PIC + Supervisor + Due + menu), plus ordered optional fields.
+            const colSpan = 6 + visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).length
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (

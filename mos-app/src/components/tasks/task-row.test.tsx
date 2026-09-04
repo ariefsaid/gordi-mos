@@ -114,6 +114,24 @@ describe('TaskRow — AC-T05 status is a soft pill (dot+text never color-alone) 
   })
 })
 
+describe('TaskRow — optional columns', () => {
+  it('renders Project/Process, Objective, Source, and Activity values when selected', () => {
+    renderRow({
+      task: makeTask({ work_line_id: 'wl-1', objective_id: 'obj-1' }),
+      visibleFields: ['title', 'pic', 'supervisor', 'status', 'due', 'workline', 'objective', 'source', 'activity'],
+      workLineName: 'Daily opening',
+      objectiveName: 'Increase consistency',
+      sourceName: 'Café opening',
+    })
+    const cells = [...document.querySelectorAll('tr.task-row td')]
+    expect(cells.findIndex((cell) => cell.className.includes('td-workline'))).toBeGreaterThan(-1)
+    expect(screen.getByText('Daily opening')).toBeInTheDocument()
+    expect(screen.getByText('Increase consistency')).toBeInTheDocument()
+    expect(screen.getByText('Café opening')).toBeInTheDocument()
+    expect(document.querySelector('.td-activity')).toHaveTextContent('Sun 14 Jun')
+  })
+})
+
 describe('TaskRow — AC-T06 body row uses the shared RecordCollection measure', () => {
   it('AC-T06: the row renders td-cell cells whose CSS rule consumes --row-min-h', () => {
     renderRow()

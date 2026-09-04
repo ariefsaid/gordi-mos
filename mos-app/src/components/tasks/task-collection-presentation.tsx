@@ -493,7 +493,10 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditDue={runtime.onEditDue}
         onEditPic={runtime.onEditPic}
         personOptions={context.people}
-        showBusinessUnit={query.visibleFields.includes('businessUnit')}
+        visibleFields={query.visibleFields}
+        workLineName={context.workLinesById.get(task.work_line_id ?? '') ?? ''}
+        objectiveName={context.objectivesById.get(task.objective_id ?? '') ?? ''}
+        sourceName={context.workLinesById.get(task.work_line_id ?? '') ?? context.objectivesById.get(task.objective_id ?? '') ?? ''}
         isNew={task.id === runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
         createError={task.id === runtime.draftTask?.id && runtime.draftLinkError}
@@ -513,7 +516,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       count={group.rows.length}
       overdue={group.overdue}
       collapsed={isCollapsedPreference(group.key)}
-      colSpan={query.visibleFields.includes('businessUnit') ? 7 : 6}
+      colSpan={6 + query.visibleFields.filter((field) => !['title', 'pic', 'supervisor', 'status', 'due'].includes(field)).length}
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
@@ -549,7 +552,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       <TasksTableBody
         loading={false}
         error={null}
-        showBusinessUnit={query.visibleFields.includes('businessUnit')}
+        visibleFields={query.visibleFields}
         leafTasks={leafTasks}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}

@@ -21,6 +21,7 @@ export type TasksToolbarProps = {
   onViewChange: (next: TaskCollectionView) => void
   onPresentationChange: (next: TaskCollectionPresentation) => void
   onFieldToggle: (field: string, visible: boolean) => void
+  onFieldMove: (field: string, direction: 'up' | 'down') => void
   overdueCount: number
   onOverdueFilter: () => void
   onClearOverdue: () => void
@@ -69,6 +70,7 @@ export function TasksToolbar({
   onViewChange,
   onPresentationChange,
   onFieldToggle,
+  onFieldMove,
   overdueCount,
   onOverdueFilter,
   onClearOverdue,
@@ -136,8 +138,13 @@ export function TasksToolbar({
           { value: 'status', label: t('tasks.filter.status'), required: true },
           { value: 'due', label: t('tasks.dueLabel'), required: true },
           { value: 'businessUnit', label: t('tasks.filter.businessUnit') },
+          { value: 'workline', label: t('tasks.filter.projectProcess') },
+          { value: 'objective', label: t('tasks.objective') },
+          { value: 'source', label: t('tasks.source') },
+          { value: 'activity', label: t('tasks.feed.activity') },
         ] satisfies readonly CollectionToolbarField[],
         onToggle: onFieldToggle,
+        onMove: onFieldMove,
       }}
       search={{
         label: t('tasks.filter.search'),

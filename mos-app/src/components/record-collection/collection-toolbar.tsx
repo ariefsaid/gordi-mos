@@ -43,6 +43,7 @@ export interface CollectionToolbarFields {
   options: readonly CollectionToolbarField[]
   visible: readonly string[]
   onToggle: (field: string, visible: boolean) => void
+  onMove?: (field: string, direction: 'up' | 'down') => void
 }
 
 /**
@@ -309,7 +310,11 @@ export function CollectionToolbar<
               </Button>
               {fieldsOpen ? (
                 <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
-                  {fields.options.map((field) => (
+                  {[...fields.options].sort((a, b) => {
+                    const ai = fields.visible.indexOf(a.value)
+                    const bi = fields.visible.indexOf(b.value)
+                    return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi)
+                  }).map((field) => (
                     <label key={field.value} className="collection-toolbar__toggle">
                       <input
                         type="checkbox"
@@ -318,6 +323,12 @@ export function CollectionToolbar<
                         onChange={(event) => fields.onToggle(field.value, event.target.checked)}
                       />
                       <span>{field.label}</span>
+                      {fields.onMove && !field.required && fields.visible.includes(field.value) ? (
+                        <span className="collection-toolbar__field-order" aria-label={`${field.label} order`}>
+                          <button type="button" aria-label={`Move ${field.label} up`} onClick={() => fields.onMove?.(field.value, 'up')}>↑</button>
+                          <button type="button" aria-label={`Move ${field.label} down`} onClick={() => fields.onMove?.(field.value, 'down')}>↓</button>
+                        </span>
+                      ) : null}
                     </label>
                   ))}
                 </div>
