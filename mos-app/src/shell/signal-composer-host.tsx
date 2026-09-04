@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
 import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
+import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -22,6 +23,7 @@ export interface SignalComposerPrefill {
   owningTeamId: string
   occurredAt: string
   attention: 'FYI' | 'Needs attention' | 'Urgent'
+  mentions: StagedMention[]
 }
 
 export interface SignalComposerContextValue {

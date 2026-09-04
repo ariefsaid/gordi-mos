@@ -16,6 +16,7 @@
 import { useState, useId, useEffect, useRef } from 'react'
 import { useT } from '@/i18n/use-t'
 import { ErrorState } from '@/components/ui/state-kit'
+import { TextInput } from '@/components/ui/text-input'
 import { ModalShell } from '@/components/ui/modal-shell'
 
 export interface ConfirmDialogProps {
@@ -151,15 +152,15 @@ export function ConfirmDialog({
         </p>
 
         {reasonLabel && onReasonChange && (
-          <label className="mb-4 block text-sm" style={{ color: 'var(--foreground)' }}>
-            <span className="mb-1 block">{reasonLabel}</span>
-            <input
+          <div className="mb-4">
+            <TextInput
+              label={reasonLabel}
               required={reasonRequired}
               value={reason}
               onChange={(event) => onReasonChange(event.target.value)}
-              className="input w-full"
+              fullWidth
             />
-          </label>
+          </div>
         )}
 
         {error && (

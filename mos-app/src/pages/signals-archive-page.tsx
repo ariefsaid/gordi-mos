@@ -192,9 +192,9 @@ export function SignalsArchivePage() {
         />
       ),
       pageTo: { pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() },
-      content: <SignalRecordHost signalId={recordId} mode="panel" />,
+      content: <SignalRecordHost signalId={recordId} mode="panel" onReload={controller.retry} />,
     }
-  }, [openSignalBody, recordId, searchWithoutRecord, t])
+  }, [controller.retry, openSignalBody, recordId, searchWithoutRecord, t])
 
   useEffect(() => {
     if (!signalEntry) {

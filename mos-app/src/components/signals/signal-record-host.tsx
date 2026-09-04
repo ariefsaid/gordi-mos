@@ -41,6 +41,8 @@ export interface SignalRecordHostProps {
   mode?: 'panel' | 'page'
   /** Lets a page host reflect the record's resolved name (breadcrumb / Ask-Deputy seed). */
   onTitleResolved?: (title: string) => void
+  /** Refreshes the owning collection after a record mutation. */
+  onReload?: () => void
 }
 
 type FetchState = 'loading' | 'ready' | 'error'
@@ -49,7 +51,7 @@ function personName(people: PersonOption[], id: string, fallback: string): strin
   return people.find((p) => p.id === id)?.full_name ?? fallback
 }
 
-export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: SignalRecordHostProps) {
+export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload }: SignalRecordHostProps) {
   const t = useT()
   const auth = useAuth()
   const { open: openComposer } = useSignalComposer()
@@ -110,8 +112,8 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
 
   // Reflect the resolved record name to a page host (breadcrumb / Ask-Deputy seed).
   useEffect(() => {
-    if (detail) onTitleResolved?.(firstLine(detail.signal.body))
-  }, [detail, onTitleResolved])
+    if (detail) onTitleResolved?.(detail.signal.retracted_at ? t('signals.retracted') : firstLine(detail.signal.body))
+  }, [detail, onTitleResolved, t])
 
   if (state === 'loading') {
     return (
@@ -136,10 +138,10 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
     return { kind: 'bu', label: businessUnits.find((bu) => bu.id === m.target_bu_id)?.name ?? '' }
   })
 
-  const staged: StagedMention[] = activeMentions.map((m) => ({
+  const staged: StagedMention[] = activeMentions.map((m, index) => ({
     kind: m.mention_kind,
     targetId: (m.target_person_id ?? m.target_team_id ?? m.target_bu_id) as string,
-    label: '',
+    label: mentionViews[index]?.label ?? '',
   }))
   const notifyCount = dedupeRecipients(staged, rosters.teamMembers, rosters.buMembers)
   // SR-1: notify count carries its noun (owner ruling "notify N people"); noun resolved in-locale.
@@ -158,10 +160,14 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
     setRetractOpen(false)
     setRetractReason('')
     load()
+    onReload?.()
   }
 
   function openRepost() {
-    openComposer({ body: signal.body, owningTeamId: signal.owning_team_id, occurredAt: signal.occurred_at, attention: signal.attention })
+    openComposer({
+      body: signal.body, owningTeamId: signal.owning_team_id, occurredAt: signal.occurred_at,
+      attention: signal.attention, mentions: staged,
+    })
   }
 
   async function handleAcknowledge() {
@@ -331,6 +337,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved }: 
           onRepost: retracted ? openRepost : undefined,
           // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
           typeLabel: t('signals.record.title'),
+          tombstoneLabel: t('signals.retracted'),
         })}
         mode={mode}
         // SR-8 (mirrors TaskRecordPage): in page mode the RecordViewer identity IS the page's h1

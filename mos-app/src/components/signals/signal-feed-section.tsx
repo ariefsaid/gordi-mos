@@ -66,7 +66,7 @@ export function SignalFeedSection({
         label: 'Signal',
         title: 'Signal',
         pageTo: `/work/signals/${signalId}`,
-        content: <SignalRecordHost signalId={signalId} mode="panel" />,
+        content: <SignalRecordHost signalId={signalId} mode="panel" onReload={onReload} />,
       }
       void host.openRoot(entry, 'route')
       return

@@ -165,7 +165,11 @@ describe('SignalRecordHost — resolves names + mentions from the DAL', () => {
 describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
   it('offers retract to the author, requires a reason, retracts, and opens a prefilled repost composer', async () => {
     mockUseAuth.mockReturnValue(authedViewer(VIEWER_ID))
-    mockGetSignal.mockResolvedValue({ signal: { ...baseSignal, author_id: VIEWER_ID }, mentions: [], acknowledgements: [], tasks: [] })
+    mockGetSignal.mockResolvedValue({
+      signal: { ...baseSignal, author_id: VIEWER_ID },
+      mentions: [{ id: 'm1', signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null, revoked_at: null }],
+      acknowledgements: [], tasks: [],
+    })
     mockRetractSignal.mockResolvedValue(undefined)
     renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
@@ -175,13 +179,34 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     expect(within(dialog).getByRole('textbox', { name: /reason/i })).toBeRequired()
     expect(within(dialog).getByRole('button', { name: /retract/i })).toBeDisabled()
     await userEvent.type(within(dialog).getByRole('textbox', { name: /reason/i }), 'Wrong provenance')
-    mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, author_id: VIEWER_ID, retracted_at: '2026-07-17T02:00:00Z', retract_reason: 'Wrong provenance' }, mentions: [], acknowledgements: [], tasks: [] })
+    mockGetSignal.mockResolvedValueOnce({
+      signal: { ...baseSignal, author_id: VIEWER_ID, retracted_at: '2026-07-17T02:00:00Z', retract_reason: 'Wrong provenance' },
+      mentions: [{ id: 'm1', signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null, revoked_at: null }],
+      acknowledgements: [], tasks: [],
+    })
     await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
 
     expect(mockRetractSignal).toHaveBeenCalledWith(SIGNAL_ID, 'Wrong provenance')
-    await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/this signal was retracted/i, { selector: '.signal-tombstone p' })).toBeInTheDocument())
     await userEvent.click(screen.getByRole('button', { name: /^repost$/i }))
-    expect(mockOpenComposer).toHaveBeenCalledWith(expect.objectContaining({ body: baseSignal.body, owningTeamId: TEAM_ID }))
+    expect(mockOpenComposer).toHaveBeenCalledWith(expect.objectContaining({
+      body: baseSignal.body, owningTeamId: TEAM_ID,
+      mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
+    }))
+  })
+
+  it('refreshes the collection after retracting', async () => {
+    const onReload = vi.fn()
+    mockUseAuth.mockReturnValue(authedViewer('person-dewi'))
+    mockGetSignal.mockResolvedValue({ signal: { ...baseSignal, author_id: 'person-dewi' }, mentions: [], acknowledgements: [], tasks: [] })
+    mockRetractSignal.mockResolvedValue(undefined)
+    renderHost({ onReload })
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /^retract$/i }))
+    await userEvent.type(within(screen.getByRole('dialog')).getByRole('textbox', { name: /reason/i }), 'Duplicate')
+    mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, author_id: 'person-dewi', retracted_at: 'now', retract_reason: 'Duplicate' }, mentions: [], acknowledgements: [], tasks: [] })
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retract/i }))
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
   })
 
   it('hides retract from a plain viewer', async () => {

@@ -48,6 +48,8 @@ export interface WrapSignalRecordInput {
   /** DO-13/I18N-2 — the identity type-kicker text; the live host passes the locale-resolved
    *  `t('signals.record.title')`. Defaults to English so adapter unit tests keep their literal. */
   typeLabel?: string
+  /** Localized label replacing the body heading when the record is retracted. */
+  tombstoneLabel?: string
 }
 
 /**
@@ -59,10 +61,10 @@ export interface WrapSignalRecordInput {
  * and every mutating action lives in the one reach register (F5/LAW-3).
  */
 export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdapter {
-  const { detail, occurredLabel, reach, discussion, facts, history, typeLabel = 'Signal' } = input
+  const { detail, occurredLabel, reach, discussion, facts, history, typeLabel = 'Signal', tombstoneLabel = 'This Signal was retracted.' } = input
   const signal = detail.signal
   const retracted = signal.retracted_at !== null
-  const title = firstLine(signal.body)
+  const title = retracted ? tombstoneLabel : firstLine(signal.body)
 
   const message: RecordContentSlot = {
     id: 'message',

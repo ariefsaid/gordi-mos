@@ -55,7 +55,7 @@ export function SignalComposer({
   const [body, setBody] = useState(prefill?.body ?? '')
   const [occurredAt, setOccurredAt] = useState(() => prefill ? toDatetimeLocalValue(new Date(prefill.occurredAt)) : toDatetimeLocalValue(new Date()))
   const [attention, setAttention] = useState<Attention>(prefill?.attention ?? 'FYI')
-  const [mentions, setMentions] = useState<StagedMention[]>([])
+  const [mentions, setMentions] = useState<StagedMention[]>(prefill?.mentions ?? [])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
