@@ -134,6 +134,7 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(props.authorName).toBe('Signal Author')
     // ops_lead holds signal.mention_bu (A2 seed / capabilities.ts).
     expect(props.canMentionBu).toBe(true)
+    expect(props.canCreateForTeam).toBe(true)
   })
 
   it('denies canMentionBu for a plain member (fail-closed default)', async () => {
@@ -143,6 +144,7 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
     const props = mockSignalComposer.mock.calls.at(-1)![0]
     expect(props.canMentionBu).toBe(false)
+    expect(props.canCreateForTeam).toBe(false)
   })
 
   it('loads real fan-out-preview rosters (KNOWN GAP 1) instead of the {} default', async () => {

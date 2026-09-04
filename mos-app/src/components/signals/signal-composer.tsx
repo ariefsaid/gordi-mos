@@ -22,8 +22,8 @@ import './signal-composer.css'
 export interface SignalComposerProps {
   authorId: string
   authorName: string
-  /** Unlocks any authorized Team as the owning Team (signal.create_for_team), not just the
-   * author's own active memberships (FR-404). Defaults to false (fail-closed). */
+  /** Widens @Team mention reach to all active Teams for capability holders. The Owning Team
+   * select always uses the database's post-and-read-back list. Defaults to false (fail-closed). */
   canCreateForTeam?: boolean
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
@@ -72,7 +72,9 @@ export function SignalComposer({
     // original holder rule: only signal.create_for_team may mention every active Team.
     const teamsLoad = listReadableAuthorTeams(authorId)
     const mentionTeamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
-    Promise.all([teamsLoad, mentionTeamsLoad, getPeople(), getBusinessUnits()]).then(([teamOptions, mentionTeamOptions, peopleOptions, buOptions]) => {
+    Promise.all([teamsLoad, mentionTeamsLoad, getPeople(), getBusinessUnits()]).then(([
+      teamOptions, mentionTeamOptions, peopleOptions, buOptions,
+    ]) => {
       if (cancelled) return
       setTeams(teamOptions)
       setMentionTeams(mentionTeamOptions)

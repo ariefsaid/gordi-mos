@@ -227,6 +227,15 @@ describe('SignalComposer — read-back-only Team options (#715)', () => {
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
     expect(await findMentionOption(/Radiant Operations/)).toBeInTheDocument()
   })
+
+  it('keeps non-membership Teams out of mentions without create_for_team', async () => {
+    renderComposer({ canCreateForTeam: false })
+    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
+
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
+    const listbox = await screen.findByRole('listbox', { name: /mention/i })
+    expect(within(listbox).queryByRole('option', { name: /Radiant Operations/ })).not.toBeInTheDocument()
+  })
 })
 
 describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #20)', () => {

@@ -1,7 +1,7 @@
 -- Tightens the live read gate with tm.org_id = shared.current_org_id() and exposes the same
 -- canonical predicates to the composer destination list.
 
-drop function if exists mos._can_read_signal_rules(uuid, uuid, uuid);
+drop function if exists mos._can_read_signal_rules(uuid, uuid);
 
 create or replace function mos._can_read_signal_rules(
   p_signal_id uuid,
@@ -108,7 +108,7 @@ as $$
   order by is_primary desc, tm.name
 $$;
 comment on function mos.teams_author_can_read_back(uuid) is
-  'Returns destination Teams where the current user can post and a Signal would pass mos.can_read_signal. The optional author id must equal the current user. Destination rules also require tm.org_id = shared.current_org_id() (fail-closed). R4 explicit mentions are out of scope because no destination mention exists yet.';
+  'Returns destination Teams using a fail-closed approximation evaluated under the caller''s own row visibility (INVOKER), never an equivalence with mos.can_read_signal. The optional author id must equal the current user. Destination rules also require tm.org_id = shared.current_org_id(). R4 explicit mentions are out of scope because no destination mention exists yet.';
 revoke execute on function mos.teams_author_can_read_back(uuid) from public, anon;
 grant execute on function mos.teams_author_can_read_back(uuid) to authenticated;
 
