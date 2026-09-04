@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/state-kit'
 import {
-  listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+  listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
@@ -22,8 +22,8 @@ import './signal-composer.css'
 export interface SignalComposerProps {
   authorId: string
   authorName: string
-  /** Unlocks any authorized Team as the owning Team (signal.create_for_team), not just the
-   * author's own active memberships (FR-404). Defaults to false (fail-closed). */
+  /** Widens @Team mention reach to all active Teams for capability holders. The Owning Team
+   * select always uses the database's post-and-read-back list. Defaults to false (fail-closed). */
   canCreateForTeam?: boolean
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
@@ -46,6 +46,7 @@ export function SignalComposer({
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
+  const [mentionTeams, setMentionTeams] = useState<TeamOption[]>([])
   const [teamsLoaded, setTeamsLoaded] = useState(false)
   const [teamId, setTeamId] = useState(prefill?.owningTeamId ?? '')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
@@ -67,10 +68,16 @@ export function SignalComposer({
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
-    const teamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
-    Promise.all([teamsLoad, getPeople(), getBusinessUnits()]).then(([teamOptions, peopleOptions, buOptions]) => {
+    // The owning Team select uses the database's post/read gate. Mention reach follows the
+    // original holder rule: only signal.create_for_team may mention every active Team.
+    const teamsLoad = listReadableAuthorTeams(authorId)
+    const mentionTeamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
+    Promise.all([teamsLoad, mentionTeamsLoad, getPeople(), getBusinessUnits()]).then(([
+      teamOptions, mentionTeamOptions, peopleOptions, buOptions,
+    ]) => {
       if (cancelled) return
       setTeams(teamOptions)
+      setMentionTeams(mentionTeamOptions)
       const primary = teamOptions.find((o) => o.is_primary) ?? teamOptions[0]
       // primaryTeamId always tracks the author's home Team (drives the cross-Team destination
       // preview), independent of what is *selected*.
@@ -98,7 +105,7 @@ export function SignalComposer({
     return () => { cancelled = true }
   }, [teamId])
 
-  const teamCandidates: MentionCandidate[] = teams.map((team) => ({ id: team.id, label: team.name }))
+  const teamCandidates: MentionCandidate[] = mentionTeams.map((team) => ({ id: team.id, label: team.name }))
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null
   const isCrossTeam = !!primaryTeamId && teamId !== primaryTeamId
   const notifyCount = dedupeRecipients(mentions, teamMembers, buMembers)

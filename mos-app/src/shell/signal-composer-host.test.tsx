@@ -7,7 +7,7 @@ import type { AuthState } from '@/auth/context'
 // C1 (AC-428 backing / FR-417): one global command, many entry points. The host owns:
 //  - the useSignalComposer().open() hook consumed by ⌘K / FAB / Home feed (C2/C3),
 //  - mounting SignalComposer in the shared drawer host on open() / unmounting on close,
-//  - wiring the real viewer (authorId/authorName) + capabilities (canCreateForTeam/canMentionBu)
+//  - wiring the real viewer (authorId/authorName) + mention capability (canMentionBu)
 //    + real fan-out-preview rosters (KNOWN GAP 1 — loadMentionRosters, not the {} default).
 
 vi.mock('@/auth/use-auth')
@@ -124,7 +124,7 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(screen.getByTestId('post-count')).toHaveTextContent('2')
   })
 
-  it('wires the real viewer as authorId/authorName, and derives capabilities from accessRoles', async () => {
+  it('wires the real viewer as authorId/authorName and derives mention capability', async () => {
     renderHost(authedViewer)
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
 
@@ -132,19 +132,19 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     const props = mockSignalComposer.mock.calls.at(-1)![0]
     expect(props.authorId).toBe('person-author')
     expect(props.authorName).toBe('Signal Author')
-    // ops_lead holds signal.create_for_team + signal.mention_bu (A2 seed / capabilities.ts).
-    expect(props.canCreateForTeam).toBe(true)
+    // ops_lead holds signal.mention_bu (A2 seed / capabilities.ts).
     expect(props.canMentionBu).toBe(true)
+    expect(props.canCreateForTeam).toBe(true)
   })
 
-  it('denies canCreateForTeam/canMentionBu for a plain member (fail-closed default)', async () => {
+  it('denies canMentionBu for a plain member (fail-closed default)', async () => {
     renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: [] } })
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
 
     await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
     const props = mockSignalComposer.mock.calls.at(-1)![0]
-    expect(props.canCreateForTeam).toBe(false)
     expect(props.canMentionBu).toBe(false)
+    expect(props.canCreateForTeam).toBe(false)
   })
 
   it('loads real fan-out-preview rosters (KNOWN GAP 1) instead of the {} default', async () => {
