@@ -118,6 +118,20 @@
 }
 
 /* Secondary controls stay in normal document flow so focus order follows the visible row. */
+.collection-toolbar__fields { position: relative; }
+.collection-toolbar__fields-menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 190px;
+  padding: 8px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-popover);
+}
+
 .collection-toolbar__options {
   display: flex;
   align-items: end;

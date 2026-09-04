@@ -1,6 +1,7 @@
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
+import type { CollectionToolbarField } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
 import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import { useT } from '@/i18n/use-t'
@@ -19,6 +20,7 @@ export type TasksToolbarProps = {
   onQueryChange: (patch: Partial<TaskCollectionQuery>) => void
   onViewChange: (next: TaskCollectionView) => void
   onPresentationChange: (next: TaskCollectionPresentation) => void
+  onFieldToggle: (field: string, visible: boolean) => void
   overdueCount: number
   onOverdueFilter: () => void
   onClearOverdue: () => void
@@ -66,6 +68,7 @@ export function TasksToolbar({
   onQueryChange,
   onViewChange,
   onPresentationChange,
+  onFieldToggle,
   overdueCount,
   onOverdueFilter,
   onClearOverdue,
@@ -123,6 +126,23 @@ export function TasksToolbar({
         onChange: onViewChange,
       }}
       savedViews={savedViews}
+      fields={{
+        label: 'Fields',
+        visible: query.visibleFields,
+        options: [
+          { value: 'title', label: t('tasks.label.task'), required: true },
+          { value: 'pic', label: t('tasks.pic'), required: true },
+          { value: 'supervisor', label: t('tasks.supervisor'), required: true },
+          { value: 'status', label: t('tasks.filter.status'), required: true },
+          { value: 'due', label: t('tasks.dueLabel'), required: true },
+          { value: 'businessUnit', label: t('tasks.filter.businessUnit') },
+          { value: 'workline', label: t('tasks.filter.projectProcess') },
+          { value: 'objective', label: t('tasks.objective') },
+          { value: 'source', label: 'Source' },
+          { value: 'activity', label: t('tasks.filter.sortActivity') },
+        ] satisfies readonly CollectionToolbarField[],
+        onToggle: onFieldToggle,
+      }}
       search={{
         label: t('tasks.filter.search'),
         placeholder: t('tasks.filter.searchPlaceholder'),

@@ -224,6 +224,18 @@
   line-height: 1.3;
 }
 
+.inline-cell-trigger {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 4px;
+  text-align: left;
+  cursor: text;
+}
+
+.inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
 }

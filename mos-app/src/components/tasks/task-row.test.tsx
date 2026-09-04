@@ -297,19 +297,12 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
   })
 
-  it('a single click on an editable title DEFERS the open by one double-click window', () => {
-    vi.useFakeTimers()
-    try {
-      const onOpen = vi.fn()
-      const onEditTitle = vi.fn().mockResolvedValue(undefined)
-      renderRow({ onOpen, onEditTitle })
-      fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
-      expect(onOpen).not.toHaveBeenCalled() // deferred so a double-click can pre-empt it
-      act(() => { vi.advanceTimersByTime(200) })
-      expect(onOpen).toHaveBeenCalledWith('task-7')
-    } finally {
-      vi.useRealTimers()
-    }
+  it('a single click on an editable title enters edit mode immediately', () => {
+    const onOpen = vi.fn()
+    renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
   })
 
   it('a double-click pre-empts the deferred open — edits in place, never opens', () => {
@@ -356,6 +349,20 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     } finally {
       window.removeEventListener('keydown', windowSpy)
     }
+  })
+})
+
+describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
+  it('clicking the title enters edit mode and Escape restores; Enter commits', async () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+    const input = screen.getByLabelText('Edit task title')
+    fireEvent.change(input, { target: { value: 'Updated title' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onEditTitle).toHaveBeenCalledWith('task-7', 'Updated title')
+    await waitFor(() => expect(screen.queryByLabelText('Edit task title')).toBeNull())
+    expect(screen.getByText('Updated title')).toBeInTheDocument()
   })
 })
 

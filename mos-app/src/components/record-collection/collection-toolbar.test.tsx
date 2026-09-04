@@ -260,6 +260,30 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
   })
 })
 
+describe('CollectionToolbar — Fields chooser', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows Fields and toggles an optional column while retaining decision columns', async () => {
+    stubDesktop()
+    const onToggle = vi.fn()
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      fields={{
+        label: 'Fields', options: [
+          { value: 'title', label: 'Title', required: true },
+          { value: 'status', label: 'Status', required: true },
+          { value: 'businessUnit', label: 'Business Unit', required: false },
+        ], visible: ['title', 'status'], onToggle,
+      }}
+    /></I18nProvider>)
+    await userEvent.click(screen.getByRole('button', { name: 'Fields' }))
+    expect(screen.getByRole('checkbox', { name: 'Title' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Business Unit' }))
+    expect(onToggle).toHaveBeenCalledWith('businessUnit', true)
+  })
+})
+
 describe('CollectionToolbar — desktop keyboard and nested save behavior', () => {
   afterEach(() => vi.unstubAllGlobals())
 

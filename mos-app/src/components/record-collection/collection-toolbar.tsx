@@ -32,6 +32,19 @@ export interface CollectionToolbarSearch {
   onChange: (value: string) => void
 }
 
+export interface CollectionToolbarField {
+  value: string
+  label: string
+  required?: boolean
+}
+
+export interface CollectionToolbarFields {
+  label: string
+  options: readonly CollectionToolbarField[]
+  visible: readonly string[]
+  onToggle: (field: string, visible: boolean) => void
+}
+
 /**
  * The search input, standalone (#581). Same markup/classes the toolbar's own query row renders,
  * factored out so a host can plant it OUTSIDE the phone "View & filters" door — a search-and-
@@ -79,6 +92,7 @@ export interface CollectionToolbarProps<
   filters?: readonly CollectionToolbarFilter[]
   savedViews?: CollectionToolbarSavedViews
   toggles?: ReactNode
+  fields?: CollectionToolbarFields
   /**
    * A layout-independent primary action for the collection (e.g. Signals' "Share Signal"), hosted
    * in row 1 so it is present in EVERY presentation — the door does not blink in/out with the
@@ -124,6 +138,7 @@ export function CollectionToolbar<
   filters = [],
   savedViews,
   toggles,
+  fields,
   primaryAction,
   className,
   reserved = false,
@@ -133,6 +148,7 @@ export function CollectionToolbar<
   const isDesktop = useIsDesktop()
   const [saveOpen, setSaveOpen] = useState(false)
   const [viewName, setViewName] = useState('')
+  const [fieldsOpen, setFieldsOpen] = useState(false)
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
@@ -146,7 +162,7 @@ export function CollectionToolbar<
   const canSave = Boolean(viewName.trim()) && !saving
   // Desktop shows secondary controls inline; phones render this row inside the host's single
   // View & filters row. Reserved views with no rows keep the controls withheld (DO-6).
-  const hasViewOptions = !reserved && (filters.length > 0 || Boolean(savedViews) || Boolean(toggles))
+  const hasViewOptions = !reserved && (filters.length > 0 || Boolean(savedViews) || Boolean(toggles) || Boolean(fields))
 
   function closeSaveView() {
     setSaveOpen(false)
@@ -285,6 +301,28 @@ export function CollectionToolbar<
             >
               {t('common.saveView')}
             </Button>
+          ) : null}
+          {fields ? (
+            <div className="collection-toolbar__fields">
+              <Button variant="ghost" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
+                {fields.label}
+              </Button>
+              {fieldsOpen ? (
+                <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
+                  {fields.options.map((field) => (
+                    <label key={field.value} className="collection-toolbar__toggle">
+                      <input
+                        type="checkbox"
+                        checked={fields.visible.includes(field.value)}
+                        disabled={field.required}
+                        onChange={(event) => fields.onToggle(field.value, event.target.checked)}
+                      />
+                      <span>{field.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           ) : null}
           {toggles}
           {savedViews && saveOpen ? (

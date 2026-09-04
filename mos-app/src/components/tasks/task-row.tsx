@@ -6,7 +6,7 @@
 //
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
-import type { Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
@@ -14,6 +14,7 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
+import { Select } from '@/components/ui/select'
 import { PicCell } from './pic-cell'
 import { formatDate } from './task-formatters'
 import { RowMenu } from './row-menu'
@@ -55,15 +56,50 @@ export type TaskRowProps = {
    * Returns a Promise so the useInlineCommit primitive drives the optimistic pending + rollback.
    */
   onEditTitle?: (taskId: string, title: string) => Promise<void>
+  onEditStatus?: (taskId: string, status: TaskListRow['status']) => Promise<void>
+  onEditDue?: (taskId: string, dueDate: string | null) => Promise<void>
+  onEditPic?: (taskId: string, personId: string) => Promise<void>
+  personOptions?: readonly { id: string; full_name: string }[]
+  showBusinessUnit?: boolean
   isNew?: boolean
   onDiscardNewTask?: () => void
+}
+
+function InlineTextCell({ value, ariaLabel, onCommit, display }: { value: string; ariaLabel: string; onCommit: (value: string) => Promise<void>; display: ReactNode }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [pending, setPending] = useState(false)
+  useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
+  const finish = () => {
+    if (pending) return
+    setEditing(false)
+    if (draft === value) return
+    setPending(true)
+    void onCommit(draft).finally(() => setPending(false))
+  }
+  return editing ? <input autoFocus type="date" aria-label={ariaLabel} value={draft} disabled={pending} onChange={(e) => setDraft(e.target.value)} onBlur={finish} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setDraft(value); setEditing(false) } if (e.key === 'Enter') { e.preventDefault(); finish() } }} /> : <button type="button" className="inline-cell-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true) }}>{display}</button>
+}
+
+function InlineSelectCell({ value, options, labels = new Map(), ariaLabel, onCommit, display }: { value: string; options: readonly string[]; labels?: ReadonlyMap<string, string>; ariaLabel: string; onCommit: (value: string) => Promise<void>; display: ReactNode }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [pending, setPending] = useState(false)
+  useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
+  const finish = () => {
+    if (pending) return
+    setEditing(false)
+    if (draft === value) return
+    setPending(true)
+    void onCommit(draft).finally(() => setPending(false))
+  }
+  return editing ? <Select autoFocus aria-label={ariaLabel} value={draft} disabled={pending} onChange={(e) => setDraft(e.target.value)} onBlur={finish} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setDraft(value); setEditing(false) } if (e.key === 'Enter') { e.preventDefault(); finish() } }}>{options.map((option) => <option key={option} value={option}>{labels.get(option) ?? option}</option>)}</Select> : <button type="button" className="inline-cell-trigger" onClick={(e) => { e.stopPropagation(); setEditing(true) }}>{display}</button>
 }
 
 export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle, isNew = false, onDiscardNewTask,
+  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -100,8 +136,6 @@ export function TaskRow({
   // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
   // shared panel's close returns focus to the invoking element.
   const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
-  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current) }, [])
   const inline = useInlineCommit<string>({
     value: task.title,
     onCommit: (next) => (onEditTitle ? onEditTitle(task.id, next) : undefined),
@@ -181,24 +215,18 @@ export function TaskRow({
       beginEdit()
     }
   }
-  // Mouse activations. A single click OPENS the record; a double-click EDITS. To keep the two from
-  // racing (our title-click IS the opener, so a naive double-click would fire the opener on its
-  // first click and steal focus into the drawer), the title's open is deferred by one double-click
-  // window; a double-click cancels that pending open and edits in place instead. This ~200ms delay
-  // is scoped to the TITLE cell only — every other row cell and row-Enter still open instantly, so
-  // fast triage keeps an instant door. Non-editable rows keep the original instant title-open.
+  // Mouse activation follows the e7 grammar: selecting a title edits it in place. The canonical
+  // href remains available for open-in-new-tab and non-editable rows retain opener behavior.
   const onTitleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!canEdit) { onOpen(task.id); return }
-    if (openTimer.current) clearTimeout(openTimer.current)
-    openTimer.current = setTimeout(() => { openTimer.current = null; onOpen(task.id) }, 200)
+    if (canEdit) beginEdit()
+    else onOpen(task.id)
   }
   const onTitleDoubleClick = (e: React.MouseEvent) => {
     if (!canEdit) return
     e.preventDefault()
     e.stopPropagation()
-    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
     beginEdit()
   }
 
@@ -294,9 +322,11 @@ export function TaskRow({
           <span role="status" aria-live="polite" className="sr-only">{liveMessage}</span>
         )}
       </td>
-      <td className="td-cell td-status td-nowrap"><StatusPill status={task.status} /></td>
+      <td className="td-cell td-status td-nowrap">
+        {onEditStatus ? <InlineSelectCell value={task.status} options={['Open', 'In Progress', 'Blocked', 'Done']} ariaLabel="Edit task status" onCommit={(value) => onEditStatus(task.id, value as TaskListRow['status'])} display={<StatusPill status={task.status} />} /> : <StatusPill status={task.status} />}
+      </td>
       <td className="td-cell td-owner">
-        <PicCell fullName={ownerName} provenance={provenanceRoleName} />
+        {onEditPic ? <InlineSelectCell value={task.responsible_person_id} options={personOptions.map((person) => person.id)} labels={new Map(personOptions.map((person) => [person.id, person.full_name]))} ariaLabel="Edit task PIC" onCommit={(value) => onEditPic(task.id, value)} display={<PicCell fullName={ownerName} provenance={provenanceRoleName} />} /> : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
       {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
           the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).
@@ -304,7 +334,10 @@ export function TaskRow({
           record drawer/full page (where the typed Task already shows them — OD-62).
           This is column PRIORITY, not data removal. */}
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
-      <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>{dueText}</td>
+      {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
+      <td className={`td-cell td-nowrap tabular-nums ${dueClass}`}>
+        {onEditDue ? <InlineTextCell value={task.due_date ?? ''} ariaLabel="Edit task due date" onCommit={(value) => onEditDue(task.id, value || null)} display={dueText} /> : dueText}
+      </td>
       <td className="td-cell td-menu">
         <RowMenu taskId={task.id} recordSearch={recordSearch} />
       </td>

@@ -28,6 +28,7 @@ import {
   type CollectionViewSpec,
   type TaskCollectionVisibleField,
 } from '@/lib/record-collection/collection-view-spec'
+import { TASK_DECISION_FIELDS } from './task-collection-query'
 import type {
   CollectionAccess,
   CollectionData,
@@ -56,6 +57,7 @@ export type TaskCollectionView =
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
+  visibleFields: readonly TaskCollectionVisibleField[]
   view: TaskCollectionView
   q: string
   businessUnitId: string | null
@@ -99,6 +101,7 @@ const SLUG_BY_STATUS: Readonly<Record<TaskStatus, string>> = {
 
 export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
   layout: 'table',
+  visibleFields: TASK_DECISION_FIELDS,
   view: 'all',
   q: '',
   businessUnitId: null,
@@ -116,7 +119,7 @@ export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
 }
 
 const TASK_QUERY_KEYS: readonly QueryKey<TaskCollectionQuery>[] = [
-  'layout', 'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId', 'personId',
+  'layout', 'visibleFields', 'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId', 'personId',
   'groupBy', 'sort', 'direction', 'includeArchived', 'overdueOnly', 'occurrenceId', 'savedViewId',
 ]
 
@@ -146,6 +149,13 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
 
   const q = params.get('q')
   if (q !== null) query.q = q
+
+  const fields = params.get('fields')
+  if (fields !== null) {
+    const allowed: readonly TaskCollectionVisibleField[] = ['title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity']
+    const parsed = fields.split(',').filter((field): field is TaskCollectionVisibleField => allowed.includes(field as TaskCollectionVisibleField))
+    query.visibleFields = [...new Set([...TASK_DECISION_FIELDS, ...parsed])]
+  }
 
   query.businessUnitId = params.get('bu')
   query.picId = params.get('pic')
@@ -204,6 +214,7 @@ function serializeTaskQuery(query: TaskCollectionQuery): URLSearchParams {
   if (query.layout !== TASK_COLLECTION_NEUTRAL_QUERY.layout) p.set('layout', query.layout)
   if (query.view !== 'all') p.set('view', query.view)
   if (query.q) p.set('q', query.q)
+  if (query.visibleFields.join(',') !== TASK_DECISION_FIELDS.join(',')) p.set('fields', query.visibleFields.join(','))
   if (query.businessUnitId) p.set('bu', query.businessUnitId)
   if (query.status) p.set('status', SLUG_BY_STATUS[query.status])
   if (query.picId) p.set('pic', query.picId)
@@ -577,10 +588,6 @@ export function projectTaskCollection(
 // ── Persisted saved-view mapping (Work context) ───────────────────────────────────────────────────
 // Built-in chips live in the URL `view` key (owned by the query schema); the persisted DAL lifecycle
 // below is wired but has NO save/apply UI in this slice (the later saved-views.tsx run owns that).
-const TASK_VISIBLE_FIELDS: readonly TaskCollectionVisibleField[] = [
-  'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
-]
-
 /** A CollectionViewStore backed by the typed `mos.user_views` collection DAL (Tasks 8/9). */
 const taskCollectionViewStore: CollectionViewStore = {
   list: (collectionId) => listCollectionViews(collectionId),
@@ -602,7 +609,7 @@ function buildTaskViewSpec(args: {
     collectionId: 'tasks',
     domain: 'tasks',
     presentation,
-    visibleFields: TASK_VISIBLE_FIELDS,
+    visibleFields: query.visibleFields,
     query: {
       view: query.view,
       q: query.q,
