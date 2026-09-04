@@ -65,6 +65,8 @@ export type TasksTableBodyProps = {
 
   // ── Desktop table: thead sort + select-all ────────────────────────────────
   sortCol: SortCol
+  /** Optional fields selected in the current URL-backed view. */
+  showBusinessUnit?: boolean
   /** thead column-header click → cycle the sort for that column. */
   onSort: (col: SortCol) => void
   /** aria-sort for a column (active col → its direction, else 'none'). */
@@ -116,7 +118,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   const {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
-    sortCol, onSort, ariaSort, sortIndicator,
+    sortCol, onSort, ariaSort, sortIndicator, showBusinessUnit = false,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
@@ -223,6 +225,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               </button>
             </th>
             <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
+            {showBusinessUnit ? <th scope="col" className="th-cell">{t('tasks.filter.businessUnit')}</th> : null}
             {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
                 inside the first paint. Project/Process, Objective, Team, Source, Activity
                 moved to the drawer (OD-62). */}
@@ -242,7 +245,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             const totalSize = rowVirtualizer.getTotalSize()
             // Wave 2c: both desktop modes share the 6-column priority set
             // (Task + Status + PIC + Supervisor + Due + menu).
-            const colSpan = 6
+            const colSpan = showBusinessUnit ? 7 : 6
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (

@@ -29,8 +29,8 @@ describe('i18n messages catalog', () => {
   })
 
   it('tasks editing and full-page action labels are localized in both locales', () => {
-    expect(messages.en['tasks.inlineEdit.activeHint']).toBe('Enter saves · Esc discards')
-    expect(messages.id['tasks.inlineEdit.activeHint']).toBe('Enter menyimpan · Esc membatalkan')
+    expect(messages.en['tasks.inlineEdit.activeHint']).toBe('Enter saves · Tab moves · Esc discards')
+    expect(messages.id['tasks.inlineEdit.activeHint']).toBe('Enter menyimpan · Tab berpindah · Esc membatalkan')
     expect(messages.en['tasks.openFullPage']).toBe('Open full page')
     expect(messages.id['tasks.openFullPage']).toBe('Buka halaman penuh')
     expect('tasks.rowOpen' in messages.en).toBe(false)

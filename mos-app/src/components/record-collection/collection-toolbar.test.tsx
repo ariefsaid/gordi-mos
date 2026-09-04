@@ -260,6 +260,35 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
   })
 })
 
+describe('CollectionToolbar — Fields chooser', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows Fields and toggles an optional column while retaining decision columns', async () => {
+    stubDesktop()
+    const onToggle = vi.fn()
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      fields={{
+        label: 'Fields', options: [
+          { value: 'title', label: 'Title', required: true },
+          { value: 'pic', label: 'PIC', required: true },
+          { value: 'supervisor', label: 'Supervisor', required: true },
+          { value: 'status', label: 'Status', required: true },
+          { value: 'due', label: 'Due', required: true },
+          { value: 'businessUnit', label: 'Business Unit', required: false },
+        ], visible: ['title', 'pic', 'supervisor', 'status', 'due'], onToggle,
+      }}
+    /></I18nProvider>)
+    await userEvent.click(screen.getByRole('button', { name: 'Fields' }))
+    const checkboxes = screen.getAllByRole('checkbox')
+    expect(checkboxes).toHaveLength(6)
+    expect(checkboxes.filter((checkbox) => checkbox.hasAttribute('disabled'))).toHaveLength(5)
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Business Unit' }))
+    expect(onToggle).toHaveBeenCalledWith('businessUnit', true)
+  })
+})
+
 describe('CollectionToolbar — desktop keyboard and nested save behavior', () => {
   afterEach(() => vi.unstubAllGlobals())
 

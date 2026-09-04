@@ -224,6 +224,47 @@
   line-height: 1.3;
 }
 
+.inline-cell-trigger {
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 4px;
+  text-align: left;
+  cursor: text;
+}
+
+.inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.inline-status-editor {
+  display: inline-flex;
+  height: var(--control-height);
+  max-height: var(--control-height);
+  align-items: center;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+}
+.inline-status-editor--amber { background: var(--ds-tag-background-amber); }
+.inline-status-editor--blue { background: var(--ds-tag-background-blue); }
+.inline-status-editor--red { background: var(--ds-tag-background-red); }
+.inline-status-editor--green { background: var(--ds-tag-background-green); }
+.inline-status-editor .mk-select__box,
+.inline-editor-control .mk-select__box {
+  height: var(--control-height);
+  background: transparent;
+  border-color: transparent;
+}
+.inline-editor-control {
+  display: inline-flex;
+  height: var(--control-height);
+  max-height: var(--control-height);
+  align-items: center;
+}
+.inline-editor-control input[type="date"] {
+  height: var(--control-height);
+  max-height: var(--control-height);
+}
+
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
 }

@@ -22,6 +22,7 @@
 // #192's port, not this one's; until then, this module stays load-bearing for the
 // RecordCollection framework's own tests and must not be deleted.
 import type { TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type {
   CollectionQueryIssue,
   CollectionQueryParse,
@@ -42,6 +43,8 @@ export type TaskCollectionView =
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
+  /** Ordered visible table fields; decision columns are always present on desktop. */
+  visibleFields: readonly TaskCollectionVisibleField[]
   view: TaskCollectionView
   q: string
   businessUnitId: string | null
@@ -83,8 +86,11 @@ const SLUG_BY_STATUS: Readonly<Record<TaskStatus, string>> = {
   Done: 'done',
 }
 
+export const TASK_DECISION_FIELDS: readonly TaskCollectionVisibleField[] = ['title', 'pic', 'supervisor', 'status', 'due']
+
 export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
   layout: 'table',
+  visibleFields: TASK_DECISION_FIELDS,
   view: 'all',
   q: '',
   businessUnitId: null,
@@ -102,7 +108,7 @@ export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
 }
 
 const TASK_QUERY_KEYS: readonly QueryKey<TaskCollectionQuery>[] = [
-  'layout', 'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId', 'personId',
+  'layout', 'visibleFields', 'view', 'q', 'businessUnitId', 'status', 'picId', 'supervisorId', 'personId',
   'groupBy', 'sort', 'direction', 'includeArchived', 'overdueOnly', 'occurrenceId', 'savedViewId',
 ]
 
@@ -132,6 +138,13 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
 
   const q = params.get('q')
   if (q !== null) query.q = q
+
+  const fields = params.get('fields')
+  if (fields !== null) {
+    const allowed: readonly TaskCollectionVisibleField[] = ['title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity']
+    const parsed = fields.split(',').filter((field): field is TaskCollectionVisibleField => allowed.includes(field as TaskCollectionVisibleField))
+    query.visibleFields = [...new Set([...TASK_DECISION_FIELDS, ...parsed])]
+  }
 
   query.businessUnitId = params.get('bu')
   query.picId = params.get('pic')
@@ -190,6 +203,7 @@ function serializeTaskQuery(query: TaskCollectionQuery): URLSearchParams {
   if (query.layout !== TASK_COLLECTION_NEUTRAL_QUERY.layout) p.set('layout', query.layout)
   if (query.view !== 'all') p.set('view', query.view)
   if (query.q) p.set('q', query.q)
+  if (query.visibleFields.join(',') !== TASK_DECISION_FIELDS.join(',')) p.set('fields', query.visibleFields.join(','))
   if (query.businessUnitId) p.set('bu', query.businessUnitId)
   if (query.status) p.set('status', SLUG_BY_STATUS[query.status])
   if (query.picId) p.set('pic', query.picId)

@@ -37,7 +37,7 @@ import {
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
-import { createTask, updateTaskFields } from '@/lib/db/tasks'
+import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
 import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -377,6 +377,22 @@ export function TasksWorkspace({
   // record editor uses (task-surface handleUpdateField). Rejects (no viewer, or a failed write) so
   // TaskRow's useInlineCommit rolls the row back optimistically. The edited title lives in the row's
   // own draft; the status-only onTaskChanged override channel is untouched (title is not part of it).
+  const onEditStatus = useCallback(async (taskId: string, status: TaskStatus) => {
+    const current = records.find((record) => record.id === taskId)?.status
+    if (!viewerId || !current || current === status) return
+    await updateTaskStatus(taskId, current, status, viewerId)
+    controller.retry()
+  }, [controller, records, viewerId])
+  const onEditDue = useCallback(async (taskId: string, dueDate: string | null) => {
+    if (!viewerId) throw new Error('inline due edit requires an authenticated viewer')
+    await updateTaskFields(taskId, { due_date: dueDate }, viewerId)
+    controller.retry()
+  }, [controller, viewerId])
+  const onEditPic = useCallback(async (taskId: string, personId: string) => {
+    if (!viewerId) throw new Error('inline PIC edit requires an authenticated viewer')
+    await updateTaskFields(taskId, { responsible_person_id: personId }, viewerId)
+    controller.retry()
+  }, [controller, viewerId])
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
@@ -516,6 +532,12 @@ export function TasksWorkspace({
       query={query}
       onQueryChange={setQuery}
       onViewChange={handleViewChange}
+      onFieldToggle={(field, visible) => {
+        const next = visible
+          ? [...new Set([...query.visibleFields, field as TaskCollectionQuery['visibleFields'][number]])]
+          : query.visibleFields.filter((candidate) => candidate !== field)
+        setQuery({ visibleFields: next })
+      }}
       overdueCount={stats?.overdue ?? 0}
       onOverdueFilter={() => setQuery({ overdueOnly: true })}
       onClearOverdue={() => setQuery({ overdueOnly: false })}
@@ -547,6 +569,9 @@ export function TasksWorkspace({
     statusOverrides: runtimeStatusOverrides,
     onOpenTask,
     onEditTitle,
+    onEditStatus,
+    onEditDue,
+    onEditPic,
     draftTask,
     onDiscardNewTask,
     onCloseDrawer,
@@ -569,7 +594,7 @@ export function TasksWorkspace({
   }), [
     accessRoles, currentSearch, drawerOpen, draftTask, dueRuns, host.session, isDesktop, onAddTask,
     params,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onNewTask, onOpenTask, onClearFilters, onSort,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onNewTask, onOpenTask, onClearFilters, onSort,
     query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout,
   ])
 

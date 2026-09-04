@@ -51,6 +51,9 @@ export interface TaskCollectionRuntime {
   /** Inline title-edit commit (E7 collection promise) — persists via the shared updateTaskFields
    * path. Rejects to drive the row's optimistic rollback. Inert in the descriptor-only default. */
   onEditTitle: (taskId: string, title: string) => Promise<void>
+  onEditStatus: (taskId: string, status: TaskStatus) => Promise<void>
+  onEditDue: (taskId: string, dueDate: string | null) => Promise<void>
+  onEditPic: (taskId: string, personId: string) => Promise<void>
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
   onCloseDrawer: () => void
@@ -111,6 +114,9 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   statusOverrides: new Map(),
   onOpenTask: () => {},
   onEditTitle: async () => {},
+  onEditStatus: async () => {},
+  onEditDue: async () => {},
+  onEditPic: async () => {},
   draftTask: null,
   onDiscardNewTask: () => {},
   onCloseDrawer: () => {},
@@ -479,6 +485,11 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
         onEditTitle={runtime.onEditTitle}
+        onEditStatus={runtime.onEditStatus}
+        onEditDue={runtime.onEditDue}
+        onEditPic={runtime.onEditPic}
+        personOptions={context.people}
+        showBusinessUnit={query.visibleFields.includes('businessUnit')}
         isNew={task.id === runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
@@ -496,7 +507,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       count={group.rows.length}
       overdue={group.overdue}
       collapsed={isCollapsedPreference(group.key)}
-      colSpan={6}
+      colSpan={query.visibleFields.includes('businessUnit') ? 7 : 6}
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
@@ -532,6 +543,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       <TasksTableBody
         loading={false}
         error={null}
+        showBusinessUnit={query.visibleFields.includes('businessUnit')}
         leafTasks={leafTasks}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}
