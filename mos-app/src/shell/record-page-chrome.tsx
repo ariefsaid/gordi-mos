@@ -35,7 +35,7 @@ export function RecordPageChrome({ backTo, backLabel, deputyDraft, trailing }: R
   const t = useT()
   return (
     <div className="record-page-chrome" data-viewer-region="page-chrome">
-      <Link to={backTo} className="record-page-back">
+      <Link to={backTo} className="record-page-back tap-floor">
         <BackIcon />
         <span>{t('record.backToCollection', { collection: backLabel })}</span>
       </Link>

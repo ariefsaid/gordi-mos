@@ -82,7 +82,7 @@ export function Breadcrumb() {
   return (
     <span style={{ fontSize: 'var(--font-size-body-lg)' }}>
       {crumbs.length === 1 ? (
-        <b className="truncate text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+        <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={crumbs[0]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
           {crumbs[0]}
         </b>
       ) : (
@@ -93,7 +93,7 @@ export function Breadcrumb() {
               <span className="mx-[7px]" aria-hidden="true">·</span>
             </span>
           ))}
-          <b className="truncate text-foreground font-semibold" title={crumbs[crumbs.length - 1]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+          <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={crumbs[crumbs.length - 1]} aria-current={leafCarriesCurrent ? 'page' : undefined}>
             {crumbs[crumbs.length - 1]}
           </b>
         </>

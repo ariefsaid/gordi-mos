@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -32,6 +34,8 @@ const mockUseIsNarrow = vi.mocked(useIsNarrow)
 const mockUseIsWideOverlayWidth = vi.mocked(useIsWideOverlayWidth)
 
 import { TopBar } from './top-bar'
+
+const topBarCss = readFileSync(resolve(process.cwd(), 'src/shell/top-bar.css'), 'utf8')
 
 const viewer = {
   person: {
@@ -195,6 +199,20 @@ describe('AC-S08: TopBar is a banner landmark', () => {
 
 // AC-S02/S03: brand column token + breadcrumb min-w-0
 describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
+  it('phone breadcrumb header reserves the control cluster and truncates its leaf', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    const { container } = renderTopBar('/work/tasks')
+    const header = container.querySelector('[data-anatomy="header"]')!
+    const breadcrumbTrack = container.querySelector('.top-bar__breadcrumb-track')!
+    const leaf = container.querySelector('.top-bar__breadcrumb-leaf')!
+    expect(header).toHaveClass('top-bar')
+    expect(breadcrumbTrack).toHaveClass('top-bar__breadcrumb-track')
+    expect(leaf).toHaveClass('top-bar__breadcrumb-leaf')
+    expect(topBarCss).toMatch(/\.top-bar\s*\{[^}]*display:\s*flex/)
+    expect(topBarCss).toMatch(/\.top-bar__breadcrumb-track\s*\{[^}]*min-width:\s*0/)
+    expect(topBarCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.top-bar__breadcrumb-leaf\s*\{[^}]*overflow:\s*hidden[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/)
+  })
+
   it('AC-S02: brand column references --rail-w token and has border-r', () => {
     const { container } = renderTopBar()
     const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null

@@ -1,0 +1,21 @@
+.top-bar {
+  display: flex;
+}
+
+.top-bar__breadcrumb-track {
+  min-width: 0;
+}
+
+.top-bar__breadcrumb {
+  min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+  .top-bar__breadcrumb-leaf {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

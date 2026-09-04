@@ -32,6 +32,7 @@ const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/si
 // rule at a time (presence pins only); this asserts the ABSENCE class-wide so a later bare rule
 // can't slip back in the way TaskSurface.css's did.
 const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
+const recordPageChromeTsx = readFileSync(resolve(process.cwd(), 'src/shell/record-page-chrome.tsx'), 'utf8')
 
 function mediaBody(css: string, query: string): string {
   const idx = css.indexOf(query)
@@ -140,6 +141,10 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     // Negative check: no OTHER bare `(pointer: fine)` block (unguarded by a min-width) remains
     // for this file — a second unnarrowed block would silently reopen the same hole.
     expect(recordPanelHostCss).not.toMatch(/@media \(pointer: fine\)\s*\{(?!\s*\})/)
+  })
+
+  it('issue 730: keeps the record-page Back affordance on the shared phone tap floor', () => {
+    expect(recordPageChromeTsx).toMatch(/className="record-page-back tap-floor"/)
   })
 
   it('ticket 711: raises the collection-toolbar search FIELD itself (not just its wrapping box) to 44px on phone', () => {
