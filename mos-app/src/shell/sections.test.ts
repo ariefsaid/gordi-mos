@@ -5,7 +5,7 @@
  */
 import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
-import { SECTIONS, CAFE_SECTIONS, CAFE_MODULE_SECTIONS, ADMIN_SECTIONS, sectionForPath } from './sections'
+import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath, sectionHasPrefixChild } from './sections'
 
 describe('T5: SECTIONS — workspace fallback registry', () => {
   it('home section resolves for /', () => {
@@ -107,9 +107,9 @@ describe('T5: sectionForPath — fallbacks', () => {
 })
 
 describe('the Café children carry marks of their own (#457)', () => {
-  // Each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
+  // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
   it('the six children use six distinct components', () => {
-    const icons = CAFE_MODULE_SECTIONS.map((s) => s.Icon)
+    const icons = CAFE_SECTIONS.map((s) => s.Icon)
     expect(icons).toHaveLength(6)
     expect(new Set(icons).size).toBe(6)
   })
@@ -122,8 +122,15 @@ describe('the Café children carry marks of their own (#457)', () => {
     const elsewhere = new Set(
       [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
     )
-    for (const s of CAFE_MODULE_SECTIONS) {
+    for (const s of CAFE_SECTIONS) {
       expect(elsewhere.has(s.Icon), `${s.path} borrows a mark from another destination`).toBe(false)
     }
+  })
+})
+
+describe('sectionHasPrefixChild', () => {
+  it('marks only a section with a prefix-child sibling', () => {
+    expect(sectionHasPrefixChild(CAFE_SECTIONS[0], CAFE_SECTIONS)).toBe(true)
+    expect(sectionHasPrefixChild(CAFE_SECTIONS[1], CAFE_SECTIONS)).toBe(false)
   })
 })

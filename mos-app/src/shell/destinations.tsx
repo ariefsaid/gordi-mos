@@ -2,7 +2,7 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
-import { CAFE_SECTIONS, CAFE_MODULE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
+import { CAFE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, EventsIcon, SignalsIcon, MoneyIcon,
@@ -151,7 +151,7 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
       { id: 'cafe', zone: 'modules', labelKey: 'dest.cafe', Icon: CafeIcon, primaryPath: '/cafe',
         workMatch: /caf[eé]|kitchen|\bbar\b|barista/i,
         links: CAFE_SECTIONS,
-        children: CAFE_MODULE_SECTIONS },
+        children: CAFE_SECTIONS },
       { id: 'ecommerce', zone: 'modules', labelKey: 'dest.ecommerce', Icon: EcommerceIcon, primaryPath: '/ecommerce',
         workMatch: /ecommerce/i, // NOT sales|crm — Sales is the b2b_sales BU (seed), no module yet (audit F6)
         links: [{ path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon }] },

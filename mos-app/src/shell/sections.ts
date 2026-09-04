@@ -83,17 +83,6 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/pushes', label: 'Pushes', labelKey: 'nav.cafe.pushes', Icon: DispatchIcon, anyOf: ['ops_lead', 'admin'] },
 ]
 
-/**
- * The Café module's NAV children — the Opening tab plus five working screens, derived from
- * CAFE_SECTIONS rather than re-listed, so the two can never drift. Including Opening gives the
- * module root a real active sub-tab while the Café parent remains an aria-current="location"
- * ancestor, preserving the one-page marker contract on every Café route.
- *
- * This list exists because the port shipped the Café module with ONE link (`/cafe`) while
- * CAFE_SECTIONS held all six and was imported by nothing but a breadcrumb lookup — dead data, and
- * five working screens with no way to reach them but a typed URL.
- */
-export const CAFE_MODULE_SECTIONS: Section[] = CAFE_SECTIONS
 
 /**
  * The links a viewer may actually see: the ship gate first, then capability gates resolved through
@@ -106,6 +95,10 @@ export const CAFE_MODULE_SECTIONS: Section[] = CAFE_SECTIONS
  * rather than beside them — and why the same array closes the route in `router.tsx`, so a link can
  * never survive a path that stopped routing.
  */
+export function sectionHasPrefixChild(section: Section, sections: readonly Section[]): boolean {
+  return sections.some((sibling) => sibling !== section && sibling.path.startsWith(section.path + '/'))
+}
+
 export function visibleSections(sections: readonly Section[], accessRoles: readonly string[]): Section[] {
   return sections.filter(
     (s) =>
