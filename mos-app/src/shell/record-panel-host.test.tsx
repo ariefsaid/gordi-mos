@@ -122,10 +122,13 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
   // through unconditionally to 32px — the exact bug Luna measured. The coarse-pointer pattern
   // (record-viewer.css `@media (pointer: fine)` tighten-down) inverts the default: 44px is the
   // RESTING size everywhere, and only a genuine fine pointer (desktop mouse) tightens to 32px.
-  it('defaults to the 44px touch floor and tightens to the 32px control token only for a fine pointer', () => {
+  it('defaults to the 44px touch floor and tightens to the 32px control token only for a fine pointer at desktop width', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
     expect(css).toMatch(/\.record-panel-btn\s*\{[^}]*width:\s*44px;\s*height:\s*44px;/s)
-    expect(css).toMatch(/@media \(pointer: fine\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}/s)
+    // #708: a bare `(pointer: fine)` query fired at phone width too (a resized desktop window,
+    // a non-touch mobile emulation both report a fine pointer), tightening Close/Ask Deputy to
+    // 32×32 under the 767px floor. `and (min-width: 768px)` confines the tighten-down to desktop.
+    expect(css).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}/s)
   })
 
   it('no title → no chrome (the tenant owns its own header — Task zero-change path)', () => {

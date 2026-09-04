@@ -8,3 +8,10 @@
 }
 .signal-attention-picker-option[aria-checked='true'] { border-color: var(--ring); background: var(--secondary); color: var(--foreground); font-weight: 600; }
 .signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* #708: the pill's height already met the 44px phone floor; its content-driven width (43.2px /
+   42.2px measured) did not. Scoped to phone so the desktop 1440 render (already ≥44 by content)
+   is untouched. */
+@media (max-width: 767.98px) {
+  .signal-attention-picker-option { min-width: 44px; }
+}
