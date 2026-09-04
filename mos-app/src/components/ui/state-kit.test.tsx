@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EmptyState, ErrorState, LoadingShell } from './state-kit'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { messages } from '@/i18n/messages'
 
 describe('EmptyState', () => {
   it('renders the quiet archetype with no action row', () => {
@@ -39,7 +40,7 @@ describe('EmptyState', () => {
       <EmptyState
         variant="awaiting"
         title="No pushes yet"
-        copy="The ESB outbox is empty right now."
+        copy={messages.en['kitchen.pushes.empty.copy']}
         note="Pull again to check for new push activity."
       >
         <button type="button">Refresh</button>
@@ -49,6 +50,8 @@ describe('EmptyState', () => {
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+    expect(screen.getByText('Nothing has been sent to the outlet system today.')).toBeInTheDocument()
+    expect(emptyState).not.toHaveTextContent(/ESB|outbox/i)
     expect(screen.getByText(/pull again to check for new push activity/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
   })
