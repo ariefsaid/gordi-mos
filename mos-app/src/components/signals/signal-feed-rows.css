@@ -155,7 +155,6 @@
 }
 .home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
 .home-signal-body--static { cursor: default; }
-.home-signal-body--static:hover .home-signal-body-text { text-decoration: none; }
 
 .home-signal-meta {
   display: flex;
