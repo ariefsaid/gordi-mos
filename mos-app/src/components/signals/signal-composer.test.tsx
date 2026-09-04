@@ -10,6 +10,7 @@ vi.mock('@/lib/db/signals', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/signals')>('@/lib/db/signals')
   return {
     listReadableAuthorTeams: vi.fn(),
+    listAllTeams: vi.fn(),
     getTeamSite: vi.fn(),
     createSignal: vi.fn(),
     dedupeRecipients: actual.dedupeRecipients, // real (pure) implementation — the point under test
@@ -20,12 +21,12 @@ vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listReadableAuthorTeams, getTeamSite, createSignal } from '@/lib/db/signals'
+import { listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { SignalComposer } from './signal-composer'
 
 const mockListReadableAuthorTeams = vi.mocked(listReadableAuthorTeams)
-const mockListAuthorTeams = mockListReadableAuthorTeams
+const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetTeamSite = vi.mocked(getTeamSite)
 const mockCreateSignal = vi.mocked(createSignal)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
@@ -42,7 +43,7 @@ const TEAM_UNREADABLE: TeamOption = {
   id: 'team-warehouse', name: 'Warehouse Ops', business_unit_id: 'bu-warehouse', site_id: 'site-warehouse', is_primary: false,
 }
 // OD-REDESIGN-91 #19: a single eligible Team auto-picks, so the default author is on ONE team —
-// the common journey. The multi-team must-pick journey has its own describe block below, and
+// the common journey. The multi-team must-pick journey has its own describe block below.
 // The mocked read-back RPC returns the eligible destination set.
 const SOLE_TEAM: TeamOption[] = [TEAMS[0]]
 const BUS: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
@@ -68,6 +69,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
 beforeEach(() => {
   vi.resetAllMocks()
   mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
+  mockListAllTeams.mockResolvedValue(TEAMS)
   mockGetTeamSite.mockResolvedValue(null)
   mockGetBusinessUnits.mockResolvedValue(BUS)
   mockGetPeople.mockResolvedValue(PEOPLE)
@@ -94,7 +96,7 @@ describe('SignalComposer — repost prefill', () => {
 // SIG-2 — a viewer with no team memberships gets an honest empty state, not a dead composer.
 describe('SignalComposer — no-team empty state (SIG-2)', () => {
   it('renders an empty state explaining why, instead of an empty select + forever-disabled submit', async () => {
-    mockListAuthorTeams.mockResolvedValue([])
+    mockListReadableAuthorTeams.mockResolvedValue([])
     renderComposer()
 
     // The empty state resolves once the (empty) team load settles.
@@ -108,7 +110,7 @@ describe('SignalComposer — no-team empty state (SIG-2)', () => {
 
   it('does not flash the empty state before the team load resolves', () => {
     let resolveTeams: (t: TeamOption[]) => void = () => {}
-    mockListAuthorTeams.mockReturnValue(new Promise<TeamOption[]>((r) => { resolveTeams = r }))
+    mockListReadableAuthorTeams.mockReturnValue(new Promise<TeamOption[]>((r) => { resolveTeams = r }))
     renderComposer()
     // Still loading → the form (its Share Signal button) is present, the empty state is not.
     expect(screen.queryByText('No team to post to')).not.toBeInTheDocument()
@@ -119,7 +121,7 @@ describe('SignalComposer — no-team empty state (SIG-2)', () => {
 describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
   it('paints exactly the four capture fields and enables Share Signal with only body typed', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
 
     // 1. Content
     const body = screen.getByRole('textbox', { name: /what happened/i })
@@ -150,7 +152,7 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
 
   it('posts via createSignal with the typed body and selected Team when Share Signal is pressed', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
@@ -166,7 +168,7 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
 
   it('posts Urgent when the optional attention control is raised', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Gas leak')
     await userEvent.click(screen.getByRole('radio', { name: 'Urgent' }))
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
@@ -178,9 +180,9 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
 
 describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', () => {
   it('with more than one eligible Team, pre-selects nothing and keeps Share disabled until a Team is picked', async () => {
-    mockListAuthorTeams.mockResolvedValue(TEAMS) // author on two teams → must pick
+    mockListReadableAuthorTeams.mockResolvedValue(TEAMS) // author on two teams → must pick
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
 
     const teamSelect = await screen.findByRole('combobox', { name: /team/i })
     expect(teamSelect).toHaveValue('') // no pre-pick, no arbitrary first
@@ -198,9 +200,9 @@ describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', (
   })
 
   it('with a single eligible Team, auto-picks it (no needless pick)', async () => {
-    mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
+    mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
 
     const teamSelect = await screen.findByRole('combobox', { name: /team/i })
     expect(teamSelect).toHaveValue('team-hq')
@@ -227,7 +229,7 @@ describe('SignalComposer — read-back-only Team options (#715)', () => {
 describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #20)', () => {
   it('#10: Shift+Enter posts the Signal; plain Enter is a newline (not a post)', async () => {
     renderComposer() // single team auto-picks, so only the body is needed
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
 
@@ -241,7 +243,7 @@ describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #
 
   it('#20: keeps the native datetime picker and shows a WIB hint beside it', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     expect(screen.getByLabelText(/occurred/i)).toHaveAttribute('type', 'datetime-local')
     expect(screen.getByText('WIB')).toBeInTheDocument()
   })
@@ -252,7 +254,7 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
     // The post is now one atomic RPC: a failure commits nothing, so retrying cannot double-post.
     mockCreateSignal.mockRejectedValueOnce(new Error('fan-out exceeds cap of 50 recipients'))
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
@@ -275,7 +277,7 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
 describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
   it('opens a grouped Person/Team/BU popover on "@" with a type badge per option', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
 
     await userEvent.type(body, 'Heads up @Pe')
@@ -300,7 +302,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
         </div>
       </I18nProvider>,
     )
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'Heads up @Pe')
     expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
@@ -314,7 +316,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
   it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
     const { unmount } = renderComposer({ canMentionBu: false })
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, '@')
 
@@ -325,7 +327,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     unmount()
 
     renderComposer({ canMentionBu: true })
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalledTimes(2))
     const body2 = screen.getAllByRole('textbox', { name: /what happened/i })[0]
     await userEvent.type(body2, '@')
     const enabledBuOption = await screen.findByRole('option', { name: /Retail Ops/i })
@@ -338,7 +340,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     let resolvePost: (id: string) => void = () => {}
     mockCreateSignal.mockReturnValue(new Promise<string>((r) => { resolvePost = r }))
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
@@ -350,7 +352,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
   it('selecting a mention option inserts an @Name chip in the body and stages the mention', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'Heads up @Pe')
 
@@ -368,7 +370,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () => {
   it('shows "Visible to <Team>" with the deduplicated notify count for overlapping mentions', async () => {
     renderComposer({ teamMembers: { 'team-hq': ['person-peer', 'person-other'] } })
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
 
     // Stage a @Team mention (2 members) AND an overlapping @Person mention (person-peer, already
@@ -384,7 +386,7 @@ describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () =>
 
   it('shows "Visible to <Team>" with no notify suffix when no mentions are staged', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     expect(await screen.findByText('Visible to HQ Operations')).toBeInTheDocument()
   })
 

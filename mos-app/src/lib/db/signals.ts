@@ -191,7 +191,7 @@ export async function listAuthorTeams(personId: string): Promise<TeamOption[]> {
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
 }
 
-/** All active (non-archived) Teams — backs the `@Team` mention-picker group. */
+/** All active (non-archived) Teams — the `@Team` mention picker intentionally reaches outsiders. */
 export async function listAllTeams(): Promise<TeamOption[]> {
   const { data, error } = await shared()
     .from('teams')

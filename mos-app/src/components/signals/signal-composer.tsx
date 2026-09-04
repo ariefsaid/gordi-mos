@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/state-kit'
 import {
-  listReadableAuthorTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+  listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
@@ -43,6 +43,7 @@ export function SignalComposer({
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
+  const [mentionTeams, setMentionTeams] = useState<TeamOption[]>([])
   const [teamsLoaded, setTeamsLoaded] = useState(false)
   const [teamId, setTeamId] = useState(prefill?.owningTeamId ?? '')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
@@ -64,12 +65,13 @@ export function SignalComposer({
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
-    // The database is the sole home of the Signal read policy; this one RPC returns both ordinary
-    // and cross-Team destinations without a client-side approximation or a second membership fetch.
+    // The owning Team select uses the database's post/read gate; mentions intentionally reach all
+    // active Teams so authors can notify outsiders.
     const teamsLoad = listReadableAuthorTeams(authorId)
-    Promise.all([teamsLoad, getPeople(), getBusinessUnits()]).then(([teamOptions, peopleOptions, buOptions]) => {
+    Promise.all([teamsLoad, listAllTeams(), getPeople(), getBusinessUnits()]).then(([teamOptions, allTeams, peopleOptions, buOptions]) => {
       if (cancelled) return
       setTeams(teamOptions)
+      setMentionTeams(allTeams)
       const primary = teamOptions.find((o) => o.is_primary) ?? teamOptions[0]
       // primaryTeamId always tracks the author's home Team (drives the cross-Team destination
       // preview), independent of what is *selected*.
@@ -97,7 +99,7 @@ export function SignalComposer({
     return () => { cancelled = true }
   }, [teamId])
 
-  const teamCandidates: MentionCandidate[] = teams.map((team) => ({ id: team.id, label: team.name }))
+  const teamCandidates: MentionCandidate[] = mentionTeams.map((team) => ({ id: team.id, label: team.name }))
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null
   const isCrossTeam = !!primaryTeamId && teamId !== primaryTeamId
   const notifyCount = dedupeRecipients(mentions, teamMembers, buMembers)
