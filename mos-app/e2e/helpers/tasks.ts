@@ -7,7 +7,8 @@ import { expect, type Page } from '@playwright/test'
  *
  * #671 retired the /work/tasks/new create FORM: create is now an inline draft row with its
  * title focused, committed with Enter, and the route only survives as a redirect to
- * `/work/tasks?create=1` (src/guard-no-links-to-retired-paths.test.ts pins it as retired).
+ * `/work/tasks?create=1` (mos-app/src/router.tsx defines the RouteRedirect; router.test.tsx's Tasks
+ * nesting test covers the retired route shape).
  * The create door itself is width-dependent — the page-head button on desktop, the actions
  * FAB on phone, where the head button is deliberately absent (one door per width).
  */
