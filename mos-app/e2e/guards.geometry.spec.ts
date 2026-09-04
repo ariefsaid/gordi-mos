@@ -30,6 +30,15 @@ import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap
 import { MANAGER, ORPHAN, VIEWER } from './fixtures/users'
 import { ensureStream } from './helpers/cafe-stream'
 
+// The e7 collection grammar owns mouse activation on a task title: a CLICK renames in place
+// (task-row.tsx onTitleClick), and Enter on the focused title is the open-the-record door. Both
+// the table row and the phone card expose that title as the row's opener link.
+async function openTaskRecord(page: Page, title: string) {
+  const opener = page.getByRole('link', { name: new RegExp(title) }).first()
+  await opener.focus()
+  await opener.press('Enter')
+}
+
 async function box(locator: Locator) {
   const b = await locator.boundingBox()
   expect(b, `expected a rendered box for ${String(locator)}`).not.toBeNull()
@@ -58,7 +67,7 @@ test.describe('desktop geometry guards', () => {
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
     await page.getByRole('button', { name: 'All', exact: true }).click()
-    await page.getByText(title).first().click()
+    await openTaskRecord(page, title)
     await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
     const drawer = page.getByRole('complementary', { name: /task detail/i })
     await expect(drawer).toHaveCount(1)
@@ -152,28 +161,42 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     await page.goto('work/signals')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    await page.locator('[data-testid="signal-row"], .signal-row, [role="button"]').filter({ visible: true }).first().click().catch(() => undefined)
+    // The row opener by ROLE + ACCESSIBLE NAME, as GUARD-R1 above: the first `[role="button"]`
+    // in the document is the shell's own Search control, so a class/role sample opens the
+    // command menu instead of a signal and the record panel below is never on screen.
+    await page.getByRole('button', { name: /^Open signal:/ }).first().click()
     await expect(page.getByRole('button', { name: 'Ask Deputy' })).toBeVisible()
     await assertTapFloor(page, '.record-panel-btn.tap-floor', 'Signals record #667', { axes: 'both' })
 
     await page.goto('work/tasks')
     await expect(page.getByTestId('page-head')).toBeVisible()
+    // At phone width the collection toolbar lives behind the "View & filters" door — measured
+    // where a thumb can actually reach it, not in the collapsed panel.
+    await page.getByRole('button', { name: /view & filters/i }).click()
     await assertTapFloor(page, '.collection-toolbar__search.tap-floor, .collection-toolbar__toggle.tap-floor:has(.archived-checkbox)', 'Tasks toolbar #667', { axes: 'both', noOverflow: true })
-    await page.getByRole('button', { name: /create task/i }).click()
-    await expect(page.getByRole('complementary', { name: /create task/i })).toBeVisible()
-    await assertTapFloor(page, '.tc-input.tap-floor', 'Tasks create title #667', { axes: 'both', noOverflow: true })
+    await page.keyboard.press('Escape')
+    // #671 retired the create FORM: create is an inline draft row with its title focused, and at
+    // phone width the one create door is the actions FAB. The title field it focuses is the
+    // create surface's tap target now, so the floor is measured there.
+    await page.getByRole('button', { name: /open actions/i }).click()
+    await page.getByRole('option', { name: 'Create task', exact: true }).click()
+    await expect(page.getByRole('textbox', { name: 'Edit task title' })).toBeVisible()
+    await assertTapFloor(page, '.task-title-input.tap-floor', 'Tasks create title #667', { axes: 'both', noOverflow: true })
     await page.keyboard.press('Escape')
     const title = `Tap floor guard ${Date.now()}`
     await createTaskViaUI(page, title)
     await page.goto('work/tasks')
-    await page.getByText(title).first().click()
+    await openTaskRecord(page, title)
     await expect(page.getByRole('button', { name: /edit/i }).first()).toBeVisible()
     await assertTapFloor(page, '.record-field__edit.tap-floor, .record-panel-btn.tap-floor', 'Tasks record chrome #667', { axes: 'both', noOverflow: true })
 
-    await page.goto('cafe/review')
+    // The group toggle is measured on Plan: Review lists only logs submitted TODAY, so on a fresh
+    // stack it renders its empty state and the toggle this guard exists to measure is never on it.
+    await page.goto('cafe/plan')
     await ensureStream(page)
     await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapFloor(page, '.dt-cards-group-toggle.tap-floor, .dt-group-toggle.tap-floor', 'Café Review #667', { axes: 'both', noOverflow: true })
+    await expect(page.locator('.dt-card').first()).toBeVisible() // rows settled — the toggles ride the groups
+    await assertTapFloor(page, '.dt-cards-group-toggle.tap-floor, .dt-group-toggle.tap-floor', 'Café Plan #667', { axes: 'both', noOverflow: true })
   })
 })
 

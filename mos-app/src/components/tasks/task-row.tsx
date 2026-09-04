@@ -287,7 +287,7 @@ export function TaskRow({
           >
             <input
               ref={inputRef}
-              className="task-title-input collection-grammar-title"
+              className="task-title-input collection-grammar-title tap-floor"
               value={draft}
               disabled={pending}
               aria-busy={pending || undefined}

@@ -304,6 +304,10 @@
   /* #711: the box floors to 44px, but `align-items: center` keeps the field from stretching to
      fill it — the evidence pass measured the real `<input>` at 21.8px. Floor the field too. */
   .collection-toolbar__search input { min-height: 44px; }
+
+  /* Same file, later import: the base .collection-toolbar__toggle min-height would otherwise
+     out-rank the shared .tap-floor utility on this one control. */
+  .collection-toolbar__toggle { min-height: 44px; }
   .collection-toolbar__view { min-height: 44px; }
   .collection-toolbar__save { align-items: stretch; flex-wrap: wrap; }
   .collection-toolbar__save-field { flex: 1 1 100%; }
