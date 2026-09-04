@@ -77,6 +77,15 @@ describe('CommandMenu (AC-K07): dialog semantics + Esc + return focus', () => {
     expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 
+  it('AC-K07: centers the palette surface at the 390px phone viewport', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    renderMenu()
+    const surface = screen.getByRole('dialog', { name: 'Command menu' })
+
+    expect(surface).toHaveAttribute('data-phone-mode', 'centered')
+    expect(surface).toHaveClass('cm-modal-surface')
+  })
+
   it('AC-K07: Esc closes the menu', () => {
     const onClose = vi.fn()
     renderMenu(onClose)
@@ -320,10 +329,11 @@ describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per
 
 // ── default groups ──────────────────────────────────────────────────────────
 describe('default groups (empty query): Recent + Actions + Navigate', () => {
-  it('shows the Actions + Navigate groups when the query is empty', () => {
+  it('shows Navigate before Actions when the query is empty', () => {
     renderMenu()
-    expect(screen.getByText('Actions')).toBeInTheDocument()
-    expect(screen.getByText('Navigate')).toBeInTheDocument()
+    const groups = within(screen.getByRole('listbox')).getAllByRole('group')
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Navigate', 'Actions'])
+    expect(screen.getByRole('option', { name: 'Ask Deputy: what needs my attention?' })).toBeInTheDocument()
   })
 
   it('renders command chrome through i18n for Indonesian', () => {

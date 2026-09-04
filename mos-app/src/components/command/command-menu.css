@@ -8,17 +8,12 @@
   color: var(--text-primary);
 }
 
-.modal-shell__surface:has(> .cm-panel) {
-  align-self: start;
+.modal-shell__surface.cm-modal-surface {
+  align-self: center;
   width: min(100%, 560px);
-  margin-top: 48px;
   background: var(--surface-primary);
   border-color: var(--border-light);
   box-shadow: var(--shadow-strong);
-}
-
-@media (max-width: 600px) {
-  .modal-shell__surface:has(> .cm-panel) { margin-top: 0; }
 }
 
 /* ── Input row ── */

@@ -200,7 +200,7 @@ const row = (name: string, opts: { child?: boolean; active?: boolean } = {}) =>
   `${opts.child === true ? ' data-child="true"' : ''} data-to="/work/tasks">` +
   `<span class="cm-item-glyph"><svg></svg></span><span class="cm-item-label truncate"></span></div>`
 document.body.innerHTML = `
-  <div class="modal-shell__surface">
+  <div class="modal-shell__surface cm-modal-surface">
     <div class="cm-panel">
       <div class="cm-input"><span class="cm-input-icon"></span><input /></div>
       <div class="cm-body">
@@ -222,6 +222,7 @@ const el = (q: string): Element => {
   if (found === null) throw new Error(`the fixture has no ${q}`)
   return found
 }
+const SURFACE = el('.cm-modal-surface')
 const PANEL = el('.cm-panel')
 const INPUT = el('.cm-input input')
 const GROUP = el('.cm-group')
@@ -244,7 +245,7 @@ const RESOLVED = new Map<Element, Map<string | null, Map<string, string>>>()
 for (const group of [PLAIN, CHILD, ACTIVE]) for (const key of PART_KEYS) {
   RESOLVED.set(group[key], new Map(MEDIA.map((m) => [m, effective(group[key], m)])))
 }
-for (const node of [PANEL, INPUT, GROUP]) {
+for (const node of [SURFACE, PANEL, INPUT, GROUP]) {
   RESOLVED.set(node, new Map(MEDIA.map((m) => [m, effective(node, m)])))
 }
 /** Everything the child row's parts declare that the plain row's do not — the rung itself. */
@@ -275,6 +276,12 @@ describe('the guards below read the real cascade', () => {
       .filter((f) => /\.cm-[\w-]/.test(readFileSync(join(SRC, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ')))
     expect(strays, `these stylesheets also style the palette, and the cascade between them is ` +
       `decided by import order: ${strays.join(', ')}`).toEqual([])
+  })
+})
+
+describe('the command modal centers its surface on phone', () => {
+  it('pins align-self to center in phone mode in the CSS cascade', () => {
+    expect(value(SURFACE, 'align-self', '(max-width: 767.98px)')).toBe('center')
   })
 })
 

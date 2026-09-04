@@ -447,7 +447,7 @@ export const messages = {
     'commandMenu.kind.task': 'Task',
     'commandMenu.kind.signal': 'Signal',
     'commandMenu.kind.followUp': 'AR Follow-up',
-    'commandMenu.action.askDeputy': 'Ask Deputy',
+    'commandMenu.action.askDeputy': 'Ask Deputy: what needs my attention?',
     'commandMenu.action.shareSignal': 'Share Signal',
     'commandMenu.action.createTask': 'Create task',
     // #407 — the floor's one-tap capture path: the launcher's Café log entry, shown to viewers
@@ -1721,7 +1721,7 @@ export const messages = {
     'commandMenu.kind.task': 'Tugas',
     'commandMenu.kind.signal': 'Sinyal',
     'commandMenu.kind.followUp': 'Tindak Lanjut AR',
-    'commandMenu.action.askDeputy': 'Tanya Deputi',
+    'commandMenu.action.askDeputy': 'Tanya Deputi: apa yang perlu saya perhatikan?',
     'commandMenu.action.shareSignal': 'Bagikan Sinyal',
     'commandMenu.action.createTask': 'Buat tugas',
     // #407 — jalur pencatatan satu-ketuk untuk staf lantai (lihat catatan di lokal en).

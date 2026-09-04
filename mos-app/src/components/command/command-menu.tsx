@@ -310,8 +310,9 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
       if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
-      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actionItems })
+      // e7's palette leads with destinations (GO TO) before actions (ACT).
       out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: visibleNavigate })
+      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actionItems })
       return out
     }
     const actions = actionItems.filter((i) => matches(i.label, trimmed))
@@ -402,6 +403,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       closeOnEscape
       surface="centered"
       phoneMode="centered"
+      className="cm-modal-surface"
     >
       <div className="cm-panel">
         <div className="cm-input">
