@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// getRailCounts reaches mos via supabase.schema('mos').from(table).select('*', {count,head}) then a
-// chain of filter builders, awaited for { count, error }. Mock a chainable builder that records the
-// table + filters and resolves a queued { count, error } per table.
+// getRailCounts reaches mos via supabase.schema('mos').from('tasks').select('*', {count,head}) then
+// a chain of filter builders, awaited for { count, error }. Mock a chainable builder that records
+// the table + filters and resolves a queued { count, error }.
 vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
@@ -47,14 +47,14 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
       makeClient({ tasks: { count: 11, error: null }, signals: { count: 3, error: null } }, rec) as never,
     )
     const counts = await getRailCounts('40000000-0000-0000-0000-000000000001')
-    expect(counts).toEqual({ openTasks: 11, attentionSignals: 3 })
-    expect(rec.tables).toEqual(expect.arrayContaining(['tasks', 'signals']))
+    expect(counts).toEqual({ openTasks: 11 })
+    expect(rec.tables).toEqual(['tasks'])
   })
 
   it('issues HEAD exact-count selects (no rows fetched)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeClient({ tasks: { count: 1, error: null }, signals: { count: 1, error: null } }, rec) as never,
+      makeClient({ tasks: { count: 1, error: null } }, rec) as never,
     )
     await getRailCounts('40000000-0000-0000-0000-000000000001')
     for (const [, opts] of rec.selects) {
@@ -62,7 +62,7 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
     }
   })
 
-  it('scopes open tasks to non-archived + non-Done, and signals to non-retracted needs-attention/urgent', async () => {
+  it('scopes open tasks to non-archived + non-Done and to the viewer R/A filter', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeClient({ tasks: { count: 0, error: null }, signals: { count: 0, error: null } }, rec) as never,
@@ -70,22 +70,22 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
     await getRailCounts('40000000-0000-0000-0000-000000000001')
     expect(rec.filters).toEqual(expect.arrayContaining([
       'is:archived_at', 'neq:status=Done',
-      'is:retracted_at', 'in:attention=Needs attention,Urgent',
+      'or:responsible_person_id.eq.40000000-0000-0000-0000-000000000001,accountable_person_id.eq.40000000-0000-0000-0000-000000000001',
     ]))
   })
 
   it('coalesces a null count to 0', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeClient({ tasks: { count: null, error: null }, signals: { count: null, error: null } }, rec) as never,
+      makeClient({ tasks: { count: null, error: null } }, rec) as never,
     )
-    expect(await getRailCounts('40000000-0000-0000-0000-000000000001')).toEqual({ openTasks: 0, attentionSignals: 0 })
+    expect(await getRailCounts('40000000-0000-0000-0000-000000000001')).toEqual({ openTasks: 0 })
   })
 
   it('throws when a count query errors (so the caller can drop the badges)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeClient({ tasks: { count: null, error: { message: 'rls denied' } }, signals: { count: 2, error: null } }, rec) as never,
+      makeClient({ tasks: { count: null, error: { message: 'rls denied' } } }, rec) as never,
     )
     await expect(getRailCounts('40000000-0000-0000-0000-000000000001')).rejects.toThrow(/rail count failed/)
   })

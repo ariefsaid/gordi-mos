@@ -230,19 +230,18 @@ describe('compact rail glyphs (issue 457 part 1)', () => {
     const links = await compactRailGlyphs()
     const hrefs = links.map((l) => l.href)
 
-    // Derived from the declarations, not a magic number. A hardcoded floor goes red when an
-    // unrelated branch MOVES a row out of the rail — #480 moves Personal Profile into the identity
-    // menu — which is neither a duplicate nor this guard's business. What this guard must refuse is
-    // a rail that shrank to nothing, so it tracks the source of truth instead of a constant.
-    // Compact mode keeps Work's children but collapses module children to their root rows.
-    expect(links.length).toBeGreaterThan(DESTINATIONS.length + MODULES.length)
+    const MIN_LINKS =
+      DESTINATIONS.length +
+      DESTINATIONS.reduce((n, d) => n + (d.children?.length ?? 0), 0) +
+      MODULES.reduce((n, m) => n + m.items.length, 0)
+    expect(links.length).toBeGreaterThanOrEqual(MIN_LINKS)
 
     // Every zone is represented, so "unique" is a claim about the whole column. Named routes are
     // limited to ones whose PRESENCE is the point; membership of the utility zone is in flux, so
     // it is asserted by zone rather than by naming a row that may legitimately move.
     expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox', '/cafe']))
     expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
-    expect(hrefs).not.toEqual(expect.arrayContaining(['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']))
+    expect(hrefs.filter((href) => href.startsWith('/cafe/'))).toHaveLength(0)
 
     // THE GATE IS OFF. These four are in SHIP_GATED_PATHS today; each is the twin of a mark the
     // reverted attempt borrowed. If this assertion ever fails, the mock has stopped working and
@@ -260,7 +259,7 @@ describe('compact rail glyphs (issue 457 part 1)', () => {
     expect(collisions, 'rail entries drawing the same picture in the icon-only regime').toEqual([])
   })
 
-  it("the compact Café row is the module root and carries a chevron", async () => {
+  it('the compact Café row is the module root', async () => {
     const links = await compactRailGlyphs()
     const cafe = links.find((l) => l.href === '/cafe')
     expect(cafe, 'the Café module link is missing').toBeTruthy()

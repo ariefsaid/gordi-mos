@@ -53,6 +53,7 @@ vi.mock('@/lib/db/notifications', () => ({
 
 import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
+import { MODULES } from './destinations'
 import { BottomTabBar } from './bottom-tab-bar'
 import { flattenRoutes, isRedirect, routeAdmits } from '@/test/route-table'
 import { isShipGated } from '@/lib/ship-gate'
@@ -347,14 +348,14 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     it('reaches every route that admits them, on the rail', () => {
       const rendered = new Set(railLinks(p))
       // Café's collapsed root is the rendered nav entry for admitted child routes (home-shell.md §1.1: children only when active or affiliated).
-      const missing = admitted().filter((path) => !rendered.has(path) && !(path.startsWith('/cafe/') && rendered.has('/cafe')))
+      const missing = admitted().filter((path) => !rendered.has(path) && !MODULES.flatMap((g) => g.items).some((module) => module.children?.length && path.startsWith(`${module.primaryPath}/`) && rendered.has(module.primaryPath ?? module.links[0]?.path ?? '')))
       expect(missing, 'admitted by the route, no rendered rail link').toEqual([])
     })
 
     it('reaches every route that admits them, on a phone', () => {
       const rendered = new Set(phoneLinks(p))
       // Café's collapsed root is the rendered nav entry for admitted child routes (home-shell.md §1.1: children only when active or affiliated).
-      const missing = admitted().filter((path) => !rendered.has(path) && !(path.startsWith('/cafe/') && rendered.has('/cafe')))
+      const missing = admitted().filter((path) => !rendered.has(path) && !MODULES.flatMap((g) => g.items).some((module) => module.children?.length && path.startsWith(`${module.primaryPath}/`) && rendered.has(module.primaryPath ?? module.links[0]?.path ?? '')))
       expect(missing, 'admitted by the route, no rendered phone link').toEqual([])
     })
 

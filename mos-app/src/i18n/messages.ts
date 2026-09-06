@@ -386,7 +386,6 @@ export const messages = {
     'nav.cafe.review': 'Review',
     'nav.cafe.stock': 'Stock',
     'nav.ecommerce': 'Ecommerce',
-
     'nav.money': 'Money',
     'nav.more': 'More',
     'nav.profile': 'Personal Profile',
@@ -1653,7 +1652,6 @@ export const messages = {
     'nav.cafe.review': 'Tinjauan',
     'nav.cafe.stock': 'Stok',
     'nav.ecommerce': 'Ecommerce',
-
     'nav.money': 'Keuangan',
     'nav.more': 'Lainnya',
     'nav.profile': 'Profil Pribadi',

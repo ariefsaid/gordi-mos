@@ -6,8 +6,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export type RailCounts = {
   /** Open tasks owned by the viewer (R or A), matching Home's My work predicate. */
   openTasks: number
-  /** Retained for the shell aggregate contract; Signals is intentionally never badged. */
-  attentionSignals: number
 }
 
 async function headCount(build: () => PromiseLike<{ count: number | null; error: unknown }>): Promise<number> {
@@ -20,23 +18,14 @@ async function headCount(build: () => PromiseLike<{ count: number | null; error:
 export async function getRailCounts(personId?: string): Promise<RailCounts | null> {
   if (!personId || !UUID.test(personId)) return null
 
-  const [openTasks, attentionSignals] = await Promise.all([
-    headCount(() => {
-      let query = mos()
-        .from('tasks')
-        .select('*', { count: 'exact', head: true })
-        .is('archived_at', null)
-        .neq('status', 'Done')
-      query = query.or(`responsible_person_id.eq.${personId},accountable_person_id.eq.${personId}`)
-      return query
-    }),
-    headCount(() =>
-      mos()
-        .from('signals')
-        .select('*', { count: 'exact', head: true })
-        .is('retracted_at', null)
-        .in('attention', ['Needs attention', 'Urgent']),
-    ),
-  ])
-  return { openTasks, attentionSignals }
+  const openTasks = await headCount(() => {
+    let query = mos()
+      .from('tasks')
+      .select('*', { count: 'exact', head: true })
+      .is('archived_at', null)
+      .neq('status', 'Done')
+    query = query.or(`responsible_person_id.eq.${personId},accountable_person_id.eq.${personId}`)
+    return query
+  })
+  return { openTasks }
 }
