@@ -34,6 +34,8 @@ export interface BranchOption {
 export interface ProductionStream {
   branch: BranchOption
   activity: ProductionActivity
+  /** Database-owned producer fact; absent only in legacy test fixtures. */
+  produces?: boolean
 }
 
 /**
@@ -45,6 +47,7 @@ export interface ProductionStream {
 export interface StreamPair {
   branch_id: string
   activity: ProductionActivity
+  produces?: boolean
 }
 
 /** What happened, in the stored vocabulary (`ops.kitchen_logs.action`). */

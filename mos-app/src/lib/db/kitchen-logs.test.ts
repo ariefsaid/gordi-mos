@@ -1046,8 +1046,8 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
           teams: [
             {
               data: [
-                { branch_id: BRANCH_ID, activity: 'kitchen' },
-                { branch_id: BRANCH_ID, activity: 'bar' },
+                { branch_id: BRANCH_ID, activity: 'kitchen', produces: true },
+                { branch_id: BRANCH_ID, activity: 'bar', produces: true },
               ],
               error: null,
             },
@@ -1067,14 +1067,14 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
   it('streamCatalogFrom resolves pairs against the branch catalog in catalog × activity order, dropping unknown branches', () => {
     const RADIANT = { id: RADIANT_ID, code: 'radiant', name: 'Radiant' }
     const pairs = [
-      { branch_id: RADIANT_ID, activity: 'bar' as const },
-      { branch_id: BRANCH_ID, activity: 'kitchen' as const },
+      { branch_id: RADIANT_ID, activity: 'bar' as const, produces: true },
+      { branch_id: BRANCH_ID, activity: 'kitchen' as const, produces: true },
       { branch_id: 'gone-branch', activity: 'bar' as const }, // archived branch → dropped
     ]
     const catalog = streamCatalogFrom(pairs, [RADIANT, STREAM.branch])
     expect(catalog).toEqual([
-      { branch: RADIANT, activity: 'bar' },
-      { branch: STREAM.branch, activity: 'kitchen' },
+      { branch: RADIANT, activity: 'bar', produces: true },
+      { branch: STREAM.branch, activity: 'kitchen', produces: true },
     ])
   })
 
