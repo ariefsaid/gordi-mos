@@ -13,7 +13,6 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
 import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib/db/cafe-opening'
-import { listAuthorTeams } from '@/lib/db/signals'
 import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canReviewCafe } from '@/lib/kitchen-gates'
@@ -88,9 +87,8 @@ export function CafeOpeningPage() {
       .then(async (id) => {
         if (!id) { setState('no-process'); return }
         setProcessId(id)
-        // Prefer a not-yet-started due occurrence for this process; fall back to the viewer's own
-        // Team membership when today's opening is already started (and so omitted from the due list).
-        // The shared resolver deliberately makes multiple eligible Teams a user choice.
+        // The due list is the database authorization mirror: do not fall back to arbitrary
+        // memberships after the branch occurrence has started.
         const due = await listStartableCafeTeams(id)
         if (due.length > 0) {
           const resolution = resolveTeamContext(
@@ -107,17 +105,7 @@ export function CafeOpeningPage() {
           }
           return
         }
-        const myTeams = await listAuthorTeams(viewerId)
-        const resolution = resolveTeamContext(myTeams.map(({ id: teamId, name }) => ({ id: teamId, name })))
-        if (resolution.kind === 'single') {
-          setTeam(resolution.team)
-          setState('ready')
-        } else if (resolution.kind === 'choice') {
-          setTeamChoices(resolution.teams)
-          setState('choice')
-        } else {
-          setState('no-team')
-        }
+        setState('no-team')
       })
       .catch(() => setState('error'))
   }, [viewerId])

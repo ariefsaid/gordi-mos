@@ -22,6 +22,9 @@ select plan(34);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
+-- The generic fixture must satisfy the Café Opening branch contract; the gate is never bypassed.
+update mos.work_lines set name = 'Process Opening'
+ where id = '00000000-0000-0000-0000-00000000c001';
 
 set local role authenticated;
 -- Author ...0d1 is an active OwnTeam member and holds `member`, which carries process.start.
