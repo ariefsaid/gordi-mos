@@ -123,8 +123,9 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
 
     // 1. Content
     const body = screen.getByRole('textbox', { name: /what happened/i })
-    // 3. Occurrence time
-    const occurred = screen.getByLabelText(/occurred/i)
+    // 3. Occurrence time — the input is visible only while its pill popover is open.
+    await userEvent.click(screen.getByRole('button', { name: /Just now/i }))
+    const occurred = within(screen.getByRole('dialog', { name: /occurred/i })).getByLabelText(/occurred/i)
     // 4. Author (read-only line, not a form control)
     expect(screen.getByText(/Owning Team: HQ Operations · Author: Author One/i)).toBeInTheDocument()
 
@@ -232,7 +233,7 @@ describe('SignalComposer — read-back-only Team options (#715)', () => {
   })
 })
 
-describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #20)', () => {
+describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
   it('#10: Shift+Enter posts the Signal; plain Enter is a newline (not a post)', async () => {
     renderComposer() // single team auto-picks, so only the body is needed
     await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
@@ -247,12 +248,6 @@ describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #
     expect(mockCreateSignal.mock.calls[0][0].body).toBe('The freezer alarm went off')
   })
 
-  it('#20: keeps the native datetime picker and shows a WIB hint beside it', async () => {
-    renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-    expect(screen.getByRole('button', { name: /Just now/i })).toBeInTheDocument()
-    expect(screen.getByText('WIB')).toBeInTheDocument()
-  })
 })
 
 describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', () => {
@@ -428,16 +423,31 @@ describe('SignalComposer — pill grammar (#768)', () => {
     expect(screen.getAllByRole('combobox', { name: /team/i })[0]).toHaveValue('')
   })
 
-  it('AC-058/059: attention popover and occurred pill post the selected values', async () => {
+  it('AC-058/059: attention tint, overlay ownership, picked time format, and posted occurred_at', async () => {
     renderComposer()
     await waitFor(() => expect(mockGetTeamSite).toHaveBeenCalled())
-    await userEvent.click(screen.getByRole('button', { name: /FYI/i }))
+    const attentionButton = screen.getByRole('button', { name: /FYI/i })
+    await userEvent.click(attentionButton)
     expect(screen.getByRole('menu')).toHaveTextContent(/Needs attention/i)
     await userEvent.click(screen.getByRole('menuitem', { name: /Urgent/i }))
-    expect(screen.getByRole('button', { name: /Urgent/i })).toBeInTheDocument()
+    const urgentButton = screen.getByRole('button', { name: /Urgent/i })
+    expect(urgentButton).toHaveClass('signal-attention-pill--urgent')
+    expect(urgentButton).toHaveFocus()
+
+    await userEvent.click(screen.getByRole('button', { name: /Just now/i }))
+    const occurredDialog = screen.getByRole('dialog', { name: /occurred/i })
+    const occurredInput = within(occurredDialog).getByLabelText(/occurred/i)
+    fireEvent.change(occurredInput, { target: { value: '2026-07-16T02:00' } })
+    expect(screen.getByRole('button', { name: /16 Jul 02:00/i })).toBeInTheDocument()
+    fireEvent.keyDown(occurredInput, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: /occurred/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /16 Jul 02:00/i })).toHaveFocus()
+
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Gas leak')
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
-    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({ attention: 'Urgent' })))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({
+      attention: 'Urgent', occurredAt: new Date('2026-07-16T02:00').toISOString(),
+    })))
   })
 
   it('AC-063: translates database failures into plain sharing copy', async () => {
@@ -474,7 +484,7 @@ describe('SignalComposer — derived Site pill, no @Site (AC-423)', () => {
     const pill = await screen.findByTestId('signal-site-pill')
     expect(pill).toHaveTextContent('Gordi HQ')
     // Location is a pill, not a mention target (D37).
-    expect(pill.tagName).toBe('BUTTON')
+    expect(pill.tagName).not.toBe('BUTTON')
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, '@')
