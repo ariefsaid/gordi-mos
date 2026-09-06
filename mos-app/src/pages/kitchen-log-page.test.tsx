@@ -95,11 +95,15 @@ const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTE
 // tests assert is that the picker offers EXACTLY the pairs it is given, so the count below is
 // this list's length, not the catalog's. Roastery has no stream Team and so appears in neither.
 const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
-  b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
+  b => (['kitchen', 'bar'] as const).map(activity => ({
+    branch_id: b.id,
+    activity,
+    produces: !(b === BRANCH_RADIANT && activity === 'kitchen'),
+  })),
 )
 // The person's own default stream (FR-001) — what the default-stream.ts resolver returns
 // (already resolved against the branch catalog).
-const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen' }
+const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen', produces: true }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
 
@@ -1437,7 +1441,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 
 describe("AC-002 / FR-001: the capture surface opens on the person's own stream and stays switchable", () => {
   it('AC-002: pre-selects the shared.default_stream() pair — not a hardcoded branch', async () => {
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1457,7 +1461,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     // The picker used to live in the toolbar's scope block, beside the movement control, on the
     // two surfaces that had one at all. #440 moved it into the shared head so a person walking
     // Log → Plan → Stock reads which books they are in from the same spot every time.
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     const { container } = await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1580,7 +1584,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
 
 describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed unit, no unit input", () => {
   it("a bar stream's form carries one qty input per item + fixed unit label — no raw-material field, no unit input", async () => {
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_GORDI_HQ, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_GORDI_HQ, activity: 'bar', produces: true })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1740,7 +1744,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 // barista does, not by pulling a branch id out of the component's props.
 describe('AC-007: destinations cover both movement classes from both activity surfaces (FR-013)', () => {
   it('AC-007: the BAR surface offers another branch AND its own branch qualified as the kitchen', async () => {
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar', produces: true })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1762,9 +1766,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    expect(
-      screen.getByRole('tab', { name: /transfer to bungur within branch · bar/i }),
-    ).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /transfer to bungur within branch · bar/i })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
   })
@@ -1773,7 +1775,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
     // On a Radiant stream it is RADIANT that is intra-branch and Bungur that is a cross-branch
     // destination — the mirror image of the two tests above. Without this, a qualifier pinned
     // to the incumbent's one branch would pass both of them.
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1788,15 +1790,15 @@ describe('AC-007: destinations cover both movement classes from both activity su
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    expect(screen.queryByRole('tab', { name: /within branch/i })).toBeNull()
-    expect(screen.getByRole('tab', { name: 'Transfer to Bungur' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(screen.queryByTestId('movement-seg')).toBeNull()
   })
 
   it('AC-007: an intra-branch movement is submitted as destination = the origin branch', async () => {
     // The offer is only half of it — the row it produces is what the held arm (AC-008) reads.
     // Destination equals origin, and the activity travels as the row's own stream, NOT as a
     // property of the destination: there is no destination-activity field to send (OD-WAY-44).
-    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar', produces: true })
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))

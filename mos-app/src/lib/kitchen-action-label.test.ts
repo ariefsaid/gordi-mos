@@ -32,18 +32,44 @@ const RADIANT: BranchOption = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
 const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar', produces: true }
 const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen', produces: true }
 const RADIANT_KITCHEN: ProductionStream = { branch: RADIANT, activity: 'kitchen', produces: false }
-const STREAM_CATALOG: ProductionStream[] = [RRS_KITCHEN, RRS_BAR, RADIANT_KITCHEN, { branch: RADIANT, activity: 'bar', produces: true }]
+const GHQ: BranchOption = { id: 'b-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
+const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
+const GHQ_KITCHEN: ProductionStream = { branch: GHQ, activity: 'kitchen', produces: true }
+const GHQ_BAR: ProductionStream = { branch: GHQ, activity: 'bar', produces: true }
+const CIKAL_BAR: ProductionStream = { branch: CIKAL, activity: 'bar', produces: true }
+const STREAM_CATALOG: ProductionStream[] = [
+  GHQ_KITCHEN, GHQ_BAR, RRS_KITCHEN, RRS_BAR,
+  RADIANT_KITCHEN, { branch: RADIANT, activity: 'bar', produces: true }, CIKAL_BAR,
+]
 
 describe('movementsForStream', () => {
   it('derives produce plus allowed destinations from the origin and catalog', () => {
     expect(movementsForStream(RRS_KITCHEN, STREAM_CATALOG)).toEqual([
       PRODUCE,
+      { action: 'transfer', destinationBranchId: GHQ.id },
       { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
   })
 
   it('returns no movements for a receive-only kitchen', () => {
     expect(movementsForStream(RADIANT_KITCHEN, STREAM_CATALOG)).toEqual([])
+  })
+
+  it('matches the seeded seven-stream destination matrix', () => {
+    const expected: Record<string, string[]> = {
+      'gordi_hq|kitchen': [RRS.id, RADIANT.id, CIKAL.id],
+      'rumah_rames|kitchen': [GHQ.id, RADIANT.id, CIKAL.id],
+      'radiant|kitchen': [],
+      'gordi_hq|bar': [GHQ.id, RRS.id, RADIANT.id, CIKAL.id],
+      'rumah_rames|bar': [GHQ.id, RRS.id, RADIANT.id, CIKAL.id],
+      'radiant|bar': [GHQ.id, RRS.id, RADIANT.id, CIKAL.id],
+      'cikal|bar': [GHQ.id, RRS.id, RADIANT.id],
+    }
+    for (const stream of STREAM_CATALOG) {
+      expect(movementsForStream(stream, STREAM_CATALOG).map(m => m.destinationBranchId).filter(Boolean))
+        .toEqual(expected[`${stream.branch.code}|${stream.activity}`])
+    }
   })
 })
 
