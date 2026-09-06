@@ -29,7 +29,7 @@ function setAuthAs(accessRoles: string[] = [], roleNames: string[] | string = 'B
       roles: names.map((n, i) => ({ id: `r${i}`, org_id: 'o1', business_unit_id: 'bu-cafe', name: n, reports_to_role_id: null, created_at: '', updated_at: '' })),
       isManager: false,
       accessRoles,
-      affiliated: [],
+      affiliated: names.some((n) => /barista|cafe ops lead/i.test(n)) ? ['cafe'] : [],
     },
     signOut: vi.fn(),
   })
@@ -112,6 +112,29 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
       expect(within(nav).queryByRole('link', { name }), `${name} is ship-gated`).toBeNull()
     }
     expect(within(nav).queryByText('B2B Ops')).toBeNull()
+  })
+
+  it('AC-011: an unaffiliated Director sees Café as one root row at Home', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getAllByRole('link')).toHaveLength(9)
+    expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Opening' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Log' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Plan' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Stock' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
+  })
+
+  it('AC-012: an unaffiliated Director at Café Log sees all six Café children', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    renderRailNav('/cafe/log')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    for (const name of ['Opening', 'Log', 'Plan', 'Stock', 'Review', 'Pushes']) {
+      expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
+    }
   })
 
   it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus its five screens', () => {
@@ -460,8 +483,8 @@ describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
   })
 })
 
-// Rail count badges (E7 `.e7-count`) — Tasks (open count) + Signals (needs-attention count) from
-// ONE shell aggregate. Quiet rule: a count that is zero or unavailable shows NO badge. The badge is
+// Rail count badges (E7 `.e7-count`) — Tasks (open count) from ONE shell aggregate. Quiet rule:
+// a count that is zero or unavailable shows NO badge. The badge is
 // aria-hidden (a redundant glance cue), so the link's accessible name is unchanged.
 import type { RailCounts } from '@/lib/db/rail-counts'
 function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null | undefined) {
@@ -478,20 +501,20 @@ function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null 
   )
 }
 
-describe('Rail count badges (Tasks · Signals)', () => {
-  it('renders the open-Tasks and attention-Signals counts as trailing badges', () => {
+describe('Rail count badges (Tasks)', () => {
+  it('renders the viewer-owned open-Tasks count and no Signals badge', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
+    renderRailNavWithCounts('/work/tasks', { openTasks: 11 })
     // DO-18(d): the badge label joins the accname, so match on the leading label.
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const signals = screen.getByRole('link', { name: /^Signals/ })
     expect(within(tasks).getByText('11')).toBeInTheDocument()
-    expect(within(signals).getByText('3')).toBeInTheDocument()
+    expect(within(signals).queryByText('3')).toBeNull()
   })
 
-  it('shows a badge ONLY on Tasks and Signals — never on any other rail item', () => {
+  it('shows a badge ONLY on Tasks — never on any other rail item', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
+    renderRailNavWithCounts('/work/tasks', { openTasks: 11 })
     // Was pinned on Projects & Processes / Objectives, which #444 ship-gates out of the rail.
     // Widened rather than dropped: EVERY rendered link must carry no numeric badge except the two
     // named, so a new item cannot grow one unnoticed and this cannot rot the way naming two
@@ -501,12 +524,12 @@ describe('Rail count badges (Tasks · Signals)', () => {
       .getAllByRole('link')
       .filter((l) => within(l).queryByText(/^\d+$/) !== null)
       .map((l) => (l.textContent ?? '').replace(/\d+$/, ''))
-    expect(badged.sort()).toEqual(['Signals', 'Tasks'])
+    expect(badged.sort()).toEqual(['Tasks'])
   })
 
   it('omits a badge when its count is zero (E7 quiet rule)', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 0, attentionSignals: 0 })
+    renderRailNavWithCounts('/work/tasks', { openTasks: 0 })
     expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
     expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
   })
@@ -523,13 +546,12 @@ describe('Rail count badges (Tasks · Signals)', () => {
   // name stating what the count counts; the link's accname includes it.
   it('DO-18(d): the badge exposes an accessible name stating what the count counts', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 7, attentionSignals: 3 })
+    renderRailNavWithCounts('/work/tasks', { openTasks: 7 })
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const badge = within(tasks).getByText('7')
     expect(badge.getAttribute('aria-hidden')).not.toBe('true')
     expect(badge).toHaveAccessibleName('7 open tasks')
-    const signals = screen.getByRole('link', { name: /^Signals/ })
-    expect(within(signals).getByText('3')).toHaveAccessibleName('3 signals need attention')
+    expect(within(screen.getByRole('link', { name: /^Signals/ })).queryByText('3')).toBeNull()
   })
 })
 
@@ -593,7 +615,7 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
         <I18nProvider>
           <MemoryRouter initialEntries={['/work/tasks']}>
             <Routes>
-              <Route path="*" element={<RailNav compact counts={{ openTasks: 4, attentionSignals: 0 }} />} />
+              <Route path="*" element={<RailNav compact counts={{ openTasks: 4 }} />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>

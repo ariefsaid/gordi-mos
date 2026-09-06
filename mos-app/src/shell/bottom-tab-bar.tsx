@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { primaryModuleForViewer } from './destinations'
+import { visibleModulesForViewer } from './destinations'
 import { HomeIcon, WorkIcon, InboxIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
 import { RailCountBadge } from './rail-nav'
@@ -77,7 +77,9 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   // The line here used to say "module routes stay reachable via ⌘K / direct URL". That was false:
   // the palette held seven hardcoded entries, none of them Café. It is deleted rather than
   // replaced — under OD-WAY-51 no justification is needed, because nothing is being hidden.
-  const moduleDest = viewer ? primaryModuleForViewer(viewer.affiliated, viewer.accessRoles) : null
+  const moduleDest = viewer
+    ? visibleModulesForViewer(viewer.accessRoles).find((m) => viewer.affiliated.includes(m.id)) ?? null
+    : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {
         id: moduleDest.id,

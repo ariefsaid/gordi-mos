@@ -4,7 +4,7 @@ import { can } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
-  EventsIcon, MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
+  MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, OpeningIcon,
   LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
@@ -45,7 +45,6 @@ export const SECTIONS: Section[] = [
   // only `Destination.children` was filtered on capability, but it read as live and would have
   // become live the moment anyone filtered SECTIONS.
   { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
-  { path: '/work/events', label: 'Events', labelKey: 'nav.work.events', Icon: EventsIcon },
   { path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon },
   { path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon },
   { path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon },

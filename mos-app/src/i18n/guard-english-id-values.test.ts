@@ -31,6 +31,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'money.footnote.interim', // Interim
   'breadcrumb.detail', // Detail
   'dest.ecommerce', // Ecommerce
+  'dest.inbox', // Inbox — pinned tab label per OD-WAY-93 (10)
   'dest.roastery', // Roastery
   'inbox.quickTitle', // Inbox
   'nav.cafe.log', // Log

@@ -39,6 +39,8 @@ import { DESTINATIONS, MODULES, isLive } from './destinations'
 import { SECTIONS, sectionForPath, visibleSections } from './sections'
 import { flattenRoutes, isRedirect, redirectProps, leafInThisTable } from '@/test/route-table'
 
+const RETIRED_VIEWS = ['/work/events'] as const
+
 /**
  * The viewer who sees the MOST — every access role the app knows, and a job-role name that matches
  * every module's `workMatch`. A gate that closes for this persona closes for everyone, so nothing
@@ -229,7 +231,8 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
       ...MODULES.flatMap((g) => g.items).flatMap((m) => [...m.links, ...(m.children ?? [])]).map((l) => l.path),
       ...SECTIONS.map((s) => s.path),
     ])
-    const missing = SHIP_GATED_PATHS.filter((p) => !registered.has(p))
+    // Retired views are not nav declarations; their routes remain ship-gated.
+    const missing = SHIP_GATED_PATHS.filter((p) => !RETIRED_VIEWS.includes(p as typeof RETIRED_VIEWS[number]) && !registered.has(p))
     expect(missing, 'gated paths deleted from the registries instead of hidden').toEqual([])
 
     const money = DESTINATIONS.find((d) => d.id === 'money')

@@ -74,9 +74,10 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /Personal Profile/ })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Cahya Cafe' }))
     expect(screen.getByRole('menuitem', { name: /Personal Profile/ })).toHaveAttribute('href', '/profile')
-    // Café's screens, which are the reason the drawer matters on a phone.
-    expect(screen.getByRole('link', { name: /^Log$/ })).toHaveAttribute('href', '/cafe/log')
-    expect(screen.getByRole('link', { name: /^Review$/ })).toHaveAttribute('href', '/cafe/review')
+    // At the collapsed root, Café is one route entry with a chevron; children appear when active or affiliated (home-shell.md §1.1).
+    expect(screen.getByRole('link', { name: /^Café$/ })).toHaveAttribute('href', '/cafe')
+    expect(screen.queryByRole('link', { name: /^Log$/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Review$/ })).toBeNull()
     // #444: Events, Ecommerce and Roastery were each asserted PRESENT here. All three are
     // ship-gated (outside the MVP payload), and the gate is above roles — so the viewer holding
     // every role there is gets no link to any of them, on the one nav surface a phone has.
@@ -88,7 +89,8 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
   it('a plain member sees Café\'s ungated screens but not Review or Pushes', () => {
     // The gate that should still exist, on the surface where it is easiest to lose.
     renderDrawer({ accessRoles: ['member'] })
-    expect(screen.getByRole('link', { name: /^Log$/ })).toHaveAttribute('href', '/cafe/log')
+    expect(screen.getByRole('link', { name: /^Café$/ })).toHaveAttribute('href', '/cafe')
+    expect(screen.queryByRole('link', { name: /^Log$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Review$/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })

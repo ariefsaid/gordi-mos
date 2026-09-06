@@ -1,17 +1,18 @@
 import { useEffect, useRef, useCallback } from 'react'
 import type React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   DESTINATIONS,
   navUtility,
   isLive,
   modulesByBU,
   primaryModuleForViewer,
+  moduleChildrenForViewer,
   type Destination,
 } from './destinations'
 import { visibleSections, type Section } from './sections'
 import { UserChip } from './user-chip'
-import { CloseIcon } from './icons'
+import { CloseIcon, Chevron } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import './mobile-drawer.css'
@@ -54,7 +55,7 @@ function workChildren(d: Destination, accessRoles: string[]): Section[] {
 // shared rail ladder (rail-nav.css) the row sits on: `dest` (13.5px/600, foreground, 17px icon)
 // or `child` (13px/500, muted-foreground, 15px icon). Neither the icon nor the label carries a
 // colour class of its own — both inherit the rung, so glyph and label move together.
-function DrawerRow({ to, label, Icon, onNavigate, rung = 'dest' }: { to: string; label: string; Icon: React.FC; onNavigate: () => void; rung?: 'dest' | 'child' }) {
+function DrawerRow({ to, label, Icon, onNavigate, rung = 'dest', showChevron = false }: { to: string; label: string; Icon: React.FC; onNavigate: () => void; rung?: 'dest' | 'child'; showChevron?: boolean }) {
   return (
     <Link
       to={to}
@@ -68,6 +69,7 @@ function DrawerRow({ to, label, Icon, onNavigate, rung = 'dest' }: { to: string;
         <Icon />
       </span>
       <span>{label}</span>
+      {showChevron && <Chevron className="rail-module-chevron" />}
     </Link>
   )
 }
@@ -98,6 +100,7 @@ function DrawerGroupLabel({ children }: { children: string }) {
 export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const auth = useAuth()
+  const { pathname } = useLocation()
   const t = useT()
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -169,7 +172,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         .map((m) => ({
           module: m,
           showParent: m.id !== promotedModule?.id,
-          children: visibleSections(m.children ?? [], accessRoles),
+          children: moduleChildrenForViewer(m, pathname, affiliated, accessRoles),
         }))
         .filter((i) => i.showParent || i.children.length > 0),
     }))
@@ -261,7 +264,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                 {g.items.map(({ module: m, showParent, children }) => (
                   <li key={m.id}>
                     {showParent && (
-                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} />
+                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} showChevron={Boolean(m.children?.length)} />
                     )}
                     {/* A module's own screens. This drawer is the phone's ONLY route to them —
                         the bottom bar gives a module one tab and no children — so a module whose

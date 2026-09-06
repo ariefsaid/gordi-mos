@@ -20,10 +20,10 @@ beforeEach(() => vi.clearAllMocks())
 describe('useRailCounts — the single rail count-fetch seam', () => {
   it('fetches once when authenticated and returns the resolved counts', async () => {
     authed()
-    mockGetRailCounts.mockResolvedValue({ openTasks: 9, attentionSignals: 2 })
+    mockGetRailCounts.mockResolvedValue({ openTasks: 9 })
     const { result } = renderHook(() => useRailCounts())
     expect(result.current).toBeNull() // null until it resolves
-    await waitFor(() => expect(result.current).toEqual({ openTasks: 9, attentionSignals: 2 }))
+    await waitFor(() => expect(result.current).toEqual({ openTasks: 9 }))
     expect(mockGetRailCounts).toHaveBeenCalledTimes(1)
   })
 

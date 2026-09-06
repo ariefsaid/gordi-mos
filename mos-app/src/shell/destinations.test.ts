@@ -39,7 +39,7 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
   // rendered trace of the nesting. The desktop rail used to re-sort into this order locally while
   // the phone drawer rendered the array as declared, so the two surfaces listed the same five items
   // two ways. Both now render declaration order; `work-child-order.test.tsx` guards that they agree.
-  it('Work has five children in ONE declared order, 0 family headings', () => {
+  it('Work has four children in ONE declared order, 0 family headings', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     expect(work.children).toBeDefined()
     expect(work.children!.map((c) => c.path)).toEqual([
@@ -47,7 +47,6 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
       '/work/tasks',
       '/work/projects',
       '/work/objectives',
-      '/work/events',
     ])
     expect(work.primaryPath).toBe('/work/tasks')
     expect(isLive(work, [])).toBe(true)
