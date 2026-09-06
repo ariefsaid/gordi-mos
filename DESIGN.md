@@ -939,6 +939,8 @@ coarse-pointer floor it shares with the search field beside it. *(Shape sets exp
 single full-width rounded row read as search and behaved as a composer, so the two jobs now have
 their own controls — owner, 2026-07-28.)*
 
+Home rows carry **no per-row actions and no visibility line**; `Create task` and `Add category` live on the Signal record and the archive Feed. The row's whole surface opens the record.
+
 The archive's Urgent row treatment (`warning/7%` fill + a 2px `warning` left rule) is **Urgent
 only** — Needs-attention keeps its amber pill on a calm, unfilled row so the fill escalates Urgent
 above it. Every archive row reserves a 2px *transparent* left rule so all rows stay left-aligned

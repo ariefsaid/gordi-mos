@@ -28,6 +28,8 @@ export interface SignalFeedRowsProps {
   onCreateTask?: (signal: SignalRow) => void
   createTaskHref?: (signal: SignalRow) => string | undefined
   onOpen?: (signal: SignalRow) => void
+  /** Home members can keep the feed toolbar to the Share door only. */
+  showSearch?: boolean
   /**
    * `ambient` (default) — the Home tail: no per-row state fill, so Home reads as one calm system.
    * `archive` — the /work/signals Feed: attention-worthy rows carry DESIGN.md's Operations-event
@@ -44,11 +46,12 @@ export const AMBIENT_CAP = 6
 
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onCreateTask, createTaskHref, onOpen,
+  showSearch = true,
   variant = 'ambient',
 }: SignalFeedRowsProps) {
   const t = useT()
   const [query, setQuery] = useState('')
-  const searchable = variant === 'ambient' && !!onShareClick
+  const searchable = variant === 'ambient' && !!onShareClick && showSearch
   // Matching reuses the collection engine's OWN predicate (`signalMatchesText` — body + author +
   // owning Team) rather than a second definition. The engine already owns text search as the `q`
   // query key on the Signal collection; what it cannot do here is scope the filter to the ambient
@@ -89,14 +92,16 @@ export function SignalFeedRows({
           Signal is a button — the two jobs stop competing for one control. */}
       {variant === 'ambient' && onShareClick ? (
         <div className="home-signal-tools">
-          <input
-            type="search"
-            className="home-signal-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('signals.feed.searchPlaceholder')}
-            aria-label={t('signals.feed.searchLabel')}
-          />
+          {showSearch ? (
+            <input
+              type="search"
+              className="home-signal-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('signals.feed.searchPlaceholder')}
+              aria-label={t('signals.feed.searchLabel')}
+            />
+          ) : null}
           {/* Secondary weight on purpose: this is a door in an AMBIENT tail, so it must not
               outrank the overdue work above it. The one action blue stays reserved for the page's
               own primary action (DESIGN.md §5 Buttons — the ONE button hierarchy). */}
@@ -138,15 +143,32 @@ export function SignalFeedRows({
             // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
             // is inert on Home and lights up only in the archive Feed.
             const attentionRow = signal.attention === 'Urgent' ? ' home-signal-row--urgent' : ''
+            // AC-060 (Home rows are read-only record links): the variant split IS the open-affordance
+            // split — an ambient row IS the button (role + the `signals.card.openSignal` catalog name
+            // on the row, pointer cursor via --open in the CSS), while an archive row opens through
+            // its own body <button> below instead.
+            const openRow = variant === 'ambient' && onOpen ? ' home-signal-row--open' : ''
             return (
               <li
                 key={signal.id}
-                className={`home-signal-row${attentionRow}`}
+                className={`home-signal-row${attentionRow}${openRow}`}
                 data-signal-id={signal.id}
+                {...(variant === 'ambient' && onOpen ? {
+                  role: 'button',
+                  tabIndex: 0,
+                  'aria-label': t('signals.card.openSignal', { body: signal.body }),
+                  onClick: () => onOpen(signal),
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onOpen(signal)
+                    }
+                  },
+                } : {})}
               >
                 <div className="home-signal-main">
                   {/* Body = the row title, one truncated line; the clickable record affordance. */}
-                  {onOpen ? (
+                  {onOpen && variant === 'archive' ? (
                     <button
                       type="button"
                       className="home-signal-body"
@@ -177,7 +199,7 @@ export function SignalFeedRows({
                       <span className="home-signal-sep" aria-hidden="true">·</span>
                       <span className="home-signal-time-chip">{formatWibDateTime(signal.occurred_at)}</span>
                     </span>
-                    {teamName && (
+                    {variant === 'archive' && teamName && (
                       <span className="home-signal-visible-to">
                         {t('signals.composer.visibleTo', { team: teamName })}
                       </span>
@@ -188,7 +210,7 @@ export function SignalFeedRows({
                   <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
                     {attentionLabel(t, signal.attention)}
                   </span>
-                  {(onCreateTask || taskHref) && (
+                  {variant === 'archive' && (onCreateTask || taskHref) && (
                     taskHref ? (
                       <Link to={taskHref} className="btn btn-outline home-signal-create-task">
                         {t('tasks.new')}
@@ -199,10 +221,12 @@ export function SignalFeedRows({
                       </button>
                     )
                   )}
-                  <SignalCategoryPicker
-                    category={signal.category}
-                    onCategorize={onCategorize ? (category) => onCategorize(signal.id, category) : undefined}
-                  />
+                  {variant === 'archive' ? (
+                    <SignalCategoryPicker
+                      category={signal.category}
+                      onCategorize={onCategorize ? (category) => onCategorize(signal.id, category) : undefined}
+                    />
+                  ) : null}
                 </div>
               </li>
             )

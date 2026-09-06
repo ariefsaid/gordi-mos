@@ -155,6 +155,12 @@
 }
 .home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
 .home-signal-body--static { cursor: default; }
+/* AC-060: an ambient open-row IS the record button (the row itself carries role="button"), so its
+   whole surface points — including the static body span, whose `cursor: default` above is the
+   non-clickable variant's rule. Scoped to `--open`: the archive opens via its own body button,
+   and retracted tombstones are not doors. */
+.home-signal-row--open { cursor: pointer; }
+.home-signal-row--open .home-signal-body--static { cursor: inherit; }
 
 .home-signal-meta {
   display: flex;

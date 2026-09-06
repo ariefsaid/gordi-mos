@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { correctSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
@@ -25,7 +24,6 @@ export interface SignalFeedSectionProps {
   authorNamesById: ReadonlyMap<string, string>
   /** Team id → display name, from the shared feed's resolved context. */
   teamNamesById: ReadonlyMap<string, string>
-  onCreateTask?: (signal: SignalRow) => void
   createTaskHref?: (signal: SignalRow) => string | undefined
   /** The shared read's initial-load state — Home's own skeleton regions cover it (NFR-405). */
   loading?: boolean
@@ -40,7 +38,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 }
 
 export function SignalFeedSection({
-  signals, authorNamesById, teamNamesById, onCreateTask, createTaskHref, loading = false, error = false, onReload,
+  signals, authorNamesById, teamNamesById, createTaskHref, loading = false, error = false, onReload,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -74,12 +72,6 @@ export function SignalFeedSection({
       return
     }
     navigate(`/work/signals?record=${signalId}`)
-  }
-
-  async function handleCategorize(signalId: string, category: SignalRow['category']) {
-    if (!category) return
-    await correctSignal(signalId, { category })
-    onReload?.()
   }
 
   if (loading) return null // Home's own skeleton regions cover initial paint (NFR-405)
@@ -117,8 +109,6 @@ export function SignalFeedSection({
           authorNamesById={namesToRecord(authorNamesById)}
           teamNamesById={namesToRecord(teamNamesById)}
           onShareClick={openSignalComposer}
-          onCategorize={(signalId, category) => { void handleCategorize(signalId, category) }}
-          onCreateTask={onCreateTask}
           createTaskHref={createTaskHref}
           onOpen={(signal) => openRecord(signal.id)}
         />
