@@ -2,18 +2,19 @@
 // "Home = ONE consequence-ranked stream", replacing the ported three-section E7 layout).
 //
 // Pure, no I/O. Builds a SINGLE prioritised flow ranked ACROSS record types out of the same
-// tasks/notifications/failed-check projections HomePage already fetches (Rule 11 — no new data
-// path; this is presentation over the existing home-attention selectors + tasks projection).
+// tasks/failed-check projections HomePage already fetches (Rule 11 — no new data path; this is
+// presentation over the existing home-attention selectors + tasks projection). Mentions are NOT
+// in the stream: Inbox (page + bell) is the one mentions surface (#745, OD-WAY-93 ruling 4).
 //
-// Rank order (owner: "overdue → due today → blocked → mentions/asks → today's open work"):
+// Rank order (owner: "overdue → due today → blocked → mentions/asks → today's open work";
+// mentions left the ranking with #745):
 //   1. overdue        — owned tasks past their due date            reason "Overdue · Nd"
 //   2. due-today      — owned tasks due exactly today               reason "Due today"
 //   3. blocked        — owned tasks status=Blocked, not yet overdue reason "Blocked"
 //   4. failed-checks  — the viewer's rejected café logs (RATIFY-3)  reason "Check failed"
-//   5. mentions       — unread @-mentions / asks                    reason "Mentions you"
-//   6. my-work        — the rest of the viewer's open work today (off-track first, capped)
+//   5. my-work        — the rest of the viewer's open work today (off-track first, capped)
 //
-// Bands 0–5 are the "attention" group; band 6 is "my work". The OD-18 order preference reorders
+// Bands 0–4 are the "attention" group; band 5 is "my work". The OD-18 order preference reorders
 // those two GROUPS within the one stream (attention-first vs my-work-first) — it never removes a
 // band.
 //
@@ -31,11 +32,11 @@ import type { AttentionDirectory, AttentionItem, AttentionPic } from '@/lib/home
 
 export type { AttentionDirectory } from '@/lib/home-attention'
 
-export type StreamBandKind = 'signals' | 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'mentions' | 'my-work'
+export type StreamBandKind = 'signals' | 'overdue' | 'due-today' | 'blocked' | 'failed-checks' | 'my-work'
 export type StreamBandState = 'loading' | 'ready' | 'error'
 
 /** The tone a reason chip carries — drives its i18n label + colour token. `days` is set for overdue. */
-export type StreamReasonTone = 'urgent' | 'attention' | 'overdue' | 'due' | 'blocked' | 'check' | 'mention'
+export type StreamReasonTone = 'urgent' | 'attention' | 'overdue' | 'due' | 'blocked' | 'check'
 export interface StreamReason {
   tone: StreamReasonTone
   /** Whole days overdue (tone === 'overdue' only). */
@@ -130,11 +131,6 @@ export function blockedStreamItems(
 /** Decorate the pre-built failed-check items (café rejected logs) with the "Check failed" reason. */
 export function failedCheckStreamItems(items: AttentionItem[]): StreamItem[] {
   return items.map(i => ({ ...i, reason: { tone: 'check' as const } }))
-}
-
-/** Decorate the pre-built mention items with the "Mentions you" reason. */
-export function mentionStreamItems(items: AttentionItem[]): StreamItem[] {
-  return items.map(i => ({ ...i, reason: { tone: 'mention' as const } }))
 }
 
 /** Owned, non-Done tasks NOT already surfaced in an attention band — the "my work today" band.

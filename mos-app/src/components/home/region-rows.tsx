@@ -13,10 +13,9 @@ import './home-stream.css'
 
 /** How each region renders its rows' reason mark.
  *
- *  `failed-checks` and `mentions` carry ONE tone for every row at rest, and its label restates the
- *  region's own name verbatim ("Check failed" under "Failed checks", "Mentions you" under
- *  "Mentions") — DESIGN.md Don't: "Don't repeat a value under a control that the row or card
- *  already renders as its own column/field."
+ *  `failed-checks` carries ONE tone for every row at rest, and its label restates the region's own
+ *  name verbatim ("Check failed" under "Failed checks") — DESIGN.md Don't: "Don't repeat a value
+ *  under a control that the row or card already renders as its own column/field."
  *
  *  `needs-you` keeps the reason — the overdue AGE ("Overdue · 8d") is information the region name
  *  cannot carry — but as toned TEXT, not a filled pill (DESIGN.md § Row status as text, v4; the
@@ -29,7 +28,6 @@ import './home-stream.css'
 const REASON_STYLE: Record<HomeRegionId, ReasonStyle> = {
   'needs-you': 'text',
   'failed-checks': 'none',
-  mentions: 'none',
   'my-work': 'chip',
 }
 
@@ -37,7 +35,7 @@ const REASON_STYLE: Record<HomeRegionId, ReasonStyle> = {
  *
  *  F16 (OD-REDESIGN-91 #28): in "My work today" the PIC is always the viewer, so naming them to
  *  themselves on every row carries zero information — those rows suppress it. Everywhere the
- *  person VARIES (attention, mentions, failed checks) the name stays; it is the meta line's anchor.
+ *  person VARIES (attention, failed checks) the name stays; it is the meta line's anchor.
  *
  *  Derived HERE, beside `REASON_STYLE` and `EMPTY_KEY`, rather than taken as a prop: this is a
  *  property of the REGION, and no arrangement has any business deciding it differently. It was a
@@ -46,7 +44,6 @@ const REASON_STYLE: Record<HomeRegionId, ReasonStyle> = {
 const HIDE_PIC: Record<HomeRegionId, boolean> = {
   'needs-you': false,
   'failed-checks': false,
-  mentions: false,
   'my-work': true,
 }
 
@@ -56,7 +53,6 @@ const HIDE_PIC: Record<HomeRegionId, boolean> = {
 const EMPTY_KEY: Record<HomeRegionId, MessageKey> = {
   'needs-you': 'home.attention.allClear',
   'failed-checks': 'home.attention.allClear',
-  mentions: 'home.attention.allClear',
   'my-work': 'home.stream.myWorkEmpty',
 }
 

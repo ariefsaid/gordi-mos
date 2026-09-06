@@ -211,7 +211,6 @@
 .stream-reason--due     { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--status-open-text); }
 .stream-reason--blocked { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
 .stream-reason--check   { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text); }
-.stream-reason--mention { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
 
 /* Row status as text (DESIGN.md § Row status as text, v4): where the reason is true of
    EVERY row in the band at rest, the tone semantics stay and the FILL is dropped — a

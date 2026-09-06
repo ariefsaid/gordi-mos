@@ -9,16 +9,16 @@ const item = (id: string): StreamItem => ({
 describe('buildHomeRegions (FR-929, FR-930)', () => {
   it('returns every region even when empty, each with its count', () => {
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
     })
-    expect(regions.map((r) => r.id)).toEqual(['needs-you', 'failed-checks', 'mentions', 'my-work'])
+    expect(regions.map((r) => r.id)).toEqual(['needs-you', 'failed-checks', 'my-work'])
     expect(regions.every((r) => r.count === 0)).toBe(true)
   })
 
   it('needs-you merges overdue, due-today and blocked', () => {
     const regions = buildHomeRegions({
       overdue: [item('a')], dueToday: [item('b')], blocked: [item('c')],
-      myWork: [], failedChecks: [], mentions: [],
+      myWork: [], failedChecks: [],
     })
     const needsYou = regions.find((r) => r.id === 'needs-you')!
     expect(needsYou.count).toBe(3)
@@ -26,7 +26,7 @@ describe('buildHomeRegions (FR-929, FR-930)', () => {
 
   it('defaults every region to "ready" state with no retry when the caller reports no async state', () => {
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
     })
     expect(regions.every((r) => r.state === 'ready')).toBe(true)
     expect(regions.every((r) => r.onRetry === undefined)).toBe(true)
@@ -37,7 +37,7 @@ describe('buildHomeRegions carries per-region async state (DIV-G5) — a failed 
   it('needs-you AND my-work share the tasks projection state + retry (they read the same fetch)', () => {
     const retryTasks = () => {}
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
       taskState: 'error', onRetryTasks: retryTasks,
     })
     const needsYou = regions.find((r) => r.id === 'needs-you')!
@@ -48,20 +48,15 @@ describe('buildHomeRegions carries per-region async state (DIV-G5) — a failed 
     expect(myWork.onRetry).toBe(retryTasks)
   })
 
-  it('failed-checks and mentions carry their OWN independent state + retry', () => {
+  it('failed-checks carries its OWN independent state + retry', () => {
     const retryFailedChecks = () => {}
-    const retryMentions = () => {}
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
       failedChecksState: 'loading', onRetryFailedChecks: retryFailedChecks,
-      mentionsState: 'error', onRetryMentions: retryMentions,
     })
     const failedChecks = regions.find((r) => r.id === 'failed-checks')!
-    const mentions = regions.find((r) => r.id === 'mentions')!
     expect(failedChecks.state).toBe('loading')
     expect(failedChecks.onRetry).toBe(retryFailedChecks)
-    expect(mentions.state).toBe('error')
-    expect(mentions.onRetry).toBe(retryMentions)
     // Independent bands never inherit the shared tasks state.
     const needsYou = regions.find((r) => r.id === 'needs-you')!
     expect(needsYou.state).toBe('ready')
@@ -76,7 +71,7 @@ describe('buildHomeRegions carries per-region async state (DIV-G5) — a failed 
 describe('DIV-G5: a region has no count until its read succeeded (never a confident 0)', () => {
   it('needs-you and my-work have NO count while the shared tasks read is loading', () => {
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
       taskState: 'loading',
     })
     expect(regions.find((r) => r.id === 'needs-you')!.count).toBeNull()
@@ -85,20 +80,19 @@ describe('DIV-G5: a region has no count until its read succeeded (never a confid
 
   it('needs-you and my-work have NO count when the shared tasks read failed', () => {
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
       taskState: 'error',
     })
     expect(regions.find((r) => r.id === 'needs-you')!.count).toBeNull()
     expect(regions.find((r) => r.id === 'my-work')!.count).toBeNull()
   })
 
-  it('failed-checks and mentions lose their own count independently of the tasks read', () => {
+  it('failed-checks loses its own count independently of the tasks read', () => {
     const regions = buildHomeRegions({
-      overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
-      failedChecksState: 'error', mentionsState: 'loading',
+      overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+      failedChecksState: 'error',
     })
     expect(regions.find((r) => r.id === 'failed-checks')!.count).toBeNull()
-    expect(regions.find((r) => r.id === 'mentions')!.count).toBeNull()
     // The region whose read DID succeed still states its number.
     expect(regions.find((r) => r.id === 'needs-you')!.count).toBe(1)
   })
@@ -111,7 +105,7 @@ describe('every region carries a way through (Nielsen #3 — a named remainder m
   it('every region has a route to its own full scope', () => {
     const regions = buildHomeRegions({
       overdue: [item('a')], dueToday: [], blocked: [], myWork: [item('b')],
-      failedChecks: [item('c')], mentions: [item('d')],
+      failedChecks: [item('c')],
     })
     expect(Object.fromEntries(regions.map((r) => [r.id, r.drillTo?.route]))).toEqual({
       // The one view holding every overdue / due-today / blocked task the region ranks, in due
@@ -119,15 +113,13 @@ describe('every region carries a way through (Nielsen #3 — a named remainder m
       'needs-you': '/work/tasks?view=my-work',
       // The café log is where a rejected log is re-entered.
       'failed-checks': '/cafe/log',
-      // Inbox is the app's mentions/asks surface.
-      mentions: '/inbox',
       'my-work': '/work/tasks?view=my-work',
     })
   })
 
   it('a region states a full count ONLY where it has an honest one — my-work, from the caller', () => {
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [item('a')], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [item('a')], failedChecks: [],
       myWorkFullCount: 12,
     })
     expect(regions.find((r) => r.id === 'my-work')!.drillTo).toEqual({
@@ -140,7 +132,7 @@ describe('every region carries a way through (Nielsen #3 — a named remainder m
 
   it('my-work keeps its route but states no count when the caller reports none (still loading)', () => {
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
     })
     const myWork = regions.find((r) => r.id === 'my-work')!
     expect(myWork.drillTo).toEqual({ route: '/work/tasks?view=my-work' })

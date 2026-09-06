@@ -22,7 +22,7 @@ const css = readFileSync(join(__dirname, 'home-layouts.css'), 'utf8').replace(/\
 
 /** The region order Overview renders, taken from the region model itself (never hand-copied). */
 const REGION_IDS = buildHomeRegions({
-  overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+  overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
 }).map((r) => r.id)
 
 /** `[start, end)` source ranges for the base cascade and each responsive block.

@@ -16,7 +16,7 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
   // meta line's anchor and takes the emphasis the disc used to supply.
   // F16 (OD-REDESIGN-91 #28): in the "my work today" band the PIC is always the viewer — naming
   // yourself on every one of your own rows carries zero information, so those rows suppress it.
-  // The name stays everywhere the person varies (attention bands, mentions).
+  // The name stays everywhere the person varies (the attention bands).
   const showPic = item.pic != null && !hidePic
   const segments = [
     item.caption && <span key="caption" className="stream-row-tail-seg">{item.caption}</span>,

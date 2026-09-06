@@ -108,7 +108,7 @@ describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 
-  it('phone: renders the header inbox tray with the unread row count', () => {
+  it('AC-051: bell badge renders the shared unread figure', () => {
     mockNarrow.mockReturnValue(true)
     mockUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
     mockUse.mockReturnValue(hook({ notifications: [notif(), notif({ id: 'n2', title: 'Hiring plan' })], unreadCount: 2 }))

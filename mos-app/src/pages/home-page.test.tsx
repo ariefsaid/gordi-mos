@@ -1,5 +1,5 @@
 // HomePage tests — Home renders the SAME consequence-ranked regions (needs-you, failed checks,
-// mentions, my work today) in whichever of the three Home layouts (Focused / Overview / List) the
+// my work today) in whichever of the three Home layouts (Focused / Overview / List) the
 // viewer has chosen (OD-V4-9). These tests exercise the default Focused layout — the arrangement
 // itself (Overview/List, region parity, primitive uniqueness) is covered by
 // `components/home/home-layout-parity.test.tsx` and `components/home/guard-home-layout.css.test.ts`.
@@ -392,7 +392,7 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
     await renderHome(memberViewer)
     await screen.findByRole('tablist')
 
-    // Tasks/mentions/failed-checks all resolved, so the header states its tally while Signals is
+    // Tasks/failed-checks all resolved, so the header states its tally while Signals is
     // still in flight — proof the feed contributes no count that could be wrong.
     expect(await screen.findByText('0 left')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /signals/i })).toBeNull()
@@ -581,13 +581,25 @@ describe('AC-040 — the day header is greeting + role chip + N left, nothing el
   // DIV-G5 (the standing rule the deleted state-line tests used to carry): a failed read leaves
   // the header with NO tally — absent, never zero.
   it('a region read that fails leaves the header with no tally figure at all', async () => {
+    // failed-checks is the one region with its own independent read, so failing it alone must
+    // still withhold the header total — a sum over the reads that happened to land is exactly the
+    // figure the viewer cannot trace.
+    mockLoadFailedChecks.mockRejectedValue(new Error('offline'))
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
-    mockListNotifications.mockRejectedValue(new Error('offline'))
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
     const head = screen.getByTestId('page-head')
     expect(within(head).queryByText(/\d+ left/)).toBeNull()
     expect(within(head).queryByText(/handled/)).toBeNull()
+  })
+
+  it('AC-052: Home does not read notifications for a mentions band', async () => {
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+
+    expect(mockListNotifications).not.toHaveBeenCalled()
+    expect(screen.queryByRole('tab', { name: /mentions/i })).toBeNull()
+    expect(screen.queryByText('Mentions')).toBeNull()
   })
 })
 

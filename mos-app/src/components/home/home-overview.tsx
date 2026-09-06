@@ -5,16 +5,15 @@ import type { HomeLayoutProps } from './home-list'
 import './home-layouts.css'
 
 // Overview — every region at once as tiles, sized by consequence (HOME_TILE_WEIGHT). `needs-you`
-// leads: first, top-left, and in the widest tier.
+// leads: first, top-left, and in the widest tier (its own full row).
 
 export function HomeOverview({ regions, feed }: HomeLayoutProps) {
   const t = useT()
   return (
     <div className="home-layout">
       <div className="home-bento">
-        {/* `data-region` (not the weight) is what the lead tile's tonal lift keys off: BOTH
-            needs-you and my-work are `wide`, so a weight-keyed rule would raise them equally and
-            mark neither. */}
+        {/* `data-region` (not the weight) is what the lead tile's tonal lift keys off: a
+            weight-keyed rule would move the lift wherever the weights move. */}
         {regions.map((region) => (
           <section
             key={region.id}

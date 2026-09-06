@@ -14,7 +14,6 @@
 //      invisible at 2 items, a lie by omission at the volume OD-V4-7 exists for.
 import { describe, it, expect } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter } from 'react-router-dom'
 import { HomeFocused } from './home-focused'
@@ -36,27 +35,9 @@ function renderLayout(node: React.ReactNode) {
 describe('FR-929: a ready-but-empty region says so, in every arrangement', () => {
   const regions = buildHomeRegions({
     overdue: [item('a')], dueToday: [], blocked: [],
-    myWork: [], failedChecks: [], mentions: [],
+    myWork: [], failedChecks: [],
   })
 
-  it('Overview names the empty region AND states it is clear (never a hollow card)', () => {
-    renderLayout(<HomeOverview regions={regions} feed={FEED} />)
-    const mentions = screen.getByRole('heading', { name: /mentions/i }).closest('section')!
-    expect(within(mentions).getByText(/all caught up/i)).toBeInTheDocument()
-  })
-
-  it('List names the empty region AND states it is clear (never a dangling heading)', () => {
-    renderLayout(<HomeList regions={regions} feed={FEED} />)
-    const mentions = screen.getByRole('region', { name: /mentions/i })
-    expect(within(mentions).getByText(/all caught up/i)).toBeInTheDocument()
-  })
-
-  it('Focused states it is clear when an empty tab is selected (never a blank body)', async () => {
-    const user = userEvent.setup()
-    renderLayout(<HomeFocused regions={regions} feed={FEED} />)
-    await user.click(screen.getByRole('tab', { name: /mentions/i }))
-    expect(screen.getByText(/all caught up/i)).toBeInTheDocument()
-  })
 
   it('my-work uses its own copy — "nothing else open", not a generic all-clear', () => {
     renderLayout(<HomeList regions={regions} feed={FEED} />)
@@ -76,19 +57,12 @@ describe("DESIGN.md Don't: a row's reason never repeats the region's own name", 
     overdue: [item('a', { reason: { tone: 'overdue', days: 8 } })],
     dueToday: [], blocked: [], myWork: [],
     failedChecks: [item('c', { reason: { tone: 'check' } })],
-    mentions: [item('m', { reason: { tone: 'mention' } })],
   })
 
   it('a "Failed checks" row does not also say "Check failed"', () => {
     renderLayout(<HomeList regions={regions} feed={FEED} />)
     const band = screen.getByRole('region', { name: /failed checks/i })
     expect(within(band).queryByText(/check failed/i)).not.toBeInTheDocument()
-  })
-
-  it('a "Mentions" row does not also say "Mentions you"', () => {
-    renderLayout(<HomeList regions={regions} feed={FEED} />)
-    const band = screen.getByRole('region', { name: /mentions/i })
-    expect(within(band).queryByText(/mentions you/i)).not.toBeInTheDocument()
   })
 
   it('keeps the reason where it ADDS information the region name does not carry', () => {
@@ -101,7 +75,7 @@ describe("DESIGN.md Don't: a row's reason never repeats the region's own name", 
 describe('Overview states the remainder it does not render', () => {
   const many = Array.from({ length: 9 }, (_, i) => item(`n${i}`))
   const regions = buildHomeRegions({
-    overdue: many, dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    overdue: many, dueToday: [], blocked: [], myWork: [], failedChecks: [],
   })
 
   it('a truncated tile says how many more there are', () => {
@@ -120,7 +94,7 @@ describe('Overview states the remainder it does not render', () => {
 
 describe('a11y: Home region headings sit directly under the page h1 (no level skip)', () => {
   const regions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
   })
 
   it('Overview tile names are h2', () => {
@@ -143,13 +117,13 @@ describe('a11y: Home region headings sit directly under the page h1 (no level sk
 // all three told the same falsehood. The count must be ABSENT — an em-dash, never a `0`.
 describe('DIV-G5: a region whose read has not succeeded shows no count, in every arrangement', () => {
   const broken = buildHomeRegions({
-    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
-    taskState: 'error', failedChecksState: 'loading', mentionsState: 'error',
+    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    taskState: 'error', failedChecksState: 'loading',
   })
 
   it('Focused states no number on a tab whose region is errored or loading', () => {
     renderLayout(<HomeFocused regions={broken} feed={FEED} />)
-    for (const name of [/needs you now/i, /failed checks/i, /mentions/i, /my work today/i]) {
+    for (const name of [/needs you now/i, /failed checks/i, /my work today/i]) {
       const tab = screen.getByRole('tab', { name })
       expect(tab.textContent).not.toMatch(/\d/)
       expect(within(tab).getByText('—')).toBeInTheDocument()
@@ -159,7 +133,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
   it('Overview states no number on a tile whose region is errored or loading', () => {
     const { container } = renderLayout(<HomeOverview regions={broken} feed={FEED} />)
     const counts = [...container.querySelectorAll('.home-tile-count')]
-    expect(counts).toHaveLength(4)
+    expect(counts).toHaveLength(3)
     for (const c of counts) {
       expect(c.textContent).not.toMatch(/\d/)
       expect(c.textContent).toContain('—')
@@ -168,7 +142,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
 
   it('List states no number in a band header whose region is errored or loading', () => {
     renderLayout(<HomeList regions={broken} feed={FEED} />)
-    for (const name of [/needs you now/i, /failed checks/i, /mentions/i, /my work today/i]) {
+    for (const name of [/needs you now/i, /failed checks/i, /my work today/i]) {
       const heading = screen.getByRole('heading', { level: 2, name })
       expect(heading.textContent).not.toMatch(/\d/)
       expect(heading.textContent).toContain('—')
@@ -177,13 +151,13 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
 
   it('the absent count is announced, never a bare em-dash glyph', () => {
     renderLayout(<HomeList regions={broken} feed={FEED} />)
-    expect(screen.getAllByText(/not available yet/i).length).toBe(4)
+    expect(screen.getAllByText(/not available yet/i).length).toBe(3)
   })
 
   it('a region whose read SUCCEEDED still states its number', () => {
     const ok = buildHomeRegions({
       overdue: [item('a'), item('b')], dueToday: [], blocked: [],
-      myWork: [], failedChecks: [], mentions: [],
+      myWork: [], failedChecks: [],
     })
     renderLayout(<HomeList regions={ok} feed={FEED} />)
     expect(screen.getByRole('heading', { level: 2, name: /needs you now/i }).textContent)
@@ -198,7 +172,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
 describe('DESIGN.md § Row status as text: needs-you renders its reason as toned text', () => {
   const regions = buildHomeRegions({
     overdue: [item('a', { reason: { tone: 'overdue', days: 8 } })],
-    dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    dueToday: [], blocked: [], myWork: [], failedChecks: [],
   })
 
   it('the overdue age is still stated (the information the band label cannot carry)', () => {
@@ -215,12 +189,12 @@ describe('DESIGN.md § Row status as text: needs-you renders its reason as toned
 // ── DIV: the empty region uses the shared all-clear EmptyState, not a bare muted <p> ───────────
 describe('a ready-and-empty region uses the shared all-clear EmptyState primitive', () => {
   const regions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
   })
 
   it('List renders the state-kit empty state with the compact all-clear treatment', () => {
     renderLayout(<HomeList regions={regions} feed={FEED} />)
-    const band = screen.getByRole('region', { name: /^mentions$/i })
+    const band = screen.getByRole('region', { name: /^failed checks$/i })
     const empty = within(band).getByTestId('empty-state')
     expect(empty).toHaveClass('stream-all-clear')
     expect(within(empty).getByText(/all caught up/i)).toBeInTheDocument()
@@ -228,7 +202,7 @@ describe('a ready-and-empty region uses the shared all-clear EmptyState primitiv
 
   it('Overview renders it too — one empty grammar, not one per arrangement', () => {
     renderLayout(<HomeOverview regions={regions} feed={FEED} />)
-    const tile = screen.getByRole('heading', { name: /^mentions$/i }).closest('section')!
+    const tile = screen.getByRole('heading', { name: /^failed checks$/i }).closest('section')!
     expect(within(tile).getByTestId('empty-state')).toHaveClass('stream-all-clear')
   })
 })
@@ -236,12 +210,12 @@ describe('a ready-and-empty region uses the shared all-clear EmptyState primitiv
 // ── DIV: Overview's lead tile is keyed to the REGION, so the tonal lift can name needs-you ─────
 describe('Overview tiles carry their region id', () => {
   const regions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
   })
 
   it('every tile names its region (both wide tiles are distinguishable)', () => {
     const { container } = renderLayout(<HomeOverview regions={regions} feed={FEED} />)
     expect([...container.querySelectorAll('.home-tile')].map((t) => t.getAttribute('data-region')))
-      .toEqual(['needs-you', 'failed-checks', 'mentions', 'my-work'])
+      .toEqual(['needs-you', 'failed-checks', 'my-work'])
   })
 })

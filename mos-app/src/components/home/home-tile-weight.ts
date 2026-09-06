@@ -6,18 +6,19 @@ import type { HomeRegionId } from './home-regions'
 //
 // The weights are chosen so consecutive tiles pack to EXACTLY the bento's column count at every
 // desktop band — a lone tile with a hole beside it is the raggedness the owner rejected ("the
-// boxes dont align … feels untidy nor professional"). 6 columns: 4+2 then 2+4. 4 columns:
-// 4 | 2+2 | 4. The phone band is a single column, so it stacks regardless.
+// boxes dont align … feels untidy nor professional"). Three regions cannot alternate 4+2 / 2+4
+// the way four did, so the lead owns the first row outright: 6 columns: 6 | 2+4. 4 columns:
+// 4 | 2+2. The phone band is a single column, so it stacks regardless.
 //
-// `wide` is the consequence tier: the regions carrying the viewer's own work, which hold task rows
-// and need the room. `narrow` is the notice tier. needs-you keeps the lead — it is first, top-left,
-// and in the wide tier, and nothing outranks it.
+// `full` is the lead tier — needs-you, the one region that always demands action. `wide` is the
+// consequence tier: the regions carrying the viewer's own work, which hold task rows and need the
+// room. `narrow` is the notice tier. needs-you leads by being first and top-left, and its
+// full-track span is the largest on the board, so nothing outranks it.
 //
 // Guarded by guard-bento-rows.css.test.ts.
-export const HOME_TILE_WEIGHT: Record<HomeRegionId, 'wide' | 'narrow'> = {
-  'needs-you': 'wide',
+export const HOME_TILE_WEIGHT: Record<HomeRegionId, 'full' | 'wide' | 'narrow'> = {
+  'needs-you': 'full',
   'failed-checks': 'narrow',
-  mentions: 'narrow',
   'my-work': 'wide',
 }
 

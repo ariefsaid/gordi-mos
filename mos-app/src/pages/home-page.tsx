@@ -1,13 +1,14 @@
 // HomePage — the index route (/). Home renders the SAME consequence-ranked task data —
-// overdue → due today → blocked, failed checks, mentions, and my work today — in whichever of the
+// overdue → due today → blocked, failed checks, and my work today — in whichever of the
 // three Home layouts (Focused / Overview / List) the viewer has chosen from /profile (OD-V4-9).
+// Mentions are not a Home region: the Inbox page and its bell are the one mentions surface (#745).
 // HomePage owns every data read + the ranking/selection logic and hands the result down as the ONE
 // shared region model (`buildHomeRegions`, FR-930) — a layout composes those regions, it never
 // re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream layout
 // was retired (OD-V4-10): List renders the same attention-first order that was already the default.
 //
-// This is presentation over the EXISTING data contracts: the same tasks/notifications/failed-check
-// projections and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
+// This is presentation over the EXISTING data contracts: the same tasks/failed-check projections
+// and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
 // Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
 // the needs-you region via the attention bands.
 //
@@ -38,8 +39,6 @@ import { viewerAdmittedToRoute } from '@/shell/destinations'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { listNotifications } from '@/lib/db/notifications'
-import type { NotificationRow } from '@/lib/db/notifications'
 import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -49,10 +48,10 @@ import type { RoleScopeRow } from '@/lib/db/directory'
 // answers everywhere else — "does this viewer steer a scope" — rather than growing a second,
 // drifting idea of who heads a business unit.
 import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
-import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
+import { wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, openTaskCount, type StreamBand,
+  myWorkStreamItems, openTaskCount, type StreamBand,
 } from '@/lib/home-stream'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { buildHomeRegions } from '@/components/home/home-regions'
@@ -138,38 +137,6 @@ export function HomePage() {
     tasksInFlightRef.current = false
     loadTasks()
   }, [loadTasks])
-
-  // ── Notifications (mentions band) — reuses Inbox's own "what asked for me" read ──
-  const [notifications, setNotifications] = useState<NotificationRow[]>([])
-  const [notificationsState, setNotificationsState] = useState<FetchState>('loading')
-  const notificationsInFlightRef = useRef(false)
-  const notificationsTokenRef = useRef(0)
-
-  const loadNotifications = useCallback(() => {
-    if (!personId || notificationsInFlightRef.current) return
-    notificationsInFlightRef.current = true
-    const token = ++notificationsTokenRef.current
-    setNotificationsState('loading')
-    listNotifications()
-      .then(rows => {
-        if (!isMountedRef.current || notificationsTokenRef.current !== token) return
-        setNotifications(rows)
-        setNotificationsState('ready')
-      })
-      .catch(() => {
-        if (!isMountedRef.current || notificationsTokenRef.current !== token) return
-        setNotificationsState('error')
-      })
-      .finally(() => {
-        if (notificationsTokenRef.current === token) notificationsInFlightRef.current = false
-      })
-  }, [personId])
-
-  useEffect(() => {
-    notificationsTokenRef.current += 1
-    notificationsInFlightRef.current = false
-    loadNotifications()
-  }, [loadNotifications])
 
   // ── Failed checks (café rejected logs, RATIFY-3) ──────────────────────────────
   const [failedChecks, setFailedChecks] = useState<AttentionItem[]>([])
@@ -314,18 +281,12 @@ export function HomePage() {
     return myWorkStreamItems(tasks, personId, today, locale, directory, excludeIds).slice(0, MY_WORK_CAP)
   }, [ready, personId, tasks, today, locale, directory, overdue, dueToday, blocked])
 
-  // Failed-checks + mentions keep their OWN independent fetch state (separate DALs).
+  // Failed-checks keeps its OWN independent fetch state (separate DAL).
   const failedChecksBand: StreamBand = useMemo(() => ({
     kind: 'failed-checks', state: failedChecksState,
     items: failedChecksState === 'ready' ? failedCheckStreamItems(failedChecks) : [],
     onRetry: loadFailedChecks,
   }), [failedChecksState, failedChecks, loadFailedChecks])
-  const mentionsBand: StreamBand = useMemo(() => ({
-    kind: 'mentions', state: notificationsState,
-    items: notificationsState === 'ready' ? mentionStreamItems(unreadMentions(notifications)) : [],
-    onRetry: loadNotifications,
-  }), [notificationsState, notifications, loadNotifications])
-
   // ONE muted meta line beside the greeting (the shared workspace-head `.ch-meta-line` grammar):
   // the viewer's role identity — which is what makes a cross-BU brief legible as the stacked union
   // of the roles they hold. This replaces the separate full-width subtitle line, whose only content
@@ -359,19 +320,18 @@ export function HomePage() {
 
   // The ONE region model shared by all three arrangements (FR-930) — a layout chooses how to
   // present these regions, never which of them exist (NFR-924 parity). needs-you and my-work share
-  // the ONE tasks-projection state + retry (DIV-G5); failed-checks/mentions carry their own.
+  // the ONE tasks-projection state + retry (DIV-G5); failed-checks carries its own.
   const regions = useMemo(
     () => buildHomeRegions({
       overdue, dueToday, blocked, myWork,
-      failedChecks: failedChecksBand.items, mentions: mentionsBand.items,
+      failedChecks: failedChecksBand.items,
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
-      mentionsState: mentionsBand.state, onRetryMentions: loadNotifications,
       myWorkFullCount: ready ? openCount : undefined,
     }),
     [
-      overdue, dueToday, blocked, myWork, failedChecksBand, mentionsBand,
-      taskState, loadTasks, loadFailedChecks, loadNotifications, ready, openCount,
+      overdue, dueToday, blocked, myWork, failedChecksBand,
+      taskState, loadTasks, loadFailedChecks, ready, openCount,
     ],
   )
 
