@@ -421,6 +421,27 @@ where p.id = '40000000-0000-0000-0000-00000000000a'
     where m.person_id = p.id and m.team_id = t.id and m.effective_to is null
   );
 
+-- Signal lead pins (#767): Cahya leads both bar streams; Dewi is above every seeded Team. Same
+-- idempotent shape as Sinta's insert above — a duplicate non-primary row survives `on conflict`.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select o.id, p.id, t.id, false
+from shared.orgs o
+join shared.people p on p.org_id = o.id and p.email = 'cahya.dev@example.test'
+join shared.teams t on t.org_id = o.id and t.code = 'cikal_bar' and t.archived_at is null
+where not exists (
+  select 1 from shared.team_memberships m
+  where m.person_id = p.id and m.team_id = t.id and m.effective_to is null
+);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select o.id, p.id, t.id, false
+from shared.orgs o
+join shared.people p on p.org_id = o.id and p.email = 'dewi.dev@example.test'
+join shared.teams t on t.org_id = o.id and t.archived_at is null
+where not exists (
+  select 1 from shared.team_memberships m
+  where m.person_id = p.id and m.team_id = t.id and m.effective_to is null
+);
+
 
 -- ── mos: the certified-metric registry (ADR-0022 D6) ─────────────────────────────────────────
 -- Repeated here for the same reason as the branch catalog above: the migration seeds every org that

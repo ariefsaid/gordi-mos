@@ -9,8 +9,8 @@ create temporary table definer_acl_anon_allowlist (
 ) on commit drop;
 -- The unauthenticated API role has no deliberate SECURITY DEFINER entry points today: empty.
 -- An exposed function must be inserted here with its exact identity arguments and one-line reason.
--- 31 current functions plus the non-empty-enumeration guard below.
-select plan(32);
+-- 34 current functions plus the non-empty-enumeration guard below.
+select plan(35);
 
 select ok(
   exists (
