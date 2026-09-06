@@ -10,8 +10,6 @@ import { listActiveBranches } from './branches'
 // stamps it) and throws on any non-null PostgREST/RPC error so the UI can surface failures.
 
 const mos = () => supabase.schema('mos')
-const shared = () => supabase.schema('shared')
-
 /** WIB "today" as YYYY-MM-DD (fixed +7h; mirrors kitchen-log-page.wibToday). */
 export function wibToday(): string {
   const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000)
@@ -72,26 +70,6 @@ export async function getTodayOpeningForTeam(processId: string, teamId: string):
   if (!runId) return { started: false, runId: null, rollup: null }
   const rollup = await getRunRollup(runId)
   return { started: true, runId, rollup }
-}
-
-/** Resolve the canonical opening Team for a branch through the database-owned resolver. */
-export async function getCafeOpeningTeam(branchId: string): Promise<string | null> {
-  const { data, error } = await shared().rpc('cafe_opening_team', { p_branch_id: branchId })
-  if (error) throw new Error(`getCafeOpeningTeam failed — ${error.message}`)
-  return data as string | null
-}
-
-/** Read today's branch opening using the same canonical Team as the Home door. */
-export async function getTodayOpeningForBranch(processId: string, branchId: string): Promise<TodayOpening> {
-  const teamId = await getCafeOpeningTeam(branchId)
-  return teamId ? getTodayOpeningForTeam(processId, teamId) : { started: false, runId: null, rollup: null }
-}
-
-/** Start today's opening through the database-owned branch resolver. */
-export async function startTodayOpeningForBranch(processId: string, branchId: string): Promise<SpawnResult> {
-  const teamId = await getCafeOpeningTeam(branchId)
-  if (!teamId) throw new Error('startTodayOpeningForBranch failed — branch has no opening Team')
-  return startRun(processId, teamId, wibToday())
 }
 
 /** Start today's opening for a branch Team via the Step-6 spawn RPC (FR-703, AC-711). */

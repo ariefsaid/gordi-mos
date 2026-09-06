@@ -44,9 +44,9 @@ where p.email = 'cahya.dev@example.test'
   );
 
 -- ── The Process, its daily cadence, and the three generated-Task definitions ─────────────────
-insert into mos.work_lines (id, org_id, name, type) values
+insert into mos.work_lines (id, org_id, name, code, type) values
   ('e3000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
-   'Café Opening', 'process')
+   'Café Opening', 'cafe_opening', 'process')
 on conflict (id) do nothing;
 
 insert into mos.process_cadences (org_id, work_line_id, cadence_kind, active) values

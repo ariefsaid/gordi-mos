@@ -1,6 +1,12 @@
 -- Café opening/review/plan/pushes rule composition for #778.
 -- DOWN is executable and restores the prior function/policy definitions below.
 
+alter table mos.work_lines add column if not exists code text not null default 'standard';
+update mos.work_lines set code = 'cafe_opening' where name = 'Café Opening' and code = 'standard';
+alter table mos.work_lines drop constraint if exists work_lines_code_check;
+alter table mos.work_lines add constraint work_lines_code_check check (code in ('standard', 'cafe_opening'));
+comment on column mos.work_lines.code is 'Stable authorization key; unlike name, code is not a display label.';
+
 create or replace function shared.cafe_opening_team(p_branch_id uuid)
 returns uuid
 language sql
@@ -62,6 +68,7 @@ declare
   v_team    shared.teams;
   v_period  text; v_caption text; v_snapshot jsonb;
   v_run_id  uuid; v_created int := 0; v_requested_team uuid; v_pending int := 0;
+  v_is_cafe_opening boolean;
   td        mos.process_task_defs%rowtype;
   v_holders uuid[]; v_pic uuid; v_sup uuid; v_task_id uuid; v_label text; v_pos int;
 begin
@@ -76,13 +83,14 @@ begin
   if v_wl.type <> 'process' then
     raise exception 'work_line % is not a process', p_work_line_id using errcode = 'P0003';
   end if;
+  v_is_cafe_opening := v_wl.code = 'cafe_opening';
   v_requested_team := p_owning_team_id;
   select * into v_team from shared.teams where id = p_owning_team_id and org_id = v_org;
   if v_team.id is null then raise exception 'owning team not found in org' using errcode = 'P0002'; end if;
 
   -- Café Opening has one canonical owner per branch. Resolve it before the insert so idempotency,
   -- generated task ownership, and the returned run id all use the same Team.
-  if v_wl.name = 'Café Opening' then
+  if v_wl.code = 'cafe_opening' then
     if v_team.branch_id is null or not shared.cafe_opening_can_start(v_team.branch_id)
        or not exists (select 1 from shared.teams t where t.id = v_team.id
           and t.org_id = v_org and t.branch_id = v_team.branch_id
@@ -97,10 +105,9 @@ begin
     p_owning_team_id := v_team.id;
   end if;
 
-  -- Both gates, always together: the capability says you may start processes at all, the Team check
-  -- says you may start THIS one. `member` holds process.start, so the Team check is what stops a
-  -- member starting an unrelated Team's process.
-  if not (shared.can('process.start') and mos.can_start_process_for_team(v_requested_team)) then
+  -- Both gates apply to ordinary processes. Café Opening has its branch-specific gate above;
+  -- keeping that arm here makes an ops lead without stream membership a real opener.
+  if not shared.can('process.start') or (not v_is_cafe_opening and not mos.can_start_process_for_team(v_requested_team)) then
     raise exception 'not authorized to start this process (needs process.start + owning-Team membership)'
       using errcode = '42501';
   end if;
@@ -186,7 +193,7 @@ begin
 end;
 $$;
 comment on function mos.spawn_process_run(uuid,uuid,date) is
-  'Idempotent occurrence spawn (ADR-0051). Nonexistent and foreign-org work lines raise the identical "process not found" so there is no existence oracle; then process.start + owning-Team membership; then a deterministic period key, an on-conflict-do-nothing run, a definition snapshot, and per def either a Task (exactly one holder) or a pending human-choice row. SECURITY DEFINER.';
+  'Idempotent occurrence spawn (ADR-0051). Nonexistent and foreign-org work lines raise the identical "process not found"; Café Opening then uses its branch start gate and canonical Team, while other processes use process.start plus owning-Team membership; then a deterministic period key, an on-conflict-do-nothing run, a definition snapshot, and per def either a Task (exactly one holder) or a pending human-choice row. SECURITY DEFINER.';
 revoke execute on function mos.spawn_process_run(uuid,uuid,date) from public, anon, authenticated;
 grant  execute on function mos.spawn_process_run(uuid,uuid,date) to authenticated;
 
@@ -198,28 +205,39 @@ returns boolean language sql stable security invoker set search_path = '' as $$
   select shared.has_access_role('admin')
   or exists (select 1 from shared.team_memberships m where m.team_id = p_team_id
     and m.person_id = shared.current_person_id() and m.org_id = shared.current_org_id()
-    and m.effective_from <= current_date and m.effective_to is null)
+    and m.effective_from <= current_date and (m.effective_to is null or m.effective_to >= current_date))
 $$;
 comment on function mos.can_start_process_for_team(uuid) is
-  'Team-authorization gate for spawn/resolve/complete; admin or an open-ended live membership (ADR-0051 D8).';
+  'Team-authorization gate for spawn/resolve/complete; admin or membership live through today (ADR-0051 D8).';
 
 create or replace function mos.due_process_runs()
 returns table (work_line_id uuid, process_name text, owning_team_id uuid, team_name text, period_key text, scheduled_date date)
 language sql stable security invoker set search_path = '' as $$
-  select wl.id, wl.name, coalesce(shared.cafe_opening_team(b.id), t.id),
-         coalesce((select ct.name from shared.teams ct where ct.id=shared.cafe_opening_team(b.id)), t.name),
-         to_char((now() at time zone 'Asia/Jakarta')::date,'YYYY-MM-DD'),
+  select wl.id, wl.name, coalesce(cafe.team_id, t.id), coalesce(cafe.team_name, t.name),
+         to_char((now() at time zone 'Asia/Jakarta')::date, 'YYYY-MM-DD'),
          (now() at time zone 'Asia/Jakarta')::date
-  from mos.work_lines wl join mos.process_cadences c on c.work_line_id=wl.id and c.active and c.cadence_kind='daily'
-  join shared.teams t on t.org_id=wl.org_id and t.archived_at is null
-  left join shared.branches b on b.id=t.branch_id and b.org_id=t.org_id
-  where wl.org_id=shared.current_org_id() and wl.type='process' and wl.archived_at is null
-    and (wl.name <> 'Café Opening' or (b.id is not null and shared.cafe_opening_can_start(b.id) and t.id=shared.cafe_opening_team(b.id)))
-    and (wl.name = 'Café Opening' or mos.can_start_process_for_team(t.id))
-    and not exists (select 1 from mos.process_runs r where r.work_line_id=wl.id
-      and r.owning_team_id=coalesce(shared.cafe_opening_team(b.id),t.id)
-      and r.period_key=to_char((now() at time zone 'Asia/Jakarta')::date,'YYYY-MM-DD'))
+  from mos.work_lines wl
+  join mos.process_cadences c on c.work_line_id = wl.id and c.active and c.cadence_kind = 'daily'
+  join shared.teams t on t.org_id = wl.org_id and t.archived_at is null
+  left join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id
+  left join lateral (
+    select ct.id as team_id, ct.name as team_name
+    from shared.teams ct
+    where ct.id = shared.cafe_opening_team(b.id)
+  ) cafe on wl.code = 'cafe_opening'
+  where wl.org_id = shared.current_org_id() and wl.type = 'process' and wl.archived_at is null
+    and (wl.code <> 'cafe_opening'
+      or (b.id is not null and shared.cafe_opening_can_start(b.id) and t.id = cafe.team_id))
+    and (wl.code = 'cafe_opening' or mos.can_start_process_for_team(t.id))
+    and not exists (
+      select 1 from mos.process_runs r
+      where r.work_line_id = wl.id
+        and r.owning_team_id = coalesce(cafe.team_id, t.id)
+        and r.period_key = to_char((now() at time zone 'Asia/Jakarta')::date, 'YYYY-MM-DD')
+    )
 $$;
+comment on function mos.due_process_runs() is
+  'Due daily processes; Café Opening uses its branch start gate and canonical Team, mirroring spawn_process_run.';
 
 -- Reviewer authority follows any open-ended live membership, not only the primary one.
 create or replace function ops.is_stream_reviewer(p_branch_id uuid, p_activity text)
@@ -309,8 +327,9 @@ using (
 );
 
 -- DOWN (executable statements, to be applied in reverse by the migration operator):
+-- alter table mos.work_lines drop constraint if exists work_lines_code_check;
+-- alter table mos.work_lines drop column if exists code;
 -- drop policy if exists esb_push_select_ops_lead_admin_or_retail_ops_manager on integrations.esb_push;
--- alter policy esb_push_select_ops on integrations.esb_push rename to esb_push_select_ops_lead_or_admin;
 -- create policy esb_push_select_ops_lead_or_admin on integrations.esb_push for select to authenticated
 -- using (org_id = shared.current_org_id() and (shared.has_access_role('ops_lead')
 --   or shared.has_access_role('admin')));
@@ -326,7 +345,6 @@ using (
 --   or shared.has_access_role('admin')));
 -- drop trigger kitchen_logs_review_requirements on ops.kitchen_logs;
 -- drop function ops._guard_kitchen_review_requirements();
--- drop function ops.is_stream_reviewer(uuid, text);
 -- create or replace function ops.is_stream_reviewer(uuid, text) returns boolean language sql stable security invoker set search_path = '' as $$
 --   select shared.has_access_role('supervisor') and exists (select 1 from shared.team_memberships m join shared.teams t on t.id = m.team_id
 --     where m.person_id = shared.current_person_id() and m.org_id = shared.current_org_id() and t.org_id = m.org_id
