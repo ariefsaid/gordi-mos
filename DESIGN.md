@@ -778,6 +778,9 @@ Three arrangements — **Focused**, **Overview**, **List** — render the *same*
 chooses how regions are **presented**, never which of them **exist**; a region with zero items is
 still rendered, so "clear" stays distinguishable from "hidden" and from "broken".
 
+#### Home day header
+One line at every width: greeting + role chip left, `N left` right; the role chip drops to a second line at 390. No rotating state sentence, no progress track, no help tip. If a `handled` tally has a real source it renders as `N handled · N left`; otherwise only `N left`.
+
 Shared primitives live in `components/home/home-layouts.css` — **ONE definition each.** An
 arrangement may override only what genuinely differs, and must say why at the override.
 
