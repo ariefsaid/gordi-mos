@@ -33,7 +33,7 @@ vi.mock('../../lib/comments/postComment', () => ({
 }))
 
 import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
 
@@ -94,6 +94,9 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  // vi.resetAllMocks() above wipes the factory-level seed; the record's edit/archive gates and
+  // PIC picker read the viewer's downline, so it must be re-seeded like every other read.
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockListComments.mockResolvedValue([])
   mockPostComment.mockResolvedValue('comment-new')
   mockUpdateTaskStatus.mockResolvedValue()
@@ -365,6 +368,9 @@ describe('TaskSurface — mutation handlers', () => {
   it('PIC reassignment (rollback): restores the previous PIC when the write rejects', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
+    // #742's PIC-value rule accepts a new PIC only from the writer's self + downline, so the
+    // picker offers other-id only while the viewer holds them in their downline — mirror and DB agree.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // V3 Issue 5: PIC is now a RecordViewer/RecordField select (was a bespoke person picker).

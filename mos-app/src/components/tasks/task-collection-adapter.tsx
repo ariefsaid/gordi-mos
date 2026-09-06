@@ -734,7 +734,10 @@ async function loadTaskCollection(args: {
     listTasks(filters),
     getBusinessUnits(),
     getPeople(),
-    args.viewerId ? getDownlinePersonIds(args.viewerId).catch(() => []) : Promise.resolve([]),
+    // Throws with its siblings — a downline failure must surface, not silently read-only
+    // every row's edit affordances. An unauthenticated viewer (null id) runs the SAME read
+    // and resolves [] naturally, like every other directory read.
+    getDownlinePersonIds(args.viewerId ?? ''),
     listObjectives().catch(() => []),
     listWorkLines().catch(() => []),
   ])

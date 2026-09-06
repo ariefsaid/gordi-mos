@@ -272,6 +272,9 @@ describe('AC-072 — typed Task ownership', () => {
   it('reassigns the PIC through the visible Task path', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     mockUpdateTaskFields.mockResolvedValue()
+    // #742's PIC-value rule accepts a new PIC only from the writer's self + downline, so the
+    // viewer holds OTHER_ID in their downline and the record picker mirrors exactly that.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([OTHER_ID])
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
@@ -481,9 +484,12 @@ describe('T-047 — archive control on detail', () => {
     expect(screen.queryByRole('button', { name: /archive task/i })).toBeNull()
   })
 
-  it('shows archive for manager (isManager=true)', async () => {
+  it('shows archive for a manager above the PIC (the PIC is in their downline)', async () => {
     const task = makeTask({ responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    // AC-061: the archive gate reads the resolved chain fact, not the viewer-global flag —
+    // this manager holds the PIC in their downline.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([OTHER_ID])
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
@@ -559,6 +565,9 @@ describe('I2 — PIC reassignment on detail page', () => {
     const task = makeTask({ responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     mockUpdateTaskFields.mockResolvedValue()
+    // The manager sits ABOVE the PIC (edit gate) and holds the new PIC in their downline
+    // (PIC-value rule) — both facts arrive via the downline read the mirror shares with the DB.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([OTHER_ID, VIEWER_ID])
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 

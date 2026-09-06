@@ -18,7 +18,7 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
-import { canEdit, canArchive } from './task-permissions'
+import { canEdit, canArchive, picOptions } from './task-permissions'
 import { RecordFieldList } from '@/components/records/record-viewer'
 import type {
   RecordAction,
@@ -49,7 +49,10 @@ export interface TaskTeamView {
 export interface TaskRecordAdapterInput {
   detail: TaskDetail
   viewerId: string
-  isManager: boolean
+  /** #742 AC-061 (delta): the viewer's already-loaded downline person ids — the raw fact
+   *  canEdit/canArchive derive "viewer is above the PIC" from. The helper owns that derivation;
+   *  this adapter never receives a viewer-global isManager. Empty for an unauthenticated viewer. */
+  downlineIds: readonly string[]
   people: readonly PersonOption[]
   businessUnits: readonly BusinessUnitOption[]
   objectives?: readonly ObjectiveRow[]
@@ -244,6 +247,8 @@ export function teamOwnershipField(
 function ownershipFields(
   task: Pick<TaskListRow, 'business_unit_id' | 'responsible_person_id' | 'accountable_person_id'>,
   editable: boolean,
+  viewerId: string,
+  downlineIds: readonly string[],
   people: readonly PersonOption[],
   businessUnits: readonly BusinessUnitOption[],
   // `_team` is accepted (callers still supply it, so the internal model stays honest — the Issue-8
@@ -267,7 +272,9 @@ function ownershipFields(
       control: 'person',
       value: task.responsible_person_id,
       displayValue: personName(people, task.responsible_person_id),
-      options: personOptions(people),
+      // Same contract as the inline picker (#742): the record's PIC picker offers the WRITER's
+      // self + downline — the only values the DB's PIC-value clause accepts from this writer.
+      options: personOptions(picOptions(viewerId, people, downlineIds)),
     }),
     editableSpec(editable, {
       key: 'supervisor',
@@ -321,14 +328,14 @@ function statusLabel(s: TaskStatus, L: TaskRecordLabels): string {
 }
 
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
-  const { detail, viewerId, isManager, people, businessUnits, objectives = [], workLines = [], team } = input
+  const { detail, viewerId, downlineIds, people, businessUnits, objectives = [], workLines = [], team } = input
   const formatDate = input.formatDate ?? ((iso: string) => iso)
   const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
   const L = { ...DEFAULT_TASK_RECORD_LABELS, ...input.recordLabels }
   const task = detail.task
   const archived = task.archived_at !== null
-  const editable = canEdit(task, viewerId, isManager) && !archived
-  const canArchiveTask = canArchive(task, viewerId, isManager)
+  const editable = canEdit(task, viewerId, downlineIds) && !archived
+  const canArchiveTask = canArchive(task, viewerId, downlineIds)
 
   // The ONE whole-record read-only note (why the viewer can't edit) — surfaced once by
   // RecordViewer's footer via `permission.reason` below. It is NOT stamped onto every field
@@ -392,7 +399,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   const ownership: RecordMetadataSection = {
     id: 'ownership',
     label: L.ownershipSection,
-    fields: ownershipFields(task, editable, people, businessUnits, team, labels),
+    fields: ownershipFields(task, editable, viewerId, downlineIds, people, businessUnits, team, labels),
   }
 
   // 3. Relations — Project/Process · Objective (settable navigational links) · Generated-by ·

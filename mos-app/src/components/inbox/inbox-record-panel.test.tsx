@@ -32,10 +32,11 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn(),
 }))
 
 import { getTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import { buildInboxTargetDeps } from './inbox-record-door'
@@ -97,6 +98,8 @@ beforeEach(() => {
   vi.mocked(getTask).mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Cafe Operations' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
+  // resetAllMocks wipes the factory seed; the task record's edit/archive gates read the downline.
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
 })
 
 function renderTaskPanel(onClose = vi.fn()) {

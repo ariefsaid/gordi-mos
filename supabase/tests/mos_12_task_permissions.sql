@@ -13,10 +13,11 @@
 --   Lead2Holder ...d7  Lead 2   — manages DualHat (Staff 2 half) but never manages Author
 --
 -- mos_05_tasks.sql keeps the create/read/tenancy/immutability contract; this file owns only what
--- #742 changed or added: the PIC-value clause and the narrowed edit/archive gates.
+-- #742 changed or added: the PIC-value clause, the narrowed edit/archive gates, and the
+-- created_by-is-the-caller INSERT rule.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(22);
 
 select shared._test_seed_directory();
 
@@ -175,6 +176,12 @@ select throws_ok($$
   update mos.tasks set created_by = '00000000-0000-0000-0000-0000000000d2'
   where id = '00000000-0000-0000-0000-000000006004'
 $$, '42501', null, 'AC-058: an update that changes created_by is refused');
+select throws_ok($$
+  insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+  values ('AC-058 foreign','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d4',
+          '00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-0000000000d2')
+$$, '42501', null,
+  'AC-058: an insert naming someone else as created_by is refused — created_by is the caller');
 
 reset role;
 select * from finish();

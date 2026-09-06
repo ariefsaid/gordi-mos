@@ -9,10 +9,15 @@
 --   3. mos._guard_tasks gains a PIC-value clause (insert, and any update that changes the PIC:
 --      the new PIC must be the writer or in the writer's downline) and its archive clause narrows
 --      the same way as (2) — Supervisor or a manager above the PIC, not a manager of the Supervisor.
+--   4. (#742 delta) mos._guard_tasks also refuses a direct INSERT whose created_by is not the
+--      caller. The SECURITY DEFINER mos.resolve_pending_task path — which assigns a PIC the
+--      session itself did not choose — is a deliberate carve-out of the PIC-value rule: the
+--      auth-scoped clauses are no-ops inside it.
 --
 -- DOWN: create or replace mos.can_edit_task and mos._guard_tasks with their pre-#742 bodies
 --       (20260805000006_mos_access_control.sql — the archive clause regains the
---       is_manager_of(accountable) arm, the PIC-value clause is removed, and can_edit_task regains
+--       is_manager_of(accountable) arm, the PIC-value clause and the created_by-is-the-caller
+--       insert clause are removed, and can_edit_task regains
 --       the is_manager_of(accountable) arm); alter table mos.tasks alter column created_by drop
 --       default.
 
@@ -190,15 +195,30 @@ begin
     end if;
   end if;
 
+  -- (F) CREATED BY IS THE CALLER ON A DIRECT INSERT (#742 delta). The column default only fills
+  -- created_by when the insert OMITS it; without this a direct writer could name someone else as
+  -- the author explicitly. Scoped to current_user='authenticated' for the same reason as (C)/(E):
+  -- the SECURITY DEFINER spawn/resolve RPCs stamp authorship on the session's behalf and must
+  -- pass through untouched. Runs after the (D) same-org checks, like (E), so a cross-org
+  -- created_by is refused as 23514 by (D) — the internally-inconsistent-row code — before this
+  -- caller-identity clause ever speaks.
+  if current_user = 'authenticated' and tg_op = 'INSERT' then
+    if new.created_by is distinct from shared.current_person_id() then
+      raise exception 'created_by must be the caller on a direct insert' using errcode = '42501';
+    end if;
+  end if;
+
   return new;
 end;
 $$;
 comment on function mos._guard_tasks() is
   'The ONE guard on mos.tasks, merged from four and narrowed once more by #742 (archive gate, '
-  'cascade/occurrence same-org, RPC-only provenance, directory tenancy + immutability, PIC value). '
+  'cascade/occurrence same-org, RPC-only provenance, directory tenancy + immutability, PIC value, '
+  'created_by is the caller on a direct insert). '
   'Archive requires Supervisor or a manager above the PIC (42501); objective/work_line/process_run '
   'must be same-org (42501); process_run_id and generated_from_task_def_id are RPC-only (42501); '
-  'created_by/org_id immutable on UPDATE (42501); on INSERT and on any UPDATE that changes the PIC, '
+  'created_by/org_id immutable on UPDATE and created_by equal to the caller on INSERT (42501); on '
+  'INSERT and on any UPDATE that changes the PIC, '
   'the new PIC must be the writer or a person in the writer''s downline (42501); BU, R, A, '
   'created_by, the consulted/informed arrays and a supplied team_id must be same-org, and team BU '
   'must equal task BU (23514). SECURITY INVOKER — every reference it checks is org-readable, so a '

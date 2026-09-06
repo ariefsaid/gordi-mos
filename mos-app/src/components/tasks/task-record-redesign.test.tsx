@@ -77,7 +77,10 @@ beforeEach(() => {
     { id: 'consulted', full_name: 'Consulted Person' },
     { id: 'informed', full_name: 'Informed Person' },
   ])
-  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+  // The §Task-11 journey re-points PIC to SUPERVISOR_ID. Under #742's PIC-value rule the DB only
+  // accepts a new PIC who is the writer or in the writer's downline, so the viewer holds the
+  // supervisor in their downline — the record's picker mirrors exactly that contract.
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([SUPERVISOR_ID])
   vi.mocked(listComments).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([{ id: 'process-opening', name: 'Today opening', type: 'process' }])
