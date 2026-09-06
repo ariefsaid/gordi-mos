@@ -99,10 +99,9 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const panelRef = useRef<HTMLDivElement>(null)
   const auth = useAuth()
   const t = useT()
-
   const accessRoles: string[] = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  const roleNames = viewer ? viewer.roles.map((r) => r.name) : []
+  const affiliated = viewer?.affiliated ?? []
 
   const closeAndReturn = useCallback(() => {
     focusOpener?.()
@@ -153,7 +152,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   // the rail applies. Zone 2 — modules grouped by BU, viewer-scoped, minus the one already
   // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
   const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
-  const promotedModule = primaryModuleForViewer(roleNames, accessRoles)
+  const promotedModule = primaryModuleForViewer(affiliated, accessRoles)
   // Zone 2 keeps every viewer-scoped module. The promoted one contributes only its CHILDREN — its
   // own row is already the bottom bar's module tab, so repeating it here would be the duplicate
   // the "exactly one surface owns the module" rule exists to prevent.

@@ -8,11 +8,16 @@ function fakeJwt(payload: object): string {
 }
 
 // Mock the supabase module before importing resolveViewer
+const { mockRpc } = vi.hoisted(() => ({ mockRpc: vi.fn() }))
 vi.mock('../supabase', () => {
   const mockFrom = vi.fn()
+  // The affiliation read rides supabase.schema('shared').rpc(...) (#744) — the mock carries the
+  // same surface the real client exposes, so resolveViewer can call it unconditionally.
+  const mockSchema = vi.fn(() => ({ rpc: mockRpc }))
   return {
     supabase: {
       from: mockFrom,
+      schema: mockSchema,
     },
   }
 })
@@ -70,6 +75,7 @@ const roleB: RolesRow = {
 describe('resolveViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRpc.mockResolvedValue({ data: false, error: null })
   })
 
   it('AC-012: resolveViewer returns Person + held Roles', async () => {
@@ -483,4 +489,72 @@ describe('resolveViewer', () => {
     // AC-064: no DB round-trip for access roles — decode only from token
     expect(tablesQueried).not.toContain('person_access_roles')
   })
-})
+
+  describe('AC-744  AC-006 — the affiliation answer rides the viewer payload once', () => {
+    function mockPeopleRead(): void {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'people') {
+          return asChain({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: personRow, error: null }),
+          })
+        }
+        // roles + person_roles all empty: affiliation is independent of the role tree
+        return asChain({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown) => unknown) =>
+            Promise.resolve({ data: [], error: null }).then(resolve),
+        })
+      })
+    }
+
+    it('a current stream-Team membership resolves onto the payload as affiliated: [cafe]', async () => {
+      mockPeopleRead()
+      mockRpc.mockResolvedValue({ data: true, error: null })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(mockRpc).toHaveBeenCalledWith('is_cafe_affiliated')
+      expect(result.affiliated).toEqual(['cafe'])
+    })
+
+    it('no stream membership answers false — the payload carries an empty list', async () => {
+      mockPeopleRead()
+      mockRpc.mockResolvedValue({ data: false, error: null })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.affiliated).toEqual([])
+    })
+
+    it('an affiliation read error fails closed to [] — RLS, never this field, is the write authority', async () => {
+      mockPeopleRead()
+      mockRpc.mockResolvedValue({ data: null, error: { message: 'rls read failed' } })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.affiliated).toEqual([])
+    })
+
+    it('an orphan viewer carries affiliated: [] — the payload shape is total', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'people') {
+          return asChain({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          })
+        }
+        throw new Error(`Unexpected table: ${table}`)
+      })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.person).toBeNull()
+      expect(result.affiliated).toEqual([])
+    })
+  })
+}) 

@@ -28,7 +28,7 @@ function markMigrated(...paths: string[]) {
   for (const path of paths) migrated.routes.push({ path })
 }
 
-function setAuth(accessRoles: string[] = []) {
+function setAuth(accessRoles: string[] = [], affiliated: string[] = ['cafe']) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -39,6 +39,9 @@ function setAuth(accessRoles: string[] = []) {
       roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Barista', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles,
+      // #744: the default persona works a café line, so scope resolves to "Café" — from the
+      // affiliation payload, never the role NAME.
+      affiliated,
     },
     signOut: vi.fn(),
   })
@@ -203,6 +206,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r0', org_id: 'o1', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: true,
         accessRoles: ['admin'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -222,10 +226,11 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     expect(job).toHaveStyle({ flex: '1 1 auto', minWidth: '0' })
   })
 
-  it('F1: a Kitchen Lead resolves to the owning Café Module scope, not a generic "Team" or the bare role name', () => {
-    // CONTEXT.md: Kitchen is an Area *inside* the Café Module. Scope resolves from the module data
-    // model (destinations.tsx workMatch), so a Kitchen Lead shows "Café" — identical to the parallel
-    // Cafe Ops Lead persona — never a less-specific "Team" fallback.
+  it('F1: a Kitchen Lead who works a line resolves to the owning Café Module scope, not a generic "Team" or the bare role name', () => {
+    // CONTEXT.md: Kitchen is an Area *inside* the Café Module. Since #744 scope resolves from the
+    // viewer's affiliation payload (destinations.tsx `primaryModuleForViewer`), so an affiliated
+    // Kitchen Lead shows "Café" — identical to the parallel Cafe Ops Lead persona — never a
+    // less-specific "Team" fallback, and never because of what their role is CALLED.
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: {
@@ -236,6 +241,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r5', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Kitchen Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: [],
+        affiliated: ['cafe'],
       },
       signOut: vi.fn(),
     })
@@ -256,6 +262,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r4', org_id: 'o1', business_unit_id: 'bu-b2b-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })

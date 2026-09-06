@@ -72,12 +72,12 @@ const mockRole: RolesRow = {
 
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
+  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [], affiliated: [] },
   signOut: async () => {},
 }
 const managerState: AuthState = {
   status: 'authenticated',
-  viewer: { person: { ...mockPerson, id: 'manager-id' }, roles: [mockRole], isManager: true, accessRoles: [] },
+  viewer: { person: { ...mockPerson, id: 'manager-id' }, roles: [mockRole], isManager: true, accessRoles: [], affiliated: [] },
   signOut: async () => {},
 }
 
@@ -303,7 +303,7 @@ describe('AC-073 — read-only mode for non-editors', () => {
     // authenticated user is VIEWER_ID, not on the Task.
     const nonEditorAuth: AuthState = {
       status: 'authenticated',
-      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] }, // mockPerson.id = VIEWER_ID, not in R/A
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [], affiliated: [] }, // mockPerson.id = VIEWER_ID, not in R/A
       signOut: async () => {},
     }
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -545,7 +545,7 @@ describe('RIC-3 — non-editor read-only regression guard', () => {
     })
     const nonEditorAuth: AuthState = {
       status: 'authenticated',
-      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [] },
+      viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [], affiliated: [] },
       signOut: async () => {},
     }
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })

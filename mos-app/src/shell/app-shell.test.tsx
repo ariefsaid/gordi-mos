@@ -68,6 +68,7 @@ function renderShell(path = '/') {
       roles: [],
       isManager: false,
       accessRoles: [],
+      affiliated: [],
     },
     signOut: vi.fn(),
   })
@@ -245,6 +246,7 @@ describe('AC-K02: AppShell mounts the command menu', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -388,6 +390,7 @@ describe('AC-016: the shell is not remounted when the viewer changes destination
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })

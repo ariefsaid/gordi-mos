@@ -27,12 +27,22 @@
 --   GrandMgr  ...0d3  admin. The strongest same-org persona.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(38);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_daily_log();
+
+-- #744: the production-log and floor-record insert gates now arm on stream-Team affiliation, so
+-- the persona the write assertions run as needs a live membership. Peer ...0d4 (plain member, no
+-- access roles) is that affiliated member; Author ...0d1 stays membership-free, which is exactly
+-- what makes her the honest unaffiliated-refused subject in both sections below.
+insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
+  ('00000000-0000-0000-0000-00000000aa21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Ops03 Fixture Stream','ops03_fixture_stream',
+   '00000000-0000-0000-0000-00000000bf01','bar');
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000aa21',true);
 
 set local role authenticated;
 
@@ -48,19 +58,30 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select isnt((select count(*)::int from ops.log_entries), 0,
   'log_entries_select_org (positive): a member of the org does read the org''s entries');
 
--- log_entries_insert_member — created_by is pinned to the session person, so an entry cannot be
--- filed in somebody else's name.
+-- log_entries_insert_member — since #744 the gate is affiliation-or-ops-lead-arm, and created_by
+-- stays pinned to the session person. The forged-name negative runs as an AFFILIATED member, so a
+-- refusal here is the PIN and not the affiliation arm firing; the unaffiliated refusal and the
+-- affiliated positive follow.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
 select throws_ok($$
   insert into ops.log_entries (business_unit_id, event_type, title, created_by)
   values ('00000000-0000-0000-0000-00000000bb01','other','forged',
-          '00000000-0000-0000-0000-0000000000d4')
+          '00000000-0000-0000-0000-0000000000d1')
   $$, '42501', 'new row violates row-level security policy for table "log_entries"',
   'log_entries_insert_member: a member cannot file a Daily Log entry attributed to somebody else');
 
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select throws_ok($$
+  insert into ops.log_entries (business_unit_id, event_type, title)
+  values ('00000000-0000-0000-0000-00000000bb01','other','mine')
+  $$, '42501', 'new row violates row-level security policy for table "log_entries"',
+  'log_entries_insert_member: an UNAFFILIATED member cannot file a floor record at all — the #744 gate fails closed');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
 select lives_ok($$
   insert into ops.log_entries (business_unit_id, event_type, title)
   values ('00000000-0000-0000-0000-00000000bb01','other','mine')
-  $$, 'log_entries_insert_member (positive): a member CAN file their own entry');
+  $$, 'log_entries_insert_member (positive): an AFFILIATED member CAN file their own entry');
 
 -- log_entries_update_editor — the gate is author-or-manager, so a peer is excluded by USING and the
 -- UPDATE reports success while affecting nothing. Read the row back to prove it did not move.
@@ -171,16 +192,40 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select isnt((select count(*)::int from ops.kitchen_logs), 0,
   'kitchen_logs_select_org (positive): a member reads the org''s logs — the review queue is deliberately org-readable');
 
--- kitchen_logs_insert_member pins three things at once. Each is asserted separately, because a
--- single combined negative would pass with two of the three clauses deleted.
+-- kitchen_logs_insert_member pins three things at once (#744 added a fourth arm: affiliation).
+-- Each is asserted separately, because a single combined negative would pass with two of the four
+-- clauses deleted. The three pin negatives run as the AFFILIATED member (Peer ...0d4), so a
+-- refusal is that pin and not the affiliation arm firing; the affiliation refusal and the role
+-- arm get their own assertions below.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
                                 wip_item_id, qty_porsi, submitted_by)
   values ('00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf02',
           'kitchen','produce','00000000-0000-0000-0000-00000000ab01',1,
-          '00000000-0000-0000-0000-0000000000d4')
+          '00000000-0000-0000-0000-0000000000d1')
   $$, '42501', 'new row violates row-level security policy for table "kitchen_logs"',
   'kitchen_logs_insert_member: a member cannot log production in another person''s name');
+
+-- The #744 arm itself, fail-closed: Author ...0d1 holds ONLY an org-structure team membership, so
+-- the affiliation predicate is false and every pin above is irrelevant — the insert is refused
+-- before any pin is consulted. This is the negative that replaces the section''s old positive.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select throws_ok($$
+  insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
+                                wip_item_id, qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf02',
+          'kitchen','produce','00000000-0000-0000-0000-00000000ab01',7)
+  $$, '42501', 'new row violates row-level security policy for table "kitchen_logs"',
+  'kitchen_logs_insert_member: an UNAFFILIATED member cannot log production at all — the #744 gate fails closed');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select lives_ok($$
+  insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
+                                wip_item_id, qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf02',
+          'kitchen','produce','00000000-0000-0000-0000-00000000ab01',6)
+  $$, 'kitchen_logs_insert_member (role arm): ops_lead CAN log production without any stream membership');
 
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
@@ -203,7 +248,7 @@ select lives_ok($$
                                 wip_item_id, qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf02',
           'kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
-  $$, 'kitchen_logs_insert_member (positive): a member CAN log their own line, server-attributed and Submitted');
+  $$, 'kitchen_logs_insert_member (positive): an AFFILIATED member CAN log their own line, server-attributed and Submitted — and into ANY stream, the help-out rule (OD-WAY-49) intact');
 
 -- kitchen_logs_update_own_or_reviewer — the control that scopes pre-approval edits to the submitter.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';

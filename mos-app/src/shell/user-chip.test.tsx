@@ -40,6 +40,7 @@ const baseViewer = {
   },
   isManager: false,
   accessRoles: [],
+  affiliated: [],
 }
 
 const signOut = vi.fn()

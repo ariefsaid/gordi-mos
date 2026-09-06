@@ -8,6 +8,7 @@ import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
 import {
   DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerAdmittedToRoute,
+  primaryModuleForViewer,
   type Destination,
 } from './destinations'
 import { CAFE_SECTIONS, visibleSections } from './sections'
@@ -380,5 +381,36 @@ describe('isLive — anyOf gate', () => {
     expect(isLive(gated, [])).toBe(false)
     expect(isLive(gated, ['member'])).toBe(false)
     expect(isLive(gated, ['finance'])).toBe(true)
+  })
+})
+
+// #744 AC-006 — ONE selector answers every emphasis surface (phone tab, context row): the
+// affiliation payload, resolved once at sign-in. The role-name regex that used to pick the
+// module (`workMatch`) is retired — a role NAME can no longer reach the answer.
+describe('primaryModuleForViewer — the affiliation selector', () => {
+  it('a viewer affiliated with Café is promoted to the Café module', () => {
+    expect(primaryModuleForViewer(['cafe'], ['member'])?.id).toBe('cafe')
+  })
+
+  // #744 review: the promoted module is DERIVED from the module registry over the payload —
+  // the first live module whose id the viewer is affiliated with — never a hardcoded module id,
+  // so the next module to earn the payload fact promotes with no edit here. (Ecommerce and
+  // Roastery are ship-gated today, so Café is the only observable answer; the assertion is
+  // structural, in the style of the no-workMatch test below.)
+  it('derives from the module registry — no module id hardcoded in the selector', () => {
+    expect(String(primaryModuleForViewer)).not.toMatch(/["'](cafe|ecommerce|roastery)["']/)
+    expect(primaryModuleForViewer(['cafe'], ['member'])?.id).toBe('cafe')
+  })
+
+  it('an unaffiliated viewer gets no promoted slot — never a guessed module', () => {
+    expect(primaryModuleForViewer([], ['member'])).toBeNull()
+    expect(primaryModuleForViewer(['roastery_thermal'], ['member'])).toBeNull()
+  })
+
+  it('takes the affiliation payload and access roles ONLY — the name regex is gone from the signature', () => {
+    expect(primaryModuleForViewer.length).toBe(2)
+    expect(String(primaryModuleForViewer)).not.toMatch(/workMatch/)
+    // ...and the declaration itself carries no workMatch field anymore.
+    expect(DESTINATIONS.concat(MODULES.flatMap((g) => g.items), UTILITY).some((d) => 'workMatch' in d)).toBe(false)
   })
 })

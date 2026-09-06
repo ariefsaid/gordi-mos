@@ -84,6 +84,7 @@ const viewer: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: [],
+    affiliated: [],
   },
   signOut: vi.fn(),
 }

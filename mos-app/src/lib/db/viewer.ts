@@ -55,6 +55,11 @@ export interface ViewerResult {
   roles: RolesRow[]
   isManager: boolean
   accessRoles: string[]
+  /** Café write-affiliation fact (#744): ['cafe'] when the viewer holds a current stream-Team
+   *  membership — the ONE answer every nav surface and capture page reads. Empty for unaffiliated
+   *  viewers; a failed read fails closed ([] — never undefined) because RLS, never this field,
+   *  refuses writes. Required so every capture selector can default-closed on it. */
+  affiliated: string[]
 }
 
 // resolveViewer: read the person by user_id, their held roles, and derive isManager.
@@ -75,7 +80,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, accessRoles: [] }
+    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] }
   }
 
   // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
@@ -128,6 +133,14 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
 
   const assigned = decodeAccessRolesClaim(accessToken)
   const isManager = deriveIsManager({ viewerRoleIds, roles, heldRoleIds })
+  // The affiliation answer resolves ONCE, here (#744 FR-004): shared.is_cafe_affiliated() is the
+  // same predicate the write policies consult, so no surface re-derives it. Fail closed: a failed
+  // read answers unaffiliated — RLS, not this field, is the write authority (NFR-001).
+  const { data: affiliatedRpc, error: affiliationError } = await supabase
+    .schema('shared')
+    .rpc('is_cafe_affiliated')
+  if (affiliationError) console.warn('viewer: affiliation read failed', affiliationError)
+  const affiliated = affiliatedRpc === true ? ['cafe'] : []
   // accessRoles carries STORED access-role grants only (the JWT claim). The derived reporting-line
   // manager is exposed via the separate `isManager` boolean and MUST NOT be merged in here: since
   // ADR-0050 the string 'manager' is also a stored financial-visibility grant, and conflating the two
@@ -140,5 +153,6 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     roles: viewerRoles,
     isManager,
     accessRoles,
+    affiliated,
   }
 }

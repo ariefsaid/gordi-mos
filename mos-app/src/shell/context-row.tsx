@@ -17,17 +17,15 @@ function pageOwnsJobSentence(pathname: string): boolean {
   return PAGE_FAMILY_FRAME_ROUTES.some(({ path }) => matchPath(path, pathname) !== null)
 }
 
-function resolveViewerScope(roleNames: string[], accessRoles: string[], t: Translate): string {
-  // Resolve scope from the BU/Module DATA MODEL, not a free-text role-name string match: the
-  // module registry's `workMatch` is the ONE authority for role→BU affiliation — the same map
-  // that the phone's promoted tab uses (destinations.tsx `primaryModuleForViewer`). It no longer
-  // gates the rail — OD-WAY-51 made module VISIBILITY route-driven; `workMatch` is emphasis only,
-  // and naming the viewer's scope is exactly that. A Kitchen or Bar *Area* role
-  // resolves to its owning Café *Module* (CONTEXT.md: "Kitchen and Bar are Areas inside the Café
-  // Module"), so a Kitchen Lead shows "Café" on every route, never a less-specific "Team" /
-  // role-name fallback (F1). The prior hand-rolled substring list ('barista'/'cafe'/'roast'/…)
-  // had no branch for 'kitchen' and silently drifted from the rail's authoritative regex.
-  const module = primaryModuleForViewer(roleNames, accessRoles)
+function resolveViewerScope(roleNames: string[], accessRoles: string[], affiliated: string[], t: Translate): string {
+  // Resolve scope from the affiliation payload (#744), not a role-name string match: the ONE
+  // "works a café line" fact the viewer resolver carried at sign-in is the same map the phone's
+  // promoted tab reads (destinations.tsx `primaryModuleForViewer`). It never gates VISIBILITY —
+  // OD-WAY-51 made module visibility route-driven; affiliation is emphasis, and naming the
+  // viewer's scope is exactly that. The prior hand-rolled substring list
+  // ('barista'/'cafe'/'roast'/…) drifted from the rail's authority and had no branch for
+  // 'kitchen'; the payload retires the whole approach.
+  const module = primaryModuleForViewer(affiliated, accessRoles)
   if (module) return t(module.labelKey)
   // No module affiliation (org-wide roles: Managing Director, admin, Sales Lead) — fall back to
   // the viewer's own role name so the scope signal is always real, never a generic placeholder
@@ -51,7 +49,7 @@ export function ContextRow() {
   const jobKey = jobKeyForPath(pathname)
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const roleNames = viewer?.roles.map((r) => r.name) ?? []
-  const scope = resolveViewerScope(roleNames, viewer?.accessRoles ?? [], t)
+  const scope = resolveViewerScope(roleNames, viewer?.accessRoles ?? [], viewer?.affiliated ?? [], t)
 
   // owner-eyes item 8: on a route whose region-3 page head already carries the job sentence
   // (a PageFamilyFrame family route — the same suppression registry that already silences the

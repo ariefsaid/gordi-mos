@@ -52,6 +52,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['admin'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -79,6 +80,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['member', 'admin', 'ops_lead'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -105,6 +107,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['member'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -132,6 +135,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['ops_lead'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })

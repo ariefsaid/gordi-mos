@@ -52,6 +52,7 @@ const viewer = {
   roles: [],
   isManager: false,
   accessRoles: [],
+  affiliated: [],
 }
 
 function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {

@@ -69,6 +69,7 @@ function viewer(accessRoles: string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles,
+      affiliated: [],
     },
     signOut: vi.fn(),
   } as AuthState

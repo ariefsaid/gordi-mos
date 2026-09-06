@@ -130,6 +130,9 @@ const VIEWER_MEMBER: AuthState = {
     ],
     isManager: false,
     accessRoles: ['member'],
+    // Kitchen Staff works a café line — the affiliated default every pre-existing capture test
+    // below assumes; the AC-744 block overrides this to [] for the unaffiliated personas.
+    affiliated: ['cafe'],
   },
   signOut: vi.fn(),
 }
@@ -544,6 +547,107 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
     await waitFor(() => {
       expect(submit).not.toBeDisabled()
     })
+  })
+})
+
+// ── #744 AC-007: the capture page presents the affiliation gate ────────────────────────────
+// RLS is the control (NFR-001); this is the presentation of the same rule. Sales (unaffiliated)
+// sees every row and a one-line reason, but no enabled submit and no write control at all — the
+// missing-item report is a write too, so it closes with the same gate; a Café-affiliated viewer
+// (or an ops_lead/admin via the same selector) captures as before. The selector fails CLOSED:
+// `affiliated` is required on the payload and an empty array is capture-closed.
+describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated', () => {
+  const UNAFFILIATED: AuthState = {
+    ...VIEWER_MEMBER,
+    viewer: { ...VIEWER_MEMBER.viewer, affiliated: [] },
+  }
+
+  it('an unaffiliated viewer sees the rows, a one-line reason, and no enabled submit', async () => {
+    await renderPage(UNAFFILIATED)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Read-only, not hidden: the capture form and its rows render untouched.
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeVisible()
+
+    // The ONE line stating why capture is closed.
+    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+
+    // No enabled submit control, even with a staged line.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '20' } })
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).toBeDisabled()
+  })
+
+  it('an affiliated viewer gets capture active — no reason line, submit enabled on an on-plan line', async () => {
+    await renderPage({ ...VIEWER_MEMBER, viewer: { ...VIEWER_MEMBER.viewer, affiliated: ['cafe'] } })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('status')).toBeNull()
+
+    // Plan 20 minus 3 on hand = effective target 17 (kitchen-gates.effectiveTarget). Staging
+    // exactly the target is on-plan, so nothing else blocks. Staging commits on blur (v4: the
+    // note reveal is blur-gated), so blur before asserting.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '17' } })
+    fireEvent.blur(qtyInput)
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    await waitFor(() => expect(submit).toBeEnabled())
+  })
+
+  it('an ops_lead without membership keeps capture active — the same selector the DB policy arms', async () => {
+    await renderPage({
+      ...VIEWER_MEMBER,
+      viewer: { ...VIEWER_MEMBER.viewer, affiliated: [], accessRoles: ['ops_lead'] },
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  // #744 review: the missing-item report files a WRITE (ops.log_entries), so it closes with
+  // the same capture gate — on BOTH mounts (full list and empty state).
+  it('an unaffiliated viewer sees no missing-item report control on the loaded surface', async () => {
+    await renderPage(UNAFFILIATED)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('button', { name: /report it/i })).not.toBeInTheDocument()
+  })
+
+  it('an unaffiliated viewer sees no report control on the empty state either', async () => {
+    mockListCaptureFormItems.mockResolvedValue([])
+    await renderPage(UNAFFILIATED)
+    await waitFor(() => screen.getByTestId('empty-state'))
+
+    expect(screen.queryByRole('button', { name: /report it/i })).not.toBeInTheDocument()
+  })
+
+  it('an affiliated viewer keeps the missing-item report control', async () => {
+    await renderPage() // VIEWER_MEMBER: Kitchen Staff, affiliated
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+  })
+
+  // #744 review: with capture closed the footer's stream hint and tally describe a submit
+  // path the viewer cannot take — the reason line is the ONE message.
+  it('with capture closed and no stream, the stream hint and the tally are suppressed', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null) // FR-002: the state that would hint
+    await renderPage(UNAFFILIATED)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByText(/choose a production stream/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+  })
+
+  it('with capture open, the same missing-stream state still shows the hint and the tally', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    await renderPage() // affiliated
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.getByText(/choose a production stream/i)).toBeInTheDocument()
+    expect(screen.getByText(/pending review/i)).toBeInTheDocument()
   })
 })
 

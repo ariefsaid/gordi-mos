@@ -18,6 +18,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
@@ -164,6 +165,12 @@ export function KitchenLogPage() {
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
   const { branches, options: streamOptions, stream } = cafeStream
+  // #744: the presentation of the RLS write gate — rows stay visible, capture controls close,
+  // one line says why. Same selector the policies arm: affiliated, or ops_lead/admin.
+  const canCapture = auth.status === 'authenticated' && canCaptureCafe({
+    affiliated: auth.viewer.affiliated,
+    accessRoles: auth.viewer.accessRoles,
+  })
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
@@ -591,8 +598,10 @@ export function KitchenLogPage() {
             copy={t('kitchen.log.empty.copy')}
           />
           {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
-              the report route must be reachable from here too, not only under a full list. */}
-          {buId && <ReportMissingItem businessUnitId={buId} />}
+              the report route must be reachable from here too, not only under a full list.
+              #744 review: the report files a WRITE (ops.log_entries), so it closes with the
+              same capture gate as Submit — an unaffiliated reader sees no report control. */}
+          {buId && canCapture && <ReportMissingItem businessUnitId={buId} />}
         </div>
       </PageFamilyFrame>
     )
@@ -892,28 +901,36 @@ export function KitchenLogPage() {
 
           {/* AC-013 / FR-012: the DD-WAY-29 gate removes unconfirmed items silently, so the
               surface carries a visible route to report one missing — absence must never read
-              as a bug with no exit. Own type="button" controls only; never submits this form. */}
-          {buId && (
+              as a bug with no exit. Own type="button" controls only; never submits this form.
+              #744 review: same capture gate as Submit — a report is a write (AC-003 arm). */}
+          {buId && canCapture && (
             <ReportMissingItem
               businessUnitId={buId}
               streamLabel={stream ? streamLabel(t, stream) : undefined}
             />
           )}
 
-          {/* Sticky action footer — ONE branch; tally + Discard + Submit */}
+          {/* Sticky action footer — ONE branch; tally + Discard + Submit. #744 review: when
+              capture is closed the tally and the stream hint describe a submit path the viewer
+              cannot take — the reason line is the ONE message (rows stay visible, nothing else). */}
           <div className="kl-footer">
-            <div className="kl-tally">
-              <span className="kl-tally-num tabular">
-                {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
-                {' · '}
-                {t(stagedKpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: stagedKpis.madeSoFar })}
-              </span>
-              <span className="kl-tally-sub">{t('kitchen.log.footer.pendingReview')}</span>
-            </div>
+            {!canCapture && (
+              <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
+            )}
+            {canCapture && (
+              <div className="kl-tally">
+                <span className="kl-tally-num tabular">
+                  {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
+                  {' · '}
+                  {t(stagedKpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: stagedKpis.madeSoFar })}
+                </span>
+                <span className="kl-tally-sub">{t('kitchen.log.footer.pendingReview')}</span>
+              </div>
+            )}
             <div className="kl-footer-actions">
               {/* F3 inline blocker reason — visible near the button so the user knows
                   why Submit is disabled without having to attempt a click (Fix 3). */}
-              {streamMissing && (
+              {canCapture && streamMissing && (
                 <span className="kl-submit-reason" role="status" aria-live="polite">
                   {t('kitchen.log.stream.missing')}
                 </span>
@@ -935,7 +952,7 @@ export function KitchenLogPage() {
                 stagedCount={stagedCount}
                 isSubmitting={isSubmitting}
                 isOnline={isOnline}
-                blocked={hasBlockingError || noteUnresolved || streamMissing}
+                blocked={!canCapture || hasBlockingError || noteUnresolved || streamMissing}
                 t={t}
               />
             </div>
