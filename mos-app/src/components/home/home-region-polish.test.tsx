@@ -13,6 +13,7 @@
 //   3. Overview truncates a region to its top rows and said nothing about the remainder —
 //      invisible at 2 items, a lie by omission at the volume OD-V4-7 exists for.
 import { describe, it, expect } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { render, screen, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { MemoryRouter } from 'react-router-dom'
@@ -204,6 +205,13 @@ describe('a ready-and-empty region uses the shared all-clear EmptyState primitiv
     renderLayout(<HomeOverview regions={regions} feed={FEED} />)
     const tile = screen.getByRole('heading', { name: /^failed checks$/i }).closest('section')!
     expect(within(tile).getByTestId('empty-state')).toHaveClass('stream-all-clear')
+  })
+
+  it('Focused states it is clear when an empty tab is selected (never a blank body)', async () => {
+    const user = userEvent.setup()
+    renderLayout(<HomeFocused regions={regions} feed={FEED} />)
+    await user.click(screen.getByRole('tab', { name: /failed checks/i }))
+    expect(screen.getByText(/all caught up/i)).toBeInTheDocument()
   })
 })
 

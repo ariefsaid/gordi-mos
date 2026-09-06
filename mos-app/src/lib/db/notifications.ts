@@ -85,17 +85,3 @@ export async function markNotificationHandled(
   const { error } = await mos().from('notifications').update(patch).eq('id', id)
   if (error) throw new Error(`markNotificationHandled failed: ${error.message}`)
 }
-
-/**
- * The deep-link route for a notification, if it carries a SAFE app-relative one. Defense-in-depth
- * (security review 2026-07-05, Low-2): metadata is producer-supplied; only an app-internal path
- * (single leading slash) is honoured — protocol (`javascript:`, `http:`) and protocol-relative
- * (`//host`) routes are rejected so a crafted notification can never navigate off-app or execute.
- */
-export function notificationRoute(row: NotificationRow): string | null {
-  const entity = (row.metadata as { entity?: NotificationEntity })?.entity
-  const route = entity?.route
-  if (typeof route !== 'string') return null
-  if (!route.startsWith('/') || route.startsWith('//')) return null
-  return route
-}
