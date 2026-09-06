@@ -26,6 +26,8 @@ interface KitchenToolbarProps {
   categories?: string[]
   category?: string
   onCategoryChange?: (c: string) => void
+  /** Optional display formatter; option values remain stable source category IDs. */
+  categoryLabel?: (category: string) => string
   /** default: the shared "Find a dish" catalog string */
   searchPlaceholder?: string
   /** optional LEADING scope slot (ActionTypeSeg on the Log + Plan capture surfaces) */
@@ -40,6 +42,7 @@ export function KitchenToolbar({
   categories,
   category,
   onCategoryChange,
+  categoryLabel,
   searchPlaceholder,
   children,
   ariaLabel = 'Filter',
@@ -79,7 +82,7 @@ export function KitchenToolbar({
           onChange={e => onCategoryChange(e.target.value)}
         >
           {categories.map(c => (
-            <option key={c} value={c}>{c === 'All' ? t('kitchen.filter.all') : c}</option>
+            <option key={c} value={c}>{c === 'All' ? t('kitchen.filter.all') : categoryLabel?.(c) ?? c}</option>
           ))}
         </Select>
       )}

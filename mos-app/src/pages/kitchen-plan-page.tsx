@@ -52,6 +52,7 @@ import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
 import { HelpTip } from '@/components/ui/help-tip'
 import { groupByCategory } from '@/lib/kitchen-category'
+import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import {
   DataTable,
   type DataTableColumn,
@@ -272,7 +273,7 @@ function PlanEditor() {
           >
             {item.name}
           </Link>
-          {item.category && <span className="kp-cat">{item.category}</span>}
+          {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </span>
       ),
     },
@@ -338,7 +339,7 @@ function PlanEditor() {
             >
               {item.name}
             </Link>
-            {item.category && <span className="kp-card-cat">{item.category}</span>}
+            {item.category && <span className="kp-card-cat">{kitchenCategoryLabel(t, item.category)}</span>}
           </span>
           <PlanQtyField
             itemName={item.name}
@@ -439,6 +440,7 @@ function PlanEditor() {
             search={search}
             onSearchChange={setSearch}
             categories={categories}
+            categoryLabel={value => kitchenCategoryLabel(t, value)}
             category={category}
             onCategoryChange={setCategory}
             searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
@@ -572,7 +574,7 @@ function PesananView() {
           >
             {r.wip_item_name}
           </Link>
-          {r.category && <span className="kp-cat">{r.category}</span>}
+          {r.category && <span className="kp-cat">{kitchenCategoryLabel(t, r.category)}</span>}
         </span>
       ),
     },
@@ -643,6 +645,7 @@ function PesananView() {
             search={search}
             onSearchChange={setSearch}
             categories={categories}
+            categoryLabel={value => kitchenCategoryLabel(t, value)}
             category={category}
             onCategoryChange={setCategory}
             searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')}

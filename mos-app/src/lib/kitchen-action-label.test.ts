@@ -34,6 +34,12 @@ const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar' }
 const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen' }
 
 describe('movementsForStream', () => {
+  it('AC-063: never offers Roastery as a Café movement destination', () => {
+    expect(movementsForStream([...BRANCHES, { id: 'roastery', code: 'roastery', name: 'Gordi Roastery' }])).not.toContainEqual({
+      action: 'transfer',
+      destinationBranchId: 'roastery',
+    })
+  })
   it('offers a produce plus a transfer to EVERY branch — the origin branch included', () => {
     // The origin's own branch is not filtered out, and must not be: it is the intra-branch
     // cross-activity movement, and dropping it would remove the movement #235 exists to

@@ -82,7 +82,7 @@ export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId
 export function movementsForStream(branches: readonly BranchOption[]): KitchenMovement[] {
   return [
     PRODUCE,
-    ...branches.map((branch): KitchenMovement => ({
+    ...branches.filter(branch => branch.code !== 'roastery').map((branch): KitchenMovement => ({
       action: 'transfer',
       destinationBranchId: branch.id,
     })),

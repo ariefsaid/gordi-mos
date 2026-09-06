@@ -38,6 +38,7 @@ import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
+import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -104,7 +105,7 @@ export function KitchenStockPage() {
       render: row => (
         <span className="ks-item">
           <span>{row.wip_item_name}</span>
-          {row.category && <span className="ks-category">{row.category}</span>}
+          {row.category && <span className="ks-category">{kitchenCategoryLabel(t, row.category)}</span>}
         </span>
       ),
     },
