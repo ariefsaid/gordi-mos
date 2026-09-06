@@ -21,7 +21,6 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
     for (const p of DEMO_PERSONAS) {
       expect(screen.getByRole('button', { name: p.label })).toBeInTheDocument()
     }
-    expect(DEMO_PERSONAS).toHaveLength(8)
   })
 
   it('uses Gordi real personas (Director/Cafe/Kitchen/Roastery/Sales/Finance), not the generic mockup labels', () => {

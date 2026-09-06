@@ -4,7 +4,6 @@
 // built/deployed site. The accounts it signs into are the fictional dev
 // personas seeded by supabase/seed.dev-auth.sql (password below).
 import { Spinner } from '@/auth/auth-shell'
-import { useT } from '@/i18n/use-t'
 import { DEMO_PASSWORD, DEMO_PERSONAS } from './demo-personas'
 
 export function DemoLogin({
@@ -16,8 +15,6 @@ export function DemoLogin({
   busyEmail: string | null
   disabled: boolean
 }) {
-  const t = useT()
-
   return (
     <div
       className="mt-5 rounded-lg border border-border shadow-rest"
@@ -61,7 +58,7 @@ export function DemoLogin({
               }}
             >
               {busy && <Spinner className="text-primary" />}
-              {p.labelKey ? t(p.labelKey) : p.label}
+              {p.label}
             </button>
           )
         })}
