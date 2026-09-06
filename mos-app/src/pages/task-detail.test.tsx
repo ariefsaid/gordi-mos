@@ -23,6 +23,7 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('react-router-dom', async (importOriginal) => {
   const mod = await importOriginal<typeof import('react-router-dom')>()
@@ -34,7 +35,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 })
 
 import { getTask, updateTaskStatus, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 // Re-homed from the deleted TaskDetail host onto the LIVE task surface (TaskSurface view
 // mode, width="full" — identical to what the host rendered). All detail-field ACs
 // (AC-070..075, T-047, RIC-1/2/3, I2, M2) now run against the real component.
@@ -160,6 +161,7 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockUpdateTaskStatus.mockResolvedValue()
   mockAddChecklistItem.mockResolvedValue()
   mockToggleChecklistItem.mockResolvedValue()
@@ -281,7 +283,8 @@ describe('AC-072 — typed Task ownership', () => {
     fireEvent.change(picSelect, { target: { value: OTHER_ID } })
 
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
-      'task-abc', { responsible_person_id: OTHER_ID }, VIEWER_ID,
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      'task-abc', { responsible_person_id: OTHER_ID }, VIEWER_ID, VIEWER_ID,
     ))
   })
 })
@@ -567,7 +570,8 @@ describe('I2 — PIC reassignment on detail page', () => {
     fireEvent.change(picSelect, { target: { value: VIEWER_ID } })
 
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
-      'task-abc', { responsible_person_id: VIEWER_ID }, 'manager-id',
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      'task-abc', { responsible_person_id: VIEWER_ID }, 'manager-id', OTHER_ID,
     ))
     // No RACI grammar: parenthesized labels only (bare words false-positive on fixture names).
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted \(C\)|Informed \(I\)/)).toBeNull()

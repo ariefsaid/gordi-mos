@@ -25,6 +25,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
@@ -371,7 +372,8 @@ describe('TaskSurface — mutation handlers', () => {
     const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
     fireEvent.change(pic, { target: { value: 'other-id' } })
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
-      'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID,
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID, VIEWER_ID,
     ))
     // Optimistic reassignment rolled back to the previous PIC after the write rejects.
     await waitFor(() => expect((screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement).value).toBe(VIEWER_ID))

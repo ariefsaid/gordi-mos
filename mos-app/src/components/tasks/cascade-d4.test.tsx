@@ -41,6 +41,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn(),
@@ -50,7 +51,7 @@ vi.mock('../../lib/db/work-lines', () => ({
 }))
 
 import { getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 
@@ -117,6 +118,7 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockListObjectives.mockResolvedValue(OBJECTIVES)
   mockListWorkLines.mockResolvedValue(WORK_LINES)
   mockCreateTask.mockResolvedValue('new-task-id')
@@ -292,7 +294,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
         expect.objectContaining({ work_line_id: 'wl-2' }),
-        VIEWER_ID,
+        VIEWER_ID, null, // 4th arg (#742 AC-059): previous value threading — null for work-line.
       )
     })
   })
@@ -308,7 +310,7 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
         expect.objectContaining({ work_line_id: null }),
-        VIEWER_ID,
+        VIEWER_ID, null, // 4th arg (#742 AC-059): previous value threading — null for work-line.
       )
     })
   })
@@ -325,7 +327,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
         expect.objectContaining({ objective_id: 'obj-1' }),
-        VIEWER_ID,
+        VIEWER_ID, null, // 4th arg (#742 AC-059): previous value threading — null for objective.
       )
     })
   })
@@ -340,7 +342,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
         expect.objectContaining({ objective_id: null }),
-        VIEWER_ID,
+        VIEWER_ID, null, // 4th arg (#742 AC-059): previous value threading — null for objective.
       )
     })
   })

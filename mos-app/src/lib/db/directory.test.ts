@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { getBusinessUnits, getPeople } from './directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from './directory'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -105,5 +105,63 @@ describe('getPeople', () => {
     schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
     const result = await getPeople()
     expect(result).toEqual([])
+  })
+})
+
+// ── getDownlinePersonIds (AC-060 plumbing: who may the composer offer as PIC) ─────────────────
+// Role tree: exec -> lead -> staff -> sub. viewer holds `lead`, so the downline is everyone
+// holding staff or sub, walked through the role graph rather than the person graph.
+describe('getDownlinePersonIds', () => {
+  const roles = [
+    { id: 'exec', reports_to_role_id: null },
+    { id: 'lead', reports_to_role_id: 'exec' },
+    { id: 'staff', reports_to_role_id: 'lead' },
+    { id: 'staff2', reports_to_role_id: 'exec' },
+    { id: 'sub', reports_to_role_id: 'staff' },
+  ]
+  const assignments = [
+    { person_id: 'viewer', role_id: 'lead' },
+    { person_id: 'author', role_id: 'staff' },
+    { person_id: 'report', role_id: 'sub' },
+    { person_id: 'dualhat', role_id: 'staff' },
+    { person_id: 'dualhat', role_id: 'staff2' },
+    { person_id: 'lead2holder', role_id: 'staff2' },
+    { person_id: 'exec-holder', role_id: 'exec' },
+  ]
+  const schema = () => makeSharedSchema({
+    person_roles: { data: assignments, error: null },
+    roles: { data: roles, error: null },
+  })
+
+  it('AC-060: walks the role tree DOWN from the viewer\'s own role(s), across multiple hops', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('viewer')
+    expect(new Set(result)).toEqual(new Set(['author', 'report', 'dualhat']))
+  })
+
+  it('AC-060: a person is included once even if a downline role reaches them twice', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('viewer')
+    expect(result.filter((id) => id === 'dualhat')).toHaveLength(1)
+  })
+
+  it('AC-060: a leaf-role viewer with nobody reporting to them has an empty downline', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('report')
+    expect(result).toEqual([])
+  })
+
+  it('AC-060: a manager two levels up (exec) reaches the whole downline, not just direct reports', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('exec-holder')
+    expect(new Set(result)).toEqual(new Set(['viewer', 'author', 'report', 'dualhat', 'lead2holder']))
+  })
+
+  it('AC-060: throws on a PostgREST error from either query', async () => {
+    schemaMock.mockReturnValue(makeSharedSchema({
+      person_roles: { data: null, error: { message: 'rls denied' } },
+      roles: { data: roles, error: null },
+    }) as never)
+    await expect(getDownlinePersonIds('viewer')).rejects.toThrow(/rls denied/)
   })
 })

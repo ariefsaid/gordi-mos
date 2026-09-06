@@ -42,6 +42,7 @@ vi.mock('../../lib/db/signals', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -55,7 +56,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 
 import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listCollectionViews } from '@/lib/db/user-views-collection'
@@ -205,6 +206,7 @@ beforeEach(() => {
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   mockListCollectionViews.mockResolvedValue([])

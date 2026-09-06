@@ -503,6 +503,10 @@ tr:focus-within .row-menu { visibility: visible; }
   font-weight: 500;
 }
 .task-card-meta dd { display: inline; margin: 0; font-size: var(--font-size-label); }
+/* #742 AC-060: the draft card's PIC-lock sentence ("Only you can be PIC — a supervisor names
+   others"), shown only when the viewer has no downline. A block below the name, not inline with
+   it — it is an explanation, not another value in the "Label value" pair. */
+.task-card-pic-lock { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); }
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */

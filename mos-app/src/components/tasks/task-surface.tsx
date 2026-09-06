@@ -282,7 +282,10 @@ function ViewSurface({
     setLocalTask(next)
     onTaskChanged?.(next)
     try {
-      await updateTaskFields(localTask.id, patch, viewerId)
+      const previousValue = field === 'pic' ? prev.responsible_person_id
+        : field === 'supervisor' ? prev.accountable_person_id
+          : field === 'dueDate' ? prev.due_date : null
+      await updateTaskFields(localTask.id, patch, viewerId, previousValue)
       await refetchEvents(localTask.id)
       if (field === 'pic') announce(t('tasks.feedback.picReassigned'))
       else if (field === 'projectProcess') announce(t('tasks.feedback.workLineUpdated'))

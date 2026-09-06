@@ -282,6 +282,16 @@ describe('update mutations', () => {
     noOrgId(rec)
   })
 
+  it('AC-059: PIC/Due edits log one field_edited event with from/to', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: null }], task_events: [{ data: null, error: null }] }, rec) as never)
+    await updateTaskFields(TASK_ID, { due_date: '2026-06-20' }, ACTOR, '2026-06-19')
+    const ev = rec.inserts[0] as Record<string, unknown>
+    expect(ev.event_type).toBe('field_edited')
+    expect(ev.from_value).toBe('2026-06-19')
+    expect(ev.to_value).toBe('2026-06-20')
+  })
+
   it('updateTaskFields updates given fields then logs a field_edited event', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({

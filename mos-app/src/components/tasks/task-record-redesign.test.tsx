@@ -20,6 +20,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { getTask, updateTaskStatus, updateTaskFields } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments } from '@/lib/comments/postComment'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -76,6 +77,7 @@ beforeEach(() => {
     { id: 'consulted', full_name: 'Consulted Person' },
     { id: 'informed', full_name: 'Informed Person' },
   ])
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([{ id: 'process-opening', name: 'Today opening', type: 'process' }])
@@ -153,7 +155,8 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     const picSelect = screen.getByLabelText('PIC')
     fireEvent.change(picSelect, { target: { value: SUPERVISOR_ID } })
     await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
-      task.id, { responsible_person_id: SUPERVISOR_ID }, VIEWER_ID,
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      task.id, { responsible_person_id: SUPERVISOR_ID }, VIEWER_ID, VIEWER_ID,
     ))
   })
 

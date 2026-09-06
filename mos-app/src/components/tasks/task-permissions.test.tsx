@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canEdit, canArchive } from './task-permissions'
+import { canEdit, canArchive, picOptions, picLockMessage } from './task-permissions'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 const t = (o: Partial<TaskListRow>): TaskListRow => ({
@@ -14,15 +14,24 @@ const t = (o: Partial<TaskListRow>): TaskListRow => ({
 })
 
 describe('task permission oracle (mirrors mos.can_edit_task)', () => {
-  it('R or A or manager can edit; nobody else', () => {
+  // The caller passes isManager as an opaque boolean — it already means "the DB-narrowed relation
+  // holds" (manager in the PIC's own reporting line, per AC-056/AC-061); this helper is the
+  // optimistic UX gate only, so it does not re-derive which chain isManager came from — the DB is
+  // authority and pgTAP (mos_12_task_permissions.sql) proves the narrowing itself.
+  it('AC-061: PIC, Supervisor, or a caller-asserted manager can edit; nobody else', () => {
     expect(canEdit(t({}), 'r', false)).toBe(true)
     expect(canEdit(t({}), 'a', false)).toBe(true)
     expect(canEdit(t({}), 'x', true)).toBe(true)
     expect(canEdit(t({}), 'x', false)).toBe(false)
   })
-  it('archive is A or manager only — not a bare R', () => {
+  it('AC-061: archive is Supervisor or a caller-asserted manager, not the PIC alone', () => {
     expect(canArchive(t({}), 'r', false)).toBe(false)
     expect(canArchive(t({}), 'a', false)).toBe(true)
     expect(canArchive(t({}), 'x', true)).toBe(true)
+  })
+  it('AC-060: draft PIC options are self plus downline and lock copy is localized by caller', () => {
+    expect(picOptions('r', [{ id: 'r', full_name: 'R' }, { id: 'd', full_name: 'Downline' }, { id: 'p', full_name: 'Peer' }], ['d']).map(p => p.id)).toEqual(['r', 'd'])
+    expect(picLockMessage(true)).toBeNull()
+    expect(picLockMessage(false)).toBe('Only you can be PIC — a supervisor names others')
   })
 })

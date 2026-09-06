@@ -25,6 +25,35 @@ export interface RoleScopeRow {
   reports_to_role_id: string | null
 }
 
+/** #742 AC-060: everyone the viewer manages, walked down the role tree (BFS over
+ * reports_to_role_id) rather than the person graph — the client mirror of mos.can_edit_task's
+ * shared.is_manager_of(), direction reversed. Feeds the composer's self+downline PIC picker;
+ * the DB (mos._guard_tasks) is the actual authority on who may BE PIC. */
+export async function getDownlinePersonIds(viewerId: string): Promise<string[]> {
+  const [{ data: assignments, error: assignmentError }, { data: roles, error: roleError }] = await Promise.all([
+    shared().from('person_roles').select('person_id,role_id'),
+    shared().from('roles').select('id,reports_to_role_id'),
+  ])
+  if (assignmentError) throw new Error(`getDownlinePersonIds assignments failed — ${assignmentError.message}`)
+  if (roleError) throw new Error(`getDownlinePersonIds roles failed — ${roleError.message}`)
+  const roleRows = (roles ?? []) as Array<{ id: string; reports_to_role_id: string | null }>
+  const ownedRoles = new Set((assignments ?? []).filter((a: { person_id: string }) => a.person_id === viewerId).map((a: { role_id: string }) => a.role_id))
+  const children = new Map<string, string[]>()
+  for (const role of roleRows) {
+    if (!role.reports_to_role_id) continue
+    children.set(role.reports_to_role_id, [...(children.get(role.reports_to_role_id) ?? []), role.id])
+  }
+  const downlineRoles = new Set<string>()
+  const pending = [...ownedRoles]
+  while (pending.length) {
+    const roleId = pending.shift() as string
+    for (const child of children.get(roleId) ?? []) {
+      if (!downlineRoles.has(child)) { downlineRoles.add(child); pending.push(child) }
+    }
+  }
+  return [...new Set((assignments ?? []).filter((a: { role_id: string }) => downlineRoles.has(a.role_id)).map((a: { person_id: string }) => a.person_id))]
+}
+
 /** Load all non-archived business units for the org (ordered by name). */
 export async function getBusinessUnits(): Promise<BusinessUnitOption[]> {
   const { data, error } = await shared()

@@ -23,6 +23,7 @@ vi.mock('../lib/comments/postComment', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(() => new Promise(() => {})),
   getPeople: vi.fn(() => new Promise(() => {})),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 // useAuth needed for OpsPage (viewer context)
 vi.mock('../auth/use-auth', () => ({

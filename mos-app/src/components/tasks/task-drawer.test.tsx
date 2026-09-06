@@ -22,10 +22,11 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 
 import { getTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskDrawer } from './task-drawer'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
@@ -86,6 +87,7 @@ beforeEach(() => {
   stubWidths({ split: true, desktop: true }) // default: the ≥1100px non-modal split regime
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Cafe Operations' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
 })
 
 function LocationProbe() {

@@ -294,4 +294,46 @@ describe('MobileGroupedCards', () => {
     const cardLink = screen.getByRole('link', { name: /overdue card task/i })
     expect(cardLink.getAttribute('href')).toBe('/work/tasks/task-9?view=overdue')
   })
+
+  // #742 AC-060 (W-M persona step 3): the draft card's PIC is fixed to self when the viewer has
+  // no downline, and says so — the sentence never appears on an existing (non-draft) card, and
+  // never appears on the draft card when the viewer DOES have a downline to pick from.
+  it('AC-060: the draft card shows the PIC-lock sentence when the viewer has no downline', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks',
+        rows: [makeTask({ id: 'draft-1', title: '' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: 'draft-1',
+      viewerHasNoDownline: true,
+    })
+    expect(screen.getByText('Only you can be PIC — a supervisor names others')).toBeInTheDocument()
+  })
+
+  it('AC-060: the draft card omits the lock sentence when the viewer has a downline', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks',
+        rows: [makeTask({ id: 'draft-1', title: '' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: 'draft-1',
+      viewerHasNoDownline: false,
+    })
+    expect(screen.queryByText('Only you can be PIC — a supervisor names others')).not.toBeInTheDocument()
+  })
+
+  it('AC-060: an existing (non-draft) card never shows the lock sentence, even with no downline', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks',
+        rows: [makeTask({ id: 'task-1', title: 'Existing task' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: null,
+      viewerHasNoDownline: true,
+    })
+    expect(screen.queryByText('Only you can be PIC — a supervisor names others')).not.toBeInTheDocument()
+  })
 })

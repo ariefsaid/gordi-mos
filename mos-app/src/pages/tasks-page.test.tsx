@@ -20,6 +20,7 @@ vi.mock('../lib/db/directory', () => ({
   getPeople: vi.fn(),
   // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
   listRoleNames: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))

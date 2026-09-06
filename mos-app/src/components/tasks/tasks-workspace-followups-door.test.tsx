@@ -26,6 +26,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([{ id: 'bu-sales', name: 'B2B Sales', code: 'b2b_sales' }]),
   getPeople: vi.fn().mockResolvedValue([]),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn().mockResolvedValue([]) }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn().mockResolvedValue([]) }))

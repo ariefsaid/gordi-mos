@@ -12,6 +12,7 @@ vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
   listRoleNames: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
