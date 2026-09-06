@@ -65,7 +65,7 @@ function setOmniscientViewer() {
       }],
       isManager: true,
       accessRoles: OMNISCIENT_ROLES,
-      affiliated: [],
+      affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
     },
     signOut: vi.fn(),
   } as unknown as ReturnType<typeof useAuth>)

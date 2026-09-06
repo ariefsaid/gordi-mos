@@ -50,7 +50,7 @@ function viewerWithRoles(accessRoles: string[]): AuthState {
         email: 'viewer@example.test', must_change_password: false, archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [], isManager: false, accessRoles, affiliated: [],
+      roles: [], isManager: false, accessRoles, affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
     },
     signOut: vi.fn(),
   } as AuthState

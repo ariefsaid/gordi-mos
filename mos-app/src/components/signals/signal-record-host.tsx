@@ -246,11 +246,12 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
   // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
   const retracted = signal.retracted_at !== null
+  const leadTeamIdsError = auth.status === 'authenticated' ? auth.viewer.leadTeamIdsError : null
   const canRetractSignal = !retracted && !!viewerId && auth.status === 'authenticated' && canRetract(
     {
       personId: viewerId,
       accessRoles: auth.viewer.accessRoles,
-      leadsTeamIds: auth.viewer.leadsTeamIds ?? [],
+      leadsTeamIds: auth.viewer.leadsTeamIds,
     },
     { authorId: signal.author_id, owningTeamId: signal.owning_team_id },
   )
@@ -261,7 +262,9 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     ? (attention: Attention) => { void handleAttentionChange(attention) }
     : undefined
   const reach = retracted ? null : (
-    <SignalReach
+    <>
+      {leadTeamIdsError && <p role="alert">{leadTeamIdsError}</p>}
+      <SignalReach
       mentions={mentionViews}
       shieldLine={shieldLine}
       canAcknowledge
@@ -275,7 +278,8 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       onLinkExistingTask={() => setLinkOpen((open) => !open)}
       onRetract={canRetractSignal ? () => setRetractOpen(true) : undefined}
       actionForms={actionForms}
-    />
+      />
+    </>
   )
   const discussion = retracted ? null : (
     <SignalDiscussion

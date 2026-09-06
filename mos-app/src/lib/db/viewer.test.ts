@@ -539,7 +539,7 @@ describe('resolveViewer', () => {
       expect(result.affiliated).toEqual([])
     })
 
-    it('an orphan viewer carries affiliated: [] — the payload shape is total', async () => {
+    it('an orphan viewer carries affiliated: [], leadsTeamIds: [], leadTeamIdsError: null — the payload shape is total', async () => {
       mockFrom.mockImplementation((table: string) => {
         if (table === 'people') {
           return asChain({

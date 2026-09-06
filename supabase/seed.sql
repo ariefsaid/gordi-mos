@@ -389,6 +389,7 @@ from (values
   ('40000000-0000-0000-0000-000000000008', 'gordi_hq_bar',        true),
   ('40000000-0000-0000-0000-00000000000a', 'gordi_hq_bar',        true),
   ('40000000-0000-0000-0000-000000000001', 'gordi_hq_bar',        false),   -- Cahya: LEAD, not line staff
+  ('40000000-0000-0000-0000-000000000001', 'cikal_bar',            false),   -- Cahya leads both bar Teams
   ('40000000-0000-0000-0000-00000000000b', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-00000000000c', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-00000000000d', 'gordi_hq_kitchen',    true),

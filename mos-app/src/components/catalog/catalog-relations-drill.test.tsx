@@ -79,7 +79,7 @@ function authWith(accessRoles: readonly string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles: [...accessRoles],
-      affiliated: [],
+      affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
     },
     signOut: vi.fn(),
   }

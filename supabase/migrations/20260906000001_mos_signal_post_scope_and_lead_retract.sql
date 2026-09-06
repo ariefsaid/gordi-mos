@@ -16,7 +16,7 @@ language sql stable security invoker set search_path = '' as $$
       where target.id = p_team_id
         and target.org_id = shared.current_org_id()
         and (
-          -- Changed arm: a lead's own active Team is still a direct lead fact.
+          -- An active Team membership makes a lead responsible for that Team.
           exists (
             select 1 from shared.team_memberships m
             where m.team_id = target.id
@@ -25,7 +25,7 @@ language sql stable security invoker set search_path = '' as $$
               and m.effective_from <= current_date
               and (m.effective_to is null or m.effective_to >= current_date)
           )
-          -- Changed arm: the reporting line is scoped to this Team's business unit.
+          -- A manager in the Team's business unit leads through the reporting line.
           or exists (
             select 1
             from shared.team_memberships m
@@ -45,14 +45,14 @@ language sql stable security invoker set search_path = '' as $$
                   and shared.is_manager_of(member.id)
               )
           )
-          -- Changed arm: the unit head is the root of this unit's reporting line.
+          -- The unit head leads every Team in the unit.
           or exists (
             select 1
             from shared.person_roles pr
             join shared.roles r on r.id = pr.role_id
             where pr.person_id = shared.current_person_id()
               and pr.org_id = target.org_id
-              and r.business_unit_id = target.business_unit_id
+              and (r.business_unit_id = target.business_unit_id or r.business_unit_id is null)
               and r.reports_to_role_id is null
           )
         )
@@ -115,7 +115,7 @@ comment on function mos.can_post_signal_for_team(uuid) is
 revoke execute on function mos.can_post_signal_for_team(uuid) from public, anon;
 grant execute on function mos.can_post_signal_for_team(uuid) to authenticated;
 
--- Changed arm: the guard is the sole retract authorization and notification insertion point.
+-- The guard owns retract authorization and inserts the author notification.
 create or replace function mos._guard_signals()
 returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -140,9 +140,23 @@ begin
   if new.author_id is distinct from old.author_id
      or new.owning_team_id is distinct from old.owning_team_id
      or new.source is distinct from old.source
+     or new.source_ref is distinct from old.source_ref
      or new.org_id is distinct from old.org_id
-     or new.created_at is distinct from old.created_at then
-    raise exception 'signal author/owning_team/source/org/created_at are immutable' using errcode = '42501';
+     or new.created_at is distinct from old.created_at
+     or new.updated_at is distinct from old.updated_at then
+    raise exception 'signal author/owning_team/source/source_ref/org/created_at/updated_at are immutable' using errcode = '42501';
+  end if;
+  if new.edited_at is distinct from old.edited_at
+     and new.body is not distinct from old.body
+     and new.occurred_at is not distinct from old.occurred_at
+     and new.category is not distinct from old.category
+     and new.attention is not distinct from old.attention then
+    raise exception 'signal edited_at is server-owned' using errcode = '42501';
+  end if;
+  if new.retract_reason is distinct from old.retract_reason
+     and new.retracted_at is not distinct from old.retracted_at
+     and old.author_id is distinct from shared.current_person_id() then
+    raise exception 'retract_reason is author-only unless the signal is being retracted' using errcode = '42501';
   end if;
   if (new.body is distinct from old.body
       or new.occurred_at is distinct from old.occurred_at
@@ -202,25 +216,26 @@ end;
 $$;
 revoke execute on function mos._guard_signals() from public, anon, authenticated;
 
--- Changed arm: the guard's definer identity is the only non-recipient notification writer.
+-- The recipient-only policy leaves cross-owner delivery to the definer trigger.
 drop policy if exists notifications_insert on mos.notifications;
 create policy notifications_insert on mos.notifications
   for insert to authenticated
   with check (
     org_id = shared.current_org_id()
-    and (owner_id = shared.current_person_id() or current_user <> 'authenticated')
+    and owner_id = shared.current_person_id()
   );
+comment on function mos.create_notification(uuid, text, text, text, jsonb) is
+  'Authenticated mention delivery RPC for cross-owner notifications; signal retraction notifications use the signal guard directly.';
+comment on policy notifications_insert on mos.notifications is
+  'A direct insert addressed to another owner is denied here; cross-owner delivery uses SECURITY DEFINER RPCs and trigger-owned notifications.';
 
--- Changed arm: one unique key makes the single guard insert idempotent under concurrency.
+-- The unique key makes the guard insert idempotent under concurrency.
 create unique index if not exists notifications_signal_retracted_once
   on mos.notifications (owner_id, (metadata->>'source'), (metadata#>>'{entity,id}'))
   where metadata->>'source' = 'signal_retracted';
 
 drop trigger if exists signals_lead_retract_guard on mos.signals;
 drop trigger if exists signals_retracted_notification on mos.signals;
-drop function if exists mos._guard_signal_lead_retract();
-drop function if exists mos._notify_signal_retracted();
-drop function if exists mos._deliver_signal_retracted(uuid, uuid, text);
 
 drop policy if exists signals_insert on mos.signals;
 create policy signals_insert on mos.signals
@@ -252,18 +267,129 @@ create policy signals_update_author on mos.signals
       or mos.is_team_lead(owning_team_id)
     )
   )
-  -- Changed arm: authors and owning-Team peers reach the guard; it refuses unauthorized writes loudly.
+  -- Authors, owning-Team peers, and retract authorities reach the guard; it rejects unauthorized changes loudly.
   with check (org_id = shared.current_org_id());
 comment on policy signals_update_author on mos.signals is
   'USING is deliberately org-wide so an unauthorized author/peer UPDATE reaches mos._guard_signals and raises 42501; the guard is the write authority. WITH CHECK preserves the same-org narrowing.';
 
--- DOWN (run as one transaction to restore 20260805000006/20260904000002 verbatim):
+-- DOWN (copy into a transaction to restore the released predecessor):
 -- drop index if exists mos.notifications_signal_retracted_once;
--- create or replace function mos.can_post_signal_for_team(p_team_id uuid) returns boolean language sql stable security invoker set search_path = '' as $$ select shared.can('signal.create_for_team') or exists (select 1 from shared.team_memberships m where m.team_id=p_team_id and m.person_id=shared.current_person_id() and m.org_id=shared.current_org_id() and m.effective_from<=current_date and (m.effective_to is null or m.effective_to>=current_date)); $$;
--- create or replace function mos._guard_signals() ... -- restore the complete 20260805000006 body, without the retract notification arm;
+-- delete from shared.role_capabilities where (role, capability) in (('supervisor', 'signal.create'), ('manager', 'signal.create'));
+-- drop function mos.is_team_lead(uuid);
+-- drop function mos.viewer_lead_team_ids();
+-- drop policy if exists notifications_insert on mos.notifications;
+-- create policy notifications_insert on mos.notifications for insert to authenticated
+--   with check (org_id = shared.current_org_id() and owner_id = shared.current_person_id());
 -- drop policy if exists signals_insert on mos.signals;
--- create policy signals_insert on mos.signals for insert to authenticated with check (org_id=shared.current_org_id() and author_id=shared.current_person_id() and source='human' and shared.can('signal.create') and mos.can_post_signal_for_team(owning_team_id));
+-- create policy signals_insert on mos.signals for insert to authenticated
+--   with check (org_id = shared.current_org_id() and author_id = shared.current_person_id()
+--     and source = 'human' and shared.can('signal.create') and mos.can_post_signal_for_team(owning_team_id));
 -- drop policy if exists signals_update_author on mos.signals;
--- create policy signals_update_author on mos.signals for update to authenticated using (org_id=shared.current_org_id() and (author_id=shared.current_person_id() or shared.can('signal.retract'))) with check (org_id=shared.current_org_id());
--- drop function if exists mos.viewer_lead_team_ids();
--- create or replace function mos.is_team_lead(p_team_id uuid) ... -- restore the prior 20260906000001 body;
+-- create policy signals_update_author on mos.signals for update to authenticated
+--   using (org_id = shared.current_org_id() and (author_id = shared.current_person_id() or shared.can('signal.retract')))
+--   with check (org_id = shared.current_org_id());
+-- create or replace function mos.can_post_signal_for_team(p_team_id uuid)
+-- returns boolean language sql stable security invoker set search_path = '' as $$
+--   select shared.can('signal.create_for_team') or exists (
+--     select 1 from shared.team_memberships m where m.team_id = p_team_id
+--       and m.person_id = shared.current_person_id() and m.org_id = shared.current_org_id()
+--       and m.effective_from <= current_date and (m.effective_to is null or m.effective_to >= current_date));
+-- $$;
+-- create or replace function mos._guard_signals()
+-- returns trigger
+-- language plpgsql
+-- security definer
+-- set search_path = ''
+-- as $$
+-- declare
+--   v_team_org   uuid;
+--   v_author_org uuid;
+-- begin
+--   -- SAME-ORG REFERENCES, checked on INSERT as well as UPDATE — which is why this trigger is no
+--   -- longer UPDATE-only. owning_team_id and author_id are existence-only FKs into org-scoped tables.
+--   -- The INSERT policy pins the row's own org_id and pins author_id to the session person, and it
+--   -- calls mos.can_post_signal_for_team(owning_team_id) — but that gate answers "may you post for
+--   -- this Team", and its first arm is a capability that is true regardless of which Team was named,
+--   -- so it is an authorization test and not a tenancy test. The two questions are different and the
+--   -- second one belongs here, with the rest of this table's invariants. It matters more on this table
+--   -- than on most: mos.can_read_signal joins the owning Team to decide who may read a Signal at all.
+--   --
+--   -- Compared against new.org_id, the idiom the sibling guards use, so the rule states the row's own
+--   -- internal consistency and holds identically on the seed and service paths.
+--   -- Both arms null-guarded although both columns are NOT NULL: a BEFORE ROW trigger runs before NOT
+--   -- NULL is checked, so an unguarded lookup would report a tenancy violation for a column the caller
+--   -- simply left out. Same idiom as ops._guard_kitchen_log.
+--   if new.owning_team_id is not null then
+--     select t.org_id into v_team_org from shared.teams t where t.id = new.owning_team_id;
+--     if v_team_org is distinct from new.org_id then
+--       raise exception 'owning_team_id belongs to a different org' using errcode = '42501';
+--     end if;
+--   end if;
+--   if new.author_id is not null then
+--     select p.org_id into v_author_org from shared.people p where p.id = new.author_id;
+--     if v_author_org is distinct from new.org_id then
+--       raise exception 'author_id belongs to a different org' using errcode = '42501';
+--     end if;
+--   end if;
+-- 
+--   -- Everything below reads OLD and is therefore UPDATE-only. Guarded explicitly rather than left to
+--   -- the trigger definition, so the two halves cannot drift apart if the definition is ever widened
+--   -- again: on INSERT, OLD is not merely empty, it is not a row at all.
+--   if tg_op = 'INSERT' then
+--     return new;
+--   end if;
+-- 
+--   if new.author_id is distinct from old.author_id
+--      or new.owning_team_id is distinct from old.owning_team_id
+--      or new.source is distinct from old.source
+--      or new.org_id is distinct from old.org_id
+--      or new.created_at is distinct from old.created_at then
+--     raise exception 'signal author/owning_team/source/org/created_at are immutable' using errcode = '42501';
+--   end if;
+-- 
+--   -- SECURITY HIGH-1: content is AUTHOR-ONLY. The UPDATE policy's USING clause admits both the author
+--   -- and any signal.retract holder — it has to, so a holder can retract someone else's Signal — but
+--   -- without this that same holder could rewrite the body. A non-author may move only the retraction
+--   -- columns.
+--   if (new.body is distinct from old.body
+--       or new.occurred_at is distinct from old.occurred_at
+--       or new.category is distinct from old.category
+--       or new.attention is distinct from old.attention)
+--      and old.author_id is distinct from shared.current_person_id() then
+--     raise exception 'signal content is author-only; signal.retract may only retract' using errcode = '42501';
+--   end if;
+-- 
+--   if new.retracted_at is distinct from old.retracted_at then
+--     if not (old.author_id = shared.current_person_id() or shared.can('signal.retract')) then
+--       raise exception 'retract requires author or signal.retract' using errcode = '42501';
+--     end if;
+--     if new.retracted_at is not null and btrim(coalesce(new.retract_reason,'')) = '' then
+--       raise exception 'retraction requires a reason' using errcode = '23514';
+--     end if;
+--   end if;
+-- 
+--   -- Edit history. One branch per mutable field so the revision row names the field that moved.
+--   if new.body is distinct from old.body then
+--     insert into mos.signal_revisions(org_id,signal_id,actor_id,field,old_value,new_value)
+--       values (old.org_id, old.id, shared.current_person_id(), 'body', old.body, new.body);
+--     new.edited_at := now();
+--   end if;
+--   if new.occurred_at is distinct from old.occurred_at then
+--     insert into mos.signal_revisions(org_id,signal_id,actor_id,field,old_value,new_value)
+--       values (old.org_id, old.id, shared.current_person_id(), 'occurred_at', old.occurred_at::text, new.occurred_at::text);
+--     new.edited_at := now();
+--   end if;
+--   if new.category is distinct from old.category then
+--     insert into mos.signal_revisions(org_id,signal_id,actor_id,field,old_value,new_value)
+--       values (old.org_id, old.id, shared.current_person_id(), 'category', old.category, new.category);
+--     new.edited_at := now();
+--   end if;
+--   if new.attention is distinct from old.attention then
+--     insert into mos.signal_revisions(org_id,signal_id,actor_id,field,old_value,new_value)
+--       values (old.org_id, old.id, shared.current_person_id(), 'attention', old.attention, new.attention);
+--     new.edited_at := now();
+--   end if;
+-- 
+--   return new;
+-- end;
+-- $$;

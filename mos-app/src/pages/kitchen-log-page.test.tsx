@@ -132,7 +132,7 @@ const VIEWER_MEMBER: AuthState = {
     accessRoles: ['member'],
     // Kitchen Staff works a café line — the affiliated default every pre-existing capture test
     // below assumes; the AC-744 block overrides this to [] for the unaffiliated personas.
-    affiliated: ['cafe'],
+    affiliated: ['cafe'], leadsTeamIds: [], leadTeamIdsError: null,
   },
   signOut: vi.fn(),
 }
@@ -559,7 +559,7 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
 describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated', () => {
   const UNAFFILIATED: AuthState = {
     ...VIEWER_MEMBER,
-    viewer: { ...VIEWER_MEMBER.viewer, affiliated: [] },
+    viewer: { ...VIEWER_MEMBER.viewer, affiliated: [], leadsTeamIds: [], leadTeamIdsError: null },
   }
 
   it('an unaffiliated viewer sees the rows, a one-line reason, and no enabled submit', async () => {
@@ -580,7 +580,7 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
   })
 
   it('an affiliated viewer gets capture active — no reason line, submit enabled on an on-plan line', async () => {
-    await renderPage({ ...VIEWER_MEMBER, viewer: { ...VIEWER_MEMBER.viewer, affiliated: ['cafe'] } })
+    await renderPage({ ...VIEWER_MEMBER, viewer: { ...VIEWER_MEMBER.viewer, affiliated: ['cafe'], leadsTeamIds: [], leadTeamIdsError: null } })
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(screen.queryByRole('status')).toBeNull()
@@ -598,7 +598,7 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
   it('an ops_lead without membership keeps capture active — the same selector the DB policy arms', async () => {
     await renderPage({
       ...VIEWER_MEMBER,
-      viewer: { ...VIEWER_MEMBER.viewer, affiliated: [], accessRoles: ['ops_lead'] },
+      viewer: { ...VIEWER_MEMBER.viewer, affiliated: [], leadsTeamIds: [], leadTeamIdsError: null, accessRoles: ['ops_lead'] },
     })
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
