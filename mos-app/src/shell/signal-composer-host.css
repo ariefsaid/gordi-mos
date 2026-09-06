@@ -3,7 +3,7 @@
   min-height: 0;
   overflow: hidden;
 }
-@media (max-width: 640px) {
+@media (max-width: 767.98px) {
   .signal-composer-host-panel { display: flex; flex-direction: column; height: 100%; }
   .signal-composer-host-panel > .signal-composer { flex: 1; min-height: 0; }
 }

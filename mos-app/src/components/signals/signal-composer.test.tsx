@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -25,6 +27,8 @@ vi.mock('@/lib/db/directory', () => ({
 import { listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { SignalComposer } from './signal-composer'
+import { ModalShell } from '@/components/ui/modal-shell'
+
 
 const mockListReadableAuthorTeams = vi.mocked(listReadableAuthorTeams)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
@@ -64,6 +68,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
 }
 
 beforeEach(() => {
+  window.localStorage.setItem('mos.locale', 'en')
   vi.resetAllMocks()
   mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
   mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
@@ -475,6 +480,73 @@ describe('SignalComposer — pill grammar (#768)', () => {
   })
 })
 
+describe('SignalComposer — acceptance pins (#768)', () => {
+  it('AC-061: has no attach control in any state', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    expect(screen.getByTestId('signal-composer').querySelectorAll('input')).toHaveLength(0)
+    expect(screen.getByTestId('signal-composer').querySelector('.signal-composer-foot')?.querySelectorAll('input')).toHaveLength(0)
+    await userEvent.click(screen.getByRole('button', { name: /Just now/i }))
+    expect(screen.getByTestId('signal-composer').querySelectorAll('input')).toHaveLength(1)
+    expect(screen.getByTestId('signal-composer').querySelectorAll('input[type="file"]')).toHaveLength(0)
+  })
+
+  it('AC-066: renders Indonesian composer labels and attention choices', async () => {
+    window.localStorage.setItem('mos.locale', 'id')
+    render(<I18nProvider><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></I18nProvider>)
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: /Baru saja/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /FYI/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /FYI/i }))
+    expect(screen.getByRole('menu')).toHaveTextContent(/Perlu perhatian/)
+    expect(screen.getByRole('menu')).toHaveTextContent(/Mendesak/)
+    expect(screen.getByText(/Tim Pemilik:.*Penulis:/i)).toBeInTheDocument()
+  })
+
+  it('AC-056/057: exact focusable inventory is five for one team and six for multiple teams', async () => {
+    render(<I18nProvider><ModalShell open onClose={() => {}} ariaLabel="Share Signal"><button type="button">Close</button><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></ModalShell></I18nProvider>)
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    expect(screen.getByRole('dialog').querySelectorAll('button, textarea, select, input')).toHaveLength(5)
+    mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
+    render(<I18nProvider><ModalShell open onClose={() => {}} ariaLabel="Share Signal"><button type="button">Close</button><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></ModalShell></I18nProvider>)
+    await waitFor(() => expect(screen.getAllByRole('combobox', { name: /team/i })).toHaveLength(1))
+    expect(screen.getAllByRole('dialog')[1].querySelectorAll('button, textarea, select, input')).toHaveLength(6)
+  })
+
+  it('clearing Occurred falls back to Just now without throwing', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await userEvent.click(screen.getByRole('button', { name: /Just now/i }))
+    const input = screen.getByRole('dialog', { name: /occurred/i }).querySelector('input')!
+    expect(() => fireEvent.change(input, { target: { value: '' } })).not.toThrow()
+    expect(screen.getByRole('button', { name: /Just now/i })).toBeInTheDocument()
+  })
+
+  it('popover Escape belongs to the popover, not the real composer ModalShell', async () => {
+    const onClose = vi.fn()
+    render(<I18nProvider><ModalShell open onClose={onClose} ariaLabel="Share Signal"><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></ModalShell></I18nProvider>)
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await userEvent.click(screen.getByRole('button', { name: /Just now/i }))
+    fireEvent.keyDown(screen.getByRole('dialog', { name: /occurred/i }).querySelector('input')!, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: /occurred/i })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: /FYI/i }))
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('AC-065: pill heights and mobile layout rules are pinned in CSS', () => {
+    const composerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
+    const hostCss = readFileSync(resolve(process.cwd(), 'src/shell/signal-composer-host.css'), 'utf8')
+    expect(composerCss).toMatch(/\.signal-composer-pill\s*\{[^}]*height:\s*44px[^}]*min-height:\s*44px/)
+    expect(composerCss).toMatch(/\.signal-location-pill\s*\{[^}]*cursor: default/)
+    expect(composerCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.signal-composer-mention-anchor\s*\{[^}]*flex: 1/)
+    expect(hostCss).toMatch(/@media \(max-width: 767\.98px\)/)
+    expect(hostCss).toMatch(/\.signal-composer-host-panel > \.signal-composer\s*\{[^}]*flex: 1[^}]*min-height: 0/)
+  })
+})
+
 describe('SignalComposer — derived Site pill, no @Site (AC-423)', () => {
   it('renders a read-only Site pill derived from the owning Team, and Site is absent from the @ picker', async () => {
     mockGetTeamSite.mockResolvedValue({ id: 'site-hq', name: 'Gordi HQ' })
@@ -485,6 +557,7 @@ describe('SignalComposer — derived Site pill, no @Site (AC-423)', () => {
     expect(pill).toHaveTextContent('Gordi HQ')
     // Location is a pill, not a mention target (D37).
     expect(pill.tagName).not.toBe('BUTTON')
+    expect(pill.tagName).not.toBe('A')
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, '@')

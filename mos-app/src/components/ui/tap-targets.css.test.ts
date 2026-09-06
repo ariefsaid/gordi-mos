@@ -108,9 +108,8 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.cm-item[\s\S]*min-height:\s*44px/)
   })
 
-  it('SYS-2: raises the Signal-composer datetime control to 44px on phone', () => {
-    const body = mediaBody(signalComposerCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.signal-composer-datetime input[\s\S]*min-height:\s*44px/)
+  it('SYS-2: keeps the Occurred popover input at a 44px floor', () => {
+    expect(signalComposerCss).toMatch(/\.signal-occurred-popover input[^}]*min-height:\s*44px/)
   })
 
   it('SYS-2: raises the Signal mention rows (.mention-row) to 44px on phone', () => {

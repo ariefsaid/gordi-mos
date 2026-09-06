@@ -45,6 +45,7 @@ function toDatetimeLocalValue(date: Date): string {
 function formatOccurred(value: string, justNow: string, untouched: boolean): string {
   if (untouched) return justNow
   const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return justNow
   const parts = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date)
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
   return `${part('day')} ${part('month')} ${part('hour')}:${part('minute')}`
@@ -179,7 +180,8 @@ export function SignalComposer({
     setPosting(true)
     setError(null)
     try {
-      const occurredIso = new Date(occurredAt).toISOString()
+      const occurredDate = new Date(occurredAt)
+      const occurredIso = Number.isNaN(occurredDate.getTime()) ? new Date().toISOString() : occurredDate.toISOString()
       const id = await createSignal({ body: trimmedBody, owningTeamId: teamId, occurredAt: occurredIso, attention, mentions })
       setBody('')
       setMentions([])
@@ -268,7 +270,7 @@ export function SignalComposer({
           {occurredOpen && (
             <div className="signal-occurred-popover" role="dialog" aria-label={t('signals.composer.occurredLabel')}>
               <label htmlFor="signal-occurred-input">{t('signals.composer.occurredLabel')}</label>
-              <input id="signal-occurred-input" type="datetime-local" aria-label={t('signals.composer.occurredLabel')} value={occurredAt} onChange={(e) => { setOccurredAt(e.target.value); setOccurredTouched(true) }} />
+              <input id="signal-occurred-input" type="datetime-local" aria-label={t('signals.composer.occurredLabel')} value={occurredAt} onChange={(e) => { const value = e.target.value; setOccurredAt(value); setOccurredTouched(Boolean(value && !Number.isNaN(new Date(value).getTime()))) }} />
             </div>
           )}
         </div>
