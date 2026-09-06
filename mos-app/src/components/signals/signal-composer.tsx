@@ -33,6 +33,7 @@ export interface SignalComposerProps {
   buMembers?: MemberLookup
   onShared?: (id: string) => void
   prefill?: SignalComposerPrefill
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 function toDatetimeLocalValue(date: Date): string {
@@ -40,9 +41,15 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+function formatOccurred(value: string, justNow: string): string {
+  const date = new Date(value)
+  if (Math.abs(Date.now() - date.getTime()) < 60_000) return justNow
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
+}
+
 export function SignalComposer({
   authorId, authorName, canCreateForTeam = false, canMentionBu = false,
-  teamMembers = {}, buMembers = {}, onShared, prefill,
+  teamMembers = {}, buMembers = {}, onShared, prefill, onDirtyChange,
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
@@ -64,6 +71,7 @@ export function SignalComposer({
   // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
   // navigation keydowns to the picker's shared listbox contract.
   const mentionPickerRef = useRef<SignalMentionPickerHandle>(null)
+  useEffect(() => { onDirtyChange?.(body.trim().length > 0) }, [body, onDirtyChange])
 
   useEffect(() => {
     let cancelled = false
@@ -152,7 +160,8 @@ export function SignalComposer({
       setMentionToken(null)
       onShared?.(id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : ''
+      setError(code === '42501' ? t('signals.composer.postForbidden') : t('signals.composer.postFailed'))
     } finally {
       setPosting(false)
     }
@@ -223,46 +232,25 @@ export function SignalComposer({
         )}
       </div>
 
-      <SignalAttentionPicker value={attention} onChange={setAttention} />
-
-      <div className="signal-composer-row">
-        <Select
-          label={t('signals.composer.teamLabel')}
-          value={teamId}
-          onChange={(e) => setTeamId(e.target.value)}
-        >
-          {/* #19: with more than one eligible Team, an unselectable placeholder forces a deliberate
-              pick (the native select would otherwise show the first option while value stays ''). */}
-          {teams.length > 1 && (
-            <option value="" disabled>{t('signals.composer.teamPlaceholder')}</option>
-          )}
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>{team.name}</option>
-          ))}
-        </Select>
-
-        <label className="signal-composer-datetime">
-          <span className="signal-composer-field-label">
-            {t('signals.composer.occurredLabel')}
-            {/* OD-REDESIGN-91 #20: native picker stays; a quiet WIB hint states the zone. */}
-            <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
-          </span>
-          <input
-            type="datetime-local"
-            aria-label={t('signals.composer.occurredLabel')}
-            value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-          />
-        </label>
+      <div className="signal-composer-pill-row">
+        {site && <button type="button" className="signal-composer-pill signal-location-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>📍 {site.name}</button>}
+        <button type="button" className="signal-composer-pill signal-occurred-pill" onClick={() => (document.getElementById('signal-occurred-input') as HTMLInputElement | null)?.showPicker?.()}>
+          🕒 {formatOccurred(occurredAt, t('signals.composer.justNow'))} <span className="signal-composer-field-hint">WIB</span>
+        </button>
+        <SignalAttentionPicker value={attention} onChange={setAttention} />
+        <input id="signal-occurred-input" className="signal-occurred-input" type="datetime-local" aria-label={t('signals.composer.occurredLabel')} value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} />
       </div>
 
-      {site && (
-        <span className="signal-composer-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>
-          {site.name}
-        </span>
+      {teams.length > 1 && (
+        <div className="signal-composer-row">
+          <Select label={t('signals.composer.teamLabel')} value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+            <option value="" disabled>{t('signals.composer.teamPlaceholder')}</option>
+            {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+          </Select>
+        </div>
       )}
 
-      <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>
+      {selectedTeam && <p className="signal-composer-author">{t('signals.composer.owningTeamAuthor', { team: selectedTeam.name, name: authorName })}</p>}
 
       {shieldLine && <p className="signal-composer-vis">{shieldLine}</p>}
 

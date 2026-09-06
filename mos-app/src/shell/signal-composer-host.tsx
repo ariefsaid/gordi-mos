@@ -10,6 +10,7 @@ import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalShell } from '@/components/ui/modal-shell'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CloseIcon } from '@/shell/icons'
 import './signal-composer-host.css'
 
@@ -50,8 +51,13 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
   const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
+  const [composerDirty, setComposerDirty] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
-  const close = useCallback(() => { setIsOpen(false); setPrefill(undefined) }, [])
+  const close = useCallback(() => {
+    if (composerDirty) { setDiscardOpen(true); return }
+    setIsOpen(false); setPrefill(undefined)
+  }, [composerDirty])
   const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
   const handleShared = useCallback(() => { setPostCount((n) => n + 1); setPrefill(undefined); setIsOpen(false) }, [])
@@ -94,6 +100,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               </IconButton>
             </div>
             <SignalComposer
+              onDirtyChange={setComposerDirty}
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
@@ -106,6 +113,16 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           </div>
         </ModalShell>
       )}
+      <ConfirmDialog
+        open={discardOpen}
+        title={t('signals.composer.discardTitle')}
+        body={t('signals.composer.discardBody')}
+        confirmLabel={t('signals.composer.discardConfirm')}
+        cancelLabel={t('signals.composer.keepEditing')}
+        tone="destructive"
+        onCancel={() => { setDiscardOpen(false); document.querySelector<HTMLTextAreaElement>('[data-testid="signal-composer"] textarea')?.focus() }}
+        onConfirm={async () => { setDiscardOpen(false); setComposerDirty(false); setIsOpen(false); setPrefill(undefined) }}
+      />
     </SignalComposerContext.Provider>
   )
 }

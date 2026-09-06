@@ -1,17 +1,9 @@
-.signal-attention-picker { display: flex; flex-direction: column; gap: 6px; }
-.signal-attention-picker-label { font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500; }
-.signal-attention-picker-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.signal-attention-picker-option {
-  min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--background); color: var(--muted-foreground); font: inherit; font-size: var(--font-size-label);
-  cursor: pointer;
-}
-.signal-attention-picker-option[aria-checked='true'] { border-color: var(--ring); background: var(--secondary); color: var(--foreground); font-weight: 600; }
-.signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-
-/* #708: the pill's height already met the 44px phone floor; its content-driven width (43.2px /
-   42.2px measured) did not. Scoped to phone so the desktop 1440 render (already ≥44 by content)
-   is untouched. */
-@media (max-width: 767.98px) {
-  .signal-attention-picker-option { min-width: 44px; }
-}
+.signal-attention-picker { position: relative; }
+.signal-attention-pill { min-height: 44px; cursor: pointer; }
+.signal-attention-pill--needs-attention,
+.signal-attention-pill--urgent { background: color-mix(in srgb, var(--warning) 18%, var(--background)); color: var(--warning-foreground); }
+.signal-attention-pill--urgent { background: color-mix(in srgb, var(--destructive) 14%, var(--background)); color: var(--destructive); }
+.signal-attention-popover { position: absolute; z-index: 3; top: calc(100% + 4px); right: 0; min-width: 220px; padding: 4px; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay); }
+.signal-attention-choice { display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--foreground); text-align: left; cursor: pointer; }
+.signal-attention-choice:hover, .signal-attention-choice:focus-visible { background: var(--accent); outline: 0; }
+.signal-attention-choice span { color: var(--muted-foreground); font-size: var(--font-size-label); }

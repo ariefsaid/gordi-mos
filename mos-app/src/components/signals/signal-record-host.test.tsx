@@ -258,7 +258,8 @@ describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () 
 
     mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, attention: 'Urgent', edited_at: '2026-07-16T05:00:00Z' }, mentions: [], acknowledgements: [], tasks: [] })
     await userEvent.click(screen.getByRole('button', { name: /edit attention/i }))
-    await userEvent.click(screen.getByRole('radio', { name: 'Urgent' }))
+    await userEvent.click(screen.getByRole('button', { name: /Needs attention/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /Urgent/i }))
 
     expect(mockCorrectSignal).toHaveBeenCalledWith(SIGNAL_ID, { attention: 'Urgent' })
     await waitFor(() => expect(screen.getByText('Urgent')).toBeInTheDocument())

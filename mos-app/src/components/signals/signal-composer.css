@@ -22,6 +22,9 @@
   outline: 2px solid var(--ring); outline-offset: 1px; border-radius: var(--radius-lg);
 }
 
+.signal-composer-pill-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.signal-composer-pill-row .signal-composer-pill { border: 1px solid var(--border); cursor: pointer; }
+.signal-occurred-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .signal-composer-row { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .signal-composer-row > * { flex: 1; min-width: 180px; }
 
@@ -77,5 +80,7 @@
    primitive backs it, so it never inherited the DO-15(a) field floor). Raise it to the 44px
    touch minimum on phone. */
 @media (max-width: 767.98px) {
+  .signal-composer { min-height: 100%; box-sizing: border-box; padding-bottom: 76px; }
+  .signal-composer-foot { position: sticky; bottom: 0; margin: auto -16px -76px; padding: 12px 16px; background: var(--card); }
   .signal-composer-datetime input { min-height: 44px; }
 }
