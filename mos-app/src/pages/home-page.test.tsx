@@ -393,7 +393,7 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
 
     // Tasks/mentions/failed-checks all resolved, so the header states its tally while Signals is
     // still in flight — proof the feed contributes no count that could be wrong.
-    expect(await screen.findByText('0 handled · 0 left')).toBeInTheDocument()
+    expect(await screen.findByText('0 left')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /signals/i })).toBeNull()
 
     await act(async () => {
@@ -552,72 +552,44 @@ describe('DIV-G5 (home-layout-preference.spec.md §7): a failed shared-tasks rea
   })
 })
 
-// ── The compact day header (mockup home-priority-2026-07-28 `.hdr`) ───────────────────────────
-// ONE ~70px block: greeting + role, the day's tally, a rule-driven state line, a progress track.
-// It sits ABOVE the arrangements, so it must be identical in all three — and it must never state
-// a total it cannot stand behind (DIV-G5, the same rule as the region counts).
-describe('the Home header carries the day’s state (motivational half of the brief)', () => {
-  const doneTodayTaskRow = (viewerId: string) => ({
-    ...overdueTaskRow(viewerId),
-    id: 't-done', title: 'Count the till', status: 'Done' as const, due_date: null,
-    // "Today" by construction — no clock mocking, so this stays true on every run.
-    last_activity_at: new Date().toISOString(),
-  })
-
-  it('states the tally, the rule’s state line and the handled share, from counts Home already holds', async () => {
-    // 1 overdue task left (needs-you) + 1 finished today → "1 handled · 1 left", 50%,
-    // and left <= 3 puts the rule in its countdown band, where the number IS the message.
-    mockListTasks.mockResolvedValue([
-      overdueTaskRow(financeViewer.viewer.person.id),
-      doneTodayTaskRow(financeViewer.viewer.person.id),
-    ])
-    await renderHome(financeViewer)
+// AC-040 — the day header DOM holds greeting + role chip + `N left` ONLY: no rotating state
+// sentence, no progressbar, no help button. The wrap half of the contract (chip to line 2 at 390,
+// one line everywhere else) is pinned at the CSS layer in guard-home-day-header.css.test.ts —
+// jsdom computes no layout — so here the assertion is the DOM facts that CSS leans on, plus the
+// 44px floor's honest precondition: the header contains NO interactive control at all, so none
+// can measure under 44px.
+describe('AC-040 — the day header is greeting + role chip + N left, nothing else', () => {
+  it('renders greeting, role chip and the left tally — and no control, track or slogan', async () => {
+    mockListTasks.mockResolvedValue([])
+    await renderHome(ownerDirectorViewer)
     await screen.findByRole('tablist')
-
-    expect(await screen.findByText('1 handled · 1 left')).toBeInTheDocument()
-    expect(screen.getByText('1 more to go.')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Handled today' }))
-      .toHaveAttribute('aria-valuenow', '50')
+    const head = screen.getByTestId('page-head')
+    expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent(/Good (morning|afternoon|evening)/)
+    expect(within(head).getByText('Managing Director')).toBeInTheDocument()
+    expect(within(head).getByText('0 left')).toBeInTheDocument()
+    // The opt-in modes the one-line CSS contract keys on (guard-home-day-header.css.test.ts).
+    expect(head).toHaveClass('home-day-header', 'content-header--compact')
+    // No state sentence, no progress track, no help tip — and, since none of those exist, no
+    // interactive control of ANY kind in the header (the 44px floor is vacuously met).
+    expect(within(head).queryByText(/handled|Fresh start|Clean slate/i)).toBeNull()
+    expect(within(head).queryByRole('progressbar')).toBeNull()
+    expect(within(head).queryByRole('button')).toBeNull()
+    expect(within(head).queryByRole('link')).toBeNull()
   })
 
-  it('is identical in all three arrangements — it sits above them', async () => {
-    mockListTasks.mockResolvedValue([
-      overdueTaskRow(financeViewer.viewer.person.id),
-      doneTodayTaskRow(financeViewer.viewer.person.id),
-    ])
-    for (const layout of ['focused', 'overview', 'list'] as const) {
-      window.localStorage.setItem(`gordi.home.layout.${financeViewer.viewer.person.id}`, layout)
-      const { unmount } = await renderHome(financeViewer)
-      const head = await screen.findByTestId('page-head')
-      expect(within(head).getByText('1 handled · 1 left'), layout).toBeInTheDocument()
-      expect(within(head).getByText('1 more to go.'), layout).toBeInTheDocument()
-      expect(within(head).getByRole('progressbar'), layout).toHaveAttribute('aria-valuenow', '50')
-      unmount()
-    }
-  })
-
-  it('DIV-G5: a region whose read failed leaves the header with NO tally, not a wrong one', async () => {
+  // DIV-G5 (the standing rule the deleted state-line tests used to carry): a failed read leaves
+  // the header with NO tally — absent, never zero.
+  it('a region read that fails leaves the header with no tally figure at all', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     mockListNotifications.mockRejectedValue(new Error('offline'))
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
-
     const head = screen.getByTestId('page-head')
-    expect(within(head).queryByText(/handled ·/)).toBeNull()
-    expect(within(head).queryByRole('progressbar')).toBeNull()
-    expect(within(head).getByText('Today’s tally isn’t in yet.')).toBeInTheDocument()
-  })
-
-  it('the header replaces the rhetorical job sentence rather than stacking on top of it', async () => {
-    mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
-    await renderHome(financeViewer)
-    await screen.findByRole('tablist')
-    // The state line answers "how is my day going" — a live question the static registry sentence
-    // ("What needs my attention right now?") only asked. Both would not fit the ~70px block.
-    expect(screen.queryByText(/What needs my attention/i)).toBeNull()
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(within(head).queryByText(/\d+ left/)).toBeNull()
+    expect(within(head).queryByText(/handled/)).toBeNull()
   })
 })
+
 // ── AC-204 (4): "Home's owner-cockpit section reads as intentional rather than as a surface with
 // something removed." #179 cut the cascade route and took Home's progress drill with it. The
 // successor door is the Objectives roll-up, and it must be on the Home people actually land on —

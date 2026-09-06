@@ -52,14 +52,11 @@ import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
 import { unreadMentions, wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  mentionStreamItems, myWorkStreamItems, openTaskCount, handledTodayCount, type StreamBand,
+  mentionStreamItems, myWorkStreamItems, openTaskCount, type StreamBand,
 } from '@/lib/home-stream'
-import { dayRotation } from '@/lib/home-day-state'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { buildHomeRegions } from '@/components/home/home-regions'
-import {
-  HomeHeadCounts, HomeHeadState, type HomeDayTally,
-} from '@/components/home/home-day-header'
+import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-header'
 import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
@@ -67,7 +64,6 @@ import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { isShipGated } from '@/lib/ship-gate'
-import { HelpTip } from '@/components/ui/help-tip'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
 
@@ -339,19 +335,12 @@ export function HomePage() {
     ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
     : null
 
-  // H10 fix (design audit, 2026-07-28): the "?" HelpTip always rides beside the role meta line
-  // (never conditional on it) — it explains the attention bands regardless of whether a role
-  // label happens to be present this render.
-  const headMeta = (
-    <>
-      {roleLabel && (
-        <span className="ch-meta-line home-head-meta">
-          {roleLabel}
-        </span>
-      )}
-      <HelpTip label={t('home.help')} />
-    </>
-  )
+  // The role chip — the day header's ONLY meta (DESIGN.md § Components → Home arrangements →
+  // "Home day header"). The overline rung + relaxed nowrap it needs live on `.home-head-role`
+  // in home-page.css; the wrap behaviour comes from the shared head grammar, not from markup.
+  const headMeta = roleLabel
+    ? <span className="ch-meta-line home-head-role">{roleLabel}</span>
+    : null
 
   // ── Home layout preference (OD-V4-9) — resolved LAZILY at first render (FR-921/924, #301):
   // initializing to 'focused' and correcting in a post-mount effect painted one wrong frame for
@@ -386,10 +375,12 @@ export function HomePage() {
     ],
   )
 
-  // ── The day's tally behind the header (mockup home-priority-2026-07-28 `.hdr`) ───────────────
-  // NO new data read: `left` is the sum of the SAME region counts rendered a few pixels below it
-  // (so the number reconciles with what the viewer can see), and `done` comes off the tasks
-  // projection Home already fetched.
+  // ── The day's tally behind the header ──────────────────────────────────────────────────────
+  // `left` only — the sum of the SAME region counts rendered a few pixels below it, so the number
+  // reconciles with what the viewer can see. No new data read, and no `done`: nothing in the app
+  // records WHEN work was handled, so a "handled" figure would be invented (ruling #6 — drop the
+  // tally and its track, keep `N left`). The `done?` input stays a REAL option: a future source
+  // (e.g. a `completed_at`) may supply it, and the tally then reads `N handled · N left`.
   //
   // Null — never a partial total — the moment ANY region count is null, i.e. any read behind it
   // has not succeeded (DIV-G5). A header that adds up the reads that happened to land would state
@@ -402,24 +393,24 @@ export function HomePage() {
       if (region.count === null) return null
       left += region.count
     }
-    return { done: handledTodayCount(tasks, personId, today), left }
-  }, [personId, regions, tasks, today])
+    return { left }
+  }, [personId, regions])
 
   return (
     <PageFamilyFrame
       family="workspace"
       surfaceWash
       title={viewer ? t(greetingKey(), { name: viewer.person.full_name.split(' ')[0] }) : t('home.title')}
-      // No `jobSentence`: this head carries a `statusRow`, and PageHead renders one or the other,
-      // never both. The live state line answers "what is this page for right now" better than the
-      // static registry sentence, which on Home only re-asked the question. Passing a sentence
-      // that is guaranteed to be discarded is a comment pretending to be code.
+      // No `jobSentence`: the day header is greeting + role chip + tally, one line — its answer
+      // to "what is this page for right now" is the tally itself. A sentence here would be the
+      // third line the header was just cut back from (ruling #6).
       meta={headMeta}
-      // `N handled - N left`, right-aligned on the title row; the state line + progress track on
-      // the row below it. Both live INSIDE the one shared header block, so every arrangement
-      // inherits the identical header (it sits above them).
       action={<HomeHeadCounts tally={tally} />}
-      statusRow={<HomeHeadState tally={tally} rotation={dayRotation(today)} />}
+      // One line at every width (guard-home-day-header.css.test.ts pins the wrap): `--compact`
+      // is the shared head grammar's stepped-down-title + phone-inline-meta mode — the winning
+      // mockup's greeting rung (`--fs-md` = subheading) and the rule that keeps the chip beside
+      // the greeting until the ≤390 block in home-page.css drops it to line 2.
+      headClassName="home-day-header content-header--compact"
     >
       {/* `.home-frame` exists for ONE reason: it is the inline-size container every arrangement's
           responsive branch is measured against (FR-932 / NFR-923 / DESIGN.md § Layout → The

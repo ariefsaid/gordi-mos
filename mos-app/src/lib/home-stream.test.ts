@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   daysOverdue, overdueStreamItems, dueTodayStreamItems, blockedStreamItems,
-  failedCheckStreamItems, mentionStreamItems, myWorkStreamItems, openTaskCount, handledTodayCount,
+  failedCheckStreamItems, mentionStreamItems, myWorkStreamItems, openTaskCount,
   signalStreamItems, isAttentionSignal,
   type AttentionDirectory,
 } from './home-stream'
@@ -165,39 +165,3 @@ describe('signalStreamItems (OD-84.1 / Luna P0-1 — attention-worthy Signals le
 })
 
 
-describe('handledTodayCount', () => {
-  it('counts the viewer’s OWN tasks that reached Done today (WIB)', () => {
-    expect(handledTodayCount([
-      task({ status: 'Done', last_activity_at: '2026-07-22T03:00:00Z' }), // 10:00 WIB today
-      task({ status: 'Done', last_activity_at: '2026-07-21T20:00:00Z' }), // 03:00 WIB today (UTC+7)
-    ], VIEWER, TODAY)).toBe(2)
-  })
-
-  it('does not count work that is not Done, however recently it was touched', () => {
-    expect(handledTodayCount([
-      task({ status: 'In Progress', last_activity_at: '2026-07-22T03:00:00Z' }),
-      task({ status: 'Blocked', last_activity_at: '2026-07-22T03:00:00Z' }),
-    ], VIEWER, TODAY)).toBe(0)
-  })
-
-  it('does not count a task finished on an earlier day', () => {
-    expect(handledTodayCount([
-      task({ status: 'Done', last_activity_at: '2026-07-21T03:00:00Z' }),
-    ], VIEWER, TODAY)).toBe(0)
-  })
-
-  it('does not count somebody else’s finished work', () => {
-    expect(handledTodayCount([
-      task({
-        status: 'Done', last_activity_at: '2026-07-22T03:00:00Z',
-        responsible_person_id: 'p-other', accountable_person_id: 'p-else',
-      }),
-    ], VIEWER, TODAY)).toBe(0)
-  })
-
-  it('survives an unparseable timestamp rather than counting it', () => {
-    expect(handledTodayCount([
-      task({ status: 'Done', last_activity_at: 'not-a-timestamp' }),
-    ], VIEWER, TODAY)).toBe(0)
-  })
-})
