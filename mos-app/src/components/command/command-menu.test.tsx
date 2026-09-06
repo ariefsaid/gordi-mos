@@ -239,17 +239,37 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     expect(await screen.findByRole('option', { name: /Cahya/ })).toBeInTheDocument()
   })
 
-  it('issue 748: activating a person hit never navigates — a row named for someone else must not open the viewer’s own profile', async () => {
+  it('issue 748: a person hit is INERT — pressing it neither navigates nor closes the palette', async () => {
     mockSearchPeople.mockResolvedValue([{ id: 'p2', full_name: 'Cahya' }])
     const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'cah' } })
     const opt = await screen.findByRole('option', { name: /Cahya/ })
     fireEvent.click(opt)
     // shared.people has no record route, and the palette's only /profile route is the VIEWER'S
-    // OWN — so the person row closes the palette and goes nowhere, exactly like the other
-    // kinds-with-nowhere-to-land are withheld rather than pointed at a bounce.
+    // OWN — so the withheld target is a disabled row, not a dead press: the click is refused
+    // outright (no navigation, no close), exactly like the other kinds-with-nowhere-to-land are
+    // withheld rather than pointed at a bounce.
     expect(screen.getByTestId('location').textContent).toBe('/')
-    expect(onClose).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('issue 748: a person hit reads as disabled — aria-disabled, and the roving index skips it', async () => {
+    mockSearch.mockResolvedValue([{ id: 't1', title: 'Restock cups', status: 'Open' }])
+    mockSearchPeople.mockResolvedValue([{ id: 'p2', full_name: 'Cahya' }])
+    renderMenu()
+    const input = screen.getByRole('combobox')
+    fireEvent.change(input, { target: { value: 'cah' } })
+    const person = await screen.findByRole('option', { name: /Cahya/ })
+    expect(person).toHaveAttribute('aria-disabled', 'true')
+
+    // Records order is Tasks → People, so the task sits above the person. The roving index walks
+    // ACTIVATABLE rows only: ↓ twice must still rest on the task — resting on (or passing through)
+    // the person row would make Enter a dead press on a withheld target.
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    const task = screen.getByRole('option', { name: /Restock cups/ })
+    expect(input.getAttribute('aria-activedescendant')).toBe(task.id)
+    expect(input.getAttribute('aria-activedescendant')).not.toBe(person.id)
   })
 
   // Asserting ANY group, not the two current labels: a name-based query passed vacuously against
@@ -884,21 +904,6 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     expect(within(navigate).getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Home', 'Work', 'Projects & Processes', 'Objectives', 'Inbox', 'Personal Profile',
     ])
-  })
-
-  it('a child separated from Work by an unrelated row wears no rung either', async () => {
-    // Query "e" leaves Home · Café · Personal Profile · Projects & Processes · Objectives — Work
-    // is gone and none of the rows above the children is a parent. A CSS sibling rule
-    // (`.cm-item:not([data-child]) ~ [data-child]`) would hang the guide off HOME here; the run
-    // back to the parent has to be unbroken, not merely preceded — which is also why the typed
-    // view emits children adjacent to the Work row: with the adjacency in place the strict run
-    // guard only fires when the parent itself was filtered or gated away.
-    renderMenu()
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'e' } })
-    expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeTruthy()
-    expect(screen.queryByRole('option', { name: /^Work$/i })).toBeNull()
-
-    expect(childRows()).toHaveLength(0)
   })
 
   it('a FILTERED result that kept its parent keeps the rung', async () => {

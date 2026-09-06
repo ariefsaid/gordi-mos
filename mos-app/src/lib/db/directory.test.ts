@@ -169,6 +169,8 @@ describe('getDownlinePersonIds', () => {
     }) as never)
     await expect(getDownlinePersonIds('viewer')).rejects.toThrow(/rls denied/)
   })
+})
+
 // ── searchPeopleByName (⌘K palette read path, #748) ───────────────────────
 describe('searchPeopleByName', () => {
   const personRow = { id: '40000000-0000-0000-0000-000000000001', full_name: 'Cahya Cafe' }
@@ -185,6 +187,9 @@ describe('searchPeopleByName', () => {
     // A wildcard in the query is escaped, so "50_" matches a literal underscore — not any char.
     await searchPeopleByName('50_')
     expect(rec.ilikes).toContainEqual(['full_name', '%50\\_%'])
+    // PostgREST takes `*` as a LIKE wildcard too (its ilike alias for %), so it is escaped as well.
+    await searchPeopleByName('a*b')
+    expect(rec.ilikes).toContainEqual(['full_name', '%a\\*b%'])
   })
 
   it('AC-C1-P-search-err: throws on PostgREST error', async () => {

@@ -22,6 +22,7 @@ import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
 import { useT } from '@/i18n/use-t'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
+import { WORK_PARENT_ID, withResolvedRungs, type CommandItem } from './rungs'
 import type { CommandMenuMode } from './use-command-menu'
 import './command-menu.css'
 
@@ -39,35 +40,6 @@ export type CommandMenuProps = {
    * object palette").
    */
   mode?: CommandMenuMode
-}
-
-// A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
-// 'navigate' (goes to `to`), 'record' (a Task row → pushRecent + navigate canonical).
-// `run` extends the existing activate() so universal actions (Ask Deputy / Share
-// Signal) that are not pure navigations can dispatch (D-PLN-7). `gated` hides an
-// item (Money navigate) when the viewer is unauthorized.
-type CommandItem = {
-  id: string
-  label: string
-  /** SVG icon from the app icon system (parity A1 — the palette is one monochrome set, never emoji) */
-  Icon: React.ComponentType
-  kind: 'action' | 'navigate' | 'record'
-  to?: string
-  run?: () => void
-  meta?: string
-  gated?: boolean
-  record?: { id: string; title: string }
-  /**
-   * This row is one of Work's DECLARED children — a fact about the registry, true whatever the
-   * query is. It is not yet a licence to draw the rung: `withResolvedRungs` decides that against
-   * what actually renders, and clears the flag on a child whose parent row was filtered away.
-   *
-   * Where it survives, it is rendered as `data-child`, the palette's counterpart of the
-   * rail/drawer's `rail-item--child` rung class: every nav surface has to say which of its rows
-   * are children, or a guard comparing their sequences reads the Work PARENT row (`/work/tasks`,
-   * same target as the Tasks child) as a child too and the lists stop being comparable (issue 479).
-   */
-  child?: boolean
 }
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
@@ -89,40 +61,9 @@ type ItemGroup = { key: string; label: string; items: CommandItem[] }
 const WORK_DEST = DESTINATIONS.find((d) => d.id === 'work')
 const WORK_CHILDREN: readonly Section[] = WORK_DEST?.children ?? []
 
-/** The Work PARENT row — the one row a Work child may hang its rung from. */
-const WORK_PARENT_ID = 'n-work'
-
-/**
- * The rung states a RELATIONSHIP, so it may only be drawn while both ends are on screen.
- *
- * `child: true` says "the registry declares this row under Work". The rung says something else:
- * "my parent row is rendered above me". Since #738 the palette rests on destination ROOTS, so
- * children render only in the typed view — where `searchableNavigateItems` emits them ADJACENT to
- * the Work row (directly beneath it, before the surviving roots) so the run is unbroken by
- * construction. The rung therefore survives the typed view: DESIGN.md's Rail Type Ladder is
- * "per-level, not per-surface" — a child wears the Child rung wherever it is listed.
- *
- * So resolve the claim against what actually renders, at the last seam before render (after the
- * query filter AND after the ship gate, either of which can remove the parent): a child keeps its
- * rung only while an unbroken run of children reaches back to the Work parent row above it. The
- * run matters as much as the parent — the guide is one continuous line, and a non-child row
- * dropped into the middle of it (the pre-delta typed view parked roots like Inbox or Personal
- * Profile between Work and its children) ends the tree the indent is describing.
- *
- * Deleting the rung instead is not available: two adjacent rows to the SAME target, at one weight
- * and one indent, is the regression issue 479 closed.
- */
-function withResolvedRungs(items: CommandItem[]): CommandItem[] {
-  let underWork = false
-  return items.map((item) => {
-    if (!item.child) {
-      underWork = item.id === WORK_PARENT_ID
-      return item
-    }
-    if (underWork) return item
-    return { ...item, child: false }
-  })
-}
+// `CommandItem`, `WORK_PARENT_ID` and `withResolvedRungs` live in ./rungs — pure logic in a
+// non-component module, so the resolver stays exported and pinnable by unit test (a .tsx file
+// exporting a function alongside a component breaks react-refresh).
 
 // OD-REDESIGN-91 #4/B2: the palette searches ALL record kinds now — Tasks + Signals +
 // AR Follow-ups — so a hit carries its kind (drives the row icon, route, and kind label).
@@ -360,9 +301,11 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
         label: r.title,
         Icon: cfg.Icon,
         kind: 'record',
-        // A person hit carries no target (see RECORD_KIND_CONFIG) — it closes the palette and
-        // goes nowhere, rather than opening the viewer's own profile.
+        // A person hit carries no target (see RECORD_KIND_CONFIG): a WITHHELD row, not a bounce
+        // to the viewer's own profile — it reads disabled (aria-disabled, skipped by the roving
+        // index, see CommandItem.disabled) and a press is refused instead of closing the palette.
         to: cfg.to ? cfg.to(r.id) : undefined,
+        disabled: cfg.to === null,
         // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
         meta: t(cfg.kindLabelKey),
         // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
@@ -400,7 +343,13 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     [groups],
   )
 
-  const flatItems = useMemo(() => visibleGroups.flatMap((g) => g.items), [visibleGroups])
+  // The roving index walks ACTIVATABLE rows only: a disabled row (person hit — a withheld
+  // target, see CommandItem.disabled) renders aria-disabled but ↑↓/Enter never rest on it, and
+  // the active row can never be a press the palette must refuse.
+  const flatItems = useMemo(
+    () => visibleGroups.flatMap((g) => g.items).filter((i) => !i.disabled),
+    [visibleGroups],
+  )
   const activeId = flatItems[active]?.id
 
   useEffect(() => { setActive(0) }, [trimmed])
@@ -487,7 +436,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                 <span className="sr-only">{t('commandMenu.status.searchingRecords')}</span>
               </div>
             )}
-            {flatItems.length > 0 ? visibleGroups.map((group) => (
+            {visibleGroups.length > 0 ? visibleGroups.map((group) => (
               <div key={group.key} role="group" aria-label={group.label}>
                 <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
                 <div className="cm-group-list">
@@ -500,6 +449,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         ref={(element) => { optionRefs.current[item.id] = element }}
                         role="option"
                         aria-selected={isActive}
+                        aria-disabled={item.disabled ? 'true' : undefined}
                         /* The rung, said twice — once to the eye, once to the screen reader, from
                            the ONE resolved answer above. `data-child` is the style hook for the
                            ladder's Child rung (command-menu.css) and the marker the cross-surface
@@ -520,7 +470,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         data-child={item.child ? 'true' : undefined}
                         aria-describedby={item.child ? WORK_PARENT_ID : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
-                        onClick={() => activate(item)}
+                        onClick={() => { if (!item.disabled) activate(item) }}
                         onMouseMove={() => {
                           const idx = flatItems.findIndex((f) => f.id === item.id)
                           if (idx >= 0) setActive(idx)
