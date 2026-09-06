@@ -314,7 +314,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // §Task-11: no Team-work chip exists.
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'AR Follow-ups' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 

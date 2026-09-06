@@ -15,9 +15,7 @@ import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
 import { NO_WORK_LINE_KEY } from '@/lib/cascade/count-rollup'
-import { SHOW_FOLLOWUPS } from '@/config/features'
-import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
-import { EmptyState } from '@/components/ui/state-kit'
+import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import { useT } from '@/i18n/use-t'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
@@ -29,11 +27,11 @@ import type { WorkloadSummary } from './workload-caption'
 import { TaskRow } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
-import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import type {
   CollectionPresentationProps,
   CollectionProjection,
 } from '@/lib/record-collection/types'
+import { taskTableColumnSpan } from './task-collection-query'
 import type {
   TaskCollectionContext,
   TaskCollectionQuery,
@@ -69,8 +67,6 @@ export interface TaskCollectionRuntime {
   onClearOverdue: () => void
   createHref: To
   dueRuns: UseDueRunsResult
-  followups: boolean
-  followupsEnabled: boolean
   canResolvePending: boolean
 }
 
@@ -94,6 +90,8 @@ function useTaskCollectionRuntime(): TaskCollectionRuntime | null {
   return useContext(TaskCollectionRuntimeContext)
 }
 
+// Direct descriptor-render tests and Storybook-like probes do not mount the live workspace
+// provider. They still get the same typed presentation, with only routing/host callbacks inert.
 const EMPTY_DUE_RUNS: UseDueRunsResult = {
   capable: false,
   due: [],
@@ -134,8 +132,6 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onClearOverdue: () => {},
   createHref: '/work/tasks/new',
   dueRuns: EMPTY_DUE_RUNS,
-  followups: false,
-  followupsEnabled: false,
   canResolvePending: false,
 }
 
@@ -495,6 +491,13 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditPic={runtime.onEditPic}
         personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
+        // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.
+        // The names resolve through the same catalogs the group headers use (id → display name).
+        showWorkline={query.visibleFields.includes('workline')}
+        workLineName={workLineMap.get(task.work_line_id ?? '') ?? ''}
+        showObjective={query.visibleFields.includes('objective')}
+        objectiveName={objectiveMap.get(task.objective_id ?? '') ?? ''}
+        showActivity={query.visibleFields.includes('activity')}
         isNew={task.id === runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
         createError={task.id === runtime.draftTask?.id && runtime.draftLinkError}
@@ -514,7 +517,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       count={group.rows.length}
       overdue={group.overdue}
       collapsed={isCollapsedPreference(group.key)}
-      colSpan={query.visibleFields.includes('businessUnit') ? 7 : 6}
+      colSpan={taskTableColumnSpan(query.visibleFields)}
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
@@ -529,28 +532,16 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     />
   )
 
-  if (runtime.followups) {
-    return runtime.followupsEnabled && SHOW_FOLLOWUPS ? (
-      <div className="follow-ups-embed" role="region" aria-label={t('tasks.saved.followups')}>
-        <FollowUpQueueEmbed />
-      </div>
-    ) : (
-      // DO-24(c): the shared EmptyState kit, not a hand-rolled copy of its markup — the bespoke
-      // div carried `.empty-state--quiet` as a dead literal and skipped the kit's icon/testid.
-      <EmptyState
-        variant="quiet"
-        title={t('tasks.followups.title')}
-        copy={t('tasks.followups.copy')}
-      />
-    )
-  }
-
   return (
     <>
       <TasksTableBody
         loading={false}
         error={null}
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
+        showWorkline={query.visibleFields.includes('workline')}
+        showObjective={query.visibleFields.includes('objective')}
+        showActivity={query.visibleFields.includes('activity')}
+        columnSpan={taskTableColumnSpan(query.visibleFields)}
         leafTasks={leafTasks}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}

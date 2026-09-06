@@ -114,7 +114,7 @@ const TASK_GROUP_FIELDS: readonly TaskCollectionGroup[] = ['status', 'pic', 'bu'
 const TASK_VISIBLE: readonly TaskCollectionVisibleField[] = [
   'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
 ]
-const TASK_VIEWS = ['all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups']
+const TASK_VIEWS = ['all', 'my-work', 'my-pic', 'my-supervisor', 'overdue']
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
 
 const SIGNAL_PRESENTATIONS: readonly SignalCollectionPresentation[] = ['feed', 'table']

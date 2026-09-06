@@ -36,10 +36,10 @@ export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
 
-// §Task-11 (Issue-8 gate): there is NO `team` view. The legacy Team-work chip is removed from the
-// Task descriptor and `view=team` is rejected until Issue 8's real Task team_id contract lands.
+// §Task-11 (Issue-8 gate): there is NO `team` view — `view=team` is rejected until Issue 8's real
+// Task team_id contract lands. The Team-work chip is the saved-views ticket's, not this one's.
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'followups'
+  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -64,13 +64,14 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
+  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 
-/** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw. */
-const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work' }
+/** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw.
+ * `followups` is the retired AR Follow-ups view (#743): old links land on the All view. */
+const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work', followups: 'all' }
 
 /** URL slug <-> TaskStatus. The DB stores capitalized status; the URL uses a stable slug. */
 const STATUS_BY_SLUG: Readonly<Record<string, TaskStatus>> = {
@@ -87,6 +88,14 @@ const SLUG_BY_STATUS: Readonly<Record<TaskStatus, string>> = {
 }
 
 export const TASK_DECISION_FIELDS: readonly TaskCollectionVisibleField[] = ['title', 'pic', 'supervisor', 'status', 'due']
+
+/** Column span of the desktop Tasks table: the five decision columns + the row-menu column,
+ * plus one per visible optional field. Group-header rows and the virtualized body's pad rows must
+ * agree with the thead — this helper is the one source of that number (AC-006, #743). */
+export function taskTableColumnSpan(visibleFields: readonly TaskCollectionVisibleField[]): number {
+  const optional = (field: TaskCollectionVisibleField) => (visibleFields.includes(field) ? 1 : 0)
+  return 6 + optional('businessUnit') + optional('workline') + optional('objective') + optional('activity')
+}
 
 export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
   layout: 'table',

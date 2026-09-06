@@ -166,7 +166,8 @@ describe('FR-231 — Work-line option in the Group chip', () => {
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
-    expect(options).toContain('Project/Process')
+    // #743: group options carry the "Group: " prefix (FR-005).
+    expect(options).toContain('Group: Project/Process')
   })
 })
 

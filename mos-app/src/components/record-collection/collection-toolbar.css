@@ -109,12 +109,20 @@
   padding: 8px 12px;
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
-.collection-toolbar__filter-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex-wrap: wrap;
+/* #743 r3: a popover filter (Status) is ONE dropdown-class control — the trigger borrows the
+   select-box chrome (.mk-select__box) and its choices live in the anchored Fields-menu popover,
+   so the row itself never renders a checkbox. position:relative anchors that popover. */
+.collection-toolbar__choice { position: relative; }
+.collection-toolbar__choice-trigger {
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.collection-toolbar__choice-trigger .mk-select__field {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Secondary controls stay in normal document flow so focus order follows the visible row. */
@@ -154,7 +162,33 @@
 }
 
 .collection-toolbar__select .mk-select__box { max-width: 180px; }
+/* Tasks' twelve-control desktop grammar has one line at the 1440px reference width. Keep the
+   controls compact enough to share that row; narrower desktops retain the normal wrapping rule. */
+@media (min-width: 1200px) {
+  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 8px; }
+  .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
+  .tasks-collection-toolbar .collection-toolbar__select .mk-select__box { max-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__query { flex: 0 1 220px; min-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__search { min-width: 150px; }
+}
+.collection-toolbar__option-field--group .mk-select__box {
+  background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));
+  border-color: var(--brand-navy);
+  color: var(--brand-navy-text);
+  font-weight: 600;
+}
+.collection-toolbar__option-field--group .mk-select__field { color: var(--brand-navy-text); }
 .collection-toolbar__select .mk-select__field { text-overflow: ellipsis; }
+
+/* #743: the search lives INSIDE row 2 now (one row: search · group · filters · sort · fields ·
+   save view · attention). The standalone field's own query-row chrome (padding, tinted band,
+   full width) belongs to hosts that plant it OUTSIDE the toolbar — embedded, it is one quiet
+   control among its neighbours. */
+.collection-toolbar__options .collection-toolbar__query {
+  width: auto;
+  padding: 0;
+  background: transparent;
+}
 
 .collection-toolbar__search {
   display: inline-flex;
@@ -200,14 +234,31 @@
   white-space: nowrap;
 }
 
-.collection-toolbar__save {
+.collection-toolbar__save-zone {
+  position: relative;
   display: flex;
-  align-items: end;
-  gap: 8px;
-  flex-basis: 100%;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
 }
+
+/* AC-007 (#743): anchored popover (audit C20/I3) — opens OVER the content below the trigger,
+   never as a new toolbar row. Same chrome as the Fields menu. */
+.collection-toolbar__save {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 240px;
+  padding: 8px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-popover);
+}
+
+.collection-toolbar__save-actions { display: flex; align-items: center; gap: 8px; }
 
 .collection-toolbar__save-field {
   display: flex;
@@ -218,7 +269,7 @@
 }
 
 .collection-toolbar__save-field input {
-  width: min(260px, 60vw);
+  width: 100%;
   height: 32px;
   padding: 0 10px;
   border: 1px solid var(--input);
@@ -309,7 +360,17 @@
      out-rank the shared .tap-floor utility on this one control. */
   .collection-toolbar__toggle { min-height: 44px; }
   .collection-toolbar__view { min-height: 44px; }
-  .collection-toolbar__save { align-items: stretch; flex-wrap: wrap; }
+  /* Phone stands on the OD-REDESIGN-84 door panel: the save door re-joins the flow as a
+     full-width strip (an absolute popover would clip inside the scrolled panel). */
+  .collection-toolbar__save {
+    position: static;
+    flex-basis: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    min-width: 0;
+    border-top: 1px solid var(--border-light);
+  }
   .collection-toolbar__save-field { flex: 1 1 100%; }
-  .collection-toolbar__save-field input { width: 100%; min-height: 44px; }
+  .collection-toolbar__save-field input { min-height: 44px; }
 }

@@ -18,7 +18,7 @@ import { Navigate, useLocation, useParams } from 'react-router-dom'
  * and only the entries someone remembered to wire to `SearchRedirect` preserved the query at all.
  * One component makes the whole map enumerable and gives every entry the same guarantees.
  *
- * A `to` that carries its own query string (`/work/tasks?view=followups`) keeps it and drops the
+ * A `to` that carries its own query string (`/work/tasks?view=overdue`) keeps it and drops the
  * incoming one: that target names a specific view, so honouring the caller's `?view=` would defeat
  * the point of the redirect.
  */

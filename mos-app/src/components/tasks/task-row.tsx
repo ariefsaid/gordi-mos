@@ -17,7 +17,7 @@ import { StatusPill } from './status-pill'
 import { statusTone } from './status-tone'
 import { Select } from '@/components/ui/select'
 import { PicCell } from './pic-cell'
-import { formatDate } from './task-formatters'
+import { formatDate, formatAge } from './task-formatters'
 import { RowMenu } from './row-menu'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -62,6 +62,13 @@ export type TaskRowProps = {
   onEditPic?: (taskId: string, personId: string) => Promise<void>
   personOptions?: readonly { id: string; full_name: string }[]
   showBusinessUnit?: boolean
+  /** AC-006 (#743): each Fields-chooser column renders a real cell when checked. The names are
+   * resolved by the caller through the same catalogs the group headers use. */
+  showWorkline?: boolean
+  workLineName?: string
+  showObjective?: boolean
+  objectiveName?: string
+  showActivity?: boolean
   isNew?: boolean
   onDiscardNewTask?: () => void
   createError?: boolean
@@ -83,7 +90,9 @@ export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
+  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false,
+  showWorkline = false, workLineName = '', showObjective = false, objectiveName = '',
+  showActivity = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -386,13 +395,20 @@ export function TaskRow({
           </span>
         ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
-      {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row shows ONLY
-          the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu).
-          Work-line/Project-Process, Objective, Team, Source, Activity moved to the
-          record drawer/full page (where the typed Task already shows them — OD-62).
-          This is column PRIORITY, not data removal. */}
+      {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row's DEFAULT is only
+          the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu). The Fields
+          chooser (AC-006, #743) opts IN to real Project/Process · Objective · Last activity
+          columns here; this is column PRIORITY, not data removal. */}
       <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
       {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
+      {showWorkline ? <td className="td-cell td-workline">{workLineName || <span className="td-empty">—</span>}</td> : null}
+      {showObjective ? <td className="td-cell td-objective">{objectiveName || <span className="td-empty">—</span>}</td> : null}
+      {showActivity ? (
+        <td className="td-cell td-activity td-nowrap">
+          {/* The feed's compact age grammar, as a title-carrying absolute fallback. */}
+          <span className="tabular-nums" title={task.last_activity_at}>{formatAge(task.last_activity_at, now, locale)}</span>
+        </td>
+      ) : null}
       <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>

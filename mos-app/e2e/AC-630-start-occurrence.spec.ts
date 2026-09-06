@@ -56,7 +56,11 @@ async function sql(query: string): Promise<Array<Record<string, unknown>>> {
   return (await res.json()) as Array<Record<string, unknown>>
 }
 
-test('AC-630: Start a due occurrence → single-holder Task groups under the caption → resolve the ambiguous step → same group', async ({ page }) => {
+// #743 ruling round 3: the runs-due pill — this journey's only Start door on /work/tasks — LEFT
+// the Tasks toolbar (the toolbar is twelve controls in every state). #754 re-homes the pill +
+// list at Home/Café and owns restoring this journey there. fixme, not skip: the door must come
+// back, and this is the reminder.
+test.fixme('AC-630: Start a due occurrence → single-holder Task groups under the caption → resolve the ambiguous step → same group', async ({ page }) => {
   test.setTimeout(90_000)
 
   const teamRows = await sql(

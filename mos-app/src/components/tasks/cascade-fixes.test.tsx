@@ -120,7 +120,7 @@ function stubMatchMedia(split = true, desktop = true) {
 }
 
 function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
-  return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
+  return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, search: '' }
 }
 
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
@@ -608,16 +608,17 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     vi.mocked(listTasks).mockResolvedValue([
       makeTask({ id: 't1', title: 'A task' }),
     ])
-    renderWorkspace()
+    const { container } = renderWorkspace()
     await waitFor(() => screen.getByText('A task'))
 
     const initialObjectivesCalls = vi.mocked(listObjectives).mock.calls.length
     const initialWorkLinesCalls = vi.mocked(listWorkLines).mock.calls.length
 
-    // Trigger a filter change (status filter) — should NOT re-trigger catalog loads
+    // Trigger a filter change (status filter) — should NOT re-trigger catalog loads. The
+    // trigger is scoped to the toolbar: the table's Status column-header shares its name.
     ensureViewOptionsOpen()
-    const statusSelect = screen.getByRole('combobox', { name: /status/i })
-    fireEvent.change(statusSelect, { target: { value: 'Open' } })
+    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Open' }))
     await waitFor(() => {}) // allow any async effects to settle
 
     // Catalog calls must NOT increase when a filter changes

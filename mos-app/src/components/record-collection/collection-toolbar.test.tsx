@@ -289,6 +289,136 @@ describe('CollectionToolbar — Fields chooser', () => {
   })
 })
 
+describe('Ticket #743 toolbar acceptance', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  // AC-008 (#743 r3): a filter may carry an anchored popover of CHECKBOX choices — the Fields-
+  // chooser pattern. The control itself stays ONE dropdown-class control in the row; the
+  // popover's boxes are not toolbar controls (they exist only while the popover is open), and
+  // the choices fire independently — coexistence is the host's data model (see the Tasks AC-008
+  // journey), the grammar only guarantees independent onChange wiring.
+  it('AC-008: a filter popover keeps its checkbox choices off the toolbar row; the trigger stays one dropdown control', async () => {
+    stubDesktop()
+    const onBlocked = vi.fn()
+    const onArchived = vi.fn()
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      filters={[{
+        id: 'status', label: 'Status', display: 'Blocked',
+        popover: { choices: [
+          { key: 'blocked', label: 'Blocked', checked: true, onChange: onBlocked },
+          { key: 'archived', label: 'Include archived', checked: false, onChange: onArchived },
+        ] },
+      }]}
+    /></I18nProvider>)
+    // The trigger is the ONE dropdown-class control; closed, the row holds zero checkboxes.
+    const trigger = screen.getByRole('button', { name: 'Status' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger.closest('.collection-toolbar__select')).toBeInTheDocument()
+    const row = screen.getAllByTestId('collection-toolbar-row')[1]
+    expect(row.querySelectorAll('input[type="checkbox"]')).toHaveLength(0)
+
+    await userEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    const menu = screen.getByRole('group', { name: 'Status' })
+    expect(within(menu).getByRole('checkbox', { name: 'Blocked' })).toBeChecked()
+    expect(within(menu).getByRole('checkbox', { name: 'Include archived' })).not.toBeChecked()
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Include archived' }))
+    expect(onArchived).toHaveBeenCalledWith(true)
+    expect(onBlocked).not.toHaveBeenCalled()
+
+    // Toggling the checked status choice clears it (back to any) — the exclusive side.
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+    expect(onBlocked).toHaveBeenCalledWith(false)
+
+    // Closed again → the boxes are gone from the row.
+    await userEvent.click(trigger)
+    expect(row.querySelectorAll('input[type="checkbox"]')).toHaveLength(0)
+  })
+
+  it('AC-003: no switcher while one presentation is live; the segment renders at row 1 when two are', () => {
+    stubDesktop()
+    const views = { label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }
+    const { rerender } = render(
+      <I18nProvider><CollectionToolbar
+        presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+        views={views}
+      /></I18nProvider>,
+    )
+    // Table is the Task collection's only live desktop presentation: no strip at all.
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+
+    rerender(
+      <I18nProvider><CollectionToolbar
+        presentation={{
+          label: 'Presentation', value: 'table', onChange: vi.fn(),
+          options: [{ value: 'table', label: 'Table' }, { value: 'card', label: 'Card' }],
+        }}
+        views={views}
+      /></I18nProvider>,
+    )
+    const tablist = screen.getByRole('tablist', { name: 'Presentation' })
+    // The segment lives in ROW 1 (views · presentation), never in the query row.
+    expect(tablist.closest('[data-testid="collection-toolbar-row"]'))
+      .toBe(screen.getAllByTestId('collection-toolbar-row')[0])
+  })
+
+  it('AC-006: Fields chooser — Business unit · Project/Process · Objective · Last activity toggleable; the decision five locked', async () => {
+    stubDesktop()
+    const onToggle = vi.fn()
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      fields={{ label: 'Fields', options: [
+        { value: 'title', label: 'Task', required: true }, { value: 'pic', label: 'PIC', required: true },
+        { value: 'supervisor', label: 'Supervisor', required: true }, { value: 'status', label: 'Status', required: true },
+        { value: 'due', label: 'Due', required: true }, { value: 'businessUnit', label: 'Business unit' },
+        { value: 'workline', label: 'Project/Process' }, { value: 'objective', label: 'Objective' },
+        { value: 'activity', label: 'Last activity' },
+      ], visible: ['title', 'pic', 'supervisor', 'status', 'due'], onToggle }}
+    /></I18nProvider>)
+    await userEvent.click(screen.getByRole('button', { name: 'Fields' }))
+
+    const boxes = screen.getAllByRole('checkbox')
+    expect(boxes).toHaveLength(9)
+    const locked = boxes.filter((box) => box.hasAttribute('disabled'))
+    expect(locked).toHaveLength(5)
+    const optional = boxes.filter((box) => !box.hasAttribute('disabled'))
+    expect(optional.map((box) => box.closest('label')?.textContent)).toEqual([
+      'Business unit', 'Project/Process', 'Objective', 'Last activity',
+    ])
+    await userEvent.click(optional[0])
+    expect(onToggle).toHaveBeenCalledWith('businessUnit', true)
+  })
+
+  it('AC-007: Save view opens an anchored popover (name field + Save); the toolbar gains no row; Escape closes and restores focus', async () => {
+    stubDesktop()
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      savedViews={{ label: 'Saved views', selectedId: null, operation: 'idle', items: [], onApply: vi.fn(), onSave: vi.fn() }}
+      filters={[{ id: 'status', label: 'Status', value: '', options: [{ value: '', label: 'Any' }], onChange: vi.fn() }]}
+    /></I18nProvider>)
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+
+    const trigger = screen.getByRole('button', { name: /save view/i })
+    await userEvent.click(trigger)
+    // Anchored: the popover shares the trigger's relative save-zone, so it cannot grow a row.
+    const popover = screen.getByRole('group', { name: /save current view/i })
+    expect(popover).toHaveClass('collection-toolbar__save')
+    expect(popover.parentElement).toHaveClass('collection-toolbar__save-zone')
+    expect(screen.getByRole('textbox', { name: /view name/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /view name/i }), { key: 'Escape' })
+    expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+})
+
 describe('CollectionToolbar — desktop keyboard and nested save behavior', () => {
   afterEach(() => vi.unstubAllGlobals())
 

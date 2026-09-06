@@ -24,6 +24,9 @@
  * Requires the live local stack (supabase on 44321) + the global-setup seed.
  */
 import { test, expect, type Locator, type Page } from '@playwright/test'
+import { readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
@@ -175,6 +178,178 @@ test.describe('desktop geometry guards', () => {
     const firstChip = await box(page.locator('.collection-toolbar__view').first())
     const gap = firstChip.x - (label.x + label.width)
     expect(gap, 'label→chip seam must be a real gap, not a fused blob').toBeGreaterThanOrEqual(8)
+  })
+})
+
+// ── #743 — the Tasks toolbar geometry (Director ruling, round 3) ─────────────────────────────
+// The toolbar is TWO rows in every state and neither row wraps at 1440: with "Include archived"
+// moved INSIDE the Status popover and the runs-due pill gone from the toolbar, the inventory is
+// exactly twelve controls across the four control classes (chip · dropdown · ghost text · count
+// pill). Runs on the live stack + seed: MANAGER (Dewi) holds process.start + the hq_operations
+// membership, so the seeded "Café HQ daily opening" process is DUE for her — if the runs pill
+// ever returned to the toolbar, the pill census below would count two.
+const __743_dirname = dirname(fileURLToPath(import.meta.url))
+function loadEnvFile743(filePath: string): Record<string, string> {
+  try {
+    const vars: Record<string, string> = {}
+    for (const line of readFileSync(filePath, 'utf-8').split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq === -1) continue
+      vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+    }
+    return vars
+  } catch { return {} }
+}
+const ENV_743 = loadEnvFile743(resolve(__743_dirname, '../.env.e2e'))
+const SUPABASE_URL_743 = ENV_743.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
+const SERVICE_KEY_743 = ENV_743.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+const ORG_743 = '10000000-0000-0000-0000-000000000001'
+const WORK_LINE_ID_743 = 'e2000000-0000-0000-0000-000000000001' // "Café HQ daily opening" (seed.dev-processes.sql)
+const GUARD_TASK_ID_743 = '74300000-0000-0000-0000-000000000001'
+
+async function sql743(query: string): Promise<Array<Record<string, unknown>>> {
+  if (!SERVICE_KEY_743) throw new Error('[guard-743] SUPABASE_SERVICE_ROLE_KEY not set')
+  const res = await fetch(SUPABASE_URL_743 + '/pg/query', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SERVICE_KEY_743 }, body: JSON.stringify({ query }),
+  })
+  if (!res.ok) throw new Error('[guard-743] SQL failed: ' + (await res.text()).slice(0, 500))
+  return (await res.json()) as Array<Record<string, unknown>>
+}
+
+test.describe('tasks toolbar geometry — ticket 743', () => {
+  test('743: at 1440 the two toolbar rows are one line each — twelve controls, four classes, no checkbox, exactly one pill with a seeded due run', async ({ page }) => {
+    test.setTimeout(60_000)
+    // Deterministic due-run state: clear any run for the seeded daily process so it is due
+    // again (the same clean-slate AC-630 uses), and seed one overdue task so the overdue pill
+    // renders at all (the seed's own task has no due date).
+    const teamRows = await sql743(`select id from shared.teams where org_id='${ORG_743}' and code='hq_operations'`)
+    const teamId = teamRows[0]?.id as string | undefined
+    expect(teamId, 'seed must have created the hq_operations Team').toBeTruthy()
+    await sql743(`
+      delete from mos.process_run_pending_tasks
+        where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}');
+      delete from mos.tasks where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}');
+      delete from mos.process_runs where work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}';
+      delete from mos.tasks where id = '${GUARD_TASK_ID_743}';
+      insert into mos.tasks (
+        id, org_id, title, business_unit_id, status,
+        responsible_person_id, accountable_person_id, consulted_person_ids, informed_person_ids,
+        description, due_date, created_by
+      )
+      select '${GUARD_TASK_ID_743}', '${ORG_743}', 'Guard 743 overdue', bu.id, 'Open',
+             '${MANAGER.personId}', '${MANAGER.personId}', '{}', '{}',
+             'Guard 743: one overdue task so the count pill renders.', '2020-01-01', '${MANAGER.personId}'
+      from (select id from shared.business_units where org_id = '${ORG_743}' order by id limit 1) bu;
+    `)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await loginAs(page, MANAGER.email, MANAGER.password)
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+    const toolbar = page.getByTestId('record-collection-toolbar')
+    await expect(toolbar).toBeVisible()
+
+    // TWO rows, each ONE line: every control in a row shares one top (a wrap would fork it).
+    const rows = toolbar.locator('[data-testid="collection-toolbar-row"]')
+    await expect(rows).toHaveCount(2)
+    const assertOneLine = async () => {
+      for (const row of await rows.all()) {
+        const tops = await row.evaluate((element) => {
+          const controls = element.querySelectorAll(
+            '.collection-toolbar__view, .collection-toolbar__search, .mk-select, .btn, .overdue-filter-btn',
+          )
+          return [...new Set(Array.from(controls).map((control) => Math.round(control.getBoundingClientRect().top)))]
+        })
+        expect(tops, 'every control in the row shares one top — the row is one line, never wrapped').toHaveLength(1)
+      }
+    }
+    await assertOneLine()
+
+    // Census: twelve controls across the four classes; zero checkboxes while popovers are closed.
+    const census = await toolbar.evaluate((element) => ({
+      chips: element.querySelectorAll('.collection-toolbar__view').length,
+      dropdowns: element.querySelectorAll('.collection-toolbar__search, .collection-toolbar__select').length,
+      ghosts: element.querySelectorAll('.collection-toolbar__options .btn').length,
+      pills: element.querySelectorAll('.overdue-filter-btn').length,
+      checkboxes: element.querySelectorAll('input[type="checkbox"]').length,
+    }))
+    console.log('[guard-743] toolbar census', JSON.stringify(census))
+    expect(census.chips, 'chips: All · My work · Overdue').toBe(3)
+    expect(census.dropdowns, 'dropdown-class: search · Group · BU · Status · Person · Sort').toBe(6)
+    expect(census.ghosts, 'ghost text: Fields · Save view').toBe(2)
+    expect(census.chips + census.dropdowns + census.ghosts + census.pills, 'twelve controls / four classes').toBe(12)
+    expect(census.checkboxes, 'no checkbox lives in either toolbar row').toBe(0)
+    // Exactly ONE pill even though the seeded process run is DUE for this viewer: the runs-due
+    // pill left the toolbar in #743 (#754 re-homes it at Home/Café).
+    expect(census.pills, 'exactly one .overdue-filter-btn with a seeded due run').toBe(1)
+
+    // The pressed state (#743 FR-001) changes nothing about the geometry: still two one-line
+    // rows, still one pill.
+    const pill = toolbar.locator('.overdue-filter-btn')
+    await pill.click()
+    await expect(pill).toHaveAttribute('aria-pressed', 'true')
+    await assertOneLine()
+    expect(await toolbar.locator('.overdue-filter-btn').count()).toBe(1)
+    await pill.click() // clear
+    await expect(pill).toHaveAttribute('aria-pressed', 'false')
+
+    // The toolbar never pushes the page wide.
+    const pageScroll = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }))
+    expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
+
+    await sql743(`delete from mos.tasks where id = '${GUARD_TASK_ID_743}'`)
+  })
+
+  test('743: all fields on at 1440 — optional columns keep floors, Task keeps 160px, headers never overlap, the page never scrolls', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await loginAs(page, VIEWER.email, VIEWER.password)
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+    const toolbar = page.getByTestId('record-collection-toolbar')
+    await expect(toolbar).toBeVisible()
+    await expect(page.locator('tr.task-row').first()).toBeVisible()
+
+    await toolbar.getByRole('button', { name: 'Fields' }).click()
+    for (const field of ['Business unit', 'Project/Process', 'Objective', 'Last activity']) {
+      await page.getByRole('checkbox', { name: field }).check()
+    }
+    await toolbar.getByRole('button', { name: 'Fields' }).click() // close the chooser
+
+    // Task keeps its 160px floor — the identity column never starves, however many optional
+    // columns are on; the overflow (if any) lives INSIDE .tasks-scroll, never the page.
+    const taskWidth = await page.locator('tr.task-row td.td-main').first().evaluate((cell) => cell.getBoundingClientRect().width)
+    console.log('[guard-743] fields-on Task column width', taskWidth)
+    expect(taskWidth, 'Task keeps its 160px floor with every optional column on').toBeGreaterThanOrEqual(160)
+
+    // No header clips or overlaps (the GUARD-R8 mechanical check, all fields on).
+    const headers = await page.locator('.tasks-table thead th').evaluateAll((cells) =>
+      cells.map((cell) => ({
+        text: (cell.textContent ?? '').trim(),
+        width: Math.round(cell.getBoundingClientRect().width),
+        content: cell.scrollWidth,
+      })),
+    )
+    console.log('[guard-743] fields-on header widths', JSON.stringify(headers))
+    expect(headers.length, 'all ten columns render (5 decision + 4 optional + menu)').toBe(10)
+    for (const header of headers) {
+      expect(header.width, `"${header.text}" must fit its content at 1440 with all fields on`).toBeGreaterThanOrEqual(header.content)
+    }
+
+    // Horizontal overflow is owned by .tasks-scroll — the page itself never scrolls sideways.
+    const scrolls = await page.locator('.tasks-scroll').evaluate((element) => ({
+      scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
+    }))
+    expect(scrolls.scrollWidth).toBeGreaterThanOrEqual(scrolls.clientWidth)
+    const pageScroll = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }))
+    expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
   })
 })
 

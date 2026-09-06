@@ -12,7 +12,6 @@ import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-
 import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { HelpTip } from '@/components/ui/help-tip'
 import type { PageFamilyState } from '@/shell/page-families'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
@@ -20,8 +19,6 @@ import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { useDueRuns } from '@/components/processes/use-due-runs'
 import { DueRunsList } from '@/components/processes/due-runs-list'
-import { SHOW_FOLLOWUPS } from '@/config/features'
-import { FollowUpQueueEmbed } from '@/components/follow-ups/follow-up-queue-embed'
 import { TasksToolbar } from './tasks-toolbar'
 import {
   TASK_COLLECTION_NEUTRAL_QUERY,
@@ -55,7 +52,7 @@ const taskRouteAdapter = createRecordRouteAdapter({
 })
 
 // §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
-type TasksSavedViewChip = 'mine' | 'overdue' | 'followups'
+type TasksSavedViewChip = 'mine' | 'overdue'
 // The one page-state literal for a Task's canonical surface — the entry carries it, and both
 // promotion doors send it, so "which surface am I on" cannot drift between them.
 const TASK_PAGE_STATE = { taskSurface: 'page' } as const
@@ -69,7 +66,6 @@ type LegacySavedView = {
   activeChip: TasksSavedViewChip | null
   segment: 'mine' | 'all'
   overdueOnly: boolean
-  reserved: 'followups' | null
   search: string
 }
 
@@ -97,9 +93,7 @@ function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskC
     ? 'my-work'
     : savedView.view === 'overdue'
       ? 'overdue'
-      : savedView.view === 'followups'
-        ? 'followups'
-        : 'all'
+      : 'all'
   return {
     ...TASK_COLLECTION_NEUTRAL_QUERY,
     view,
@@ -110,7 +104,6 @@ function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskC
 function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
   if (view === 'my-work') return 'mine'
   if (view === 'overdue') return 'overdue'
-  if (view === 'followups') return 'followups'
   return 'all'
 }
 
@@ -136,7 +129,7 @@ function taskDisclosureSummary(
           : currentQuery.picId || currentQuery.supervisorId || currentQuery.personId ? t('tasks.filter.person')
             : currentQuery.occurrenceId ? t('tasks.filter.occurrence')
               : currentQuery.q.trim() ? t('tasks.filter.search')
-                : currentQuery.includeArchived ? t('tasks.filter.showArchived')
+                : currentQuery.includeArchived ? t('tasks.filter.includeArchived')
                   : currentQuery.savedViewId ? t('common.savedView')
                     : undefined,
   })
@@ -215,6 +208,16 @@ export function TasksWorkspace({
     controller.setQuery({ ...controller.state.query, ...patch })
   }, [controller])
 
+  // AR Follow-ups is a retired finance surface (OD-WAY-34, #743): old links land on the All
+  // view — the parser aliases view=followups to All, and this only strips the stale param from
+  // the address bar (replace: no history step) so a reload cannot resurrect it.
+  useEffect(() => {
+    const next = new URLSearchParams(location.search)
+    if (next.get('view') !== 'followups') return
+    next.delete('view')
+    navigate({ pathname: location.pathname, search: next.toString() ? `?${next.toString()}` : '' }, { replace: true })
+  }, [location.pathname, location.search, navigate])
+
   const activeView = getActiveTaskView({
     query: state.query,
     savedViews: state.savedViews.items,
@@ -222,7 +225,6 @@ export function TasksWorkspace({
       all: t('tasks.saved.all'),
       'my-work': t('tasks.saved.mine'),
       overdue: t('tasks.saved.overdue'),
-      followups: t('tasks.saved.followups'),
     },
   })
   useSetCollectionLeaf({
@@ -240,6 +242,8 @@ export function TasksWorkspace({
   }, [controller.state.query.overdueOnly, onSavedViewChange, setQuery])
 
   const retry = useCallback(() => controller.retry(), [controller])
+  // #754 owns the runs-due door's removal from Tasks (with its own tests); until that ticket
+  // lands, the pill + due-runs list stay wired here exactly as they were.
   const dueRuns = useDueRuns(retry)
 
   // D-A1 (item 4): the open Task id lives in the URL as ?record=<id> (addressable/shareable). The
@@ -551,20 +555,14 @@ export function TasksWorkspace({
         blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
         overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
       }
-  // Census R2 DO-6 (follow-ups F1/F2): on the Follow-ups view the loaded records are TASKS, so any
-  // count derived from `stats` mislabels tasks as follow-up scope ("11 items in your scope" above a
-  // coming-soon body). While the view is the reserved placeholder the toolbar also drops every
-  // row-operating control (search / View & filters / Table-Card) — dead controls above a
-  // placeholder teach people the surface is broken. When SHOW_FOLLOWUPS lands, the live queue
-  // (FollowUpQueueEmbed) owns its own count; `stats.total` stays wrong for this view either way.
-  const followupsView = query.view === 'followups'
-  const reservedFollowups = followupsView && !SHOW_FOLLOWUPS
+  // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
+  // every view now renders the live collection body.
   // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
   // the single create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
   // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
   // 768–919 band must never show both doors.
-  const showNewTask = !drawerOpen && state.status === 'ready' && query.view !== 'followups' && !isNarrow
+  const showNewTask = !drawerOpen && state.status === 'ready' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -596,8 +594,6 @@ export function TasksWorkspace({
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
-      dueRuns={dueRuns}
-      reserved={reservedFollowups}
       savedViews={{
         label: t('tasks.savedViews'),
         selectedId: activeView.savedViewId,
@@ -642,21 +638,19 @@ export function TasksWorkspace({
       return { pathname: '/work/tasks', search: `?${next.toString()}` }
     })(),
     dueRuns,
-    followups: query.view === 'followups',
-    followupsEnabled: SHOW_FOLLOWUPS,
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
     accessRoles, currentSearch, drawerOpen, draftTask, dueRuns, host.session, isDesktop, onAddTask,
     params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onNewTask, onOpenTask, onClearFilters, onSort,
-    query.view, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink,
+    retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink,
   ])
 
   // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
   // disclosure (whose whole content is now just those chips) would be a door hiding the only
   // way out — render the chips directly instead.
   const taskDisclosure = taskDisclosureSummary(query, t, activeView.label)
-  const controls = captureFirstMobile && !reservedFollowups ? (
+  const controls = captureFirstMobile ? (
       <ViewOptionsDisclosure
       open={mobileOptionsOpen}
       onToggle={() => setMobileOptionsOpen((open) => !open)}
@@ -689,24 +683,15 @@ export function TasksWorkspace({
         // "9 open · 11 total" (the rail badge already carries the open-count; the head now
         // agrees). ONE muted meta sentence in the E7 grammar, a single font size (the body
         // token), every number followed by its noun (the naked-numbers guard). Live counts;
-        // "—" while loading/error or on the Follow-ups placeholder view (AC-M2).
-        // onboard (2026-07-28): PIC vs Supervisor and what a saved view IS are the two things
-        // new leads reliably ask about this surface; neither was explained anywhere in the app.
-        // The tip is a SIBLING of the count line, never inside it — nesting it made the "?"
-        // glyph part of `tasks-count-line`'s textContent, so the meta read "? 2 open · 3 total".
-        // Tailwind utilities, not a new class: `.ch-meta-line`'s own rule is a descendant
-        // selector (`.content-header .ch-meta-line`), so it survives this extra wrapper, and
-        // the shell stylesheet that owns it stays untouched.
-        <span className="flex items-center gap-2">
-          <HelpTip label={t('tasks.help')} />
-          <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
-          {stats === null || followupsView
+        // "—" while loading or on error. The "?" help tip is retired (#743 AC-009): its
+        // sentence lives in the true-empty copy now.
+        <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
+          {stats === null
             ? '—'
             : [
                 t('tasks.meta.openCount', { count: stats.open }),
                 t('tasks.meta.totalCount', { count: stats.total }),
               ].join(' · ')}
-          </span>
         </span>
       }
     >
@@ -719,17 +704,13 @@ export function TasksWorkspace({
               resultHeader={{
                 collectionLabel: t('tasks.title'),
                 viewLabel: activeView.label,
-                // DO-6: the Follow-ups view never shows the task-count — null renders the honest
-                // "—" placeholder instead of mislabeling tasks as follow-up scope.
-                count: stats === null || followupsView ? null : stats.total,
+                count: stats === null ? null : stats.total,
               }}
               controls={controls}
               empty={{
                 title: emptyTitle,
                 copy: emptyCopy,
-                create: query.view === 'followups' && SHOW_FOLLOWUPS
-                  ? <FollowUpQueueEmbed />
-                  : <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
                 title: t('tasks.empty.filteredTitle'),
@@ -742,7 +723,9 @@ export function TasksWorkspace({
             />
             {/* The due-runs list renders AFTER the surface (table stays first content) and, unlike
                 the presentation, on EVERY state — a capable viewer with due work but zero tasks yet
-                must still be able to expand and start a run. */}
+                must still be able to expand and start a run. The runs-due pill — this list's only
+                trigger — LEFT the Tasks toolbar in #743 (ruling round 3), so the list rests closed
+                here until #754 re-homes the pill + list at Home/Café. */}
             <DueRunsList
               due={dueRuns.due}
               expanded={dueRuns.expanded}

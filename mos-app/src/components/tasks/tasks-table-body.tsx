@@ -65,8 +65,15 @@ export type TasksTableBodyProps = {
 
   // ── Desktop table: thead sort + select-all ────────────────────────────────
   sortCol: SortCol
-  /** Optional fields selected in the current URL-backed view. */
+  /** Optional fields selected in the current URL-backed view (AC-006, #743): each checked field
+   * renders a real column — header here, data cell in TaskRow. */
   showBusinessUnit?: boolean
+  showWorkline?: boolean
+  showObjective?: boolean
+  showActivity?: boolean
+  /** Total columns the table renders right now (thead th count == body td count). Group-header
+   * rows and the virtualized pad rows use the same number — `taskTableColumnSpan` is the source. */
+  columnSpan?: number
   /** thead column-header click → cycle the sort for that column. */
   onSort: (col: SortCol) => void
   /** aria-sort for a column (active col → its direction, else 'none'). */
@@ -121,6 +128,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
     sortCol, onSort, ariaSort, sortIndicator, showBusinessUnit = false,
+    showWorkline = false, showObjective = false, showActivity = false, columnSpan,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
@@ -203,19 +211,30 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   // FR-236: workload summary caption (workline groupBy + single person filter)
   const captionEl = workloadSummary ? <WorkloadCaption summary={workloadSummary} /> : null
 
+  // #743 r3: any optional Fields column on → the table drops onto its floored track
+  // (`.tasks-table--extended`): class-based px floors everywhere, and the horizontal overflow
+  // lives INSIDE .tasks-scroll — never the page, never a squeezed identity column.
+  const extended = Boolean(showBusinessUnit || showWorkline || showObjective || showActivity)
+
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
       {captionEl}
-      <table className="tasks-table record-collection-table collection-grammar-table" aria-label={t('tasks.title')}>
+      <table
+        className={`tasks-table record-collection-table collection-grammar-table${extended ? ' tasks-table--extended' : ''}`}
+        aria-label={t('tasks.title')}
+      >
         <thead>
           <tr>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
+            {/* th-task / th-status / th-supervisor: the extended tier (#743 r3) pins decision
+                columns by CLASS — optional Fields columns shift every nth-child position, so
+                position-based widths land on the wrong column exactly when fields are on. */}
+            <th scope="col" className={`th-cell th-task th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('task')}>
                 {t('tasks.label.task')}{sortIndicator('task')}
               </button>
             </th>
-            <th scope="col" className={`th-cell th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
+            <th scope="col" className={`th-cell th-status th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('status')}>
                 {t('tasks.filter.status')}{sortIndicator('status')}
@@ -227,11 +246,15 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                 {t('tasks.pic')}{sortIndicator('owner')}
               </button>
             </th>
-            <th scope="col" className="th-cell">{t('tasks.supervisor')}</th>
+            <th scope="col" className="th-cell th-supervisor">{t('tasks.supervisor')}</th>
             {showBusinessUnit ? <th scope="col" className="th-cell th-business-unit">{t('tasks.filter.businessUnit')}</th> : null}
+            {showWorkline ? <th scope="col" className="th-cell th-workline">{t('tasks.filter.projectProcess')}</th> : null}
+            {showObjective ? <th scope="col" className="th-cell th-objective">{t('tasks.objective')}</th> : null}
+            {showActivity ? <th scope="col" className="th-cell th-activity">{t('tasks.fields.activity')}</th> : null}
             {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
-                inside the first paint. Project/Process, Objective, Team, Source, Activity
-                moved to the drawer (OD-62). */}
+                inside the first paint. The Fields chooser (AC-006, #743) may insert optional
+                columns BEFORE it; the class-based width floors keep Due measurable regardless
+                of its nth-child position. */}
             <th scope="col" className={`th-cell th-sortable th-due${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
               {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
               <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
@@ -246,9 +269,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            // Wave 2c: both desktop modes share the 6-column priority set
-            // (Task + Status + PIC + Supervisor + Due + menu).
-            const colSpan = showBusinessUnit ? 7 : 6
+            // Column count follows the visible Fields (AC-006, #743); the caller passes the
+            // one authoritative span so pads can never drift from the group headers.
+            const colSpan = columnSpan ?? (showBusinessUnit ? 7 : 6)
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (
