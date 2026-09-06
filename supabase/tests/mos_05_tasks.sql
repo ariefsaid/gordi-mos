@@ -1,8 +1,10 @@
 -- mos, squashed baseline — tasks, their children, and the one guard that protects all three.
 --
 -- The task contract in one line: reading is org-wide because cross-unit visibility IS the product
--- (OD-P1-3), creating is open to any member, editing is R / A / a manager of either, and archiving
--- is narrower still — Accountable or a manager, never a Responsible acting alone.
+-- (OD-P1-3), creating is open to any member, editing is PIC / Supervisor / a manager above the PIC,
+-- and archiving is narrower still — Supervisor or a manager above the PIC, never the PIC acting
+-- alone. (#742 narrowed both gates: a manager of the Supervisor alone no longer qualifies for
+-- either. The PIC-value and Supervisor-narrowing assertions live in mos_12_task_permissions.sql.)
 --
 -- The guard assertions below are the merged mos._guard_tasks, which replaced four separate trigger
 -- functions. Each section names the invariant's origin so a reader can check nothing was dropped in

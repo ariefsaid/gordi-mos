@@ -42,6 +42,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn(),
@@ -51,7 +52,7 @@ vi.mock('../../lib/db/work-lines', () => ({
 }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
@@ -160,6 +161,7 @@ beforeEach(() => {
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue(OBJECTIVES)
   vi.mocked(listWorkLines).mockResolvedValue(WORK_LINES)
 })
@@ -575,6 +577,7 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
     vi.mocked(listWorkLines).mockResolvedValue(WORK_LINES)
     vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
     vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([])
 
     const { createTask } = await import('@/lib/db/tasks')
     vi.mocked(createTask).mockResolvedValue('new-id')

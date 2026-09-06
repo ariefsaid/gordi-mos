@@ -20,6 +20,7 @@ vi.mock('./lib/db/tasks', () => ({
 vi.mock('./lib/db/directory', () => ({
   getBusinessUnits: vi.fn(() => new Promise(() => {})),
   getPeople: vi.fn(() => new Promise(() => {})),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 // Ported for #192 (Tasks): TasksWorkspace's cascade catalogs — mocked pending so the unit test
 // never reaches the real supabase client (mirrors pages/tasks-layout.test.tsx).

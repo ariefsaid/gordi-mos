@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { ObjectiveHint } from './objective-hint'
+import { picLockMessage } from './task-permissions'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 export type MobileRenderGroup = {
@@ -81,6 +82,9 @@ export type MobileGroupedCardsProps = {
   onEditTitle?: (taskId: string, title: string) => Promise<void>
   draftTaskId?: string | null
   onDiscardNewTask?: () => void
+  /** #742 AC-060 (W-M persona step 3): true when the viewer has nobody reporting to them, so the
+   * draft card's PIC is fixed to self — surfaced only on the isNew card, via picLockMessage. */
+  viewerHasNoDownline?: boolean
 }
 
 // ── Task card ─────────────────────────────────────────────────────────────────
@@ -99,9 +103,11 @@ type TaskCardProps = {
   /** Design fix wave item 4 — the generated-ownership source ("via <role name>"), Rule 11 reuse of
    * OwnerCell's provenance rendering. */
   provenanceRoleName?: string
+  /** #742 AC-060: only meaningful when isNew — see MobileGroupedCardsProps.viewerHasNoDownline. */
+  viewerHasNoDownline?: boolean
 }
 
-function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -112,6 +118,7 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
   const dueText = task.due_date
     ? (taskOverdue ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }) : formatDate(task.due_date, locale))
     : '—'
+  const lockMessage = isNew ? picLockMessage(!viewerHasNoDownline, locale) : null
   const [draft, setDraft] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
   const newCommitStarted = useRef(false)
@@ -165,7 +172,10 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
         <dl className="task-card-meta collection-grammar-card-details">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
-            <dd><PicCell fullName={rName} provenance={provenanceRoleName} /></dd>
+            <dd>
+              <PicCell fullName={rName} provenance={provenanceRoleName} />
+              {lockMessage && <span className="task-card-pic-lock">{lockMessage}</span>}
+            </dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>
@@ -196,6 +206,7 @@ export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   onAssignPending, provenanceByTaskDefId, onOpenTask, onEditTitle, draftTaskId, onDiscardNewTask,
+  viewerHasNoDownline = false,
 }: MobileGroupedCardsProps) {
   const [createError, setCreateError] = useState<string | null>(null)
   const t = useT()
@@ -225,6 +236,7 @@ export function MobileGroupedCards({
               provenanceRoleName={provenanceFor(task)}
               onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
               onCreateError={(message) => setCreateError(message)}
+              viewerHasNoDownline={viewerHasNoDownline}
             />
           </div>
         ))}
@@ -325,6 +337,7 @@ export function MobileGroupedCards({
                 provenanceRoleName={provenanceFor(task)}
                 onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
                 onCreateError={(message) => setCreateError(message)}
+                viewerHasNoDownline={viewerHasNoDownline}
               />
             </div>
           ))}

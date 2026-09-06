@@ -398,14 +398,16 @@ export function TasksWorkspace({
   }, [controller, records, viewerId])
   const onEditDue = useCallback(async (taskId: string, dueDate: string | null) => {
     if (!viewerId) throw new Error('inline due edit requires an authenticated viewer')
-    await updateTaskFields(taskId, { due_date: dueDate }, viewerId)
+    const previous = records.find((record) => record.id === taskId)?.dueDate ?? null
+    await updateTaskFields(taskId, { due_date: dueDate }, viewerId, previous)
     controller.retry()
-  }, [controller, viewerId])
+  }, [controller, records, viewerId])
   const onEditPic = useCallback(async (taskId: string, personId: string) => {
     if (!viewerId) throw new Error('inline PIC edit requires an authenticated viewer')
-    await updateTaskFields(taskId, { responsible_person_id: personId }, viewerId)
+    const previous = records.find((record) => record.id === taskId)?.picId ?? null
+    await updateTaskFields(taskId, { responsible_person_id: personId }, viewerId, previous)
     controller.retry()
-  }, [controller, viewerId])
+  }, [controller, records, viewerId])
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')

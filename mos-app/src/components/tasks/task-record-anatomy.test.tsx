@@ -56,7 +56,7 @@ function makeInput(overrides: Partial<TaskRecordAdapterInput> = {}): TaskRecordA
   return {
     detail: makeDetail(task),
     viewerId: PIC,
-    isManager: false,
+    downlineIds: [],
     people,
     businessUnits,
     onUpdateField: vi.fn(async () => {}),
@@ -117,7 +117,7 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
 
   it('F3 — a read-only Task carries at most ONE whole-record note and no per-field provenance captions', () => {
     // A viewer who is neither PIC/Supervisor nor manager gets a read-only record.
-    const { container } = renderRecord({ viewerId: 'stranger', isManager: false })
+    const { container } = renderRecord({ viewerId: 'stranger', downlineIds: [] })
     expect(container.querySelectorAll('.record-field__reason')).toHaveLength(0)
     expect(container.querySelectorAll('.record-viewer__permission-note')).toHaveLength(1)
   })

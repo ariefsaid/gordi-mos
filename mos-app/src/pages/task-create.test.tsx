@@ -13,6 +13,7 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -23,7 +24,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 })
 
 import { createTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 // Re-homed from the deleted TaskCreate host onto the LIVE create surface (TaskSurface
@@ -82,6 +83,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockListObjectives.mockResolvedValue([])
   mockListWorkLines.mockResolvedValue([])
   mockCreateTask.mockResolvedValue('new-task-id')

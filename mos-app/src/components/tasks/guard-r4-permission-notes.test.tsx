@@ -64,7 +64,7 @@ function renderRecord(overrides: Partial<TaskRecordAdapterInput> = {}) {
   const adapter = createTaskRecordAdapter({
     detail: makeDetail(task),
     viewerId: STRANGER, // not R, not A, not creator → read-only
-    isManager: false,
+    downlineIds: [],
     people,
     businessUnits,
     onUpdateField: vi.fn(async () => {}),

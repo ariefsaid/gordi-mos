@@ -22,6 +22,7 @@ import { useT } from '@/i18n/use-t'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { TasksTableBody } from './tasks-table-body'
+import { picOptions } from './task-permissions'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
@@ -492,7 +493,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditStatus={runtime.onEditStatus}
         onEditDue={runtime.onEditDue}
         onEditPic={runtime.onEditPic}
-        personOptions={context.people}
+        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
         isNew={task.id === runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
@@ -586,6 +587,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditTitle={runtime.onEditTitle}
         draftTaskId={runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
+        viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
       />
       {occurrence.runId && (
         <OccurrenceAssignDialog

@@ -25,6 +25,7 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('../../lib/comments/postComment', () => ({
 }))
 
 import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
 
@@ -93,6 +94,9 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  // vi.resetAllMocks() above wipes the factory-level seed; the record's edit/archive gates and
+  // PIC picker read the viewer's downline, so it must be re-seeded like every other read.
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockListComments.mockResolvedValue([])
   mockPostComment.mockResolvedValue('comment-new')
   mockUpdateTaskStatus.mockResolvedValue()
@@ -364,6 +368,9 @@ describe('TaskSurface — mutation handlers', () => {
   it('PIC reassignment (rollback): restores the previous PIC when the write rejects', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
+    // #742's PIC-value rule accepts a new PIC only from the writer's self + downline, so the
+    // picker offers other-id only while the viewer holds them in their downline — mirror and DB agree.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // V3 Issue 5: PIC is now a RecordViewer/RecordField select (was a bespoke person picker).
@@ -371,7 +378,8 @@ describe('TaskSurface — mutation handlers', () => {
     const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
     fireEvent.change(pic, { target: { value: 'other-id' } })
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
-      'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID,
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID, VIEWER_ID,
     ))
     // Optimistic reassignment rolled back to the previous PIC after the write rejects.
     await waitFor(() => expect((screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement).value).toBe(VIEWER_ID))

@@ -23,12 +23,13 @@ vi.mock('@/lib/db/tasks', () => ({
 }))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), listRoleNames: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, listRoleNames, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
@@ -122,6 +123,7 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue([
     { id: MINE, full_name: 'E2E Member' }, { id: OTHER, full_name: 'Someone Else' },
   ])
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listRoleNames).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue(OBJECTIVES)
   vi.mocked(listWorkLines).mockResolvedValue(WORK_LINES)

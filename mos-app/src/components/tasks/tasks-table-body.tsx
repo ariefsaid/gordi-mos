@@ -111,6 +111,8 @@ export type TasksTableBodyProps = {
   onEditTitle?: (taskId: string, title: string) => Promise<void>
   draftTaskId?: string | null
   onDiscardNewTask?: () => void
+  /** #742 AC-060 — threaded through to MobileGroupedCards' draft-card PIC lock sentence. */
+  viewerHasNoDownline?: boolean
 }
 
 export function TasksTableBody(props: TasksTableBodyProps) {
@@ -124,7 +126,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
-    onEditTitle, draftTaskId, onDiscardNewTask,
+    onEditTitle, draftTaskId, onDiscardNewTask, viewerHasNoDownline,
   } = props
 
   if (loading) {
@@ -193,6 +195,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         onEditTitle={onEditTitle}
         draftTaskId={draftTaskId}
         onDiscardNewTask={onDiscardNewTask}
+        viewerHasNoDownline={viewerHasNoDownline}
       />
     )
   }

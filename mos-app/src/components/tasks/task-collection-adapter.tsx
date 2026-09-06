@@ -6,7 +6,7 @@ import { listTasks, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
-import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, listRoleNames } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -299,6 +299,7 @@ export function toTaskCollectionRecord(row: TaskListRow): TaskCollectionRecord {
 export interface TaskCollectionContext {
   businessUnits: readonly BusinessUnitOption[]
   people: readonly PersonOption[]
+  downlinePersonIds?: readonly string[]
   businessUnitNamesById: ReadonlyMap<string, string>
   personNamesById: ReadonlyMap<string, string>
   workLinesById: ReadonlyMap<string, string>
@@ -729,10 +730,14 @@ async function loadTaskCollection(args: {
   // BU/Status filtering is client-side in the projector (honest empty-vs-filtered-empty); only
   // `includeArchived` is a server concern (archived rows are excluded by default).
   const filters: TaskListFilters = { includeArchived: args.query.includeArchived }
-  const [rows, businessUnits, people, objectives, workLines] = await Promise.all([
+  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines] = await Promise.all([
     listTasks(filters),
     getBusinessUnits(),
     getPeople(),
+    // Throws with its siblings — a downline failure must surface, not silently read-only
+    // every row's edit affordances. An unauthenticated viewer (null id) runs the SAME read
+    // and resolves [] naturally, like every other directory read.
+    getDownlinePersonIds(args.viewerId ?? ''),
     listObjectives().catch(() => []),
     listWorkLines().catch(() => []),
   ])
@@ -768,6 +773,7 @@ async function loadTaskCollection(args: {
   const context: TaskCollectionContext = {
     businessUnits,
     people,
+    downlinePersonIds,
     businessUnitNamesById: toNameMap(businessUnits, (b) => b.name),
     personNamesById: toNameMap(people, (p) => p.full_name),
     workLinesById: toNameMap(workLines, (w) => w.name),

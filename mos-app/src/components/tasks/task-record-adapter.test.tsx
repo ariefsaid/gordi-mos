@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { RecordViewer } from '@/components/records/record-viewer'
 import {
   createTaskRecordAdapter,
   createTaskFieldCommit,
@@ -54,7 +55,7 @@ function makeInput(overrides: Partial<TaskRecordAdapterInput> = {}): TaskRecordA
   return {
     detail: makeDetail(task),
     viewerId: PIC,
-    isManager: false,
+    downlineIds: [],
     people,
     businessUnits,
     onUpdateField: vi.fn(async () => {}),
@@ -185,8 +186,8 @@ describe('createTaskRecordAdapter', () => {
 
   it('AC-V3-009: an archived Task is read-only, keeps hierarchy, and only offers unarchive', () => {
     const task = makeTask({ archived_at: '2026-07-20T10:00:00Z' })
-    // A manager may unarchive; the record is still read-only because it is archived.
-    const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(task), isManager: true }))
+    // A manager above the PIC may unarchive; the record is still read-only because it is archived.
+    const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(task), viewerId: 'chain-mgr', downlineIds: [PIC] }))
     expect(adapter.permission.readOnly).toBe(true)
     expect(adapter.permission.reason).toMatch(/archived/i)
     // Editable metadata is now read-only, but values/hierarchy are preserved.
@@ -198,12 +199,98 @@ describe('createTaskRecordAdapter', () => {
   })
 
   it('AC-V3-009: a viewer who is neither PIC/Supervisor nor manager gets read-only fields', () => {
-    const adapter = createTaskRecordAdapter(makeInput({ viewerId: 'stranger', isManager: false }))
+    const adapter = createTaskRecordAdapter(makeInput({ viewerId: 'stranger', downlineIds: [] }))
     expect(adapter.permission.readOnly).toBe(true)
     expect(fieldByKey(adapter, 'pic').editable).toBe(false)
     expect(adapter.permission.reason).toMatch(/permission/i)
     // DO-23(b) (census R2 task-record P3-2): the note carries a RECOVERY clause, not a dead end.
     expect(adapter.permission.reason).toMatch(/ask a manager or admin/i)
+  })
+})
+
+describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow the PIC-chain fact', () => {
+  // The record mirrors the DB gates per persona: PIC edits without Archive; Supervisor and a
+  // manager ABOVE the PIC edit and archive; a manager NOT above the PIC (and a peer) read only,
+  // with the stated reason and no Archive action — never a viewer-global manager flag.
+  function renderAs(viewerId: string, downlineIds: string[]) {
+    const adapter = createTaskRecordAdapter(makeInput({ viewerId, downlineIds }))
+    return render(
+      <I18nProvider>
+        <RecordViewer adapter={adapter} mode="page" headingLevel={1} />
+      </I18nProvider>,
+    )
+  }
+  const editableOf = (container: HTMLElement, key: string) =>
+    container.querySelector(`[data-field-key="${key}"]`)?.getAttribute('data-editable')
+
+  it('the PIC edits every field, keeps the lifecycle action, and gets NO Archive action', () => {
+    const { container } = renderAs(PIC, [])
+    expect(editableOf(container, 'pic')).toBe('true')
+    expect(editableOf(container, 'supervisor')).toBe('true')
+    expect(editableOf(container, 'dueDate')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('the Supervisor edits and gets the Archive action', () => {
+    const { container } = renderAs(SUPERVISOR, [])
+    expect(editableOf(container, 'pic')).toBe('true')
+    expect(editableOf(container, 'dueDate')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('a manager above the PIC (the PIC is in their downline) edits and gets the Archive action', () => {
+    const { container } = renderAs('chain-mgr', [PIC])
+    expect(editableOf(container, 'pic')).toBe('true')
+    expect(editableOf(container, 'dueDate')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('a manager NOT above the PIC sees PIC/Supervisor/Due read-only with the reason and NO Archive action', () => {
+    const { container } = renderAs('other-mgr', ['someone-else'])
+    expect(editableOf(container, 'pic')).toBe('false')
+    expect(editableOf(container, 'supervisor')).toBe('false')
+    expect(editableOf(container, 'dueDate')).toBe('false')
+    expect(screen.getByRole('note')).toHaveTextContent(/permission to edit/i)
+    expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
+  })
+
+  it('a peer reads the record read-only with the reason and no Archive action', () => {
+    const { container } = renderAs('peer', [])
+    expect(editableOf(container, 'pic')).toBe('false')
+    expect(screen.getByRole('note')).toHaveTextContent(/permission to edit/i)
+    expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
+  })
+
+  it('AC-061 delta: the record PIC picker offers self + downline (like the inline picker); Supervisor keeps the full list', () => {
+    const everyone: PersonOption[] = [
+      { id: PIC, full_name: 'Riri' },
+      { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
+      { id: 'mgr', full_name: 'Made Manager' },
+      { id: 'p-out', full_name: 'Far Away' },
+    ]
+    const { container, unmount } = render(
+      <I18nProvider>
+        <RecordViewer
+          adapter={createTaskRecordAdapter(makeInput({ viewerId: 'mgr', downlineIds: [PIC], people: everyone }))}
+          mode="page"
+          headingLevel={1}
+        />
+      </I18nProvider>,
+    )
+    expect(container).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Person in charge (PIC)' }))
+    const picSelect = screen.getByRole('combobox')
+    expect(within(picSelect).getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual([PIC, 'mgr'])
+    fireEvent.blur(picSelect)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
+    const supSelect = screen.getByRole('combobox')
+    expect(within(supSelect).getAllByRole('option').map((o) => o.getAttribute('value')))
+      .toEqual([PIC, SUPERVISOR, 'mgr', 'p-out'])
+    unmount()
   })
 })
 

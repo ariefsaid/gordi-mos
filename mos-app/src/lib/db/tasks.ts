@@ -144,10 +144,12 @@ export type TaskFieldsPatch = Partial<Pick<
 
 /** Edit non-RACI/non-status fields, then log a `field_edited` event (FR-055). */
 export async function updateTaskFields(
-  id: string, patch: TaskFieldsPatch, actor: string,
+  id: string, patch: TaskFieldsPatch, actor: string, fromValue: string | null = null,
 ): Promise<void> {
   await updateTask(id, patch)
-  await logEvent(id, actor, 'field_edited')
+  const [field] = Object.keys(patch)
+  const toValue = field ? patch[field as keyof TaskFieldsPatch] : null
+  await logEvent(id, actor, 'field_edited', fromValue, toValue == null ? null : String(toValue))
 }
 
 export type TaskRaciPatch = Partial<Pick<

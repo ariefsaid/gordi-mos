@@ -23,6 +23,7 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('react-router-dom', async (importOriginal) => {
   const mod = await importOriginal<typeof import('react-router-dom')>()
@@ -34,7 +35,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 })
 
 import { getTask, updateTaskStatus, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 // Re-homed from the deleted TaskDetail host onto the LIVE task surface (TaskSurface view
 // mode, width="full" — identical to what the host rendered). All detail-field ACs
 // (AC-070..075, T-047, RIC-1/2/3, I2, M2) now run against the real component.
@@ -160,6 +161,7 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockUpdateTaskStatus.mockResolvedValue()
   mockAddChecklistItem.mockResolvedValue()
   mockToggleChecklistItem.mockResolvedValue()
@@ -270,6 +272,9 @@ describe('AC-072 — typed Task ownership', () => {
   it('reassigns the PIC through the visible Task path', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     mockUpdateTaskFields.mockResolvedValue()
+    // #742's PIC-value rule accepts a new PIC only from the writer's self + downline, so the
+    // viewer holds OTHER_ID in their downline and the record picker mirrors exactly that.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([OTHER_ID])
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
@@ -281,7 +286,8 @@ describe('AC-072 — typed Task ownership', () => {
     fireEvent.change(picSelect, { target: { value: OTHER_ID } })
 
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
-      'task-abc', { responsible_person_id: OTHER_ID }, VIEWER_ID,
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      'task-abc', { responsible_person_id: OTHER_ID }, VIEWER_ID, VIEWER_ID,
     ))
   })
 })
@@ -478,9 +484,12 @@ describe('T-047 — archive control on detail', () => {
     expect(screen.queryByRole('button', { name: /archive task/i })).toBeNull()
   })
 
-  it('shows archive for manager (isManager=true)', async () => {
+  it('shows archive for a manager above the PIC (the PIC is in their downline)', async () => {
     const task = makeTask({ responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    // AC-061: the archive gate reads the resolved chain fact, not the viewer-global flag —
+    // this manager holds the PIC in their downline.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([OTHER_ID])
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
@@ -556,6 +565,9 @@ describe('I2 — PIC reassignment on detail page', () => {
     const task = makeTask({ responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     mockUpdateTaskFields.mockResolvedValue()
+    // The manager sits ABOVE the PIC (edit gate) and holds the new PIC in their downline
+    // (PIC-value rule) — both facts arrive via the downline read the mirror shares with the DB.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([OTHER_ID, VIEWER_ID])
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
@@ -567,7 +579,8 @@ describe('I2 — PIC reassignment on detail page', () => {
     fireEvent.change(picSelect, { target: { value: VIEWER_ID } })
 
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
-      'task-abc', { responsible_person_id: VIEWER_ID }, 'manager-id',
+      // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
+      'task-abc', { responsible_person_id: VIEWER_ID }, 'manager-id', OTHER_ID,
     ))
     // No RACI grammar: parenthesized labels only (bare words false-positive on fixture names).
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted \(C\)|Informed \(I\)/)).toBeNull()
