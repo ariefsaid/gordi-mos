@@ -828,6 +828,7 @@ describe('Ticket #743 — two-row toolbar grammar', () => {
 
     const design = readFileSync(resolve(process.cwd(), '../DESIGN.md'), 'utf8')
     expect(design).toContain('No checkbox, no toggle, no second pill, no third row; a state that needs more rows is a saved view or a filter option.')
+    expect(design).toContain('The strip renders only when two or more presentations are live at the current width.')
 
     const toolbar = container.querySelector('.tasks-collection-toolbar') as HTMLElement
     expect(toolbar).toBeInTheDocument()
