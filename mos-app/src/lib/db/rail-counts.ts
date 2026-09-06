@@ -35,15 +35,16 @@ async function headCount(build: () => PromiseLike<{ count: number | null; error:
 }
 
 /** Fetch the rail badge counts in parallel. Throws on any error so the caller can drop the badges. */
-export async function getRailCounts(): Promise<RailCounts> {
+export async function getRailCounts(personId?: string): Promise<RailCounts> {
+  const taskQuery = mos()
+    .from('tasks')
+    .select('*', { count: 'exact', head: true })
+    .is('archived_at', null)
+    .neq('status', 'Done')
+  if (personId) taskQuery.or(`responsible_person_id.eq.${personId},accountable_person_id.eq.${personId}`)
+
   const [openTasks, attentionSignals] = await Promise.all([
-    headCount(() =>
-      mos()
-        .from('tasks')
-        .select('*', { count: 'exact', head: true })
-        .is('archived_at', null)
-        .neq('status', 'Done'),
-    ),
+    headCount(() => taskQuery),
     headCount(() =>
       mos()
         .from('signals')

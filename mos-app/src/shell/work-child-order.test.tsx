@@ -62,7 +62,7 @@ const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'
 // ship-gated (#348 rides milestone 4). #544: an expectation derived from the declaration itself
 // agrees with whatever order the declaration takes — that looseness is what let the pre-#544
 // order survive #476's unification.
-const FAMILY = ['/work/signals', '/work/tasks', '/work/projects', '/work/objectives', '/work/events']
+const FAMILY = ['/work/signals', '/work/tasks', '/work/projects', '/work/objectives']
 const CAPABILITY: Record<string, string | undefined> = { '/work/projects': 'workline.manage' }
 // Add a row here when you add a Work child or lift a ship gate — a missing entry renders as
 // `=undefined` in the red, which reads as a label bug rather than a missing literal.

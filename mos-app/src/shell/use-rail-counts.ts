@@ -9,16 +9,17 @@ import { getRailCounts, type RailCounts } from '@/lib/db/rail-counts'
 export function useRailCounts(): RailCounts | null {
   const auth = useAuth()
   const authed = auth.status === 'authenticated'
+  const personId = authed ? auth.viewer?.person?.id : undefined
   const [counts, setCounts] = useState<RailCounts | null>(null)
 
   useEffect(() => {
     if (!authed) { setCounts(null); return }
     let live = true
-    getRailCounts()
+    getRailCounts(personId)
       .then((next) => { if (live) setCounts(next) })
       .catch(() => { if (live) setCounts(null) })
     return () => { live = false }
-  }, [authed])
+  }, [authed, personId])
 
   return counts
 }

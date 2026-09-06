@@ -5,7 +5,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import { CAFE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
-  WorkIcon, EventsIcon, SignalsIcon, MoneyIcon,
+  WorkIcon, SignalsIcon, MoneyIcon,
   CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, ShieldIcon, PeopleIcon,
 } from './icons'
@@ -99,7 +99,6 @@ export const DESTINATIONS: Destination[] = [
       // already permitted (the defect this fixes). Write stays behind `can('objective.manage')`
       // inside ObjectivesPage's own mutations — that capability is a WRITE gate, not a read one.
       { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
-      { path: '/work/events', label: 'Events', labelKey: 'nav.work.events', Icon: EventsIcon },
     ],
   },
   {
@@ -218,6 +217,18 @@ export function modulesByBU(accessRoles: string[]): { bu: MessageKey; items: Des
  */
 export function primaryModuleForViewer(affiliated: string[], accessRoles: string[]): Destination | null {
   return allModules(accessRoles).find((m) => affiliated.includes(m.id)) ?? null
+}
+
+/** Module children are detail navigation, not a second set of roots. */
+export function moduleChildrenForViewer(
+  module: Destination,
+  pathname: string,
+  affiliated: string[],
+  accessRoles: string[],
+): Section[] {
+  const current = module.primaryPath && (pathname === module.primaryPath || pathname.startsWith(`${module.primaryPath}/`))
+  const workingHere = affiliated.includes(module.id)
+  return current || workingHere ? visibleSections(module.children ?? [], accessRoles) : []
 }
 
 /**

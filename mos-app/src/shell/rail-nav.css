@@ -70,6 +70,11 @@
   height: var(--rail-rung-icon);
 }
 
+.rail-module-chevron {
+  margin-left: auto;
+  transform: rotate(-90deg);
+}
+
 /* The child list's hairline indent guide (full-width rail only — the compact icon rail
    has no indent to guide). Replaces the bare `pl-3`: the indent is now drawn, so a child
    is visibly subordinate even where the type ladder is subtle. */

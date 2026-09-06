@@ -1,9 +1,10 @@
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { DESTINATIONS, navUtility, isLive, modulesByBU, type Destination } from './destinations'
+import { DESTINATIONS, navUtility, isLive, modulesByBU, moduleChildrenForViewer, type Destination } from './destinations'
 import { sectionHasPrefixChild, visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
 import type { RailCounts } from '@/lib/db/rail-counts'
 import { UserChip } from './user-chip'
+import { Chevron } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
@@ -87,7 +88,7 @@ const itemBase = (isActive: boolean, compact = false, rung: 'dest' | 'child' = '
 // (unread count) below — and follow the EXACT WorkChild pattern (DO-18(d)): the accessible NAME
 // is built on the link itself by joining the already-localized label + badge sentence, so AT
 // never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
-function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean }) {
+function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false, showChevron = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean; showChevron?: boolean }) {
   const t = useT()
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
@@ -116,6 +117,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
             <d.Icon />
           </span>
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
+          {showChevron && !compact && <Chevron className="rail-module-chevron" />}
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}
@@ -262,7 +264,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
               // parent never carries "page"; the active child does). `workActive` (computed above
               // from the URL directly) drives that, now that `to` targets the real canonical
               // destination instead of the `/work` redirect entry.
-              const children = visibleSections(d.children ?? [], accessRoles)
+              const children = compact ? [] : visibleSections(d.children ?? [], accessRoles)
               const workLabel = t(d.labelKey)
               return (
                 <div key={d.id}>
@@ -320,10 +322,10 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                 // Café is the module that has them; the rest fall through to a single
                 // link exactly as before. Without this the module's `children` are dead data and
                 // its screens have no nav entry at all.
-                const kids = visibleSections(m.children ?? [], accessRoles)
+                const kids = compact ? [] : moduleChildrenForViewer(m, pathname, viewer?.affiliated ?? [], accessRoles)
                 return (
                   <div key={m.id}>
-                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} />
+                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} showChevron={m.id === 'cafe' && kids.length === 0} />
                     {kids.length > 0 && (
                       <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                         {kids.map((c) => (
