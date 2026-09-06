@@ -32,22 +32,33 @@ const RADIANT: BranchOption = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
 const BRANCHES = [RRS, RADIANT]
 const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar' }
 const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen' }
+const STREAMS = [RRS_KITCHEN, RRS_BAR]
+const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
 
 describe('movementsForStream', () => {
   it('AC-063: never offers Roastery as a Café movement destination', () => {
-    expect(movementsForStream([...BRANCHES, { id: 'roastery', code: 'roastery', name: 'Gordi Roastery' }])).not.toContainEqual({
+    expect(movementsForStream(
+      [...BRANCHES, { id: 'roastery', code: 'roastery', name: 'Gordi Roastery' }],
+      STREAMS,
+    )).not.toContainEqual({
       action: 'transfer',
       destinationBranchId: 'roastery',
     })
   })
-  it('offers a produce plus a transfer to EVERY branch — the origin branch included', () => {
+  it('derives destinations from stream Teams, not branch codes', () => {
+    expect(movementsForStream([...BRANCHES, CIKAL], STREAMS)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: RRS.id },
+    ])
+  })
+
+  it('offers a produce plus a transfer to EVERY stream branch — the origin branch included', () => {
     // The origin's own branch is not filtered out, and must not be: it is the intra-branch
     // cross-activity movement, and dropping it would remove the movement #235 exists to
     // capture rather than tidying the list.
-    expect(movementsForStream(BRANCHES)).toEqual([
+    expect(movementsForStream(BRANCHES, STREAMS)).toEqual([
       PRODUCE,
       { action: 'transfer', destinationBranchId: RRS.id },
-      { action: 'transfer', destinationBranchId: RADIANT.id },
     ])
   })
 })

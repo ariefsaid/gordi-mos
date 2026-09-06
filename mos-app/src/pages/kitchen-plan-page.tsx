@@ -246,14 +246,15 @@ function PlanEditor() {
       (category === 'All' || (it.category ?? '') === category)),
     [items, q, category],
   )
-  const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean))).sort()]
+  const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean)))
+    .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
   const planGroups: DataTableGroup<WipItemOption>[] = useMemo(
     () => groupByCategory(visible).map(g => ({
       key: g.cat ?? '__uncategorised__',
-      label: g.cat,
+      label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
       rows: g.rows,
     })),
-    [visible],
+    [visible, t],
   )
 
   const planColumns: DataTableColumn<WipItemOption>[] = [
@@ -457,7 +458,7 @@ function PlanEditor() {
                   a plan for a movement the capture form cannot name is a plan nobody fills. */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches)}
+                options={movementsForStream(branches, streamOptions)}
                 branches={branches}
                 origin={stream}
                 onChange={setMovement}
@@ -540,7 +541,8 @@ function PesananView() {
       (category === 'All' || (r.category ?? '') === category)),
     [rows, q, category],
   )
-  const categories = ['All', ...Array.from(new Set(rows.map(r => r.category ?? '').filter(Boolean))).sort()]
+  const categories = ['All', ...Array.from(new Set(rows.map(r => r.category ?? '').filter(Boolean)))
+    .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
 
   // Group the flat rows by date (already date-sorted by the query) for the read view.
   const pesananGroups: DataTableGroup<PesananRow>[] = useMemo(() => {

@@ -1,6 +1,7 @@
 import type { MessageKey } from '@/i18n/messages'
 import type { Translate } from '@/i18n/use-t'
 
+// Coupled to the seeded ops.wip_items category vocabulary; unknown future seed values stay visible.
 const CATEGORY_KEYS: Readonly<Record<string, MessageKey>> = {
   Chicken: 'kitchen.category.chicken',
   'Snack/Sweet': 'kitchen.category.snackSweet',

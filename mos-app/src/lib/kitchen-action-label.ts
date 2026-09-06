@@ -64,8 +64,8 @@ export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId
 
 /**
  * Every movement capturable from an origin stream (FR-013): produce, then a transfer to each
- * active branch. That single list carries BOTH movement classes, from either activity
- * surface, because a destination is a branch and nothing else (OD-WAY-44):
+ * branch represented by a live stream Team. That single list carries BOTH movement classes,
+ * from either activity surface, because a destination is a branch and nothing else (OD-WAY-44):
  *
  *   - CROSS-BRANCH — any branch that is not the origin. A bar → another branch's bar and the
  *     kitchen's existing cross-branch transfers are the same row shape and the same
@@ -77,12 +77,17 @@ export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId
  *     counterpart activity is a GLOSS the capture control renders (see `isIntraBranch`), never
  *     a column. Approved, such a movement is held — no ERP document (FR-050/053).
  *
- * Destination order follows the catalog order the caller supplies.
+ * Destination order follows the branch catalog order; `streamOptions` is the live stream-Team
+ * catalog and is the authority for which branches are Café destinations.
  */
-export function movementsForStream(branches: readonly BranchOption[]): KitchenMovement[] {
+export function movementsForStream(
+  branches: readonly BranchOption[],
+  streamOptions: readonly ProductionStream[],
+): KitchenMovement[] {
+  const streamBranchIds = new Set(streamOptions.map(stream => stream.branch.id))
   return [
     PRODUCE,
-    ...branches.filter(branch => branch.code !== 'roastery').map((branch): KitchenMovement => ({
+    ...branches.filter(branch => streamBranchIds.has(branch.id)).map((branch): KitchenMovement => ({
       action: 'transfer',
       destinationBranchId: branch.id,
     })),

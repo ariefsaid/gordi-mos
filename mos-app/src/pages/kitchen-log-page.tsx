@@ -641,7 +641,8 @@ export function KitchenLogPage() {
   const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
   const categories = [
     'All',
-    ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean))).sort(),
+    ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean)))
+      .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
   ]
 
   const columns: DataTableColumn<CaptureFormItem>[] = [
@@ -770,7 +771,7 @@ export function KitchenLogPage() {
             fill (kl-status below). Off-plan rows are now silent at rest, same as planned rows. */}
         <div className="kl-card-meta">
           <span className="kl-card-stock">
-            <span>Stock</span> <strong className="tabular">{line.stok}</strong>
+            <span>{t('kitchen.log.col.stock')}</span> <strong className="tabular">{line.stok}</strong>
           </span>
           {line.qty_porsi > 0 && (
             <span className={`kl-status kl-status--${status.tone}`}>{statusLabel(t, line.qty_porsi, line.plan_qty)}</span>
@@ -882,7 +883,7 @@ export function KitchenLogPage() {
                   intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches)}
+                options={movementsForStream(branches, streamOptions)}
                 branches={branches}
                 origin={stream}
                 onChange={handleMovementChange}
