@@ -39,17 +39,21 @@
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
   box-shadow: var(--shadow-rest); /* Soft-Elevation Rule, DESIGN.md OD-P3-11 */
 }
-/* Two weights, and the pair sums to the column count at BOTH desktop bands — so every bento row
-   lands exactly on the grid and no tile is left with a hole beside it (the owner rejected exactly
-   that raggedness: "the boxes dont align … feels untidy nor professional"). 6 cols: 4+2 and 2+4.
-   4 cols: 4 | 2+2 | 4. `wide` is the consequence tier — the regions that carry the viewer's own
-   work and need room for a task row; `narrow` is the notice tier. needs-you leads by being first,
-   top-left, and in the wide tier (OD-V4-7); nothing outranks it. */
+/* Three weights, and at every desktop band the tiles pack to EXACTLY the column count — no tile
+   left with a hole beside it (the owner rejected exactly that raggedness: "the boxes dont align …
+   feels untidy nor professional"). Three regions cannot alternate 4+2 / 2+4 the way four did, so
+   the lead takes a whole row and the notice tile pairs with the consequence tile beneath it:
+   6 cols: 6 | 2+4. 4 cols: 4 | 2+2. `full` is the lead tier — needs-you owns the first row
+   outright; `wide` is the consequence tier — the regions that carry the viewer's own work and need
+   room for a task row; `narrow` is the notice tier. needs-you leads by being first and top-left
+   (OD-V4-7); nothing spans more than it, so nothing outranks it. */
+.home-tile[data-weight="full"]   { grid-column: span 6; }
 .home-tile[data-weight="wide"]   { grid-column: span 4; }
 .home-tile[data-weight="narrow"] { grid-column: span 2; }
-/* The LEAD tile is marked by tone, not by weight: `needs-you` and `my-work` are BOTH `wide`, so the
-   span that gives needs-you its room says nothing about which of the two leads. One step up the
-   surface ramp does. Distinct from the row-hover fill beside it — hover is `--secondary`
+/* The LEAD tile is marked by tone, not by weight: needs-you's `full` span already says it leads,
+   but tone and span answer different questions (which tile is FIRST vs which tile has ROOM), and
+   keeping the region-keyed fill means a future re-weight cannot silently move the lift. One step
+   up the surface ramp. Distinct from the row-hover fill beside it — hover is `--secondary`
    (→ --surface-secondary), this is --surface-tertiary, a different step of the same ramp (measured
    in the browser: 0.984 0.976 0.957 vs 0.969 0.957 0.933), so the tile never reads as hovered. */
 .home-tile[data-region="needs-you"] { background: var(--surface-tertiary); }
@@ -83,14 +87,16 @@
    all three arrangements inherit one behaviour and none can drift from it. ── */
 @container home (max-width: 940px) {
   .home-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  /* The base spans need no override here: at 4 columns `wide` (span 4) is a full row and `narrow`
-     (span 2) is a half, which packs to 4 | 2+2 | 4 — every row still full. */
+  /* At 4 columns the lead's full-track span is 4 and `wide` drops to a half-row 2, so the tiers
+     keep packing exactly: 4 | 2+2 — every row still full. */
   .home-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .home-tile[data-weight="full"] { grid-column: span 4; }
+  .home-tile[data-weight="wide"] { grid-column: span 2; }
 }
 @container home (max-width: 620px) {
   .home-bento { grid-template-columns: minmax(0, 1fr); }
   /* One column: every tile spans the whole row regardless of its weight. Matched on
-     `[data-weight]` so it outranks the base `.home-tile[data-weight="wide|narrow"]` spans on
+     `[data-weight]` so it outranks the base per-weight spans on
      SPECIFICITY (0,2,0 vs 0,2,0 with source order deciding — this block is authored last), which
      is what `!important` was standing in for. `!important` here would also have been unbeatable
      by any future per-region override at this width. */

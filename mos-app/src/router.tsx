@@ -171,8 +171,8 @@ const routeTable: RouteObject[] = [
         handle: infrastructureHandle('layout'),
         children: [
           // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
-          // design: the region/attention model (needs-you, failed checks, mentions, my work
-          // today) in whichever of Focused/Overview/List the viewer has chosen. Eager, still,
+          // design: the region/attention model (needs-you, failed checks, my work today) in
+          // whichever of Focused/Overview/List the viewer has chosen. Eager, still,
           // for the same reason as the import above: the index route is the first paint every
           // session gets.
           {

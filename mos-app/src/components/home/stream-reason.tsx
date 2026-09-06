@@ -9,7 +9,6 @@ const REASON_KEY: Record<StreamReasonType['tone'], MessageKey> = {
   due: 'home.stream.reason.dueToday',
   blocked: 'home.stream.reason.blocked',
   check: 'home.stream.reason.failedCheck',
-  mention: 'home.stream.reason.mention',
 }
 
 /**
@@ -23,9 +22,9 @@ const REASON_KEY: Record<StreamReasonType['tone'], MessageKey> = {
  *           band at rest but still carries information the band label does not (the overdue age,
  *           "Overdue · 11d"). DESIGN.md § Row status as text (v4).
  * `none`  — the reason restates the band label verbatim ("Due today" under DUE TODAY · 2,
- *           "Check failed" under FAILED CHECKS · 2, "Mentions you" under MENTIONS · 1, "Blocked"
- *           under BLOCKED · 1 beside a Blocked status pill). DESIGN.md Don't: "Don't repeat a value
- *           under a control that the row or card already renders as its own column/field."
+ *           "Check failed" under FAILED CHECKS · 2, "Blocked" under BLOCKED · 1 beside a Blocked
+ *           status pill). DESIGN.md Don't: "Don't repeat a value under a control that the row or
+ *           card already renders as its own column/field."
  */
 export type ReasonStyle = 'chip' | 'text' | 'none'
 

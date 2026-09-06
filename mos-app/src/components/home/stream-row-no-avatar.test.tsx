@@ -84,7 +84,7 @@ function renderLayouts(regions: ReturnType<typeof buildHomeRegions>) {
 }
 
 describe('F16: a rendered "My work today" region never names the viewer to themselves', () => {
-  const empty = { overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [] }
+  const empty = { overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [] }
 
   it('the my-work rows carry no PIC name — in every arrangement that renders the region', () => {
     const views = renderLayouts(buildHomeRegions({ ...empty, myWork: [myWorkItem] }))

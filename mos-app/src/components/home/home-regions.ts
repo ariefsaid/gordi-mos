@@ -6,7 +6,7 @@ import type { MessageKey } from '@/i18n/messages'
 // still returned, so an empty region is distinguishable from a hidden one (FR-929).
 // needs-you is the task attention union: overdue → due today → blocked.
 
-export type HomeRegionId = 'needs-you' | 'failed-checks' | 'mentions' | 'my-work'
+export type HomeRegionId = 'needs-you' | 'failed-checks' | 'my-work'
 
 export interface HomeRegionDrillTo {
   /** Where this region's FULL scope lives in the app. */
@@ -34,8 +34,6 @@ const REGION_ROUTE: Record<HomeRegionId, string> = {
   'needs-you': '/work/tasks?view=my-work',
   // A rejected café log is re-entered on the log itself (the same route its rows link to).
   'failed-checks': '/cafe/log',
-  // Inbox is the app's mentions/asks surface ("Triage what was directed to you").
-  mentions: '/inbox',
   'my-work': '/work/tasks?view=my-work',
 }
 
@@ -69,16 +67,13 @@ export interface HomeRegionInput {
   blocked: StreamItem[]
   myWork: StreamItem[]
   failedChecks: StreamItem[]
-  mentions: StreamItem[]
   /** State of the ONE shared tasks projection behind needs-you (overdue/due-today/blocked) AND
    *  my-work — the same fetch, so they share one state and one retry (never a duplicate error). */
   taskState?: StreamBandState
   onRetryTasks?: () => void
-  /** failed-checks and mentions each read their own independent DAL. */
+  /** failed-checks reads its own independent DAL. */
   failedChecksState?: StreamBandState
   onRetryFailedChecks?: () => void
-  mentionsState?: StreamBandState
-  onRetryMentions?: () => void
   /** The viewer's FULL open-task count (all owned, non-Done tasks) — feeds my-work's drill link.
    *  Absent (no link) when the caller has no honest count to report yet. */
   myWorkFullCount?: number
@@ -93,7 +88,6 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
     count != null ? { route: REGION_ROUTE[id], count } : { route: REGION_ROUTE[id] }
 
   const failedChecksState = input.failedChecksState ?? 'ready'
-  const mentionsState = input.mentionsState ?? 'ready'
   // A count exists only where the read behind it SUCCEEDED (DIV-G5). One helper, applied to every
   // region, so no arrangement can grow its own idea of when a number is trustworthy.
   const countOf = (items: StreamItem[], state: StreamBandState) =>
@@ -111,12 +105,6 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
       count: countOf(input.failedChecks, failedChecksState), state: failedChecksState,
       onRetry: input.onRetryFailedChecks,
       drillTo: drillTo('failed-checks'),
-    },
-    {
-      id: 'mentions', labelKey: 'home.stream.band.mentions', items: input.mentions,
-      count: countOf(input.mentions, mentionsState), state: mentionsState,
-      onRetry: input.onRetryMentions,
-      drillTo: drillTo('mentions'),
     },
     {
       id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,

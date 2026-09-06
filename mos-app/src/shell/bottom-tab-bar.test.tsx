@@ -16,6 +16,10 @@ vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 const mockUseIsNarrow = vi.mocked(useIsNarrow)
 
+vi.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: vi.fn() }))
+import { useUnreadCount } from '@/hooks/useUnreadCount'
+const mockUseUnreadCount = vi.mocked(useUnreadCount)
+
 import { BottomTabBar } from './bottom-tab-bar'
 
 // #744: the module bottom-tab reads the viewer's affiliation payload, so a viewer needs the ONE
@@ -67,6 +71,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   setAuthAs([])
+  mockUseUnreadCount.mockReturnValue({ unreadCount: 0, loading: false, refresh: vi.fn() })
 })
 
 describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role module> · Inbox · More', () => {
@@ -101,6 +106,14 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
     const links = within(nav).getAllByRole('link')
     expect(links.map((l) => l.textContent)).toEqual(['Home', 'Work', 'Inbox'])
     expect(within(nav).queryByRole('link', { name: /Roastery/ })).toBeNull()
+  })
+
+  it('AC-051: the phone Inbox tab badge renders the shared unread figure', () => {
+    mockUseUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
+    renderTabBar('/')
+    const inbox = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: /Inbox,.*2/i })
+    expect(inbox).toBeInTheDocument()
+    expect(within(inbox).getByText('2')).toBeInTheDocument()
   })
 
   it('primary tabs link to /, /work/tasks, /cafe, /inbox (café viewer)', () => {

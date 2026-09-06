@@ -4,13 +4,13 @@
 // already uses (Rule 11/NFR-504).
 
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import type { NotificationRow } from '@/lib/db/notifications'
-import { notificationRoute } from '@/lib/db/notifications'
 import { raciOwner } from '@/lib/raci-member'
 import { formatDate } from '@/components/tasks/task-formatters'
 import type { Locale } from '@/i18n/messages'
 
-export type AttentionLaneKind = 'overdue' | 'due-today' | 'mentions' | 'failed-checks'
+// No 'mentions' lane: Inbox (page + bell) is the one mentions surface (#745) — Home ranks tasks
+// and failed checks only.
+export type AttentionLaneKind = 'overdue' | 'due-today' | 'failed-checks'
 export type LaneState = 'loading' | 'ready' | 'error'
 
 /** The person-in-charge decoration on an attention row — the person's NAME (Luna J01/J02).
@@ -96,13 +96,6 @@ export function dueTodayTasks(tasks: TaskListRow[], viewerId: string, today: str
   return tasks
     .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date === today)
     .map(t => toTaskItem(t, locale, dir))
-}
-
-/** Unread notifications routed via the safe notificationRoute allow-list, else /inbox — FR-504. */
-export function unreadMentions(notifications: NotificationRow[]): AttentionItem[] {
-  return notifications
-    .filter(n => n.read_at == null)
-    .map(n => ({ id: n.id, title: n.title, meta: n.body ?? undefined, route: notificationRoute(n) ?? '/inbox' }))
 }
 
 /** Summed item count across lanes — the "Needs attention · N" header summary source (FR-509). */

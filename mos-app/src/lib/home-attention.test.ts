@@ -4,9 +4,8 @@
 
 import { describe, it, expect } from 'vitest'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import type { NotificationRow } from '@/lib/db/notifications'
 import { formatDate } from '@/components/tasks/task-formatters'
-import { overdueTasks, dueTodayTasks, unreadMentions, attentionCount, wibToday } from './home-attention'
+import { overdueTasks, dueTodayTasks, attentionCount, wibToday } from './home-attention'
 
 const VIEWER = '40000000-0000-0000-0000-000000000001'
 const OTHER = '40000000-0000-0000-0000-000000000002'
@@ -84,39 +83,6 @@ describe('AC-502: dueTodayTasks — owned, non-Done tasks due exactly today', ()
 
     expect(result).toEqual([
       { id: 'due-today-owned', title: 'Task 1', meta: formatDate(TODAY), route: '/work/tasks/due-today-owned' },
-    ])
-  })
-})
-
-function notification(overrides: Partial<NotificationRow> = {}): NotificationRow {
-  return {
-    id: 'n-1',
-    severity: 'info',
-    title: 'Someone mentioned you',
-    body: null,
-    metadata: {},
-    read_at: null,
-    created_at: '2026-07-16T00:00:00Z',
-    ...overrides,
-  }
-}
-
-describe('AC-503: unreadMentions — unread notifications, safe route or /inbox fallback', () => {
-  it('returns only unread rows, routed via notificationRoute or the /inbox fallback', () => {
-    const unreadWithRoute = notification({
-      id: 'n-route',
-      title: 'Mentioned on a Signal',
-      metadata: { entity: { type: 'signal', id: 'abc', route: '/work/signals?record=abc' } },
-    })
-    const unreadNoRoute = notification({ id: 'n-noroute', title: 'Mentioned somewhere' })
-    const readRow = notification({ id: 'n-read', read_at: '2026-07-15T00:00:00Z' })
-    const rows = [unreadWithRoute, unreadNoRoute, readRow]
-
-    const result = unreadMentions(rows)
-
-    expect(result).toEqual([
-      { id: 'n-route', title: 'Mentioned on a Signal', meta: undefined, route: '/work/signals?record=abc' },
-      { id: 'n-noroute', title: 'Mentioned somewhere', meta: undefined, route: '/inbox' },
     ])
   })
 })

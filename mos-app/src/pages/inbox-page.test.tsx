@@ -123,6 +123,26 @@ describe('InboxPage — shared state kit', () => {
     expect(container.querySelector('main')?.style.backgroundImage).toBe('')
   })
 
+  it('AC-051: two unread mentions share the Unread count and appear under All and Unread', () => {
+    const rows = [
+      notification({ id: 'mention-1', title: 'Mention one' }),
+      notification({ id: 'mention-2', title: 'Mention two' }),
+      notification({ id: 'handled-1', title: 'Handled item', read_at: '2026-07-07T01:00:00Z' }),
+    ]
+    mockUseNotifications.mockReturnValue(hookState({ notifications: rows, unreadCount: 2 }))
+    renderPage()
+
+    expect(screen.getByRole('button', { name: /Unread · 2/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mention one.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mention two.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Handled item/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Unread · 2/i }))
+    expect(screen.getByRole('button', { name: /Mention one.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mention two.*unread/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Handled item/i })).toBeNull()
+  })
+
   it('AC-V3-002: page-owned Inbox records mount through the inbox collection host slot', () => {
     mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
     renderHostedPage()

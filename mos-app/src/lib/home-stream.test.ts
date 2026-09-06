@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   daysOverdue, overdueStreamItems, dueTodayStreamItems, blockedStreamItems,
-  failedCheckStreamItems, mentionStreamItems, myWorkStreamItems, openTaskCount,
+  failedCheckStreamItems, myWorkStreamItems, openTaskCount,
   signalStreamItems, isAttentionSignal,
   type AttentionDirectory,
 } from './home-stream'
@@ -92,11 +92,10 @@ describe('blockedStreamItems', () => {
   })
 })
 
-describe('failedCheckStreamItems / mentionStreamItems', () => {
-  it('decorate pre-built attention items with their reason tone', () => {
+describe('failedCheckStreamItems', () => {
+  it('decorates pre-built attention items with the check-failed reason tone', () => {
     const raw: AttentionItem[] = [{ id: 'c-1', title: 'Reject · 2026-07-20', route: '/cafe/log' }]
     expect(failedCheckStreamItems(raw)[0].reason).toEqual({ tone: 'check' })
-    expect(mentionStreamItems(raw)[0].reason).toEqual({ tone: 'mention' })
   })
 })
 

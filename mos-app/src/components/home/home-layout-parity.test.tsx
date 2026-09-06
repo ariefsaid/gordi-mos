@@ -16,20 +16,20 @@ const item = (id: string): StreamItem => ({
 
 const regions = buildHomeRegions({
   overdue: [item('a')], dueToday: [], blocked: [],
-  myWork: [item('b')], failedChecks: [item('c')], mentions: [],
+  myWork: [item('b')], failedChecks: [item('c')],
 })
 
 // Every region EMPTY, every read succeeded — the fixture AC-928 is actually about ("a viewer whose
 // regions are all empty"). The `regions` fixture above deliberately is not that.
 const emptyRegions = buildHomeRegions({
-  overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+  overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
 })
 
 // One region-distinguishable record in each region, so "only that region's records" (AC-926) is a
 // question the DOM can answer: every title names the region it belongs to.
 const switchRegions = buildHomeRegions({
   overdue: [item('od1')], dueToday: [], blocked: [],
-  myWork: [item('mw1'), item('mw2')], failedChecks: [item('fc1')], mentions: [item('mn1')],
+  myWork: [item('mw1'), item('mw2')], failedChecks: [item('fc1')],
 })
 
 // Every region PAST Overview's OVERVIEW_TILE_ROWS cap (5) — the only fixture under which AC-929's
@@ -39,7 +39,7 @@ const many = (prefix: string, n: number) =>
   Array.from({ length: n }, (_, i) => item(`${prefix}${i + 1}`))
 const cappedRegions = buildHomeRegions({
   overdue: many('od', 3), dueToday: many('dt', 3), blocked: [], // needs-you = 6
-  myWork: many('mw', 6), failedChecks: many('fc', 6), mentions: many('mn', 6),
+  myWork: many('mw', 6), failedChecks: many('fc', 6),
 })
 const ALL_RECORD_IDS = cappedRegions.flatMap((r) => r.items.map((i) => i.id))
 const RECORD_HREF = /^\/work\/tasks\/[^?]+$/
@@ -48,13 +48,11 @@ const RECORD_HREF = /^\/work\/tasks\/[^?]+$/
 const REGION_LABEL: Record<HomeRegionId, string> = {
   'needs-you': 'Needs you now',
   'failed-checks': 'Failed checks',
-  mentions: 'Mentions',
   'my-work': 'My work today',
 }
 const REGION_ROUTE: Record<HomeRegionId, string> = {
   'needs-you': '/work/tasks?view=my-work',
   'failed-checks': '/cafe/log',
-  mentions: '/inbox',
   'my-work': '/work/tasks?view=my-work',
 }
 
@@ -65,6 +63,19 @@ function renderLayout(node: React.ReactNode) {
 }
 
 describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
+  it('AC-050: every arrangement renders exactly the three Home regions and no Mentions', () => {
+    for (const node of [
+      <HomeFocused key="focused" regions={regions} feed={FEED} />,
+      <HomeOverview key="overview" regions={regions} feed={FEED} />,
+      <HomeList key="list" regions={regions} feed={FEED} />,
+    ]) {
+      const { container, unmount } = renderLayout(node)
+      expect(container.textContent).not.toMatch(/Mentions/i)
+      expect(container.querySelectorAll('[data-region="mentions"]').length).toBe(0)
+      unmount()
+    }
+  })
+
   it('AC-927: every layout renders the Signals feed', () => {
     for (const node of [
       <HomeFocused key="f" regions={regions} feed={FEED} />,
@@ -82,14 +93,14 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
   // is still named WITH A ZERO COUNT." The goal is the viewer's: an empty region must be
   // distinguishable from one that was never offered (FR-929) — which needs the NAME *and* the
   // number. The previous test asserted neither half of that: its fixture had items in three of the
-  // four regions, it skipped Focused entirely, and `getByText(/mentions/i)` passes on a region
+  // regions, it skipped Focused entirely, and `getByText(/mentions/i)` passes on a region
   // rendering no count at all. It could not have gone red on the defect it was written for.
   //
   // Each layout is asked in the shape the viewer actually reads it: Focused's counts live on the
   // tab strip (that is the whole safety argument for it being the default), Overview's in the tile
   // head beside the tile name, List's in the band label.
   it('AC-928: with every region empty, each region is still named AND carries its zero — in all three layouts', () => {
-    const REGION_NAMES = ['Needs you now', 'Failed checks', 'Mentions', 'My work today']
+    const REGION_NAMES = ['Needs you now', 'Failed checks', 'My work today']
     const hasZero = (el: HTMLElement | null) => /(?<!\d)0(?!\d)/.test(el?.textContent ?? '')
 
     // Focused — the count rides on every tab, selected or not.
@@ -151,7 +162,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
 
     // At rest the lead region is up: its record is present and NO other region's record is.
     expect(screen.getByText('Item od1')).toBeInTheDocument()
-    for (const other of ['Item mw1', 'Item mw2', 'Item fc1', 'Item mn1']) {
+    for (const other of ['Item mw1', 'Item mw2', 'Item fc1']) {
       expect(screen.queryByText(other), `"${other}" belongs to a region that is not selected`).toBeNull()
     }
 
@@ -160,7 +171,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     // …and after the switch the swap is total, in both directions.
     expect(screen.getByText('Item mw1')).toBeInTheDocument()
     expect(screen.getByText('Item mw2')).toBeInTheDocument()
-    for (const gone of ['Item od1', 'Item fc1', 'Item mn1']) {
+    for (const gone of ['Item od1', 'Item fc1']) {
       expect(screen.queryByText(gone), `"${gone}" is not in the region the viewer selected`).toBeNull()
     }
 
@@ -173,7 +184,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
   it('AC-925: Focused shows a count on every tab, selected or not', () => {
     renderLayout(<HomeFocused regions={regions} feed={FEED} />)
     const tabs = screen.getAllByRole('tab')
-    expect(tabs).toHaveLength(4)
+    expect(tabs).toHaveLength(3)
     for (const tab of tabs) expect(tab.textContent).toMatch(/\d/)
   })
 
@@ -316,11 +327,11 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
 
 describe('DIV-G5 (home-layout-preference.spec.md §7): a failed or still-loading region never renders as an indistinguishable empty region', () => {
   const loadingRegions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
     taskState: 'loading',
   })
   const erroredRegions = buildHomeRegions({
-    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], mentions: [],
+    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
     taskState: 'error', onRetryTasks: () => {},
   })
 
@@ -354,7 +365,7 @@ describe('DIV-G5 (home-layout-preference.spec.md §7): a failed or still-loading
 
 describe('Restored affordance: the my-work drill link (the full open-task count, never just the capped region items)', () => {
   const regionsWithDrillLink = buildHomeRegions({
-    overdue: [], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [], mentions: [],
+    overdue: [], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [],
     myWorkFullCount: 9,
   })
 
