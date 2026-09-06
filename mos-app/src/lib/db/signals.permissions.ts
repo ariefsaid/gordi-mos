@@ -1,5 +1,8 @@
 import { can } from '@/lib/capabilities'
 
+// canPostTo is intentionally not mirrored here (DD-WAY-54): the composer reads the database
+// destination allow-list, so client-side post authorization would drift from the server rule.
+
 export type SignalPermissionViewer = {
   personId: string
   accessRoles: readonly string[]

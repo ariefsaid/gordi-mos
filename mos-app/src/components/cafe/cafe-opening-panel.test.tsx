@@ -44,7 +44,7 @@ function setAuthAs(accessRoles: string[]) {
         full_name: 'Cahya Cafe', email: 'cahya@example.test', archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
-      roles: [], isManager: false, accessRoles, affiliated: [],
+      roles: [], isManager: false, accessRoles, affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
     },
     signOut: vi.fn(),
   })

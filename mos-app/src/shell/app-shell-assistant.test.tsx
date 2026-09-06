@@ -45,7 +45,7 @@ const viewer = {
   roles: [],
   isManager: false,
   accessRoles: [],
-  affiliated: [],
+  affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
 }
 
 function setNarrow(matches: boolean) {

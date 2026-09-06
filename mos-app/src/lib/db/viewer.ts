@@ -60,7 +60,8 @@ export interface ViewerResult {
    *  viewers; a failed read fails closed ([] — never undefined) because RLS, never this field,
    *  refuses writes. Required so every capture selector can default-closed on it. */
   affiliated: string[]
-  leadsTeamIds?: string[]
+  leadsTeamIds: string[]
+  leadTeamIdsError: string | null
 }
 
 // resolveViewer: read the person by user_id, their held roles, and derive isManager.
@@ -81,7 +82,15 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [], leadsTeamIds: [] }
+    return {
+      person: null,
+      roles: [],
+      isManager: false,
+      accessRoles: [],
+      affiliated: [],
+      leadsTeamIds: [],
+      leadTeamIdsError: null,
+    }
   }
 
   // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
@@ -151,7 +160,8 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
   const { data: leadsTeamIds, error: leadsError } = await supabase
     .schema('mos')
     .rpc('viewer_lead_team_ids')
-  if (leadsError) console.warn('viewer: lead-team read failed', leadsError)
+  const leadTeamIdsError = leadsError ? 'Lead permissions could not be confirmed.' : null
+  const resolvedLeadTeamIds = Array.isArray(leadsTeamIds) ? leadsTeamIds : []
 
   return {
     person,
@@ -159,6 +169,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     isManager,
     accessRoles,
     affiliated,
-    leadsTeamIds: leadsError ? [] : (leadsTeamIds ?? []),
+    leadsTeamIds: leadsError ? [] : resolvedLeadTeamIds,
+    leadTeamIdsError,
   }
 }

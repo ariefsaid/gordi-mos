@@ -45,7 +45,7 @@ const VIEWER_PERSON: PeopleRow = {
 }
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: VIEWER_PERSON, roles: [], isManager: false, accessRoles: ['member'], affiliated: [] },
+  viewer: { person: VIEWER_PERSON, roles: [], isManager: false, accessRoles: ['member'], affiliated: [], leadsTeamIds: [], leadTeamIdsError: null },
   signOut: async () => {},
 }
 

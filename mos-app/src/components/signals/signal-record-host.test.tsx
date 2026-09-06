@@ -90,7 +90,7 @@ function authedViewer(personId = VIEWER_ID): Extract<AuthState, { status: 'authe
         id: personId, org_id: 'org-1', user_id: 'u1', full_name: 'Author One', email: null,
         archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles: [], affiliated: [],
+      roles: [], isManager: false, accessRoles: [], affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
     },
     signOut: vi.fn(),
   }
@@ -214,6 +214,21 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, author_id: 'person-dewi', retracted_at: 'now', retract_reason: 'Duplicate' }, mentions: [], acknowledgements: [], tasks: [] })
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retract/i }))
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+  })
+
+  it('offers retract to a lead of the owning Team but not to a peer', async () => {
+    mockUseAuth.mockReturnValue({ ...authedViewer('person-lead'), viewer: {
+      ...authedViewer('person-lead').viewer, leadsTeamIds: [TEAM_ID],
+    } })
+    const { unmount } = renderHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /^retract$/i })).toBeInTheDocument()
+    unmount()
+
+    mockUseAuth.mockReturnValue(authedViewer('person-peer'))
+    renderHost()
+    await waitFor(() => expect(screen.getAllByText('The freezer alarm went off', { selector: '.signal-message-body' })[0]).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /^retract$/i })).toBeNull()
   })
 
   it('hides retract from a plain viewer', async () => {

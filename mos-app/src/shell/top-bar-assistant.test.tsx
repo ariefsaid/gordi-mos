@@ -57,7 +57,7 @@ const viewer = {
   roles: [],
   isManager: false,
   accessRoles: [],
-  affiliated: [],
+  affiliated: [], leadsTeamIds: [], leadTeamIdsError: null,
 }
 
 function renderTopBar({ narrow, withPanel }: { narrow: boolean; withPanel?: boolean }) {

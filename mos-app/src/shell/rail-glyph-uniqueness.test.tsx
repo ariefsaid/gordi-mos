@@ -133,7 +133,7 @@ function setOmniscientViewer() {
       roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Director Viewer', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: true,
       accessRoles: OMNISCIENT_ROLES,
-      affiliated: ['cafe'],
+      affiliated: ['cafe'], leadsTeamIds: [], leadTeamIdsError: null,
     },
     signOut: vi.fn(),
   })

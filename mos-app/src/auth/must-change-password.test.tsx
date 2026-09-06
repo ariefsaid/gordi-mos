@@ -41,7 +41,7 @@ function person(mustChange: boolean): PeopleRow {
 function authed(mustChange: boolean, signOut = vi.fn()) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
-    viewer: { person: person(mustChange), roles: [], isManager: false, accessRoles: [], affiliated: [] },
+    viewer: { person: person(mustChange), roles: [], isManager: false, accessRoles: [], affiliated: [], leadsTeamIds: [], leadTeamIdsError: null },
     signOut,
   })
   return signOut
