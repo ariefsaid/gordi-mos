@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -34,6 +34,7 @@ export interface SignalComposerProps {
   onShared?: (id: string) => void
   prefill?: SignalComposerPrefill
   onDirtyChange?: (dirty: boolean) => void
+  textareaRef?: RefObject<HTMLTextAreaElement | null>
 }
 
 function toDatetimeLocalValue(date: Date): string {
@@ -41,15 +42,17 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-function formatOccurred(value: string, justNow: string): string {
+function formatOccurred(value: string, justNow: string, untouched: boolean): string {
+  if (untouched) return justNow
   const date = new Date(value)
-  if (Math.abs(Date.now() - date.getTime()) < 60_000) return justNow
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
+  const parts = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('day')} ${part('month')} ${part('hour')}:${part('minute')}`
 }
 
 export function SignalComposer({
   authorId, authorName, canCreateForTeam = false, canMentionBu = false,
-  teamMembers = {}, buMembers = {}, onShared, prefill, onDirtyChange,
+  teamMembers = {}, buMembers = {}, onShared, prefill, onDirtyChange, textareaRef: externalTextareaRef,
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
@@ -62,15 +65,38 @@ export function SignalComposer({
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState(prefill?.body ?? '')
   const [occurredAt, setOccurredAt] = useState(() => prefill ? toDatetimeLocalValue(new Date(prefill.occurredAt)) : toDatetimeLocalValue(new Date()))
+  const [occurredTouched, setOccurredTouched] = useState(!!prefill)
+  const [occurredOpen, setOccurredOpen] = useState(false)
+  const occurredButtonRef = useRef<HTMLButtonElement>(null)
   const [attention, setAttention] = useState<Attention>(prefill?.attention ?? 'FYI')
   const [mentions, setMentions] = useState<StagedMention[]>(prefill?.mentions ?? [])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = externalTextareaRef ?? internalTextareaRef
   // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
   // navigation keydowns to the picker's shared listbox contract.
   const mentionPickerRef = useRef<SignalMentionPickerHandle>(null)
+  useEffect(() => {
+    if (!occurredOpen) return
+    const close = (event: MouseEvent) => {
+      if (!(event.target instanceof Node) || !occurredButtonRef.current?.parentElement?.contains(event.target)) {
+        setOccurredOpen(false)
+        occurredButtonRef.current?.focus()
+      }
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      setOccurredOpen(false)
+      occurredButtonRef.current?.focus()
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', escape, true)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape, true) }
+  }, [occurredOpen])
   useEffect(() => { onDirtyChange?.(body.trim().length > 0) }, [body, onDirtyChange])
 
   useEffect(() => {
@@ -161,6 +187,7 @@ export function SignalComposer({
       onShared?.(id)
     } catch (err) {
       const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : ''
+      if (code !== '42501') console.error('Signal share failed', err)
       setError(code === '42501' ? t('signals.composer.postForbidden') : t('signals.composer.postFailed'))
     } finally {
       setPosting(false)
@@ -233,12 +260,19 @@ export function SignalComposer({
       </div>
 
       <div className="signal-composer-pill-row">
-        {site && <button type="button" className="signal-composer-pill signal-location-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>📍 {site.name}</button>}
-        <button type="button" className="signal-composer-pill signal-occurred-pill" onClick={() => (document.getElementById('signal-occurred-input') as HTMLInputElement | null)?.showPicker?.()}>
-          🕒 {formatOccurred(occurredAt, t('signals.composer.justNow'))} <span className="signal-composer-field-hint">WIB</span>
-        </button>
+        {site && <span className="signal-composer-pill signal-location-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>📍 {site.name}</span>}
+        <div className="signal-occurred-picker">
+          <button ref={occurredButtonRef} type="button" className="signal-composer-pill signal-occurred-pill" aria-haspopup="dialog" aria-expanded={occurredOpen} onClick={() => setOccurredOpen((current) => !current)}>
+            🕒 {formatOccurred(occurredAt, t('signals.composer.justNow'), !occurredTouched)}
+          </button>
+          {occurredOpen && (
+            <div className="signal-occurred-popover" role="dialog" aria-label={t('signals.composer.occurredLabel')}>
+              <label htmlFor="signal-occurred-input">{t('signals.composer.occurredLabel')}</label>
+              <input id="signal-occurred-input" type="datetime-local" aria-label={t('signals.composer.occurredLabel')} value={occurredAt} onChange={(e) => { setOccurredAt(e.target.value); setOccurredTouched(true) }} />
+            </div>
+          )}
+        </div>
         <SignalAttentionPicker value={attention} onChange={setAttention} />
-        <input id="signal-occurred-input" className="signal-occurred-input" type="datetime-local" aria-label={t('signals.composer.occurredLabel')} value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} />
       </div>
 
       {teams.length > 1 && (

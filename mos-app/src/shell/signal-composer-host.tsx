@@ -1,7 +1,7 @@
 // Context files intentionally mix a Provider component with a reader hook —
 // the react-refresh rule is suppressed per the established pattern (breadcrumb-title.tsx).
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
@@ -53,6 +53,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
   const [composerDirty, setComposerDirty] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const close = useCallback(() => {
     if (composerDirty) { setDiscardOpen(true); return }
@@ -101,6 +102,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
             </div>
             <SignalComposer
               onDirtyChange={setComposerDirty}
+              textareaRef={composerTextareaRef}
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
@@ -120,7 +122,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
         confirmLabel={t('signals.composer.discardConfirm')}
         cancelLabel={t('signals.composer.keepEditing')}
         tone="destructive"
-        onCancel={() => { setDiscardOpen(false); document.querySelector<HTMLTextAreaElement>('[data-testid="signal-composer"] textarea')?.focus() }}
+        onCancel={() => { setDiscardOpen(false); composerTextareaRef.current?.focus() }}
         onConfirm={async () => { setDiscardOpen(false); setComposerDirty(false); setIsOpen(false); setPrefill(undefined) }}
       />
     </SignalComposerContext.Provider>
