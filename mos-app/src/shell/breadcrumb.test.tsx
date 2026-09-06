@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useMemo } from 'react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
@@ -168,6 +168,12 @@ describe('breadcrumb leaves resolve the id locale (#410)', () => {
 // A phone header has no room for a trail of ancestors: "Work · Tasks ·" with a dangling
 // separator names places the viewer navigated PAST (audit F-9). The leaf is never empty —
 // a record page shows the record title, a collection page the collection leaf.
+const originalMatchMedia = window.matchMedia
+
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', { value: originalMatchMedia, writable: true, configurable: true })
+})
+
 function setNarrow(matches: boolean) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

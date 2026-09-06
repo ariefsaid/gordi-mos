@@ -206,13 +206,17 @@ describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
     const header = container.querySelector('[data-anatomy="header"]')!
     const breadcrumbTrack = container.querySelector('.top-bar__breadcrumb-track')!
     const leaf = container.querySelector('.top-bar__breadcrumb-leaf')!
+    const spacer = breadcrumbTrack.nextElementSibling!
     expect(header).toHaveClass('top-bar')
+    // Geometry guard: on narrow RTL layouts the breadcrumb track must receive all free width.
+    expect(spacer).toHaveClass('flex-none')
     expect(breadcrumbTrack).toHaveClass('top-bar__breadcrumb-track')
     expect(leaf).toHaveClass('top-bar__breadcrumb-leaf')
     expect(topBarCss).toMatch(/\.top-bar__breadcrumb-track\s*\{[^}]*min-width:\s*0[^}]*flex:\s*1/)
     expect(topBarCss).toMatch(/\.top-bar__breadcrumb\s*\{[^}]*display:\s*flex[^}]*flex:\s*1[^}]*min-width:\s*0/)
     expect(topBarCss).toMatch(/\.top-bar__breadcrumb-fixed\s*\{[^}]*flex:\s*0 0 auto[^}]*white-space:\s*nowrap/)
     expect(topBarCss).toMatch(/\.top-bar__breadcrumb-leaf\s*\{[^}]*flex:\s*1 1 auto[^}]*min-width:\s*0/)
+    expect(topBarCss).toMatch(/@media\s*\(max-width:\s*919\.98px\)[\s\S]*\.top-bar \.tap-target-phone--icon\s*\{[\s\S]*min-width:\s*44px[\s\S]*min-height:\s*44px/)
   })
 
   it('AC-S02: brand column references --rail-w token and has border-r', () => {
