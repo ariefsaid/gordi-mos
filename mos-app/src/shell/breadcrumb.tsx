@@ -36,7 +36,7 @@ export function Breadcrumb() {
     // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
     // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
     // non-promoted module) has no tab, so the breadcrumb leaf owns it.
-    const promoted = viewer ? primaryModuleForViewer(viewer.roles.map((r) => r.name), viewer.accessRoles) : null
+    const promoted = viewer ? primaryModuleForViewer(viewer.affiliated ?? [], viewer.accessRoles) : null
     const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {

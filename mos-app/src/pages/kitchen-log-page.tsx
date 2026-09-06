@@ -18,6 +18,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
@@ -164,6 +165,12 @@ export function KitchenLogPage() {
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
   const { branches, options: streamOptions, stream } = cafeStream
+  // #744: the presentation of the RLS write gate — rows stay visible, capture controls close,
+  // one line says why. Same selector the policies arm: affiliated, or ops_lead/admin.
+  const canCapture = auth.status === 'authenticated' && canCaptureCafe({
+    affiliated: auth.viewer.affiliated,
+    accessRoles: auth.viewer.accessRoles,
+  })
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
@@ -902,6 +909,9 @@ export function KitchenLogPage() {
 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit */}
           <div className="kl-footer">
+            {!canCapture && (
+              <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
+            )}
             <div className="kl-tally">
               <span className="kl-tally-num tabular">
                 {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
@@ -935,7 +945,7 @@ export function KitchenLogPage() {
                 stagedCount={stagedCount}
                 isSubmitting={isSubmitting}
                 isOnline={isOnline}
-                blocked={hasBlockingError || noteUnresolved || streamMissing}
+                blocked={!canCapture || hasBlockingError || noteUnresolved || streamMissing}
                 t={t}
               />
             </div>

@@ -42,6 +42,17 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_daily_log();
 
+-- #744: the floor-record insert gate arms on stream-Team affiliation. This file's persona (Author
+-- ...0d1, plain member) is incidental to every carried contract below — the gate must not change
+-- what they prove — so the fixture gives her a live (Gordi HQ, bar) membership and nothing else
+-- about the file moves: affiliation arms ONLY the two insert policies, never the update/read
+-- gates these sections assert.
+insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
+  ('00000000-0000-0000-0000-00000000aa22','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Ops10 Fixture Stream','ops10_fixture_stream',
+   '00000000-0000-0000-0000-00000000bf01','bar');
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-00000000aa22',true);
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. ops.log_entries — every column constraint on the table (27, 47)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════

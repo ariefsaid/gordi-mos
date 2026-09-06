@@ -16,7 +16,7 @@
 -- production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(34);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
@@ -446,6 +446,25 @@ select ok(
         join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'shared' and p.proname = 'default_stream'),
   'shared.default_stream() is SECURITY INVOKER — it resolves under the caller''s own RLS, nothing more');
+
+-- #744 adds ONE consumer of the stream shape: the affiliation predicate behind the Café write
+-- gate. It must read the EXISTENCE of a stream membership and nothing else — the moment it
+-- compared a team''s branch/activity to the caller''s OWN stream, OD-WAY-49''s wall would be back
+-- through the function door, underneath the two policy-text scans above. Existence-only means the
+-- stream columns appear solely as is-not-null guards; the default-stream resolution (WHICH stream
+-- is this person''s) is never consulted, because affiliation is not a per-stream fact.
+select ok(
+  (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure)) ~* 'exists\s*\('
+  and (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure))
+        !~* '(branch_id|\mactivity\M)\s*(=|<>|!=|<|>|\min\M)'
+  and (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure)) !~* 'default_stream',
+  'AC-005: the affiliation predicate reads EXISTENCE of a stream membership — stream columns appear only as is-not-null guards, never compared to the caller''s own stream, and the default-stream resolution is never consulted');
+
+select ok(
+  not (select p.prosecdef from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'shared' and p.proname = 'is_cafe_affiliated'),
+  'AC-005: shared.is_cafe_affiliated() is SECURITY INVOKER — it answers under the caller''s own RLS, exactly like default_stream()');
 
 select * from finish();
 rollback;

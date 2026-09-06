@@ -54,8 +54,6 @@ export interface Destination {
   /** primary route a bottom-tab / Work-parent taps (defaults to links[0].path) */
   primaryPath?: string
   zone: DestinationZone
-  /** modules only: renders in the rail iff a viewer JOB ROLE name matches (OD-REDESIGN-68) */
-  workMatch?: RegExp
 }
 
 export const DESTINATIONS: Destination[] = [
@@ -149,11 +147,9 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
       // mechanism Work already uses. Review and Pushes carry the same `ops_lead|admin` gate their
       // ROUTE carries, so the rail never offers a link that bounces.
       { id: 'cafe', zone: 'modules', labelKey: 'dest.cafe', Icon: CafeIcon, primaryPath: '/cafe',
-        workMatch: /caf[eé]|kitchen|\bbar\b|barista/i,
         links: CAFE_SECTIONS,
         children: CAFE_SECTIONS },
       { id: 'ecommerce', zone: 'modules', labelKey: 'dest.ecommerce', Icon: EcommerceIcon, primaryPath: '/ecommerce',
-        workMatch: /ecommerce/i, // NOT sales|crm — Sales is the b2b_sales BU (seed), no module yet (audit F6)
         links: [{ path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon }] },
     ],
   },
@@ -161,7 +157,6 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
     bu: 'rail.b2bOps',
     items: [
       { id: 'roastery', zone: 'modules', labelKey: 'dest.roastery', Icon: RoasteryIcon, primaryPath: '/roastery',
-        workMatch: /roast/i,
         links: [{ path: '/roastery', label: 'Roastery', labelKey: 'nav.roastery', Icon: RoasteryIcon }] },
     ],
   },
@@ -173,12 +168,13 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
  * than the authorization.
  *
  * So a module renders for whoever its ROUTE admits — `isLive` resolves the destination's own
- * access-role gate and nothing else. `workMatch` survives, but ONLY as emphasis: which module gets
- * promoted to the phone's bottom-tab slot and which one the context row names. It no longer
- * decides whether a link exists.
+ * access-role gate and nothing else. Affiliation (#744) survives, but ONLY as emphasis: which
+ * module gets promoted to the phone's bottom-tab slot and which one the context row names. It
+ * never decides whether a link exists.
  *
- * What it used to do, and why the ruling exists: OD-REDESIGN-68 scoped modules to the viewer's own
- * work by matching their JOB-ROLE NAME against a regex. A substantial share of the roles actually
+ * What the name regex used to do, and why the ruling exists: OD-REDESIGN-68 scoped modules to the
+ * viewer's own work by matching their JOB-ROLE NAME against a regex (`workMatch`, retired by
+ * #744). A substantial share of the roles actually
  * in use match none of those regexes, so Café's Log, Plan and Stock had no entry on any surface
  * for those viewers while the route admitted every authenticated viewer. (The roster itself is
  * deliberately untracked — see the public-repo rule in CLAUDE.md — so it is not enumerated here.)
@@ -211,18 +207,16 @@ export function modulesByBU(accessRoles: string[]): { bu: MessageKey; items: Des
 
 /**
  * The module promoted to the phone bottom-nav's third slot — EMPHASIS, not visibility
- * (OD-WAY-51). `workMatch` still picks it: a barista's phone leads with Café, a roaster's with
- * Roastery. A viewer whose job-role name matches no module simply gets no promoted slot, and
- * reaches every module they are admitted to through the More drawer, which lists them all.
+ * (OD-WAY-51). The viewer's affiliation payload (#744) picks it: a person who works a café line
+ * leads with Café. A viewer affiliated with no module gets no promoted slot, and reaches every
+ * module they are admitted to through the More drawer, which lists them all.
  *
  * Returns null rather than falling back to an arbitrary module: promoting one nobody asked for
  * would be a guess presented as a preference.
  */
-export function primaryModuleForViewer(roleNames: string[], accessRoles: string[]): Destination | null {
-  const joined = roleNames.join(' ')
-  return (
-    allModules(accessRoles).find((m) => m.workMatch != null && m.workMatch.test(joined)) ?? null
-  )
+export function primaryModuleForViewer(affiliated: string[], accessRoles: string[]): Destination | null {
+  if (!affiliated.includes('cafe')) return null
+  return allModules(accessRoles).find((m) => m.id === 'cafe') ?? null
 }
 
 /**
@@ -237,7 +231,9 @@ export function primaryModuleForViewer(roleNames: string[], accessRoles: string[
  * visibility model — measured against the real roster, `workMatch` left 5 of 10 job roles matching
  * no module at all, so viewers the route fully admitted were shown nothing. `viewerSeesCafe`
  * (#191) had reintroduced that same regex in this new spot; it is gone, and Home now asks the
- * question the rail asks. `workMatch` survives only as EMPHASIS (`primaryModuleForViewer`).
+ * question the rail asks. The name regex is gone entirely since #744: EMPHASIS reads the viewer's
+ * affiliation payload (`primaryModuleForViewer`), so the ONE fact — works a café line or not —
+ * is the only module emphasis input left.
  *
  * A path with no owning destination is NOT admitted — an unknown route is a fail-closed answer,
  * not a permissive one.

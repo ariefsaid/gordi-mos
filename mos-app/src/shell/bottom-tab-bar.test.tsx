@@ -18,9 +18,10 @@ const mockUseIsNarrow = vi.mocked(useIsNarrow)
 
 import { BottomTabBar } from './bottom-tab-bar'
 
-// OD-REDESIGN-68: the module bottom-tab is role-scoped to the viewer's job role, so a viewer
-// needs a matching job-role NAME (not just an access role) to see e.g. the Café slot.
-function setAuthAs(accessRoles: string[] = [], roleNames: string[] = []) {
+// #744: the module bottom-tab reads the viewer's affiliation payload, so a viewer needs the ONE
+// "works a café line" fact (resolved at sign-in by shared.is_cafe_affiliated()) to see the Café
+// slot. Role NAMES are no longer an input to any nav decision.
+function setAuthAs(accessRoles: string[] = [], roleNames: string[] = [], affiliated: string[] = []) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -32,16 +33,16 @@ function setAuthAs(accessRoles: string[] = [], roleNames: string[] = []) {
         id: `r${i}`, org_id: 'o1', business_unit_id: `bu${i}`, name,
         reports_to_role_id: null, created_at: '', updated_at: '',
       })),
-      isManager: false, accessRoles,
+      isManager: false, accessRoles, affiliated,
     },
     signOut: vi.fn(),
   })
 }
 
-// A café-affiliated viewer (job role name matches the Café module's workMatch) — the
-// persona that OD-68 promotes the Café slot for.
+// A Café-affiliated viewer — the persona #744/OD-WAY-93 #1 promotes the Café slot for (works a
+// line at all; ops leads are admitted to capture through their role arm, not through nav).
 function setCafeViewer() {
-  setAuthAs([], ['Café Ops Lead'])
+  setAuthAs([], ['Café Ops Lead'], ['cafe'])
 }
 
 function renderTabBar(initialPath = '/', {
@@ -79,7 +80,7 @@ describe('AC-021 / OD-REDESIGN-68: phone bottom-nav is Home · Work · <role mod
   })
 
   it('an org-wide viewer with no module role omits the module slot (Home · Work · Inbox + More)', () => {
-    setAuthAs(['admin']) // org-wide role, no café/roastery job role → no module tab (OD-68)
+    setAuthAs(['admin']) // org-wide role, unaffiliated → no module tab (OD-68, #744)
     renderTabBar('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const links = within(nav).getAllByRole('link')

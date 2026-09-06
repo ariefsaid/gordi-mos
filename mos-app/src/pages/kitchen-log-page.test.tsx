@@ -547,6 +547,62 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
   })
 })
 
+// ── #744 AC-007: the capture page presents the affiliation gate ────────────────────────────
+// RLS is the control (NFR-001); this is the presentation of the same rule. Sales (unaffiliated)
+// sees every row and a one-line reason, but no enabled submit; a Café-affiliated viewer (or an
+// ops_lead/admin via the same selector) captures as before. The auth context type carries the
+// field optionally, so every pre-existing fixture above (no affiliated) keeps capture active —
+// stale sessions fail toward the old behavior, the DB refusal stays the hard stop.
+describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated', () => {
+  const UNAFFILIATED: AuthState = {
+    ...VIEWER_MEMBER,
+    viewer: { ...VIEWER_MEMBER.viewer, affiliated: [] },
+  }
+
+  it('an unaffiliated viewer sees the rows, a one-line reason, and no enabled submit', async () => {
+    await renderPage(UNAFFILIATED)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Read-only, not hidden: the capture form and its rows render untouched.
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeVisible()
+
+    // The ONE line stating why capture is closed.
+    expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+
+    // No enabled submit control, even with a staged line.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '20' } })
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    expect(submit).toBeDisabled()
+  })
+
+  it('an affiliated viewer gets capture active — no reason line, submit enabled on an on-plan line', async () => {
+    await renderPage({ ...VIEWER_MEMBER, viewer: { ...VIEWER_MEMBER.viewer, affiliated: ['cafe'] } })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('status')).toBeNull()
+
+    // Plan 20 minus 3 on hand = effective target 17 (kitchen-gates.effectiveTarget). Staging
+    // exactly the target is on-plan, so nothing else blocks. Staging commits on blur (v4: the
+    // note reveal is blur-gated), so blur before asserting.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '17' } })
+    fireEvent.blur(qtyInput)
+    const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
+    await waitFor(() => expect(submit).toBeEnabled())
+  })
+
+  it('an ops_lead without membership keeps capture active — the same selector the DB policy arms', async () => {
+    await renderPage({
+      ...VIEWER_MEMBER,
+      viewer: { ...VIEWER_MEMBER.viewer, affiliated: [], accessRoles: ['ops_lead'] },
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+})
+
 // ── F3b: disabled Submit shows an inline reason message (Fix 3) ──────────────
 describe('F3b: disabled Submit shows reason message when variance note is missing', () => {
   it('shows "Note required to submit" near the Submit button when a note is required and missing', async () => {
