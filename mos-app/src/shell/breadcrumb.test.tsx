@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useMemo } from 'react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import { BreadcrumbTitleProvider, useSetCollectionLeaf } from './breadcrumb-title'
+import { BreadcrumbTitleProvider, useSetBreadcrumbTitle, useSetCollectionLeaf } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
 import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { useT } from '@/i18n/use-t'
@@ -161,5 +161,88 @@ describe('breadcrumb leaves resolve the id locale (#410)', () => {
     renderBC('/work/tasks/new')
     expect(crumbText()).toContain('Buat tugas')
     expect(crumbText()).not.toContain('Create task')
+  })
+})
+
+// ── AC-020 (#755, A-3 / FR-020): below rail-collapse the header shows the LEAF title only ──
+// A phone header has no room for a trail of ancestors: "Work · Tasks ·" with a dangling
+// separator names places the viewer navigated PAST (audit F-9). The leaf is never empty —
+// a record page shows the record title, a collection page the collection leaf.
+const originalMatchMedia = window.matchMedia
+
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', { value: originalMatchMedia, writable: true, configurable: true })
+})
+
+function setNarrow(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
+function TitleSetter({ title }: { title: string }) {
+  useSetBreadcrumbTitle(title)
+  return null
+}
+
+function renderBCNarrow(path: string, dynamicTitle?: string) {
+  setNarrow(true)
+  return render(
+    <I18nProvider>
+      <BreadcrumbTitleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  {dynamicTitle && <TitleSetter title={dynamicTitle} />}
+                  <Breadcrumb />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </BreadcrumbTitleProvider>
+    </I18nProvider>,
+  )
+}
+
+describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3)', () => {
+  it('390 task page: the record title only — no Work crumb, no Tasks crumb, no · separator', () => {
+    const { container } = renderBCNarrow('/work/tasks/abc-123', 'Fix the grinder')
+    expect(screen.getByText('Fix the grinder')).toBeInTheDocument()
+    expect(screen.queryByText('Work')).toBeNull()
+    expect(screen.queryByText('Tasks')).toBeNull()
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '·')
+    expect(separators).toHaveLength(0)
+  })
+
+  it('390 collection page: the collection leaf only', () => {
+    const { container } = renderBCNarrow('/work/tasks')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.queryByText('Work')).toBeNull()
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '·')
+    expect(separators).toHaveLength(0)
+  })
+
+  it('the leaf is never empty: an unresolved record title falls back to the collection leaf', () => {
+    renderBCNarrow('/work/tasks/abc-123')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+  })
+
+  it('the leaf carries the location when the phone surface cannot (a non-tab destination)', () => {
+    // Rule 5: a Work child's leaf does NOT claim aria-current at phone width — the bottom-tab
+    // Work entry owns the location. A destination with no tab (Admin) is owned by the leaf.
+    renderBCNarrow('/admin/people')
+    const leaf = screen.getByText('People')
+    expect(leaf).toHaveAttribute('aria-current', 'page')
   })
 })

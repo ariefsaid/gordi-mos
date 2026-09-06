@@ -7,6 +7,7 @@ import { searchPeopleByName } from '@/lib/db/directory'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canViewRevenue } from '@/lib/capabilities'
+import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { isShipGated } from '@/lib/ship-gate'
 import { DESTINATIONS, viewerAdmittedToRoute } from '@/shell/destinations'
 import { visibleSections, type Section } from '@/shell/sections'
@@ -141,22 +142,18 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   // the palette a destination the rail offers and the router admits. One gate, read through the
   // same helper destinations.tsx and the router read.
   const moneyAuthorized = canViewRevenue(accessRoles)
-  // #407 — the floor's one-tap capture path. The Daily Log retirement (#226/#405) repointed
-  // Home's capture CTA at /cafe/log, but on a component only the DEV-only fossil Home mounted —
-  // the shipped shell offered no capture entry at all. The entry lives in `launcherActions`, the
-  // ONE shared list both surfaces read: the phone `+` launcher's reduced create-set AND the typed
-  // ⌘K view's ACT filter (the at-rest desktop ACT keeps exactly the three universals — e7's
-  // ruling). It is present exactly when the /cafe/log ROUTE admits the viewer, read through the
-  // ONE route-admission seam Home's failed-checks band already uses (viewerAdmittedToRoute —
-  // OD-WAY-51: navigation mirrors what the route admits, never job-role-name matching).
-  const cafeLogAdmitted = viewerAdmittedToRoute(CAFE_LOG_ROUTE, accessRoles)
+  // #407/#755: `launcherActions` is the ONE shared list for the phone `+` launcher and the
+  // typed ⌘K ACT filter. Café capture is a WRITE, so it uses canCaptureCafe, not route admission;
+  // OD-WAY-51 admits /cafe/log to READ.
+  const affiliated = auth.status === 'authenticated' ? auth.viewer.affiliated : []
+  const cafeCaptureAdmitted = canCaptureCafe({ affiliated, accessRoles })
 
   const trimmed = query.trim()
   const isSearching = trimmed.length > 0
 
   // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
   // The three universal actions keep their stable order (Rule 7); the gated Café log entry
-  // (#407) appends after them, present exactly when the /cafe/log route admits the viewer.
+  // (#407) appends after them, present exactly when the Café write gate admits the viewer.
   const actionItems = useMemo<CommandItem[]>(
     () => {
       const items: CommandItem[] = [
@@ -170,10 +167,10 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   )
 
   const launcherActions = useMemo(
-    () => cafeLogAdmitted
+    () => cafeCaptureAdmitted
       ? [...actionItems, { id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action' as const, to: CAFE_LOG_ROUTE }]
       : actionItems,
-    [actionItems, cafeLogAdmitted, t],
+    [actionItems, cafeCaptureAdmitted, t],
   )
 
   const rootNavigateItems = useMemo<CommandItem[]>(() => [

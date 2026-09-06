@@ -334,9 +334,11 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     expect(denied).toHaveBeenCalledWith('/cafe', ['admin'])
   })
 
-  // #407's desktop path: the typed ACT filter reads the SAME shared list the phone `+` launcher
-  // renders, so the gated Café log entry is offered there too — not only from the launcher.
-  it('issue 407: typing Log offers the Café log entry in the typed view to a viewer /cafe/log admits', async () => {
+  // #407/#755: the typed ACT filter reads the SAME shared list the phone `+` launcher renders.
+  // Café capture is a WRITE, so a viewer with the write gate gets the entry even when route
+  // admission is denied; OD-WAY-51 admits /cafe/log to READ, not to authorize capture.
+  it('issue 407: typing Log offers Café capture when the write gate admits, not the route', async () => {
+    seam.override = vi.fn(() => false)
     setAuth(['ops_lead'])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Log' } })

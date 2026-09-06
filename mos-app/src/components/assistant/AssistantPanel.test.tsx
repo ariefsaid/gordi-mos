@@ -9,6 +9,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { OverlayHostProvider, OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
+import { AuthContext } from '@/auth/context'
 import { AssistantPanel } from './AssistantPanel'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
@@ -110,6 +111,47 @@ function renderPanel({ narrow, open, runtime = makeFakeRuntime() }: { narrow: bo
           <OpenHarness />
         </AgentRuntimeProvider>
       </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+// AC-023 harness: same panel, mounted under an authenticated viewer with the given access
+// roles (the capability source the suggestion filter reads).
+function renderPanelForRoles(accessRoles: string[], open = true) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query.includes('max-width') ? false : query.includes('min-width') ? true : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+  localStorage.setItem('mos.assistant.open', open ? 'true' : 'false')
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider
+        value={{
+          status: 'authenticated',
+          viewer: {
+            person: {
+              id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'U', email: null,
+              archived_at: null, created_at: '', updated_at: '', must_change_password: false,
+            },
+            roles: [], isManager: false, accessRoles, affiliated: [],
+          },
+          signOut: vi.fn(),
+        }}
+      >
+        <MemoryRouter>
+          <AgentRuntimeProvider runtime={makeFakeRuntime()}>
+            <AssistantPanel />
+          </AgentRuntimeProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>
     </I18nProvider>,
   )
 }
@@ -469,10 +511,19 @@ describe('AssistantPanel (T27)', () => {
     await waitFor(() => expect(opener).toHaveFocus())
   })
 
-  it('empty state: shows the three suggestion chips when the transcript is empty', () => {
-    renderPanel({ narrow: false, open: true })
+  // AC-023 (#755, FR-023): the suggestion chips are capability-filtered. The revenue chip names
+  // a Money surface a viewer without revenue view cannot open — offering it is misdirection
+  // (audit F-10), so it renders only for viewers with revenue view (finance | admin | manager |
+  // supervisor, lib/capabilities.ts canViewRevenue).
+  it('AC-023: a viewer without revenue view gets NO revenue suggestion chip', () => {
+    renderPanelForRoles([])
     expect(screen.getByText("What's on my plate this week?")).toBeInTheDocument()
     expect(screen.getByText('Summarize my week')).toBeInTheDocument()
+    expect(screen.queryByText("Show last week's revenue")).toBeNull()
+  })
+
+  it('AC-023: Finance (revenue view) still gets the revenue suggestion chip', () => {
+    renderPanelForRoles(['finance'])
     expect(screen.getByText("Show last week's revenue")).toBeInTheDocument()
   })
 

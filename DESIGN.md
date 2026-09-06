@@ -671,6 +671,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
   Width and preference resolve in **one** place (`useRailCompact`), not two, because the top bar's brand column reads the same answer to keep the header divider on the rail boundary. Two copies of the expression is how that divider ends up on the wrong side of the rail edge for a frame.
 - **Top bar (header):** 56px (`--header-h`), `background` bg, bottom `border`. Holds the mobile menu button, a breadcrumb (`muted` links → `foreground` on hover, `>` separators, bold `current`), a flexible spacer, the `cmdk` search button (`⌘K` chip), an icon button with a `destructive` notification dot, and a user chip (avatar gradient **navy→blue** (`brand-navy → primary`) + name/role, hidden on phone). *(OD-P3-7: gradient was blue→violet; violet moved to KPI/timeline only.)*
+- **Phone header title.** Below `rail-collapse` the header shows the current leaf title only — no ancestor crumbs, no separators. A leaf is never empty: a record page shows the record title.
 - **Mobile:** below 920px the rail collapses (`--rail-w: 0`) and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide.
 
 > **Bottom tab bar.** At most five slots including More, plus the launcher. Labels set at `--font-size-overline` (11px), one line, `text-overflow: ellipsis`; a label that does not fit at 390 in either locale is renamed, never wrapped and never allowed to touch its neighbour.

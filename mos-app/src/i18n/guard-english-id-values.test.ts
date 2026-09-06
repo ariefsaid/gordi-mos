@@ -17,7 +17,7 @@ import { messages } from './messages'
 /**
  * Keys whose Indonesian value legitimately equals the English one — brand/product names (GOO,
  * GKID, Gordi MOS), borrowed or shared vocabulary (Status, Detail, PIC, Email, WIB, porsi,
- * Info, Log, Login, Batch, Endpoint, Target-as-noun is NOT here — see the fixed set), and
+ * Info, Login, Batch, Endpoint, Target-as-noun is NOT here — see the fixed set), and
  * symbols/templates with no words of their own.
  */
 const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
@@ -34,11 +34,9 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'dest.inbox', // Inbox — pinned tab label per OD-WAY-93 (10)
   'dest.roastery', // Roastery
   'inbox.quickTitle', // Inbox
-  'nav.cafe.log', // Log
   'nav.ecommerce', // Ecommerce
   'nav.roastery', // Roastery
   'rail.b2bOps', // B2B Ops
-  'rail.retailOps', // Retail Ops
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
   'kitchen.log.col.status', // Status
@@ -99,5 +97,23 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
     const en = messages.en as Record<string, string>
     const stale = [...ID_EQUALS_EN_ALLOWLIST].filter((key) => !(key in en))
     expect(stale, `allowlisted keys missing from the catalog: ${stale.join(', ')}`).toEqual([])
+  })
+
+  // Ticket 755 (AC-024, FR-024 / audit F-12, V-24): the shell/Home keys the audit found still English
+  // in `id` carry Indonesian values — and Pushes names its JOB (sending approved logs), which
+  // 'Antrean' (queue) never did. The generic rule above cannot catch these on its own: 'Objective'
+  // ≠ en 'Objectives', so the title hole rode past it; these pins close that seam.
+  it('ticket 755: the audit-named shell keys carry Indonesian values that name the job', () => {
+    // Objectives title — shell nav child, Home door, Work page head. Not the borrowed English.
+    expect(messages.id['nav.objectives']).toBe('Sasaran')
+    expect(messages.id['home.objectives.title']).toBe('Sasaran')
+    expect(messages.id['nav.work.objectives']).toBe('Sasaran')
+    // Café Log label — the production record.
+    expect(messages.id['nav.cafe.log']).toBe('Catatan')
+    // RETAIL OPS group overline.
+    expect(messages.id['rail.retailOps']).toBe('Operasi Ritel')
+    // Pushes — named for its job, never 'Antrean'.
+    expect(messages.id['nav.cafe.pushes']).toBe('Kirim Log')
+    expect(messages.id['nav.cafe.pushes']).not.toBe('Antrean')
   })
 })

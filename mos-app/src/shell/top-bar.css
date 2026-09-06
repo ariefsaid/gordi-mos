@@ -22,3 +22,12 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* Phone contract: the header's icon doors keep a real 44px hit area even though their
+   desktop visual token is 32px. This component-local rule supplies the winning floor. */
+@media (max-width: 919.98px) {
+  .top-bar .tap-target-phone--icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

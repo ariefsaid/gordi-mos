@@ -34,6 +34,10 @@ export function TasksLayout() {
   // left the drawer stuck open (round-4 regression).
   const openRecordId = taskId ?? searchParams.get('record') ?? undefined
   const navigationType = useNavigationType()
+  // AC-021 (#755): a Home-row arrival marks itself in the navigation state (stream-row.tsx) and
+  // the promotion below must carry it through, or the record page's Back names a collection the
+  // viewer never visited (audit F-9).
+  const fromHome = (location.state as { from?: string } | null)?.from === 'home'
   // The live push/squash split starts only where all decision-column floors fit; below it
   // row activation navigates to the standalone record page.
   const isSplit = useIsSplitWidth()
@@ -63,7 +67,9 @@ export function TasksLayout() {
     const search = next.toString()
     navigate(
       { pathname: `/work/tasks/${openRecordId}`, search: search ? `?${search}` : '' },
-      { state: { taskSurface: 'page' } },
+      // Carry the origin through the promotion, or the page would render the collection Back
+      // for a viewer who arrived from Home.
+      { state: fromHome ? { taskSurface: 'page', from: 'home' } : { taskSurface: 'page' } },
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSplit])
@@ -129,6 +135,10 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   const isSplit = useIsSplitWidth()
   const navigate = useNavigate()
   const location = useLocation()
+  // AC-021 (#755): a Home-row arrival marks itself in the navigation state (stream-row.tsx);
+  // the record page's Back must name THAT origin — "Back to Home", not a collection the viewer
+  // never visited (audit F-9).
+  const fromHome = (location.state as { from?: string } | null)?.from === 'home'
   const [title, setTitle] = useState<string | null>(null)
   // Empty string before the title resolves keeps the crumb at "Work · Tasks";
   // once resolved it pushes the task title; on unmount the hook clears it.
@@ -165,8 +175,8 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
           TaskSurface's own utility strip is suppressed (showPanelUtility={false}); its record-scoped
           Ask Deputy + the collapse-to-split affordance ride this shared chrome instead. */}
       <RecordPageChrome
-        backTo={{ pathname: '/work/tasks', search: location.search }}
-        backLabel={t('tasks.title')}
+        backTo={fromHome ? '/' : { pathname: '/work/tasks', search: location.search }}
+        backLabel={fromHome ? t('dest.home') : t('tasks.title')}
         deputyDraft={title ? t('assistant.askAbout.task', { title }) : null}
         trailing={isSplit ? (
           <button

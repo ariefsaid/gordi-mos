@@ -26,7 +26,10 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
 
   return (
     <li className="stream-row">
-      <Link to={item.route} className="stream-row-link">
+      {/* AC-021 (#755): the origin rides the navigation, so the record page's Back can name
+          where the viewer actually came from — a Home arrival reads "Back to Home", not a
+          collection the viewer never visited. */}
+      <Link to={item.route} state={{ from: 'home' }} className="stream-row-link">
         <span className="stream-row-body">
           <span className="stream-row-title">{item.title}</span>
           {hasMeta && (

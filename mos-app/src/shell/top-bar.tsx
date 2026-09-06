@@ -236,8 +236,8 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
         </nav>
       </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Phone breadcrumb owns the free width; desktop keeps the spacer between tracks. */}
+      <div className={isNarrow ? 'flex-none' : 'flex-1'} />
 
       {/* Right cluster — search · bell · deputy */}
       <div className="flex items-center gap-2 px-3 flex-none">

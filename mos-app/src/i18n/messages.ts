@@ -1319,7 +1319,9 @@ export const messages = {
     'nav.updates': 'Update Mingguan',
     'nav.sales': 'Penjualan',
     'nav.planPricing': 'Pracetak harga',
-    'nav.objectives': 'Objective',
+    // #755 (AC-024): the audit found 'Objective' still English in the id viewport — the shell
+    // and Home carry the Indonesian term, one language per viewport.
+    'nav.objectives': 'Sasaran',
     'nav.projectsProcesses': 'Proyek & Proses',
     // issue 455: `nav.kitchen.*` retired — the module is Café and its labels are `nav.cafe.*`.
     'home.title': 'Beranda',
@@ -1363,7 +1365,7 @@ export const messages = {
     'home.stream.reason.failedCheck': 'Pemeriksaan gagal',
     'home.stream.allTasks': 'Tugas terbuka saya · ${count} →',
     'home.stream.myWorkEmpty': 'Tidak ada lagi yang terbuka — yang perlu Anda kerjakan sudah diurutkan di atas.',
-    'home.objectives.title': 'Objective',
+    'home.objectives.title': 'Sasaran',
     'home.objectives.drill': 'Lihat progres →',
     'home.objectives.rollup': 'Progres bergulir dari tiap Objective lewat Proyek dan Prosesnya sampai ke Tugas.',
     'home.region.more': '${count} lagi',
@@ -1645,10 +1647,12 @@ export const messages = {
     'job.work': 'Temukan dan kerjakan tugas yang jadi tanggung jawab saya atau Tim saya.',
     'nav.admin.people': 'Orang',
     'nav.cafe': 'Kafe',
-    'nav.cafe.log': 'Log',
+    // #755 (AC-024): Log names the production record; Pushes names its JOB — sending approved
+    // logs — which 'Antrean' (queue) never did.
+    'nav.cafe.log': 'Catatan',
     'nav.cafe.opening': 'Pembukaan',
     'nav.cafe.plan': 'Rencana',
-    'nav.cafe.pushes': 'Antrean',
+    'nav.cafe.pushes': 'Kirim Log',
     'nav.cafe.review': 'Tinjauan',
     'nav.cafe.stock': 'Stok',
     'nav.ecommerce': 'Ecommerce',
@@ -1656,7 +1660,7 @@ export const messages = {
     'nav.more': 'Lainnya',
     'nav.profile': 'Profil Pribadi',
     'nav.roastery': 'Roastery',
-    'nav.work.objectives': 'Objective',
+    'nav.work.objectives': 'Sasaran',
     'nav.work.projects': 'Proyek & Proses',
     'nav.work.signals': 'Sinyal',
     'nav.work.tasks': 'Tugas',
@@ -1666,7 +1670,8 @@ export const messages = {
     'rail.collapse': 'Ciutkan navigasi',
     'rail.destinations': 'Destinasi',
     'rail.expand': 'Bentangkan navigasi',
-    'rail.retailOps': 'Retail Ops',
+    // #755 (AC-024): the RETAIL OPS group overline in Indonesian.
+    'rail.retailOps': 'Operasi Ritel',
     'topBar.inboxUnread': 'Kotak Masuk, ${count} belum dibaca',
     'topBar.search': 'Cari',
     'topBar.searchPlaceholder': 'Cari',
