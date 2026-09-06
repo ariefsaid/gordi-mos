@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
+import { searchPeopleByName } from '@/lib/db/directory'
 import { SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canViewRevenue } from '@/lib/capabilities'
@@ -12,14 +13,16 @@ import { visibleSections, type Section } from '@/shell/sections'
 import { CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 import {
   HomeIcon, WorkIcon, SignalsIcon, TasksIcon,
-  MoneyIcon, InboxIcon, CafeIcon,
+  MoneyIcon, InboxIcon, CafeIcon, ProfileIcon,
 } from '@/shell/icons'
 import { DeputyIcon } from '@/shell/top-bar'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
 import { useT } from '@/i18n/use-t'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
+import { WORK_PARENT_ID, withResolvedRungs, type CommandItem } from './rungs'
 import type { CommandMenuMode } from './use-command-menu'
 import './command-menu.css'
 
@@ -31,40 +34,12 @@ export type CommandMenuProps = {
   onShareSignal: () => void
   /**
    * Opener mode (OD-REDESIGN-91 #15 / GAP-10, per OD-46). 'search' (default) — the full palette
-   * (Recent · Actions · Navigate). 'launcher' — the phone `+` reduced create-set: the default
-   * (empty-query) view is the universal Actions only, NOT the full palette. Typing escalates to
-   * the shared record search in BOTH modes (OD-46 "More opens the full authorized object palette").
+   * (Recent · GO TO roots · ACT + record search). 'launcher' — the phone `+` reduced create-set:
+   * the default (empty-query) view is the universal Actions only, NOT the full palette. Typing
+   * escalates to the shared record search in BOTH modes (OD-46 "More opens the full authorized
+   * object palette").
    */
   mode?: CommandMenuMode
-}
-
-// A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
-// 'navigate' (goes to `to`), 'record' (a Task row → pushRecent + navigate canonical).
-// `run` extends the existing activate() so universal actions (Ask Deputy / Share
-// Signal) that are not pure navigations can dispatch (D-PLN-7). `gated` hides an
-// item (Money navigate) when the viewer is unauthorized.
-type CommandItem = {
-  id: string
-  label: string
-  /** SVG icon from the app icon system (parity A1 — the palette is one monochrome set, never emoji) */
-  Icon: React.ComponentType
-  kind: 'action' | 'navigate' | 'record'
-  to?: string
-  run?: () => void
-  meta?: string
-  gated?: boolean
-  record?: { id: string; title: string }
-  /**
-   * This row is one of Work's DECLARED children — a fact about the registry, true whatever the
-   * query is. It is not yet a licence to draw the rung: `withResolvedRungs` decides that against
-   * what actually renders, and clears the flag on a child whose parent row was filtered away.
-   *
-   * Where it survives, it is rendered as `data-child`, the palette's counterpart of the
-   * rail/drawer's `rail-item--child` rung class: every nav surface has to say which of its rows
-   * are children, or a guard comparing their sequences reads the Work PARENT row (`/work/tasks`,
-   * same target as the Tasks child) as a child too and the lists stop being comparable (issue 479).
-   */
-  child?: boolean
 }
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
@@ -86,43 +61,13 @@ type ItemGroup = { key: string; label: string; items: CommandItem[] }
 const WORK_DEST = DESTINATIONS.find((d) => d.id === 'work')
 const WORK_CHILDREN: readonly Section[] = WORK_DEST?.children ?? []
 
-/** The Work PARENT row — the one row a Work child may hang its rung from. */
-const WORK_PARENT_ID = 'n-work'
-
-/**
- * The rung states a RELATIONSHIP, so it may only be drawn while both ends are on screen.
- *
- * `child: true` says "the registry declares this row under Work". The rung says something else:
- * "the row above me is my parent". In the default view those coincide. In the FILTERED list they
- * come apart — typing "objectives" matches no destination row, so the Work parent is not rendered
- * and the surviving child was left indented behind a 1px hairline guide that hung off nothing,
- * with the active highlight starting at the guide instead of at the row.
- *
- * So resolve the claim against what actually renders, at the last seam before render (after the
- * query filter AND after the ship gate, either of which can remove the parent): a child keeps its
- * rung only while an unbroken run of children reaches back to the Work parent row above it. The
- * run matters as much as the parent — the guide is one continuous line, and a non-child row
- * dropped into the middle of it (Money surviving a filter that Tasks did not) ends the tree the
- * indent is describing.
- *
- * Deleting the rung instead is not available: two adjacent rows to the SAME target, at one weight
- * and one indent, is the regression this rework closed (issue 479).
- */
-function withResolvedRungs(items: CommandItem[]): CommandItem[] {
-  let underWork = false
-  return items.map((item) => {
-    if (!item.child) {
-      underWork = item.id === WORK_PARENT_ID
-      return item
-    }
-    if (underWork) return item
-    return { ...item, child: false }
-  })
-}
+// `CommandItem`, `WORK_PARENT_ID` and `withResolvedRungs` live in ./rungs — pure logic in a
+// non-component module, so the resolver stays exported and pinnable by unit test (a .tsx file
+// exporting a function alongside a component breaks react-refresh).
 
 // OD-REDESIGN-91 #4/B2: the palette searches ALL record kinds now — Tasks + Signals +
 // AR Follow-ups — so a hit carries its kind (drives the row icon, route, and kind label).
-type RecordKind = 'task' | 'signal' | 'follow-up'
+type RecordKind = 'task' | 'signal' | 'follow-up' | 'person'
 type RecordHit = { id: string; title: string; kind: RecordKind }
 
 type RecordsState =
@@ -148,24 +93,35 @@ function firstLine(body: string): string {
 // Per-kind row config for the widened Records group (OD-REDESIGN-91 #4/B2): the icon, the
 // navigation target for a hit, and the muted kind label. Tasks/Signals deep-link to their record
 // pages; an AR Follow-up hit lands on the Money queue, behind its finance gate. The Work record
-// route is deleted (DD-WAY-36), so there is no record page to open.
-const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: (id: string) => string; kindLabelKey: 'commandMenu.kind.task' | 'commandMenu.kind.signal' | 'commandMenu.kind.followUp' }> = {
+// route is deleted (DD-WAY-36), so there is no record page to open. A person hit is deliberately
+// NON-navigating (`to: null`): shared.people has no record route, and the palette's only /profile
+// route is the VIEWER'S OWN — activating a row named for someone else must not open it.
+const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((id: string) => string) | null; kindLabelKey: 'commandMenu.kind.task' | 'commandMenu.kind.signal' | 'commandMenu.kind.followUp' | 'commandMenu.kind.person' }> = {
   task: { Icon: TasksIcon, to: (id) => `/work/tasks/${id}`, kindLabelKey: 'commandMenu.kind.task' },
   signal: { Icon: SignalsIcon, to: (id) => `/work/signals/${id}`, kindLabelKey: 'commandMenu.kind.signal' },
   'follow-up': { Icon: MoneyIcon, to: () => '/money/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
+  person: { Icon: ProfileIcon, to: null, kindLabelKey: 'commandMenu.kind.person' },
 }
 
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
-// presentation); contents = universal actions + Navigate + Recent + async record
-// search. a11y: role=dialog + aria-modal + focus trap + Esc (returns focus) — all
-// owned by ModalShell, the single interaction owner for centered dialogs.
+// presentation); contents = Recent + GO TO roots + ACT + async record search
+// (the typed ACT adds the gated Café log entry, #407). The narrow/full-width
+// branch is the shell's own `useIsNarrow()` seam — the one the bottom tab bar
+// and the `+` launcher read. a11y: role=dialog + aria-modal + focus trap + Esc
+// (returns focus) — all owned by ModalShell, the single interaction owner for
+// centered dialogs.
 export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
   const { openPanel } = useAgentRuntime()
+  // AC-032 (#748 delta): search-only vs GO TO/ACT is a WIDTH decision — the same `useIsNarrow()`
+  // seam (≤919.98px) that renders the bottom tab bar and the `+` launcher. A touch device at
+  // desktop width still sees the rail, so its palette rests on the same GO TO roots.
+  const isNarrow = useIsNarrow()
   // OD-REDESIGN-91 #41 (G5): the ⌘K keyboard hints (footer + the esc chip) are meaningless on a
-  // touch device — hide them on a coarse pointer so a phone launcher shows no un-pressable keys.
+  // touch device — hide them on a coarse pointer so no viewport shows an un-pressable key. This
+  // is a POINTER question and deliberately not the width seam above.
   const isCoarse = useIsCoarsePointer()
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -187,11 +143,12 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   const moneyAuthorized = canViewRevenue(accessRoles)
   // #407 — the floor's one-tap capture path. The Daily Log retirement (#226/#405) repointed
   // Home's capture CTA at /cafe/log, but on a component only the DEV-only fossil Home mounted —
-  // the shipped shell offered no capture entry at all. The Actions group (and so the phone `+`
-  // launcher, whose reduced set IS this group) carries the Café log entry for viewers the
-  // /cafe/log ROUTE admits, read through the ONE route-admission seam Home's failed-checks band
-  // already uses (viewerAdmittedToRoute — OD-WAY-51: navigation mirrors what the route admits,
-  // never job-role-name matching).
+  // the shipped shell offered no capture entry at all. The entry lives in `launcherActions`, the
+  // ONE shared list both surfaces read: the phone `+` launcher's reduced create-set AND the typed
+  // ⌘K view's ACT filter (the at-rest desktop ACT keeps exactly the three universals — e7's
+  // ruling). It is present exactly when the /cafe/log ROUTE admits the viewer, read through the
+  // ONE route-admission seam Home's failed-checks band already uses (viewerAdmittedToRoute —
+  // OD-WAY-51: navigation mirrors what the route admits, never job-role-name matching).
   const cafeLogAdmitted = viewerAdmittedToRoute(CAFE_LOG_ROUTE, accessRoles)
 
   const trimmed = query.trim()
@@ -207,48 +164,63 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
         { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
         { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
       ]
-      if (cafeLogAdmitted) {
-        items.push({ id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action', to: CAFE_LOG_ROUTE })
-      }
       return items
     },
-    [openPanel, onShareSignal, t, cafeLogAdmitted],
+    [openPanel, onShareSignal, t],
   )
 
-  const navigateItems = useMemo<CommandItem[]>(() => {
-    const items: CommandItem[] = [
-      { id: 'n-home', label: t('dest.home'), Icon: HomeIcon, kind: 'navigate', to: '/' },
-      // The Work PARENT row, exactly as the rail draws it: labelled "Work", targeting the same
-      // canonical `/work/tasks`. It stays so that typing "work" still finds the section; the
-      // children below are the rows that carry the sequence.
-      // primaryPath, not a literal. All three surfaces resolve the parent the same way now; when
-      // this was hard-coded here AND in the rail's own Work branch, re-pointing the registry moved
-      // the drawer alone and a review found palette and rail disagreeing with the suite green.
-      { id: WORK_PARENT_ID, label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: WORK_DEST?.primaryPath ?? '/work/tasks' },
-    ]
-    // Work's children, in DECLARED order, gated by the same filter the rail and the drawer use.
-    // Nothing here decides sequence or visibility — both are read (issue 479).
-    for (const c of visibleSections(WORK_CHILDREN, accessRoles)) {
-      items.push({
-        id: `n${c.path.replace(/\//g, '-')}`,
-        label: c.labelKey ? t(c.labelKey) : c.label,
-        Icon: c.Icon,
-        kind: 'navigate',
-        to: c.path,
-        child: true,
-      })
-    }
-    items.push(
-      { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
-      { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
-      { id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate', to: '/cafe' },
-    )
-    return items
-  }, [t, accessRoles])
+  const launcherActions = useMemo(
+    () => cafeLogAdmitted
+      ? [...actionItems, { id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action' as const, to: CAFE_LOG_ROUTE }]
+      : actionItems,
+    [actionItems, cafeLogAdmitted, t],
+  )
 
-  const visibleNavigate = useMemo(
-    () => navigateItems.filter((i) => !i.gated || moneyAuthorized),
-    [navigateItems, moneyAuthorized],
+  const rootNavigateItems = useMemo<CommandItem[]>(() => [
+    { id: 'n-home', label: t('dest.home'), Icon: HomeIcon, kind: 'navigate', to: '/' },
+    { id: WORK_PARENT_ID, label: t('dest.work'), Icon: WorkIcon, kind: 'navigate', to: WORK_DEST?.primaryPath ?? '/work/tasks' },
+    { id: 'n-inbox', label: t('dest.inbox'), Icon: InboxIcon, kind: 'navigate', to: '/inbox' },
+    // The Café root asks the ONE route-admission question the launcher's Café action asks —
+    // OD-WAY-51: navigation mirrors what the ROUTE admits, so the palette never offers a door
+    // the router would bounce. (`/cafe` carries no access-role gate today, so this admits every
+    // authenticated viewer; if the route ever narrows, this row follows it.)
+    ...(viewerAdmittedToRoute('/cafe', accessRoles)
+      ? [{ id: 'n-cafe', label: t('dest.cafe'), Icon: CafeIcon, kind: 'navigate' as const, to: '/cafe' }]
+      : []),
+    { id: 'n-money', label: t('dest.money'), Icon: MoneyIcon, kind: 'navigate', to: '/money', gated: true },
+    { id: 'n-profile', label: t('dest.profile'), Icon: ProfileIcon, kind: 'navigate', to: '/profile' },
+  ], [t, accessRoles])
+
+  // Work's children sit ADJACENT to the Work row — emitted directly beneath it, before the
+  // remaining roots — so in the typed view the run of rows the Child rung describes reaches back
+  // to the parent unbroken by construction (issue 479). Per-row VISIBILITY still comes from
+  // `visibleSections` and the query filter drops non-matching rows; neither reorders, so a child
+  // can only lose its parent by the parent's row being filtered or gated away, which
+  // `withResolvedRungs` answers by clearing the rung.
+  const searchableNavigateItems = useMemo<CommandItem[]>(() => {
+    const childRows = visibleSections(WORK_CHILDREN, accessRoles).map<CommandItem>((c) => ({
+      id: `n${c.path.replace(/\//g, '-')}`,
+      label: c.labelKey ? t(c.labelKey) : c.label,
+      Icon: c.Icon,
+      kind: 'navigate',
+      to: c.path,
+      child: true,
+    }))
+    const items: CommandItem[] = []
+    for (const root of rootNavigateItems) {
+      items.push(root)
+      if (root.id === WORK_PARENT_ID) items.push(...childRows)
+    }
+    return items
+  }, [rootNavigateItems, t, accessRoles])
+
+  const visibleRoots = useMemo(
+    () => rootNavigateItems.filter((i) => !i.gated || moneyAuthorized),
+    [rootNavigateItems, moneyAuthorized],
+  )
+  const visibleSearchNavigate = useMemo(
+    () => searchableNavigateItems.filter((i) => !i.gated || moneyAuthorized),
+    [searchableNavigateItems, moneyAuthorized],
   )
 
   // CMDK-1: the palette is kept mounted across close→reopen (its host toggles `open`, it does
@@ -285,9 +257,12 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.counterparty, kind: 'follow-up' })),
             )
           : Promise.resolve<RecordHit[]>([]),
+        searchPeopleByName(trimmed).then((rows) =>
+          rows.map<RecordHit>((r) => ({ id: r.id, title: r.full_name, kind: 'person' })),
+        ),
       ])
-        .then(([tasks, signals, followUps]) => {
-          if (!cancelled) setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps] })
+        .then(([tasks, signals, followUps, people]) => {
+          if (!cancelled) setRecords({ status: 'ready', rows: [...tasks, ...signals, ...followUps, ...people] })
         })
         .catch(() => { if (!cancelled) setRecords({ status: 'error' }) })
     }, 150)
@@ -302,20 +277,21 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
       // create-set — the universal Actions only, NOT the full palette. No Recent, no Navigate.
       // (Typing still escalates to the shared search below — OD-46's "More opens the full palette".)
       if (mode === 'launcher') {
-        out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actionItems })
+        out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: launcherActions })
         return out
       }
+      if (isNarrow) return out
       const recent = readRecentTasks().map<CommandItem>((r) => ({
         id: `recent-${r.id}`, label: r.title, Icon: TasksIcon, kind: 'record',
         to: `/work/tasks/${r.id}`, record: { id: r.id, title: r.title },
       }))
       if (recent.length) out.push({ key: 'recent', label: t('commandMenu.group.recent'), items: recent })
       // e7's palette leads with destinations (GO TO) before actions (ACT).
-      out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: visibleNavigate })
-      out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actionItems })
+      out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: visibleRoots })
+      out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actionItems })
       return out
     }
-    const actions = actionItems.filter((i) => matches(i.label, trimmed))
+    const actions = launcherActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
     const recordItems = recordRows.map<CommandItem>((r) => {
       const cfg = RECORD_KIND_CONFIG[r.kind]
@@ -325,7 +301,11 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
         label: r.title,
         Icon: cfg.Icon,
         kind: 'record',
-        to: cfg.to(r.id),
+        // A person hit carries no target (see RECORD_KIND_CONFIG): a WITHHELD row, not a bounce
+        // to the viewer's own profile — it reads disabled (aria-disabled, skipped by the roving
+        // index, see CommandItem.disabled) and a press is refused instead of closing the palette.
+        to: cfg.to ? cfg.to(r.id) : undefined,
+        disabled: cfg.to === null,
         // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
         meta: t(cfg.kindLabelKey),
         // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
@@ -335,11 +315,15 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     if (records.status === 'ready' && recordItems.length) {
       out.push({ key: 'records', label: t('commandMenu.group.records'), items: recordItems })
     }
-    const nav = visibleNavigate.filter((i) => matches(i.label, trimmed))
-    if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.navigate'), items: nav })
-    if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.actions'), items: actions })
+    // AC-032: the narrow/full-width branch, not the pointer — below 920px the palette carries
+    // results ONLY (navigation is the tab bar's job, actions the `+` launcher's); at desktop
+    // width it keeps GO TO + ACT whatever the pointer modality (#41 owns the keyboard hints).
+    if (isNarrow) return out
+    const nav = visibleSearchNavigate.filter((i) => matches(i.label, trimmed))
+    if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: nav })
+    if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actions })
     return out
-  }, [isSearching, trimmed, records, actionItems, visibleNavigate, t, mode])
+  }, [isSearching, trimmed, records, actionItems, launcherActions, visibleRoots, visibleSearchNavigate, t, mode, isNarrow])
 
   // The ship gate (#444), applied at the ONE seam every palette row passes through, rather than
   // as a `gated` flag per entry. The palette is a navigation surface like the rail, and OD-WAY-51
@@ -359,7 +343,13 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
     [groups],
   )
 
-  const flatItems = useMemo(() => visibleGroups.flatMap((g) => g.items), [visibleGroups])
+  // The roving index walks ACTIVATABLE rows only: a disabled row (person hit — a withheld
+  // target, see CommandItem.disabled) renders aria-disabled but ↑↓/Enter never rest on it, and
+  // the active row can never be a press the palette must refuse.
+  const flatItems = useMemo(
+    () => visibleGroups.flatMap((g) => g.items).filter((i) => !i.disabled),
+    [visibleGroups],
+  )
   const activeId = flatItems[active]?.id
 
   useEffect(() => { setActive(0) }, [trimmed])
@@ -446,7 +436,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                 <span className="sr-only">{t('commandMenu.status.searchingRecords')}</span>
               </div>
             )}
-            {flatItems.length > 0 ? visibleGroups.map((group) => (
+            {visibleGroups.length > 0 ? visibleGroups.map((group) => (
               <div key={group.key} role="group" aria-label={group.label}>
                 <div className="cm-group text-muted-foreground" aria-hidden="true">{group.label}</div>
                 <div className="cm-group-list">
@@ -459,6 +449,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         ref={(element) => { optionRefs.current[item.id] = element }}
                         role="option"
                         aria-selected={isActive}
+                        aria-disabled={item.disabled ? 'true' : undefined}
                         /* The rung, said twice — once to the eye, once to the screen reader, from
                            the ONE resolved answer above. `data-child` is the style hook for the
                            ladder's Child rung (command-menu.css) and the marker the cross-surface
@@ -479,7 +470,7 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
                         data-child={item.child ? 'true' : undefined}
                         aria-describedby={item.child ? WORK_PARENT_ID : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
-                        onClick={() => activate(item)}
+                        onClick={() => { if (!item.disabled) activate(item) }}
                         onMouseMove={() => {
                           const idx = flatItems.findIndex((f) => f.id === item.id)
                           if (idx >= 0) setActive(idx)

@@ -21,9 +21,15 @@
  * P-13), not merely against the declaration. Comparing surfaces to the declaration alone is the
  * looseness that let the wrong order survive: every surface agreed, with the array, on the wrong
  * sequence.
+ *
+ * The #748 shell judgment retargets the palette's half of this file: the ⌘K palette RESTS on
+ * destination roots and lists Work children only in the typed view (they match by name). The
+ * guard keeps its teeth by reading the palette in the state where children render — a query that
+ * keeps the Work parent row — and pinning that view to the RULED order, filtered by the same
+ * substring rule the palette applies. The rail and drawer pins are unchanged.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
@@ -35,10 +41,11 @@ import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
 
 // The palette's debounced record search is irrelevant to nav order and would reach for a real
-// Supabase client at import time; stub the three readers it fans out to.
+// Supabase client at import time; stub the four readers it fans out to.
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/directory', () => ({ searchPeopleByName: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { CommandMenu } from '@/components/command/command-menu'
@@ -206,6 +213,20 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
       (p) => `${p}=${LABEL[p]}`,
     )
 
+  // The palette's typed-view filter is a plain substring match on the label; the expected order
+  // below filters the RULED pairs by the same rule, so the pin stays literal (never derived from
+  // the thing under test) while tracking which children a query legitimately keeps.
+  const typedPairs = (q: string) =>
+    expectedPairs().filter((pair) => pair.slice(pair.indexOf('=') + 1).toLowerCase().includes(q))
+  const paletteChildrenInView = async (q: string) => {
+    const view = palette()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: q } })
+    // The Work PARENT row must survive the query, or the children wear no rung and the scan
+    // below reads an empty list (issue 479's orphaned-rung defect, from the other side).
+    expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
+    return view
+  }
+
   it('the desktop rail renders Work children in the owner-ruled order (OD-REDESIGN-57(ii))', () => {
     shell(<RailNav />)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
@@ -218,36 +239,30 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     expect(workChildHrefs(nav)).toEqual(expectedPairs())
   })
 
-  it('the ⌘K palette renders Work children in the owner-ruled order (OD-REDESIGN-57(ii); issue 479)', () => {
-    const view = palette()
-    expect(paletteWorkChildTargets(view.container)).toEqual(expectedPairs())
+  it("the ⌘K palette's typed view renders the surviving Work children in the owner-ruled order (OD-REDESIGN-57(ii); issue 479, retargeted by #748)", async () => {
+    // "o" keeps Projects & Processes and Objectives (and the Work parent); Signals and Tasks
+    // legitimately drop out. ORDER among the survivors is the contract.
+    const view = await paletteChildrenInView('o')
+    expect(paletteWorkChildTargets(view.container)).toEqual(typedPairs('o'))
   })
 
-  it('the palette emits no Work row beyond the parent and the declared children', () => {
-    // Selected by TARGET, not by the palette's own `data-child` marker. The marker is opt-in: a
-    // re-typed Work row that simply omits it is invisible to every other assertion here — which is
-    // the exact defect #479 exists to kill, one level of indirection down. Action rows carry
-    // `.action` and are excluded; the parent row targets /work/tasks and is expected first.
+  it('at rest the palette lists destination ROOTS only — the Work parent and no children (#748)', () => {
     const v = palette()
     const rows = Array.from(
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]:not(.action)'),
     ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
-    // The parent pair is read from the registry, not written here, so a legitimate re-point does
-    // not fail this. What THIS asserts is narrow: the palette's parent target equals the declared
-    // one. Cross-surface agreement is a separate assertion below — reading the same field proves
-    // each surface follows the registry, never that the three agree with each other, and a guard
-    // covering two of three surfaces licenses the third to drift.
     const parentPath = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
-    expect(rows).toEqual([`${parentPath}=Work`, ...expectedPairs()])
+    expect(rows).toEqual([`${parentPath}=Work`])
   })
 
-  it('no Work target is rendered twice, except the parent sharing its primaryPath', () => {
+  it('no Work target is rendered twice, except the parent sharing its primaryPath', async () => {
     // The membership check above excludes `.action` rows, which it must — /work/tasks/new is a
     // legitimate action. That exclusion let a SECOND re-typed Work sequence back into the Actions
     // group under distinct labels, 90/90 green: the drift #479 closed, one group over.
+    // Read in the TYPED view: at rest #748 leaves a single Work row, which would pass anything.
     // The parent row legitimately repeats its own primaryPath (it targets where Work goes, which
     // is also a child's path), so that one repeat is allowed and every other is not.
-    const v = palette()
+    const v = await paletteChildrenInView('o')
     // Every row with a target, keyed by ROUTE not by string. A CSS `[data-to^="/work/"]` prefix is
     // byte-exact and case-sensitive, so `/Work/Signals`, `/work/signals?` and `/work/signals/` —
     // all one destination to react-router — were invisible here and re-typed sequences in any of
@@ -294,7 +309,7 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     }
   })
 
-  it('rail, drawer and palette agree — the same items in the same sequence', () => {
+  it('rail, drawer and palette agree — the same items in the same sequence', async () => {
     const rail = shell(<RailNav />)
     const railOrder = workChildHrefs(rail.container.querySelector('nav')!)
     rail.unmount()
@@ -303,17 +318,21 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
       drawer.container.querySelector('nav[aria-label="More destinations"]')!,
     )
     drawer.unmount()
-    const view = palette()
+    // #748: the palette lists children only in the typed view, so its half of the agreement is
+    // read there and compared against the RULED order filtered to what the query keeps — the
+    // rail/drawer keep their full-sequence pairwise check between themselves.
+    const view = await paletteChildrenInView('o')
     const paletteOrder = paletteWorkChildTargets(view.container)
 
     // Compared pairwise rather than all-to-declared, so this stays a genuine cross-surface
     // agreement check: it goes red when any ONE surface re-sorts, including a case where two
     // surfaces drifted together.
     expect(drawerOrder).toEqual(railOrder)
-    expect(paletteOrder).toEqual(railOrder)
+    expect(paletteOrder).toEqual(typedPairs('o'))
     // Pairs are `target=label`, not bare targets: with targets alone, relabelling one surface's
     // /work/tasks row “Signals” left every order test green.
     // …and none of the three is passing on an empty list.
     expect(railOrder.length).toBeGreaterThan(1)
+    expect(paletteOrder.length).toBeGreaterThan(0)
   })
 })
