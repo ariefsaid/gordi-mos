@@ -17,8 +17,6 @@ import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
-import { useDueRuns } from '@/components/processes/use-due-runs'
-import { DueRunsList } from '@/components/processes/due-runs-list'
 import { TasksToolbar } from './tasks-toolbar'
 import {
   TASK_COLLECTION_NEUTRAL_QUERY,
@@ -242,9 +240,6 @@ export function TasksWorkspace({
   }, [controller.state.query.overdueOnly, onSavedViewChange, setQuery])
 
   const retry = useCallback(() => controller.retry(), [controller])
-  // #754 owns the runs-due door's removal from Tasks (with its own tests); until that ticket
-  // lands, the pill + due-runs list stay wired here exactly as they were.
-  const dueRuns = useDueRuns(retry)
 
   // D-A1 (item 4): the open Task id lives in the URL as ?record=<id> (addressable/shareable). The
   // collection owns its own query params; the record param rides alongside them, and the shared
@@ -637,10 +632,9 @@ export function TasksWorkspace({
       next.set('create', '1')
       return { pathname: '/work/tasks', search: `?${next.toString()}` }
     })(),
-    dueRuns,
     canResolvePending: can(accessRoles, 'process.start'),
   }), [
-    accessRoles, currentSearch, drawerOpen, draftTask, dueRuns, host.session, isDesktop, onAddTask,
+    accessRoles, currentSearch, drawerOpen, draftTask, host.session, isDesktop, onAddTask,
     params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onNewTask, onOpenTask, onClearFilters, onSort,
     retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink,
@@ -720,18 +714,6 @@ export function TasksWorkspace({
               }}
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
-            />
-            {/* The due-runs list renders AFTER the surface (table stays first content) and, unlike
-                the presentation, on EVERY state — a capable viewer with due work but zero tasks yet
-                must still be able to expand and start a run. The runs-due pill — this list's only
-                trigger — LEFT the Tasks toolbar in #743 (ruling round 3), so the list rests closed
-                here until #754 re-homes the pill + list at Home/Café. */}
-            <DueRunsList
-              due={dueRuns.due}
-              expanded={dueRuns.expanded}
-              startingKey={dueRuns.startingKey}
-              startError={dueRuns.startError}
-              onStart={dueRuns.handleStart}
             />
           </TaskCollectionRuntimeProvider>
         </section>

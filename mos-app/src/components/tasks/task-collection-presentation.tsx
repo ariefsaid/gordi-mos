@@ -15,7 +15,6 @@ import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
 import { NO_WORK_LINE_KEY } from '@/lib/cascade/count-rollup'
-import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import { useT } from '@/i18n/use-t'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
@@ -66,7 +65,6 @@ export interface TaskCollectionRuntime {
   onOverdueFilter: () => void
   onClearOverdue: () => void
   createHref: To
-  dueRuns: UseDueRunsResult
   canResolvePending: boolean
 }
 
@@ -92,18 +90,6 @@ function useTaskCollectionRuntime(): TaskCollectionRuntime | null {
 
 // Direct descriptor-render tests and Storybook-like probes do not mount the live workspace
 // provider. They still get the same typed presentation, with only routing/host callbacks inert.
-const EMPTY_DUE_RUNS: UseDueRunsResult = {
-  capable: false,
-  due: [],
-  state: 'ready',
-  expanded: false,
-  startingKey: null,
-  startError: false,
-  toggleExpanded: () => {},
-  handleStart: async () => {},
-  load: () => {},
-}
-
 // Direct descriptor-render tests and Storybook-like probes do not mount the live workspace
 // provider. They still get the same typed presentation, with only routing/host callbacks inert.
 const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
@@ -131,7 +117,6 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onOverdueFilter: () => {},
   onClearOverdue: () => {},
   createHref: '/work/tasks/new',
-  dueRuns: EMPTY_DUE_RUNS,
   canResolvePending: false,
 }
 

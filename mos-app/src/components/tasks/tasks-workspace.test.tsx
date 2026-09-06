@@ -826,6 +826,9 @@ describe('Ticket #743 — two-row toolbar grammar', () => {
     const { container } = renderTable()
     await waitFor(() => screen.getByText('Late task'))
 
+    const design = readFileSync(resolve(process.cwd(), '../DESIGN.md'), 'utf8')
+    expect(design).toContain('No checkbox, no toggle, no second pill, no third row; a state that needs more rows is a saved view or a filter option.')
+
     const toolbar = container.querySelector('.tasks-collection-toolbar') as HTMLElement
     expect(toolbar).toBeInTheDocument()
     // Two rows: row 1 (views), row 2 (search · group · business unit · status · person · sort ·

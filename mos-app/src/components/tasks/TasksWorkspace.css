@@ -549,6 +549,8 @@ tr:focus-within .row-menu { visibility: visible; }
   color: var(--status-lost-text);
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  flex: none;
 }
 .overdue-filter-btn:hover {
   background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);

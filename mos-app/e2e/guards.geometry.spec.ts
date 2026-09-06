@@ -255,14 +255,26 @@ test.describe('tasks toolbar geometry — ticket 743', () => {
     const rows = toolbar.locator('[data-testid="collection-toolbar-row"]')
     await expect(rows).toHaveCount(2)
     const assertOneLine = async () => {
-      for (const row of await rows.all()) {
-        const tops = await row.evaluate((element) => {
+      for (const [index, row] of (await rows.all()).entries()) {
+        const geometry = await row.evaluate((element) => {
           const controls = element.querySelectorAll(
             '.collection-toolbar__view, .collection-toolbar__search, .mk-select, .btn, .overdue-filter-btn',
           )
-          return [...new Set(Array.from(controls).map((control) => Math.round(control.getBoundingClientRect().top)))]
+          return Array.from(controls).map((control) => ({
+            top: Math.round(control.getBoundingClientRect().top),
+            scrollHeight: control.scrollHeight,
+            clientHeight: control.clientHeight,
+            scrollWidth: control.scrollWidth,
+            clientWidth: control.clientWidth,
+          }))
         })
+        const tops = [...new Set(geometry.map(({ top }) => top))]
         expect(tops, 'every control in the row shares one top — the row is one line, never wrapped').toHaveLength(1)
+        if (index === 1) {
+          expect(geometry.every(({ scrollHeight, clientHeight, scrollWidth, clientWidth }) =>
+            scrollHeight <= clientHeight && scrollWidth <= clientWidth
+          ), 'every row-2 control contains its text without overflow').toBe(true)
+        }
       }
     }
     await assertOneLine()

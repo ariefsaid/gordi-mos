@@ -996,13 +996,13 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     expect(mockListDueRuns).not.toHaveBeenCalled()
   })
 
-  it('1a: a due row for a Team the viewer is NOT an active member of is scoped out', async () => {
+  it('1a: the Tasks surface does not load or render due runs (#754 relocates the door)', async () => {
     mockListTasks.mockResolvedValue([])
-    mockListDueRuns.mockResolvedValue([DUE_ROW])
-    mockListAuthorTeams.mockResolvedValue([{ id: 'some-other-team', name: 'Not Mine', business_unit_id: 'bu-1', site_id: null, is_primary: true }])
     renderPage(CAPABLE_AUTH)
 
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
+    expect(mockListDueRuns).not.toHaveBeenCalled()
+    expect(mockListAuthorTeams).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })
 
