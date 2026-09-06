@@ -1,4 +1,4 @@
-// AC-V3-006 / AC-RPH-4 — the Inbox bell quick-opens the SAME InboxTriage surface as an ephemeral
+// AC-069 / AC-070 / AC-071 — the Inbox bell quick-opens the SAME InboxTriage surface as an ephemeral
 // root in the ONE shared overlay host (no URL mutation, focus returns to the bell on close, a row
 // pushes the canonical record, internal Back returns to triage); a render without a mounted host
 // falls back to the full `/inbox` route. The compact header and bottom tab both remain phone doors.
