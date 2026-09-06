@@ -447,7 +447,7 @@ function PlanEditor() {
             searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
             ariaLabel={t('kitchen.plan.toolbarAria')}
           >
-            <div className="kp-scope">
+            {stream && <div className="kp-scope">
               {/* #440: the branch × activity pair of selects that used to lead this block is
                   gone — it named the stream a SECOND way (and named Rumah Rames by the
                   'Bungur' alias, which names a transfer destination and never a stream), while
@@ -456,14 +456,16 @@ function PlanEditor() {
               {/* Same destination picker as capture (FR-013), including the origin so the
                   intra-branch entry reads the same here as it does on the log surface —
                   a plan for a movement the capture form cannot name is a plan nobody fills. */}
-              <MovementSeg
-                value={movement}
-                options={stream ? movementsForStream(stream, streamOptions) : movementsForStream({ branch: branches[0], activity: 'kitchen' }, streamOptions)}
-                branches={branches}
-                origin={stream}
-                onChange={setMovement}
-              />
-            </div>
+              {stream && (
+                <MovementSeg
+                  value={movement}
+                  options={movementsForStream(stream, streamOptions)}
+                  branches={branches}
+                  origin={stream}
+                  onChange={setMovement}
+                />
+              )}
+            </div>}
           </KitchenToolbar>
           <DataTable
             columns={planColumns}
