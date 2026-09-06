@@ -3,7 +3,7 @@
 // <a href="/work/tasks/:id"> Chip-link; status is a soft StatusPill that
 // never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -149,16 +149,44 @@ describe('TaskRow — I7: open/cursor state is aria-selected, never aria-current
   })
 })
 
-describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
-  it('clicking the ⋯ trigger button does NOT call onOpen (stopPropagation)', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen })
-    const menuTrigger = document.querySelector('button.row-menu') as HTMLElement
-    expect(menuTrigger).toBeTruthy()
-    fireEvent.click(menuTrigger)
-    expect(onOpen).not.toHaveBeenCalled()
+// AC-020 (ticket #750): the row ⋯ menu renders only when it holds two or more actions.
+// Today's action list is empty — Open full page lives in the record — so no ⋯ renders at all.
+describe('TaskRow — AC-020 row overflow menu', () => {
+  it('AC-020: a row with fewer than two actions renders no ⋯ menu button', () => {
+    renderRow({ onOpen: vi.fn(), onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    expect(screen.queryByRole('button', { name: /row actions/i })).toBeNull()
+    expect(document.querySelector('button.row-menu')).toBeNull()
+    expect(document.querySelector('td.td-menu')).toBeNull()
+  })
+})
+
+// AC-021 (ticket #750): one person-cell grammar — PIC and Supervisor both render the initials
+// avatar + first name; the full name belongs to the record and to pickers, never to the cell.
+describe('TaskRow — AC-021 person-cell grammar (PIC + Supervisor)', () => {
+  it('AC-021: the Supervisor cell renders avatar initials + first name, not the full-name text', () => {
+    renderRow({ supervisorName: 'Dewi Director' })
+    const cell = document.querySelector('td.td-supervisor') as HTMLElement
+    expect(cell.querySelector('.ownav')?.textContent).toBe('DD')
+    expect(cell.querySelector('.own-name')?.textContent).toBe('Dewi')
+    expect(cell.textContent).not.toContain('Dewi Director')
   })
 
+  it('AC-021: the PIC cell keeps the same avatar + first-name grammar', () => {
+    renderRow({ ownerName: 'Rina Lestari' })
+    const cell = document.querySelector('td.td-owner') as HTMLElement
+    expect(cell.querySelector('.ownav')?.textContent).toBe('RL')
+    expect(cell.querySelector('.own-name')?.textContent).toBe('Rina')
+  })
+
+  it('AC-021: an empty Supervisor still reads as the em-dash empty state', () => {
+    renderRow({ supervisorName: '' })
+    const cell = document.querySelector('td.td-supervisor') as HTMLElement
+    expect(cell.querySelector('.ownav')).toBeNull()
+    expect(cell.textContent).toBe('—')
+  })
+})
+
+describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
   it('clicking the row body (td-status cell) DOES call onOpen', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen })
@@ -297,32 +325,27 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
   })
 
-  it('a single click on an editable title enters edit mode immediately', () => {
+  // AC-017 row-side: a single click on the title opens the record — never the editor.
+  // (The URL-consequence half of AC-017 — drawer vs page regime — is owned by tasks-layout.)
+  it('a single click on an editable title opens the record and mounts no editor', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
-    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
-    expect(onOpen).not.toHaveBeenCalled()
+    const link = screen.getByRole('link', { name: /Finalise Q3/i })
+    fireEvent.mouseDown(link)
+    fireEvent.mouseUp(link)
+    fireEvent.click(link)
+    expect(onOpen).toHaveBeenCalledWith('task-7')
+    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+  })
+
+  it('a double-click starts editing the title in place', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
     expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
   })
 
-  it('a double-click pre-empts the deferred open — edits in place, never opens', () => {
-    vi.useFakeTimers()
-    try {
-      const onOpen = vi.fn()
-      const onEditTitle = vi.fn().mockResolvedValue(undefined)
-      renderRow({ onOpen, onEditTitle })
-      const link = screen.getByRole('link', { name: /Finalise Q3/i })
-      fireEvent.click(link) // arms the deferred open
-      fireEvent.doubleClick(link) // cancels it, edits instead
-      act(() => { vi.advanceTimersByTime(300) })
-      expect(onOpen).not.toHaveBeenCalled()
-      expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('a non-editable title still opens INSTANTLY on a single click (no deferral)', () => {
+  it('a non-editable title still opens on a single click', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen }) // no onEditTitle → not editable
     fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
@@ -397,16 +420,44 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     expect(screen.getByRole('combobox')).toHaveValue('p-1')
   })
 
-  it('clicking the title enters edit mode and Escape restores the saved title', () => {
+  it('double-click starts editing and Escape restores the saved title', () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
-    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+    fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
     const input = screen.getByLabelText('Edit task title')
     fireEvent.change(input, { target: { value: 'Updated title' } })
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onEditTitle).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('Edit task title')).toBeNull()
     expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument()
+  })
+})
+
+// AC-018 (ticket #750): the pencil is the hover/focus edit affordance — revealed on row
+// hover/focus for editable rows, absent for read-only ones. F2/double-click/pencil all begin
+// the same inline edit; Enter saves and Escape restores (owned by the useInlineCommit tests above).
+describe('TaskRow — AC-018 pencil affordance', () => {
+  it('AC-018: an editable row carries the hover/focus pencil and activating it starts editing', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    const pencil = document.querySelector('button.task-row-pencil') as HTMLButtonElement
+    expect(pencil, 'expected a pencil affordance on an editable row').toBeTruthy()
+    expect(pencil.getAttribute('aria-label')).toBe('Edit title')
+    fireEvent.click(pencil)
+    expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+  })
+
+  it('AC-018: a non-editable row renders no pencil', () => {
+    renderRow({}) // no onEditTitle → read-only row
+    expect(document.querySelector('button.task-row-pencil')).toBeNull()
+  })
+
+  it('AC-018: the pencil reveal is CSS-owned (hidden at rest, shown on hover/focus-within)', () => {
+    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+    expect(css).toMatch(/\.task-row-pencil\s*\{[^}]*visibility:\s*hidden/)
+    expect(css).toMatch(/tr:hover \.task-row-pencil/)
+    expect(css).toMatch(/tr:focus-within \.task-row-pencil/)
   })
 })
 

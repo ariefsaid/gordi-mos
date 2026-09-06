@@ -695,6 +695,7 @@ export function TasksWorkspace({
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface
               controller={controller}
+              keepBodyWhenEmpty={draftTask != null}
               resultHeader={{
                 collectionLabel: t('tasks.title'),
                 viewLabel: activeView.label,

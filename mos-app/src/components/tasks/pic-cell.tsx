@@ -1,6 +1,27 @@
 import { firstName, initials } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 
+export type PersonCellProps = {
+  fullName: string
+  /** Accessible-name prefix for the cell (e.g. the PIC label). Absent → the avatar is decorative
+   *  and the first name is the accessible text. */
+  label?: string
+}
+
+/**
+ * The ONE person-cell grammar (DESIGN § Data Table A2): initials avatar + first name. Full names
+ * belong to the record and to pickers — two person columns in one row never use two grammars.
+ */
+export function PersonCell({ fullName, label }: PersonCellProps) {
+  return (
+    // `title` carries the full name as a hover tooltip — the sole name affordance in the
+    // condensed (drawer-open split) tier where the row renders the avatar only (owner-eyes item 3).
+    <div className="owner" title={fullName} aria-label={label ? `${label}: ${fullName}` : undefined}>
+      <span className="ownav" aria-hidden="true">{initials(fullName)}</span>
+      <span className="own-name">{firstName(fullName)}</span>
+    </div>
+  )
+}
 type PicCellProps = {
   /** The task's typed PIC display name. */
   fullName: string

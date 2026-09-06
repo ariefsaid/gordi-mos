@@ -19,7 +19,7 @@ import { useT } from '@/i18n/use-t'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { TasksTableBody } from './tasks-table-body'
-import { picOptions } from './task-permissions'
+import { canEdit, picOptions } from './task-permissions'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
@@ -456,6 +456,13 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     runtime.onSort(nextSort)
   }
   const renderRow = (task: TaskListRow, leafIndex: number) => {
+    // FR-031 / AC-022: the in-row title/PIC/Due editors render only where the viewer holds the
+    // edit right — the same one gate the record surface uses (task-permissions.canEdit: the PIC,
+    // the Supervisor, or the PIC's reporting line above). Mirrored optimistically; the database
+    // is the authority. The draft row is always editable (the creator is mid-create), and
+    // archived rows read-only. Everyone else gets honest plain-text cells.
+    const editable = task.id === runtime.draftTask?.id
+      || (canEdit(task, context.viewerId ?? '', context.downlinePersonIds ?? []) && task.archived_at == null)
     return (
       <TaskRow
         key={task.id}
@@ -470,10 +477,10 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         ownerName={personMap.get(task.responsible_person_id) ?? ''}
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
-        onEditTitle={runtime.onEditTitle}
+        onEditTitle={editable ? runtime.onEditTitle : undefined}
         onEditStatus={runtime.onEditStatus}
-        onEditDue={runtime.onEditDue}
-        onEditPic={runtime.onEditPic}
+        onEditDue={editable ? runtime.onEditDue : undefined}
+        onEditPic={editable ? runtime.onEditPic : undefined}
         personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
         // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.

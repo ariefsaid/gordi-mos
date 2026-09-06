@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act, within, cleanup } from '@testing-library/react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -1969,7 +1969,8 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
   })
 
   it('AC-T02: every row (header, skeleton, body) agrees on column count (no-bleed)', async () => {
-    // The skeleton already renders 6 cells (6 + td-menu). The populated row
+    // AC-020 (#750) dropped the ⋯ menu column: five decision columns (Task · Status · PIC ·
+    // Supervisor · Due) + the optional BU column. The skeleton row, the populated row
     // and thead must agree, else a long group header colSpan misaligns the grid.
     mockListTasks.mockResolvedValue([makeTask({ id: 'cc', title: 'Column count' })])
     renderTable()
@@ -1980,7 +1981,8 @@ describe('PR-2 — AC-T03/T04/T05/T06/T07 row craft (wired)', () => {
     const tds = bodyRow!.querySelectorAll('td')
     // Thead and body row must have the same column count.
     expect(tds.length, 'thead th count must equal body td count').toBe(ths.length)
-    expect(ths.length).toBeGreaterThanOrEqual(6) // 6 data cols + (menu is in-row)
+    expect(ths.length).toBe(5) // Task · Status · PIC · Supervisor · Due
+    expect(document.querySelector('th.th-menu, td.td-menu')).toBeNull()
   })
 })
 
@@ -2033,7 +2035,13 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
       expect(screen.queryByRole('columnheader', { name })).toBeNull()
     }
     let row = document.querySelector('tr.task-row')!
-    expect(row.querySelectorAll('td')).toHaveLength(6) // Task + Status + PIC + Supervisor + Due + menu
+    // Task + Status + PIC + Supervisor + Due. The ⋯ row-menu column is retired (AC-020, #750),
+    // so the decision set is five columns, not six.
+    expect(row.querySelectorAll('td')).toHaveLength(5)
+    // …and the five priority data cells are the ones present.
+    expect(row.querySelector('.td-owner')).toBeTruthy()      // PIC
+    expect(row.querySelector('.td-supervisor')).toBeTruthy()
+    expect(row.querySelector('.due-calm,.due-soon,.due-overdue')).toBeTruthy() // Due
 
     fireEvent.click(screen.getByRole('button', { name: 'Fields' }))
     // The chooser menu stays open across toggles (toolbar-local state).
@@ -2072,5 +2080,96 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
     const minPx = m ? Number(m[1]) : 0 // removed entirely (width:100%) is also valid
     expect(minPx, 'min-width must fit a ~994px content area so Due is never clipped')
       .toBeLessThanOrEqual(1000)
+  })
+})
+
+// ── Ticket #750 — rows/body judgment wave (AC-019 · AC-022 · AC-024) ─────────
+
+describe('Ticket #750 — AC-019 footer legend states the click grammar', () => {
+  const EN_LEGEND = 'Click a row to open it · ✎ or F2 edits the title · Enter saves · Esc discards'
+  const ID_LEGEND = 'Klik baris untuk membukanya · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
+
+  it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Legend task'))
+    expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(EN_LEGEND)
+
+    localStorage.setItem('mos.locale', 'id')
+    cleanup()
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Tugas legenda' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Tugas legenda'))
+    expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(ID_LEGEND)
+    localStorage.setItem('mos.locale', 'en')
+  })
+})
+
+describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rules', () => {
+  const DOWNLINE_ID = 'barista-id'
+  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Rina Barista' }
+
+  it('AC-022: Cahya (manager above the PIC) gets a self+downline PIC picker and Due editor that save in place', async () => {
+    // Cahya = the viewer; the row's PIC sits in his downline → the DB lets him edit.
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([DOWNLINE_ID])
+    vi.mocked(getPeople).mockResolvedValue([PEOPLE[0], DOWNLINE_PERSON])
+    mockListTasks.mockResolvedValue([makeTask({
+      id: 'bar-task', title: 'Bar team task',
+      responsible_person_id: DOWNLINE_ID, accountable_person_id: 'sinta-id',
+    })])
+    renderTable({}, authedState)
+    await waitFor(() => screen.getByText('Bar team task'))
+
+    // PIC cell: an inline trigger opens the picker, offering self + downline.
+    const picTrigger = document.querySelector('td.td-owner button.inline-cell-trigger') as HTMLButtonElement
+    expect(picTrigger, 'PIC cell is editable for the manager above the PIC').toBeTruthy()
+    fireEvent.click(picTrigger)
+    const picSelect = screen.getByRole('combobox', { name: 'Edit task PIC' }) as HTMLSelectElement
+    const optionLabels = [...picSelect.options].map((option) => option.textContent)
+    expect(optionLabels).toEqual(['Arief Said', 'Rina Barista'])
+    // Saves in place through the same updateTaskFields path the record editor uses.
+    fireEvent.change(picSelect, { target: { value: VIEWER_ID } })
+    await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
+      'bar-task', { responsible_person_id: VIEWER_ID }, VIEWER_ID, DOWNLINE_ID,
+    ))
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
+
+    // Due cell: editable in-row too (same gate).
+    const dueTrigger = document.querySelector('td.td-due button.inline-cell-trigger') as HTMLButtonElement
+    expect(dueTrigger, 'Due cell is editable for the manager above the PIC').toBeTruthy()
+  })
+
+  it('AC-022: Bulan (no downline) on a peer task reads PIC and Due as plain text', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+    mockListTasks.mockResolvedValue([makeTask({
+      id: 'peer-task', title: 'Peer task',
+      responsible_person_id: 'other-id', accountable_person_id: 'other-id',
+    })])
+    renderTable({}, authedState)
+    await waitFor(() => screen.getByText('Peer task'))
+    expect(document.querySelector('td.td-owner button.inline-cell-trigger')).toBeNull()
+    expect(document.querySelector('td.td-due button.inline-cell-trigger')).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull()
+    // The values still render — honest read-only, not blank.
+    expect(document.querySelector('td.td-owner')?.textContent).toContain('Budi')
+  })
+})
+
+describe('Ticket #750 — AC-024 the skeleton never outlives the request', () => {
+  it('AC-024: an aborted load renders "Couldn\'t load tasks · Try again", drops the skeleton, and Try again re-issues the query', async () => {
+    const abortError = new DOMException('The request was aborted', 'AbortError')
+    mockListTasks.mockRejectedValueOnce(abortError).mockResolvedValue([makeTask({ title: 'Back after abort' })])
+    renderTable()
+    // The error state replaces the skeleton — no aria-busy loading region, no .sk cells.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn't load tasks/i)
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(document.querySelector('.sk')).toBeNull()
+    // Try again re-issues the load; the collection recovers to ready rows.
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(mockListTasks).toHaveBeenCalledTimes(2))
+    await waitFor(() => screen.getByText('Back after abort'))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

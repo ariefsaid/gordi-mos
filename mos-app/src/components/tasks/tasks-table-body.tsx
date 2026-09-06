@@ -30,8 +30,8 @@ export type FlatRow =
   | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
-// Wave 2c: matches the 6-column priority row (Task + Status + PIC + Supervisor
-// + Due + menu). Both desktop modes share the priority column set.
+// Wave 2c + AC-020 (#750): matches the 5-column decision row (Task + Status + PIC +
+// Supervisor + Due — the ⋯ menu column is gone). Both desktop modes share the set.
 function SkeletonRow() {
   return (
     <tr>
@@ -42,8 +42,6 @@ function SkeletonRow() {
       <td className="sk-cell" style={{ textAlign: 'right' }}>
         <div className="sk" style={{ width: 56, marginLeft: 'auto' }} />
       </td>
-      {/* trailing row-menu col (empty) */}
-      <td className="sk-cell td-menu" />
     </tr>
   )
 }
@@ -261,8 +259,8 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                 {t('tasks.dueLabel')}{sortIndicator('due')}
               </button>
             </th>
-            {/* PR-2 AC-T02 — row-menu column header (visual only; the ⋯ reveals on row hover). */}
-            <th scope="col" className="th-cell th-menu" aria-label={t('tasks.rowActions')} />
+            {/* AC-020 (#750): the ⋯ row-menu column is retired — it held one action. The
+                title-edit pencil (AC-018) rides the Due cell's trailing edge on hover. */}
           </tr>
         </thead>
         {virtualize ? (
@@ -270,8 +268,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
             // Column count follows the visible Fields (AC-006, #743); the caller passes the
-            // one authoritative span so pads can never drift from the group headers.
-            const colSpan = columnSpan ?? (showBusinessUnit ? 7 : 6)
+            // one authoritative span so pads can never drift from the group headers. The
+            // fallback carries the 5-column decision set — the ⋯ menu column is retired
+            // (AC-020, #750).
+            const colSpan = columnSpan ?? (showBusinessUnit ? 6 : 5)
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (
