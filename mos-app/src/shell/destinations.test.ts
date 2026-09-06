@@ -398,7 +398,7 @@ describe('primaryModuleForViewer — the affiliation selector', () => {
   // Roastery are ship-gated today, so Café is the only observable answer; the assertion is
   // structural, in the style of the no-workMatch test below.)
   it('derives from the module registry — no module id hardcoded in the selector', () => {
-    expect(String(primaryModuleForViewer)).not.toMatch(/'(cafe|ecommerce|roastery)'/)
+    expect(String(primaryModuleForViewer)).not.toMatch(/["'](cafe|ecommerce|roastery)["']/)
     expect(primaryModuleForViewer(['cafe'], ['member'])?.id).toBe('cafe')
   })
 
