@@ -89,7 +89,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           onClose={close}
           ariaLabel={t('signals.action.share')}
           closeOnBackdrop
-          closeOnEscape
+          closeOnEscape={!discardOpen}
           surface="centered"
           phoneMode="fullscreen"
         >
@@ -122,7 +122,12 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
         confirmLabel={t('signals.composer.discardConfirm')}
         cancelLabel={t('signals.composer.keepEditing')}
         tone="destructive"
-        onCancel={() => { setDiscardOpen(false); composerTextareaRef.current?.focus() }}
+        onCancel={() => {
+          setDiscardOpen(false)
+          // ConfirmDialog's ModalShell returns focus to its invoker during unmount; refocus after
+          // that cleanup so Keep editing returns to the draft, not the composer close button.
+          setTimeout(() => composerTextareaRef.current?.focus(), 0)
+        }}
         onConfirm={async () => { setDiscardOpen(false); setComposerDirty(false); setIsOpen(false); setPrefill(undefined) }}
       />
     </SignalComposerContext.Provider>
