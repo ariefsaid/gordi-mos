@@ -207,16 +207,17 @@ export function modulesByBU(accessRoles: string[]): { bu: MessageKey; items: Des
 
 /**
  * The module promoted to the phone bottom-nav's third slot — EMPHASIS, not visibility
- * (OD-WAY-51). The viewer's affiliation payload (#744) picks it: a person who works a café line
- * leads with Café. A viewer affiliated with no module gets no promoted slot, and reaches every
- * module they are admitted to through the More drawer, which lists them all.
+ * (OD-WAY-51). Derived from the module REGISTRY over the viewer's affiliation payload (#744):
+ * the first live module whose id the payload names. A person who works a café line leads with
+ * Café; when another module ever earns the same payload fact, it promotes with no edit here.
+ * A viewer affiliated with no module gets no promoted slot, and reaches every module they are
+ * admitted to through the More drawer, which lists them all.
  *
  * Returns null rather than falling back to an arbitrary module: promoting one nobody asked for
  * would be a guess presented as a preference.
  */
 export function primaryModuleForViewer(affiliated: string[], accessRoles: string[]): Destination | null {
-  if (!affiliated.includes('cafe')) return null
-  return allModules(accessRoles).find((m) => m.id === 'cafe') ?? null
+  return allModules(accessRoles).find((m) => affiliated.includes(m.id)) ?? null
 }
 
 /**

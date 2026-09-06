@@ -45,6 +45,7 @@ const viewer = {
   roles: [],
   isManager: false,
   accessRoles: [],
+  affiliated: [],
 }
 
 function setNarrow(matches: boolean) {

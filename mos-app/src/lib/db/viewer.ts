@@ -57,8 +57,9 @@ export interface ViewerResult {
   accessRoles: string[]
   /** Café write-affiliation fact (#744): ['cafe'] when the viewer holds a current stream-Team
    *  membership — the ONE answer every nav surface and capture page reads. Empty for unaffiliated
-   *  viewers; a failed read fails closed because RLS, never this field, refuses writes. */
-  affiliated?: string[]
+   *  viewers; a failed read fails closed ([] — never undefined) because RLS, never this field,
+   *  refuses writes. Required so every capture selector can default-closed on it. */
+  affiliated: string[]
 }
 
 // resolveViewer: read the person by user_id, their held roles, and derive isManager.

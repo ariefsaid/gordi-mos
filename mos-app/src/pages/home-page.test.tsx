@@ -132,6 +132,7 @@ const financeViewer: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: ['finance'],
+    affiliated: [],
   },
   signOut: vi.fn(),
 }

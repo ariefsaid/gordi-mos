@@ -392,6 +392,16 @@ describe('primaryModuleForViewer — the affiliation selector', () => {
     expect(primaryModuleForViewer(['cafe'], ['member'])?.id).toBe('cafe')
   })
 
+  // #744 review: the promoted module is DERIVED from the module registry over the payload —
+  // the first live module whose id the viewer is affiliated with — never a hardcoded module id,
+  // so the next module to earn the payload fact promotes with no edit here. (Ecommerce and
+  // Roastery are ship-gated today, so Café is the only observable answer; the assertion is
+  // structural, in the style of the no-workMatch test below.)
+  it('derives from the module registry — no module id hardcoded in the selector', () => {
+    expect(String(primaryModuleForViewer)).not.toMatch(/'(cafe|ecommerce|roastery)'/)
+    expect(primaryModuleForViewer(['cafe'], ['member'])?.id).toBe('cafe')
+  })
+
   it('an unaffiliated viewer gets no promoted slot — never a guessed module', () => {
     expect(primaryModuleForViewer([], ['member'])).toBeNull()
     expect(primaryModuleForViewer(['roastery_thermal'], ['member'])).toBeNull()

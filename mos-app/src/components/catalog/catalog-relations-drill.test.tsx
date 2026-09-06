@@ -79,6 +79,7 @@ function authWith(accessRoles: readonly string[]): AuthState {
       roles: [],
       isManager: false,
       accessRoles: [...accessRoles],
+      affiliated: [],
     },
     signOut: vi.fn(),
   }

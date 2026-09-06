@@ -1741,7 +1741,7 @@ export const messages = {
     'kitchen.filter.noMatch': 'Tidak ada item yang cocok dengan filter Anda.',
     'kitchen.kpi.plannedTotal': 'Total rencana',
     'kitchen.log.caption': 'Log produksi Kafe — isi jumlah yang dibuat hari ini untuk tiap item',
-    'kitchen.log.readOnlyReason': 'Anda dapat membaca catatan Café, tetapi hanya orang yang berafiliasi dengan Café atau pemimpin Operasional Café yang dapat mengirim produksi.',
+    'kitchen.log.readOnlyReason': 'Anda dapat membaca catatan Kafe, tetapi hanya orang yang berafiliasi dengan Kafe atau pemimpin Operasional Kafe yang dapat mengirim produksi.',
     'kitchen.log.captureAria': 'Pencatatan log Kafe',
     'kitchen.log.col.item': 'Item',
     'kitchen.log.col.made': 'Dibuat hari ini',

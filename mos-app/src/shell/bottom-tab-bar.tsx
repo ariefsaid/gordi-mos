@@ -77,7 +77,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   // The line here used to say "module routes stay reachable via ⌘K / direct URL". That was false:
   // the palette held seven hardcoded entries, none of them Café. It is deleted rather than
   // replaced — under OD-WAY-51 no justification is needed, because nothing is being hidden.
-  const moduleDest = viewer ? primaryModuleForViewer(viewer.affiliated ?? [], viewer.accessRoles) : null
+  const moduleDest = viewer ? primaryModuleForViewer(viewer.affiliated, viewer.accessRoles) : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {
         id: moduleDest.id,

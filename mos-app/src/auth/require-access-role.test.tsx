@@ -23,6 +23,7 @@ function authed(accessRoles: string[]) {
       roles: [],
       isManager: false,
       accessRoles,
+      affiliated: [],
     },
     signOut: vi.fn(),
   }

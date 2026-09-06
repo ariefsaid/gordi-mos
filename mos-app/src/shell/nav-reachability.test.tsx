@@ -73,6 +73,7 @@ function setAuthAs(accessRoles: string[], roleNames: string[]) {
       })),
       isManager: false,
       accessRoles,
+      affiliated: [],
     },
     signOut: vi.fn(),
   })

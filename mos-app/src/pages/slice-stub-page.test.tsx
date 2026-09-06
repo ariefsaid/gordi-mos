@@ -76,6 +76,7 @@ describe('PORT-024: the Ecommerce and Roastery stubs, mounted under the shell co
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })

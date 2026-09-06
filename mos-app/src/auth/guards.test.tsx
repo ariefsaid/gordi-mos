@@ -132,6 +132,7 @@ describe('ProtectedRoute', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -170,6 +171,7 @@ describe('RedirectIfAuthed', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -285,6 +287,7 @@ describe('RedirectIfAuthed', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })

@@ -55,6 +55,7 @@ const viewer = {
   roles: [],
   isManager: false,
   accessRoles: [],
+  affiliated: [],
 }
 
 function renderTopBar({ narrow, withPanel }: { narrow: boolean; withPanel?: boolean }) {

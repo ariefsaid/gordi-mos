@@ -206,6 +206,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r0', org_id: 'o1', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: true,
         accessRoles: ['admin'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -261,6 +262,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r4', org_id: 'o1', business_unit_id: 'bu-b2b-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
