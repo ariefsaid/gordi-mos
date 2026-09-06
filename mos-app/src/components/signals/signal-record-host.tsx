@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
+import { canRetract } from '@/lib/db/signals.permissions'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -246,7 +246,14 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
   // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
   const retracted = signal.retracted_at !== null
-  const canRetract = !retracted && !!viewerId && (signal.author_id === viewerId || (auth.status === 'authenticated' && can(auth.viewer.accessRoles, 'signal.retract')))
+  const canRetractSignal = !retracted && !!viewerId && auth.status === 'authenticated' && canRetract(
+    {
+      personId: viewerId,
+      accessRoles: auth.viewer.accessRoles,
+      leadsTeamIds: auth.viewer.leadsTeamIds ?? [],
+    },
+    { authorId: signal.author_id, owningTeamId: signal.owning_team_id },
+  )
   // mos._guard_signals (20260805000006) treats attention as AUTHOR-ONLY content — a signal.retract
   // holder who isn't the author gets 42501 — so the editor is offered to the author alone
   // (DESIGN.md: do not render edit affordances that cannot succeed).
@@ -266,7 +273,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       linkedTasksSummary={linkedTasksSummary}
       onCreateFollowUpTask={openTaskComposer}
       onLinkExistingTask={() => setLinkOpen((open) => !open)}
-      onRetract={canRetract ? () => setRetractOpen(true) : undefined}
+      onRetract={canRetractSignal ? () => setRetractOpen(true) : undefined}
       actionForms={actionForms}
     />
   )
