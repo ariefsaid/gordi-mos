@@ -87,7 +87,7 @@ beforeEach(() => {
 })
 
 describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => {
-  it('renders the Home feed door, live count, location/time chips, and visibility line', async () => {
+  it('renders the Home feed door, live count, and location/time chips without row actions', async () => {
     renderSection({ signals: [
       row({ id: 's1', body: 'Freezer alarm went off' }),
       row({ id: 's2', body: 'Grinder is running slowly' }),
@@ -98,7 +98,8 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     const feed = screen.getByTestId('signal-feed')
     expect(feed.querySelectorAll('.home-signal-location-chip')).toHaveLength(2)
     expect(feed.querySelectorAll('.home-signal-time-chip')).toHaveLength(2)
-    expect(screen.getAllByText('Visible to HQ Operations')).toHaveLength(2)
+    expect(screen.queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
   })
 
   it('renders the passed FYI Signals with the resolved author/Team names', async () => {
@@ -164,26 +165,21 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     expect(openSignalComposer).not.toHaveBeenCalled()
   })
 
-  it('Add category calls correctSignal and asks the owner (HomePage) to reload the shared read', async () => {
-    mockCorrectSignal.mockResolvedValue(undefined)
-    const onReload = vi.fn()
-    renderSection({ onReload })
-    await userEvent.click(screen.getByRole('button', { name: /add category/i }))
-    await userEvent.click(screen.getByRole('option', { name: 'Quality' }))
-
-    expect(mockCorrectSignal).toHaveBeenCalledWith('signal-1', { category: 'Quality' })
-    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+  it('keeps Home rows read-only; categorization is record/archive-only', async () => {
+    renderSection()
+    expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
+    expect(mockCorrectSignal).not.toHaveBeenCalled()
   })
 
   it('opening a card navigates to the canonical record URL', async () => {
     renderSection()
-    await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
+    await userEvent.click(screen.getByRole('listitem'))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
   })
 
   it('opens a Home Signal in the shared record host and keeps Home as the underlying page', async () => {
     renderSectionWithHost()
-    await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
+    await userEvent.click(screen.getByRole('listitem'))
     await waitFor(() => expect(screen.getByTestId('home-signal-record')).toHaveAttribute('data-signal-id', 'signal-1'))
     expect(document.querySelector('[data-overlay-host]')).toBeInTheDocument()
     expect(document.body.textContent).toContain('The freezer alarm went off')
