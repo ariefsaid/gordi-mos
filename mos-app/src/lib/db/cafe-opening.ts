@@ -74,6 +74,26 @@ export async function getTodayOpeningForTeam(processId: string, teamId: string):
   return { started: true, runId, rollup }
 }
 
+/** Resolve the canonical opening Team for a branch through the database-owned resolver. */
+export async function getCafeOpeningTeam(branchId: string): Promise<string | null> {
+  const { data, error } = await shared().rpc('cafe_opening_team', { p_branch_id: branchId })
+  if (error) throw new Error(`getCafeOpeningTeam failed — ${error.message}`)
+  return data as string | null
+}
+
+/** Read today's branch opening using the same canonical Team as the Home door. */
+export async function getTodayOpeningForBranch(processId: string, branchId: string): Promise<TodayOpening> {
+  const teamId = await getCafeOpeningTeam(branchId)
+  return teamId ? getTodayOpeningForTeam(processId, teamId) : { started: false, runId: null, rollup: null }
+}
+
+/** Start today's opening through the database-owned branch resolver. */
+export async function startTodayOpeningForBranch(processId: string, branchId: string): Promise<SpawnResult> {
+  const teamId = await getCafeOpeningTeam(branchId)
+  if (!teamId) throw new Error('startTodayOpeningForBranch failed — branch has no opening Team')
+  return startRun(processId, teamId, wibToday())
+}
+
 /** Start today's opening for a branch Team via the Step-6 spawn RPC (FR-703, AC-711). */
 export function startTodayOpening(processId: string, teamId: string): Promise<SpawnResult> {
   return startRun(processId, teamId, wibToday())

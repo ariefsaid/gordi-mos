@@ -10,8 +10,8 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  wibToday, getCafeOpeningProcessId, getTodayOpeningForTeam,
-  startTodayOpening, listStartableCafeTeams,
+  wibToday, getCafeOpeningProcessId, getTodayOpeningForTeam, getTodayOpeningForBranch,
+  startTodayOpening, startTodayOpeningForBranch, listStartableCafeTeams,
 } from './cafe-opening'
 import { supabase } from '@/lib/supabase'
 import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
@@ -72,6 +72,23 @@ beforeEach(() => vi.clearAllMocks())
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
 const RUN_ID = '00000000-0000-0000-0000-00000000r001'
+const BRANCH_ID = '00000000-0000-0000-0000-00000000b001'
+
+describe('branch opening resolver', () => {
+  it('uses the database resolver for both branch read and start', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'rpc.cafe_opening_team': [{ data: TEAM_ID, error: null }],
+      'mos.process_runs': [{ data: null, error: null }],
+      'rpc.spawn_process_run': [{ data: { run_id: RUN_ID, created: 1, pending: 0, idempotent: false }, error: null }],
+    }, rec)
+    await getTodayOpeningForBranch(PROCESS_ID, BRANCH_ID)
+    await startTodayOpeningForBranch(PROCESS_ID, BRANCH_ID)
+    expect(rec.rpcs[0]).toEqual(['cafe_opening_team', { p_branch_id: BRANCH_ID }])
+    expect(rec.rpcs[1]).toEqual(['cafe_opening_team', { p_branch_id: BRANCH_ID }])
+    expect(rec.rpcs[2]?.[0]).toBe('spawn_process_run')
+  })
+})
 
 // ── wibToday (B1) ─────────────────────────────────────────────────────────────
 describe('wibToday', () => {
