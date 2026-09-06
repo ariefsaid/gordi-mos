@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation, type RouteObject } from 'react-router-dom'
 import { RouteRedirect } from '@/shell/route-redirect'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -45,6 +45,7 @@ import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
+import { routeConfig } from '@/router'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
@@ -179,6 +180,15 @@ function LocationRecorder({ onChange }: { onChange: (path: string) => void }) {
 // can assert the post-navigate URL (renderAt alone has no way to read it back).
 // Route children mirror the production table (src/router.tsx): `new` is a RETIRED door —
 // a redirect back to the collection (AC-023), not a create drawer.
+function findRoute(routes: readonly RouteObject[], path: string): RouteObject | undefined {
+  for (const route of routes) {
+    if (route.path === path) return route
+    const found = route.children ? findRoute(route.children, path) : undefined
+    if (found) return found
+  }
+  return undefined
+}
+
 function childRoutes() {
   return <>
     <Route path="new" element={<RouteRedirect to="/work/tasks?create=1" />} />
@@ -495,6 +505,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   // collection, where the inline draft row opens with its title focused (D3e, OD-REDESIGN-10).
   // And the true-empty collection's Create starts the same draft row (C11).
   it('AC-023: /work/tasks/new redirects to the collection and opens the focused draft row', async () => {
+    const productionRedirect = findRoute(routeConfig, 'new')
+    expect((productionRedirect?.element as { props?: { to?: string } })?.props?.to).toBe('/work/tasks?create=1')
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     renderAtWithLocation('/work/tasks/new', () => {})
     // The draft row is the NEW task row: an editor input, focused, replacing the title cell.
@@ -502,6 +514,13 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.activeElement).toBe(titleInput)
     // No create drawer mounts — the draft row is the create surface.
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
+  })
+
+  it('highlighted freshly-created task carries the row flash class', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Freshly created' })])
+    renderAt('/work/tasks?highlight=task-1')
+    await waitFor(() => expect(screen.getByText('Freshly created')).toBeInTheDocument())
+    expect(document.querySelector('tr.task-row.row-just-created')).toBeTruthy()
   })
 
   it('AC-023: the true-empty collection\'s Create task starts the draft row, title focused', async () => {

@@ -328,28 +328,68 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
   // AC-017 row-side: a single click on the title opens the record — never the editor.
   // (The URL-consequence half of AC-017 — drawer vs page regime — is owned by tasks-layout.)
   it('a single click on an editable title opens the record and mounts no editor', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const link = screen.getByRole('link', { name: /Finalise Q3/i })
+      fireEvent.mouseDown(link)
+      fireEvent.mouseUp(link)
+      fireEvent.click(link)
+      vi.advanceTimersByTime(250)
+      expect(onOpen).toHaveBeenCalledWith('task-7')
+      expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a click-click-dblclick title sequence edits without opening the record', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      const onEditTitle = vi.fn().mockResolvedValue(undefined)
+      renderRow({ onOpen, onEditTitle })
+      const link = screen.getByRole('link', { name: /Finalise Q3/i })
+      fireEvent.click(link)
+      fireEvent.click(link)
+      fireEvent.doubleClick(link)
+      vi.runAllTimers()
+      expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+      expect(onOpen).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('allows modifier and middle-click title activation to remain native anchor navigation', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
     const link = screen.getByRole('link', { name: /Finalise Q3/i })
-    fireEvent.mouseDown(link)
-    fireEvent.mouseUp(link)
-    fireEvent.click(link)
-    expect(onOpen).toHaveBeenCalledWith('task-7')
-    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    fireEvent.click(link, { metaKey: true })
+    fireEvent.click(link, { ctrlKey: true })
+    fireEvent.click(link, { shiftKey: true })
+    fireEvent.click(link, { button: 1 })
+    expect(onOpen).not.toHaveBeenCalled()
   })
 
-  it('a double-click starts editing the title in place', () => {
-    const onEditTitle = vi.fn().mockResolvedValue(undefined)
-    renderRow({ onEditTitle })
-    fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
-    expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+  it('renders the title pencil in the title cell, never the Due cell', () => {
+    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    expect(document.querySelector('td.td-main .task-row-pencil')).toBeTruthy()
+    expect(document.querySelector('td.td-due .task-row-pencil')).toBeNull()
   })
 
-  it('a non-editable title still opens on a single click', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen }) // no onEditTitle → not editable
-    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
-    expect(onOpen).toHaveBeenCalledWith('task-7')
+  it('a non-editable title still opens after the single-click pair window', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      renderRow({ onOpen }) // no onEditTitle → not editable
+      fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+      vi.advanceTimersByTime(250)
+      expect(onOpen).toHaveBeenCalledWith('task-7')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // Field-Escape/Enter isolation: the commit/discard keys must NOT bubble to the workspace keyboard
@@ -456,8 +496,8 @@ describe('TaskRow — AC-018 pencil affordance', () => {
     renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
     const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
     expect(css).toMatch(/\.task-row-pencil\s*\{[^}]*visibility:\s*hidden/)
-    expect(css).toMatch(/tr:hover \.task-row-pencil/)
-    expect(css).toMatch(/tr:focus-within \.task-row-pencil/)
+    expect(css).toMatch(/\.task-title-cell:hover \.task-row-pencil/)
+    expect(css).toMatch(/\.task-title-cell:focus-within \.task-row-pencil/)
   })
 })
 

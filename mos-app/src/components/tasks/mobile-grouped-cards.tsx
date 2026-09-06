@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { PicCell } from './pic-cell'
+import { PicCell, PersonCell } from './pic-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
@@ -179,7 +179,7 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>
-            <dd>{supervisorName || '—'}</dd>
+            <dd>{supervisorName ? <PersonCell fullName={supervisorName} /> : '—'}</dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.dueLabel')}</dt>

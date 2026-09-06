@@ -288,7 +288,7 @@
 }
 /* Split floors keep each decision column and the row menu measurable. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 160px; } /* Title */
+.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 200px; } /* Title inherits the retired menu floor */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
 .split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
 .split:not(.nodrawer) .tasks-table th:nth-child(3),
@@ -359,10 +359,9 @@
 
 /* AC-020 (#750) — the one-item ⋯ row menu is retired (button + column + styles). */
 
-/* AC-018 (#750) — the title-edit pencil lives in the Due cell's trailing edge (the slot the
-   ⋯ occupied). Revealed on row hover/focus-within exactly like the retired ⋯, so discovery
-   stays hover-driven and the rest state stays quiet (kit "quiet at rest"). */
-td.td-due { position: relative; padding-right: 30px; }
+/* AC-018 (#750) — the title-edit pencil belongs to the title identity cell. It is revealed by
+   title hover/focus, while Due keeps its authored 12px cell padding and never hosts controls. */
+.task-title-cell { position: relative; }
 .task-row-pencil {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   width: 24px; height: 24px; flex: none; padding: 0; cursor: pointer;
@@ -372,9 +371,8 @@ td.td-due { position: relative; padding-right: 30px; }
 }
 .task-row-pencil:hover { background: var(--accent); color: var(--foreground); }
 .task-row-pencil:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
-tr:hover .task-row-pencil,
-tr.row-selected .task-row-pencil,
-tr:focus-within .task-row-pencil { visibility: visible; }
+.task-title-cell:hover .task-row-pencil,
+.task-title-cell:focus-within .task-row-pencil { visibility: visible; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .task-name {
   /* typeset: was 15.5px off-ramp — the row's own .own-name sibling already runs body-lg (15px). */

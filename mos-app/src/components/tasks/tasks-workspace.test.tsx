@@ -2090,18 +2090,23 @@ describe('Ticket #750 — AC-019 footer legend states the click grammar', () => 
   const ID_LEGEND = 'Klik baris untuk membukanya · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
-    renderTable()
-    await waitFor(() => screen.getByText('Legend task'))
-    expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(EN_LEGEND)
+    const previousLocale = localStorage.getItem('mos.locale')
+    try {
+      mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
+      renderTable()
+      await waitFor(() => screen.getByText('Legend task'))
+      expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(EN_LEGEND)
 
-    localStorage.setItem('mos.locale', 'id')
-    cleanup()
-    mockListTasks.mockResolvedValue([makeTask({ title: 'Tugas legenda' })])
-    renderTable()
-    await waitFor(() => screen.getByText('Tugas legenda'))
-    expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(ID_LEGEND)
-    localStorage.setItem('mos.locale', 'en')
+      localStorage.setItem('mos.locale', 'id')
+      cleanup()
+      mockListTasks.mockResolvedValue([makeTask({ title: 'Tugas legenda' })])
+      renderTable()
+      await waitFor(() => screen.getByText('Tugas legenda'))
+      expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(ID_LEGEND)
+    } finally {
+      if (previousLocale === null) localStorage.removeItem('mos.locale')
+      else localStorage.setItem('mos.locale', previousLocale)
+    }
   })
 })
 
