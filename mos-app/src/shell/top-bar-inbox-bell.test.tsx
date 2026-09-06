@@ -15,6 +15,10 @@ vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 const mockNarrow = vi.mocked(useIsNarrow)
 
+vi.mock('./use-is-phone-width')
+import { useIsPhoneWidth } from './use-is-phone-width'
+const mockPhone = vi.mocked(useIsPhoneWidth)
+
 vi.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: vi.fn() }))
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 const mockUnreadCount = vi.mocked(useUnreadCount)
@@ -76,9 +80,23 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUse.mockReturnValue(hook())
   mockUnreadCount.mockReturnValue({ unreadCount: 0, loading: false, refresh: vi.fn() })
+  mockPhone.mockReturnValue(false)
 })
 
 describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
+  it('AC-069: phone bell is a link to Inbox and does not mount the quick panel', () => {
+    mockPhone.mockReturnValue(true)
+    mockNarrow.mockReturnValue(true)
+    mockUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
+    renderShell()
+
+    const bell = screen.getByRole('link', { name: 'Inbox, 2 unread' })
+    expect(bell).toHaveAttribute('href', '/inbox')
+    fireEvent.click(bell)
+    expect(screen.getByTestId('loc')).toHaveTextContent('/inbox')
+    expect(screen.queryByRole('group', { name: /filter notifications/i })).toBeNull()
+  })
+
   it('desktop: opens quick triage in the shared host without mutating the URL', () => {
     mockNarrow.mockReturnValue(false)
     renderShell()
