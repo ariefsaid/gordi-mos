@@ -76,12 +76,14 @@ export async function getPeople(): Promise<PersonOption[]> {
   return (data ?? []) as PersonOption[]
 }
 
+/** Search active people by name for the ⌘K palette (org-scoped like getPeople; LIKE wildcards in the query are escaped). */
 export async function searchPeopleByName(query: string): Promise<PersonOption[]> {
   const { data, error } = await shared()
     .from('people')
     .select('id,full_name')
     .is('archived_at', null)
-    .ilike('full_name', `%${query}%`)
+    // Escape % and _ so a query of "50%" or "a_b" matches literally, never as a LIKE pattern.
+    .ilike('full_name', `%${query.replace(/[%_]/g, '\\$&')}%`)
     .order('full_name', { ascending: true })
     .limit(10)
   if (error) throw new Error(`searchPeopleByName failed — ${error.message}`)

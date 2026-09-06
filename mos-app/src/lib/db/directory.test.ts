@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { getBusinessUnits, getPeople, getDownlinePersonIds } from './directory'
+import { getBusinessUnits, getDownlinePersonIds, getPeople, searchPeopleByName } from './directory'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -14,7 +14,7 @@ const schemaMock = vi.mocked(supabase.schema)
 // ── Chainable mock builder ────────────────────────────────────────────────────
 function makeSharedSchema(
   responses: Record<string, { data: unknown; error: unknown }>,
-  rec?: { isCalls: Array<[string, unknown]> },
+  rec?: { isCalls: Array<[string, unknown]>; ilikes?: Array<[string, unknown]> },
 ) {
   const fromImpl = (table: string) => {
     const result = responses[table] ?? { data: null, error: null }
@@ -24,6 +24,11 @@ function makeSharedSchema(
       rec?.isCalls.push([col, val])
       return builder
     })
+    builder.ilike = vi.fn((col: string, val: unknown) => {
+      rec?.ilikes?.push([col, val])
+      return builder
+    })
+    builder.limit = vi.fn(() => builder)
     builder.order = vi.fn(() => builder)
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
     return builder
@@ -163,5 +168,35 @@ describe('getDownlinePersonIds', () => {
       roles: { data: roles, error: null },
     }) as never)
     await expect(getDownlinePersonIds('viewer')).rejects.toThrow(/rls denied/)
+  })
+// ── searchPeopleByName (⌘K palette read path, #748) ───────────────────────
+describe('searchPeopleByName', () => {
+  const personRow = { id: '40000000-0000-0000-0000-000000000001', full_name: 'Cahya Cafe' }
+
+  it('AC-C1-P-search: reads shared.people ilike full_name, active-only, limited — and escapes LIKE wildcards', async () => {
+    const rec = { isCalls: [] as Array<[string, unknown]>, ilikes: [] as Array<[string, unknown]> }
+    schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [personRow], error: null } }, rec) as never)
+
+    const result = await searchPeopleByName('cah')
+    expect(result).toEqual([personRow])
+    expect(schemaMock).toHaveBeenCalledWith('shared')
+    expect(rec.isCalls).toContainEqual(['archived_at', null])
+    expect(rec.ilikes).toContainEqual(['full_name', '%cah%'])
+    // A wildcard in the query is escaped, so "50_" matches a literal underscore — not any char.
+    await searchPeopleByName('50_')
+    expect(rec.ilikes).toContainEqual(['full_name', '%50\\_%'])
+  })
+
+  it('AC-C1-P-search-err: throws on PostgREST error', async () => {
+    schemaMock.mockReturnValue(
+      makeSharedSchema({ people: { data: null, error: { message: 'rls denied' } } }) as never,
+    )
+    await expect(searchPeopleByName('cah')).rejects.toThrow(/searchPeopleByName failed — rls denied/)
+  })
+
+  it('AC-C1-P-search-empty: returns empty array when nothing matches', async () => {
+    schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
+    const result = await searchPeopleByName('nobody')
+    expect(result).toEqual([])
   })
 })

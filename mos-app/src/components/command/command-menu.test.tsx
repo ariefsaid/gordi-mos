@@ -9,6 +9,22 @@ vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ searchPeopleByName: vi.fn() }))
+// The route-admission seam (OD-WAY-51), REAL by default — the same partial mock the
+// app-shell-cafe-log-launcher tests use. Overridable per test because no persona is refused by
+// /cafe today (the route carries no access-role gate; OD-WAY-51's remedy is to narrow the ROUTE,
+// never to hide the link). The override both simulates the day the route narrows and proves the
+// palette consults THIS seam rather than a private job-role gate.
+const seam = vi.hoisted(() => ({
+  override: null as null | ((path: string, accessRoles: string[]) => boolean),
+}))
+vi.mock('@/shell/destinations', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/shell/destinations')>()
+  return {
+    ...mod,
+    viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
+      seam.override ? seam.override(path, accessRoles) : mod.viewerAdmittedToRoute(path, accessRoles),
+  }
+})
 // DD-WAY-36: scoped flag flip so one test can light the follow-up palette search without
 // disturbing the darkness test below (default stays false).
 const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false }))
@@ -65,6 +81,7 @@ function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal
 beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
+  seam.override = null
   mockSearch.mockResolvedValue([])
   mockSearchSignals.mockResolvedValue([])
   mockSearchFollowUps.mockResolvedValue([])
@@ -222,34 +239,88 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     expect(await screen.findByRole('option', { name: /Cahya/ })).toBeInTheDocument()
   })
 
+  it('issue 748: activating a person hit never navigates — a row named for someone else must not open the viewer’s own profile', async () => {
+    mockSearchPeople.mockResolvedValue([{ id: 'p2', full_name: 'Cahya' }])
+    const { onClose } = renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'cah' } })
+    const opt = await screen.findByRole('option', { name: /Cahya/ })
+    fireEvent.click(opt)
+    // shared.people has no record route, and the palette's only /profile route is the VIEWER'S
+    // OWN — so the person row closes the palette and goes nowhere, exactly like the other
+    // kinds-with-nowhere-to-land are withheld rather than pointed at a bounce.
+    expect(screen.getByTestId('location').textContent).toBe('/')
+    expect(onClose).toHaveBeenCalled()
+  })
+
   // Asserting ANY group, not the two current labels: a name-based query passed vacuously against
   // the pre-#748 palette (whose groups were labelled Navigate/Actions, so "no GO TO group" was
   // trivially true while the phone palette still listed the whole rail). The audit's phone ruling
   // is results-only — navigation lives on the tab bar, actions on the `+` launcher — so NO group
   // belongs in the phone DOM, whatever the labels are called this week.
-  function stubCoarse() {
+  //
+  // AC-032 keys on the shell's WIDTH seam, not the pointer (#748 delta): the bottom tab bar and
+  // the `+` launcher render below 920px because `useIsNarrow()` says so, and the palette branches
+  // on the SAME helper — search-only when narrow, GO TO/ACT otherwise. Pointer modality keeps its
+  // own, separate job (#41): hiding the keyboard-hint footer.
+  function stubViewport({ narrow, coarse }: { narrow: boolean; coarse: boolean }) {
     vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
-      matches: query === '(pointer: coarse)', media: query, onchange: null,
+      matches: query.includes('919.98') ? narrow : query.includes('coarse') ? coarse : false,
+      media: query, onchange: null,
       addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
     }))
   }
 
-  it('AC-032: phone palette has search and results only — no group of any name in the DOM', () => {
-    stubCoarse()
+  it('AC-032: at 390 with a FINE pointer the palette is search-only — no group of any name in the DOM', () => {
+    stubViewport({ narrow: true, coarse: false })
     renderMenu()
     expect(screen.getByRole('combobox')).toBeInTheDocument()
     expect(screen.queryByRole('group')).toBeNull()
   })
 
-  it('AC-032: narrowing on phone yields record results still, and never a GO TO / ACT group', async () => {
-    stubCoarse()
+  it('AC-032: narrowing still yields record results, and never a GO TO / ACT group', async () => {
+    stubViewport({ narrow: true, coarse: false })
     mockSearch.mockResolvedValue([{ id: 't1', title: 'Restock cups', status: 'Open' }])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
     expect(await screen.findByRole('option', { name: /Restock cups/i })).toBeInTheDocument()
-    // "o" matches roots and children on desktop; on phone none of them may surface — the one
+    // "o" matches roots and children on desktop; narrow, none of them may surface — the one
     // group the typed view may carry is Records, the results themselves.
     expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['Records'])
+  })
+
+  it('AC-032: at ≥920 even a COARSE pointer gets GO TO / ACT — the branch is the shell width seam, not the pointer', () => {
+    // The inverse probe: a touch device at desktop width is where a pointer-keyed branch and a
+    // width-keyed one disagree, and the width seam wins — the device sees the rail at ≥920, so
+    // its palette rests on the same GO TO roots (#41 keeps hiding the keyboard hints there).
+    stubViewport({ narrow: false, coarse: true })
+    renderMenu()
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['GO TO', 'ACT'])
+  })
+
+  // #748 delta: the Café root asks the ONE route-admission question (OD-WAY-51), like the
+  // launcher's Café action — a viewer the /cafe ROUTE refuses gets no row, absent rather than
+  // present-and-bouncing. No persona is refused today (the route carries no access-role gate),
+  // so the seam is overridden — which also proves the palette consults the seam itself and not
+  // some private gate.
+  it('AC-031: the Café root follows route admission — a viewer the /cafe route refuses gets no row', () => {
+    const denied = vi.fn(() => false)
+    seam.override = denied
+    renderMenu()
+    expect(screen.queryByRole('option', { name: /^Café$/i })).toBeNull()
+    // The gate takes only the Café root; the other GO TO roots are untouched.
+    expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
+    // …and the absence came from the admission seam, asked about the Café root's own route.
+    expect(denied).toHaveBeenCalledWith('/cafe', ['admin'])
+  })
+
+  // #407's desktop path: the typed ACT filter reads the SAME shared list the phone `+` launcher
+  // renders, so the gated Café log entry is offered there too — not only from the launcher.
+  it('issue 407: typing Log offers the Café log entry in the typed view to a viewer /cafe/log admits', async () => {
+    setAuth(['ops_lead'])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Log' } })
+    expect(await screen.findByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
   })
 })
 
@@ -800,11 +871,28 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     expect(childRows()).toHaveLength(0)
   })
 
-  it('a filter that lost the Work row strips the rung from every surviving child', async () => {
-    // Query "e" leaves Home · Profile · Projects & Processes · Objectives — Work is gone. Under
-    // the per-level ladder the children render only while the parent row renders; a CSS sibling
-    // rule (`.cm-item:not([data-child]) ~ [data-child]`) cannot see the parent at all and would
-    // keep drawing the guide here, hanging off HOME.
+  it('issue 748 delta: the typed view keeps Work’s children adjacent to the Work row — no unrelated row between', async () => {
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
+    expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
+    // "o" keeps Home · Work · Projects & Processes · Objectives · Inbox · Personal Profile. The
+    // children are emitted DIRECTLY beneath the Work row, before the surviving roots — the run of
+    // rows the Child rung describes is unbroken by construction, so the pre-delta shape (an
+    // unrelated root such as Inbox or Personal Profile parked between the parent and its
+    // children) cannot render.
+    const navigate = screen.getByRole('group', { name: 'GO TO' })
+    expect(within(navigate).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Home', 'Work', 'Projects & Processes', 'Objectives', 'Inbox', 'Personal Profile',
+    ])
+  })
+
+  it('a child separated from Work by an unrelated row wears no rung either', async () => {
+    // Query "e" leaves Home · Café · Personal Profile · Projects & Processes · Objectives — Work
+    // is gone and none of the rows above the children is a parent. A CSS sibling rule
+    // (`.cm-item:not([data-child]) ~ [data-child]`) would hang the guide off HOME here; the run
+    // back to the parent has to be unbroken, not merely preceded — which is also why the typed
+    // view emits children adjacent to the Work row: with the adjacency in place the strict run
+    // guard only fires when the parent itself was filtered or gated away.
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'e' } })
     expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeTruthy()
