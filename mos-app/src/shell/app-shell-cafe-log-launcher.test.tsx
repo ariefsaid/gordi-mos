@@ -1,12 +1,17 @@
-// #407 — the floor's one-tap capture path lives on the SHIPPED shell, not the fossil Home.
+// #407 + #755 — the floor's one-tap capture path lives on the SHIPPED shell, gated by the WRITE
+// gate, not the route.
 //
 // The lesson this file encodes: #405 repointed the capture CTA to /cafe/log on a component only
 // the DEV-only fossil Home mounted, and grep on the component's href "verified" it. A correct
 // href on an unmounted component is indistinguishable from a working feature by grep alone. So
-// this test pins the CALL SITE: it renders the real AppShell at phone width, taps the real `+`
-// action launcher the shipped BottomTabBar renders, and walks the real CommandMenu entry to
-// /cafe/log — and separately asserts the router config actually mounts THIS shell with a
-// /cafe/log child, so the chain never dead-ends on a surface nothing ships.
+// the journey cases here render the real AppShell at phone width, tap the real `+` action
+// launcher the shipped BottomTabBar renders, and walk the real CommandMenu entry to /cafe/log.
+//
+// #755 (AC-022) re-points the entry's gate: the launcher offers a CAPTURE — a write — so the
+// route-admission seam (which admits every authenticated reader, OD-WAY-51) is the wrong gate.
+// The entry renders only for viewers the #744 Café write gate admits: affiliated, `ops_lead`
+// or `admin` (FR-022, lib/cafe-affiliation.ts `canCaptureCafe`). A separate test pins that the
+// router actually mounts THIS shell with a /cafe/log child, so the chain never dead-ends.
 import { isValidElement } from 'react'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -23,23 +28,6 @@ vi.mock('@/lib/db/notifications', () => ({
   listNotifications: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/auth/use-auth')
-
-// The route-admission seam (OD-WAY-51). REAL by default — the admitted case below exercises the
-// real viewerAdmittedToRoute for a plain member with no access roles. Overridable per test
-// because the not-admitted case cannot be reached through the real function today: /cafe/log
-// carries no access-role gate, so every authenticated viewer is admitted. The override also
-// proves the entry consults THIS seam (called with the /cafe/log route), not some private gate.
-const seam = vi.hoisted(() => ({
-  override: null as null | ((path: string, accessRoles: string[]) => boolean),
-}))
-vi.mock('@/shell/destinations', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@/shell/destinations')>()
-  return {
-    ...mod,
-    viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
-      seam.override ? seam.override(path, accessRoles) : mod.viewerAdmittedToRoute(path, accessRoles),
-  }
-})
 
 import { useAuth } from '@/auth/use-auth'
 import { AppShell } from './app-shell'
@@ -69,10 +57,7 @@ function LocationProbe() {
   return <div data-testid="location">{loc.pathname}</div>
 }
 
-// A plain member: NO access roles. The admitted case must hold for exactly this viewer — the
-// floor member is the primary user, and the real seam admits them because the /cafe/log route
-// carries no access-role gate.
-function setMemberAuth() {
+function setAuth(opts: { accessRoles: string[]; affiliated: string[] }) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -89,15 +74,14 @@ function setMemberAuth() {
       },
       roles: [],
       isManager: false,
-      accessRoles: [],
-      affiliated: [],
+      accessRoles: opts.accessRoles,
+      affiliated: opts.affiliated,
     },
     signOut: vi.fn(),
   })
 }
 
 function renderShellAtHome() {
-  setMemberAuth()
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={['/']}>
@@ -121,7 +105,6 @@ function openLauncher() {
 beforeEach(() => {
   localStorage.clear()
   localStorage.setItem('mos.locale', 'en')
-  seam.override = null
   setNarrow(true)
 })
 afterEach(() => {
@@ -129,8 +112,39 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewers the write gate admits', () => {
+  it('AC-022: Sales (unaffiliated, no ops roles) gets Ask Deputy · Share Signal · Create task and NO Café capture', () => {
+    setAuth({ accessRoles: [], affiliated: [] })
+    renderShellAtHome()
+
+    openLauncher()
+    expect(screen.queryByRole('option', { name: /Log Café production/i })).toBeNull()
+    // The launcher mode renders the Actions group only, so the option list IS the action
+    // inventory: the three universal actions, nothing else.
+    const actions = screen.getAllByRole('option').map((el) => el.textContent?.trim())
+    expect(actions).toEqual(['Ask Deputy: what needs my attention?', 'Share Signal', 'Create task'])
+  })
+
+  it('AC-022: a Café Ops lead (`ops_lead`) sees the Café capture action', () => {
+    setAuth({ accessRoles: ['ops_lead'], affiliated: [] })
+    renderShellAtHome()
+
+    openLauncher()
+    expect(screen.getByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
+  })
+
+  it('AC-022: an affiliated member (no access role) sees it too — affiliation alone admits', () => {
+    setAuth({ accessRoles: [], affiliated: ['cafe'] })
+    renderShellAtHome()
+
+    openLauncher()
+    expect(screen.getByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
+  })
+})
+
 describe('AC-407: the shipped shell offers the floor a one-tap Café log capture path', () => {
-  it('AC-407: phone Home → the `+` launcher lists the Café log entry, and tapping it lands on /cafe/log', () => {
+  it('AC-407: phone Home → an affiliated member taps the launcher entry and lands on /cafe/log', () => {
+    setAuth({ accessRoles: [], affiliated: ['cafe'] })
     renderShellAtHome()
     expect(screen.getByTestId('location')).toHaveTextContent('/')
 
@@ -140,21 +154,6 @@ describe('AC-407: the shipped shell offers the floor a one-tap Café log capture
 
     expect(screen.getByTestId('location')).toHaveTextContent('/cafe/log')
     expect(screen.getByText('cafe log page')).toBeInTheDocument()
-  })
-
-  it('AC-407: a viewer the /cafe/log route does NOT admit gets no entry — absent, never present-and-bouncing', () => {
-    const denied = vi.fn(() => false)
-    seam.override = denied
-    renderShellAtHome()
-
-    openLauncher()
-    expect(screen.queryByRole('option', { name: /Log Café production/i })).toBeNull()
-    // The three universal actions are untouched by the gate.
-    expect(screen.getByRole('option', { name: /Ask Deputy/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Create task/i })).toBeInTheDocument()
-    // And the absence came from the route-admission seam, asked about THIS route (OD-WAY-51) —
-    // not from a private job-role gate.
-    expect(denied).toHaveBeenCalledWith('/cafe/log', [])
   })
 
   it('AC-407: the router ships THIS shell — routeConfig mounts AppShell with an index Home and a /cafe/log child', () => {

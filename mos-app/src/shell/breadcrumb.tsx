@@ -79,6 +79,21 @@ export function Breadcrumb() {
   }
   // home / events (Signals) / inbox / profile / ecommerce / roastery → bare destLabel.
 
+  // A-3 (#755, FR-020): below rail-collapse the header is the LEAF title only — no ancestor
+  // crumbs, no separators. The trail names places the viewer navigated PAST, which a phone
+  // header has no room to narrate; the leaf is never empty (a record page falls back to its
+  // collection leaf until the title resolves, so the header never goes blank mid-load).
+  const leaf = crumbs[crumbs.length - 1]
+  if (isNarrow || crumbs.length === 1) {
+    return (
+      <span className="top-bar__breadcrumb-content" style={{ fontSize: 'var(--font-size-body-lg)' }}>
+        <b className="truncate top-bar__breadcrumb-leaf text-foreground font-semibold" title={leaf} aria-current={leafCarriesCurrent ? 'page' : undefined}>
+          {leaf}
+        </b>
+      </span>
+    )
+  }
+
   return (
     <span className="top-bar__breadcrumb-content" style={{ fontSize: 'var(--font-size-body-lg)' }}>
       {crumbs.length === 1 ? (

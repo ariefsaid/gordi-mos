@@ -19,6 +19,8 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useAssistantPanel, type TranscriptItem, type ChipState, type PendingQuestion, type AssistantRating } from '@/hooks/useAssistantPanel'
+import { useAuth } from '@/auth/use-auth'
+import { canViewRevenue } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { EmptyState } from '@/components/ui/state-kit'
 import { ThreadList } from './ThreadList'
@@ -32,6 +34,13 @@ const SUGGESTION_KEYS = [
   'assistant.empty.suggestion2',
   'assistant.empty.suggestion3',
 ] as const
+
+// AC-023 (#755, FR-023): a suggestion chip whose destination the viewer cannot open is
+// misdirection, not help (audit F-10 — "Show last week's revenue" to a viewer with no Money
+// route). Keys needing a capability name the check; unlisted keys render for everyone.
+const SUGGESTION_ADMITS: Partial<Record<(typeof SUGGESTION_KEYS)[number], (accessRoles: readonly string[]) => boolean>> = {
+  'assistant.empty.suggestion3': canViewRevenue,
+}
 
 /** The downvote reason vocabulary (T23, AC-P3-FB-002) — matches the plan's fixed reason set. */
 const DOWNVOTE_REASONS = ['inaccurate', 'not_helpful', 'wrong_tool', 'too_slow'] as const
@@ -47,6 +56,9 @@ export function AssistantPanel() {
   const { open, closePanel, pendingDraft, consumePendingDraft } = useAgentRuntime()
   const panel = useAssistantPanel()
   const t = useT()
+  const auth = useAuth()
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const suggestionKeys = SUGGESTION_KEYS.filter((k) => SUGGESTION_ADMITS[k]?.(accessRoles) ?? true)
 
   const [draft, setDraft] = useState('')
 
@@ -157,7 +169,7 @@ export function AssistantPanel() {
               variant="next-step"
               title={t('assistant.empty.title')}
               copy={t('assistant.empty.body')}
-              suggestions={SUGGESTION_KEYS.map((k) => {
+              suggestions={suggestionKeys.map((k) => {
                 const label = t(k)
                 return { label, onSelect: () => void submit(label) }
               })}

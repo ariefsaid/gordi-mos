@@ -803,3 +803,28 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(allTasks.getAttribute('href')).toContain('view=overdue')
   })
 })
+
+// ── AC-021 (#755, FR-021): the record page's Back names where the viewer CAME FROM ───────────
+// A task reached from a Home row was never visited via the Tasks collection, so "Back to Tasks"
+// names a place the viewer never was (audit F-9). The origin rides the navigation state.
+describe('TasksLayout — AC-021: Back names the origin', () => {
+  it('a Home-row arrival below the split threshold promotes to the page AND Back reads "Back to Home"', async () => {
+    stubWidths({ split: false, desktop: false })
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Reached from Home' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { from: 'home' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Reached from Home' })
+    const back = screen.getByRole('link', { name: /back to home/i })
+    expect(back).toHaveAttribute('href', '/')
+  })
+
+  it('a direct open (no origin state) keeps the collection Back — "Back to Tasks"', async () => {
+    stubWidths({ split: false, desktop: false })
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Reached from Tasks' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Reached from Tasks' })
+    const back = screen.getByRole('link', { name: /back to tasks/i })
+    expect(back).toHaveAttribute('href', '/work/tasks')
+  })
+})
