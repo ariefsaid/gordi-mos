@@ -484,3 +484,18 @@ describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit',
     })
   }
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// AC-064: DESIGN.md carries the Home Signal-tail amendment verbatim (#746).
+// ════════════════════════════════════════════════════════════════════════════
+describe('AC-064 — DESIGN.md carries the Home Signal-tail amendment verbatim', () => {
+  // Doc-grep: the amendment is owner law (#746 made Home rows a read-only feed and recorded the
+  // rule in DESIGN.md § Signal row (v4)). Grep the body sentence so a rewording — the thing the
+  // verbatim rule exists to prevent — fails here, not silently.
+  const DESIGN = readFileSync(resolve(process.cwd(), '../DESIGN.md'), 'utf8')
+
+  it('the read-only-feed paragraph sits under § Signal row (v4) with the amendment text', () => {
+    const section = DESIGN.slice(DESIGN.indexOf('### Signal row (v4)'))
+    expect(section).toMatch(/Home rows carry \*\*no per-row actions and no visibility line\*\*; `Create task` and `Add category` live on the Signal record and the archive Feed\. The row's whole surface opens the record\./)
+  })
+})
