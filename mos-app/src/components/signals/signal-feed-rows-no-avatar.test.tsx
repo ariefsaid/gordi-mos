@@ -56,6 +56,10 @@ describe('AC-060 Home rows are read-only record links', () => {
       </I18nProvider>,
     )
     const signalRow = container.querySelector('[data-signal-id="signal-1"]') as HTMLElement
+    // AC-060: the row IS the record link — role="button" carrying the `signals.card.openSignal`
+    // catalog name, so assistive tech hears what the whole-row surface does.
+    expect(signalRow).toHaveAttribute('role', 'button')
+    expect(screen.getByRole('button', { name: 'Open signal: The freezer alarm went off' })).toBe(signalRow)
     await userEvent.click(signalRow)
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-1' }))
     expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
@@ -85,8 +89,12 @@ describe('AC-060 Home rows are read-only record links', () => {
 describe('AC-062 toolbar CSS contract', () => {
   it('pins the outline toolbar control and 44px floor in the component stylesheet', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-feed-rows.css'), 'utf8')
-    expect(css).toContain('.home-signal-tools .home-signal-add')
-    expect(css).toContain('min-height: 44px')
+    // The rule BLOCK is extracted and the floor asserted inside it: a file-wide
+    // `toContain('min-height: 44px')` is satisfied by the search field's own floor, so deleting
+    // the control's declaration (or renaming the selector) used to stay green.
+    const rule = css.match(/\.home-signal-tools \.home-signal-add\s*\{[^}]*\}/)
+    expect(rule).not.toBeNull()
+    expect(rule![0]).toMatch(/min-height:\s*44px/)
     expect(css).not.toMatch(/home-signal-add[^}]*background\s*:\s*var\(--primary\)/s)
   })
 })

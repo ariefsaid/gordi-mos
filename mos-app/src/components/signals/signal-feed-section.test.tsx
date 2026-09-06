@@ -173,13 +173,13 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
 
   it('opening a card navigates to the canonical record URL', async () => {
     renderSection()
-    await userEvent.click(screen.getByRole('listitem'))
+    await userEvent.click(screen.getByRole('button', { name: /open signal/i }))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
   })
 
   it('opens a Home Signal in the shared record host and keeps Home as the underlying page', async () => {
     renderSectionWithHost()
-    await userEvent.click(screen.getByRole('listitem'))
+    await userEvent.click(screen.getByRole('button', { name: /open signal/i }))
     await waitFor(() => expect(screen.getByTestId('home-signal-record')).toHaveAttribute('data-signal-id', 'signal-1'))
     expect(document.querySelector('[data-overlay-host]')).toBeInTheDocument()
     expect(document.body.textContent).toContain('The freezer alarm went off')
@@ -282,7 +282,7 @@ describe('FR-928: the Signals column is named Signals, and states no untraceable
 
   it('counts the ambient rows actually rendered after the feed cap', async () => {
     renderSection({ signals: Array.from({ length: 11 }, (_, index) => row({ id: `s${index}` })) })
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(6))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /open signal/i })).toHaveLength(6))
     expect(screen.getByRole('heading', { name: 'Signals · 6' })).toBeInTheDocument()
   })
 })

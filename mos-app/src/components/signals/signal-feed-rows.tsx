@@ -143,13 +143,20 @@ export function SignalFeedRows({
             // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
             // is inert on Home and lights up only in the archive Feed.
             const attentionRow = signal.attention === 'Urgent' ? ' home-signal-row--urgent' : ''
+            // AC-060 (Home rows are read-only record links): the variant split IS the open-affordance
+            // split — an ambient row IS the button (role + the `signals.card.openSignal` catalog name
+            // on the row, pointer cursor via --open in the CSS), while an archive row opens through
+            // its own body <button> below instead.
+            const openRow = variant === 'ambient' && onOpen ? ' home-signal-row--open' : ''
             return (
               <li
                 key={signal.id}
-                className={`home-signal-row${attentionRow}`}
+                className={`home-signal-row${attentionRow}${openRow}`}
                 data-signal-id={signal.id}
                 {...(variant === 'ambient' && onOpen ? {
+                  role: 'button',
                   tabIndex: 0,
+                  'aria-label': t('signals.card.openSignal', { body: signal.body }),
                   onClick: () => onOpen(signal),
                   onKeyDown: (event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
