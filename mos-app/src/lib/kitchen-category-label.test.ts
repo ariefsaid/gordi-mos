@@ -11,7 +11,8 @@ describe('AC-063: Café category labels come from the locale catalog', () => {
   it('pins the category map to exactly the seeded category set', () => {
     // Keep this coupled to seed.sql so adding a seeded category forces a catalog decision.
     const seed = readFileSync(resolve(import.meta.dirname, '../../../supabase/seed.sql'), 'utf8')
-    const seeded = [...seed.matchAll(/'((?:Chicken|Meat|Seafood|Snack\/Sweet|Rice\/Staple|Veg\/Tempe\/Tofu))'/g)]
+    const wipInsert = seed.match(/insert into ops\.wip_items[\s\S]*?on conflict \(id\)/)?.[0] ?? ''
+    const seeded = [...wipInsert.matchAll(/,\s*'([^']*)'\),?\s*$/gm)]
       .map(match => match[1])
     expect([...new Set(seeded)].sort()).toEqual([
       'Chicken', 'Meat', 'Rice/Staple', 'Seafood', 'Snack/Sweet', 'Veg/Tempe/Tofu',

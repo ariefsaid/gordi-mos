@@ -1668,7 +1668,7 @@ export const messages = {
     'nav.cafe.log': 'Catatan',
     'nav.cafe.opening': 'Pembukaan',
     'nav.cafe.plan': 'Rencana',
-    'nav.cafe.pushes': 'Kiriman'
+    'nav.cafe.pushes': 'Kirim Log',
     'nav.cafe.review': 'Tinjauan',
     'nav.cafe.stock': 'Stok',
     'nav.ecommerce': 'Ecommerce',
@@ -1825,7 +1825,7 @@ export const messages = {
     'kitchen.log.unit.selectAria': 'Satuan untuk ${item}',
     'kitchen.log.stream.choose': 'Pilih Tim…',
     'kitchen.log.stream.missing': 'Pilih Tim produksi sebelum mengirim.',
-    'kitchen.log.stream.pickerAria': 'Arus produksi',
+    'kitchen.log.stream.pickerAria': 'Tim produksi',
     'kitchen.log.submit.default': 'Kirim',
     'kitchen.log.submit.entry.one': 'Kirim ${count} entri',
     'kitchen.log.submit.entry.other': 'Kirim ${count} entri',
