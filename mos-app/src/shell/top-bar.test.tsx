@@ -158,7 +158,7 @@ describe('AC-014: TopBar layout (OD-57)', () => {
     localStorage.setItem('mos.locale', 'id')
     renderTopBar()
     expect(screen.getByRole('button', { name: /Cari/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Kotak Masuk' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
   })
 })
 

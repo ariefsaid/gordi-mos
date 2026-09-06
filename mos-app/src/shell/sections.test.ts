@@ -90,11 +90,9 @@ describe('T5: new destination sections resolve', () => {
     },
   )
 
-  it('…but the SECTIONS registry still holds them — hidden, not deleted', () => {
-    // Without this the cases above would pass just as well if the entries had been ripped out,
-    // and switch day would be a revert instead of one line deleted from SHIP_GATED_PATHS.
+  it('keeps non-navigation gated sections in the fallback registry', () => {
     const paths = SECTIONS.map((s) => s.path)
-    for (const p of ['/work/events', '/money', '/work/objectives', '/ecommerce', '/roastery']) {
+    for (const p of ['/money', '/work/objectives', '/ecommerce', '/roastery']) {
       expect(paths, `${p} was deleted from SECTIONS rather than gated`).toContain(p)
     }
   })

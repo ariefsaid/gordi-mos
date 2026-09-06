@@ -29,7 +29,7 @@ function setAuthAs(accessRoles: string[] = [], roleNames: string[] | string = 'B
       roles: names.map((n, i) => ({ id: `r${i}`, org_id: 'o1', business_unit_id: 'bu-cafe', name: n, reports_to_role_id: null, created_at: '', updated_at: '' })),
       isManager: false,
       accessRoles,
-      affiliated: [],
+      affiliated: names.some((n) => /barista|cafe ops lead/i.test(n)) ? ['cafe'] : [],
     },
     signOut: vi.fn(),
   })
@@ -479,14 +479,14 @@ function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null 
 }
 
 describe('Rail count badges (Tasks · Signals)', () => {
-  it('renders the open-Tasks and attention-Signals counts as trailing badges', () => {
+  it('renders the viewer-owned open-Tasks count and no Signals badge', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNavWithCounts('/work/tasks', { openTasks: 11, attentionSignals: 3 })
     // DO-18(d): the badge label joins the accname, so match on the leading label.
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const signals = screen.getByRole('link', { name: /^Signals/ })
     expect(within(tasks).getByText('11')).toBeInTheDocument()
-    expect(within(signals).getByText('3')).toBeInTheDocument()
+    expect(within(signals).queryByText('3')).toBeNull()
   })
 
   it('shows a badge ONLY on Tasks and Signals — never on any other rail item', () => {
@@ -501,7 +501,7 @@ describe('Rail count badges (Tasks · Signals)', () => {
       .getAllByRole('link')
       .filter((l) => within(l).queryByText(/^\d+$/) !== null)
       .map((l) => (l.textContent ?? '').replace(/\d+$/, ''))
-    expect(badged.sort()).toEqual(['Signals', 'Tasks'])
+    expect(badged.sort()).toEqual(['Tasks'])
   })
 
   it('omits a badge when its count is zero (E7 quiet rule)', () => {
@@ -528,8 +528,7 @@ describe('Rail count badges (Tasks · Signals)', () => {
     const badge = within(tasks).getByText('7')
     expect(badge.getAttribute('aria-hidden')).not.toBe('true')
     expect(badge).toHaveAccessibleName('7 open tasks')
-    const signals = screen.getByRole('link', { name: /^Signals/ })
-    expect(within(signals).getByText('3')).toHaveAccessibleName('3 signals need attention')
+    expect(within(screen.getByRole('link', { name: /^Signals/ })).queryByText('3')).toBeNull()
   })
 })
 

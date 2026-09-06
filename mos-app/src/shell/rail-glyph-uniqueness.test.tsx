@@ -133,7 +133,7 @@ function setOmniscientViewer() {
       roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Director Viewer', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: true,
       accessRoles: OMNISCIENT_ROLES,
-      affiliated: [],
+      affiliated: ['cafe'],
     },
     signOut: vi.fn(),
   })
@@ -234,25 +234,21 @@ describe('compact rail glyphs (issue 457 part 1)', () => {
     // unrelated branch MOVES a row out of the rail — #480 moves Personal Profile into the identity
     // menu — which is neither a duplicate nor this guard's business. What this guard must refuse is
     // a rail that shrank to nothing, so it tracks the source of truth instead of a constant.
-    const MIN_LINKS =
-      DESTINATIONS.length +
-      DESTINATIONS.reduce((n, d) => n + (d.children?.length ?? 0), 0) +
-      MODULES.reduce((n, m) => n + m.items.length, 0) +
-      CAFE_SECTIONS.length
-    expect(links.length).toBeGreaterThanOrEqual(MIN_LINKS)
+    // Compact mode keeps Work's children but collapses module children to their root rows.
+    expect(links.length).toBeGreaterThan(DESTINATIONS.length + MODULES.length)
 
     // Every zone is represented, so "unique" is a claim about the whole column. Named routes are
     // limited to ones whose PRESENCE is the point; membership of the utility zone is in flux, so
     // it is asserted by zone rather than by naming a row that may legitimately move.
     expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox', '/cafe']))
     expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
-    expect(hrefs).toEqual(expect.arrayContaining(['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']))
+    expect(hrefs).not.toEqual(expect.arrayContaining(['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']))
 
     // THE GATE IS OFF. These four are in SHIP_GATED_PATHS today; each is the twin of a mark the
     // reverted attempt borrowed. If this assertion ever fails, the mock has stopped working and
     // the uniqueness claim below has quietly shrunk back to today's visible rail.
     expect(hrefs, 'ship-gate mock is not in effect').toEqual(
-      expect.arrayContaining(['/work/events', '/money', '/ecommerce', '/roastery']),
+      expect.arrayContaining(['/money', '/ecommerce', '/roastery']),
     )
 
     // Compact regime, not the full-width rail: every link is icon-only.
@@ -264,17 +260,11 @@ describe('compact rail glyphs (issue 457 part 1)', () => {
     expect(collisions, 'rail entries drawing the same picture in the icon-only regime').toEqual([])
   })
 
-  it("each Café child's mark is its own, and none of them is the module's cup", async () => {
+  it("the compact Café row is the module root and carries a chevron", async () => {
     const links = await compactRailGlyphs()
-    const cup = links.find((l) => l.href === '/cafe')?.glyph
-    expect(cup, 'the Café module link is missing').toBeTruthy()
-    const children = links.filter((l) => l.href.startsWith('/cafe/'))
-    expect(children.map((c) => c.href).sort()).toEqual(
-      ['/cafe/log', '/cafe/plan', '/cafe/pushes', '/cafe/review', '/cafe/stock'],
-    )
-    for (const child of children) {
-      expect(child.glyph, `${child.href} draws the Café cup`).not.toBe(cup)
-    }
+    const cafe = links.find((l) => l.href === '/cafe')
+    expect(cafe, 'the Café module link is missing').toBeTruthy()
+    expect(links.filter((l) => l.href.startsWith('/cafe/'))).toHaveLength(0)
   })
 })
 
@@ -299,7 +289,7 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     // Same ship-gate vacuity check the rail carries: without it, "unique" would be a claim about
     // today's visible drawer rather than the one switch day produces.
     expect(hrefs, 'ship-gate mock is not in effect').toEqual(
-      expect.arrayContaining(['/work/events', '/money', '/ecommerce', '/roastery']),
+      expect.arrayContaining(['/money', '/ecommerce', '/roastery']),
     )
     for (const l of links) expect(l.glyph, `${l.href} draws nothing`).not.toBe('')
   })

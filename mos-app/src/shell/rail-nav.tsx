@@ -16,8 +16,8 @@ import './rail-nav.css'
 // listed the same five items in two different orders, and a nav list is worth most when muscle
 // memory carries it. One declared order, every surface, asserted by `work-child-order.test.tsx`.
 //
-// Per-item counts (E7's `.e7-count` badges) are wired for TWO items only — Tasks (open count) and
-// Signals (needs-attention count) — from ONE cheap shell-level aggregate (rail.tsx → useRailCounts,
+// Per-item counts (E7's `.e7-count` badges) are wired for Tasks (viewer-owned open count) from
+// ONE cheap shell-level aggregate (rail.tsx → useRailCounts,
 // a single mount-time fetch, no polling). Every other child omits its badge: they have no
 // already-loaded source, and the owner-artifact note forbids a query per item.
 
@@ -25,7 +25,6 @@ import './rail-nav.css'
 function badgeCountFor(path: string, counts?: RailCounts | null): number | undefined {
   if (!counts) return undefined
   if (path === '/work/tasks') return counts.openTasks
-  if (path === '/work/signals') return counts.attentionSignals
   return undefined
 }
 
@@ -35,13 +34,12 @@ function badgeCountFor(path: string, counts?: RailCounts | null): number | undef
 // reconciliation stays FLAG-2 (owner ruling pending).
 function badgeLabelKeyFor(path: string): MessageKey | undefined {
   if (path === '/work/tasks') return 'rail.badge.openTasks'
-  if (path === '/work/signals') return 'rail.badge.attentionSignals'
   return undefined
 }
 
 type RailNavProps = {
   onNavigate?: () => void
-  /** Rail badge counts (open Tasks · needs-attention Signals). Undefined/null → no badges. */
+  /** Rail badge counts (viewer-owned Tasks). Undefined/null → no badges. */
   counts?: RailCounts | null
   /** OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon-only regime. Default false (full-width rail). */
   compact?: boolean
@@ -117,7 +115,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
             <d.Icon />
           </span>
           <span className={compact ? 'sr-only' : undefined}>{label}</span>
-          {showChevron && !compact && <Chevron className="rail-module-chevron" />}
+          {showChevron && <Chevron className="rail-module-chevron" />}
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}
@@ -264,7 +262,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
               // parent never carries "page"; the active child does). `workActive` (computed above
               // from the URL directly) drives that, now that `to` targets the real canonical
               // destination instead of the `/work` redirect entry.
-              const children = compact ? [] : visibleSections(d.children ?? [], accessRoles)
+              const children = visibleSections(d.children ?? [], accessRoles)
               const workLabel = t(d.labelKey)
               return (
                 <div key={d.id}>
@@ -323,9 +321,10 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                 // link exactly as before. Without this the module's `children` are dead data and
                 // its screens have no nav entry at all.
                 const kids = compact ? [] : moduleChildrenForViewer(m, pathname, viewer?.affiliated ?? [], accessRoles)
+                const hasChildren = m.children != null && m.children.length > 0
                 return (
                   <div key={m.id}>
-                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} showChevron={m.id === 'cafe' && kids.length === 0} />
+                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} showChevron={hasChildren} />
                     {kids.length > 0 && (
                       <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                         {kids.map((c) => (

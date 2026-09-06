@@ -84,6 +84,7 @@ function appliedClasses(): Set<string> {
 
 describe('shell chrome CSS contract', () => {
   const applied = [...appliedClasses(), ...Object.keys(NOT_STYLED_BY_CSS)].sort()
+  const bottomTabs = readFileSync(join(SHELL, 'bottom-tab-bar.css'), 'utf8')
   const allCss = cssSources(SRC).map((f) => readFileSync(f, 'utf8')).join('\n')
 
   it('derives a real class list from the chrome source', () => {
@@ -91,6 +92,12 @@ describe('shell chrome CSS contract', () => {
     expect(applied.length).toBeGreaterThanOrEqual(10)
     expect(applied).toContain('scrim')
     expect(applied).toContain('bottom-tab')
+  })
+
+  it('pins phone tab labels to one line without touching neighbours', () => {
+    expect(bottomTabs).toMatch(/\.bottom-tab-label\s*\{[\s\S]*white-space:\s*nowrap/)
+    expect(bottomTabs).toMatch(/\.bottom-tab-label\s*\{[\s\S]*overflow:\s*hidden/)
+    expect(bottomTabs).toMatch(/\.bottom-tab-label\s*\{[\s\S]*text-overflow:\s*ellipsis/)
   })
 
   it.each(applied)('.%s is defined by a stylesheet, or declared inline-styled on purpose', (cls) => {

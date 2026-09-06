@@ -386,7 +386,7 @@ export const messages = {
     'nav.cafe.review': 'Review',
     'nav.cafe.stock': 'Stock',
     'nav.ecommerce': 'Ecommerce',
-    'nav.work.events': 'Events',
+
     'nav.money': 'Money',
     'nav.more': 'More',
     'nav.profile': 'Personal Profile',
@@ -396,7 +396,6 @@ export const messages = {
     'nav.work.signals': 'Signals',
     'nav.work.tasks': 'Tasks',
     'rail.b2bOps': 'B2B Ops',
-    'rail.badge.attentionSignals': '${count} signals need attention',
     'rail.badge.openTasks': '${count} open tasks',
     'rail.badge.unreadInbox': '${count} unread',
     // #442 — the collapse toggle's accessible name. It states the ACTION the press performs
@@ -1312,7 +1311,7 @@ export const messages = {
   id: {
     'dest.home': 'Beranda',
     'dest.work': 'Kerja',
-    'dest.inbox': 'Kotak Masuk',
+    'dest.inbox': 'Inbox',
     // Label sub-nav — setiap string nav mengalir melalui katalog (ADR-0019 D12 / ADR-0021,
     // nav-five-destinations FR-440). en/id bentuk-identik (AC-409).
     'nav.tasks': 'Tugas',
@@ -1654,7 +1653,7 @@ export const messages = {
     'nav.cafe.review': 'Tinjauan',
     'nav.cafe.stock': 'Stok',
     'nav.ecommerce': 'Ecommerce',
-    'nav.work.events': 'Acara',
+
     'nav.money': 'Keuangan',
     'nav.more': 'Lainnya',
     'nav.profile': 'Profil Pribadi',
@@ -1664,7 +1663,6 @@ export const messages = {
     'nav.work.signals': 'Sinyal',
     'nav.work.tasks': 'Tugas',
     'rail.b2bOps': 'B2B Ops',
-    'rail.badge.attentionSignals': '${count} sinyal perlu perhatian',
     'rail.badge.openTasks': '${count} tugas terbuka',
     'rail.badge.unreadInbox': '${count} belum dibaca',
     'rail.collapse': 'Ciutkan navigasi',

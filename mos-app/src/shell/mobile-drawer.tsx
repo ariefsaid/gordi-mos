@@ -264,7 +264,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
                 {g.items.map(({ module: m, showParent, children }) => (
                   <li key={m.id}>
                     {showParent && (
-                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} showChevron={m.id === 'cafe' && children.length === 0} />
+                      <DrawerRow to={m.primaryPath ?? m.links[0].path} label={t(m.labelKey)} Icon={m.Icon} onNavigate={closeAndReturn} showChevron={Boolean(m.children?.length)} />
                     )}
                     {/* A module's own screens. This drawer is the phone's ONLY route to them —
                         the bottom bar gives a module one tab and no children — so a module whose

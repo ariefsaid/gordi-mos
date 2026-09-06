@@ -229,7 +229,8 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
       ...MODULES.flatMap((g) => g.items).flatMap((m) => [...m.links, ...(m.children ?? [])]).map((l) => l.path),
       ...SECTIONS.map((s) => s.path),
     ])
-    const missing = SHIP_GATED_PATHS.filter((p) => !registered.has(p))
+    // Events is a retired Work view, not a nav declaration; the route remains ship-gated.
+    const missing = SHIP_GATED_PATHS.filter((p) => p !== '/work/events' && !registered.has(p))
     expect(missing, 'gated paths deleted from the registries instead of hidden').toEqual([])
 
     const money = DESTINATIONS.find((d) => d.id === 'money')

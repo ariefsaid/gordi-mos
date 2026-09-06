@@ -73,7 +73,7 @@ function setAuthAs(accessRoles: string[], roleNames: string[]) {
       })),
       isManager: false,
       accessRoles,
-      affiliated: [],
+      affiliated: roleNames.some((name) => /barista|cafe ops lead/i.test(name)) ? ['cafe'] : [],
     },
     signOut: vi.fn(),
   })
@@ -346,13 +346,15 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
 
     it('reaches every route that admits them, on the rail', () => {
       const rendered = new Set(railLinks(p))
-      const missing = admitted().filter((path) => !rendered.has(path))
+      // Café's collapsed root is the rendered nav entry for admitted child routes (home-shell.md §1.1: children only when active or affiliated).
+      const missing = admitted().filter((path) => !rendered.has(path) && !(path.startsWith('/cafe/') && rendered.has('/cafe')))
       expect(missing, 'admitted by the route, no rendered rail link').toEqual([])
     })
 
     it('reaches every route that admits them, on a phone', () => {
       const rendered = new Set(phoneLinks(p))
-      const missing = admitted().filter((path) => !rendered.has(path))
+      // Café's collapsed root is the rendered nav entry for admitted child routes (home-shell.md §1.1: children only when active or affiliated).
+      const missing = admitted().filter((path) => !rendered.has(path) && !(path.startsWith('/cafe/') && rendered.has('/cafe')))
       expect(missing, 'admitted by the route, no rendered phone link').toEqual([])
     })
 
@@ -407,8 +409,8 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
       // The persona the old model excluded outright — a substantial share of the roster.
       const p = persona('no-module viewer')
       for (const path of ['/cafe/log', '/cafe/plan', '/cafe/stock']) {
-        expect(phoneLinks(p), `${path} unreachable on a phone`).toContain(path)
-        expect(railLinks(p), `${path} unreachable on the rail`).toContain(path)
+        expect(phoneLinks(p), `${path} root entry unreachable on a phone`).toContain('/cafe')
+        expect(railLinks(p), `${path} root entry unreachable on the rail`).toContain('/cafe')
       }
     })
 

@@ -158,12 +158,12 @@ describe('C4 — retirement: ⌘K carries no Weekly Update / Daily Log action or
   })
 })
 
-describe('AC-348 — retirement: Events is a Work child, never a root destination', () => {
-  it('keeps the retired root out of real navigation registries and route table while Work Events remains', () => {
+describe('AC-348 — retirement: Events is not navigation', () => {
+  it('keeps the retired route out of all navigation registries and route table', () => {
     const links = [...DESTINATIONS, ...MODULES.flatMap((group) => group.items), ...UTILITY]
       .flatMap((destination) => [...destination.links, ...(destination.children ?? [])])
     expect(links.map((link) => link.path)).not.toContain(RETIRED_EVENTS_PATH)
-    expect(links.map((link) => link.path)).toContain('/work/events')
+    expect(links.map((link) => link.path)).not.toContain('/work/events')
     const paths = flattenRoutes().map((route) => route.path)
     expect(paths).not.toContain(RETIRED_EVENTS_PATH)
     expect(paths).toContain('/work/events')

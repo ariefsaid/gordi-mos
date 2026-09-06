@@ -185,8 +185,12 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
  * clutter. If a surface's audience really should be narrower, the fix is to narrow the ROUTE —
  * never to hide the link while leaving the route open.
  */
+export function visibleModulesForViewer(accessRoles: string[]): Destination[] {
+  return MODULES.flatMap((g) => g.items).filter((m) => isLive(m, accessRoles))
+}
+
 export function allModules(accessRoles: string[]): Destination[] {
-  return modulesByBU(accessRoles).flatMap((g) => g.items)
+  return visibleModulesForViewer(accessRoles)
 }
 
 /**
@@ -198,9 +202,10 @@ export function allModules(accessRoles: string[]): Destination[] {
  * OD-WAY-51 removed that — see `allModules` above.
  */
 export function modulesByBU(accessRoles: string[]): { bu: MessageKey; items: Destination[] }[] {
+  const visible = new Set(visibleModulesForViewer(accessRoles))
   return MODULES.map((g) => ({
     bu: g.bu,
-    items: g.items.filter((m) => isLive(m, accessRoles)),
+    items: g.items.filter((m) => visible.has(m)),
   })).filter((g) => g.items.length > 0)
 }
 
