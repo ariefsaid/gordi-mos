@@ -76,6 +76,18 @@ export async function getPeople(): Promise<PersonOption[]> {
   return (data ?? []) as PersonOption[]
 }
 
+export async function searchPeopleByName(query: string): Promise<PersonOption[]> {
+  const { data, error } = await shared()
+    .from('people')
+    .select('id,full_name')
+    .is('archived_at', null)
+    .ilike('full_name', `%${query}%`)
+    .order('full_name', { ascending: true })
+    .limit(10)
+  if (error) throw new Error(`searchPeopleByName failed — ${error.message}`)
+  return (data ?? []) as PersonOption[]
+}
+
 /** Load all org roles with their BU + reports-to seam (for Home role-scope detection, Issue E).
  *  Reads the role tree the role-scope selector needs to test BU apex (parent's business_unit_id).
  *  Org-readable per OD-P1-3 (RLS scopes it). Never sends org_id. */

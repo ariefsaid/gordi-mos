@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 /**
  * The command palette's opener mode (OD-REDESIGN-91 #15 / GAP-10, per OD-46). One registry, two
  * entry points:
- *  - 'search'   — the full palette (Recent · Actions · Navigate + record search). ⌘K + the
+ *  - 'search'   — the full palette (Recent · GO TO roots · ACT + record search). ⌘K + the
  *                 top-bar search trigger open this.
  *  - 'launcher' — the REDUCED create-set (the universal actions only) that the phone `+` opens;
  *                 typing still escalates to the shared search (OD-46 "More opens the full palette").
