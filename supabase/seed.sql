@@ -405,6 +405,19 @@ join shared.teams t
  and t.archived_at is null
 on conflict do nothing;
 
+-- Sinta's second live stream membership is deliberately inserted separately: the primary HQ bar
+-- row above and this secondary Rumah Rames row must coexist under the one-live-primary index.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select '10000000-0000-0000-0000-000000000001', p.id, t.id, false
+from shared.people p
+join shared.teams t
+  on t.org_id = p.org_id and t.code = 'rumah_rames_bar' and t.archived_at is null
+where p.id = '40000000-0000-0000-0000-00000000000a'
+  and not exists (
+    select 1 from shared.team_memberships m
+    where m.person_id = p.id and m.team_id = t.id and m.effective_to is null
+  );
+
 
 -- ── mos: the certified-metric registry (ADR-0022 D6) ─────────────────────────────────────────
 -- Repeated here for the same reason as the branch catalog above: the migration seeds every org that
