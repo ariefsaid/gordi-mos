@@ -872,7 +872,7 @@ export function KitchenLogPage() {
             searchPlaceholder={t('kitchen.log.searchPlaceholder')}
             ariaLabel={t('kitchen.log.toolbarAria')}
           >
-            <div className="kl-scope">
+            {stream && <div className="kl-scope">
               {/* The movement control IS the destination picker (FR-013): produce, then a
                   transfer to every branch in the catalog — cross-branch to any other, and
                   intra-branch cross-activity to the origin's own, offered the same way from
@@ -881,15 +881,17 @@ export function KitchenLogPage() {
                   read as "to our kitchen"/"to our bar" rather than as a duplicate of the
                   person's own branch name; it changes no stored value. Approved, an
                   intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
-              <MovementSeg
-                value={movement}
-                options={stream ? movementsForStream(stream, streamOptions) : movementsForStream({ branch: branches[0], activity: 'kitchen' }, streamOptions)}
-                branches={branches}
-                origin={stream}
-                onChange={handleMovementChange}
-                disabled={isSubmitting}
-              />
-            </div>
+              {stream && (
+                <MovementSeg
+                  value={movement}
+                  options={movementsForStream(stream, streamOptions)}
+                  branches={branches}
+                  origin={stream}
+                  onChange={handleMovementChange}
+                  disabled={isSubmitting}
+                />
+              )}
+            </div>}
           </KitchenToolbar>
           <DataTable
             columns={columns}

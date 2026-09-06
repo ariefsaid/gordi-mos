@@ -16,14 +16,21 @@ select plan(26);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
+insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
+insert into shared.branches (id, org_id, code, name) values
+  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
+  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
+  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
+on conflict (id) do nothing;
+insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
+select shared.seed_stream_teams();
+insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B Kitchen','retail_ops') on conflict (id) do nothing;
+insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity, produces) values ('00000000-0000-0000-0000-00000000bb18','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-00000000bb09','B Stream','b_stream','00000000-0000-0000-0000-00000000bf09','kitchen',true) on conflict (id) do nothing;
 select ops._test_seed_cafe();
 
 set local role authenticated;
 
-select ok(
-  (select pg_get_functiondef('ops._guard_kitchen_log()'::regprocedure)) ~* 'production stream does not produce'
-  and (select pg_get_functiondef('ops._guard_kitchen_log()'::regprocedure)) ~* 'allowed_kitchen_destinations',
-  'AC-002/004: the kitchen-log guard owns the producer and destination refusals');
+select throws_ok($$ insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi) values ('00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf03','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1) $$, '42501', null, 'AC-002: a non-producing stream is refused by behaviour');
 
 -- ── The status gate (FR-044) ─────────────────────────────────────────────────────────────────
 -- A member may submit and may correct their own pending line; they may not decide it is approved.

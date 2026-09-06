@@ -84,15 +84,8 @@ export function movementsForStream(
   origin: ProductionStream,
   catalog: readonly ProductionStream[],
 ): KitchenMovement[] {
-  if (origin.produces === false) return []
+  if (origin.produces !== true) return []
   const destinations: ProductionStream[] = []
-  if (origin.produces === undefined) {
-    const branches: BranchOption[] = []
-    for (const stream of catalog) {
-      if (!branches.some(branch => branch.id === stream.branch.id)) branches.push(stream.branch)
-    }
-    return [PRODUCE, ...branches.map(branch => ({ action: 'transfer' as const, destinationBranchId: branch.id }))]
-  }
   for (const candidate of catalog) {
     const sameBranch = candidate.branch.id === origin.branch.id
     const allowed = origin.activity === 'kitchen'
