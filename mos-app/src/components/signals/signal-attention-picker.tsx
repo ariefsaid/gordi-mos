@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { attentionLabel } from './signal-attention-label'
 import { type Attention } from '@/lib/db/signals.types'
@@ -8,29 +9,38 @@ const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
 export interface SignalAttentionPickerProps {
   value: Attention
   onChange: (value: Attention) => void
-  label?: string
 }
 
-export function SignalAttentionPicker({ value, onChange, label }: SignalAttentionPickerProps) {
+export function SignalAttentionPicker({ value, onChange }: SignalAttentionPickerProps) {
   const t = useT()
-  const groupLabel = label ?? t('signals.attention.label')
+  const [open, setOpen] = useState(false)
   return (
     <div className="signal-attention-picker">
-      <span className="signal-attention-picker-label">{groupLabel}</span>
-      <div role="radiogroup" aria-label={groupLabel} className="signal-attention-picker-options">
-        {ATTENTIONS.map((attention) => (
-          <button
-            key={attention}
-            type="button"
-            role="radio"
-            aria-checked={attention === value}
-            className={`signal-attention-picker-option signal-attention-picker-option--${attention.toLowerCase().replace(/\s+/g, '-')}`}
-            onClick={() => onChange(attention)}
-          >
-            {attentionLabel(t, attention)}
-          </button>
-        ))}
-      </div>
+      <button
+        type="button"
+        className={`signal-composer-pill signal-attention-pill signal-attention-pill--${value.toLowerCase().replace(/\s+/g, '-')}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        ⚠ {attentionLabel(t, value)}
+      </button>
+      {open && (
+        <div role="menu" aria-label={t('signals.attention.label')} className="signal-attention-popover">
+          {ATTENTIONS.map((attention) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={attention}
+              className="signal-attention-choice"
+              onClick={() => { onChange(attention); setOpen(false) }}
+            >
+              <strong>{attentionLabel(t, attention)}</strong>
+              <span>{t(attention === 'FYI' ? 'signals.attention.meaning.fyi' : attention === 'Urgent' ? 'signals.attention.meaning.urgent' : 'signals.attention.meaning.needs-attention')}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
