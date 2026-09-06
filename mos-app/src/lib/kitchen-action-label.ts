@@ -81,15 +81,33 @@ export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId
  * catalog and is the authority for which branches are Café destinations.
  */
 export function movementsForStream(
-  branches: readonly BranchOption[],
-  streamOptions: readonly ProductionStream[],
+  origin: ProductionStream,
+  catalog: readonly ProductionStream[],
 ): KitchenMovement[] {
-  const streamBranchIds = new Set(streamOptions.map(stream => stream.branch.id))
+  if (origin.produces === false) return []
+  const destinations: ProductionStream[] = []
+  if (origin.produces === undefined) {
+    const branches: BranchOption[] = []
+    for (const stream of catalog) {
+      if (!branches.some(branch => branch.id === stream.branch.id)) branches.push(stream.branch)
+    }
+    return [PRODUCE, ...branches.map(branch => ({ action: 'transfer' as const, destinationBranchId: branch.id }))]
+  }
+  for (const candidate of catalog) {
+    const sameBranch = candidate.branch.id === origin.branch.id
+    const allowed = origin.activity === 'kitchen'
+      ? !sameBranch
+      : (sameBranch ? catalog.some(s => s.branch.id === origin.branch.id && s.activity === 'kitchen')
+        : candidate.activity === 'bar')
+    if (allowed && !destinations.some(d => d.branch.id === candidate.branch.id)) {
+      destinations.push(candidate)
+    }
+  }
   return [
     PRODUCE,
-    ...branches.filter(branch => streamBranchIds.has(branch.id)).map((branch): KitchenMovement => ({
+    ...destinations.map((stream): KitchenMovement => ({
       action: 'transfer',
-      destinationBranchId: branch.id,
+      destinationBranchId: stream.branch.id,
     })),
   ]
 }

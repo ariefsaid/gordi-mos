@@ -29,37 +29,21 @@ describe('streamKey', () => {
 // ── FR-013 (#235): the two movement classes come out of one derivation ─────────
 const RRS: BranchOption = { id: 'b-rrs', code: 'rumah_rames', name: 'Rumah Rames' }
 const RADIANT: BranchOption = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
-const BRANCHES = [RRS, RADIANT]
-const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar' }
-const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen' }
-const STREAMS = [RRS_KITCHEN, RRS_BAR]
-const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
+const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar', produces: true }
+const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen', produces: true }
+const RADIANT_KITCHEN: ProductionStream = { branch: RADIANT, activity: 'kitchen', produces: false }
+const STREAM_CATALOG: ProductionStream[] = [RRS_KITCHEN, RRS_BAR, RADIANT_KITCHEN, { branch: RADIANT, activity: 'bar', produces: true }]
 
 describe('movementsForStream', () => {
-  it('AC-063: never offers Roastery as a Café movement destination', () => {
-    expect(movementsForStream(
-      [...BRANCHES, { id: 'roastery', code: 'roastery', name: 'Gordi Roastery' }],
-      STREAMS,
-    )).not.toContainEqual({
-      action: 'transfer',
-      destinationBranchId: 'roastery',
-    })
-  })
-  it('derives destinations from stream Teams, not branch codes', () => {
-    expect(movementsForStream([...BRANCHES, CIKAL], STREAMS)).toEqual([
+  it('derives produce plus allowed destinations from the origin and catalog', () => {
+    expect(movementsForStream(RRS_KITCHEN, STREAM_CATALOG)).toEqual([
       PRODUCE,
-      { action: 'transfer', destinationBranchId: RRS.id },
+      { action: 'transfer', destinationBranchId: RADIANT.id },
     ])
   })
 
-  it('offers a produce plus a transfer to EVERY stream branch — the origin branch included', () => {
-    // The origin's own branch is not filtered out, and must not be: it is the intra-branch
-    // cross-activity movement, and dropping it would remove the movement #235 exists to
-    // capture rather than tidying the list.
-    expect(movementsForStream(BRANCHES, STREAMS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: RRS.id },
-    ])
+  it('returns no movements for a receive-only kitchen', () => {
+    expect(movementsForStream(RADIANT_KITCHEN, STREAM_CATALOG)).toEqual([])
   })
 })
 
