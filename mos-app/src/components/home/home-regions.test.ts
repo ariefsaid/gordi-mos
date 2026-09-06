@@ -138,3 +138,33 @@ describe('every region carries a way through (Nielsen #3 — a named remainder m
     expect(myWork.drillTo).toEqual({ route: '/work/tasks?view=my-work' })
   })
 })
+
+// AC-073 / FR-072 (OD-WAY-93 #8): `failed-checks` exists only for Café-affiliated viewers or
+// admin. For everyone else the region is ABSENT from every arrangement — no tab, no tile, no
+// band — so those viewers see two Focused tabs. Absent, not empty: an empty region still renders
+// (FR-929), a hidden one must not — "clear" and "not yours" are different facts.
+describe('AC-073: failed-checks is absent — not empty — for viewers the region is not for', () => {
+  it('failedChecksAdmitted=false omits the region from the model', () => {
+    const regions = buildHomeRegions({
+      overdue: [item('a')], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [item('c')],
+      failedChecksAdmitted: false,
+    })
+    expect(regions.map((r) => r.id)).toEqual(['needs-you', 'my-work'])
+  })
+
+  it('the remaining regions keep their data — omission never disturbs the neighbours', () => {
+    const regions = buildHomeRegions({
+      overdue: [item('a')], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [item('c')],
+      failedChecksAdmitted: false,
+    })
+    expect(regions.find((r) => r.id === 'needs-you')!.items).toHaveLength(1)
+    expect(regions.find((r) => r.id === 'my-work')!.items).toHaveLength(1)
+  })
+
+  it('defaults to admitted — a caller that does not ask the question gets today\'s three-region shape', () => {
+    const regions = buildHomeRegions({
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    })
+    expect(regions.map((r) => r.id)).toEqual(['needs-you', 'failed-checks', 'my-work'])
+  })
+})

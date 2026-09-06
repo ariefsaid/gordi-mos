@@ -77,9 +77,15 @@ vi.mock('../lib/db/home-attention-data', () => ({
 import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
 
-// The shared admission authority (#246) — the test asks it the same question Home asks, so the
-// expectation tracks the route, never a hand-copied role list.
-import { viewerAdmittedToRoute } from '@/shell/destinations'
+// The two Home doors (#757) read their own DAL on mount — mocked here so a page render never
+// reaches the network. Their render contracts live in the door tests; the page owns WHO mounts.
+vi.mock('../lib/db/objectives', () => ({ listObjectiveProgress: vi.fn() }))
+import { listObjectiveProgress } from '@/lib/db/objectives'
+const mockListObjectiveProgress = vi.mocked(listObjectiveProgress)
+
+vi.mock('../lib/db/cafe-opening', () => ({ getViewerCafeDoor: vi.fn() }))
+import { getViewerCafeDoor } from '@/lib/db/cafe-opening'
+const mockGetCafeDoor = vi.mocked(getViewerCafeDoor)
 
 // Signals (#245). PARTIAL mock: `SignalFeedRows` calls `orderSignalsForFeed` from this same module,
 // and a whole-module stub would replace the real ordering with undefined — the feed's ranking must
@@ -140,26 +146,16 @@ const memberViewer: AuthState = {
   ...financeViewer,
   viewer: { ...financeViewer.viewer, accessRoles: [] },
 }
-// A viewer whose JOB ROLE name reads as café work. Kept as a persona, no longer as a gate: since
-// #246 the job-role name decides nothing on Home (OD-WAY-51) — it is here precisely so the tests
-// can prove that it makes no difference.
-const cafeViewer: AuthState = {
+// AC-074: the barista — a plain member whose primary Team is a production stream at Gordi HQ.
+// Affiliation arrives as the #744 payload fact, never re-derived from a role name.
+const baristaViewer: AuthState = {
   ...financeViewer,
-  viewer: {
-    ...financeViewer.viewer,
-    accessRoles: ['member'],
-    roles: [{
-      id: '30000000-0000-0000-0000-000000000002',
-      org_id: '10000000-0000-0000-0000-000000000001',
-      business_unit_id: '20000000-0000-0000-0000-000000000014',
-      name: 'Kitchen Lead',
-      reports_to_role_id: null,
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    }],
-  },
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], affiliated: ['cafe'] },
 }
-
+const adminViewer: AuthState = {
+  ...financeViewer,
+  viewer: { ...financeViewer.viewer, accessRoles: ['admin'] },
+}
 // ── Role-chain fixtures for the AC-204 (4) block below (mirror supabase/seed.sql's shape) ──
 const ORG_ID = '10000000-0000-0000-0000-000000000001'
 const BU_FINANCE = '20000000-0000-0000-0000-000000000013'
@@ -226,6 +222,8 @@ beforeEach(() => {
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
+  mockListObjectiveProgress.mockResolvedValue([])
+  mockGetCafeDoor.mockResolvedValue(null)
 })
 
 describe('AC-H01/OD-17: Home never renders the revenue/margin KPI tiles nor calls the finance DAL', () => {
@@ -249,43 +247,48 @@ describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () 
   })
 })
 
-// #246 / OD-WAY-51 — the failed-checks band links to /cafe/log, so Home shows it exactly where
-// THAT ROUTE admits the viewer. The assertion below is the RULE, evaluated against the shared
-// admission authority per persona, not a transcript of today's output: if `/cafe/log` later gains
-// a route gate, both the app and this test follow it without an edit. The previous form asserted
-// "a Kitchen Lead sees it, a finance viewer doesn't", which re-encoded the job-role-NAME regex the
-// ruling removed — measured against the real roster, that regex left 5 of 10 job roles matching no
-// module at all, so viewers the route fully admitted were shown nothing.
-describe('Issue 246 / OD-WAY-51: Home\'s failed-checks band agrees with what /cafe/log admits', () => {
+// AC-073 / FR-072 (OD-WAY-93 #8) — `failed-checks` exists only for Café-affiliated viewers or
+// admin. The fact is the #744 payload answer (`viewer.affiliated`), read once at sign-in from the
+// same predicate the write policies consult — never a route regex, never a job-role name.
+// For everyone else the region is absent from every arrangement (two Focused tabs, no tile, no
+// band), and Home runs no failed-checks read at all.
+describe('AC-073: failed-checks renders only for Café-affiliated viewers or admin', () => {
   const failedCheck = { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: CAFE_LOG_ROUTE }
 
-  // Personas chosen to span the space the regex used to split: a job-role name that matched it, a
-  // viewer with NO job role at all (the 5-of-10 case), and access-role tiers above and below.
-  const personas: [string, AuthState][] = [
-    ['a viewer with a café-sounding job role', cafeViewer],
-    ['a finance viewer with no job role', financeViewer],
-    ['a plain member with no job role', memberViewer],
-    ['an ops lead', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['ops_lead'] } }],
+  // Personas span the rule's two arms and its negatives: an affiliated member (the membership
+  // arm), an admin (the role arm), and the unaffiliated viewers the region must never render for.
+  const personas: [string, AuthState, boolean][] = [
+    ['an affiliated barista (stream-Team membership)', baristaViewer, true],
+    ['an admin (unaffiliated)', adminViewer, true],
+    ['a finance viewer (unaffiliated)', financeViewer, false],
+    ['a plain unaffiliated member', memberViewer, false],
+    ['an ops_lead whose membership is org-structure only', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['ops_lead'] } }, false],
   ]
 
-  const accessRolesOf = (auth: AuthState) => (auth.status === 'authenticated' ? auth.viewer.accessRoles : [])
-
-  for (const [label, viewer] of personas) {
-    it(`${label}: the band is present iff the route admits them`, async () => {
-      const admitted = viewerAdmittedToRoute(CAFE_LOG_ROUTE, accessRolesOf(viewer))
+  for (const [label, viewer, admitted] of personas) {
+    it(`${label}: the region is ${admitted ? 'present' : 'absent'} from every arrangement`, async () => {
       mockLoadFailedChecks.mockResolvedValue([failedCheck])
       await renderHome(viewer)
       await screen.findByRole('tablist')
 
+      // The read itself must not run for a region that cannot render — a fetch whose answer has
+      // nowhere to land is noise, and its count would leak into the day tally.
       expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(admitted)
-      await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
-      expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(admitted)
+      if (admitted) {
+        await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
+        expect(screen.getByText('Production · 2026-07-20')).toBeInTheDocument()
+      } else {
+        expect(screen.queryByRole('tab', { name: /failed checks/i })).toBeNull()
+        expect(screen.queryByText('Production · 2026-07-20')).toBeNull()
+        // Two tabs: needs-you and my-work — the whole surface agrees the region does not exist.
+        expect(screen.getAllByRole('tab')).toHaveLength(2)
+      }
     })
   }
 
-  it('the job-role NAME plays no part: same access roles, opposite job-role names, same band', async () => {
-    // The regex's whole mechanism was the role NAME string. Two viewers who differ only there must
-    // now be indistinguishable to Home — this is the assertion `viewerSeesCafe` could not pass.
+  it('the job-role NAME plays no part: same access roles + affiliation, opposite job-role names, same result', async () => {
+    // The retired gate decided by role-NAME string; two viewers who differ only there must stay
+    // indistinguishable to Home. Both are unaffiliated members, so both see two tabs.
     const withRole = (name: string): AuthState => ({
       ...memberViewer,
       viewer: {
@@ -313,11 +316,11 @@ describe('Issue 246 / OD-WAY-51: Home\'s failed-checks band agrees with what /ca
       mockListAllTeams.mockResolvedValue([])
       const { unmount } = await renderHome(withRole(name))
       await screen.findByRole('tablist')
-      await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
-      seen.push(screen.queryByText('Production · 2026-07-20') != null)
+      seen.push(screen.queryByRole('tab', { name: /failed checks/i }) != null)
       unmount()
     }
     expect(seen[0]).toBe(seen[1])
+    expect(seen[0]).toBe(false)
   })
 })
 
@@ -579,14 +582,15 @@ describe('AC-040 — the day header is greeting + role chip + N left, nothing el
   })
 
   // DIV-G5 (the standing rule the deleted state-line tests used to carry): a failed read leaves
-  // the header with NO tally — absent, never zero.
+  // the header with NO tally — absent, never zero. run as an ADMITTED viewer (AC-073): an
+  // unaffiliated one runs no failed-checks read at all, so a rejected mock could prove nothing.
   it('a region read that fails leaves the header with no tally figure at all', async () => {
     // failed-checks is the one region with its own independent read, so failing it alone must
     // still withhold the header total — a sum over the reads that happened to land is exactly the
     // figure the viewer cannot trace.
     mockLoadFailedChecks.mockRejectedValue(new Error('offline'))
-    mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
-    await renderHome(financeViewer)
+    mockListTasks.mockResolvedValue([overdueTaskRow(adminViewer.viewer.person.id)])
+    await renderHome(adminViewer)
     await screen.findByRole('tablist')
     const head = screen.getByTestId('page-head')
     expect(within(head).queryByText(/\d+ left/)).toBeNull()
@@ -629,22 +633,15 @@ describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () 
     await renderHome(ownerDirectorViewer)
     await screen.findByRole('tablist')
 
-    const link = await screen.findByRole('link', { name: /see progress/i })
-    expect(link.getAttribute('href')).toBe('/work/objectives')
-    expect(objectivesDoor()).toContainElement(link)
-    // The door states a fact rather than pointing away silently…
-    expect(objectivesDoor()).toHaveTextContent(/Progress rolls up from each Objective/i)
-    // …and it is not dressed as an unbuilt drop point: no "coming" language on it.
-    expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
+    const door = await screen.findByRole('region', { name: 'Objectives' })
+    expect(door).toBe(objectivesDoor())
+    expect(door).not.toHaveTextContent(/Progress rolls up|coming/i)
   })
 
   it('a function owner gets the same door', async () => {
     await renderHome(functionOwnerViewer)
     await screen.findByRole('tablist')
-
-    const link = await screen.findByRole('link', { name: /see progress/i })
-    expect(link.getAttribute('href')).toBe('/work/objectives')
-    expect(objectivesDoor()).toContainElement(link)
+    expect(await screen.findByRole('region', { name: 'Objectives' })).toBe(objectivesDoor())
   })
 
   it('a member who steers no scope is handed no door', async () => {
@@ -654,7 +651,6 @@ describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () 
     // this the test would pass just as well against a door that simply had not rendered yet.
     await waitFor(() => expect(mockGetRoles).toHaveBeenCalled())
 
-    expect(screen.queryByRole('link', { name: /see progress/i })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
   })
 
@@ -662,15 +658,14 @@ describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () 
     setHomeLayout(financeViewer.viewer.person.id, 'list')
     await renderHome(ownerDirectorViewer)
 
-    const link = await screen.findByRole('link', { name: /see progress/i })
-    expect(link.getAttribute('href')).toBe('/work/objectives')
+    await screen.findByRole('region', { name: 'Objectives' })
     // List, not Focused — the arrangement really did change under it.
     expect(screen.queryByRole('tablist')).toBeNull()
   })
 })
 
 describe('issue 444 mechanism: the door component itself never learned about the gate', () => {
-  it('rendered directly it still drills to /work/objectives — hidden never quietly became deleted', () => {
+  it('rendered directly it still exposes its data door — hidden never quietly became deleted', async () => {
     render(
       <I18nProvider>
         <MemoryRouter>
@@ -678,7 +673,6 @@ describe('issue 444 mechanism: the door component itself never learned about the
         </MemoryRouter>
       </I18nProvider>,
     )
-    const link = screen.getByRole('link', { name: /see progress/i })
-    expect(link.getAttribute('href')).toBe('/work/objectives')
+    expect(await screen.findByRole('region', { name: 'Objectives' })).toBeInTheDocument()
   })
 })

@@ -35,11 +35,11 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { viewerAdmittedToRoute } from '@/shell/destinations'
+import { can } from '@/lib/capabilities'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
+import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
@@ -62,6 +62,7 @@ import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { isShipGated } from '@/lib/ship-gate'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
@@ -90,9 +91,7 @@ export function HomePage() {
   // nav. This replaces `viewerSeesCafe`, which decided by regex over job-role NAME strings — the
   // mechanism OD-WAY-51 removed after measuring that 5 of 10 real job roles matched no module at
   // all, leaving viewers the route fully admitted with no signal.
-  const seesCafe = useMemo(
-    () => viewerAdmittedToRoute(CAFE_LOG_ROUTE, viewer?.accessRoles ?? []),
-    [viewer])
+  const seesCafe = viewer?.accessRoles.includes('admin') || viewer?.affiliated.includes('cafe')
 
   // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
   // effect BODY (not just useRef's initial value) so StrictMode's mount→cleanup→remount cycle doesn't
@@ -254,7 +253,8 @@ export function HomePage() {
   // slot per cockpit section because it renders one section per scope; Home has one aside.
   const holdsCockpitScope = useMemo(() => {
     const heldRoles = viewer?.roles ?? []
-    return isOwnerDirector(heldRoles) || buHeadsForViewer(heldRoles, orgRoles).length > 0
+    return isOwnerDirector(heldRoles) || buHeadsForViewer(heldRoles, orgRoles).length > 0 ||
+      can(viewer?.accessRoles ?? [], 'objective.manage') || can(viewer?.accessRoles ?? [], 'workline.manage')
   }, [viewer, orgRoles])
 
   // ── Ranked stream items (owner redirect) ────────────────────────────────────
@@ -325,13 +325,14 @@ export function HomePage() {
     () => buildHomeRegions({
       overdue, dueToday, blocked, myWork,
       failedChecks: failedChecksBand.items,
+      failedChecksAdmitted: seesCafe,
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
       myWorkFullCount: ready ? openCount : undefined,
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
-      taskState, loadTasks, loadFailedChecks, ready, openCount,
+      taskState, loadTasks, loadFailedChecks, ready, openCount, seesCafe,
     ],
   )
 
@@ -398,6 +399,7 @@ export function HomePage() {
                 aside is a single stacked node, so its absence closes up rather than leaving a
                 hole — the Signals feed simply starts at the top of the column. */}
             {holdsCockpitScope && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
+            {viewer?.affiliated.includes('cafe') && viewer.accessRoles.includes('member') && <HomeCafeDoor />}
             <SignalFeedSection
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}

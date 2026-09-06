@@ -1,0 +1,3 @@
+.home-cafe-door { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; text-decoration: none; text-align: left; }
+.home-cafe-door:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (max-width: 639px) { .home-cafe-door { flex-wrap: wrap; gap: 4px 12px; } }
