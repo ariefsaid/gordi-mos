@@ -297,16 +297,14 @@
 .split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 120px; } /* Supervisor */
 .split:not(.nodrawer) .tasks-table th:nth-child(5),
 .split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
-.split:not(.nodrawer) .tasks-table th:nth-child(6),
-.split:not(.nodrawer) .tasks-table td:nth-child(6) { width: 40px; } /* row menu */
-/* Due + row-menu floors are sized by CLASS, not column position, in every state (split or
+/* AC-020 (#750): the ⋯ row-menu column is retired — the five decision columns are the grid. */
+/* Due + pencil floors are sized by CLASS, not column position, in every state (split or
    rest): the optional Business Unit column shifts every later column's nth-child index, so
    an nth-child-based floor lands on the wrong column once BU is on — measured on dev at
    REST (drawer shut) with BU on: Due clipped to 40px against a 64px need. One rule, no
    split/nodrawer or :has() gate (those were tautological — same 104px the nth-child(5) rule
    already set within the split, and never reached at rest at all). */
 .tasks-table .th-due, .tasks-table .td-due { width: 104px; }
-.tasks-table .th-menu, .tasks-table .td-menu { width: 40px; }
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */
@@ -317,8 +315,7 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
-/* Menu col alignment + header (PR-2 AC-T02/T07). */
-.td-menu, .th-menu { text-align: right; white-space: nowrap; padding-right: 12px; }
+/* AC-020 (#750): the ⋯ menu column is gone — its alignment rule retired with it. */
 
 /* Table-header grammar: e7 owns it for the redesign skin (SALVAGE — parity sweep A3,
    2026-07-18): weight 600, h38. This SUPERSEDES the OD-P4-10/ADR-0013 weight-400 overline
@@ -360,29 +357,24 @@
 .task-row-link:hover { background: var(--secondary); }
 .task-row-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense-table row cell — inset ring (outward +2 clips at the cell edge) */
 
-/* PR-2 AC-T02 — hover-revealed ⋯ row menu. */
-.row-menu {
+/* AC-020 (#750) — the one-item ⋯ row menu is retired (button + column + styles). */
+
+/* AC-018 (#750) — the title-edit pencil lives in the Due cell's trailing edge (the slot the
+   ⋯ occupied). Revealed on row hover/focus-within exactly like the retired ⋯, so discovery
+   stays hover-driven and the rest state stays quiet (kit "quiet at rest"). */
+td.td-due { position: relative; padding-right: 30px; }
+.task-row-pencil {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   width: 24px; height: 24px; flex: none; padding: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   border: 0; background: transparent; color: var(--muted-foreground);
   border-radius: var(--radius-xs); visibility: hidden;
 }
-.row-menu:hover { background: var(--accent); color: var(--foreground); }
-.row-menu:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
-.row-menu-wrap { position: relative; display: inline-flex; }
-.row-menu-pop {
-  position: absolute; right: 0; top: calc(100% + 2px); z-index: var(--z-popover); min-width: 120px;
-  background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-rest); padding: 4px; display: flex; flex-direction: column;
-}
-.row-menu-item {
-  padding: 6px 10px; border-radius: var(--radius-xs); color: var(--foreground);
-  text-decoration: none; font-size: var(--font-size-body-lg); white-space: nowrap;
-}
-.row-menu-item:hover { background: var(--accent); }
-tr:hover .row-menu,
-tr.row-selected .row-menu,
-tr:focus-within .row-menu { visibility: visible; }
+.task-row-pencil:hover { background: var(--accent); color: var(--foreground); }
+.task-row-pencil:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
+tr:hover .task-row-pencil,
+tr.row-selected .task-row-pencil,
+tr:focus-within .task-row-pencil { visibility: visible; }
 .task-title-line { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .task-name {
   /* typeset: was 15.5px off-ramp — the row's own .own-name sibling already runs body-lg (15px). */
