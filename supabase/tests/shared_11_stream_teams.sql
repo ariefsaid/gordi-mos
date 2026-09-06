@@ -16,13 +16,15 @@
 -- production stream (OD-WAY-42).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(35);
 
 -- ── Shape: the pair lives on the Team, half a stream is impossible ───────────────────────────
 select has_column('shared','teams','branch_id',
   'FR-004: a stream team carries its branch ON the team — no separate stream table');
 select has_column('shared','teams','activity',
   'FR-004: ...and its activity beside it');
+select has_column('shared','teams','produces',
+  'AC-001: every stream Team carries the database-owned produces fact');
 
 -- The branch link is the same-org composite FK, so the tenancy seam is declarative — the same
 -- pattern reporting's fact rows use against branches_org_id_key.

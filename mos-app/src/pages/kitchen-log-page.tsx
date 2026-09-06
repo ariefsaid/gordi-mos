@@ -883,7 +883,7 @@ export function KitchenLogPage() {
                   intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches, streamOptions)}
+                options={stream ? movementsForStream(stream, streamOptions) : movementsForStream({ branch: branches[0], activity: 'kitchen' }, streamOptions)}
                 branches={branches}
                 origin={stream}
                 onChange={handleMovementChange}

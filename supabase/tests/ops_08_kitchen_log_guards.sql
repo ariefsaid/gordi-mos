@@ -11,7 +11,7 @@
 -- success to the caller and produces a row nobody asked for.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(26);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -19,6 +19,11 @@ select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
 set local role authenticated;
+
+select ok(
+  (select pg_get_functiondef('ops._guard_kitchen_log()'::regprocedure)) ~* 'production stream does not produce'
+  and (select pg_get_functiondef('ops._guard_kitchen_log()'::regprocedure)) ~* 'allowed_kitchen_destinations',
+  'AC-002/004: the kitchen-log guard owns the producer and destination refusals');
 
 -- ── The status gate (FR-044) ─────────────────────────────────────────────────────────────────
 -- A member may submit and may correct their own pending line; they may not decide it is approved.

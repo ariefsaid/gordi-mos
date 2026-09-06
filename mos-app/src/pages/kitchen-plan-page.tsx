@@ -458,7 +458,7 @@ function PlanEditor() {
                   a plan for a movement the capture form cannot name is a plan nobody fills. */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches, streamOptions)}
+                options={stream ? movementsForStream(stream, streamOptions) : movementsForStream({ branch: branches[0], activity: 'kitchen' }, streamOptions)}
                 branches={branches}
                 origin={stream}
                 onChange={setMovement}
