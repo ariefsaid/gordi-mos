@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -143,6 +143,32 @@ select is(
       and (r.name like '%Lead' or r.name = 'Managing Director')),
   0,
   'no unit LEAD has a production stream as their live primary — a lead runs several lines, and a primary would re-point their default capture context app-wide');
+
+-- AC-065: the two Café walk personas have the memberships and access role the demo buttons promise.
+select is(
+  (select count(*)::int from shared.team_memberships m
+    join shared.teams t on t.id = m.team_id
+   where m.person_id = '40000000-0000-0000-0000-00000000000e'
+     and t.code = 'rumah_rames_kitchen'
+     and m.is_primary and m.effective_to is null),
+  1,
+  'Kartika is a live primary member of the Rumah Rames kitchen stream');
+
+select is(
+  (select string_agg(t.code || ':' || case when m.is_primary then 'primary' else 'secondary' end, ',' order by m.is_primary desc, t.code)
+     from shared.team_memberships m
+     join shared.teams t on t.id = m.team_id
+    where m.person_id = '40000000-0000-0000-0000-00000000000a'
+      and t.code in ('gordi_hq_bar', 'rumah_rames_bar')
+      and m.effective_to is null),
+  'gordi_hq_bar:primary,rumah_rames_bar:secondary',
+  'Sinta supervises HQ bar primarily and Rumah Rames bar secondarily');
+
+select ok(
+  exists (select 1 from shared.person_access_roles
+           where person_id = '40000000-0000-0000-0000-00000000000a'
+             and access_role = 'supervisor'),
+  'Sinta has the supervisor access role');
 
 select * from finish();
 rollback;

@@ -6,12 +6,14 @@
 // supabase/seed.dev-auth.sql (a mismatch fails loudly on first demo click).
 export const DEMO_PASSWORD = 'Passw0rd!dev'
 
-// The six Gordi dev personas. Emails MUST match supabase/seed.sql (and the
+// The eight Gordi dev personas. Emails MUST match supabase/seed.sql (and the
 // `%.dev@example.test` filter in supabase/seed.dev-auth.sql). Fictional only.
 export const DEMO_PERSONAS: ReadonlyArray<{ label: string; email: string }> = [
   { label: 'Director', email: 'dewi.dev@example.test' },
   { label: 'Cafe Ops', email: 'cahya.dev@example.test' },
   { label: 'Kitchen', email: 'krishna.dev@example.test' },
+  { label: 'Kitchen staff', email: 'kartika.dev@example.test' },
+  { label: 'Supervisor', email: 'sinta.dev@example.test' },
   { label: 'Roastery', email: 'rama.dev@example.test' },
   { label: 'Sales', email: 'sari.dev@example.test' },
   { label: 'Finance', email: 'fitri.dev@example.test' },

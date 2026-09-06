@@ -19,15 +19,23 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
   it('renders one button per Gordi persona', () => {
     render(<DemoLogin onPick={vi.fn()} busyEmail={null} disabled={false} />)
     for (const p of DEMO_PERSONAS) {
-      expect(screen.getByRole('button', { name: new RegExp(p.label, 'i') })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: p.label })).toBeInTheDocument()
     }
-    expect(DEMO_PERSONAS).toHaveLength(6)
   })
 
   it('uses Gordi real personas (Director/Cafe/Kitchen/Roastery/Sales/Finance), not the generic mockup labels', () => {
     const labels = DEMO_PERSONAS.map((p) => p.label)
     expect(labels).toEqual(
-      expect.arrayContaining(['Director', 'Cafe Ops', 'Kitchen', 'Roastery', 'Sales', 'Finance']),
+      expect.arrayContaining([
+        'Director',
+        'Cafe Ops',
+        'Kitchen',
+        'Kitchen staff',
+        'Supervisor',
+        'Roastery',
+        'Sales',
+        'Finance',
+      ]),
     )
     // generic mockup labels must NOT leak in
     expect(labels).not.toContain('Executive')
@@ -51,7 +59,7 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
   it('disables all persona buttons while disabled', () => {
     render(<DemoLogin onPick={vi.fn()} busyEmail={null} disabled />)
     for (const p of DEMO_PERSONAS) {
-      expect(screen.getByRole('button', { name: new RegExp(p.label, 'i') })).toBeDisabled()
+      expect(screen.getByRole('button', { name: p.label })).toBeDisabled()
     }
   })
 

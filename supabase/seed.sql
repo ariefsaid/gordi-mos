@@ -18,9 +18,9 @@
 
 -- ── Dev-only, enforced rather than assumed ──────────────────────────────────────────────────
 -- This file is FIXTURE data and it is consequential: it grants `admin`, `ops_lead`, `supervisor`,
--- `manager` and `finance`, and writes 46 team memberships — and membership is an authorization
+-- `manager` and `finance`, and writes 47 team memberships — and membership is an authorization
 -- input for the Signal read gate, the team post/start gates and kitchen-log review authority.
--- Counted, because two rounds of review got this wrong in both directions: of the 20 inserts,
+-- Counted, because two rounds of review got this wrong in both directions: of the 21 inserts,
 -- 17 are `on conflict (target) do nothing`, 1 is a BARE `on conflict do nothing`, and 2 are
 -- `on conflict (target) do UPDATE`. So most of it lands quietly on the wrong database — but not
 -- all of it:
@@ -29,8 +29,8 @@
 --     from and what the certified COGS metric reads. That is the worst case here, not duplication.
 --   * the bare one is team_memberships. An untargeted `do nothing` only suppresses an ACTUAL
 --     constraint violation, and no constraint covers a duplicate non-primary row — the only index
---     is the partial one-live-primary — so a hand re-run duplicates them. THIS FILE writes 46
---     memberships (the count named at the top of this block); a full RESET lands 48, because
+--     is the partial one-live-primary — so a hand re-run duplicates them. THIS FILE writes 47
+--     memberships (the count named at the top of this block); a full RESET lands 49, because
 --     seed.dev-cafe-opening and seed.dev-signals each add one the guards do not suppress; and a
 --     second hand run of this file takes that to 64 by duplicating the 16 unconstrained rows.
 --     Dev fixture, no authorization consequence: every gate asks `exists`, and a duplicate of a
@@ -404,6 +404,20 @@ join shared.teams t
  and t.code = m.team_code
  and t.archived_at is null
 on conflict do nothing;
+
+-- Sinta's second live stream membership is inserted separately for idempotency: the VALUES insert's
+-- bare `on conflict do nothing` cannot suppress a duplicate non-primary row; `where not exists
+-- (... effective_to is null)` can.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select '10000000-0000-0000-0000-000000000001', p.id, t.id, false
+from shared.people p
+join shared.teams t
+  on t.org_id = p.org_id and t.code = 'rumah_rames_bar' and t.archived_at is null
+where p.id = '40000000-0000-0000-0000-00000000000a'
+  and not exists (
+    select 1 from shared.team_memberships m
+    where m.person_id = p.id and m.team_id = t.id and m.effective_to is null
+  );
 
 
 -- ── mos: the certified-metric registry (ADR-0022 D6) ─────────────────────────────────────────
