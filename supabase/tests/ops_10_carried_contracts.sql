@@ -434,7 +434,10 @@ select lives_ok($$
 -- unique index on the batch id is still there — so re-adding the mirror is a small change, and
 -- nothing would have gone red. An absence is only evidence if something is watching it.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', null);
+select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', null)$$,
+  '42501', 'an off-plan approval requires a reviewer note',
+  'AC-012: off-plan approval with a plan row and no submitter or reviewer note is refused');
+select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', 'reviewed');
 reset role;
 select is(
   (select count(*)::int from ops.log_entries

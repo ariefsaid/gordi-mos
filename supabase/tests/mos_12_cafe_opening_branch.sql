@@ -1,8 +1,9 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(18);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree(); select shared._test_seed_access_roles(); select ops._test_seed_cafe();
+update mos.work_lines set code = 'cafe_opening' where id = '00000000-0000-0000-0000-00000000c001';
 insert into shared.teams (id,org_id,business_unit_id,name,code,branch_id,activity) values
  ('00000000-0000-0000-0000-00000000cc01','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','GHQ bar','ghq-bar','00000000-0000-0000-0000-00000000bf01','bar'),
  ('00000000-0000-0000-0000-00000000cc02','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','RRS kitchen','rrs-kitchen','00000000-0000-0000-0000-00000000bf02','kitchen'),
@@ -34,6 +35,9 @@ select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-0000000
 select is((select count(*)::int from mos.due_process_runs() where process_name='Café Opening'),0,'AC-009: unauthorized caller sees no due opening');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","finance"]}';
 select is((select count(*)::int from mos.due_process_runs() where process_name='Café Opening'),0,'AC-009: finance sees no due opening in the same org');
+set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select is((select count(*)::int from mos.due_process_runs() where process_name='Café Opening'),1,'AC-009: ops lead is listed for the unopened branch');
+select ok((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc01'::uuid,current_date)->>'run_id') is not null,'AC-008: ops lead without membership starts the opening');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
 select ok(ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf02','bar'),'AC-011: secondary stream membership reviews');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';

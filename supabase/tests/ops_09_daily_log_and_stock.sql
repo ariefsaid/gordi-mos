@@ -5,12 +5,30 @@
 -- the stream dimension.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_daily_log();
+
+-- AC-012: pin the ruling itself with a real plan row and a quantity deviation. Neither note is
+-- supplied, so this approval must refuse rather than silently accepting an off-plan fact.
+insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi)
+values ('2026-06-25', '00000000-0000-0000-0000-00000000ab03',
+        '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'produce', 1);
+insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action,
+                              wip_item_id, qty_porsi, status, submitted_by)
+values ('00000000-0000-0000-0000-00000000af09', '00000000-0000-0000-0000-00000000bb01',
+        '2026-06-25', '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'produce',
+        '00000000-0000-0000-0000-00000000ab03', 2, 'Submitted',
+        '00000000-0000-0000-0000-0000000000d1');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000af09', null)$$,
+  '42501', 'an off-plan approval requires a reviewer note',
+  'AC-012: off-plan approval with a plan row and no note is refused');
+reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. ops.log_entries — the guard the 2026-06-12 audit added, carried whole
