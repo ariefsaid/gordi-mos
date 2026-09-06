@@ -41,6 +41,10 @@ const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   'followUps.action.': 'follow-up-queue-table.tsx / follow-ups-page.tsx — t(`followUps.action.${verb}`)',
   'admin.role.': 'admin-users.types.ts — t(`admin.role.${slug}`) and `${slug}.desc`',
   'kitchen.pushes.tally.': 'kitchen-pushes-page.tsx — plural tally keys are selected by count',
+  // The runs-due pill left the Tasks toolbar in ticket 743 (round 3); ticket 754 re-homes it
+  // (Home/Café) and its `processes.due.summary.*` plural consumers with it. The strings stay in
+  // the catalog until then — owned by that relocation, not dead.
+  'processes.due.summary.': 'runs-due pill (removed from tasks-toolbar.tsx, ticket 743 r3) re-homes these',
 }
 
 function sourceFiles(dir: string, out: string[] = []): string[] {

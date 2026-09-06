@@ -13,7 +13,6 @@ function builtInLabel(view: TaskCollectionView, labels: TaskCollectionViewLabels
   switch (view) {
     case 'my-work': return labels['my-work']
     case 'overdue': return labels.overdue
-    case 'followups': return labels.followups
     case 'all':
     case 'my-pic':
     case 'my-supervisor':

@@ -14,7 +14,7 @@ function TestCollectionChrome() {
   const view = new URLSearchParams(search).get('view')
   const canonical = view === 'mine' ? 'my-work' : view ?? 'all'
   const leaf = useMemo(() => ({
-    label: canonical === 'my-work' ? t('tasks.saved.mine') : canonical === 'overdue' ? t('followUps.overdue') : t('tasks.saved.followups'),
+    label: canonical === 'my-work' ? t('tasks.saved.mine') : canonical === 'overdue' ? t('followUps.overdue') : t('tasks.saved.all'),
     hasNonDefaultView: canonical !== 'all',
   }), [canonical, t])
   useSetCollectionLeaf(leaf)
@@ -150,11 +150,6 @@ describe('breadcrumb leaves resolve the id locale (#410)', () => {
     renderBC('/work/tasks?view=overdue')
     expect(crumbText()).toContain('Terlambat')
     expect(crumbText()).not.toContain('Overdue')
-  })
-
-  it('?view=followups leaf renders the id AR Follow-up label', () => {
-    renderBC('/work/tasks?view=followups')
-    expect(crumbText()).not.toContain('AR Follow-ups') // id label is 'AR Follow-up' (no s)
   })
 
   it('/work/tasks/new leaf renders Buat tugas, not Create task', () => {

@@ -8,7 +8,7 @@ import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, SpawnResult } from '@/lib/db/processes.types'
+import type { DueProcessRun, PendingTaskRow, ProcessRunRollup } from '@/lib/db/processes.types'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -44,7 +44,7 @@ import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listAuthorTeams } from '@/lib/db/signals'
-import { listDueRuns, startRun, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
+import { listDueRuns, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
 // behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
@@ -56,7 +56,6 @@ const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListDueRuns = vi.mocked(listDueRuns)
-const mockStartRun = vi.mocked(startRun)
 const mockListRunRollups = vi.mocked(listRunRollups)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
 const mockListTaskDefs = vi.mocked(listTaskDefs)
@@ -134,17 +133,15 @@ function LocationCapture() {
   return null
 }
 
-function makeSavedView(view: 'mine' | 'overdue' | 'followups' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
+function makeSavedView(view: 'mine' | 'overdue' | 'all' = 'all'): React.ComponentProps<typeof TasksWorkspace>['savedView'] {
   switch (view) {
     case 'mine':
-      return { view: 'mine', activeChip: 'mine', segment: 'mine', overdueOnly: false, reserved: null, search: '?view=mine' }
+      return { view: 'mine', activeChip: 'mine', segment: 'mine', overdueOnly: false, search: '?view=mine' }
     case 'overdue':
-      return { view: 'overdue', activeChip: 'overdue', segment: 'all', overdueOnly: true, reserved: null, search: '?view=overdue' }
-    case 'followups':
-      return { view: 'followups', activeChip: 'followups', segment: 'all', overdueOnly: false, reserved: 'followups', search: '?view=followups' }
+      return { view: 'overdue', activeChip: 'overdue', segment: 'all', overdueOnly: true, search: '?view=overdue' }
     case 'all':
     default:
-      return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, reserved: null, search: '' }
+      return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, search: '' }
   }
 }
 
@@ -169,7 +166,7 @@ function renderPage(auth: AuthState = authedState, props: Partial<React.Componen
         <TasksWorkspace
           {...props}
           savedView={savedView}
-          onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' || next === 'followups' ? next : 'all')))}
+          onSavedViewChange={props.onSavedViewChange ?? ((next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' ? next : 'all')))}
         />
         <LocationCapture />
       </>
@@ -265,7 +262,9 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     // Desktop toolbar stays rendered with its secondary controls exposed and no inner door.
     expect(screen.queryByRole('button', { name: /view & filters/i })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
+    // Status stays reachable as the popover trigger of the dropdown class (#743 r3). No
+    // collision here: the error state renders no table column-header to share the name.
+    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
   })
 })
 
@@ -421,11 +420,12 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
   it('AC-063: Status filter — selecting a status shows only matching rows', async () => {
     mockListTasks.mockResolvedValueOnce([taskKitchen, taskRoastery])
     mockListTasks.mockResolvedValueOnce([taskRoastery])
-    renderPage()
+    const { container } = renderPage()
     await waitFor(() => screen.getByText('Kitchen task'))
 
-    const statusSelect = screen.getByLabelText(/^status$/i)
-    fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
+    // Status popover flow (#743 r3): open the trigger, check the Blocked choice.
+    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
 
     await waitFor(() => {
       expect(screen.queryByText('Kitchen task')).toBeNull()
@@ -499,15 +499,16 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue / Follow-ups — no Team-work chip', async () => {
+  // #743 AC-002: the AR Follow-ups chip is gone; the chip set is All · My work · Overdue
+  // (Team work stays the saved-views ticket's, so its absence stays pinned here).
+  it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue — no Team work, no AR Follow-ups', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
     expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'AR Follow-ups' })).toBeTruthy()
-    // DELIBERATE goal change (record-collection plan §Task-11): no Team-work chip until Issue 8.
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
   })
 
   it('AC-064 / §Task-11: "All" shows every loaded row regardless of ownership scope', async () => {
@@ -524,8 +525,11 @@ describe('AC-064 — saved-view chips', () => {
   })
 })
 
-// ── T-035: AC-065 — Show archived toggle ─────────────────────────────────────
-describe('AC-065 — archived rows hidden by default; show-archived toggle reveals them', () => {
+// ── T-035: AC-065 + #743 AC-008 — archived rows hidden by default; "Include archived" is an
+// ADDITIVE checkbox option INSIDE the Status popover (the Fields-chooser pattern — a popover's
+// boxes are not toolbar controls): it coexists with any chosen status, never an exclusive
+// option of a select.
+describe('AC-065 / AC-008 — archived rows hidden by default; Include archived is additive to Status', () => {
   it('AC-065: archived task hidden on first paint', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'active', title: 'Active task' }),
@@ -538,28 +542,49 @@ describe('AC-065 — archived rows hidden by default; show-archived toggle revea
     )
   })
 
-  it('AC-065: toggling "Show archived" re-queries with includeArchived:true', async () => {
+  // Ruling test (#743 r3): Status=Blocked + Include archived → BOTH applied and BOTH visible,
+  // and with the popover closed neither toolbar row holds a checkbox.
+  it('AC-008: Status=Blocked plus Include archived keeps the chosen status AND checks the archived option (both applied, both visible, no toolbar checkbox)', async () => {
     mockListTasks.mockResolvedValueOnce([makeTask({ id: 'active', title: 'Active task' })])
     mockListTasks.mockResolvedValueOnce([
-      makeTask({ id: 'active', title: 'Active task' }),
-      makeTask({ id: 'arch', title: 'Archived task', archived_at: '2026-06-01T00:00:00Z' }),
+      makeTask({ id: 'active', title: 'Active task', status: 'Blocked' }),
+      makeTask({ id: 'arch', title: 'Archived task', archived_at: '2026-06-01T00:00:00Z', status: 'Blocked' }),
     ])
-    renderPage()
+    const { container } = renderPage()
     await waitFor(() => screen.getByText('Active task'))
 
     {
       const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
       if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
     }
-    const toggle = screen.getByRole('checkbox', { name: /show archived/i })
-    fireEvent.click(toggle)
+    // Status is ONE dropdown-class control; its popover carries the checkbox choices. The
+    // trigger is scoped to the toolbar — the table's Status column-header sort button shares
+    // its accessible name.
+    const statusTrigger = container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]') as HTMLElement
+    fireEvent.click(statusTrigger)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/status=blocked/))
 
+    // The archived option lives in the SAME popover and is additive — choosing a status never checks it.
+    const archived = screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement
+    expect(archived.checked).toBe(false)
+    fireEvent.click(archived)
+
+    // Both applied: the URL carries the status AND the archived opt-in…
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/archived=1/))
+    expect(_capturedLocation?.search).toMatch(/status=blocked/)
+    // …and both choices read as engaged: the trigger still shows Blocked, the box stays checked.
+    expect(statusTrigger.textContent).toContain('Blocked')
+    expect((screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement).checked).toBe(true)
+    // The re-query honors the archived opt-in, and the Status control never became "__archived".
     await waitFor(() => {
-      expect(mockListTasks).toHaveBeenLastCalledWith(
-        expect.objectContaining({ includeArchived: true })
-      )
+      expect(mockListTasks).toHaveBeenLastCalledWith(expect.objectContaining({ includeArchived: true }))
     })
     await waitFor(() => screen.getByText('Archived task'))
+
+    // Popover closed → no input[type=checkbox] in either toolbar row.
+    fireEvent.click(statusTrigger)
+    expect(document.querySelectorAll('[data-testid="collection-toolbar-row"] input[type="checkbox"]')).toHaveLength(0)
   })
 })
 
@@ -690,7 +715,7 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     })
     mockListTasks.mockResolvedValueOnce([taskKitchen, taskRoastery])
     mockListTasks.mockResolvedValueOnce([taskKitchen]) // after status=Open filter
-    renderPage()
+    const { container } = renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
     // Both BU options present before filtering (from directory DEFAULT_BUS)
@@ -699,8 +724,9 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     expect(optsBefore).toContain('Kitchen BU')
     expect(optsBefore).toContain('Roastery BU')
 
-    // Apply status filter — only Kitchen tasks remain in the list
-    fireEvent.change(screen.getByLabelText(/^status$/i), { target: { value: 'Open' } })
+    // Apply status filter — only Kitchen tasks remain in the list (popover flow, #743 r3)
+    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Open' }))
     await waitFor(() => expect(screen.queryByText('Roastery task')).toBeNull())
 
     // BU options STILL contain both BUs (from directory, not from rows)
@@ -782,6 +808,40 @@ describe('Fix C1 — directory error shows error banner', () => {
 
 // ── Fix DR-1: archived row treatment ──────────────────────────────────────────
 describe('archived row treatment — "Archived" chip + muted title', () => {
+  // AC-008 (delta): the archived door is the Include-archived checkbox beside Status — additive
+  // to whatever status is (or is not) chosen.
+  async function chooseIncludeArchived(container: HTMLElement) {
+    const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+    if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    // The archived option lives inside the Status popover (#743 r3); the trigger query is
+    // toolbar-scoped — the table's Status column-header sort button shares its name.
+    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
+    fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
+  }
+
+  it('AC-008: Status Blocked and Include archived apply together and remain visible', async () => {
+    const archivedBlocked = makeTask({
+      id: 'arch-blocked', title: 'Archived blocked task', status: 'Blocked',
+      archived_at: '2026-06-01T00:00:00Z',
+    })
+    const liveBlocked = makeTask({ id: 'live-blocked', title: 'Live blocked task', status: 'Blocked' })
+    const liveOpen = makeTask({ id: 'live-open', title: 'Live open task', status: 'Open' })
+    mockListTasks.mockResolvedValue([archivedBlocked, liveBlocked, liveOpen])
+    const { container } = renderPage()
+    await switchToAll()
+
+    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Archived blocked task')).toBeInTheDocument()
+      expect(screen.getByText('Live blocked task')).toBeInTheDocument()
+      expect(screen.queryByText('Live open task')).not.toBeInTheDocument()
+    })
+    expect(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')).toHaveTextContent(/Blocked.*Include archived/)
+  })
+
   it('DR-1a: desktop — archived task row renders "Archived" tag and muted title; live row does not', async () => {
     stubMatchMedia(true) // desktop
     const archived = makeTask({
@@ -798,17 +858,12 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     })
     // Use "All" segment so both tasks are visible
     mockListTasks.mockResolvedValue([archived, live])
-    renderPage()
+    const { container } = renderPage()
 
     await switchToAll()
 
-    // Toggle show archived
-    {
-      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
-      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-    }
-    const toggle = screen.getByRole('checkbox', { name: /show archived/i })
-    fireEvent.click(toggle)
+    // Reveal archived rows through the Status popover's Include archived option.
+    await chooseIncludeArchived(container)
 
     await waitFor(() => screen.getByText('Archived task'))
 
@@ -843,10 +898,10 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
       accountable_person_id: VIEWER_ID,
     })
     mockListTasks.mockResolvedValue([archived, live])
-    renderPage()
+    const { container } = renderPage()
 
     await switchToAll()
-    fireEvent.click(screen.getByRole('checkbox', { name: /show archived/i }))
+    await chooseIncludeArchived(container)
 
     await waitFor(() => screen.getByText('Archived mobile task'))
 
@@ -892,12 +947,12 @@ const CAPABLE_AUTH: AuthState = {
   viewer: { ...authedState.viewer, accessRoles: ['ops_lead'] },
 }
 
-// ── Step 6 (Track C, C1) — the due-runs disclosure (trigger + list) mounted near the toolbar / after
-// the table; occurrence group-by (docs/plans/2026-07-16-occurrence-as-tasks.md C1;
-// docs/specs/occurrence-as-tasks.spec.md §5). "Process Run" must NEVER appear as UI vocabulary
-// anywhere in this page (FR-611). Design fix wave item 1: the row list is COLLAPSED BY DEFAULT
-// (design-review step-6 CRITICAL — a full-width due-row flood buried the Tasks table) — every test
-// below uses the two attention pills: the due-runs pill opens the disclosure, while the overdue pill applies the overdue filter.
+// ── Step 6 (Track C, C1) — the due-runs disclosure (trigger + list). The runs-due PILL left the
+// Tasks toolbar in #743 (ruling round 3: the toolbar is twelve controls in every state); #754
+// re-homes the pill + list at Home/Café and takes the Start-run journey tests with it. Until
+// then the list rests closed here; these tests pin what REMAINS true on /work/tasks: the runs
+// source renders no toolbar control (even with due runs + a capable viewer) while the overdue
+// pill still carries its own filter, and the Team scoping still gates the source.
 describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
   const DUE_ROW: DueProcessRun = {
     work_line_id: 'wl-1', process_name: 'Café HQ daily opening',
@@ -905,30 +960,18 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     period_key: '2026-07-17', scheduled_date: '2026-07-17',
   }
 
-  // The due-runs pill carries the runs disclosure (aria-expanded) when due work exists, while the separate overdue pill applies the overdue filter.
-  async function expandDueRuns() {
-    const trigger = await screen.findByRole('button', { name: /runs? due to start/i })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(trigger)
-    await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))
-  }
-
-  it('the due-runs pill is collapsed by default, and clicking it reveals the Start-run row for a process.start-capable viewer', async () => {
-    mockListTasks.mockResolvedValue([])
+  it('the toolbar shows exactly ONE pill even when runs are due — the runs pill left the toolbar (#743 r3)', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
-    const trigger = await screen.findByRole('button', { name: '1 run due to start' })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
-
-    await expandDueRuns()
-    await waitFor(() => screen.getByText('Café HQ daily opening'))
-    // A due-runs pill must not also apply the overdue task filter.
-    expect(_capturedLocation?.search).not.toMatch(/overdue=1/)
-    // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
-    // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
-    expect(screen.getByRole('button', { name: 'Start · Café HQ daily opening' })).toBeInTheDocument()
+    const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
+    expect(overduePill).toBeInTheDocument()
+    // No runs-due control anywhere in the toolbar; the overdue pill performs only its own action.
+    expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
+    fireEvent.click(overduePill)
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/overdue=1/))
+    expect(_capturedLocation?.search).not.toMatch(/archived=1/)
   })
 
   it('the overdue pill applies its filter without opening the due-runs disclosure', async () => {
@@ -938,26 +981,10 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
 
     const pill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
     fireEvent.click(pill)
-    await waitFor(() => expect(screen.getByRole('button', { name: /clear overdue/i })).toBeInTheDocument())
+    // FR-001: the pressed pill IS the filter — no second clear chip, no due-runs disclosure.
+    await waitFor(() => expect(pill).toHaveAttribute('aria-pressed', 'true'))
+    expect(screen.queryByRole('button', { name: /clear overdue/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
-  })
-
-  it('when both sources are non-zero, each pill performs only its own action', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
-    mockListDueRuns.mockResolvedValue([DUE_ROW])
-    renderPage(CAPABLE_AUTH)
-
-    const duePill = await screen.findByRole('button', { name: '1 run due to start' })
-    const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
-    expect(duePill).toBeInTheDocument()
-    expect(overduePill).toBeInTheDocument()
-
-    fireEvent.click(duePill)
-    await waitFor(() => expect(duePill).toHaveAttribute('aria-expanded', 'true'))
-    expect(_capturedLocation?.search).not.toMatch(/overdue=1/)
-
-    fireEvent.click(overduePill)
-    await waitFor(() => expect(_capturedLocation?.search).toMatch(/overdue=1/))
   })
 
   it('the due-runs trigger is absent for a viewer without process.start', async () => {
@@ -969,30 +996,14 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     expect(mockListDueRuns).not.toHaveBeenCalled()
   })
 
-  it('1a: a due row for a Team the viewer is NOT an active member of is scoped out', async () => {
+  it('1a: the Tasks surface does not load or render due runs (#754 relocates the door)', async () => {
     mockListTasks.mockResolvedValue([])
-    mockListDueRuns.mockResolvedValue([DUE_ROW])
-    mockListAuthorTeams.mockResolvedValue([{ id: 'some-other-team', name: 'Not Mine', business_unit_id: 'bu-1', site_id: null, is_primary: true }])
     renderPage(CAPABLE_AUTH)
 
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
+    expect(mockListDueRuns).not.toHaveBeenCalled()
+    expect(mockListAuthorTeams).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
-  })
-
-  it('clicking Start · <process name> calls startRun and refreshes the task list', async () => {
-    mockListTasks.mockResolvedValue([])
-    mockListDueRuns.mockResolvedValue([DUE_ROW])
-    const spawnResult: SpawnResult = { run_id: 'run-1', created: 1, pending: 1, idempotent: false }
-    mockStartRun.mockResolvedValue(spawnResult)
-    renderPage(CAPABLE_AUTH)
-
-    await expandDueRuns()
-    await waitFor(() => screen.getByText('Café HQ daily opening'))
-    const before = mockListTasks.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Start · Café HQ daily opening' }))
-
-    await waitFor(() => expect(mockStartRun).toHaveBeenCalledWith('wl-1', 'team-1', '2026-07-17'))
-    await waitFor(() => expect(mockListTasks.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('AC-622/FR-611: the Occurrence group-by groups generated Tasks under the run caption — "Process Run" never appears', async () => {
@@ -1156,7 +1167,7 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
         <>
           <TasksWorkspace
             savedView={savedView}
-            onSavedViewChange={(next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' || next === 'followups' ? next : 'all'))}
+            onSavedViewChange={(next) => setSavedView(makeSavedView(next === 'mine' || next === 'overdue' ? next : 'all'))}
           />
           <LocationCapture />
         </>

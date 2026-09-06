@@ -4,7 +4,7 @@ import type { TaskCollectionQuery } from './task-collection-adapter'
 
 const labels = {
   all: 'All', 'my-work': 'My work', 'my-pic': 'My work', 'my-supervisor': 'My work',
-  overdue: 'Overdue', followups: 'Follow-ups',
+  overdue: 'Overdue',
 }
 const query = (patch: Partial<TaskCollectionQuery> = {}) => ({
   view: 'all' as const, savedViewId: null, ...patch,

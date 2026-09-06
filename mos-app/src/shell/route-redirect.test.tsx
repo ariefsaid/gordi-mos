@@ -48,11 +48,10 @@ describe('RouteRedirect', () => {
   })
 
   it('a target that names its own view keeps it and drops the incoming query', () => {
-    // Proven on a synthetic retired path: /work/follow-ups itself is DELETED, not redirected
-    // (DD-WAY-36 — deleted paths 404; they do not get doormats), so no real map entry carries
-    // its own query string anymore. The behavior is RouteRedirect's, not any one entry's.
-    renderAt(['/legacy/queue?view=all'], '/legacy/queue', '/work/tasks?view=followups')
-    expect(screen.getByTestId('here')).toHaveTextContent('/work/tasks?view=followups')
+    // Proven on a live target view: the example names a real, still-served view (`?view=overdue`).
+    // The behavior is RouteRedirect's, not any one entry's.
+    renderAt(['/legacy/queue?view=all'], '/legacy/queue', '/work/tasks?view=overdue')
+    expect(screen.getByTestId('here')).toHaveTextContent('/work/tasks?view=overdue')
   })
 
   it('FR-015: replaces the history entry, so Back does not re-enter the retired path', async () => {

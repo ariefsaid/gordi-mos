@@ -37,7 +37,6 @@ const COMMENTS_THIS_CASE_ANCHORS = [
   'components/follow-ups/follow-up-queue-table.tsx — header, "NOT YET the one renderer"',
   'components/follow-ups/use-follow-up-queue.ts — header, "never wired BACK"',
   'components/follow-ups/use-follow-up-record-opener.ts — header, "an intent, not a fact"',
-  'components/tasks/tasks-workspace-followups-door.test.tsx — header',
   'i18n/messages.ts — the comment above `followUps.title`',
   'pages/follow-ups-page.test.tsx — the comment inside AC-520',
 ]

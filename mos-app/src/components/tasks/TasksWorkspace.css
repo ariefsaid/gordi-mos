@@ -117,6 +117,14 @@
 }
 .mobile-task-options-chevron--open { transform: rotate(180deg); }
 .mobile-task-options-panel .toolbar { border-bottom: 0; }
+
+/* Phone contract (DESIGN.md): every control in the toolbar's options row meets the 44px floor.
+   The shared sheets floor the search, the selects and the .btn ghosts; the pill lives in THIS
+   sheet — so its winning floor is declared here too, in the component's own stylesheet, where
+   the cascade is won (a shared marker class loses to later sheets). */
+@media (max-width: 767.98px) {
+  .tasks-collection-toolbar .overdue-filter-btn { min-height: 44px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .mobile-task-options-chevron { transition: none; }
 }
@@ -170,24 +178,6 @@
 }
 .search-input { border: none; outline: none; background: transparent; font: inherit; font-size: var(--font-size-body-lg); color: var(--foreground); width: 100%; }
 .search-input::placeholder { color: var(--muted-foreground); }
-.archived-toggle {
-  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
-  border: 1px solid var(--input); background: var(--background);
-  border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
-  font-size: var(--font-size-body-lg); cursor: pointer; color: var(--foreground);
-}
-/* Custom checkbox (DESIGN.md §5 checkbox spec) so 'Show archived' reads as a deliberate
-   control, not a raw native checkbox — consistent with the other toolbar pills. */
-.archived-checkbox {
-  appearance: none; -webkit-appearance: none; width: 16px; height: 16px; cursor: pointer;
-  border: 1.5px solid var(--input); border-radius: var(--radius-xs); background: var(--background);
-  display: inline-grid; place-content: center; flex: none; margin: 0;
-}
-.archived-checkbox:checked { background: var(--primary); border-color: var(--primary); }
-.archived-checkbox:checked::after { content: "✓"; color: var(--primary-foreground); font-size: var(--font-size-overline); font-weight: 700; line-height: 1; }
-.archived-checkbox:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.archived-label { font-size: var(--font-size-body-lg); }
-.toolbar-overdue-controls { display: inline-flex; align-items: center; gap: 8px; }
 
 /* ── M6: condensed (drawer-open) toolbar ──
    At the squashed column width the labelled controls + segmented control +
@@ -201,7 +191,6 @@
 .assembly.condensed .toolbar .chip { padding: 0 8px; }
 .assembly.condensed .toolbar .seg-btn { padding: 0 8px; }
 .assembly.condensed .toolbar .search-mini { min-width: 120px; flex: 1 1 120px; }
-.assembly.condensed .toolbar .archived-toggle { padding: 0 8px; }
 
 /* ── Table scroll container ──
    Non-virtual: a passthrough wrapper with overflow-x:auto so a 10-column fixed
@@ -547,8 +536,8 @@ tr:focus-within .row-menu { visibility: visible; }
 /* ── Overdue filter button (count line, AC-128 / FR-126) ──
    F5 design fix: shares the toolbar's control-chip grammar (32px, bordered, radius-sm — the
    same shape as .overdue-filter-btn, DESIGN.md "Tasks toolbar ... bordered filter controls")
-   instead of a bare underlined link, so the two toolbar attention-count affordances ("N due to
-   start" / "N overdue") read as one consistent style, tinted per the Tinted-Status Rule. */
+   instead of a bare underlined link. Current rule: one attention pill, per toolbar amendment A1
+   in DESIGN.md § DB-view toolbar controls. */
 .overdue-filter-btn {
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 10px;
@@ -560,6 +549,8 @@ tr:focus-within .row-menu { visibility: visible; }
   color: var(--status-lost-text);
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  flex: none;
 }
 .overdue-filter-btn:hover {
   background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);
@@ -568,24 +559,15 @@ tr:focus-within .row-menu { visibility: visible; }
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-
-/* ── Overdue-only active chip (AC-128 — clearable transient filter) ── */
-.overdue-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
-  background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
+/* FR-001 (#743): the pressed state lives ON the pill — there is no second active-filter chip.
+   Same hue family, deepened, so pressed reads as "this filter is on" at a glance. */
+.overdue-filter-btn--active {
+  background: color-mix(in srgb, var(--status-lost-text) 18%, transparent);
+  border-color: color-mix(in srgb, var(--status-lost-text) 70%, transparent);
   color: var(--status-lost-text);
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  cursor: pointer;
-  gap: 4px;
 }
-.overdue-chip:hover {
-  background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);
+.overdue-filter-btn--active:hover {
+  background: color-mix(in srgb, var(--status-lost-text) 24%, transparent);
 }
 
 /* ── Empty-state actions (IXD-5/IXD-4, PR-2) ── */
@@ -690,7 +672,46 @@ tr.grp td { padding: 0; }
   font-size: var(--font-size-mono); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* AC-006 (#743): the chooser's Last activity column shares the muted mono treatment. */
+.td-activity {
+  font-size: var(--font-size-mono); color: var(--muted-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .td-empty { color: var(--muted-foreground); }
+
+/* AC-006 (#743 r3): the optional Fields columns get real floors, like the decision columns'
+   split floors — an opted-in column shifts every nth-child position, so these size by CLASS
+   (measured floors hold each header's uppercase text: PROJECT/PROCESS is the longest). */
+.tasks-table .th-business-unit, .tasks-table .td-business-unit { width: 128px; }
+.tasks-table .th-workline, .tasks-table .td-workline { width: 144px; }
+.tasks-table .th-objective, .tasks-table .td-objective { width: 112px; }
+.tasks-table .th-activity, .tasks-table .td-activity { width: 128px; }
+
+/* Extended tier (#743 r3): with any optional column on, the table drops onto its floored
+   track — decision columns pin to their split-floor px by CLASS (the base percentages would
+   otherwise eat the identity column's slack) and .tasks-scroll owns the horizontal overflow
+   (never the page). Task keeps its 160px floor: min-width = all other floors + 160, and the
+   identity column absorbs every pixel above that. These rules tie the base nth-child tiers'
+   specificity (0,2,1) and win by source order; the split mirror below does the same against
+   the split nth-child floors that mis-land once optional columns shift every position. */
+.tasks-table--extended { min-width: 1172px; }
+.tasks-table--extended th.th-task, .tasks-table--extended td.td-main { width: 160px; }
+.tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 108px; }
+.tasks-table--extended th.th-owner, .tasks-table--extended td.td-owner { width: 128px; }
+.tasks-table--extended th.th-supervisor, .tasks-table--extended td.td-supervisor { width: 120px; }
+.tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 104px; }
+.tasks-table--extended th.th-business-unit, .tasks-table--extended td.td-business-unit { width: 128px; }
+.tasks-table--extended th.th-workline, .tasks-table--extended td.td-workline { width: 144px; }
+.tasks-table--extended th.th-objective, .tasks-table--extended td.td-objective { width: 112px; }
+.tasks-table--extended th.th-activity, .tasks-table--extended td.td-activity { width: 128px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-status, .split:not(.nodrawer) .tasks-table--extended td.td-status { width: 108px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-owner, .split:not(.nodrawer) .tasks-table--extended td.td-owner { width: 128px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-supervisor, .split:not(.nodrawer) .tasks-table--extended td.td-supervisor { width: 120px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-due, .split:not(.nodrawer) .tasks-table--extended td.td-due { width: 104px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-business-unit, .split:not(.nodrawer) .tasks-table--extended td.td-business-unit { width: 128px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-workline, .split:not(.nodrawer) .tasks-table--extended td.td-workline { width: 144px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-objective, .split:not(.nodrawer) .tasks-table--extended td.td-objective { width: 112px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-activity, .split:not(.nodrawer) .tasks-table--extended td.td-activity { width: 128px; }
 
 /* Cascade D1: summary caption (FR-236 / NFR-206 literacy bar).
    One short plain-text sentence; quiet — not a heading, not a warning.

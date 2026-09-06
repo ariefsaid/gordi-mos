@@ -53,7 +53,7 @@ export type TaskCollectionAction = never
 // §Task-11 (Issue-8 gate): there is NO `team` view. The legacy Team-work chip is removed from the
 // Task descriptor and `view=team` is rejected until Issue 8's real Task team_id contract lands.
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'followups'
+  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -77,13 +77,15 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'followups',
+  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 
 /** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw. */
-const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work' }
+/** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw.
+ * `followups` is the retired AR Follow-ups view (#743): old links land on the All view. */
+const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work', followups: 'all' }
 
 /** URL slug <-> TaskStatus. The DB stores capitalized status; the URL uses a stable slug. */
 const STATUS_BY_SLUG: Readonly<Record<string, TaskStatus>> = {
@@ -378,8 +380,7 @@ function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
     query.view === 'my-work' ||
     query.view === 'my-pic' ||
     query.view === 'my-supervisor' ||
-    query.view === 'overdue' ||
-    query.view === 'followups'
+    query.view === 'overdue'
   )
 }
 

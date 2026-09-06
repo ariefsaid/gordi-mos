@@ -3,7 +3,6 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarField } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
-import type { UseDueRunsResult } from '@/components/processes/use-due-runs'
 import { useT } from '@/i18n/use-t'
 import type {
   TaskCollectionGroup,
@@ -27,11 +26,6 @@ export type TasksToolbarProps = {
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: CollectionToolbarSavedViews
-  /** The recurring-runs-due-to-start source renders its own pill and toggles this list's disclosure. */
-  dueRuns?: UseDueRunsResult
-  /** DO-6: the active view is a reserved placeholder — only the view chips render (no dead
-   * search/filters/presentation controls above a coming-soon body). */
-  reserved?: boolean
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -53,12 +47,12 @@ const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'statu
   { value: 'occurrence', key: 'occurrence' },
 ]
 
-// §Task-11 (Issue-8 gate): no Team-work chip until Issue 8 lands the real Task team_id contract.
-const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'overdue' | 'followups' }[] = [
+// AC-002 (#743): AR Follow-ups is retired — the parser aliases old ?view=followups links to All.
+// The Team-work chip is the saved-views ticket's (T2), not this one's.
+const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'overdue' }[] = [
   { value: 'all', key: 'all' },
   { value: 'my-work', key: 'my-work' },
   { value: 'overdue', key: 'overdue' },
-  { value: 'followups', key: 'followups' },
 ]
 
 /** Task-specific options projected into the one visible RecordCollection toolbar grammar. */
@@ -74,39 +68,57 @@ export function TasksToolbar({
   buOptions,
   personOptions,
   savedViews,
-  dueRuns,
-  reserved,
 }: TasksToolbarProps) {
   const t = useT()
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
   const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
-    if (key === 'none') return t('tasks.filter.none')
-    if (key === 'status') return t('tasks.filter.status')
-    if (key === 'pic') return t('tasks.pic')
-    if (key === 'businessUnit') return t('tasks.filter.businessUnit')
-    if (key === 'projectProcess') return t('tasks.filter.projectProcess')
-    if (key === 'objective') return t('tasks.objective')
-    return t('tasks.filter.occurrence')
+    if (key === 'none') return `${t('tasks.filter.group')}: ${t('tasks.filter.none')}`
+    if (key === 'status') return `${t('tasks.filter.group')}: ${t('tasks.filter.status')}`
+    if (key === 'pic') return `${t('tasks.filter.group')}: ${t('tasks.pic')}`
+    if (key === 'businessUnit') return `${t('tasks.filter.group')}: ${t('tasks.filter.businessUnit')}`
+    if (key === 'projectProcess') return `${t('tasks.filter.group')}: ${t('tasks.filter.projectProcess')}`
+    if (key === 'objective') return `${t('tasks.filter.group')}: ${t('tasks.objective')}`
+    return `${t('tasks.filter.group')}: ${t('tasks.filter.occurrence')}`
   }
   const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) => {
     if (key === 'all') return t('tasks.saved.all')
     if (key === 'my-work') return t('tasks.saved.mine')
-    if (key === 'overdue') return t('tasks.saved.overdue')
-    return t('tasks.saved.followups')
+    return t('tasks.saved.overdue')
   }
 
-  const dueCount = dueRuns?.due.length ?? 0
+  // #743 ruling round 3: Status is ONE dropdown-class control whose popover carries checkbox
+  // choices (the Fields-chooser pattern — a popover's boxes are not toolbar controls, so the
+  // row itself never renders a checkbox). A status choice is exclusive by data model; checking
+  // the checked one clears it back to any. "Include archived" rides the SAME popover, additive
+  // to whatever status is chosen (AC-008: never an exclusive option, never a toolbar checkbox).
+  const statusDisplay = query.status
+    ? statusLabel(STATUS_VALUES.find((entry) => entry.value === query.status)?.key ?? 'any')
+    : statusLabel('any')
+  const statusChoices = [
+    ...STATUS_VALUES.filter(({ value }) => value !== '').map(({ value, key }) => ({
+      key,
+      label: statusLabel(key),
+      checked: query.status === value,
+      onChange: (checked: boolean) => onQueryChange({ status: checked ? (value as TaskStatus) : null }),
+    })),
+    {
+      key: 'include-archived',
+      label: t('tasks.filter.includeArchived'),
+      checked: query.includeArchived,
+      onChange: (checked: boolean) => onQueryChange({ includeArchived: checked }),
+    },
+  ]
 
   return (
     <CollectionToolbar
       className="tasks-collection-toolbar"
-      reserved={reserved}
       presentation={{
         label: t('tasks.view'),
         value: query.layout,
+        // AC-003: Table is the one live desktop presentation — Card is the phone rendering of
+        // Table (A4), so no Table/Card switcher renders until a second presentation goes live.
         options: [
           { value: 'table', label: t('tasks.tab.table') },
-          { value: 'card', label: t('tasks.tab.card') },
         ],
         onChange: onPresentationChange,
       }}
@@ -118,7 +130,7 @@ export function TasksToolbar({
       }}
       savedViews={savedViews}
       fields={{
-        label: 'Fields',
+        label: t('tasks.fields'),
         visible: query.visibleFields,
         options: [
           { value: 'title', label: t('tasks.label.task'), required: true },
@@ -127,6 +139,9 @@ export function TasksToolbar({
           { value: 'status', label: t('tasks.filter.status'), required: true },
           { value: 'due', label: t('tasks.dueLabel'), required: true },
           { value: 'businessUnit', label: t('tasks.filter.businessUnit') },
+          { value: 'workline', label: t('tasks.filter.projectProcess') },
+          { value: 'objective', label: t('tasks.objective') },
+          { value: 'activity', label: t('tasks.fields.activity') },
         ] satisfies readonly CollectionToolbarField[],
         onToggle: onFieldToggle,
       }}
@@ -138,7 +153,10 @@ export function TasksToolbar({
       }}
       filters={[
         {
+          // AC-005 (OD-P3-6): the group control is tinted ONLY while a grouping is active —
+          // untinted at None it stops looking like a second Status filter.
           id: 'task-group', label: t('tasks.filter.group'), value: query.groupBy === 'pic' ? 'owner' : query.groupBy,
+          tinted: query.groupBy !== 'none',
           options: GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) })),
           onChange: (value) => {
             const groupBy = value === 'owner' ? 'pic' : value as TaskCollectionGroup
@@ -157,9 +175,15 @@ export function TasksToolbar({
           onChange: (value) => onQueryChange({ businessUnitId: value || null }),
         },
         {
-          id: 'task-status', label: t('tasks.filter.status'), value: query.status ?? '',
-          options: STATUS_VALUES.map(({ value, key }) => ({ value, label: statusLabel(key) })),
-          onChange: (value) => onQueryChange({ status: (value || null) as TaskStatus | null }),
+          // AC-008 (#743 r3): Status stays ONE row-2 control of the dropdown class; its popover
+          // carries the status choices (exclusive) plus the ADDITIVE "Include archived" — a
+          // select option could only be exclusive, so archived cannot be one. When archived is
+          // on, the trigger keeps it visible after the popover closes.
+          id: 'task-status', label: t('tasks.filter.status'),
+          display: query.includeArchived
+            ? `${statusDisplay} + ${t('tasks.filter.includeArchived')}`
+            : statusDisplay,
+          popover: { choices: statusChoices },
         },
         {
           // Adopted mockup: ONE "Person" filter (Anyone default) that matches a person as PIC OR
@@ -193,48 +217,20 @@ export function TasksToolbar({
       ]}
       toggles={(
         <>
-          <label className="collection-toolbar__toggle tap-floor">
-            <input
-              type="checkbox"
-              checked={query.includeArchived}
-              onChange={(event) => onQueryChange({ includeArchived: event.target.checked })}
-              aria-label={t('tasks.filter.showArchived')}
-              className="archived-checkbox"
-            />
-            <span>{t('tasks.filter.showArchived')}</span>
-          </label>
-          {/* Each pill names one source and performs only that source's action. */}
-          {dueCount > 0 ? (
-            <button
-              type="button"
-              className="overdue-filter-btn"
-              aria-label={t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })}
-              aria-expanded={dueRuns?.expanded ?? false}
-              onClick={dueRuns?.toggleExpanded}
-            >
-              {t(dueCount === 1 ? 'processes.due.summary.one' : 'processes.due.summary.other', { count: dueCount })}
-            </button>
-          ) : null}
-          {overdueCount > 0 ? (
-            <button
-              type="button"
-              className="overdue-filter-btn"
-              aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
-              onClick={onOverdueFilter}
-            >
-              {t('tasks.filter.overdueCount', { count: overdueCount })}
-            </button>
-          ) : null}
-          {query.overdueOnly ? (
-            <button
-              type="button"
-              className="overdue-chip"
-              aria-label={t('tasks.filter.clearOverdue')}
-              onClick={onClearOverdue}
-            >
-              {t('tasks.filter.overdueOnly')}
-            </button>
-          ) : null}
+          {/* The ONE tinted element in row 2 (OD-WAY-89) — and the ONE pill in EVERY state
+              (FR-001): the pill itself carries the overdueOnly state (pressed + tinted), so no
+              second active-filter chip ever renders. Clicking toggles the filter both ways.
+              The runs-due pill LEFT the toolbar in this ticket (#743 ruling round 3); #754
+              re-homes the runs source at Home/Café with its own tests. */}
+          <button
+            type="button"
+            className={`overdue-filter-btn${query.overdueOnly ? ' overdue-filter-btn--active' : ''}`}
+            aria-pressed={query.overdueOnly}
+            aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
+            onClick={query.overdueOnly ? onClearOverdue : onOverdueFilter}
+          >
+            {t('tasks.filter.overdueCount', { count: overdueCount })}
+          </button>
         </>
       )}
     />
