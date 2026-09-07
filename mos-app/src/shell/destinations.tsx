@@ -72,9 +72,11 @@ export const DESTINATIONS: Destination[] = [
     Icon: WorkIcon,
     primaryPath: '/work/tasks',
     links: [{ path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon }],
-    // Always-expanded children, 0 family headings (Rule 3). Projects & Processes
-    // is capability-gated (FR-424): rendered in the rail only for a holder of the named
-    // capability; RequireCapability is the real route gate.
+    // Always-expanded children, 0 family headings (Rule 3). Projects & Processes carries
+    // NO capability on this rail entry (OD-WAY-97 (1), ticket #806): the read is open at the
+    // database, so every authenticated viewer gets a rendered way in. Write standing is asked
+    // at the row / record via `canManageDefinition` (client mirror of `mos.can_manage_definition`),
+    // not by hiding the link — hiding it would leave the read the server serves unreachable.
     //
     // **This array's ORDER is the canonical nav order — the only one (#446).** The order's
     // authority is the owner frame sketch (OD-REDESIGN-57(ii), oracle row P-13 — owner-word):
@@ -90,7 +92,7 @@ export const DESTINATIONS: Destination[] = [
     children: [
       { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
-      { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon, capability: 'workline.manage' },
+      { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
       // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible
       // to everyone" — NO capability gate on this rail entry. mos.objectives SELECT RLS
       // (objectives_select_org, …0624000001_mos_cascade_lookups.sql) has no role check, only the

@@ -15,7 +15,6 @@ import {
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
-import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import { isShipGated } from './lib/ship-gate'
@@ -74,6 +73,9 @@ const ObjectivesPage = lazyPage(() => import('./pages/objectives-page').then((m)
 const ProjectsProcessesPage = lazyPage(() =>
   import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
 )
+const WorkLineRecordPage = lazyPage(() =>
+  import('./pages/work-line-record-page').then((m) => ({ default: m.WorkLineRecordPage })),
+)
 const InboxPage = lazyPage(() => import('./pages/inbox-page').then((m) => ({ default: m.InboxPage })))
 
 const CafeOpeningPage = lazyPage(() =>
@@ -112,7 +114,8 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /work/tasks[/new|/:taskId] Tasks (split-view shell + drawer children)
 //     /work/signals              Signals
 //     /work/objectives           Objectives (no read gate — OD-V4-1)
-//     /work/projects             Projects & Processes (capability: workline.manage)
+//     /work/projects             Projects & Processes (no read gate — OD-WAY-97 (1))
+//     /work/projects/:id         Project/Process record (RecordViewer, part of #738)
 //     /events /ecommerce /roastery /profile
 //     /money[/detail|/budget|/pricing|/follow-ups]
 //     /inbox
@@ -227,29 +230,38 @@ const routeTable: RouteObject[] = [
             element: withSuspense(<ObjectivesPage />),
             handle: pageHandle('management'),
           },
+          // OD-WAY-97 (1) (owner-ratified, ticket #806): Projects & Processes opens for
+          // everyone. The read gate is removed — a viewer without write standing gets the
+          // honest read-only surface (no create control, no editable field, one reason line
+          // on records). Write standing is still asked at the record and at the row via
+          // `canManageDefinition` (client mirror of `mos.can_manage_definition`, #801),
+          // and the database is the boundary either way (NFR-004).
           {
-            element: <RequireCapability capability="workline.manage" />,
-            handle: infrastructureHandle('capability'),
-            children: [
-              {
-                path: 'work/projects',
-                element: withSuspense(<ProjectsProcessesPage />),
-                handle: pageHandle('management'),
-              },
-              // Both retired spellings live INSIDE the gate they forward into. Outside it, a
-              // viewer without `workline.manage` would be forwarded to /work/projects and
-              // bounced from there — two hops. Inside, they are bounced once, at the source.
-              {
-                path: 'work/projects-processes',
-                element: <RouteRedirect to="/work/projects" />,
-                handle: redirectHandle('/work/projects'),
-              },
-              {
-                path: 'projects-processes',
-                element: <RouteRedirect to="/work/projects" />,
-                handle: redirectHandle('/work/projects'),
-              },
-            ],
+            path: 'work/projects',
+            element: withSuspense(<ProjectsProcessesPage />),
+            handle: pageHandle('management'),
+          },
+          // OD-WAY-97 (2): the Project/Process record. Renders on the shared RecordViewer —
+          // panel beside the collection at ≥1370, page below and on a direct URL, full-screen
+          // on phone. An unknown id falls through to a not-found INSIDE the record frame
+          // (WorkLineRecordPage owns that fallback, not the router's catch-all).
+          {
+            path: 'work/projects/:id',
+            element: withSuspense(<WorkLineRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          // Both retired spellings are now plain redirects at the source — the gate they used
+          // to live inside is gone. One hop each, still. `/work/projects` accepts every
+          // authenticated viewer, so the forward always lands somewhere the viewer can read.
+          {
+            path: 'work/projects-processes',
+            element: <RouteRedirect to="/work/projects" />,
+            handle: redirectHandle('/work/projects'),
+          },
+          {
+            path: 'projects-processes',
+            element: <RouteRedirect to="/work/projects" />,
+            handle: redirectHandle('/work/projects'),
           },
           // The cascade SCREEN is cut (OD-WAY-32) — "cascade" is vocabulary, never a surface. The
           // path keeps its doormat: a redirect entry is not a screen, and every other retired

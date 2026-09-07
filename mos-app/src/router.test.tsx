@@ -196,25 +196,52 @@ describe('router — Work catalog gates', () => {
     // Resolved through the real matcher: nothing on the ancestor chain bounces a subset of
     // authenticated viewers. Re-add the gate and this goes red.
     expect(gatesOnPath('/work/objectives')).toEqual([])
-    // …and the sibling catalog still HAS its gate, so the check above is measuring something.
-    expect(gatesOnPath('/work/projects')).toEqual(['capability:workline.manage'])
   })
 
-  it('AC-304: /work/projects stays behind RequireCapability(workline.manage)', () => {
-    const gate = shellChildren().find(
-      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/projects'),
-    )!
-    expect(gate.element).toEqual(<RequireCapability capability="workline.manage" />)
+  it('AC-017 (#806): /work/projects carries NO read gate — OD-WAY-97 (1) opens the definition catalogs for everyone', () => {
+    // Ticket #806 / OD-WAY-97 (1): "everyone reads the definition catalogs". The
+    // `workline.manage` capability gate was removed from this route and its rail entry;
+    // write standing is asked at the row / record via `canManageDefinition` (client mirror
+    // of `mos.can_manage_definition`), and the database is the boundary either way
+    // (NFR-004). Re-adding a route gate would hide a screen every authenticated org
+    // member can already read, so this assertion is asymmetric: nothing on the ancestor
+    // chain bounces a subset of authenticated viewers.
+    expect(flattenRoutes().find((f) => f.path === '/work/projects')).toBeDefined()
+    expect(gatesOnPath('/work/projects')).toEqual([])
+    // ...and its two retired spellings still redirect in ONE hop — never through a gate
+    // that would bounce a subset of viewers before the forward lands.
+    expect(gatesOnPath('/work/projects-processes')).toEqual([])
+    expect(gatesOnPath('/projects-processes')).toEqual([])
   })
 
-  it('both retired catalog spellings redirect from INSIDE the gate they forward into', () => {
-    // Outside it, a viewer without workline.manage would be forwarded to /work/projects and
-    // bounced from there — two hops. This is the structural half of AC-017.
-    const gate = shellChildren().find(
-      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/projects'),
-    )!
-    const inside = gate.children!.map((c) => c.path).sort()
-    expect(inside).toEqual(['projects-processes', 'work/projects', 'work/projects-processes'])
+  it('AC-018 (#806): /work/projects/:id renders the record surface, no read gate', () => {
+    // The record route sits alongside its collection at the same open standing — one
+    // hop, no capability, so a direct URL for any viewer's own visible record resolves
+    // to the RecordViewer (which owns the not-found INSIDE its frame for an unknown id).
+    expect(flattenRoutes().find((f) => f.path === '/work/projects/:id')).toBeDefined()
+    expect(gatesOnPath('/work/projects/:id')).toEqual([])
+  })
+
+  it('the retired catalog spellings are one-hop redirects to /work/projects, not chained', () => {
+    const inside = shellChildren()
+      .filter((r) => typeof r.path === 'string' && (r.path === 'work/projects-processes' || r.path === 'projects-processes'))
+      .map((r) => r.path)
+      .sort()
+    expect(inside).toEqual(['projects-processes', 'work/projects-processes'])
+  })
+
+  it('RequireCapability is no longer wired onto any Work-catalog route (guards against the gate creeping back)', () => {
+    const capabilityWrappers = shellChildren().filter(
+      (r) =>
+        r.element &&
+        typeof r.element === 'object' &&
+        'type' in r.element &&
+        r.element.type === RequireCapability,
+    )
+    // v4 no longer has any RequireCapability wrapper at the Work-catalog level. If a
+    // wrapper reappears carrying `workline.manage` around /work/projects, this fails —
+    // the assertion is what stops the gate from being re-added in a rebase.
+    expect(capabilityWrappers).toEqual([])
   })
 })
 
