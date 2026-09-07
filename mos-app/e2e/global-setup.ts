@@ -195,7 +195,7 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `INSERT INTO shared.people (id, org_id, full_name, email)
      VALUES ('${RECOVERY_VIEWER.personId}', '${ORG}', '${RECOVERY_VIEWER.displayName}', '${RECOVERY_VIEWER.email}')
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name`,
   )
   await deleteUserByEmail(adminClient, RECOVERY_VIEWER.email)
   const { data: recoveryData, error: recoveryErr } = await adminClient.auth.admin.createUser({
@@ -219,7 +219,7 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `INSERT INTO shared.people (id, org_id, full_name, email)
      VALUES ('${ADMIN.personId}', '${ORG}', '${ADMIN.displayName}', '${ADMIN.email}')
-     ON CONFLICT (id) DO NOTHING;
+     ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
      INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
      VALUES ('${ORG}', '${ADMIN.personId}', 'admin')
      ON CONFLICT (person_id, access_role) DO NOTHING`,
@@ -254,7 +254,7 @@ export default async function globalSetup() {
       SERVICE_ROLE_KEY,
       `INSERT INTO shared.people (id, org_id, full_name, email)
        VALUES ('${p.personId}', '${ORG}', '${p.displayName}', '${p.email}')
-       ON CONFLICT (id) DO NOTHING;
+       ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
        INSERT INTO shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
        SELECT '${ORG}', '${p.personId}', t.id, true, current_date - 30
          FROM shared.teams t

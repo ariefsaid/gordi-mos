@@ -2,7 +2,7 @@
 // survives close→open), AC-AP-003 (inert when closed), AC-AP-004 (safe assistant markdown),
 // a11y (role/aria/Esc/focus-trap). Phone = modal dialog; desktop = complementary drawer.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { createElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -513,8 +513,8 @@ describe('AssistantPanel (T27)', () => {
 
   // AC-023 (#755, FR-023): the suggestion chips are capability-filtered. The revenue chip names
   // a Money surface a viewer without revenue view cannot open — offering it is misdirection
-  // (audit F-10), so it renders only for viewers with revenue view (finance | admin | manager |
-  // supervisor, lib/capabilities.ts canViewRevenue).
+  // (audit F-10), so it renders only for viewers with revenue view (lib/capabilities.ts
+  // canViewRevenue — the one answer every Money door reads).
   it('AC-023: a viewer without revenue view gets NO revenue suggestion chip', () => {
     renderPanelForRoles([])
     expect(screen.getByText("What's on my plate this week?")).toBeInTheDocument()
@@ -525,6 +525,16 @@ describe('AssistantPanel (T27)', () => {
   it('AC-023: Finance (revenue view) still gets the revenue suggestion chip', () => {
     renderPanelForRoles(['finance'])
     expect(screen.getByText("Show last week's revenue")).toBeInTheDocument()
+  })
+
+  // #797 / OD-WAY-98 (1): admin is users-and-settings, not a money tier; manager is.
+  it('AC-004 (#797): manager gets the revenue chip, admin alone does not', () => {
+    renderPanelForRoles(['manager'])
+    expect(screen.getByText("Show last week's revenue")).toBeInTheDocument()
+    cleanup()
+    renderPanelForRoles(['admin'])
+    expect(screen.getByText('Summarize my week')).toBeInTheDocument()
+    expect(screen.queryByText("Show last week's revenue")).toBeNull()
   })
 
   it('composer: Send button is disabled until there is input text', () => {

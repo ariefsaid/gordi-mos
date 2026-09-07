@@ -29,25 +29,40 @@ export interface ObjectiveAdminRow {
   id: string
   name: string
   archived_at: string | null
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
 }
+
+/** Ownership an Objective carries (#801): unit, owner, year — each optional. */
+export interface ObjectiveOwnership {
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
+}
+
+const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,accountable_person_id,period_year'
 
 /** List ALL objectives (active + archived) for the management surface — active first, then by name. */
 export async function listObjectivesAll(): Promise<ObjectiveAdminRow[]> {
   const { data, error } = await mos()
     .from('objectives')
-    .select('id,name,archived_at')
+    .select(ADMIN_COLUMNS)
     .order('archived_at', { nullsFirst: true })
     .order('name')
   if (error) throw new Error(`listObjectivesAll failed — ${error.message}`)
   return (data ?? []) as unknown as ObjectiveAdminRow[]
 }
 
-/** Create an objective (org_id stamped by the DB). Returns the new row. */
-export async function createObjective(name: string): Promise<ObjectiveAdminRow> {
+/** Create an objective (org_id stamped by the DB; who may write in a unit is RLS's call). Returns the new row. */
+export async function createObjective(
+  name: string,
+  ownership: ObjectiveOwnership = {},
+): Promise<ObjectiveAdminRow> {
   const { data, error } = await mos()
     .from('objectives')
-    .insert({ name })
-    .select('id,name,archived_at')
+    .insert({ name, ...ownership })
+    .select(ADMIN_COLUMNS)
     .single()
   if (error) throw new Error(`createObjective failed — ${error.message}`)
   return data as unknown as ObjectiveAdminRow

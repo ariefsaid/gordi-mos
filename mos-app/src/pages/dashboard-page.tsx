@@ -7,7 +7,8 @@
 // The header here previously said "finance/admin only", and v4's copy said the same. That
 // is not what holds on this line, and believing it would revoke two shipped tiers:
 //
-//   READ  — the route admits REVENUE_VIEW_ROLES (finance, admin, manager, supervisor).
+//   READ  — the route admits REVENUE_VIEW_ROLES (finance, manager, supervisor — #797 took
+//           admin out: users-and-settings is not a money tier).
 //           manager's financial VIEW tier is AC-127 / ADR-0050 D8; supervisor's
 //           revenue-only VIEW tier is AC-326 / ADR-0051. The gate lives in router.tsx.
 //   COST  — margin, COGS and BOM coverage are a NARROWER tier inside that read
