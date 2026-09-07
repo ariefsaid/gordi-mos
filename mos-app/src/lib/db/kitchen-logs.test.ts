@@ -1038,7 +1038,7 @@ describe('rejectKitchenLog — guarded UPDATE to Rejected with a required note (
 // shape-validated reader after the #234 consolidation — and is tested there.)
 
 describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog (FR-005)', () => {
-  it('reads the LIVE stream Teams’ pairs from shared.teams (branch set, not archived)', async () => {
+  it('reads the LIVE stream Teams’ pairs from shared.teams (branch set, not archived), carrying the producer fact (#777)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -1047,7 +1047,7 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
             {
               data: [
                 { branch_id: BRANCH_ID, activity: 'kitchen', produces: true },
-                { branch_id: BRANCH_ID, activity: 'bar', produces: true },
+                { branch_id: RADIANT_ID, activity: 'kitchen', produces: false },
               ],
               error: null,
             },
@@ -1062,6 +1062,12 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
     // The catalog predicate: the pair is set and the team is live.
     expect(rec.nots).toContainEqual(['branch_id', 'is', null])
     expect(rec.iss).toContainEqual(['archived_at', null])
+    // The producer fact is READ (#777): the select names `produces` and the payload's value
+    // reaches the caller — a select that dropped the column would leave produces undefined,
+    // and the catalog-derivation would then refuse every stream (the surface's own guard).
+    expect(rec.selects).toContain('branch_id,activity,produces')
+    expect(pairs[0].produces).toBe(true)
+    expect(pairs[1].produces).toBe(false)
   })
 
   it('streamCatalogFrom resolves pairs against the branch catalog in catalog × activity order, dropping unknown branches', () => {

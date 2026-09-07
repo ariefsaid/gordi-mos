@@ -45,11 +45,16 @@ select lives_ok($$ insert into ops.stream_completeness
     '00000000-0000-0000-0000-00000000bf03','prep',
     '00000000-0000-0000-0000-0000000000d2') $$,
   'one catalog edit accepts a new activity on stream completeness');
+-- Uses Gordi HQ (bf01), where seed_stream_teams() marks (branch, prep) as producing
+-- (FR-005/#777 — the produces fact is a union of `bar` OR `b.code in ('gordi_hq','rumah_rames')`).
+-- The books guard refuses writes on a receive-only stream, so the "catalog edit reaches plans"
+-- assertion must exercise a producing stream; a non-producing arm is covered by the guard's own
+-- pgTAP suite.
 select lives_ok($$ insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi)
   values ('00000000-0000-0000-0000-0000000000a1','2026-08-14',
     '00000000-0000-0000-0000-00000000ab01',
-    '00000000-0000-0000-0000-00000000bf03','prep','produce',1) $$,
+    '00000000-0000-0000-0000-00000000bf01','prep','produce',1) $$,
   'one catalog edit accepts a new activity on plans');
 select lives_ok($$ insert into ops.kitchen_stock
   (org_id, log_date, wip_item_id, branch_id, activity, usable_qty)
@@ -57,10 +62,12 @@ select lives_ok($$ insert into ops.kitchen_stock
     '00000000-0000-0000-0000-00000000ab01',
     '00000000-0000-0000-0000-00000000bf03','prep',1) $$,
   'one catalog edit accepts a new activity on stock');
+-- Same reason as the plans arm above: the books guard refuses a receive-only stream, so the
+-- "catalog edit reaches logs" assertion picks the producing GHQ stream (bf01).
 select lives_ok($$ insert into ops.kitchen_logs
   (org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, submitted_by)
   values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bb01','2026-08-14',
-    '00000000-0000-0000-0000-00000000bf03','prep','produce',
+    '00000000-0000-0000-0000-00000000bf01','prep','produce',
     '00000000-0000-0000-0000-00000000ab01',1,'00000000-0000-0000-0000-0000000000d1') $$,
   'one catalog edit accepts a new activity on logs');
 select throws_ok($$ insert into ops.kitchen_stock

@@ -56,6 +56,15 @@ describe('movementsForStream', () => {
     expect(movementsForStream(RADIANT_KITCHEN, STREAM_CATALOG)).toEqual([])
   })
 
+  // The producer fact is a POSITIVE assertion, not the negation of `=== false` (#777): a
+  // stream whose `produces` never arrived (legacy fixture, unmigrated pair, catalog pending)
+  // must NOT capture — else `produces === false` would let unknown streams write, which is the
+  // opposite of the guard the database holds.
+  it('returns no movements for a stream whose produces is absent — unknown is not producing', () => {
+    const UNKNOWN: ProductionStream = { branch: RRS, activity: 'kitchen' }
+    expect(movementsForStream(UNKNOWN, STREAM_CATALOG)).toEqual([])
+  })
+
   it('matches the seeded seven-stream destination matrix', () => {
     const expected: Record<string, string[]> = {
       'gordi_hq|kitchen': [RRS.id, RADIANT.id, CIKAL.id],
