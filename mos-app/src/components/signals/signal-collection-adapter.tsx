@@ -41,7 +41,10 @@ export type SignalCollectionGroup = 'none' | 'team' | 'attention' | 'category'
 export type SignalCollectionSort = 'occurredAt' | 'attention'
 export type SignalCollectionAction = never
 
-export type SignalCollectionView = 'all' | 'needs-attention' | 'retracted'
+// #770 (AC-024): the "I posted" chip lists exactly the viewer's own Signals — retracted included.
+// A person always sees their own tombstones (posted-by-viewer is one of the retract-visible predicates
+// the row filter exempts) so this view carries them without the retired `showRetracted` switch.
+export type SignalCollectionView = 'all' | 'needs-attention' | 'retracted' | 'posted'
 
 export interface SignalCollectionQuery {
   layout: SignalCollectionPresentation
@@ -53,12 +56,11 @@ export interface SignalCollectionQuery {
   groupBy: SignalCollectionGroup
   sort: SignalCollectionSort
   direction: 'ascending' | 'descending'
-  showRetracted: boolean
   savedViewId: string | null
 }
 
 const LAYOUTS: readonly SignalCollectionPresentation[] = ['feed', 'table']
-const VIEWS: readonly SignalCollectionView[] = ['all', 'needs-attention', 'retracted']
+const VIEWS: readonly SignalCollectionView[] = ['all', 'needs-attention', 'retracted', 'posted']
 const GROUPS: readonly SignalCollectionGroup[] = ['none', 'team', 'attention', 'category']
 const SORTS: readonly SignalCollectionSort[] = ['occurredAt', 'attention']
 const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
@@ -79,13 +81,12 @@ export const SIGNAL_COLLECTION_NEUTRAL_QUERY: SignalCollectionQuery = {
   groupBy: 'none',
   sort: 'occurredAt',
   direction: 'descending',
-  showRetracted: false,
   savedViewId: null,
 }
 
 const SIGNAL_QUERY_KEYS: readonly QueryKey<SignalCollectionQuery>[] = [
   'layout', 'view', 'q', 'attention', 'category', 'teamId',
-  'groupBy', 'sort', 'direction', 'showRetracted', 'savedViewId',
+  'groupBy', 'sort', 'direction', 'savedViewId',
 ]
 
 function parseSignalQuery(params: URLSearchParams): CollectionQueryParse<SignalCollectionQuery> {
@@ -140,8 +141,6 @@ function parseSignalQuery(params: URLSearchParams): CollectionQueryParse<SignalC
     else issues.push({ key: 'direction', code: 'invalid-value', value: dir })
   }
 
-  if (params.get('retracted') === '1') query.showRetracted = true
-
   if (issues.length > 0) return { ok: false, query, issues }
   return { ok: true, query }
 }
@@ -157,7 +156,6 @@ function serializeSignalQuery(query: SignalCollectionQuery): URLSearchParams {
   if (query.groupBy !== 'none') p.set('group', query.groupBy)
   if (query.sort !== SIGNAL_COLLECTION_NEUTRAL_QUERY.sort) p.set('sort', query.sort)
   if (query.direction !== SIGNAL_COLLECTION_NEUTRAL_QUERY.direction) p.set('dir', query.direction)
-  if (query.showRetracted) p.set('retracted', '1')
   if (query.savedViewId) p.set('saved', query.savedViewId)
   return p
 }
@@ -176,7 +174,7 @@ export const signalCollectionQuery: CollectionQuerySchema<SignalCollectionQuery>
 export const signalPresentationCompatibleKeys: Readonly<
   Record<SignalCollectionPresentation, readonly QueryKey<SignalCollectionQuery>[]>
 > = {
-  feed: ['layout', 'view', 'q', 'attention', 'category', 'teamId', 'direction', 'showRetracted', 'savedViewId'],
+  feed: ['layout', 'view', 'q', 'attention', 'category', 'teamId', 'direction', 'savedViewId'],
   table: SIGNAL_QUERY_KEYS,
 }
 
@@ -200,10 +198,13 @@ export interface SignalRenderGroup {
 
 const ATTENTION_WEIGHT: Readonly<Record<Attention, number>> = { Urgent: 3, 'Needs attention': 2, FYI: 1 }
 
-/** A retracted Signal is a tombstone hidden by default — visible only when the typed query asks. */
+/** A retracted Signal is a tombstone hidden by default — visible only when the typed query asks
+ *  (#770 AC-023: the `Retracted` view is the door; the `Show retracted` switch is retired). The
+ *  viewer's own `I posted` view is the second exception — a person always sees their own tombstones
+ *  (AC-024), which the caller carries by re-including retracted rows explicitly. */
 function isRetractedVisible(signal: SignalRow, query: SignalCollectionQuery): boolean {
   if (!signal.retracted_at) return true
-  return query.showRetracted || query.view === 'retracted'
+  return query.view === 'retracted' || query.view === 'posted'
 }
 
 /** The ONE definition of "does this Signal match this text" — body + author + owning Team.
@@ -232,6 +233,11 @@ function filterSignals(
   return records.filter((signal) => {
     if (query.view === 'retracted') {
       if (!signal.retracted_at) return false
+    } else if (query.view === 'posted') {
+      // AC-024: "I posted" = exactly the viewer's OWN Signals, retracted included. The chip
+      // becomes an empty slot for a viewer with no id (unauthenticated harnesses) rather than
+      // matching the whole collection by accident.
+      if (!context.viewerId || signal.author_id !== context.viewerId) return false
     } else if (!isRetractedVisible(signal, query)) {
       return false
     }
@@ -383,7 +389,6 @@ export const signalCollectionSavedViews: CollectionSavedViewDescriptor<
         attention: query.attention,
         category: query.category,
         teamId: query.teamId,
-        showRetracted: query.showRetracted,
       },
       sort: { field: query.sort, direction: query.direction },
       grouping: query.groupBy === 'none' ? null : { field: query.groupBy },
@@ -405,7 +410,6 @@ export const signalCollectionSavedViews: CollectionSavedViewDescriptor<
         attention: spec.query.attention,
         category: spec.query.category,
         teamId: spec.query.teamId,
-        showRetracted: spec.query.showRetracted,
         groupBy: spec.grouping?.field ?? 'none',
         sort: spec.sort.field,
         direction: spec.sort.direction,

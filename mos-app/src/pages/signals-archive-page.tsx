@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
+import { can } from '@/lib/capabilities'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
@@ -9,9 +10,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { useSignalComposer } from '@/shell/signal-composer-host'
-import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
-import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
@@ -33,6 +32,7 @@ import {
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
 import { firstLine } from '@/components/signals/signal-record-adapter'
 import { getActiveSignalView } from '@/components/signals/signal-collection-view'
+import { signalCategoryLabel } from '@/components/signals/signal-category-label'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { BOOT_SIGNAL_RECORD_ID } from '@/components/signals/signal-page-mode'
@@ -98,7 +98,8 @@ export function SignalsArchivePage() {
   const signalViewLabel = (view: SignalCollectionQuery['view']) =>
     view === 'needs-attention' ? t('signals.archive.viewAttention')
       : view === 'retracted' ? t('signals.archive.viewRetracted')
-        : t('signals.archive.viewAll')
+        : view === 'posted' ? t('signals.archive.viewPosted')
+          : t('signals.archive.viewAll')
   const activeSignalView = getActiveSignalView({
     query,
     savedViews: controller.state.savedViews.items,
@@ -106,6 +107,7 @@ export function SignalsArchivePage() {
       all: signalViewLabel('all'),
       'needs-attention': signalViewLabel('needs-attention'),
       retracted: signalViewLabel('retracted'),
+      posted: signalViewLabel('posted'),
     },
   })
 
@@ -122,9 +124,8 @@ export function SignalsArchivePage() {
         : currentQuery.category ? t('signals.archive.filterCategory')
           : currentQuery.teamId ? t('signals.archive.filterTeam')
             : currentQuery.q.trim() ? t('signals.archive.searchLabel')
-              : currentQuery.showRetracted ? t('signals.archive.showRetracted')
-                : currentQuery.savedViewId ? t('common.savedView')
-                  : undefined,
+              : currentQuery.savedViewId ? t('common.savedView')
+                : undefined,
     })
   }
 
@@ -140,17 +141,18 @@ export function SignalsArchivePage() {
     setParams(next)
   }
 
-  async function handleCategorize(signalId: string, category: SignalCollectionQuery['category']) {
-    if (!category) return
-    await correctSignal(signalId, { category })
-    controller.retry()
-  }
-
+  // #770 (rows carry no per-row controls, ticket): `Create task`, `Add category`, and `Acknowledge`
+  // live on the Signal record itself, so the archive page no longer wires a row-level categorize
+  // action here — the collection ACTIONS context still carries `onShareClick` for the toolbar door
+  // and `onSort` for the Table column headers.
   const actions: SignalCollectionActions = {
-    onCategorize: (signalId, category) => { void handleCategorize(signalId, category) },
     onShareClick: openSignalComposer,
     onSort: (sort, direction) => setQuery({ sort, direction }),
   }
+
+  // #770 AC-030: "Share the first one" appears only when the viewer actually holds `signal.create_for_team`.
+  // A member-only viewer sees the plain "No Signals yet." line — no dead affordance.
+  const canPost = auth.status === 'authenticated' && can(auth.viewer.accessRoles, 'signal.create_for_team')
 
   // The list-search query minus ?record= — shared by the canonical-page redirect and the
   // panel's "Open full page" escalation, so the search state (q / retracted) survives the jump.
@@ -281,10 +283,14 @@ export function SignalsArchivePage() {
       views={{
         label: t('signals.archive.viewsLabel'),
         value: query.view,
+        // #770 AC-021: All · Needs attention · Retracted · I posted. The `Retracted` chip IS the
+        // door — no `Show retracted` switch anywhere (AC-023). `I posted` is the viewer's own
+        // Signals, retracted included, so a poster's own tombstone is always one chip away (AC-024).
         options: [
           { value: 'all', label: t('signals.archive.viewAll') },
           { value: 'needs-attention', label: t('signals.archive.viewAttention') },
           { value: 'retracted', label: t('signals.archive.viewRetracted') },
+          { value: 'posted', label: t('signals.archive.viewPosted') },
         ],
         onChange: (view) => setQuery({ view }),
       }}
@@ -295,14 +301,6 @@ export function SignalsArchivePage() {
         // attention-worthy Signal (Urgent + Needs attention); grouping-by-attention and
         // sort-by-Urgent below cover the remaining slices without re-duplicating the chip.
         {
-          id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
-          options: [
-            { value: '', label: t('signals.archive.filterAnyCategory') },
-            ...SIGNAL_CATEGORIES.map((category) => ({ value: category, label: category })),
-          ],
-          onChange: (category) => setQuery({ category: category ? category as SignalCollectionQuery['category'] : null }),
-        },
-        {
           id: 'team', label: t('signals.archive.filterTeam'), value: query.teamId ?? '',
           options: [
             { value: '', label: t('signals.archive.filterAnyTeam') },
@@ -310,14 +308,27 @@ export function SignalsArchivePage() {
           ],
           onChange: (teamId) => setQuery({ teamId: teamId || null }),
         },
+        {
+          id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
+          options: [
+            { value: '', label: t('signals.archive.filterAnyCategory') },
+            ...SIGNAL_CATEGORIES.map((category) => ({ value: category, label: signalCategoryLabel(t, category) })),
+          ],
+          onChange: (category) => setQuery({ category: category ? category as SignalCollectionQuery['category'] : null }),
+        },
         ...(controller.state.presentation === 'table' ? [
           {
+            // #770 AC-022 (mirrors Tasks AC-005): the Group control tints navy while a grouping is
+            // active AND every option reads as "Group: <sub>" / "Kelompok: <sub>", so the row's
+            // one grouping affordance is distinct from the Team filter beside it — a repeat
+            // "Team" chip is a second look-alike control.
             id: 'group', label: t('signals.archive.groupLabel'), value: query.groupBy,
+            tinted: query.groupBy !== 'none',
             options: [
-              { value: 'none', label: t('signals.archive.groupNone') },
-              { value: 'team', label: t('signals.archive.filterTeam') },
-              { value: 'attention', label: t('signals.archive.filterAttention') },
-              { value: 'category', label: t('signals.archive.filterCategory') },
+              { value: 'none', label: `${t('signals.archive.groupLabel')}: ${t('signals.archive.groupNone')}` },
+              { value: 'team', label: `${t('signals.archive.groupLabel')}: ${t('signals.archive.filterTeam')}` },
+              { value: 'attention', label: `${t('signals.archive.groupLabel')}: ${t('signals.archive.filterAttention')}` },
+              { value: 'category', label: `${t('signals.archive.groupLabel')}: ${t('signals.archive.filterCategory')}` },
             ],
             onChange: (groupBy: string) => setQuery({ groupBy: groupBy as SignalCollectionQuery['groupBy'] }),
           },
@@ -339,17 +350,6 @@ export function SignalsArchivePage() {
           },
         ] : []),
       ]}
-      toggles={(
-        <label className="collection-toolbar__toggle">
-          <Toggle
-            size="small"
-            value={query.showRetracted}
-            onChange={(showRetracted) => setQuery({ showRetracted })}
-            aria-label={t('signals.archive.showRetracted')}
-          />
-          <span>{t('signals.archive.showRetracted')}</span>
-        </label>
-      )}
       savedViews={{
         label: t('signals.archive.savedViews'),
         selectedId: query.savedViewId,
@@ -412,6 +412,11 @@ export function SignalsArchivePage() {
                 title: query.q.trim()
                   ? t('signals.archive.empty', { query: query.q })
                   : t('signals.archive.emptyUnfiltered'),
+                create: canPost ? (
+                  <Button variant="primary" onClick={() => openSignalComposer()}>
+                    {t('signals.archive.shareFirst')}
+                  </Button>
+                ) : undefined,
               }}
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}

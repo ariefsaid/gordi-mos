@@ -688,6 +688,8 @@ Inside the grouped DataTable, each group is introduced by a full-width `<tr>` re
 ### DB-view toolbar controls (OD-P3-6)
 **Collection toolbar (desktop ≥1024, OD-WAY-89).** Exactly two rows. Row 1: saved-view chips (system views first, user views after) and, only when the collection has two or more live presentations at this width, the presentation segment at the right. Row 2: search (compact, one name used as placeholder and label), `Group` dropdown (navy/6 tint + `Group:` prefix when active), the domain filter dropdowns, `Sort` dropdown, then `Fields` and `Save view` as ghost text, then **one** count pill for attention (outline, status-coloured count text). Four control classes only: chip · dropdown · ghost text · count pill. No checkbox, no toggle, no second pill, no third row; a state that needs more rows is a saved view or a filter option. Phone keeps the single "View & filters" door (OD-REDESIGN-84).
 
+The Signals archive uses the two-row collection toolbar. Row 1: `All · Needs attention · Retracted · I posted` then user views, the `Table | Feed` segment at the right. Row 2: search · `Team ▾` · `Category ▾` (· `Group ▾` · `Sort ▾` when Table is live) · `Save view` as ghost text. No switch: a retracted Signal is reached through the `Retracted` view. Phone keeps the search field outside the single "View & filters" door; the door never carries the surface primary.
+
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary` (3px inset padding), options fill the track height (measures 26px, not the previously-stated 28px — corrected by live measurement, extract 2026-07-28), "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. Label size is the `mono` token's 13px *number* reused for sizing only — the face stays DM Sans (`font-family: inherit`), never the SF Mono typeface; this is an established v3 pattern (a token's numeric value borrowed for a non-typographic use), not a new exception.
   **Intended canonical implementation:** `src/styles/segmented-track.css` (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and the then-live `home/home-order-toggle.css`). The rule is "every consumer imports it rather than re-authoring the pixels."
@@ -957,6 +959,8 @@ single full-width rounded row read as search and behaved as a composer, so the t
 their own controls — owner, 2026-07-28.)*
 
 Home rows carry **no per-row actions and no visibility line**; `Create task` and `Add category` live on the Signal record and the archive Feed. The row's whole surface opens the record.
+
+The row carries no controls: its whole surface opens the record, and `Create task`, `Add category`, `Acknowledge` live on the record alone. The meta line is plain text — author · Team · occurred (`dd Mon HH:MM`) · category when set — never bordered chips, and never a visibility sentence. Home and the archive render the same component; a difference between them is a defect.
 
 The archive's Urgent row treatment (`warning/7%` fill + a 2px `warning` left rule) is **Urgent
 only** — Needs-attention keeps its amber pill on a calm, unfilled row so the fill escalates Urgent

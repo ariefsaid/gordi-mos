@@ -87,7 +87,7 @@ beforeEach(() => {
 })
 
 describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => {
-  it('renders the Home feed door, live count, and location/time chips without row actions', async () => {
+  it('renders the Home feed door, live count, and plain-text meta without row actions (Ticket 770 AC-025)', async () => {
     renderSection({ signals: [
       row({ id: 's1', body: 'Freezer alarm went off' }),
       row({ id: 's2', body: 'Grinder is running slowly' }),
@@ -96,8 +96,11 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     expect(screen.getByRole('button', { name: 'Share a Signal' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
     const feed = screen.getByTestId('signal-feed')
-    expect(feed.querySelectorAll('.home-signal-location-chip')).toHaveLength(2)
-    expect(feed.querySelectorAll('.home-signal-time-chip')).toHaveLength(2)
+    // #770 (AC-025): meta is PLAIN TEXT — the bordered pill chrome for team/time is gone.
+    expect(feed.querySelectorAll('.home-signal-team')).toHaveLength(2)
+    expect(feed.querySelectorAll('.home-signal-time')).toHaveLength(2)
+    expect(feed.querySelectorAll('.home-signal-location-chip')).toHaveLength(0)
+    expect(feed.querySelectorAll('.home-signal-time-chip')).toHaveLength(0)
     expect(screen.queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
   })

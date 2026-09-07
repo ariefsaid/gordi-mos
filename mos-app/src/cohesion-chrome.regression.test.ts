@@ -270,6 +270,10 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
     // Shared Tasks/Signals sort affordance (collection-grammar.css) — same dense header
     // cell as .th-sort-btn; an outward ring clips at the header row edge.
     '.dt-sort-button',
+    // #770 (AC-025/AC-026): the Signal row's whole surface is the record link — the same dense
+    // record-row affordance as `.task-row-link` (rows stack against neighbors with no room for
+    // an outward ring; an outward +2 clips at the row divider above).
+    '.home-signal-row--open',
   ])
 
   function focusRules(): { file: string; selector: string; body: string }[] {

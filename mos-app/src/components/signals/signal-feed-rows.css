@@ -112,7 +112,9 @@
   gap: 3px;
 }
 
-/* Body = the row title, one truncated line — the clickable record affordance. */
+/* Body = the row title, one truncated line. #770 (AC-025): the row itself is the activation
+   target across both variants; the body is a plain span, never an inner button. Cursor + focus
+   ring live on the row (`.home-signal-row--open`). */
 .home-signal-body {
   display: block;
   width: 100%;
@@ -124,7 +126,6 @@
   font-size: var(--font-size-body-lg);
   font-weight: 600;
   color: var(--foreground);
-  cursor: pointer;
   min-width: 0;
 }
 /* A FEED is for reading: the Signal body renders in FULL, wrapping as many lines as it takes
@@ -142,25 +143,12 @@
   overflow-wrap: anywhere;
   text-decoration: none;
 }
-/* P1-4 (c): the visible title line is only ~22px tall, well under the 44px tap floor. Expand the
-   real hit area to cover the whole record row (title + meta subline ≈ 50px) with a transparent
-   overlay — no visual bloat, and bounded to .home-signal-main so the tail's attention pill and
-   category control stay independently clickable. The vertical -3px reach stays inside the row's own
-   10px padding, so adjacent rows never steal each other's taps. Not applied to the static
-   (non-clickable) variant. */
-.home-signal-body:not(.home-signal-body--static)::after {
-  content: "";
-  position: absolute;
-  inset: -3px 0;
-}
-.home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
-.home-signal-body--static { cursor: default; }
-/* AC-060: an ambient open-row IS the record button (the row itself carries role="button"), so its
-   whole surface points — including the static body span, whose `cursor: default` above is the
-   non-clickable variant's rule. Scoped to `--open`: the archive opens via its own body button,
-   and retracted tombstones are not doors. */
+.home-signal-body--static { cursor: inherit; }
+/* #770 (AC-025/AC-026): the row itself is the activation target for BOTH variants — Home and
+   archive render the same markup and differ only by the variant class (the archive's Urgent fill).
+   The whole `.home-signal-row--open` surface points; a focus ring sits on the ROW, not the body. */
 .home-signal-row--open { cursor: pointer; }
-.home-signal-row--open .home-signal-body--static { cursor: inherit; }
+.home-signal-row--open:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--radius-sm); }
 
 .home-signal-meta {
   display: flex;
@@ -193,21 +181,16 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .home-signal-sep { color: var(--muted-foreground); }
-.home-signal-location-chip,
-.home-signal-time-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--secondary);
+/* #770 (AC-025) — the meta line is PLAIN TEXT. Team, time, and category ride the muted subline
+   with a `·` bound to each fact; the bordered pill chrome that used to circle Team and time is
+   gone (a bordered chip on a text row read as an actionable pill, and the row itself is now the
+   single activation target). No visibility sentence — Home's row and the archive's row read
+   identically, and the archive's row never advertised "Visible to …" as a design promise. */
+.home-signal-team,
+.home-signal-time,
+.home-signal-category {
   color: var(--muted-foreground);
   white-space: nowrap;
-}
-.home-signal-visible-to {
-  flex-basis: 100%;
-  color: var(--muted-foreground);
 }
 
 .home-signal-tail {

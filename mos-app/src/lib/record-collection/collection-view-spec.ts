@@ -37,7 +37,7 @@ export type TaskCollectionSavedQuery = Pick<
 >
 export type SignalCollectionSavedQuery = Pick<
   SignalCollectionQuery,
-  'view' | 'q' | 'attention' | 'category' | 'teamId' | 'showRetracted'
+  'view' | 'q' | 'attention' | 'category' | 'teamId'
 >
 
 export type CollectionViewSpec =
@@ -126,7 +126,7 @@ const SIGNAL_VISIBLE: readonly SignalCollectionVisibleField[] = [
 const EVENT_VISIBLE: readonly EventCollectionVisibleField[] = ['title', 'time', 'venue', 'outbound', 'businessUnit', 'coordinator']
 const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/
 
-const SIGNAL_VIEWS = ['all', 'needs-attention', 'retracted']
+const SIGNAL_VIEWS = ['all', 'needs-attention', 'retracted', 'posted']
 const SIGNAL_ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
 const DIRECTIONS = ['ascending', 'descending']
 
