@@ -16,20 +16,20 @@ const item = (id: string): StreamItem => ({
 
 const regions = buildHomeRegions({
   overdue: [item('a')], dueToday: [], blocked: [],
-  myWork: [item('b')], failedChecks: [item('c')],
+  myWork: [item('b')], failedChecks: [item('c')], failedChecksAdmitted: true,
 })
 
 // Every region EMPTY, every read succeeded — the fixture AC-928 is actually about ("a viewer whose
 // regions are all empty"). The `regions` fixture above deliberately is not that.
 const emptyRegions = buildHomeRegions({
-  overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+  overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
 })
 
 // One region-distinguishable record in each region, so "only that region's records" (AC-926) is a
 // question the DOM can answer: every title names the region it belongs to.
 const switchRegions = buildHomeRegions({
   overdue: [item('od1')], dueToday: [], blocked: [],
-  myWork: [item('mw1'), item('mw2')], failedChecks: [item('fc1')],
+  myWork: [item('mw1'), item('mw2')], failedChecks: [item('fc1')], failedChecksAdmitted: true,
 })
 
 // Every region PAST Overview's OVERVIEW_TILE_ROWS cap (5) — the only fixture under which AC-929's
@@ -39,7 +39,7 @@ const many = (prefix: string, n: number) =>
   Array.from({ length: n }, (_, i) => item(`${prefix}${i + 1}`))
 const cappedRegions = buildHomeRegions({
   overdue: many('od', 3), dueToday: many('dt', 3), blocked: [], // needs-you = 6
-  myWork: many('mw', 6), failedChecks: many('fc', 6),
+  myWork: many('mw', 6), failedChecks: many('fc', 6), failedChecksAdmitted: true,
 })
 const ALL_RECORD_IDS = cappedRegions.flatMap((r) => r.items.map((i) => i.id))
 const RECORD_HREF = /^\/work\/tasks\/[^?]+$/
@@ -327,11 +327,11 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
 
 describe('DIV-G5 (home-layout-preference.spec.md §7): a failed or still-loading region never renders as an indistinguishable empty region', () => {
   const loadingRegions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
     taskState: 'loading',
   })
   const erroredRegions = buildHomeRegions({
-    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
     taskState: 'error', onRetryTasks: () => {},
   })
 
@@ -365,7 +365,7 @@ describe('DIV-G5 (home-layout-preference.spec.md §7): a failed or still-loading
 
 describe('Restored affordance: the my-work drill link (the full open-task count, never just the capped region items)', () => {
   const regionsWithDrillLink = buildHomeRegions({
-    overdue: [], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [],
+    overdue: [], dueToday: [], blocked: [], myWork: [item('b')], failedChecks: [], failedChecksAdmitted: true,
     myWorkFullCount: 9,
   })
 

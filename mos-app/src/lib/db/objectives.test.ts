@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listObjectives, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
+  listObjectives, listObjectiveProgress, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
 } from './objectives'
 import { supabase } from '@/lib/supabase'
 
@@ -90,6 +90,23 @@ describe('listObjectives', () => {
 
     const result = await listObjectives()
     expect(result).toEqual([])
+  })
+})
+
+describe('listObjectiveProgress', () => {
+  it('reads derived active objective progress from the roll-up view', async () => {
+    const rec = freshRec()
+    const rows = [{ id: 'o-1', name: 'Growth', done: 1, total: 2 }]
+    schemaMock.mockReturnValue(makeSchema({ objective_progress: [{ data: rows, error: null }] }, rec) as never)
+    await expect(listObjectiveProgress()).resolves.toEqual(rows)
+    expect(rec.fromTables).toContain('objective_progress')
+    expect(rec.selects).toContain('id,name,done,total')
+  })
+
+  it('throws when the roll-up read fails', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objective_progress: [{ data: null, error: { message: 'rollup boom' } }] }, rec) as never)
+    await expect(listObjectiveProgress()).rejects.toThrow(/listObjectiveProgress failed — rollup boom/)
   })
 })
 

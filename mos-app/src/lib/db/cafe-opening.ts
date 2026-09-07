@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { getRunRollup, startRun, listDueRuns } from './processes'
 import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
+import { fetchDefaultStream } from './default-stream'
+import { listActiveBranches } from './branches'
 
 // Café DAL (Step 7 / cafe-retrofit.spec.md). Resolves the "Café Opening" Process + reads today's
 // opening run/roll-up + starts it — REUSES Step 6's processes.ts (startRun/listDueRuns/getRunRollup,
@@ -8,6 +10,7 @@ import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.t
 // stamps it) and throws on any non-null PostgREST/RPC error so the UI can surface failures.
 
 const mos = () => supabase.schema('mos')
+const shared = () => supabase.schema('shared')
 
 /** WIB "today" as YYYY-MM-DD (fixed +7h; mirrors kitchen-log-page.wibToday). */
 export function wibToday(): string {
@@ -26,10 +29,35 @@ export async function getCafeOpeningProcessId(): Promise<string | null> {
   return (data as { id: string } | null)?.id ?? null
 }
 
+export interface CafeDoorFacts {
+  branchName: string
+  done: number
+  total: number
+}
+
 export interface TodayOpening {
   started: boolean
   runId: string | null
   rollup: ProcessRunRollup | null
+}
+
+/** Facts for Home's Café capture door, resolved from the viewer's primary stream. */
+export async function getViewerCafeDoor(): Promise<CafeDoorFacts | null> {
+  const stream = await fetchDefaultStream(await listActiveBranches())
+  if (!stream) return null
+  const { data: team, error: teamError } = await shared().from('teams')
+    .select('id').eq('branch_id', stream.branch.id).eq('activity', stream.activity).limit(1).maybeSingle()
+  if (teamError) throw new Error(`getViewerCafeDoor team failed — ${teamError.message}`)
+  const teamId = (team as { id: string } | null)?.id
+  if (!teamId) return null
+  const processId = await getCafeOpeningProcessId()
+  if (!processId) return { branchName: stream.branch.name, done: 0, total: 0 }
+  const opening = await getTodayOpeningForTeam(processId, teamId)
+  return {
+    branchName: stream.branch.name,
+    done: opening.rollup?.done ?? 0,
+    total: opening.rollup?.total ?? 0,
+  }
 }
 
 /** Today's (WIB) opening for a branch Team: whether it is started, its run id, and its derived

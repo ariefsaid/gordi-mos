@@ -860,6 +860,9 @@ count is *absent*: an em-dash carrying a spoken alternative, never a `0`. A `0` 
 an error is a falsehood stated with full confidence and the viewer has no way to trace it. Because
 all three arrangements read the ONE region model, this is one rule, not three.
 
+#### Objectives door
+A door renders data rows — `Objective · x/y done →` with the drill on each row; with no rows it renders the `quiet` empty state. A door never renders explanatory prose.
+
 ### Sanctioned empty-state archetypes
 
 The variants `state-kit.tsx` actually exports (`EmptyStateVariant`). An empty that renders a bare

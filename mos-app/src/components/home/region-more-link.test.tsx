@@ -28,7 +28,7 @@ describe('the remainder a region does not render is reachable from Home', () => 
   it('every over-cap region offers a link to its own destination, not a muted sentence', () => {
     draw(buildHomeRegions({
       overdue: many(9, 'o'), dueToday: [], blocked: [],
-      myWork: many(6, 'w'), failedChecks: many(7, 'f'),
+      myWork: many(6, 'w'), failedChecks: many(7, 'f'), failedChecksAdmitted: true,
     }))
     const hrefByName = Object.fromEntries(
       screen.getAllByRole('link', { name: /more in/i })
@@ -44,7 +44,7 @@ describe('the remainder a region does not render is reachable from Home', () => 
   it('the link still states the plain fact — the count of what is not shown', () => {
     draw(buildHomeRegions({
       overdue: many(9, 'o'), dueToday: [], blocked: [],
-      myWork: [], failedChecks: [],
+      myWork: [], failedChecks: [], failedChecksAdmitted: true,
     }))
     expect(screen.getByRole('link', { name: '4 more in Needs you now' })).toHaveTextContent('4 more')
   })
@@ -52,7 +52,7 @@ describe('the remainder a region does not render is reachable from Home', () => 
   it('a region that fits under the cap states no remainder at all', () => {
     draw(buildHomeRegions({
       overdue: many(3, 'o'), dueToday: [], blocked: [],
-      myWork: [], failedChecks: [],
+      myWork: [], failedChecks: [], failedChecksAdmitted: true,
     }))
     expect(screen.queryByText(/more/i)).toBeNull()
   })
@@ -60,7 +60,7 @@ describe('the remainder a region does not render is reachable from Home', () => 
   it('a region with no destination degrades to the plain fact rather than a broken link', () => {
     const [needsYou, ...rest] = buildHomeRegions({
       overdue: many(9, 'o'), dueToday: [], blocked: [],
-      myWork: [], failedChecks: [],
+      myWork: [], failedChecks: [], failedChecksAdmitted: true,
     })
     draw([{ ...needsYou, drillTo: undefined }, ...rest])
     expect(screen.queryByRole('link', { name: /more in/i })).toBeNull()
