@@ -147,6 +147,11 @@ const GATED_SURFACE_FILES = new Set([
   join('pages', 'dashboard-page.tsx'),
   // Home's Objectives band — Home already asks the gate before mounting it (home-page.tsx).
   join('components', 'home', 'home-objectives-door.tsx'),
+  // Home's Money tile (#809). Same shape as `objective-hint.tsx` below: the component asks the
+  // gate itself at render time (`isShipGated('/money')` returns null) and only spells `/money`
+  // in the drill link that is unreachable exactly while the gate is closed. A text sweep cannot
+  // see the runtime conditional; its own tests hold the behaviour (home-money-tile.test.tsx).
+  join('components', 'home', 'home-money-tile.tsx'),
   // The Tasks group Objective hint. Not a gated surface but the one place allowed to spell the
   // path conditionally: it asks the gate itself and renders plain text when the answer is No,
   // which a text sweep cannot see. Its own tests hold that behaviour.

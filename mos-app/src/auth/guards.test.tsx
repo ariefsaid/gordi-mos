@@ -307,4 +307,53 @@ describe('RedirectIfAuthed', () => {
     expect(screen.getByTestId('home-page')).toBeInTheDocument()
     expect(screen.queryByTestId('recovery-form')).not.toBeInTheDocument()
   })
+
+  // #809 AC-055: Finance lands on Home, never /money. RedirectIfAuthed answers this today by
+  // sending EVERY authenticated viewer to `/`, regardless of accessRoles — Home is the one
+  // shared entry point per OD-REDESIGN-1. This test pins the promise for a Finance viewer
+  // specifically: the day someone decides Finance should deep-land on /money, this fails and
+  // the ruling has to be re-argued rather than silently changed.
+  it('AC-055: a Finance viewer signing in lands on / (Home), never /money', () => {
+    function MoneyPage() {
+      return <div data-testid="money-page">Money</div>
+    }
+
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1',
+          org_id: 'o1',
+          user_id: 'u1',
+          full_name: 'Finance User',
+          email: null,
+          must_change_password: false,
+          archived_at: null,
+          created_at: '',
+          updated_at: '',
+        },
+        roles: [],
+        isManager: false,
+        accessRoles: ['finance'],
+        affiliated: [],
+      },
+      signOut: vi.fn(),
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/money" element={<MoneyPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('home-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('money-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
 })

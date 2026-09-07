@@ -1,0 +1,15 @@
+/* HomeMoneyTile (#809) — Home's one Money entry for revenue viewers once Money is live.
+   Shape is the shared `.stream-band` shell (home-stream.css): hairline top edge, display-face
+   label, trailing drill link. KPITile carries its own card/card-lift, so this file only names
+   the two seams that are SPECIFIC to this composition — a bit of air above the KPITile inside
+   the band, and a quieter as-of foot below it. Everything else — head grammar, ramp, colour —
+   comes from the tokens KPITile and the stream-band shell already read.
+*/
+.home-money-tile > .kpi-tile {
+  margin-top: 6px;
+}
+
+.home-money-tile-foot {
+  margin-top: 6px;
+  padding: 0 4px;
+}

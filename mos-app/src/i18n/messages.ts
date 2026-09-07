@@ -69,6 +69,10 @@ export const messages = {
     'home.objectives.title': 'Objectives',
     'home.objectives.drill': 'See progress →',
     'home.objectives.rollup': 'Progress rolls up from each Objective through its Projects and Processes to their Tasks.',
+    // #809 — the Home Money tile (revenue viewers only, once /money leaves SHIP_GATED_PATHS).
+    // The section carries `dest.money` as its own heading; these two are its NEW strings.
+    'home.money.figure': 'Trailing 7-day revenue',
+    'home.money.open': 'Open Money →',
     'home.region.more': '${count} more',
     'home.region.moreLink': '${count} more →',
     'home.region.moreAria': '${count} more in ${label}',
@@ -1384,6 +1388,9 @@ export const messages = {
     'home.objectives.title': 'Sasaran',
     'home.objectives.drill': 'Lihat progres →',
     'home.objectives.rollup': 'Progres bergulir dari tiap Objective lewat Proyek dan Prosesnya sampai ke Tugas.',
+    // #809 — the Home Money tile (revenue viewers only, once /money leaves SHIP_GATED_PATHS).
+    'home.money.figure': 'Pendapatan 7 hari terakhir',
+    'home.money.open': 'Buka Keuangan →',
     'home.region.more': '${count} lagi',
     'home.region.moreLink': '${count} lagi →',
     'home.region.moreAria': '${count} lagi di ${label}',
