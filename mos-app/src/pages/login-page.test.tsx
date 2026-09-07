@@ -13,11 +13,18 @@ vi.mock('../lib/supabase', () => ({
   },
 }))
 
-// Mock react-router-dom navigate
+// Mock react-router-dom navigate + location. `location.state.from` is the route ProtectedRoute
+// turned away; each test that cares sets it through `setRememberedRoute`.
 const mockNavigate = vi.fn()
+let mockLocation: { pathname: string; search: string; hash: string; state: unknown; key: string } = {
+  pathname: '/login', search: '', hash: '', state: null, key: 'test',
+}
+function setRememberedRoute(from: unknown) {
+  mockLocation = { ...mockLocation, state: from === undefined ? null : { from } }
+}
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => mockNavigate }
+  return { ...actual, useNavigate: () => mockNavigate, useLocation: () => mockLocation }
 })
 
 import { LoginPage } from './login-page'
@@ -33,10 +40,11 @@ describe('LoginPage — credentials form', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    setRememberedRoute(undefined)
   })
 
   // AC-011: inputs reachable by accessible label; error linked via aria-describedby
-  it('AC-011: login inputs reachable by accessible label', () => {
+  it('AC-011/AC-017 pin: login inputs reachable by accessible label', () => {
     render(<LoginPage />)
 
     // Each input must be query-able by its label text
@@ -146,6 +154,103 @@ describe('LoginPage — credentials form', () => {
     expect(screen.queryByText(/sign up/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/register/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/create account/i)).not.toBeInTheDocument()
+  })
+
+  // ── #799 ── AC-012 / AC-013: sign-in returns to the route that was asked for ───────────────
+
+  it('AC-012: sign-in lands on the remembered route, query intact', async () => {
+    setRememberedRoute('/money/detail?w=30d')
+    mockSignIn.mockResolvedValue({
+      data: {
+        user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
+        session: {} as unknown as import('@supabase/supabase-js').Session,
+      },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
+    await user.type(screen.getByLabelText('Password'), 'goodpass')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/money/detail?w=30d', { replace: true })
+    })
+  })
+
+  it.each(['/login', '/recovery', 'https://example.test/steal'])(
+    'AC-012: a remembered %s lands on Home instead',
+    async (from) => {
+      setRememberedRoute(from)
+      mockSignIn.mockResolvedValue({
+        data: {
+          user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
+          session: {} as unknown as import('@supabase/supabase-js').Session,
+        },
+        error: null,
+      })
+
+      const user = userEvent.setup()
+      render(<LoginPage />)
+
+      await user.type(screen.getByLabelText('Email'), 'test@example.test')
+      await user.type(screen.getByLabelText('Password'), 'goodpass')
+      await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+      })
+    },
+  )
+
+  it('AC-013: the sign-in link carries the remembered route in its redirect target', async () => {
+    setRememberedRoute('/work/tasks')
+    mockSignInWithOtp.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.signInWithOtp>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(mockSignInWithOtp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            emailRedirectTo: `${window.location.origin}/mos/work/tasks`,
+          }),
+        }),
+      )
+    })
+  })
+
+  it('AC-013: an off-app remembered route never reaches the sign-in link redirect', async () => {
+    setRememberedRoute('https://example.test/steal')
+    mockSignInWithOtp.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.signInWithOtp>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(mockSignInWithOtp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            emailRedirectTo: `${window.location.origin}/mos/`,
+          }),
+        }),
+      )
+    })
   })
 
   it('successful sign-in navigates home (FR-002)', async () => {
@@ -347,7 +452,7 @@ describe('LoginPage — credentials form', () => {
     expect(document.body.textContent).not.toMatch(/check your email/i)
   })
 
-  it('AC-006: magic-link and reset confirmations both show back-to-sign-in link', async () => {
+  it('AC-006/AC-017 pin: magic-link and reset confirmations both show back-to-sign-in link', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},
       error: null,
@@ -388,6 +493,7 @@ describe('LoginPage — demo login (dev-only)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    setRememberedRoute(undefined)
   })
 
   it('renders the demo-login panel in dev (import.meta.env.DEV)', () => {

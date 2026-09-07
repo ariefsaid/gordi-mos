@@ -106,7 +106,7 @@ describe('AC-005: UserChip and sign-out menu', () => {
     expect(screen.getByRole('button', { name: /dina pratiwi/i }).className).toMatch(/tap-target-phone--icon/)
   })
 
-  it('opens menu on Enter key and shows Sign out item', async () => {
+  it('AC-017 pin: opens menu on Enter key and shows Sign out item', async () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },

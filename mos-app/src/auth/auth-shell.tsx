@@ -1,6 +1,7 @@
 // Shared auth chrome used by LoginPage, RecoveryPage, and OrphanScreen.
 // Design-plan §2: centered viewport + brand block + foot line.
 
+import { useT } from '@/i18n/use-t'
 import './auth.css'
 
 // Inline spinner — aria-hidden; button label carries meaning (design-plan §5)
@@ -35,6 +36,8 @@ export function Spinner({ className }: { className?: string }) {
 
 // AuthShell — centered viewport + brand block + foot line
 export function AuthShell({ children }: { children: React.ReactNode }) {
+  const t = useT()
+
   return (
     <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-4">
       {/* Brand block — mirrors IA-8 rail brand */}
@@ -72,7 +75,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         className="mt-6 text-muted-foreground text-center"
         style={{ fontSize: 'var(--font-size-body-lg)' }}
       >
-        Trouble signing in? Contact Arief.
+        {t('auth.footer')}
       </p>
     </div>
   )
