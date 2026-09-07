@@ -12,6 +12,18 @@ export interface ObjectiveRow {
   name: string
 }
 
+export interface ObjectiveProgress extends ObjectiveRow {
+  done: number
+  total: number
+}
+
+/** Read the active objective roll-up; counts are derived by the database view. */
+export async function listObjectiveProgress(): Promise<ObjectiveProgress[]> {
+  const { data, error } = await mos().from('objective_progress').select('id,name,done,total').order('name')
+  if (error) throw new Error(`listObjectiveProgress failed — ${error.message}`)
+  return (data ?? []) as unknown as ObjectiveProgress[]
+}
+
 /** List active (non-archived) objectives ordered by name (org-readable via RLS). */
 export async function listObjectives(): Promise<ObjectiveRow[]> {
   const { data, error } = await mos()

@@ -70,6 +70,8 @@ export interface HomeRegionInput {
   /** State of the ONE shared tasks projection behind needs-you (overdue/due-today/blocked) AND
    *  my-work — the same fetch, so they share one state and one retry (never a duplicate error). */
   taskState?: StreamBandState
+  /** Failed checks are a real region only when the caller has explicitly admitted the viewer. */
+  failedChecksAdmitted: boolean
   onRetryTasks?: () => void
   /** failed-checks reads its own independent DAL. */
   failedChecksState?: StreamBandState
@@ -100,12 +102,13 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
       state: needsYouState, onRetry: retryNeedsYou,
       drillTo: drillTo('needs-you'),
     },
-    {
-      id: 'failed-checks', labelKey: 'home.stream.band.failedChecks', items: input.failedChecks,
+    ...(input.failedChecksAdmitted ? [{
+      id: 'failed-checks' as const, labelKey: 'home.stream.band.failedChecks' as MessageKey,
+      items: input.failedChecks,
       count: countOf(input.failedChecks, failedChecksState), state: failedChecksState,
       onRetry: input.onRetryFailedChecks,
       drillTo: drillTo('failed-checks'),
-    },
+    }] : []),
     {
       id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
       count: countOf(input.myWork, taskState), state: taskState, onRetry: input.onRetryTasks,

@@ -36,7 +36,7 @@ function renderLayout(node: React.ReactNode) {
 describe('FR-929: a ready-but-empty region says so, in every arrangement', () => {
   const regions = buildHomeRegions({
     overdue: [item('a')], dueToday: [], blocked: [],
-    myWork: [], failedChecks: [],
+    myWork: [], failedChecks: [], failedChecksAdmitted: true,
   })
 
 
@@ -57,7 +57,7 @@ describe("DESIGN.md Don't: a row's reason never repeats the region's own name", 
   const regions = buildHomeRegions({
     overdue: [item('a', { reason: { tone: 'overdue', days: 8 } })],
     dueToday: [], blocked: [], myWork: [],
-    failedChecks: [item('c', { reason: { tone: 'check' } })],
+    failedChecks: [item('c', { reason: { tone: 'check' } })], failedChecksAdmitted: true,
   })
 
   it('a "Failed checks" row does not also say "Check failed"', () => {
@@ -76,7 +76,7 @@ describe("DESIGN.md Don't: a row's reason never repeats the region's own name", 
 describe('Overview states the remainder it does not render', () => {
   const many = Array.from({ length: 9 }, (_, i) => item(`n${i}`))
   const regions = buildHomeRegions({
-    overdue: many, dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: many, dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
   })
 
   it('a truncated tile says how many more there are', () => {
@@ -95,7 +95,7 @@ describe('Overview states the remainder it does not render', () => {
 
 describe('a11y: Home region headings sit directly under the page h1 (no level skip)', () => {
   const regions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
   })
 
   it('Overview tile names are h2', () => {
@@ -118,7 +118,7 @@ describe('a11y: Home region headings sit directly under the page h1 (no level sk
 // all three told the same falsehood. The count must be ABSENT — an em-dash, never a `0`.
 describe('DIV-G5: a region whose read has not succeeded shows no count, in every arrangement', () => {
   const broken = buildHomeRegions({
-    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
     taskState: 'error', failedChecksState: 'loading',
   })
 
@@ -158,7 +158,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
   it('a region whose read SUCCEEDED still states its number', () => {
     const ok = buildHomeRegions({
       overdue: [item('a'), item('b')], dueToday: [], blocked: [],
-      myWork: [], failedChecks: [],
+      myWork: [], failedChecks: [], failedChecksAdmitted: true,
     })
     renderLayout(<HomeList regions={ok} feed={FEED} />)
     expect(screen.getByRole('heading', { level: 2, name: /needs you now/i }).textContent)
@@ -173,7 +173,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
 describe('DESIGN.md § Row status as text: needs-you renders its reason as toned text', () => {
   const regions = buildHomeRegions({
     overdue: [item('a', { reason: { tone: 'overdue', days: 8 } })],
-    dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
   })
 
   it('the overdue age is still stated (the information the band label cannot carry)', () => {
@@ -190,7 +190,7 @@ describe('DESIGN.md § Row status as text: needs-you renders its reason as toned
 // ── DIV: the empty region uses the shared all-clear EmptyState, not a bare muted <p> ───────────
 describe('a ready-and-empty region uses the shared all-clear EmptyState primitive', () => {
   const regions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
   })
 
   it('List renders the state-kit empty state with the compact all-clear treatment', () => {
@@ -218,7 +218,7 @@ describe('a ready-and-empty region uses the shared all-clear EmptyState primitiv
 // ── DIV: Overview's lead tile is keyed to the REGION, so the tonal lift can name needs-you ─────
 describe('Overview tiles carry their region id', () => {
   const regions = buildHomeRegions({
-    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [],
+    overdue: [item('a')], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
   })
 
   it('every tile names its region (both wide tiles are distinguishable)', () => {
