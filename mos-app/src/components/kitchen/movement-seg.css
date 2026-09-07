@@ -3,11 +3,11 @@
    role=tablist; on-state = background lift + shadow-rest. Token-only (DESIGN.md).
    44px touch floor per tab; viewport-safe (box-sizing, no page overflow).
 
-   Unlike the three-literal control it replaces, the option count is derived from
-   the branch catalog and so is not fixed at three. The track therefore SCROLLS
-   horizontally instead of squeezing: a squeezed tab hits the ellipsis before it
-   hits the thumb, and "Transfer to Ra…" is exactly the ambiguity the derived
-   label exists to remove. Scrolling keeps every option full-width and reachable.
+   A DERIVED SCOPE STRIP (DESIGN.md § Tabs / Segmented Controls, A7): the option
+   count is bounded by what this stream may do — never the whole branch catalog.
+   Every option renders as `→ Branch` at every width; the strip SCROLLS in its
+   own box rather than growing the page. Above five options the strip is wrong
+   and the derivation is fixed, not the layout.
    ════════════════════════════════════════════════════════════════════════════ */
 
 .kms {
@@ -21,9 +21,12 @@
   border-radius: var(--radius-sm);
   padding: 2px;
   /* Horizontal scroll rather than wrap: the strip stays one row tall whatever the
-     catalog length, and the page itself never scrolls sideways (NFR-001). */
+     catalog length, and the page itself never scrolls sideways (NFR-001, A7). */
   overflow-x: auto;
   overflow-y: hidden;
+  /* Belt-and-braces on scroll containment: the strip's overflow may not sneak up
+     the ancestor tree and turn into a page-level horizontal scrollbar. */
+  contain: inline-size;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
@@ -31,13 +34,14 @@
 
 .kms-tab {
   flex: 0 0 auto;
-  /* Two RUNGS, not one run-on line (issue 449): the tab's own name on top, the
-     intra-branch qualifier below it. Inline, the qualifier sat on the same baseline at a
-     different weight and made that one tab roughly twice its siblings' width — the row's
-     rhythm broke on the widest label of the set, at the width with the least room to
-     spare. Stacked, the tab measures max(label, qualifier) instead of their sum, and the
-     track's default `align-items: stretch` gives every sibling the same height, so the
-     row still reads as one even strip. */
+  /* Two RUNGS, not one run-on line (issue 449): the tab's own `→ Branch` on top,
+     the intra-branch qualifier on the rung below it. Inline, the qualifier sat
+     on the same baseline at a different weight and made that one tab roughly
+     twice its siblings' width — the row's rhythm broke on the widest label of
+     the set, at the width with the least room to spare. Stacked, the tab
+     measures max(label, qualifier) instead of their sum, and the track's default
+     `align-items: stretch` gives every sibling the same height, so the row still
+     reads as one even strip. */
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -79,32 +83,17 @@
   .kms-tab { transition: none; }
 }
 
-/* Full label by default; short "→ Radiant" label on small phones. */
-.kms-full { display: inline; }
-.kms-short { display: none; }
-@media (max-width: 400px) {
-  .kms-full { display: none; }
-  .kms-short { display: inline; }
-}
+/* The visible `→ Branch` label — one form at every width (A7 short arrow).
+   The full-sentence localisation stays on the accessible name (aria-label), so
+   an AT user still hears "Transfer to Radiant" instead of the chevron. */
+.kms-label { display: inline; }
 
-/* The intra-branch qualifier (FR-013) — "within branch · Kitchen". Its own rung under the
-   destination it qualifies: one step down the type ramp, muted, weight 400, so it reads as
-   subordinate to the tab's name rather than as a second name. Same full ↔ short flip as the
-   label above, so the rung stays one line wide on a phone. */
+/* The intra-branch qualifier (FR-013) — "within · Kitchen". Its own rung under
+   the destination it qualifies: one step down the type ramp, muted, weight 400,
+   so it reads as subordinate to the tab's name rather than as a second name. */
 .kms-qual {
   font-size: var(--font-size-label);
   font-weight: 400;
   line-height: 1.2;
   color: var(--muted-foreground);
-}
-.kms-qual-short { display: none; }
-@media (max-width: 400px) {
-  .kms-qual { display: none; }
-  .kms-qual-short {
-    display: block;
-    font-size: var(--font-size-label);
-    font-weight: 400;
-    line-height: 1.2;
-    color: var(--muted-foreground);
-  }
 }

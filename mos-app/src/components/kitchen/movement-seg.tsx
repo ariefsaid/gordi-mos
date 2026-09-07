@@ -1,25 +1,32 @@
 // MovementSeg — the capture surface's scope control: which MOVEMENT the list is being
 // logged against (DD-WAY-13).
 //
-// It replaces v4's ActionTypeSeg on the Log surface. That control hardcoded the incumbent's
-// three label literals as its option list, which is the stored-three-literal model in the UI
-// layer: it cannot offer a movement for the four (branch, activity) streams that reach the
-// ERP on paper today, and the squashed baseline has no column for it to read. Here the
-// options are DERIVED — produce, then a transfer to each branch in the canonical catalog —
-// and their labels come from the same derivation the database owns
-// (`ops.kitchen_action_label`). For the two currently-captured streams the rendered strings
-// are byte-identical to the incumbent's, so OD-K-1 behavioural parity holds.
+// A DERIVED SCOPE STRIP (DESIGN.md § Tabs / Segmented Controls, A7): the options come from
+// the origin-aware helper (`movementsForStream(origin, catalog)`) — produce, then a transfer
+// to each destination the DATABASE's derivation says this stream is allowed to send to. This
+// strip never enumerates the whole branch catalog: a Café stream sends only to the branches
+// listed on `ops.allowed_kitchen_destinations` (#782/#777), so the receive-only Radiant
+// kitchen offers nothing, Roastery is never a destination, and Cikal · bar carries no
+// intra-branch tab because its counterpart kitchen stream does not exist.
 //
 // It is also the DESTINATION picker, and that is the whole of one (FR-013): both movement
 // classes come out of one derived list because a destination is a branch and only a branch
 // (OD-WAY-44). Every branch but the origin is a cross-branch transfer; the origin itself is
-// the intra-branch cross-activity movement, offered identically from the bar surface and the
-// kitchen surface, and qualified with the counterpart activity so the person can tell it
-// apart from the branch's cross-branch entry. That qualifier is display, not a dimension.
+// the intra-branch cross-activity movement, offered from the bar surface when the origin's
+// own kitchen stream exists (the only case its counterpart is defined), and qualified with
+// the counterpart activity so the person can tell it apart from a cross-branch entry.
+//
+// Label is `→ Branch` — the short arrow form, at every width. The tab is a compact scope
+// chip in a segmented strip, not a sentence; a long "Transfer to X" wrapped or hit the
+// ellipsis on the phone, and "Transfer to Ra…" is exactly the ambiguity the arrow form
+// exists to remove. The full-sentence localisation still rides on the accessible name so
+// screen readers hear "Transfer to Radiant", not "arrow Radiant".
 //
 // role="tablist" with role="tab" children; aria-selected marks the current scope. The strip
-// scrolls horizontally rather than wrapping, so a catalog longer than the phone is wide
-// still reaches every option with one thumb. Styling: co-located movement-seg.css.
+// scrolls horizontally in its own box rather than wrapping or overflowing the page (A7 —
+// "above five options the strip is wrong and the derivation is fixed, not the layout"), so
+// a catalog that grows a fifth option still reaches every tab with one thumb.
+// Styling: co-located movement-seg.css.
 
 import type {
   BranchOption,
@@ -40,7 +47,7 @@ import './movement-seg.css'
 
 interface MovementSegProps {
   value: KitchenMovement
-  /** derived by the caller from the branch catalog (`movementsForStream`) */
+  /** derived by the caller from the origin-aware helper (`movementsForStream(origin, catalog)`) */
   options: readonly KitchenMovement[]
   /** the catalog the labels are derived against */
   branches: readonly BranchOption[]
@@ -71,20 +78,19 @@ export function MovementSeg({
         // surface and the kitchen surface alike the intra-branch option IS the same catalog
         // entry — "transfer to my own branch". Unqualified, a barista reads it as their own
         // branch's name and cannot tell it apart from a cross-branch move; qualified with the
-        // counterpart activity it says what the movement actually is (bar → our kitchen,
-        // kitchen → our bar). The qualifier is DERIVED FOR DISPLAY: the stored row, the batch
-        // prefix and the ERP endpoint all still compare branches only (FR-051), and the
-        // derived label itself is untouched, so the mirror of `ops.kitchen_action_label`
-        // stays byte-identical on both sides of the seam (OD-K-1 parity).
+        // counterpart activity it says what the movement actually is (bar → our kitchen). The
+        // qualifier is DERIVED FOR DISPLAY: the stored row, the batch prefix and the ERP
+        // endpoint all still compare branches only (FR-051), and the full-sentence label the
+        // AT layer reads is unchanged, so the mirror of `ops.kitchen_action_label` stays
+        // byte-identical on both sides of the seam (OD-K-1 parity).
         const intra = isIntraBranch(option, origin)
         const counterpart = origin ? activityLabel(t, counterpartActivity(origin.activity)) : ''
-        const label = deriveActionLabel(t, option, branches)
+        // Visible: `→ Branch` — the short arrow form (A7). Accessible: the full sentence, so
+        // AT users hear "Transfer to X" instead of the strip's chevron read aloud.
+        const shortLabel = deriveActionShortLabel(t, option, branches)
+        const fullLabel = deriveActionLabel(t, option, branches)
         const qualifier = t('kitchen.actionType.intraBranch', { activity: counterpart })
-        // The tab NAMES ITSELF. Both label spans below are viewport-swapped by CSS (the full
-        // one is display:none under 400px, the short one is aria-hidden above it), so leaving
-        // the name to the contents makes it depend on the viewport — and on the phone width
-        // this surface is built for, that leaves the tab with no accessible name at all.
-        const accessibleName = intra ? `${label} ${qualifier}` : label
+        const accessibleName = intra ? `${fullLabel} ${qualifier}` : fullLabel
         return (
           <button
             key={movementKey(option)}
@@ -98,17 +104,11 @@ export function MovementSeg({
               if (!isSelected) onChange(option)
             }}
           >
-            <span className="kms-full">{label}</span>
-            <span className="kms-short" aria-hidden="true">
-              {deriveActionShortLabel(t, option, branches)}
-            </span>
+            <span className="kms-label" aria-hidden="true">{shortLabel}</span>
             {intra && (
-              <>
-                <span className="kms-qual">{qualifier}</span>
-                <span className="kms-qual-short" aria-hidden="true">
-                  {t('kitchen.actionType.intraBranch.short', { activity: counterpart })}
-                </span>
-              </>
+              <span className="kms-qual" aria-hidden="true">
+                {t('kitchen.actionType.intraBranch.short', { activity: counterpart })}
+              </span>
             )}
           </button>
         )

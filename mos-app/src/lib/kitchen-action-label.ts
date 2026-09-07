@@ -63,21 +63,33 @@ export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean 
 export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
 
 /**
- * Every movement capturable from an origin stream (FR-013): produce, then a transfer to each
- * branch represented by a live stream Team. That single list carries BOTH movement classes,
- * from either activity surface, because a destination is a branch and nothing else (OD-WAY-44):
+ * Every movement capturable from an origin stream (FR-013, #782): produce, then a transfer
+ * to each destination the origin-aware rule allows. The single argument-shape here is the
+ * point — this helper is ORIGIN-AWARE, and the older catalog-wide `movementsForStream(branches)`
+ * that enumerated every branch in the catalog is gone. The catalog-wide shape offered the
+ * receive-only Radiant kitchen a full sheet of destinations, offered Roastery on every
+ * strip, and gave the Café · Log's segmented control a fifth-and-sixth option it had no
+ * space to render honestly. The rule is now: a Café stream sends only to the branches its
+ * DATABASE derivation (`ops.allowed_kitchen_destinations`) says it may — no more.
  *
- *   - CROSS-BRANCH — any branch that is not the origin. A bar → another branch's bar and the
- *     kitchen's existing cross-branch transfers are the same row shape and the same
- *     (preserved) labels; they post through the normal dispatch path.
- *   - INTRA-BRANCH CROSS-ACTIVITY — the origin branch itself, offered from both sides (bar →
- *     own branch's kitchen, kitchen → own branch's bar). This is also the incumbent's
- *     "Transfer to Bungur" on the Rumah Rames stream. There is no destination-activity
- *     dimension and none is being added: what is stored is destination = own branch, and the
- *     counterpart activity is a GLOSS the capture control renders (see `isIntraBranch`), never
- *     a column. Approved, such a movement is held — no ERP document (FR-050/053).
+ * The single derived list carries BOTH movement classes, from either activity surface,
+ * because a destination is a branch and nothing else (OD-WAY-44):
  *
- * Destination order follows the branch catalog order; `streamOptions` is the live stream-Team
+ *   - CROSS-BRANCH — any allowed branch that is not the origin. A bar → another branch's
+ *     bar and the kitchen's existing cross-branch transfers are the same row shape and the
+ *     same (preserved) labels; they post through the normal dispatch path.
+ *   - INTRA-BRANCH CROSS-ACTIVITY — the origin branch itself, offered from the bar surface
+ *     when its own kitchen stream exists (bar → our kitchen; the held ERP-no-op arm,
+ *     FR-050/053). Read as `→ Bungur` on Rumah Rames · bar today, whose branch alias names
+ *     the outlet the WIP moves to. There is no destination-activity dimension and none is
+ *     being added: what is stored is destination = own branch, and the counterpart activity
+ *     is a GLOSS the capture control renders (see `isIntraBranch`), never a column.
+ *
+ * The intra-branch option is emitted ONLY when the counterpart stream actually exists —
+ * Cikal · bar carries no intra tab because Cikal has no kitchen stream at all (OD-WAY-79),
+ * and offering one would name a movement the database refuses.
+ *
+ * Destination order follows the catalog's own order; `catalog` is the live stream-Team
  * catalog and is the authority for which branches are Café destinations.
  */
 export function movementsForStream(
