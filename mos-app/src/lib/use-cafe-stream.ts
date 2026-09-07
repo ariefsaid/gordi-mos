@@ -29,6 +29,7 @@ import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
 import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { useAuth } from '@/auth/use-auth'
 import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 /** What one bootstrap read resolved — nothing is on screen until `adopt` takes it. */
@@ -51,6 +52,13 @@ export interface CafeStreamState extends CafeStreamCatalog {
 }
 
 export function useCafeStream(): CafeStreamState {
+  const auth = useAuth()
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  // #781: ops leads see EVERY producing stream and land on their remembered one, else the
+  // first producing — never on an empty "Choose stream…" head. Their route admits every stream
+  // and their write policy admits them everywhere they can review, so the first producing
+  // stream is a safe default in a way that a plain member's is not.
+  const opsLead = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
   const [catalog, setCatalog] = useState<CafeStreamCatalog>({
     branches: [],
     options: [],
@@ -61,9 +69,9 @@ export function useCafeStream(): CafeStreamState {
     const [branches, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
     const options = streamCatalogFrom(pairs, branches)
     // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
-    const stream = resolveCafeStream(options, await fetchDefaultStream(branches))
+    const stream = resolveCafeStream(options, await fetchDefaultStream(branches), { opsLead })
     return { branches, options, stream }
-  }, [])
+  }, [opsLead])
 
   const adopt = useCallback((next: CafeStreamCatalog) => setCatalog(next), [])
 

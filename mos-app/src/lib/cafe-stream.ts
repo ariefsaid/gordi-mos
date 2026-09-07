@@ -56,14 +56,19 @@ export function rememberStream(stream: ProductionStream | null): void {
  * The stream a Café surface should open on, resolved against ITS live catalog and recorded
  * for the surfaces the person walks to next.
  *
- * Order (FR-001/002 + #440):
+ * Order (FR-001/002, #440, #781):
  *   1. the stream chosen elsewhere in the module this session, IF it is still in the catalog;
  *   2. otherwise the person's own stream — `shared.default_stream()`, resolved by the caller —
- *      IF it is a catalog stream (a stale pair pointing outside the live catalog resolves to null,
- *      never to a guess);
- *   3. otherwise null: no default, so the surface asks for an explicit choice exactly as the
- *      capture surface does. A wrong default files production against books nobody chose; a
- *      missing one costs one tap.
+ *      IF it is a catalog stream (a stale pair pointing outside the live catalog resolves to
+ *      null, never to a guess);
+ *   3. otherwise, when the caller says the viewer is an ops lead (admin/ops_lead is the same
+ *      answer), the FIRST producing stream in the catalog — the person is entitled to write to
+ *      every producing stream, so an empty "Choose stream…" head is a picker on a page they
+ *      never chose to browse (OD-WAY-95 (1)). Ops leads without ANY producing stream in the
+ *      catalog fall through to null the same as everyone else — a wrong default is worse than
+ *      an honest empty.
+ *   4. otherwise null: no default, so the surface renders its no-stream `blank` state. A wrong
+ *      default files production against books nobody chose; a missing one costs one tap.
  *
  * Pure apart from the recording, which is the point: two surfaces that resolve independently
  * are exactly how they come to disagree.
@@ -71,6 +76,7 @@ export function rememberStream(stream: ProductionStream | null): void {
 export function resolveCafeStream(
   options: readonly ProductionStream[],
   ownDefault: ProductionStream | null,
+  opts: { opsLead?: boolean } = {},
 ): ProductionStream | null {
   const inCatalog = (candidate: ProductionStream | null) =>
     candidate
@@ -83,7 +89,10 @@ export function resolveCafeStream(
   const fromSession = key
     ? options.find(s => streamKey(s.branch.id, s.activity) === key) ?? null
     : null
-  const resolved = fromSession ?? inCatalog(ownDefault)
+  const opsLeadFallback = opts.opsLead
+    ? options.find(s => s.produces === true) ?? null
+    : null
+  const resolved = fromSession ?? inCatalog(ownDefault) ?? opsLeadFallback
   rememberStream(resolved)
   return resolved
 }

@@ -22,18 +22,23 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
   })
 })
 
-describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
-  // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
-  it('exports Opening + the 5 café sections in canonical order', () => {
+describe('T5: CAFE_SECTIONS — the Café module\'s rail children (Issue 781, OD-WAY-95 (1)(3))', () => {
+  // Issue 781: the Café root IS the Log now (KitchenLogPage at /cafe), and the opening is a door
+  // row inside that root. So the rail children list carries neither Opening nor Log — a rail
+  // that repeated the module root as a child would be a Café inside a Café — leaving Plan,
+  // Stock, and the two role-gated leads' doors.
+  it('exports Plan · Stock, then the two lead doors, in canonical order', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
-      '/cafe',
-      '/cafe/log',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/review',
       '/cafe/pushes',
     ])
+  })
+
+  it('carries neither Opening nor Log — /cafe IS the capture list, and the opening is a door row inside it (DESIGN.md § Navigation A1)', () => {
+    expect(CAFE_SECTIONS.some((s) => s.path === '/cafe')).toBe(false)
+    expect(CAFE_SECTIONS.some((s) => s.path === '/cafe/log')).toBe(false)
   })
 
   it('each section has a path, label, labelKey, and Icon', () => {
@@ -45,8 +50,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     })
   })
 
-  it('sectionForPath resolves /cafe/log, /cafe/review, /cafe/pushes', () => {
-    expect(sectionForPath('/cafe/log')!.label).toBe('Log')
+  it('sectionForPath resolves /cafe/review and /cafe/pushes', () => {
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
@@ -55,8 +59,10 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
   })
 
-  it('RATIFY-7D: sectionForPath resolves the exact /cafe path to Opening (not a sub-route)', () => {
-    expect(sectionForPath('/cafe')!.label).toBe('Opening')
+  it('Issue 781: sectionForPath resolves the exact /cafe path to the module root (Café), not a sub-route', () => {
+    // The Log leaf is gone from CAFE_SECTIONS; /cafe now falls through to the SECTIONS registry
+    // and resolves to the Café module root — the same name the rail draws for the Module.
+    expect(sectionForPath('/cafe')!.label).toBe('Café')
   })
 })
 
@@ -75,9 +81,10 @@ describe('T5: new destination sections resolve', () => {
   })
 
   it('sectionForPath resolves a sub-route by prefix', () => {
-    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
-    // the PREFIX behaviour itself is proven on a path that is still live.
-    expect(sectionForPath('/cafe/log/anything')!.path).toBe('/cafe/log')
+    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now,
+    // so the PREFIX behaviour itself is proven on a path that is still live. /cafe/plan carries
+    // its own CAFE_SECTIONS entry, and a deeper path under it should still resolve to it.
+    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
   })
 
   // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
@@ -106,10 +113,10 @@ describe('T5: sectionForPath — fallbacks', () => {
 
 describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the six children use six distinct components', () => {
+  it('the four children use four distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(6)
-    expect(new Set(icons).size).toBe(6)
+    expect(icons).toHaveLength(4)
+    expect(new Set(icons).size).toBe(4)
   })
 
   it('none of them is a mark another destination already draws', () => {
@@ -127,8 +134,10 @@ describe('the Café children carry marks of their own (#457)', () => {
 })
 
 describe('sectionHasPrefixChild', () => {
-  it('marks only a section with a prefix-child sibling', () => {
-    expect(sectionHasPrefixChild(CAFE_SECTIONS[0], CAFE_SECTIONS)).toBe(true)
-    expect(sectionHasPrefixChild(CAFE_SECTIONS[1], CAFE_SECTIONS)).toBe(false)
+  it('is false for every Café child — none of the four is another\'s parent', () => {
+    // With Opening/Log gone, no CAFE_SECTIONS entry is a prefix of any other.
+    for (const s of CAFE_SECTIONS) {
+      expect(sectionHasPrefixChild(s, CAFE_SECTIONS), s.path).toBe(false)
+    }
   })
 })

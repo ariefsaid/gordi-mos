@@ -89,7 +89,9 @@ function renderShellAtHome() {
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<div role="main">home page</div>} />
-            <Route path="cafe/log" element={<div role="main">cafe log page</div>} />
+            {/* #781: /cafe IS the Café capture list now (OD-WAY-95). The launcher's action
+                lands here directly instead of going through /cafe/log's redirect. */}
+            <Route path="cafe" element={<div role="main">cafe log page</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -143,7 +145,7 @@ describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewe
 })
 
 describe('AC-407: the shipped shell offers the floor a one-tap Café log capture path', () => {
-  it('AC-407: phone Home → an affiliated member taps the launcher entry and lands on /cafe/log', () => {
+  it('AC-407: phone Home → an affiliated member taps the launcher entry and lands on /cafe (the Log)', () => {
     setAuth({ accessRoles: [], affiliated: ['cafe'] })
     renderShellAtHome()
     expect(screen.getByTestId('location')).toHaveTextContent('/')
@@ -152,11 +154,11 @@ describe('AC-407: the shipped shell offers the floor a one-tap Café log capture
     const entry = screen.getByRole('option', { name: /Log Café production/i })
     fireEvent.click(entry)
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/cafe/log')
+    expect(screen.getByTestId('location')).toHaveTextContent('/cafe')
     expect(screen.getByText('cafe log page')).toBeInTheDocument()
   })
 
-  it('AC-407: the router ships THIS shell — routeConfig mounts AppShell with an index Home and a /cafe/log child', () => {
+  it('AC-407: the router ships THIS shell — routeConfig mounts AppShell with an index Home and a /cafe child', () => {
     // The call-site chain's last link: the AppShell rendered above must be the one routeConfig
     // mounts, or this file would prove a shell nothing ships (the exact fossil failure mode).
     function findShellRoute(routes: RouteObject[]): RouteObject | null {
@@ -172,6 +174,6 @@ describe('AC-407: the shipped shell offers the floor a one-tap Café log capture
     const shellRoute = findShellRoute(routeConfig)
     expect(shellRoute).not.toBeNull()
     expect(shellRoute!.children?.some((c) => c.index)).toBe(true)
-    expect(shellRoute!.children?.some((c) => c.path === 'cafe/log')).toBe(true)
+    expect(shellRoute!.children?.some((c) => c.path === 'cafe')).toBe(true)
   })
 })

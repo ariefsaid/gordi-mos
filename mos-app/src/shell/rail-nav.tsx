@@ -86,40 +86,58 @@ const itemBase = (isActive: boolean, compact = false, rung: 'dest' | 'child' = '
 // (unread count) below — and follow the EXACT WorkChild pattern (DO-18(d)): the accessible NAME
 // is built on the link itself by joining the already-localized label + badge sentence, so AT
 // never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
-function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false, showChevron = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean; showChevron?: boolean }) {
+//
+// #781 / OD-WAY-95: a module root that IS its capture list (Café → /cafe is the Log) has to
+// claim aria-current="page" when the URL is exactly at that root — the ticket's rule is "the
+// root carries `aria-current="page"` on `/cafe` at every width". `hasActiveChild` is what a
+// module hands down when one of its child links matches the URL; in that case the root is a
+// LOCATION, not the page. Otherwise the root uses `end` prefix-match containment so a
+// pathname like `/cafe/plan` does not cause `to="/cafe"` to also read as active — the
+// prefix-match is what let both root and child claim "page" before.
+//
+// react-router's NavLink only writes its `aria-current` prop when its OWN isActive is true —
+// so a module root with a child active needs a manual override that ignores NavLink's match
+// logic. We compute the state here and hand-set aria-current to keep the rule per-URL (root
+// page at the module URL, location when a child is active, undefined elsewhere).
+function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, hasActiveChild = false, showChevron = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; hasActiveChild?: boolean; showChevron?: boolean }) {
   const t = useT()
+  const { pathname } = useLocation()
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
   const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
   const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : undefined
+  const exactHere = to === '/' ? pathname === '/' : pathname === to
+  const withinHere = to !== '/' && (pathname === to || pathname.startsWith(to + '/'))
+  const ariaCurrent: 'page' | 'location' | undefined = hasActiveChild
+    ? 'location'
+    : exactHere
+      ? 'page'
+      : undefined
+  const isActive = exactHere || withinHere
+  // Plain `Link` rather than `NavLink` — NavLink strips a manually-passed aria-current when its
+  // OWN isActive is false, which is exactly the case a module root with an active CHILD is in.
+  // The isActive state we need is already computed above, and the same pattern the Work parent
+  // uses (see the Work branch of the module map below) sets aria-current by hand for the same
+  // reason.
   return (
-    <NavLink
+    <Link
       to={to}
-      end={to === '/'}
       onClick={onNavigate}
       aria-label={accessibleName}
-      // Rule 5: exactly one aria-current="page" in the rail. A parent that renders its own
-      // children is a LOCATION, never the page — the active child carries "page". Work sets this
-      // explicitly in its own branch; a module with children needs the same, or at /cafe/log both
-      // the Café parent (prefix match) and the Log child would claim "page".
-      aria-current={parentOfChildren ? 'location' : undefined}
+      aria-current={ariaCurrent}
       data-label={compact ? label : undefined}
-      className={({ isActive }) => itemBase(isActive, compact)}
+      className={itemBase(isActive, compact)}
     >
-      {() => (
-        /* DD-WAY-33: the icon carries no colour class of its own — it inherits the rung's
-           colour (destination = `foreground`, active = `--text-on-accent-tint`), so glyph and
-           label move together up and down the ladder instead of being pinned apart. */
-        <>
-          <span>
-            <d.Icon />
-          </span>
-          <span className={compact ? 'sr-only' : undefined}>{label}</span>
-          {showChevron && <Chevron className="rail-module-chevron" />}
-          <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
-        </>
-      )}
-    </NavLink>
+      {/* DD-WAY-33: the icon carries no colour class of its own — it inherits the rung's
+          colour (destination = `foreground`, active = `--text-on-accent-tint`), so glyph and
+          label move together up and down the ladder instead of being pinned apart. */}
+      <span>
+        <d.Icon />
+      </span>
+      <span className={compact ? 'sr-only' : undefined}>{label}</span>
+      {showChevron && <Chevron className="rail-module-chevron" />}
+      <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
+    </Link>
   )
 }
 
@@ -322,9 +340,13 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                 // its screens have no nav entry at all.
                 const kids = compact ? [] : moduleChildrenForViewer(m, pathname, viewer?.affiliated ?? [], accessRoles)
                 const hasChildren = m.children != null && m.children.length > 0
+                // #781: a child is active when its path matches the current URL (exact or the
+                // child's own prefix — the same rule NavLink uses). When true, the root is a
+                // LOCATION; otherwise it lets its own end-anchored NavLink match decide.
+                const activeChild = kids.some(c => pathname === c.path || pathname.startsWith(c.path + '/'))
                 return (
                   <div key={m.id}>
-                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} showChevron={hasChildren} />
+                    <DestLink d={m} onNavigate={onNavigate} compact={compact} hasActiveChild={activeChild} showChevron={hasChildren} />
                     {kids.length > 0 && (
                       <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                         {kids.map((c) => (

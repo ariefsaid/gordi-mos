@@ -392,10 +392,12 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
 
   // ── The phone half. There is no rail below 920px, and the bottom bar renders one link per
   // destination with no children, so the drawer is the ONLY route to a module's sub-screens.
-  describe("Café's five screens on a phone (#242)", () => {
-    it('a Café floor member reaches Log, Plan and Stock at 390px', () => {
+  describe("Café's screens on a phone (#242, Issue 781)", () => {
+    // Issue 781: /cafe IS the capture list (the Log). The rail carries the module ROOT + Plan · Stock
+    // for affiliated members, + Review for reviewers, + Pushes for outbox readers.
+    it('a Café floor member reaches the Log (root) and Plan · Stock at 390px', () => {
       const links = phoneLinks(persona('Café floor member'))
-      for (const p of ['/cafe/log', '/cafe/plan', '/cafe/stock']) {
+      for (const p of ['/cafe', '/cafe/plan', '/cafe/stock']) {
         expect(links, `${p} unreachable on a phone`).toContain(p)
       }
     })
@@ -406,13 +408,13 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
       expect(links).not.toContain('/cafe/pushes')
     })
 
-    it('OD-WAY-51: a viewer whose job role matches NO module still reaches the ungated screens', () => {
-      // The persona the old model excluded outright — a substantial share of the roster.
+    it('OD-WAY-51: a viewer whose job role matches NO module still reaches the Café root', () => {
+      // The persona the old model excluded outright — a substantial share of the roster. The
+      // ROOT is what stays reachable now: Plan · Stock are narrowed to affiliated + leads
+      // (OD-WAY-95 (1)(3)) so a non-standing viewer sees the module root alone.
       const p = persona('no-module viewer')
-      for (const path of ['/cafe/log', '/cafe/plan', '/cafe/stock']) {
-        expect(phoneLinks(p), `${path} root entry unreachable on a phone`).toContain('/cafe')
-        expect(railLinks(p), `${path} root entry unreachable on the rail`).toContain('/cafe')
-      }
+      expect(phoneLinks(p), '/cafe root entry unreachable on a phone').toContain('/cafe')
+      expect(railLinks(p), '/cafe root entry unreachable on the rail').toContain('/cafe')
     })
 
     it('OD-WAY-51: …and is still NOT shown Review or Pushes — their routes gate them', () => {
@@ -423,16 +425,16 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
       expect(railLinks(p)).not.toContain('/cafe/pushes')
     })
 
-    it('a Café ops lead reaches all five at 390px, Review and Pushes included', () => {
+    it('a Café ops lead reaches the root + Plan · Stock · Review · Pushes at 390px', () => {
       const links = phoneLinks(persona('Café ops lead'))
-      for (const p of ['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']) {
+      for (const p of ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']) {
         expect(links, `${p} unreachable on a phone`).toContain(p)
       }
     })
 
-    it('…and reaches all five on the desktop rail too', () => {
+    it('…and reaches them on the desktop rail too', () => {
       const links = railLinks(persona('Café ops lead'))
-      for (const p of ['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']) {
+      for (const p of ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']) {
         expect(links, `${p} unreachable on the rail`).toContain(p)
       }
     })

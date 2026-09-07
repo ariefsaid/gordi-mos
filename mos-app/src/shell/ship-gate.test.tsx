@@ -262,6 +262,8 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
 
   it('…and still resolves an ungated path — the resolver is not simply broken', () => {
     expect(sectionForPath('/work/tasks')?.path).toBe('/work/tasks')
-    expect(sectionForPath('/cafe/log')?.path).toBe('/cafe/log')
+    // #781: /cafe is the Café module root (and the Log now); /cafe/log is a router redirect
+    // and no longer a section — the resolver is asked about the CURRENT URL, not the historical.
+    expect(sectionForPath('/cafe')?.path).toBe('/cafe')
   })
 })

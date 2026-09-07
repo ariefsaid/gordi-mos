@@ -504,7 +504,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+    ).toHaveAttribute('href', '/cafe?q=Ayam%20Bakar')
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
@@ -588,7 +588,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+    ).toHaveAttribute('href', '/cafe?q=Ayam%20Bakar')
   })
 
   it('(#401) a member can find a dish by name — search narrows the horizon (Nielsen Café·Plan 16/32: ~231 rows, no way to narrow)', async () => {
@@ -642,7 +642,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText(/this is the 14-day order horizon/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute('href', '/cafe/log')
+    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute('href', '/cafe')
     // AC-024 still held: the explainer adds no capture affordance
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })

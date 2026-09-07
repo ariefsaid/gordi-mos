@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -22,38 +20,19 @@ vi.mock('@/lib/db/cafe-opening', () => ({
 vi.mock('@/lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({ listPendingTasks: vi.fn(), resolvePendingTask: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
-// #440: the module ROOT states the stream its five doors lead into. Mocked at the same seams
-// the capture surfaces use — un-mocked these hit Supabase and the head would silently read '—'.
-vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
-vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
-vi.mock('@/lib/db/kitchen-logs', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, listStreamPairs: vi.fn() }
-})
 
 import {
   getCafeOpeningProcessId, listStartableCafeTeams, getTodayOpeningForTeam,
 } from '@/lib/db/cafe-opening'
 import { listAuthorTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
-import { listActiveBranches } from '@/lib/db/branches'
-import { fetchDefaultStream } from '@/lib/db/default-stream'
-import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import { CafeOpeningPage } from './cafe-opening-page'
-import { rememberStream } from '@/lib/cafe-stream'
 
 const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
 const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockGetPeople = vi.mocked(getPeople)
-const mockBranches = vi.mocked(listActiveBranches)
-const mockStreamPairs = vi.mocked(listStreamPairs)
-const mockDefaultStream = vi.mocked(fetchDefaultStream)
-
-const BRANCH_RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
-const BRANCH_RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
-const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
 
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
@@ -78,7 +57,7 @@ function renderPage(accessRoles: string[] = ['ops_lead']) {
   return render(
     <AuthContext.Provider value={authedState(accessRoles)}>
       <I18nProvider>
-        <MemoryRouter initialEntries={['/cafe']}>
+        <MemoryRouter initialEntries={['/cafe/opening']}>
           <CafeOpeningPage />
         </MemoryRouter>
       </I18nProvider>
@@ -88,35 +67,11 @@ function renderPage(accessRoles: string[] = ['ops_lead']) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  rememberStream(null) // the Café stream is remembered module-wide (#440) — isolate per test
   mockGetPeople.mockResolvedValue([])
-  mockBranches.mockResolvedValue([BRANCH_RAD, BRANCH_RR])
-  mockStreamPairs.mockResolvedValue([BRANCH_RAD, BRANCH_RR].flatMap(b => [
-    { branch_id: b.id, activity: 'kitchen' as const },
-    { branch_id: b.id, activity: 'bar' as const },
-  ]))
-  mockDefaultStream.mockResolvedValue(RADIANT_BAR)
 })
 
-describe('issue 440 — the Café root states the stream its doors lead into', () => {
-  it('names the stream in the page head, canonically, and lets it be set for the module', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([])
-    const { container } = renderPage()
-    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = await waitFor(() => {
-      const el = head.querySelector('select') as HTMLSelectElement | null
-      expect(el?.value).toBeTruthy()
-      return el as HTMLSelectElement
-    })
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
-    expect(head.textContent).toMatch(/stream/i)
-  })
-})
-
-describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture links', () => {
-  it('mounts CafeOpeningPanel (Start control) and links to Log/Plan/Stock/Review', async () => {
+describe('Issue 781 — CafeOpeningPage is /cafe/opening (the opening record), not the module root', () => {
+  it('mounts CafeOpeningPanel (Start control) — no capture-link strip, no stream picker', async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
     const due: DueProcessRun[] = [{
       work_line_id: PROCESS_ID, process_name: 'Café Opening',
@@ -131,51 +86,17 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     // The panel mounted (its Start control renders for this ops_lead viewer).
     await screen.findByRole('button', { name: "Start today's opening" })
 
-    // The existing capture entry points stay reachable (FR-708).
-    expect(screen.getByRole('link', { name: /log/i })).toHaveAttribute('href', '/cafe/log')
-    expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
-    expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
-    // JQ-1: an ops_lead sees the lead-only day-steps (Review + Pushes).
-    expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
-    expect(screen.getByRole('link', { name: /pushes/i })).toHaveAttribute('href', '/cafe/pushes')
-
-    // Step 7 minor (item 7b) — real button-styled links (btn-outline: visible border/background),
-    // never plain unstyled text.
-    const logLink = screen.getByRole('link', { name: /log/i })
-    expect(logLink).toHaveClass('btn', 'btn-outline')
-  })
-
-  it('JQ-1: a member sees Log/Plan/Stock but NOT the lead-only Review/Pushes doors', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    const due: DueProcessRun[] = [{
-      work_line_id: PROCESS_ID, process_name: 'Café Opening',
-      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-      period_key: '2026-07-17', scheduled_date: '2026-07-17',
-    }]
-    mockListStartableCafeTeams.mockResolvedValue(due)
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
-
-    renderPage(['member'])
-
-    // A member can still start their own Team's opening (OD-71iii) — wait for the ready surface.
-    await screen.findByRole('link', { name: /log/i })
-
-    // The capture doors a member reaches stay visible…
-    expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
-    expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
-    // …but the ops_lead-only day-steps are HIDDEN — no door that only bounces the member.
-    expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
-  })
-
-  // Step 7 minor (item 7b) — full-width tap targets at ≤390px (CSS lock, mirrors task-row.test.tsx's
-  // pattern of asserting the rule exists in the owning stylesheet).
-  it('item 7b: the capture links stack full-width at ≤390px (CSS lock)', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-opening-page.css'), 'utf8')
-    expect(css).toMatch(/@media\s*\(max-width:\s*390px\)/)
-    const mediaBlock = css.slice(css.indexOf('@media (max-width: 390px)'))
-    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*width:\s*100%/)
-    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*min-height:\s*44px/)
+    // The old capture-link strip is gone — the module root (/cafe) IS the Log, and the rail
+    // carries Plan · Stock (+ Review · Pushes for leads). Repeating those links here would be
+    // a second navigation surface for the same doors (OD-WAY-95 (1)).
+    expect(screen.queryByRole('link', { name: /^log$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^plan$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^stock$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^review$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^pushes$/i })).not.toBeInTheDocument()
+    // No stream picker in the head — the opening is Team-scoped, not stream-scoped, and the
+    // stream statement rides in the capture root's head instead (#440 / Issue 781).
+    expect(screen.queryByTestId('cafe-stream')).not.toBeInTheDocument()
   })
 
   it("falls back to the viewer's own Team when today's opening is already started (not in the due list)", async () => {

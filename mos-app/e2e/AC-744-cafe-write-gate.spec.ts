@@ -124,8 +124,9 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /Café/ }),
     ).toBeVisible({ timeout: 15_000 })
 
-    await page.goto('cafe/log')
-    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
+    // #781 (OD-WAY-95): /cafe IS the capture list now (the Log). AC-021 repoints this journey.
+    await page.goto('cafe')
+    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
     // One line, on-plan (qty = plan): the capture path and nothing else.
     const qty = page.getByRole('spinbutton', { name: new RegExp(`Quantity produced for ${ITEM_NAME}`, 'i') })
@@ -158,8 +159,9 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
     await page.waitForTimeout(500)
     await loginAs(page, SALES.email, SALES.password)
 
-    await page.goto('cafe/log')
-    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
+    // #781 (OD-WAY-95): /cafe IS the capture list now (the Log). AC-021 repoints this journey.
+    await page.goto('cafe')
+    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
     // Read-only, not hidden: the capture form and its item rows render.
     await expect(page.getByText(ITEM_NAME).first()).toBeVisible({ timeout: 15_000 })

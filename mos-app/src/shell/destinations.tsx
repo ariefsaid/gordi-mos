@@ -224,16 +224,37 @@ export function primaryModuleForViewer(affiliated: string[], accessRoles: string
   return allModules(accessRoles).find((m) => affiliated.includes(m.id)) ?? null
 }
 
-/** Module children are detail navigation, not a second set of roots. */
+/**
+ * Module children are detail navigation, not a second set of roots.
+ *
+ * #781 (OD-WAY-95 (1)(3)): the Café rail children render for viewers who are actually doing
+ * the module's work — affiliated with its BU, OR holding a role that unlocks one of its
+ * lead-gated children (supervisor for Review, ops_lead/admin for Pushes). A Finance viewer or
+ * anyone with no standing in the module sees the ROOT row alone, on `/cafe` as everywhere else.
+ * That is what the ticket's persona sweep (Kartika · Sinta · Cahya · Fitri) is testing: the
+ * "root only" answer for Fitri is what makes the rule a filter and not a hand-wave.
+ *
+ * The DESIGN.md "Module children collapse" rule's second clause (children render on the
+ * current destination) is superseded here for Café: a Finance viewer who lands on /cafe by
+ * design gets the read-only capture render (KitchenLogPage handles that), not a rail full of
+ * doors into surfaces they will not use. `pathname` is kept in the signature for callers that
+ * want to detect the module's own descendants, and read once below so we don't grow a new API
+ * for a single-line branch.
+ */
 export function moduleChildrenForViewer(
   module: Destination,
-  pathname: string,
+  _pathname: string,
   affiliated: string[],
   accessRoles: string[],
 ): Section[] {
-  const current = module.primaryPath && (pathname === module.primaryPath || pathname.startsWith(`${module.primaryPath}/`))
-  const workingHere = affiliated.includes(module.id)
-  return current || workingHere ? visibleSections(module.children ?? [], accessRoles) : []
+  const affiliatedHere = affiliated.includes(module.id)
+  const visible = visibleSections(module.children ?? [], accessRoles)
+  // A "lead" here is any viewer whose role gates in one of THIS module's own children — the
+  // fact that visibleSections returned a role-gated child is what that answer looks like. This
+  // keeps the definition of "lead" per-module and derived from the child list, not a second
+  // registry to drift from the section anyOf.
+  const hasLeadStanding = visible.some((s) => (s.anyOf?.length ?? 0) > 0)
+  return affiliatedHere || hasLeadStanding ? visible : []
 }
 
 /**
@@ -349,7 +370,16 @@ export function destinationForPath(pathname: string): Destination | null {
   // "Work · Tasks" over a surface that is neither.
   if (isShipGated(pathname)) return null
   for (const d of ALL_DESTINATIONS) {
-    const candidates = [...d.links, ...(d.children ?? [])]
+    // #781: `primaryPath` is included in the walk because a Module's ROOT (e.g. /cafe → the
+    // Café Log now) is a canonical destination even when it does not have a child entry of
+    // its own — `CAFE_SECTIONS` no longer carries a `/cafe` row (that would be a Café inside
+    // a Café). Without this, /cafe would resolve to nothing, and the breadcrumb + rail
+    // aria-current logic would treat the module root the way they treat an unknown URL.
+    const candidates = [
+      ...d.links,
+      ...(d.children ?? []),
+      ...(d.primaryPath ? [{ path: d.primaryPath }] : []),
+    ]
     for (const link of candidates) {
       if (link.path === '/') {
         if (pathname === '/') return d

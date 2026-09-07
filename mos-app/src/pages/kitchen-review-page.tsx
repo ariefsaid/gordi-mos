@@ -887,7 +887,7 @@ export function KitchenReviewPage() {
         <div className="kr-block kr-forbidden" role="region" aria-label={t('kitchen.review.restrictedAria')}>
           <p className="kr-forbidden-title">{t('kitchen.review.leadsOnly')}</p>
           <p className="kr-forbidden-msg">{t('kitchen.review.leadsOnlyMsg')}</p>
-          <Link to="/cafe/log" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
+          <Link to="/cafe" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
       </PageFamilyFrame>
     )

@@ -8,7 +8,7 @@ import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
 import {
   DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerAdmittedToRoute,
-  primaryModuleForViewer,
+  primaryModuleForViewer, moduleChildrenForViewer,
   type Destination,
 } from './destinations'
 import { CAFE_SECTIONS, visibleSections } from './sections'
@@ -199,36 +199,33 @@ describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
   })
 })
 
-// The Café module carries its Opening tab plus five working screens as `children`, with Review + Pushes gated on
-// the SAME access roles their routes enforce. The port shipped this module with one link and left
-// CAFE_SECTIONS — all six paths, correctly labelled — imported by nothing but a breadcrumb lookup.
+// The Café module carries Plan · Stock (+ Review · Pushes by capability) as `children`
+// (Issue 781, OD-WAY-95 (1)(3)) — Log is not a child because /cafe IS the Log, and Opening is not a
+// child because it is a door row inside the Log (DESIGN.md § Navigation A1). Review + Pushes are
+// still gated on the SAME access roles their routes enforce.
 describe('Café module — the tab strip is in the nav, gated as its routes are', () => {
   const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
 
-  it('carries Opening and all five working screens as children, derived from CAFE_SECTIONS', () => {
+  it('carries Plan · Stock (+ Review · Pushes) as children, derived from CAFE_SECTIONS — no Log or Opening child', () => {
     expect(cafe.children?.map((c) => c.path)).toEqual([
-      '/cafe',
-      '/cafe/log',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/review',
       '/cafe/pushes',
     ])
-    // Derived, not re-listed: CAFE_SECTIONS is the tab-strip source of truth.
+    // Derived, not re-listed: CAFE_SECTIONS is the child-list source of truth.
     expect(cafe.children).toEqual(CAFE_SECTIONS)
   })
 
-  it('a plain kitchen member sees Log, Plan and Stock — and not Review or Pushes', () => {
+  it('AC-020 (Kartika): a plain kitchen member sees Plan and Stock — and not Review or Pushes', () => {
     const visible = visibleSections(cafe.children ?? [], ['member']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock'])
+    expect(visible).toEqual(['/cafe/plan', '/cafe/stock'])
   })
 
-  it('ops_lead and admin also see Review and Pushes', () => {
+  it('AC-020 (Cahya, admin): ops_lead and admin also see Review and Pushes', () => {
     for (const role of ['ops_lead', 'admin']) {
       const visible = visibleSections(cafe.children ?? [], [role]).map((c) => c.path)
       expect(visible, role).toEqual([
-        '/cafe',
-        '/cafe/log',
         '/cafe/plan',
         '/cafe/stock',
         '/cafe/review',
@@ -241,12 +238,54 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
   // #238's cross-stack journey found that neither this rail nor the route had been told, so the
   // one person the slice exists for saw no link and was bounced off the URL. Pushes is untouched:
   // it is the dispatch surface, and opening review per stream opened nothing about posting.
-  it('a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
+  it('AC-020 (Sinta): a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
     const visible = visibleSections(cafe.children ?? [], ['supervisor']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review'])
+    expect(visible).toEqual(['/cafe/plan', '/cafe/stock', '/cafe/review'])
   })
 
-  it("each gated nav entry carries the same role list as the route gate that OWNS it", () => {
+})
+
+// AC-020 (Issue 781): moduleChildrenForViewer is the rail's own visibility rule — children render
+// for viewers doing the module's work (affiliated with the BU, or holding a role that unlocks
+// one of its lead-gated children). Fitri, a Finance viewer with neither, sees the ROOT row
+// alone at /cafe at every width.
+describe('AC-020: Café rail children per persona (Issue 781, OD-WAY-95 (1)(3))', () => {
+  const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
+
+  it('Kartika — affiliated kitchen hand: sees Plan · Stock (no Review, no Pushes)', () => {
+    const kids = moduleChildrenForViewer(cafe, '/cafe', ['cafe'], ['member'])
+    expect(kids.map(c => c.path)).toEqual(['/cafe/plan', '/cafe/stock'])
+  })
+
+  it('Sinta — stream supervisor: sees Plan · Stock · Review', () => {
+    // Stream supervisor may have no BU affiliation (their team is a stream Team); the
+    // supervisor gate on Review is what earns them the child list.
+    const kids = moduleChildrenForViewer(cafe, '/cafe', [], ['supervisor'])
+    expect(kids.map(c => c.path)).toEqual(['/cafe/plan', '/cafe/stock', '/cafe/review'])
+  })
+
+  it('Cahya — ops lead: sees Plan · Stock · Review · Pushes', () => {
+    const kids = moduleChildrenForViewer(cafe, '/cafe', ['cafe'], ['ops_lead'])
+    expect(kids.map(c => c.path)).toEqual(['/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes'])
+  })
+
+  it('Fitri — finance viewer with no cafe standing: sees NO children — the module root alone', () => {
+    // The route stays open to her (OD-WAY-51 — every authenticated viewer is admitted to
+    // /cafe), but the rail should not offer her doors into surfaces she has no work on.
+    const kids = moduleChildrenForViewer(cafe, '/cafe', [], ['finance'])
+    expect(kids).toEqual([])
+  })
+
+  it('Krishna — plain member with no stream Team: sees NO children — his page is the "belong here" onboarding, not a menu', () => {
+    const kids = moduleChildrenForViewer(cafe, '/cafe', [], ['member'])
+    expect(kids).toEqual([])
+  })
+})
+
+describe('Café module — each gated nav entry carries the same role list as the route gate that OWNS it', () => {
+  const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
+
+  it("Review and Pushes agree with their route gates (nav ↔ route)", () => {
     // Per-path, not per-pair: Review and Pushes now sit behind different gates, and an invariant
     // that assumed one shared gate would have had to be weakened to admit that. This form is
     // stronger — it would catch either link drifting from its own route.
@@ -286,11 +325,12 @@ describe('viewerAdmittedToRoute — one admission authority, shared with the rai
   })
 
   it('an ungated route admits every authenticated viewer — including one with no access role at all', () => {
-    // The failed-checks band's destination. `/cafe/log` carries no access-role gate and
-    // ops.kitchen_logs is org-readable by policy, so admission is universal and the ruling's
-    // consequence is accepted rather than papered over with a hidden second gate.
-    expect(viewerAdmittedToRoute('/cafe/log', [])).toBe(true)
-    expect(viewerAdmittedToRoute('/cafe/log', ['finance'])).toBe(true)
+    // The failed-checks band's destination. `/cafe` (the capture list, née /cafe/log) carries
+    // no access-role gate and ops.kitchen_logs is org-readable by policy, so admission is
+    // universal and the ruling's consequence is accepted rather than papered over with a
+    // hidden second gate.
+    expect(viewerAdmittedToRoute('/cafe', [])).toBe(true)
+    expect(viewerAdmittedToRoute('/cafe', ['finance'])).toBe(true)
   })
 
   it('a gated route still narrows — admission is the ROUTE\'s answer, not a blanket yes', () => {
@@ -348,10 +388,13 @@ describe('destinationForPath — resolution across all three zones', () => {
     expect(destinationForPath('/work/tasks')?.id).toBe('work')
   })
 
-  it('resolves /cafe/log (and /cafe) to the café module', () => {
-    expect(destinationForPath('/cafe/log')?.id).toBe('cafe')
+  it('resolves /cafe (the module root and the Log now) and /cafe/review to the café module', () => {
+    // /cafe/log is a router redirect since Issue 781 (OD-WAY-95) — the capture list IS /cafe, so
+    // deep-linking /cafe/log lands at /cafe in one hop. destinationForPath is only asked for
+    // paths the app is currently at.
     expect(destinationForPath('/cafe')?.id).toBe('cafe')
     expect(destinationForPath('/cafe/review')?.id).toBe('cafe')
+    expect(destinationForPath('/cafe/plan')?.id).toBe('cafe')
   })
 
   it('resolves /admin/people to admin (utility)', () => {

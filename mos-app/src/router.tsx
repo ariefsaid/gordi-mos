@@ -362,20 +362,24 @@ const routeTable: RouteObject[] = [
           { path: 'inbox', element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
 
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
-          // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D): the Café Module
-          // home hosts CafeOpeningPanel, then links out to the working screens (#196, PORT-023).
+          // /cafe is the Café module's capture list — the Log (#781, OD-WAY-95). A Module's root
+          // renders the work its members do most, never a menu of doors; the opening is a door
+          // row inside that root, and the review queue is a rail child. /cafe/log therefore
+          // redirects here (deep links stay working, in one hop, with the query preserved), and
+          // the opening lives at /cafe/opening for the in-page door row to open.
           {
             path: 'cafe',
-            element: withSuspense(<CafeOpeningPage />),
+            element: withSuspense(<KitchenLogPage />),
             handle: pageHandle('workspace'),
           },
-          { path: 'cafe/log', element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
+          { path: 'cafe/opening', element: withSuspense(<CafeOpeningPage />), handle: pageHandle('workspace') },
+          { path: 'cafe/log', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
-          // Names /cafe/log, not /cafe: /cafe is now the opening surface itself (see above),
-          // and a redirect that lands on a redirect is two hops.
-          { path: 'kitchen', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
-          { path: 'kitchen/log', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
+          // /kitchen/* deep links target the Café module's live paths in one hop. /cafe is the
+          // Log now, so /kitchen and /kitchen/log both land there directly.
+          { path: 'kitchen', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
+          { path: 'kitchen/log', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: 'kitchen/plan', element: <RouteRedirect to="/cafe/plan" />, handle: redirectHandle('/cafe/plan') },
           {
             path: 'kitchen/stock',

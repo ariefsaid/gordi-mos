@@ -1,11 +1,11 @@
 /* CafeStreamBar — cafe-stream- namespace (C1: disjoint from kl-/kp-/kpu-/kr-/ks-/kpe-).
-   Lives in the page head's status row, so it stays one quiet line: an overline-rank label
-   ("Stream") against the 32px kit Select. On a phone the select takes the full width — a
-   half-width <select> truncates a branch name to the point where two branches read the
-   same, the exact ambiguity the catalog exists to end. */
+   #781 / DESIGN.md § Compact capture row A2. Lives in the page head's status row, so it stays
+   one quiet line: overline-rank label ("Stream"), the statement in the head's own foreground
+   voice, and — when the person is allowed one — a text-link "switch" that opens a small
+   listbox of producing streams. No control chrome: a stream is a STATEMENT, not a control. */
 .cafe-stream {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
@@ -20,8 +20,8 @@
   text-transform: uppercase;
 }
 
-/* The read-only statement (a surface that names its stream but cannot switch it) carries the
-   same rank as the control's own text, so the two surfaces read as one grammar. */
+/* The statement — the head's own foreground voice, one line, wraps at the branch/activity
+   separator on a phone if it must. */
 .cafe-stream__value {
   color: var(--foreground);
   font-size: var(--font-size-control);
@@ -30,7 +30,76 @@
   overflow-wrap: anywhere;
 }
 
+/* The switch is a text link beside the statement — not a control. Anchored so the little
+   listbox can pop directly beneath it. */
+.cafe-stream__switch {
+  position: relative;
+  display: inline-flex;
+}
+
+.cafe-stream__switch-link {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  color: var(--primary);
+  font-size: var(--font-size-mono);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.cafe-stream__switch-link:hover {
+  background: var(--accent);
+}
+
+.cafe-stream__switch-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The listbox — anchored beneath the switch link. Shares the popover surface, single border
+   and 12px overlay radius the design system already defines for lightweight menus. */
+.cafe-stream__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  min-width: 220px;
+  padding: 4px;
+  background: var(--popover, var(--card));
+  color: var(--popover-foreground, var(--foreground));
+  border: 1px solid var(--border);
+  /* The overlay radius / shadow the design system already uses for lightweight menus (see
+     DESIGN.md § Overlays). Both come from tokens — no raw literal survives. */
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-popover);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cafe-stream__option {
+  background: none;
+  border: 0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: calc(var(--radius) - 4px);
+  font-size: var(--font-size-control);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.cafe-stream__option:hover {
+  background: var(--accent);
+}
+
+.cafe-stream__option[aria-selected='true'] {
+  font-weight: 600;
+  background: var(--secondary);
+}
+
 @media (max-width: 390px) {
   .cafe-stream { width: 100%; }
-  .cafe-stream__select { flex: 1 1 100%; min-width: 0; }
+  .cafe-stream__menu { min-width: 100%; }
 }

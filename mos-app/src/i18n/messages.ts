@@ -401,7 +401,6 @@ export const messages = {
     'nav.admin.people': 'People',
     'nav.cafe': 'Café',
     'nav.cafe.log': 'Log',
-    'nav.cafe.opening': 'Opening',
     'nav.cafe.plan': 'Plan',
     'nav.cafe.pushes': 'Pushes',
     'nav.cafe.review': 'Review',
@@ -559,9 +558,22 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Note required — off plan',
     'kitchen.log.unit.changeAria': 'Change unit for ${item}',
     'kitchen.log.unit.selectAria': 'Unit for ${item}',
-    'kitchen.log.stream.choose': 'Choose stream…',
     'kitchen.log.stream.missing': 'Choose a production stream before submitting.',
     'kitchen.log.stream.pickerAria': 'Production stream',
+    // #781: the switch is a text link beside the statement (DESIGN.md § Compact capture row A2).
+    // A verb, not a label — no ellipsis, no colon; it opens a picker of the person's producing streams.
+    'kitchen.log.stream.switch': 'switch',
+    // #781: no-stream blank — the viewer has no live primary stream Team AND no lead role that would
+    // let ops-lead fallback pick a stream. The floor step is admin help, not a choice.
+    'kitchen.log.noStream.title': "You're not on a production Team yet — ask an admin.",
+    // #781: receives-only blank — the resolved stream (e.g. Radiant · Kitchen) does not produce; the
+    // only Café step here is Stock (transfers land in it), so the door goes there.
+    'kitchen.log.receivesOnly.title': "This stream receives, it doesn't produce.",
+    'kitchen.log.receivesOnly.stockLink': 'Open Stock',
+    // #781: the in-page opening door row (DESIGN.md § Navigation A1 — a door row is `.btn-outline`
+    // weight, eyebrow · state · one verb, whose click opens the record that holds the work).
+    'cafe.opening.door.eyebrow': "Today's opening",
+    'cafe.opening.door.open': 'Open',
     'kitchen.log.submit.default': 'Submit',
     'kitchen.log.submit.entry.one': 'Submit ${count} entry',
     'kitchen.log.submit.entry.other': 'Submit ${count} entries',
@@ -1661,7 +1673,6 @@ export const messages = {
     // #755 (AC-024): Log names the production record; Pushes names its JOB — sending approved
     // logs — which 'Antrean' (queue) never did.
     'nav.cafe.log': 'Catatan',
-    'nav.cafe.opening': 'Pembukaan',
     'nav.cafe.plan': 'Rencana',
     'nav.cafe.pushes': 'Kirim Log',
     'nav.cafe.review': 'Tinjauan',
@@ -1818,9 +1829,15 @@ export const messages = {
     'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
     'kitchen.log.unit.changeAria': 'Ganti satuan untuk ${item}',
     'kitchen.log.unit.selectAria': 'Satuan untuk ${item}',
-    'kitchen.log.stream.choose': 'Pilih Tim…',
     'kitchen.log.stream.missing': 'Pilih Tim produksi sebelum mengirim.',
     'kitchen.log.stream.pickerAria': 'Tim produksi',
+    // #781: text-link verb beside the statement — see the EN sibling for the design contract.
+    'kitchen.log.stream.switch': 'ganti',
+    'kitchen.log.noStream.title': 'Kamu belum masuk tim produksi — minta admin.',
+    'kitchen.log.receivesOnly.title': 'Tim ini menerima, bukan memproduksi.',
+    'kitchen.log.receivesOnly.stockLink': 'Buka Stok',
+    'cafe.opening.door.eyebrow': 'Pembukaan hari ini',
+    'cafe.opening.door.open': 'Buka',
     'kitchen.log.submit.default': 'Kirim',
     'kitchen.log.submit.entry.one': 'Kirim ${count} entri',
     'kitchen.log.submit.entry.other': 'Kirim ${count} entri',

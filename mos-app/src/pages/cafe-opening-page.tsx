@@ -1,11 +1,10 @@
-// CafeOpeningPage — /cafe — the Café Module home (Step 7 / cafe-retrofit.spec.md §4, B7,
-// RATIFY-7D). Answers the Café rail job ("Run today's café floor work — openings, checks, stock,
-// shifts", Rule 1) before configuration: hosts CafeOpeningPanel's "Start today's opening" surface,
-// then a compact link row to the existing, unchanged capture screens (Log · Plan · Stock · Review,
-// FR-708). RATIFY-7C: a bare org with no Café Opening process seeded renders an EmptyState, not a
-// crash.
+// CafeOpeningPage — /cafe/opening — the Café Module's opening record (#781, OD-WAY-95).
+// The Module's ROOT (/cafe) is the capture list (KitchenLogPage); this record page is what the
+// in-page opening door on that root opens — it hosts CafeOpeningPanel's "Start today's opening"
+// surface. The capture-links row that lived here before is gone: capture is /cafe now (the
+// module root), and the rail carries the other doors (Plan/Stock and, gated, Review/Pushes).
+// RATIFY-7C: a bare org with no Café Opening process seeded renders an EmptyState, not a crash.
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -16,12 +15,6 @@ import { getCafeOpeningProcessId, listStartableCafeTeams, wibToday } from '@/lib
 import { listAuthorTeams } from '@/lib/db/signals'
 import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
-import { canReviewCafe } from '@/lib/kitchen-gates'
-// #440: the module ROOT is where the stream context belongs first — the doors below lead into
-// five stream-scoped surfaces, and a person who lands here should be able to read (and set)
-// which books they are about to work in before they walk through one.
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
-import { useCafeStream } from '@/lib/use-cafe-stream'
 import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
@@ -31,53 +24,16 @@ interface BranchTeam {
   name: string
 }
 
-// Capture doors every café viewer reaches (Log/Plan/Stock — read/capture for all roles).
-const CAPTURE_LINKS = [
-  { to: '/cafe/log', key: 'nav.cafe.log' as const },
-  { to: '/cafe/plan', key: 'nav.cafe.plan' as const },
-  { to: '/cafe/stock', key: 'nav.cafe.stock' as const },
-]
-
-// JQ-1: Review + Pushes are ops_lead/admin-only day-steps. Their doors render ONLY for a
-// viewer who can actually reach the route (canReviewCafe) — a member no longer sees a tab
-// that silently bounces them off the section (the route's forbidden panel stays as backstop).
-const LEAD_LINKS = [
-  { to: '/cafe/review', key: 'nav.cafe.review' as const },
-  { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const },
-]
-
 export function CafeOpeningPage() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('doc.cafeOps') }))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const captureLinks = canReviewCafe(accessRoles) ? [...CAPTURE_LINKS, ...LEAD_LINKS] : CAPTURE_LINKS
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
   const [team, setTeam] = useState<BranchTeam | null>(null)
   const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
-  // The module's stream (#440). Read on its own so a failure here never takes the opening
-  // surface down with it: the opening itself is Team-scoped, not stream-scoped, so the head's
-  // statement is context for the doors below, not a precondition for the panel.
-  const cafeStream = useCafeStream()
-  const { resolve: resolveStream, adopt: adoptStream } = cafeStream
-
-  useEffect(() => {
-    if (!viewerId) return
-    let live = true
-    void (async () => {
-      try {
-        const resolved = await resolveStream()
-        if (live) adoptStream(resolved)
-      } catch {
-        // the head then reads "—": no stream known, nothing claimed
-        if (live) adoptStream({ branches: [], options: [], stream: null })
-      }
-    })()
-    return () => { live = false }
-  }, [viewerId, resolveStream, adoptStream])
 
   const load = useCallback(() => {
     if (!viewerId) return
@@ -138,13 +94,6 @@ export function CafeOpeningPage() {
     <PageFamilyFrame
       family="workspace"
       title={t('nav.cafe')}
-      statusRow={
-        <CafeStreamBar
-          options={cafeStream.options}
-          stream={cafeStream.stream}
-          onChange={cafeStream.setStream}
-        />
-      }
       meta={wibToday()}
       state={frameState}
     >
@@ -159,11 +108,6 @@ export function CafeOpeningPage() {
         <EmptyState variant="blank" title={t('cafe.opening.noTeam')} />
       )}
       {state === 'choice' && (
-        // distill: the Select's own visible label already says "Choose a Team" — a
-        // standalone prompt paragraph above it (formerly "Choose the Team whose opening
-        // you want to view.") restated the same instruction a second time for a
-        // one-field form. The section's aria-label keeps the region navigable by AT
-        // landmark; the field label is the single remaining copy of the instruction.
         <section className="cafe-team-choice" aria-label={t('cafe.opening.chooseTeam')}>
           <Select
             label={t('cafe.opening.chooseTeam')}
@@ -185,18 +129,7 @@ export function CafeOpeningPage() {
         </section>
       )}
       {state === 'ready' && processId && team && (
-        <>
-          <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.name} />
-          {/* Step 7 minor (item 7b): real button-styled links (btn-outline), full-width tap
-              targets at ≤390px (cafe-opening-page.css). */}
-          <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
-            {captureLinks.map((link) => (
-              <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">
-                {t(link.key)}
-              </Link>
-            ))}
-          </nav>
-        </>
+        <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.name} />
       )}
     </PageFamilyFrame>
   )
