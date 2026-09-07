@@ -736,6 +736,26 @@ describe('AC-081: barista at 390 renders the capture-first Home — three bands,
     const controls = main.querySelectorAll('a, button, [role="button"], [role="tab"], input, select, textarea')
     expect(controls.length, `main carried ${controls.length} controls; the barista Home must stay at 9 or fewer`).toBeLessThanOrEqual(9)
   })
+
+  // The empty-feed floor above is not enough on its own: every ambient row is `role="button"`, so
+  // a fresh viewer with a real Signals column would push the same count past nine. The member
+  // composition's tighter cap on the Signals tail is what keeps the floor honest with a populated
+  // feed — this pins six-plus Signals to that same ≤9 total.
+  it('AC-081: 6+ Signals still keeps <main> at ≤9 controls (member Signals cap holds)', async () => {
+    mockListTasks.mockResolvedValue([dueToday('t1', 'Rebuild the espresso hopper'), dueToday('t2', 'Restock the syrup shelf')])
+    mockGetCafeDoor.mockResolvedValue({ branchName: 'Gordi HQ', done: 1, total: 2 })
+    mockListSignals.mockResolvedValue(Array.from({ length: 6 }, (_, i) => signalRow({
+      id: `s-${i}`, occurred_at: `2026-08-0${(i % 9) + 1}T02:00:00Z`, body: `Signal body ${i}`,
+    })))
+
+    await renderHome(baristaViewer)
+    // Wait for the Signals section to hydrate — the header count reflects the shown rows.
+    await screen.findByRole('region', { name: /^Signals · \d+$/ })
+
+    const main = document.querySelector('main')!
+    const controls = main.querySelectorAll('a, button, [role="button"], [role="tab"], input, select, textarea')
+    expect(controls.length, `main carried ${controls.length} controls with a populated feed; the barista Home must stay at 9 or fewer`).toBeLessThanOrEqual(9)
+  })
 })
 
 // AC-082: barista at 1440 — the same three bands, but the layout is two columns (Café door +

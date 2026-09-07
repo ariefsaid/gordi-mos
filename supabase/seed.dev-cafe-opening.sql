@@ -68,17 +68,9 @@ insert into mos.process_task_defs
 on conflict (id) do nothing;
 
 -- ── Today's opening RUN at Gordi HQ (#759, AC-084) ───────────────────────────────────────────
--- The Barista's Home mounts the Café door (from #757), and the door reads a live process_run for
--- the viewer's stream Team + today's period key (getViewerCafeDoor → getTodayOpeningForTeam). On
--- a fresh reset with no run seeded, the door shows `Opening checklist 0/0` — a truthful zero,
--- but a demo of the AC-081 member composition wants the door to be a real doorway. This inserts
--- one open process_run for `gordi_hq_bar` today (WIB), so a click on the door lands somewhere.
---
--- Written DIRECTLY to mos.process_runs rather than through mos.spawn_process_run: the spawn RPC
--- checks `shared.current_person_id()` and `shared.can('process.start')`, and the seed connection
--- carries no auth claim (both are null) — the direct insert bypasses RLS the same way every
--- other seed row does. `spec_snapshot` mirrors what the spawn RPC would freeze at the same
--- moment: the process name, its `definition_version`, and the three active task-defs above.
+-- Inserts one open process_run for `gordi_hq_bar` today (WIB) so the Café door has a real
+-- destination on a fresh reset. `spec_snapshot` mirrors what the spawn RPC would freeze at the
+-- same moment: the process name, its `definition_version`, and the three active task-defs above.
 -- Idempotent by (org, process, team, period_key) — the same UNIQUE the spawn RPC keys on, so a
 -- hand re-run is a no-op.
 --

@@ -48,10 +48,10 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
     }
   })
 
-  // AC-084 (#759): the `Barista` demo persona resolves to the seeded HQ barista (Bulan) — the
-  // member composition it exists to walk needs a person the seed has decorated with an assigned
-  // stream Team, due-today tasks and today's opening run.
-  it('AC-084: `Barista` maps to the fictional seeded HQ barista (bulan.dev)', () => {
+  // AC-084 (#759): the `Barista` demo persona resolves to the seeded HQ barista — the member
+  // composition it exists to walk needs a fictional person the seed has decorated with an
+  // assigned stream Team, due-today tasks and today's opening run.
+  it('AC-084: `Barista` maps to the fictional seeded HQ barista', () => {
     const barista = DEMO_PERSONAS.find((p) => p.label === 'Barista')
     expect(barista?.email).toBe('bulan.dev@example.test')
   })

@@ -37,6 +37,10 @@ export interface SignalFeedRowsProps {
    * exception, §Operations event tokens). Home's row treatment is unchanged.
    */
   variant?: 'ambient' | 'archive'
+  /** Override the ambient depth. Defaults to `AMBIENT_CAP`; the member composition (#759, AC-081)
+   *  passes the tighter `MEMBER_AMBIENT_CAP` so the capture-first Home's ≤9 controls floor holds
+   *  even with a populated feed. Ignored on the archive variant, which is never capped. */
+  cap?: number
 }
 
 /** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
@@ -44,10 +48,16 @@ export interface SignalFeedRowsProps {
  *  collection, so it is never capped — hiding records there would defeat the surface's whole job. */
 export const AMBIENT_CAP = 6
 
+/** The member composition's tighter ambient depth (#759, AC-081). The capture-first Home caps its
+ *  reachable controls in <main> at 9, and every ambient row is an activation target — the default
+ *  AMBIENT_CAP alongside the door and the needs-you rows would blow that floor. */
+export const MEMBER_AMBIENT_CAP = 4
+
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onCreateTask, createTaskHref, onOpen,
   showSearch = true,
   variant = 'ambient',
+  cap = AMBIENT_CAP,
 }: SignalFeedRowsProps) {
   const t = useT()
   const [query, setQuery] = useState('')
@@ -69,7 +79,7 @@ export function SignalFeedRows({
     return all.filter((s) => signalMatchesText(s, q, names))
   }, [signals, query, searchable, authorNamesById, teamNamesById])
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
-  const capped = variant === 'ambient' ? ordered.slice(0, AMBIENT_CAP) : ordered
+  const capped = variant === 'ambient' ? ordered.slice(0, cap) : ordered
   const hidden = ordered.length - capped.length
   // The remainder is a real DOOR, not a bare fact: it carries any active filter through as the
   // collection's own `q` key, so the rows it names are actually where it says they are.

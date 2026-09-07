@@ -1,35 +1,11 @@
-// HomePage — the index route (/). Home renders the SAME consequence-ranked task data —
-// overdue → due today → blocked, failed checks, and my work today — in whichever of the
-// three Home layouts (Focused / Overview / List) the viewer has chosen from /profile (OD-V4-9).
-// Mentions are not a Home region: the Inbox page and its bell are the one mentions surface (#745).
-// HomePage owns every data read + the ranking/selection logic and hands the result down as the ONE
-// shared region model (`buildHomeRegions`, FR-930) — a layout composes those regions, it never
-// re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream layout
-// was retired (OD-V4-10): List renders the same attention-first order that was already the default.
-//
-// This is presentation over the EXISTING data contracts: the same tasks/failed-check projections
-// and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
-// Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
-// the needs-you region via the attention bands.
-//
-// The Signals column is the real feed (#245). It shipped as a "not available yet" placeholder
-// during the port, when Signals had no surface on this line; #193 landed the DAL, the record
-// surface and `/work/signals`, so the placeholder is gone and `SignalFeedSection` renders live
-// rows. HomePage owns the ONE Signals read, as it owns every other read on this page — the
-// section is presentational (FR-V3-013: no second Signal loader).
-//
-// Home passes EVERY readable Signal, not only the FYI tail v4 passed. v4 split them because its
-// attention-worthy Signals led the ranked stream as their own band; this line's region model has
-// four regions and none of them is Signals, so filtering to FYI here would drop Urgent and
-// Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
-// floats those tiers to the top, so the ranking survives the difference. Should a Signals
-// attention band ever join `buildHomeRegions`, this becomes the FYI tail again.
-//
-// The standing aside carries one more thing for a viewer who steers a scope: the Objectives
-// roll-up door (AC-204 (4)). #179 cut the cascade route and took Home's progress drill with it,
-// and the criterion is that what is left reads deliberate. It lives in the aside rather than in
-// the region model on purpose — the regions are the attention ranking, and a standing reference
-// door is not something that needs the viewer today.
+// HomePage — the index route (/). Home is persona-composed from the ONE region model (#759,
+// OD-WAY-93 (3)): `composeHome` picks a member arm (capture-first: the viewer's Module capture
+// door, a `needs-you` band, and a search-less Signals tail) or a lead+ arm (cockpit: Focused
+// tabs over needs-you / my-work / failed-checks?, an Objectives roll-up door, and Signals). The
+// arrangement (Focused / Overview / List, OD-V4-9) chooses how the lead arm PRESENTS those
+// regions; it never re-derives them. Mentions are not a Home region — Inbox owns them (#745).
+// HomePage owns every data read on this line and hands regions + doors + feed down as
+// presentation (FR-V3-013 — the Signal feed is the same shared read the region model uses).
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -62,6 +38,7 @@ import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
 import { HomeMember } from '@/components/home/home-member'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { MEMBER_AMBIENT_CAP } from '@/components/signals/signal-feed-rows'
 import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
@@ -421,6 +398,7 @@ export function HomePage() {
             error={signalsState === 'error'}
             onReload={loadSignals}
             showSearch={composition.signalsSearch}
+            {...(composition.kind === 'member' ? { cap: MEMBER_AMBIENT_CAP } : {})}
           />
         )
 

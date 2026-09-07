@@ -35,6 +35,10 @@ export interface SignalFeedSectionProps {
    *  member composition (#759, AC-081) — the ambient tail hides search so the shape does not
    *  compete with the capture-first bands above it. Cockpit personas keep it (default). */
   showSearch?: boolean
+  /** Ambient-tail depth override. Defaults to `AMBIENT_CAP`; the member composition passes the
+   *  tighter `MEMBER_AMBIENT_CAP` so the capture-first Home's ≤9 controls floor holds with a
+   *  populated feed. The count beside the section title stays honest by mirroring the same cap. */
+  cap?: number
 }
 
 function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string> {
@@ -44,6 +48,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 export function SignalFeedSection({
   signals, authorNamesById, teamNamesById, createTaskHref, loading = false, error = false, onReload,
   showSearch = true,
+  cap = AMBIENT_CAP,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -101,7 +106,7 @@ export function SignalFeedSection({
             the sole h1 and there is no intermediate level — an h3 skipped one (detector:
             skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
         <h2 id={titleId} className="signal-feed-label">
-          {t('signals.feed.title')}{error ? '' : ` · ${Math.min(signals.length, AMBIENT_CAP)}`}
+          {t('signals.feed.title')}{error ? '' : ` · ${Math.min(signals.length, cap)}`}
         </h2>
       </div>
       {error ? (
@@ -117,6 +122,7 @@ export function SignalFeedSection({
           createTaskHref={createTaskHref}
           onOpen={(signal) => openRecord(signal.id)}
           showSearch={showSearch}
+          cap={cap}
         />
       )}
       {host ? <OverlayHostSlot owner="signals" /> : null}
