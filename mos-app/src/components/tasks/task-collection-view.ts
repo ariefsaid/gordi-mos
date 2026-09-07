@@ -12,6 +12,7 @@ export type TaskCollectionViewLabels = Readonly<Record<Exclude<TaskCollectionVie
 function builtInLabel(view: TaskCollectionView, labels: TaskCollectionViewLabels): string {
   switch (view) {
     case 'my-work': return labels['my-work']
+    case 'team-work': return labels['team-work']
     case 'overdue': return labels.overdue
     case 'all':
     case 'my-pic':

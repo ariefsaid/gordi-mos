@@ -26,6 +26,7 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
 }))
 // Cascade catalogs (Task B) — the workspace loads these non-blocking; mock to empty so the
 // unit test never reaches the real supabase client. (Resolution set in beforeEach — resetAllMocks
@@ -38,7 +39,7 @@ vi.mock('../lib/comments/postComment', () => ({
 }))
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments } from '@/lib/comments/postComment'
@@ -163,6 +164,7 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+  vi.mocked(getPersonTeams).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
@@ -309,15 +311,12 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 
-  it('§Task-11: /work/tasks?view=team degrades to the org-visible All set with no Team-work chip (Issue-8 gate)', async () => {
-    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
-    // view; it is rejected on parse and falls back to the org-visible All set. No Team-work chip
-    // exists until Issue 8 lands the real Task team_id contract.
+  it('§Task-11: /work/tasks?view=team resolves to the canonical Team work view', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=team')
-    await waitFor(() => screen.getByText('Shared task'))
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => screen.getByRole('button', { name: 'Team work' }))
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
   })
@@ -327,8 +326,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?view=bogus')
     await waitFor(() => screen.getByText('Fallback task'))
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
-    // §Task-11: no Team-work chip exists.
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
