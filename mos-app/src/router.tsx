@@ -2,6 +2,8 @@ import {
   isValidElement,
   lazy,
   Suspense,
+  useState,
+  type ComponentProps,
   type ComponentType,
   type LazyExoticComponent,
   type ReactNode,
@@ -40,19 +42,43 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 // identity — instead of trusting a name or a comment; it also gives a future prefetch-on-hover
 // somewhere to hook in. `withSuspense` wraps each split element in the app's one sanctioned
 // loading grammar (LoadingShell), so no route invents its own spinner.
+//
+// **Why the wrapper around React.lazy isn't just `lazy()`** (#802): `React.lazy` caches the
+// resolved OR REJECTED module promise forever. If the browser was offline when a chunk import
+// first ran, that lazy holds the rejection, and every later render — including the
+// `ContentErrorBoundary`'s Retry remount — re-throws the same `TypeError: Failed to fetch
+// dynamically imported module`. Offline is supposed to be recoverable inside the frame, so this
+// wrapper stores each fresh `React.lazy(loader)` in `useState`: the boundary's Retry bumps its
+// remount key, the wrapper mounts anew, `useState`'s initializer runs again, and the new lazy has
+// not been rejected yet — so it re-runs the import. A resolved import is memoised in the outer
+// `cached` slot so a later navigation to the same route resolves synchronously (no Suspense flash),
+// and a rejected import is NOT memoised — that is the whole point.
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- mirrors React.lazy's own type parameter */
-type Preloadable<T extends ComponentType<any>> = LazyExoticComponent<T> & {
+type Preloadable<T extends ComponentType<any>> = ComponentType<ComponentProps<T>> & {
   /** The module loader, exposed so a test can resolve what this route actually renders. */
   preload: () => Promise<{ default: T }>
 }
 
-function lazyPage<T extends ComponentType<any>>(
+export function lazyPage<T extends ComponentType<any>>(
   loader: () => Promise<{ default: T }>,
 ): Preloadable<T> {
-  const Component = lazy(loader) as Preloadable<T>
-  Component.preload = loader
-  return Component
+  let cached: { default: T } | undefined
+  const cachingLoader = (): Promise<{ default: T }> => {
+    if (cached !== undefined) return Promise.resolve(cached)
+    return loader().then((mod) => {
+      cached = mod
+      return mod
+    })
+  }
+
+  function LazyRoute(props: ComponentProps<T>) {
+    const [Impl] = useState<LazyExoticComponent<T>>(() => lazy(cachingLoader))
+    return <Impl {...(props as ComponentProps<T>)} />
+  }
+  const Wrapper = LazyRoute as unknown as Preloadable<T>
+  Wrapper.preload = cachingLoader
+  return Wrapper
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -169,7 +195,13 @@ const routeTable: RouteObject[] = [
       {
         element: <AppShell />,
         handle: infrastructureHandle('layout'),
-        children: [
+        // Each direct child of AppShell carries `errorElement: <RouteErrorBoundary />` so a loader
+        // rejection (a `fetch` that failed on the network, or any other loader throw) is caught
+        // INSIDE the shell frame: react-router replaces the errored route's element with the
+        // errorElement, and its PARENT (AppShell) still renders — rail + header + context row stay
+        // mounted. The outer boundary at ProtectedRoute stays for render exceptions above the
+        // shell. See lib/network-error.ts.
+        children: withShellErrorBoundary([
           // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
           // design: the region/attention model (needs-you, failed checks, my work today) in
           // whichever of Focused/Overview/List the viewer has chosen. Eager, still,
@@ -478,11 +510,26 @@ const routeTable: RouteObject[] = [
           // Not-found sits INSIDE the AppShell layout route (AC-021), so a mistyped path keeps
           // the rail and the header and the viewer can navigate out of it.
           { path: '*', element: withSuspense(<NotFoundPage />), handle: infrastructureHandle('not-found') },
-        ],
+        ]),
       },
     ],
   },
 ]
+
+/**
+ * Adds `errorElement: <RouteErrorBoundary />` to each route that lacks one, without touching any
+ * other field (element/path/handle/children stay identical). Applied at the shell-child seam so a
+ * loader rejection is caught INSIDE AppShell — see the comment on the `children:` line that calls
+ * this. See lib/network-error.ts for the "offline is an error, not a crash" rationale.
+ */
+function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
+  return routes.map(
+    (route): RouteObject => ({
+      ...route,
+      errorElement: route.errorElement ?? <RouteErrorBoundary />,
+    }),
+  )
+}
 
 // ── The ship gate, applied (#444) ────────────────────────────────────────────────────────────
 //

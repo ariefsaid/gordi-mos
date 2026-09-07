@@ -360,6 +360,16 @@ export const messages = {
     // `common.what.*` names the noun the failure is about. `common.docTitle` is
     // NOT redeclared here — the Home port (#191) already added it above.
     'common.loadFailed': 'Couldn’t load ${what}. Check your connection and try again.',
+    // The reach-the-server failure — one sentence pair for every read that fails because the
+    // network did, wherever it fails. Distinct from `common.loadFailed`, which names WHICH noun
+    // failed to load; this one is the whole-surface case where nothing was reachable at all.
+    // `network.retry` is its own label because it re-issues one read, where `common.retry`
+    // ("Try again") is the generic control verb.
+    'network.error.title': 'Couldn’t reach the server',
+    'network.error.copy': 'Check your connection and try again.',
+    'network.retry': 'Retry',
+    // The header's one offline line — muted, present only while the browser reports offline.
+    'shell.offline': 'You’re offline',
     'common.what.budgets': 'budgets',
     'common.what.costLines': 'the BOM and ingredient cost lines',
     // The record overlay/page chrome (#190) — the ONE set of control labels every record kind
@@ -1642,6 +1652,10 @@ export const messages = {
     'common.unexpectedError': 'Terjadi kesalahan. Coba lagi.',
     // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     'common.loadFailed': 'Gagal memuat ${what}. Periksa koneksi Anda lalu coba lagi.',
+    'network.error.title': 'Server tidak dapat dihubungi',
+    'network.error.copy': 'Periksa koneksi Anda lalu coba lagi.',
+    'network.retry': 'Coba lagi',
+    'shell.offline': 'Anda sedang offline',
     'common.what.budgets': 'anggaran',
     'common.what.costLines': 'baris BOM dan biaya bahan',
     'record.openFullPage': 'Buka halaman penuh',

@@ -501,3 +501,19 @@ describe('AC-064 — DESIGN.md carries the Home Signal-tail amendment verbatim',
     expect(section).toMatch(/Home rows carry \*\*no per-row actions and no visibility line\*\*; `Create task` and `Add category` live on the Signal record and the archive Feed\. The row's whole surface opens the record\./)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// AC-029: DESIGN.md carries the Offline amendment verbatim (#802).
+// ════════════════════════════════════════════════════════════════════════════
+describe('AC-029 — DESIGN.md carries the Offline amendment verbatim', () => {
+  const DESIGN = readFileSync(resolve(process.cwd(), '../DESIGN.md'), 'utf8')
+
+  it('the offline paragraph sits under § Component and state conformance matrix, after the table', () => {
+    const section = DESIGN.slice(DESIGN.indexOf('### Component and state conformance matrix'))
+    const amendment =
+      "**Offline is an error, not a crash.** A failed fetch renders `ErrorState` with `Retry` inside the page frame; the rail and header stay. While the browser reports offline, the header shows one muted line `You're offline`. The crash boundary is reserved for exceptions in rendering."
+    expect(section).toContain(amendment)
+    // After the table, not inside it: the last table row ends before the paragraph starts.
+    expect(section.indexOf('| Management |')).toBeLessThan(section.indexOf(amendment))
+  })
+})
