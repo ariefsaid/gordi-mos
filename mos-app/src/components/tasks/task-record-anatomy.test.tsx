@@ -5,6 +5,7 @@ import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import { RecordViewer } from '@/components/records/record-viewer'
+import { RecordPanelHost } from '@/shell/record-panel-host'
 import { createTaskRecordAdapter, type TaskRecordAdapterInput } from './task-record-adapter'
 
 // ── Census Step 2.5 — Task record anatomy conformance (docs/specs/record-page-anatomy.spec.md
@@ -323,5 +324,65 @@ describe('Ticket #751 AC-030 — the pinned title clamps at two lines without a 
     const heading = container.querySelector(`${HEADER} .record-viewer__pinned-title .record-field__heading`)
     expect(heading).toBeTruthy()
     expect(heading!.textContent).toBe(LONG_TITLE)
+  })
+})
+
+// ── #751 — the ⋯ menu owns the FIRST Escape, proven against the live panel host ──────────────
+// The bare renderRecord() above mounts no competing Escape listener, so it cannot tell a menu
+// that merely closes itself from a menu that also lets the record close underneath it. The real
+// desktop surface is RecordPanelHost's non-modal split, which closes the record from a native
+// bubble listener on the panel element — between the focused menuitem and document. Mounting the
+// record inside that host is what makes the menu's capture-phase claim load-bearing: drop the
+// capture flag and the panel's listener runs first, so one Escape closes menu AND record.
+describe('Ticket #751 — the ⋯ menu owns Escape inside the live panel host', () => {
+  function forceSplitWidth() {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('1100'),
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+  }
+
+  it('the first Escape closes ONLY the menu — the host keeps the record open; a second Escape reaches the host', () => {
+    forceSplitWidth()
+    const onClose = vi.fn()
+    const adapter = createTaskRecordAdapter(makeInput({ viewerId: SUPERVISOR, downlineIds: [] }))
+    const { container } = render(
+      <I18nProvider>
+        <RecordPanelHost label="Task detail" focusKey="task-1" onClose={onClose}>
+          <RecordViewer
+            adapter={adapter}
+            mode="panel"
+            headingLevel={2}
+            canonicalHref="http://localhost:3000/mos/work/tasks/task-1"
+            onOpenPage={() => {}}
+          />
+        </RecordPanelHost>
+      </I18nProvider>,
+    )
+    // The host's split regime is the one that listens on the panel element.
+    const panel = container.querySelector('aside.drawer')
+    expect(panel, 'the non-modal split panel is the host regime under test').toBeTruthy()
+
+    const trigger = within(container).getByRole('button', { name: /more actions/i })
+    fireEvent.click(trigger)
+    const menu = container.querySelector('[role="menu"]') as HTMLElement
+    expect(menu.contains(document.activeElement)).toBe(true)
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(container.querySelector('[role="menu"]')).toBeNull()
+    expect(trigger).toHaveFocus()
+    expect(onClose, 'the record stays open behind the dismissed menu').not.toHaveBeenCalled()
+
+    // With the menu gone, Escape belongs to the host again.
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledWith('escape')
   })
 })

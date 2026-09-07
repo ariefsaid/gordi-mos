@@ -62,6 +62,24 @@
     border-radius: 0;
     box-shadow: none;
   }
+
+  /* ── #751 — the split drawer is a BOUNDED column ──
+     `overflow: auto` above only makes a scrollport out of a box something else has bounded.
+     With the page frame scrolling, the split's grid row was `auto`, the drawer grew to its
+     content, and the record body inherited no bound — so the record's pinned header and tab
+     strip scrolled away with the page. While a record panel is open the page frame stops
+     scrolling and hands its height down: content → split → drawer → .dw-surface → the record's
+     own body, which is the scroller. The table column keeps its own overflow so it is bounded,
+     not clipped. Same structure the record page uses (TaskSurface.css, `:has(.record-doc)`). */
+  .page-frame--v3:has(.split:not(.nodrawer)) { display: flex; flex-direction: column; }
+  .page-frame--v3:has(.split:not(.nodrawer)) .page-frame__content {
+    display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+  }
+  .split:not(.nodrawer) {
+    flex: 1 1 auto; min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .split:not(.nodrawer) > .assembly { min-height: 0; overflow-y: auto; }
 }
 
 /* ── Card assembly (OD-P3-10/11) ── */

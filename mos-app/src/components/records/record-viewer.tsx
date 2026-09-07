@@ -106,17 +106,20 @@ function HeaderActions({
     triggerRef.current?.focus()
   }, [])
   useMenuPopover(open, close, menuRef, triggerRef)
+  // While the ⋯ menu is open it OWNS Escape: the first Escape closes the menu and nothing else.
+  // The panel host closes the record from a bubble listener on the panel element, which sits
+  // between the focused menuitem and document — so the claim has to be staked in the CAPTURE
+  // phase at document, above every host listener, or one Escape closes menu and record together.
   useEffect(() => {
-    const menu = menuRef.current
-    if (!open || !menu) return
+    if (!open) return
     const onCaptureKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
       event.stopImmediatePropagation()
       close()
     }
-    menu.addEventListener('keydown', onCaptureKeyDown, true)
-    return () => menu.removeEventListener('keydown', onCaptureKeyDown, true)
+    document.addEventListener('keydown', onCaptureKeyDown, true)
+    return () => document.removeEventListener('keydown', onCaptureKeyDown, true)
   }, [close, open])
   return (
     <div className="record-viewer__pinned-status record-viewer__actions">
