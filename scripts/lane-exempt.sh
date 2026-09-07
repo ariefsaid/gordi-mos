@@ -7,7 +7,9 @@
 #
 # Categories (the routing table's own lanes):
 #   money-auth | diagnosis | fog | factory-self-edit   build lanes — need an issue, and the
-#                                                      in-flight marker is posted to it (audit trail)
+#   owner-burst                                        in-flight marker is posted to it (audit trail);
+#                                                      owner-burst = the owner has directed Claude
+#                                                      builders for a bounded window (OD-WAY-99)
 #   research | review                                  read/verify lanes — local marker only
 #
 # Marker: <git-dir>/lane-exempt, honored by the hook for 8 hours.
@@ -20,9 +22,9 @@ issue="${1:-}"; cat="${2:-}"; shift 2 2>/dev/null || die "usage: lane-exempt.sh 
 reason="${*:-}"
 
 case "$cat" in
-  money-auth|diagnosis|fog|factory-self-edit) build_lane=1 ;;
+  money-auth|diagnosis|fog|factory-self-edit|owner-burst) build_lane=1 ;;
   research|review) build_lane=0 ;;
-  *) die "unknown category '$cat' (money-auth|diagnosis|fog|factory-self-edit|research|review)" ;;
+  *) die "unknown category '$cat' (money-auth|diagnosis|fog|factory-self-edit|owner-burst|research|review)" ;;
 esac
 
 gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
