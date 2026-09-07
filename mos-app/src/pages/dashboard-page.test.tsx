@@ -207,6 +207,12 @@ describe('DashboardPage — states', () => {
     expect(container.querySelectorAll('[data-testid="empty-state"]')).toHaveLength(1)
     const controls = [...screen.queryAllByRole('button'), ...screen.queryAllByRole('link')]
     expect(controls.map(c => c.textContent?.trim())).toEqual(['Check for new snapshot'])
+
+    // The copy is exactly one sentence — a second sentence turns this red.
+    const copyEl = screen.getByText('No sales snapshot rows are available yet.')
+    expect(copyEl).toBeInTheDocument()
+    const terminators = (copyEl.textContent ?? '').match(/[.!?]/g)?.length ?? 0
+    expect(terminators).toBe(1)
   })
 
   it('F11 (OD-91 #24): the awaiting-sync affordance is a REAL refresh — it re-fetches the snapshot and can recover to populated', async () => {
