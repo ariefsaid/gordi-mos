@@ -508,8 +508,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     if (editable) {
       // Lifecycle-aware lead action (owner-eyes item 10): a Task whose status is already Done must
       // NOT offer a dead-end "Mark complete" primary. Reopening is a supported transition (the Status
-      // control freely moves Done → any state), so a Done task instead offers a quiet "Reopen"
-      // secondary that returns it to the active pool; every other state keeps "Mark complete".
+      // control freely moves Done → any state), so a Done task instead offers a "Reopen" primary
+      // that returns it to the active pool — #751 AC-031 owns the one primary slot below, and on a
+      // Done task Reopen IS it (superseding owner-eyes item 10's old quiet-secondary placement in
+      // the retired footer bar); every other state keeps "Mark complete" as the same primary slot.
       // onUpdateStatus RE-THROWS on failure (so the Status FIELD surfaces its visible error/retry).
       // A lifecycle-button trigger is fire-and-forget (`void action.run()` in RecordViewer), so the
       // button swallows the rejection here — the optimistic rollback + sr-only announce it already

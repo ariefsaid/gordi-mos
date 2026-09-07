@@ -2181,16 +2181,33 @@ describe('Ticket #750 — AC-024 the skeleton never outlives the request', () =>
 
 // ── #751 AC-033 — one primary per screen: the head Create drops to outline while a record is open ──
 describe('Ticket #751 AC-033 — the head "+ Create task" carries .btn-outline while a record is open', () => {
-  it('the head button stays mounted but outline when the drawer is open (no second blue)', async () => {
+  it('with the drawer mounted the whole page carries exactly ONE .btn-primary; a second primary turns the count red', async () => {
     stubMatchMedia(true, true)
     mockListTasks.mockResolvedValue([makeTask({ id: 'w-1', title: 'Open record row' })])
-    const { container } = renderTable({ drawerOpen: true })
+    // The drawer's real body — the record's own lead action (`.btn-primary`) — rendered where
+    // production supplies `drawerSlot={<Outlet />}`. Without a body `drawerOpen: true` flips the
+    // head Create to outline but leaves the drawer DOM empty, so the "exactly one primary" count
+    // reads zero on a technicality — the invariant the ticket cares about is the WHOLE-PAGE
+    // count with the record's primary actually on screen.
+    const drawer = (
+      <aside role="complementary" aria-label="Task detail">
+        <button type="button" className="btn btn-primary">Mark complete</button>
+      </aside>
+    )
+    const { container } = renderTable({ drawerOpen: true, drawerSlot: drawer })
     await waitFor(() => screen.getByText('Open record row'))
     const create = screen.getByRole('button', { name: '+ Create task' })
     expect(create).toHaveClass('btn-outline')
     expect(create).not.toHaveClass('btn-primary')
-    // The collection contributes zero primaries while the record owns the screen's blue.
-    expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
+    // The record owns the ONE primary; the head Create beside it does not compete.
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+    // Vacuity guard: appending a second `.btn-primary` MUST flip the count to 2 — proving the
+    // assertion is the one-primary invariant it claims to be, not an accident of an empty drawer.
+    const stray = document.createElement('button')
+    stray.className = 'btn btn-primary'
+    stray.textContent = 'Second primary'
+    container.appendChild(stray)
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(2)
   })
 
   it('the head button is the .btn-primary again once the drawer closes', async () => {

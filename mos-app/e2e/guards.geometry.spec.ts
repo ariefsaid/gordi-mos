@@ -27,6 +27,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { randomUUID } from 'node:crypto'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
@@ -191,22 +192,28 @@ test.describe('desktop geometry guards', () => {
 test.describe('pinned record header geometry (#751)', () => {
   // Same service-key SQL seam the GUARD-743 guard below uses (ENV_743/SUPABASE_URL_743 are the
   // generic .env.e2e reads this file already loads).
-  async function seedLongTask751(): Promise<string> {
-    const taskId = '75100000-0000-0000-0000-000000000001'
+  async function seedLongTask751(): Promise<{ taskId: string; title: string }> {
+    // Per-run fixture: a random UUID id + a title that carries the same suffix. The finally
+    // block deletes ONLY the row this run created (never a fixed id another run may own), and
+    // the title's length (well over 80 chars) is what forces the pinned heading to WRAP at the
+    // fixed drawer measure — a short title fits one line at every drawer width, so the AC-030
+    // clamp check would be vacuous without it.
+    const taskId = randomUUID()
+    const title = `Guard pinned header 751 — a long wrapping title that spans multiple lines inside the pinned drawer header at both split-boundary widths ${taskId}`
+    const escapedTitle = title.replace(/'/g, "''")
     await sql743(`
-      delete from mos.tasks where id = '${taskId}';
       insert into mos.tasks (
         id, org_id, title, business_unit_id, status,
         responsible_person_id, accountable_person_id, consulted_person_ids, informed_person_ids,
         description, due_date, created_by
       )
-      select '${taskId}', '${ORG_743}', 'Guard pinned header 751', bu.id, 'Open',
+      select '${taskId}', '${ORG_743}', '${escapedTitle}', bu.id, 'Open',
              '${VIEWER.personId}', '${VIEWER.personId}', '{}', '{}',
              'Guard 751 long body. ' || repeat('Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore. ', 80),
              '2026-12-01', '${VIEWER.personId}'
       from (select id from shared.business_units where org_id = '${ORG_743}' order by id limit 1) bu;
     `)
-    return taskId
+    return { taskId, title }
   }
 
   async function assertPinnedRecordGeometry(page: Page, label: string) {
@@ -244,8 +251,9 @@ test.describe('pinned record header geometry (#751)', () => {
     const bodyBox = (await body.boundingBox())!
     expect(bodyBox.y, `${label}: the body is the sibling BELOW the tab strip`).toBeGreaterThanOrEqual(tabsBox.y + tabsBox.height - 1)
     // Review artifact: the scrolled render, on disk for the Director's round (test-results/ is
-    // gitignored; the round brief copies these into the session scratch dir).
-    await page.screenshot({ path: `test-results/751-pinned-${label.startsWith('390') ? '390-page' : '1440-drawer'}-scrolled.png` })
+    // gitignored; the round brief copies these into the session scratch dir). Named from the
+    // label so each width (1440 drawer, 1370 drawer, 390 page) gets its own file, never overwritten.
+    await page.screenshot({ path: `test-results/751-pinned-${label.replace(/\s+/g, '-')}-scrolled.png` })
 
     // 390 only: status pill · primary · ⋯ share ONE ≥44px control row (the measured twin of the
     // deleted CSS-string "phone keeps … one control row" regex).
@@ -264,37 +272,46 @@ test.describe('pinned record header geometry (#751)', () => {
     }
   }
 
-  test('GUARD-PINNED: scrolling the record body leaves the header fixed and the tab strip visible below it — 1440 drawer and 390 page', async ({ page }) => {
-    test.setTimeout(120_000)
-    const taskId = await seedLongTask751()
+  test('GUARD-PINNED: scrolling the record body leaves the header fixed and the tab strip visible below it — 1440 drawer, 1370 drawer (the split boundary), and 390 page', async ({ page }) => {
+    test.setTimeout(180_000)
+    const { taskId, title } = await seedLongTask751()
 
     // The seeded row lives in the SHARED dev DB: a failed assertion must not leave it behind
-    // for the next spec (or the next run) to trip over.
+    // for the next spec (or the next run) to trip over. The delete narrows to the row THIS run
+    // created (via its per-run UUID), never a fixed id another run may own.
     try {
       await loginAs(page, VIEWER.email, VIEWER.password)
 
-      // 1440 — the split drawer (?record=), the in-list triage surface.
-      await page.setViewportSize({ width: 1440, height: 900 })
-      await page.goto('work/tasks')
-      await page.waitForURL(/\/work\/tasks$/)
-      await page.getByRole('button', { name: 'All', exact: true }).click()
-      // Scope the collection to the seeded row so table windowing can never hide it.
-      await page.getByRole('searchbox', { name: 'Search tasks' }).fill('Guard pinned header 751')
-      const row = page.locator('tr.task-row', { hasText: 'Guard pinned header 751' })
-      await expect(row).toBeVisible()
-      await row.locator('td.td-supervisor').click()
-      await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}/)
-      const drawer = page.getByRole('complementary', { name: /task detail/i })
-      await expect(drawer.getByRole('heading', { name: 'Guard pinned header 751' })).toBeVisible()
-      await assertPinnedRecordGeometry(page, '1440 drawer')
+      // 1440 and 1370 — the two split-drawer widths AC-030 asks for (1370 = TASKS_SPLIT_MIN_WIDTH
+      // in use-is-split-width.ts, the split boundary itself; 1440 = DESIGN.md's desktop reference).
+      // Both mount the drawer via the ?record= overlay marker, so the pinned header's wrap + clamp
+      // is measured at BOTH widths on the SAME long-wrapping title.
+      for (const width of [1440, TASKS_SPLIT_MIN_WIDTH]) {
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('work/tasks')
+        await page.waitForURL(/\/work\/tasks$/)
+        await page.getByRole('button', { name: 'All', exact: true }).click()
+        // Scope the collection to the seeded row so table windowing can never hide it. Searching
+        // by the per-run UUID (title suffix) picks out THIS run's row deterministically even when
+        // a sibling run's fixture is still on the shared dev DB.
+        await page.getByRole('searchbox', { name: 'Search tasks' }).fill(taskId)
+        const row = page.locator('tr.task-row', { hasText: taskId })
+        await expect(row).toBeVisible()
+        await row.locator('td.td-supervisor').click()
+        await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}/)
+        const drawer = page.getByRole('complementary', { name: /task detail/i })
+        await expect(drawer.getByRole('heading', { name: title })).toBeVisible()
+        await assertPinnedRecordGeometry(page, `${width} drawer`)
+      }
 
       // 390 — the standalone record page (the direct /work/tasks/:id surface).
       await page.setViewportSize({ width: 390, height: 844 })
       await page.goto(`work/tasks/${taskId}`)
       await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
-      await expect(page.getByRole('heading', { level: 1, name: 'Guard pinned header 751' })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
       await assertPinnedRecordGeometry(page, '390 page')
     } finally {
+      // Delete ONLY the row this run created — never a fixed id another run may own.
       await sql743(`delete from mos.tasks where id = '${taskId}'`)
     }
   })

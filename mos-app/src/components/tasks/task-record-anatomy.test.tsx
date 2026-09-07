@@ -166,7 +166,8 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
 
   it('F5 — every record-mutating action resolves to ONE actions register (AC-ANAT-005)', () => {
     const { container } = renderRecord()
-    // Editable task offers Mark complete + Archive — both in the single footer actions cluster.
+    // Editable task offers Mark complete + Archive — both in the single pinned-header actions
+    // cluster (#751 retired the old footer bar; the register lives in the header now).
     expect(container.querySelectorAll('.record-viewer__actions')).toHaveLength(1)
   })
 
