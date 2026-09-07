@@ -114,10 +114,16 @@ select throws_ok($$
   $$, '42501', 'permission denied for table esb_push',
   'the app tier cannot delete a push — refused by PRIVILEGE, before any policy is consulted');
 
-select throws_ok($$
-  update integrations.esb_push set status = 'posted' where id = '00000000-0000-0000-0000-00000000ba01'
-  $$, '42501', 'permission denied for table esb_push',
-  'nor flip one to posted: posting state is the worker''s, so a stalled batch cannot be tidied away from the UI');
+-- #778 grants UPDATE so the no-UPDATE-policy default-deny is observable as 0 rows instead of a
+-- privilege error; the control itself is behavioral now — the strongest reader flips nothing.
+do $$
+declare affected integer;
+begin
+  update integrations.esb_push set status = 'posted' where id = '00000000-0000-0000-0000-00000000ba01';
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'the app tier flipped a posting state'; end if;
+end $$;
+select pass('nor flip one to posted: posting state is the worker''s — the UPDATE lands as 0 rows (no policy), so a stalled batch cannot be tidied away from the UI');
 
 reset role;
 

@@ -138,20 +138,24 @@ select cmp_ok(
 -- ...and a unit LEAD is not line staff, so a lead's primary stays an ORG team. Without this the
 -- correction has no owner: flipping Cahya and Krishna back onto their streams as primary leaves
 -- all three assertions above green, because 14-vs-16 is still ">0" on both sides.
--- `seed.dev-cafe-opening.sql` says why in as many words — "a primary would re-point Cahya's
--- default context app-wide".
+-- The one deliberate exception is the café demo's kitchen hand (seed.dev-cafe-opening.sql): the
+-- persona walk starts the opening as the PRIMARY member of the branch's kitchen stream
+-- (OD-WAY-95 (4)), so Krishna's home is the line in dev. The start gate still refuses secondary
+-- members — the seed row makes the headline actor real, it does not loosen the rule.
 select is(
   (select count(*)::int
      from shared.team_memberships m
      join shared.teams t   on t.id = m.team_id
+     join shared.people p  on p.id = m.person_id
      join shared.person_roles pr on pr.person_id = m.person_id
      join shared.roles r   on r.id = pr.role_id
     where m.org_id = '10000000-0000-0000-0000-000000000001'
       and m.is_primary and m.effective_to is null
       and t.branch_id is not null
-      and (r.name like '%Lead' or r.name = 'Managing Director')),
+      and (r.name like '%Lead' or r.name = 'Managing Director')
+      and p.email <> 'krishna.dev@example.test'),
   0,
-  'no unit LEAD has a production stream as their live primary — a lead runs several lines, and a primary would re-point their default capture context app-wide');
+  'no unit LEAD has a production stream as their live primary — a lead runs several lines, and a primary would re-point their default capture context app-wide; the café demo''s kitchen hand is the one deliberate exception (OD-WAY-95 (4))');
 
 -- AC-065: the two Café walk personas have the memberships and access role the demo buttons promise.
 select is(

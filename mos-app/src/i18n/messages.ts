@@ -464,7 +464,6 @@ export const messages = {
     'commandMenu.footer.open': 'open',
     'commandMenu.footer.close': 'close',
     // ── Café capture (#196 — the v4 port of the Café opening + production log) ──────────────
-    'cafe.opening.chooseTeam': 'Choose a Team',
     'cafe.opening.noProcess': 'No café opening is configured for this org yet.',
     'cafe.opening.noTeam': "You're not on a café branch Team yet — ask your admin to add you.",
     'cafe.opening.notStartedLead': "Not started yet — start today's opening.",
@@ -1728,7 +1727,6 @@ export const messages = {
     'commandMenu.footer.open': 'buka',
     'commandMenu.footer.close': 'tutup',
     // ── Café capture (#196) ─────────────────────────────────────────────────────────────────
-    'cafe.opening.chooseTeam': 'Pilih Tim',
     'cafe.opening.noProcess': 'Belum ada pembukaan kafe yang dikonfigurasi untuk org ini.',
     'cafe.opening.noTeam': 'Anda belum tergabung di Tim cabang kafe — hubungi admin untuk ditambahkan.',
     'cafe.opening.notStartedLead': 'Belum dimulai — mulai pembukaan hari ini.',

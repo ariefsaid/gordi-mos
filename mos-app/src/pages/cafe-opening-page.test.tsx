@@ -1,25 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
-import type { DueProcessRun } from '@/lib/db/processes.types'
-import type { TeamOption } from '@/lib/db/signals.types'
 
 // B7 (AC-716): component test mocks the DAL, never a live DB. CafeOpeningPage resolves the
 // process id + the viewer's branch Team, then hosts CafeOpeningPanel + the existing capture links.
 vi.mock('@/lib/db/cafe-opening', () => ({
   getCafeOpeningProcessId: vi.fn(),
-  listStartableCafeTeams: vi.fn(),
+  listCafeOpeningBranches: vi.fn(),
   getTodayOpeningForTeam: vi.fn(),
   startTodayOpening: vi.fn(),
   wibToday: () => '2026-07-17',
 }))
-vi.mock('@/lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({ listPendingTasks: vi.fn(), resolvePendingTask: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 // #440: the module ROOT states the stream its five doors lead into. Mocked at the same seams
@@ -32,9 +28,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 })
 
 import {
-  getCafeOpeningProcessId, listStartableCafeTeams, getTodayOpeningForTeam,
+  getCafeOpeningProcessId, listCafeOpeningBranches, getTodayOpeningForTeam, startTodayOpening,
 } from '@/lib/db/cafe-opening'
-import { listAuthorTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import { listActiveBranches } from '@/lib/db/branches'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
@@ -43,9 +38,9 @@ import { CafeOpeningPage } from './cafe-opening-page'
 import { rememberStream } from '@/lib/cafe-stream'
 
 const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
-const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
+const mockListCafeOpeningBranches = vi.mocked(listCafeOpeningBranches)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
-const mockListAuthorTeams = vi.mocked(listAuthorTeams)
+const mockStartTodayOpening = vi.mocked(startTodayOpening)
 const mockGetPeople = vi.mocked(getPeople)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockStreamPairs = vi.mocked(listStreamPairs)
@@ -96,13 +91,13 @@ beforeEach(() => {
     { branch_id: b.id, activity: 'bar' as const },
   ]))
   mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+  mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
 })
 
 describe('issue 440 — the Café root states the stream its doors lead into', () => {
   it('names the stream in the page head, canonically, and lets it be set for the module', async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([])
+    mockListCafeOpeningBranches.mockResolvedValue([])
     const { container } = renderPage()
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
     const picker = await waitFor(() => {
@@ -118,12 +113,9 @@ describe('issue 440 — the Café root states the stream its doors lead into', (
 describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture links', () => {
   it('mounts CafeOpeningPanel (Start control) and links to Log/Plan/Stock/Review', async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    const due: DueProcessRun[] = [{
-      work_line_id: PROCESS_ID, process_name: 'Café Opening',
-      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-      period_key: '2026-07-17', scheduled_date: '2026-07-17',
-    }]
-    mockListStartableCafeTeams.mockResolvedValue(due)
+    mockListCafeOpeningBranches.mockResolvedValue([
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant Operations', run_id: null, run_status: null },
+    ])
     mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
 
     renderPage()
@@ -147,12 +139,9 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
 
   it('JQ-1: a member sees Log/Plan/Stock but NOT the lead-only Review/Pushes doors', async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    const due: DueProcessRun[] = [{
-      work_line_id: PROCESS_ID, process_name: 'Café Opening',
-      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-      period_key: '2026-07-17', scheduled_date: '2026-07-17',
-    }]
-    mockListStartableCafeTeams.mockResolvedValue(due)
+    mockListCafeOpeningBranches.mockResolvedValue([
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant Operations', run_id: null, run_status: null },
+    ])
     mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
 
     renderPage(['member'])
@@ -178,13 +167,9 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*min-height:\s*44px/)
   })
 
-  it("falls back to the viewer's own Team when today's opening is already started (not in the due list)", async () => {
+  it("does not offer a start control when no branch authorizes the viewer (finance)", async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([]) // already started — omitted from the due list
-    const myTeams: TeamOption[] = [
-      { id: TEAM_ID, name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: true },
-    ]
-    mockListAuthorTeams.mockResolvedValue(myTeams)
+    mockListCafeOpeningBranches.mockResolvedValue([]) // the branch read is the authorization mirror
     mockGetTodayOpeningForTeam.mockResolvedValue({
       started: true, runId: 'run-1',
       rollup: {
@@ -196,63 +181,64 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
 
     renderPage()
 
-    await screen.findByText('Café Opening · 17 Jul 2026')
-    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, TEAM_ID)
-  })
-
-  it('AC-V3-007: asks a multi-Team viewer to choose before opening the selected Team context', async () => {
-    const otherTeamId = '00000000-0000-0000-0000-000000005b02'
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([
-      {
-        work_line_id: PROCESS_ID, process_name: 'Café Opening',
-        owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-        period_key: '2026-07-17', scheduled_date: '2026-07-17',
-      },
-      {
-        work_line_id: PROCESS_ID, process_name: 'Café Opening',
-        owning_team_id: otherTeamId, team_name: 'Kemang Operations',
-        period_key: '2026-07-17', scheduled_date: '2026-07-17',
-      },
-    ])
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
-
-    const user = userEvent.setup()
-    renderPage()
-
-    const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
+    await screen.findByTestId('empty-state')
+    expect(screen.queryByRole('button', { name: "Start today's opening" })).not.toBeInTheDocument()
     expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
-
-    await user.selectOptions(teamPicker, otherTeamId)
-
-    await screen.findByRole('button', { name: "Start today's opening" })
-    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, otherTeamId)
   })
 
-  it('AC-V3-007: asks for a choice from multi-Team membership when no opening is due', async () => {
-    const otherTeamId = '00000000-0000-0000-0000-000000005b02'
+  it('keeps every authorized branch visible so a started opening remains reachable', async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([
-      { id: TEAM_ID, name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: true },
-      { id: otherTeamId, name: 'Kemang Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
+    mockListCafeOpeningBranches.mockResolvedValue([
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant Operations', run_id: null, run_status: null },
+      { branch_id: 'b-rr', team_id: 'team-rr', team_name: 'Rumah Rames Operations', run_id: 'run-2', run_status: 'open' },
+    ])
+    renderPage()
+    await screen.findByText('Opening · Radiant Operations')
+    expect(screen.getByText('Opening · Radiant Operations')).toBeInTheDocument()
+  })
+
+  it('a start survives a reload: the re-fetched branch list still carries the run', async () => {
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    mockListCafeOpeningBranches.mockResolvedValue([
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant Operations', run_id: null, run_status: null },
+    ])
+    mockGetTodayOpeningForTeam
+      .mockResolvedValueOnce({ started: false, runId: null, rollup: null })
+      .mockResolvedValue({ started: true, runId: 'run-9', rollup: {
+        process_run_id: 'run-9', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+        status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
+        overdue: 0, pending_unresolved: 0, completion_pct: 0,
+      } })
+    mockStartTodayOpening.mockResolvedValue({ run_id: 'run-9', created: 1, pending: 0, idempotent: false })
+
+    const view = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: "Start today's opening" }))
+    await screen.findByText('Café Opening · 17 Jul 2026')
+
+    // A reload re-runs the branch read from scratch — the started opening must still be on it.
+    view.unmount()
+    mockListCafeOpeningBranches.mockResolvedValue([
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant Operations', run_id: 'run-9', run_status: 'open' },
+    ])
+    renderPage()
+    await screen.findByText('Café Opening · 17 Jul 2026')
+    expect(screen.getByText('Opening · Radiant Operations')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "Start today's opening" })).not.toBeInTheDocument()
+  })
+
+  it('shows a started opening Team even after it is absent from the due list', async () => {
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    mockListCafeOpeningBranches.mockResolvedValue([
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant Operations', run_id: 'run-2', run_status: 'open' },
     ])
     mockGetTodayOpeningForTeam.mockResolvedValue({ started: true, runId: 'run-2', rollup: {
       process_run_id: 'run-2', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
       status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
       overdue: 0, pending_unresolved: 0, completion_pct: 0,
     } })
-
-    const user = userEvent.setup()
     renderPage()
-
-    const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
-    expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
-
-    await user.selectOptions(teamPicker, otherTeamId)
-
     await screen.findByText('Café Opening · 17 Jul 2026')
-    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, otherTeamId)
+    expect(screen.getByText('Opening · Radiant Operations')).toBeInTheDocument()
   })
 
   it('renders an EmptyState (not a crash) when no Café Opening process is configured (RATIFY-7C)', async () => {
@@ -263,7 +249,7 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     await waitFor(() => {
       expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     })
-    expect(mockListStartableCafeTeams).not.toHaveBeenCalled()
+    expect(mockListCafeOpeningBranches).not.toHaveBeenCalled()
     // Half B convergence: missing configuration is never the 'quiet' ✓ earned-all-clear glyph —
     // it reads as "you're done" when actually an admin still needs to set this up. 'blank' (—)
     // is the honest "no source configured" variant.
@@ -273,8 +259,7 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
 
   it("Half B convergence: renders the 'blank' (never 'quiet' ✓) EmptyState when the viewer has no café branch Team", async () => {
     mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([])
+    mockListCafeOpeningBranches.mockResolvedValue([])
 
     renderPage()
 

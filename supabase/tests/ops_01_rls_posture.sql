@@ -84,8 +84,8 @@ select ok(not has_table_privilege('authenticated','ops.kitchen_batch_seq','SELEC
   'kitchen_batch_seq is invisible to the app tier: no grant at all, so the counter cannot be read or minted from directly');
 
 select ok(not has_table_privilege('authenticated','integrations.esb_push','INSERT')
-      and not has_table_privilege('authenticated','integrations.esb_push','UPDATE'),
-  'the app tier cannot write posting state: enqueue is the approval path''s and status flips are the worker''s');
+      and has_table_privilege('authenticated','integrations.esb_push','UPDATE'),
+  'the app tier mints no outbox row (no INSERT grant); the UPDATE grant only lets the no-UPDATE-policy refusal land as 0 rows — status flips stay the worker''s (#778)');
 
 -- ── The three literals are not stored anywhere in this schema (DD-WAY-13) ────────────────────
 -- Asserted over the catalog rather than against one table name, because the failure this guards

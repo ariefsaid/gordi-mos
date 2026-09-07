@@ -370,6 +370,8 @@ select throws_ok(
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- OD-WAY-49 — the stream is a default, never a wall
+-- OD-WAY-95 (7) rules that plan writes consult the reviewer predicate, so those two policies are
+-- intentionally admitted below; plans consult the reviewer predicate by ruling.
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Originally: the whole slice touches NO policy. Since #236 (FR-040, OD-WAY-48) some policies may:
 -- the spec's rule is "stream appears in the REVIEWER predicate only, never in member read/write
@@ -395,6 +397,8 @@ select set_eq($$
    where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
   $$, $$ values
     ('ops.kitchen_logs :: kitchen_logs_update_own_or_reviewer'),
+    ('ops.kitchen_plans :: kitchen_plans_insert_ops_lead_or_admin'),
+    ('ops.kitchen_plans :: kitchen_plans_update_ops_lead_or_admin'),
     ('ops.stream_completeness :: stream_completeness_insert_stream_lead'),
     ('ops.stream_completeness :: stream_completeness_update_stream_lead')
   $$,
@@ -412,11 +416,9 @@ select is(
 -- landed; the two admin-write policies joined it on 2026-08-26 (20260826000001) so the admin screen
 -- can put people on teams instead of that being a SQL edit.
 --
--- That addition does not touch OD-WAY-49, which is about the STREAM: the two assertions above are
--- the ruling's teeth, and they still hold, because neither new policy mentions branch_id or
--- activity or compares a stream column to the caller's own. What the new policies add is an
--- admin-only maintenance surface over the org chart — which is the thing OD-WAY-49 says a Team
--- already IS ("the owner is describing the org chart that already exists").
+-- The plan policies are an explicit OD-WAY-95 (7) exception: their stream columns are consulted
+-- through ops.is_stream_reviewer, not used as a member wall. The team policies remain an
+-- admin-only maintenance surface over the org chart.
 --
 -- Keep this list exhaustive. It is the guard that makes a NEW write policy on either table an
 -- explicit decision rather than a diff nobody read — and on team_memberships that matters more
