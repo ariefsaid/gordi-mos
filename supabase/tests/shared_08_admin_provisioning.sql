@@ -5,7 +5,7 @@
 -- refuse a target outside the caller's org, and to leave no partial state behind when it refuses.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(17);
 
 -- Fixture: two orgs, each with one admin holding a login, plus targets.
 insert into shared.orgs (id, name, slug) values
@@ -42,6 +42,11 @@ select throws_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-00
   '42501', 'admin access role required', 'admin_set_login_enabled refuses a non-admin caller');
 select throws_ok($$ select * from shared.admin_list_login_status() $$,
   '42501', 'admin access role required', 'admin_list_login_status refuses a non-admin caller');
+-- manager is the money-read tier (#797); provisioning stays admin's.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea01","access_roles":["manager"]}';
+select throws_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00000000ea01') $$,
+  '42501', 'admin access role required', 'admin_create_login refuses a manager — the money tier is not the settings seat');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea01","access_roles":["member"]}';
 
 select is(
   (select user_id from shared.people where id = '00000000-0000-0000-0000-00000000ea01'),

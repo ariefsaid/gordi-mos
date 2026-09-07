@@ -176,10 +176,12 @@ insert into shared.person_roles (org_id, person_id, role_id) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005')
 on conflict (person_id, role_id) do nothing;
 
--- Access-role assignments. Owner stand-in -> admin; the finance demo persona -> finance; everyone
--- else -> member (the default). The real roster lands via the gitignored deploy seed.
+-- Access-role assignments. Owner stand-in -> admin + manager (admin is users-and-settings; Money
+-- is read by holding manager, #797); the finance demo persona -> finance; everyone else -> member
+-- (the default). The real roster lands via the gitignored deploy seed.
 insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'admin'),
+  ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000000', 'manager'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000002', 'member'),
   ('10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000003', 'member'),

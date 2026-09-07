@@ -14,7 +14,7 @@
 -- at all.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(33);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();   -- GrandMgr ...0d3 -> admin
@@ -150,16 +150,35 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is((select count(*)::int from reporting.sales_daily_revenue), 0,
   'a supervisor with NO grant reads nothing — the tier fails closed by construction: an empty scope makes the EXISTS false, so there is no default to get wrong');
 
--- ══ The arms the supervisor clause was added beside are still there ═════════════════════════
+-- ══ The finance arm survived the re-author ══════════════════════════════════════════════════
 -- The originals reached this shape through ALTER POLICY, which replaces the WHOLE using-expression;
--- a re-author is the same hazard by a different route. Both wider arms are re-checked after the
--- narrow one has been exercised.
+-- a re-author is the same hazard by a different route. Re-checked after the narrow arm has been
+-- exercised.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
   'finance still reads every revenue row — the arm survived the supervisor clause landing beside it');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["admin"]}';
+
+-- ══ Money read means holding manager (#797, OD-WAY-98) ══════════════════════════════════════
+-- admin is the users-and-settings role. It administers who holds the money tiers (the scope grants
+-- above) and reads none of the money itself; the Director reads Money by holding manager BESIDE
+-- admin, which the dev seed does (shared_10_dev_seed.sql).
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select is((select count(*)::int from reporting.sales_daily_revenue), 0,
+  'admin alone reads ZERO revenue rows — administering logins is not a money tier');
+select is((select count(*)::int from reporting.sales_margin_daily), 0,
+  '...and zero margin rows');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","manager"]}';
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
-  'and so did admin''s');
+  'admin + manager reads every revenue row — the Director''s shape, and it is the manager grant doing the reading');
+select is((select count(*)::int from reporting.sales_margin_daily), 1,
+  '...and the margin row');
+-- The inverse: holding the money tier does not buy the settings seat.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select throws_ok($$
+  insert into reporting.supervisor_revenue_scope (person_id, channel, branch_code)
+  values ('00000000-0000-0000-0000-0000000000d4','POS','GHQ')
+$$, '42501', null,
+  'a manager alone cannot grant a revenue scope — maintaining who reads money stays with admin');
 
 reset role;
 
