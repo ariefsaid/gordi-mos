@@ -158,7 +158,9 @@ describe('LoginPage — credentials form', () => {
 
   // ── #799 ── AC-012 / AC-013: sign-in returns to the route that was asked for ───────────────
 
-  it('AC-012: sign-in lands on the remembered route, query intact', async () => {
+  // Where sign-in LANDS is RedirectIfAuthed's call, asserted end to end in
+  // src/auth/entry-return.test.tsx. This page never navigates on success.
+  it('AC-012: this page does not decide the landing — it never navigates on success', async () => {
     setRememberedRoute('/money/detail?w=30d')
     mockSignIn.mockResolvedValue({
       data: {
@@ -175,35 +177,9 @@ describe('LoginPage — credentials form', () => {
     await user.type(screen.getByLabelText('Password'), 'goodpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/money/detail?w=30d', { replace: true })
-    })
+    await waitFor(() => expect(mockSignIn).toHaveBeenCalled())
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
-
-  it.each(['/login', '/recovery', 'https://example.test/steal'])(
-    'AC-012: a remembered %s lands on Home instead',
-    async (from) => {
-      setRememberedRoute(from)
-      mockSignIn.mockResolvedValue({
-        data: {
-          user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
-          session: {} as unknown as import('@supabase/supabase-js').Session,
-        },
-        error: null,
-      })
-
-      const user = userEvent.setup()
-      render(<LoginPage />)
-
-      await user.type(screen.getByLabelText('Email'), 'test@example.test')
-      await user.type(screen.getByLabelText('Password'), 'goodpass')
-      await user.click(screen.getByRole('button', { name: /sign in/i }))
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
-      })
-    },
-  )
 
   it('AC-013: the sign-in link carries the remembered route in its redirect target', async () => {
     setRememberedRoute('/work/tasks')
@@ -253,7 +229,7 @@ describe('LoginPage — credentials form', () => {
     })
   })
 
-  it('successful sign-in navigates home (FR-002)', async () => {
+  it('successful sign-in submits the typed credentials and reports no error (FR-002)', async () => {
     mockSignIn.mockResolvedValue({
       data: {
         user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
@@ -270,8 +246,9 @@ describe('LoginPage — credentials form', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+      expect(mockSignIn).toHaveBeenCalledWith({ email: 'test@example.test', password: 'goodpass' })
     })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   // ── T-015 ── AC-006 + AC-007 ──────────────────────────────────────────────
@@ -501,7 +478,7 @@ describe('LoginPage — demo login (dev-only)', () => {
     expect(screen.getByText(/demo login/i)).toBeInTheDocument()
   })
 
-  it('one-click persona signs in with the persona email + shared dev password and navigates home', async () => {
+  it('one-click persona signs in with the persona email + shared dev password', async () => {
     mockSignIn.mockResolvedValue({
       data: {
         user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
@@ -520,9 +497,6 @@ describe('LoginPage — demo login (dev-only)', () => {
         email: 'dewi.dev@example.test',
         password: 'Passw0rd!dev',
       })
-    })
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
     })
   })
 
