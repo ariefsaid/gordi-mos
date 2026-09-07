@@ -5,7 +5,7 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
 import { Link, useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
-import { useIsPhoneWidth } from './use-is-phone-width'
+import { useIsDesktop } from './use-is-desktop'
 import { useOptionalOverlayHost } from './overlay-host'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 import './top-bar.css'
@@ -130,7 +130,7 @@ function NotificationBell() {
   const navigate = useNavigate()
   const t = useT()
   const host = useOptionalOverlayHost()
-  const isPhone = useIsPhoneWidth()
+  const isPhone = !useIsDesktop()
   const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
 
