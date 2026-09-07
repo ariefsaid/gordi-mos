@@ -51,7 +51,7 @@ const SUITES: Suite[] = [
   {
     component: 'src/components/signals/signal-attention-picker.tsx',
     css: ['src/components/signals/signal-attention-picker.css'],
-    extraClasses: ['signal-attention-pill', ...ATTENTION_VALUES.map((a) => `signal-attention-pill--${a.toLowerCase().replace(/\s+/g, '-')}`), 'signal-attention-popover', 'signal-attention-choice'],
+    extraClasses: ['signal-attention-pill', ...ATTENTION_VALUES.map((a) => `signal-attention-pill--${a.toLowerCase().replace(/\s+/g, '-')}`), 'signal-attention-popover', 'signal-attention-popover--flip-up', 'signal-attention-choice'],
     ignoreClasses: ['signal-composer-pill'],
   },
   { component: 'src/components/signals/signal-mention-picker.tsx', css: ['src/components/signals/signal-mention-picker.css'] },

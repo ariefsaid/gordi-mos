@@ -225,7 +225,11 @@ export function RecordPanelHost({
 
   // ── Non-modal split (≥1100px): plain <aside>, no scrim, no trap ─────────────
   if (!isModal) {
-    const asideClass = ['drawer', rootClassName ?? '']
+    // drawer-split: paints the in-flow aside as ONE atomic stacking layer above the list beside
+    // it (.record-split regime has no context of its own) — an inline picker popover inside the
+    // panel then only competes INSIDE the panel (#768 round 5). Harmless where the shell's
+    // .drawer-shell-split or the modal root already provides the context.
+    const asideClass = ['drawer', 'drawer-split', rootClassName ?? '']
       .filter(Boolean).join(' ')
     return (
       <aside ref={panelRef} className={asideClass} aria-label={label} {...overlayAttrs}>

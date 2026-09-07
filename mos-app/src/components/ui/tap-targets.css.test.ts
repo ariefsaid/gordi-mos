@@ -124,9 +124,13 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
 
   // #708: 43.2×44 / 42.2×44 measured — height already met the floor, width did not. Anchored with
   // [^}]* (never [\s\S]*) so the match cannot cross into a LATER rule in the same file/media body.
+  // Round 5 (#768): the floor lives in exactly ONE declaration, the base rule — the phone media
+  // block that repeated it was deleted as decoration, and this census points at the survivor so
+  // deleting IT goes red instead of silently leaving the floor unpinned.
   it('issue 708: raises the Signal composer attention pills to a ≥44px width floor on phone', () => {
-    const body = mediaBody(attentionPickerCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.signal-attention-pill[^}]*min-width:\s*44px/)
+    expect(attentionPickerCss).toMatch(/\.signal-attention-pill \{[^}]*min-width:\s*44px/)
+    // Exactly one declaration in the whole file — a second copy would be the decoration again.
+    expect(attentionPickerCss.match(/min-width:\s*44px/g)).toHaveLength(1)
   })
 
   // #708: `.record-panel-btn` already rests at 44×44 (P1-2), but the `@media (pointer: fine)`

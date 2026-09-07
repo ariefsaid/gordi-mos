@@ -71,8 +71,10 @@ export function SignalMessage({
   return (
     <div className="signal-message">
       <div className="signal-message-urgency">
+        {/* AC-036: for the author the attention control IS the pill-dropdown (one click to a
+            choice); for everyone else the read-only pill. No reveal step in front of it. */}
         {canEditAttention && onAttentionChange ? (
-          <SignalAttentionEditor value={attention} onChange={onAttentionChange} />
+          <SignalAttentionPicker value={attention} onChange={onAttentionChange} />
         ) : (
           <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attentionLabel(t, attention)}</span>
         )}
@@ -80,18 +82,6 @@ export function SignalMessage({
       </div>
       <p className="signal-message-body">{body}</p>
     </div>
-  )
-}
-
-function SignalAttentionEditor({ value, onChange }: { value: Attention; onChange: (value: Attention) => void }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  return open ? (
-    <SignalAttentionPicker value={value} onChange={(next) => { onChange(next); setOpen(false) }} />
-  ) : (
-    <Button variant="ghost" onClick={() => setOpen(true)} aria-label={t('signals.record.editAttention')}>
-      <span className={`signal-attention signal-attention--${attentionSlug(value)}`}>{attentionLabel(t, value)}</span>
-    </Button>
   )
 }
 
