@@ -6,7 +6,7 @@ import { listTasks, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
-import { getBusinessUnits, getPeople, getDownlinePersonIds, listRoleNames } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, listRoleNames } from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -50,10 +50,8 @@ export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
 
-// §Task-11 (Issue-8 gate): there is NO `team` view. The legacy Team-work chip is removed from the
-// Task descriptor and `view=team` is rejected until Issue 8's real Task team_id contract lands.
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue'
+  | 'all' | 'my-work' | 'team-work' | 'my-pic' | 'my-supervisor' | 'overdue'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -77,7 +75,7 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue',
+  'all', 'my-work', 'team-work', 'my-pic', 'my-supervisor', 'overdue',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
@@ -85,7 +83,7 @@ const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervis
 /** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw. */
 /** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw.
  * `followups` is the retired AR Follow-ups view (#743): old links land on the All view. */
-const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work', followups: 'all' }
+const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work', team: 'team-work', followups: 'all' }
 
 /** URL slug <-> TaskStatus. The DB stores capitalized status; the URL uses a stable slug. */
 const STATUS_BY_SLUG: Readonly<Record<string, TaskStatus>> = {
@@ -260,6 +258,7 @@ export interface TaskCollectionRecord {
   picId: string
   supervisorId: string
   businessUnitId: string
+  teamId: string | null
   dueDate: string | null
   workLineId: string | null
   objectiveId: string | null
@@ -270,8 +269,8 @@ export interface TaskCollectionRecord {
 }
 
 /** The ONE raw-column mapping: `responsible_person_id → picId`, `accountable_person_id → supervisorId`.
- *  Business Unit is rendered honestly from `business_unit_id`; NO Task `team_id` is fabricated
- *  (Issue 8 owns the real Team contract). */
+ *  Business Unit and Team are mapped once at the collection boundary; legacy null Team rows use
+ *  the viewer team's Business Unit fallback in the projector. */
 export function toTaskCollectionRecord(row: TaskListRow): TaskCollectionRecord {
   return {
     id: row.id,
@@ -280,6 +279,7 @@ export function toTaskCollectionRecord(row: TaskListRow): TaskCollectionRecord {
     picId: row.responsible_person_id,
     supervisorId: row.accountable_person_id,
     businessUnitId: row.business_unit_id,
+    teamId: row.team_id ?? null,
     dueDate: row.due_date,
     workLineId: row.work_line_id,
     objectiveId: row.objective_id,
@@ -316,6 +316,8 @@ export interface TaskCollectionContext {
   /* upgrade path: goes away when the render stack converts to TaskCollectionRecord and the table moves into presentations.render (per the standing technical RATIFY) — until then this is the sanctioned bridge keeping one loader */
   rowsById: ReadonlyMap<string, TaskListRow>
   viewerId: string | null
+  viewerTeamIds: readonly string[]
+  viewerTeamBusinessUnitIds: readonly string[]
   /** Optimistic per-row status overrides fed by an open drawer (AC-103). */
   statusOverrides: ReadonlyMap<string, TaskStatus>
   /** The reference clock for overdue computation (kept in context so `project` stays pure). */
@@ -351,8 +353,20 @@ function isRecordOverdue(r: TaskCollectionRecord, now: Date): boolean {
 }
 
 /** Client-side filter predicate (view scope · PIC · Supervisor · BU · Status · search · overdue). */
-function matchesTaskFilters(r: TaskCollectionRecord, query: TaskCollectionQuery, viewerId: string | null, now: Date): boolean {
+function matchesTaskFilters(
+  r: TaskCollectionRecord,
+  query: TaskCollectionQuery,
+  viewerId: string | null,
+  viewerTeamIds: readonly string[],
+  viewerTeamBusinessUnitIds: readonly string[],
+  now: Date,
+): boolean {
   if (query.view === 'my-work' && viewerId && r.picId !== viewerId && r.supervisorId !== viewerId) return false
+  if (query.view === 'team-work') {
+    const teamMatch = r.teamId !== null && r.teamId !== undefined && viewerTeamIds.includes(r.teamId)
+    const legacyBuMatch = (r.teamId === null || r.teamId === undefined) && viewerTeamBusinessUnitIds.includes(r.businessUnitId)
+    if (!teamMatch && !legacyBuMatch) return false
+  }
   if (query.view === 'my-pic' && viewerId && r.picId !== viewerId) return false
   if (query.view === 'my-supervisor' && viewerId && r.supervisorId !== viewerId) return false
   if (query.picId && r.picId !== query.picId) return false
@@ -378,6 +392,7 @@ function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
     query.personId !== null ||
     query.overdueOnly ||
     query.view === 'my-work' ||
+    query.view === 'team-work' ||
     query.view === 'my-pic' ||
     query.view === 'my-supervisor' ||
     query.view === 'overdue'
@@ -572,7 +587,7 @@ export function projectTaskCollection(
   const withOverrides = ctx.statusOverrides.size === 0
     ? data.records
     : data.records.map((r) => (ctx.statusOverrides.has(r.id) ? { ...r, status: ctx.statusOverrides.get(r.id)! } : r))
-  const filtered = withOverrides.filter((r) => matchesTaskFilters(r, query, ctx.viewerId, ctx.now))
+  const filtered = withOverrides.filter((r) => matchesTaskFilters(r, query, ctx.viewerId, ctx.viewerTeamIds, ctx.viewerTeamBusinessUnitIds, ctx.now))
   const sorted = sortTaskRecords(filtered, query, ctx.personNamesById)
   // #569: a group with zero rows in the current filter scope does not render — an empty
   // bucket never leads the grouped table. Groups holding rows keep their exact order
@@ -731,7 +746,7 @@ async function loadTaskCollection(args: {
   // BU/Status filtering is client-side in the projector (honest empty-vs-filtered-empty); only
   // `includeArchived` is a server concern (archived rows are excluded by default).
   const filters: TaskListFilters = { includeArchived: args.query.includeArchived }
-  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines] = await Promise.all([
+  const [rows, businessUnits, people, downlinePersonIds, viewerTeams, objectives, workLines] = await Promise.all([
     listTasks(filters),
     getBusinessUnits(),
     getPeople(),
@@ -739,6 +754,11 @@ async function loadTaskCollection(args: {
     // every row's edit affordances. An unauthenticated viewer (null id) runs the SAME read
     // and resolves [] naturally, like every other directory read.
     getDownlinePersonIds(args.viewerId ?? ''),
+    // Team membership is only needed for the Team work scope; avoid an extra directory read for
+    // the other saved views (and keep older embedders compatible).
+    args.query.view === 'team-work'
+      ? getPersonTeams?.(args.viewerId ?? '') ?? Promise.resolve([])
+      : Promise.resolve([]),
     listObjectives().catch(() => []),
     listWorkLines().catch(() => []),
   ])
@@ -785,6 +805,8 @@ async function loadTaskCollection(args: {
     provenanceByTaskDefId,
     rowsById: new Map(rows.map((row) => [row.id, row])),
     viewerId: args.viewerId,
+    viewerTeamIds: viewerTeams.map((team) => team.id),
+    viewerTeamBusinessUnitIds: [...new Set(viewerTeams.map((team) => team.business_unit_id))],
     // Optimistic status overrides + refresh stay workspace-owned (Option B non-collection concerns);
     // load seeds them empty/no-op so the projection is a pure function of the fetched rows.
     statusOverrides: new Map(),

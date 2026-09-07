@@ -43,6 +43,7 @@ vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -56,7 +57,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 
 import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
-import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listCollectionViews } from '@/lib/db/user-views-collection'
@@ -205,6 +206,7 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+  vi.mocked(getPersonTeams).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   mockListCollectionViews.mockResolvedValue([])
@@ -722,16 +724,15 @@ describe('Task 9 — group-by control in toolbar', () => {
 // ── Task 10 — saved-view mapping + reserved state ─────────────────────────────
 
 describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
-  // #743 AC-002: the AR Follow-ups chip is gone; the chip set is All · My work · Overdue
-  // (Team work is the saved-views ticket's, so its absence stays pinned here).
-  it('§Task-11 + AC-002: renders All / My work / Overdue chips — no Team work, no AR Follow-ups', async () => {
+  // #749 AC-011: the system chip set is All · My work · Team work · Overdue.
+  it('AC-011: renders the ordered system chips with no AR Follow-ups', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
   })
 
@@ -761,7 +762,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
   })
 
-  it('§Task-11: the org-visible task set is the All view (the removed Team-work chip is gone)', async () => {
+  it('AC-013: the org-visible task set is the All view', async () => {
     // DELIBERATE goal change (§Task-11): "Team work" no longer exists as a saved view; the
     // org-visible set is reached via All, which is the default view.
     mockListTasks.mockResolvedValue([
@@ -772,7 +773,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.getByText('Shared task')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
   })
 
   // AC-002 (#743, W-D step 3): the retired AR view redirects to the All view — the URL loses
@@ -840,7 +841,7 @@ describe('Ticket #743 — two-row toolbar grammar', () => {
     // dropdown-class chrome; Status is one dropdown-class control whose checkbox options live in
     // its popover (a popover's boxes are not toolbar controls). The runs-due pill LEFT the
     // toolbar in this ticket — #754 re-homes the runs source at Home/Café.
-    expect(toolbar.querySelectorAll('.collection-toolbar__view')).toHaveLength(3) // chips: All · My work · Overdue
+    expect(toolbar.querySelectorAll('.collection-toolbar__view')).toHaveLength(4) // chips: All · My work · Team work · Overdue
     expect(toolbar.querySelectorAll('.collection-toolbar__search')).toHaveLength(1) // dropdown-class
     expect(toolbar.querySelectorAll('.collection-toolbar__select')).toHaveLength(5) // dropdown-class: Group · BU · Status · Person · Sort
     expect(toolbar.querySelectorAll('.collection-toolbar__options .btn')).toHaveLength(2) // ghost text: Fields · Save view
