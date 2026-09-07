@@ -31,6 +31,10 @@ export interface RecordCollectionSurfaceProps<
   resultHeader?: RecordCollectionResultHeader
   /** Page-level route seam for opening a record while preserving collection URL state. */
   onOpenRecord?: (record: TRecord) => void
+  /** While the host holds a pending inline draft row, the body stays mounted even at zero
+   *  records — the draft row IS the body (Tasks inline create, AC-023 #750). Default false:
+   *  every other consumer keeps the empty/filtered-empty card. */
+  keepBodyWhenEmpty?: boolean
 }
 
 /**
@@ -58,7 +62,7 @@ export function RecordCollectionSurface<
 >(
   props: RecordCollectionSurfaceProps<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>,
 ): ReactElement {
-  const { controller, controls, selectionBar, empty, filteredEmpty, error, loadingLabel, resultHeader, onOpenRecord } = props
+  const { controller, controls, selectionBar, empty, filteredEmpty, error, loadingLabel, resultHeader, onOpenRecord, keepBodyWhenEmpty = false } = props
   const { state, descriptor } = controller
   const t = useT()
   // One consistent result-header line for every opted-in collection. Rendered in every state
@@ -120,7 +124,9 @@ export function RecordCollectionSurface<
     )
   }
 
-  if (state.status === 'empty') {
+  // A pending inline draft keeps the body mounted (the draft row renders inside it), so the
+  // empty/filtered-empty cards only show while there is genuinely nothing to create into.
+  if (state.status === 'empty' && !keepBodyWhenEmpty) {
     return (
       <div className="record-collection" data-collection-status="empty">
         {controls}
@@ -134,7 +140,7 @@ export function RecordCollectionSurface<
     )
   }
 
-  if (state.status === 'filtered-empty') {
+  if (state.status === 'filtered-empty' && !keepBodyWhenEmpty) {
     return (
       <div className="record-collection" data-collection-status="filtered-empty">
         {controls}

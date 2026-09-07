@@ -1,6 +1,24 @@
 import { firstName, initials } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 
+export type PersonCellProps = {
+  fullName: string
+}
+
+/**
+ * The ONE person-cell grammar (DESIGN § Data Table A2): initials avatar + first name. Full names
+ * belong to the record and to pickers — two person columns in one row never use two grammars.
+ */
+export function PersonCell({ fullName }: PersonCellProps) {
+  return (
+    // `title` carries the full name as a hover tooltip — the sole name affordance in the
+    // condensed (drawer-open split) tier where the row renders the avatar only (owner-eyes item 3).
+    <div className="owner" title={fullName}>
+      <span className="ownav" aria-hidden="true">{initials(fullName)}</span>
+      <span className="own-name">{firstName(fullName)}</span>
+    </div>
+  )
+}
 type PicCellProps = {
   /** The task's typed PIC display name. */
   fullName: string
@@ -24,18 +42,9 @@ export function PicCell({ fullName, provenance }: PicCellProps) {
     ? `${t('tasks.pic')}: ${fullName} (${t('tasks.pic.via', { role: provenance })})`
     : `${t('tasks.pic')}: ${fullName}`
   return (
-    // `title` carries the full PIC name as a hover tooltip — the sole name affordance in the
-    // condensed (drawer-open split) tier where the row renders the avatar only (owner-eyes item 3).
-    <div className="owner task-pic-cell" aria-label={label} title={fullName}>
-      <span className="ownav" aria-hidden="true">{initials(fullName)}</span>
-      {provenance ? (
-        <span className="owner-name-stack">
-          <span className="own-name">{firstName(fullName)}</span>
-          <span className="owner-provenance">{t('tasks.pic.via', { role: provenance })}</span>
-        </span>
-      ) : (
-        <span className="own-name">{firstName(fullName)}</span>
-      )}
+    <div className="task-pic-cell" aria-label={label} title={fullName}>
+      <PersonCell fullName={fullName} />
+      {provenance && <span className="owner-provenance">{t('tasks.pic.via', { role: provenance })}</span>}
     </div>
   )
 }

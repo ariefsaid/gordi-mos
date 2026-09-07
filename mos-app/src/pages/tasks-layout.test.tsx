@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation, type RouteObject } from 'react-router-dom'
+import { RouteRedirect } from '@/shell/route-redirect'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
@@ -44,6 +45,7 @@ import { listComments } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
+import { routeConfig } from '@/router'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
@@ -176,6 +178,23 @@ function LocationRecorder({ onChange }: { onChange: (path: string) => void }) {
 
 // Same shell as renderAt, but with a LocationRecorder sibling so the round-5 regression test
 // can assert the post-navigate URL (renderAt alone has no way to read it back).
+// Route children mirror the production table (src/router.tsx): `new` is a RETIRED door —
+// a redirect back to the collection (AC-023), not a create drawer.
+function findRoute(routes: readonly RouteObject[], path: string): RouteObject | undefined {
+  for (const route of routes) {
+    if (route.path === path) return route
+    const found = route.children ? findRoute(route.children, path) : undefined
+    if (found) return found
+  }
+  return undefined
+}
+
+function childRoutes() {
+  return <>
+    <Route path="new" element={<RouteRedirect to="/work/tasks?create=1" />} />
+    <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+  </>
+}
 function renderAtWithLocation(path: string, onLocationChange: (path: string) => void) {
   return render(
     <AuthContext.Provider value={authedState}>
@@ -184,8 +203,7 @@ function renderAtWithLocation(path: string, onLocationChange: (path: string) => 
           <LocationRecorder onChange={onLocationChange} />
           <Routes>
             <Route path="/work/tasks" element={<TasksLayout />}>
-              <Route path="new" element={<TaskDrawer mode="create" />} />
-              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+              {childRoutes()}
             </Route>
           </Routes>
         </OverlayHostProvider>
@@ -201,8 +219,7 @@ function renderAt(path: string) {
         <OverlayHostProvider>
           <Routes>
             <Route path="/work/tasks" element={<TasksLayout />}>
-              <Route path="new" element={<TaskDrawer mode="create" />} />
-              <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+              {childRoutes()}
             </Route>
           </Routes>
         </OverlayHostProvider>
@@ -241,8 +258,7 @@ function renderAtState(path: string, state: unknown, runtime: AgentRuntime | nul
           <OverlayHostProvider>
             <Routes>
               <Route path="/work/tasks" element={<TasksLayout />}>
-                <Route path="new" element={<TaskDrawer mode="create" />} />
-                <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+                {childRoutes()}
               </Route>
             </Routes>
           </OverlayHostProvider>
@@ -455,18 +471,65 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(currentPath).not.toContain('record')
   })
 
-  it('AC-107: /tasks/new renders the create drawer beside the table', async () => {
+  // AC-017 (ticket #750): a single pointer click on the title opens the record — the drawer
+  // regime at 1440, the page regime below the split threshold (1300) — and never the editor.
+  it('AC-017: a single click on the title opens the record (drawer at 1440, page at 1300), no editor', async () => {
+    // 1440 — split regime: the record opens in the drawer (?record= marker), no editor mounts.
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
-    renderAt('/work/tasks/new')
-    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
-    expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
+    let currentPath = ''
+    const first = renderAtWithLocation('/work/tasks', (path) => { currentPath = path })
+    await waitFor(() => screen.getByText('Open one'))
+    const title = screen.getByRole('link', { name: /Open one/i })
+    fireEvent.mouseDown(title)
+    fireEvent.mouseUp(title)
+    fireEvent.click(title)
+    await waitFor(() => expect(currentPath).toContain('record=task-1'))
+    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    first.unmount()
+
+    // 1300 — below the split threshold: the same click opens the standalone record page.
+    stubMatchMedia(false)
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    let pagePath = ''
+    renderAtWithLocation('/work/tasks', (path) => { pagePath = path })
+    await waitFor(() => screen.getByText('Open one'))
+    const pageTitle = screen.getByRole('link', { name: /Open one/i })
+    fireEvent.mouseDown(pageTitle)
+    fireEvent.mouseUp(pageTitle)
+    fireEvent.click(pageTitle)
+    await waitFor(() => expect(pagePath).toBe('/work/tasks/task-1'))
+    expect(screen.queryByLabelText('Edit task title')).toBeNull()
   })
 
-  it('with the create drawer open, the header "+ New task" is not a second active primary', async () => {
+  // AC-023 (ticket #750): /work/tasks/new is a RETIRED door — one redirect hop back to the
+  // collection, where the inline draft row opens with its title focused (D3e, OD-REDESIGN-10).
+  // And the true-empty collection's Create starts the same draft row (C11).
+  it('AC-023: /work/tasks/new redirects to the collection and opens the focused draft row', async () => {
+    const productionRedirect = findRoute(routeConfig, 'new')
+    expect((productionRedirect?.element as { props?: { to?: string } })?.props?.to).toBe('/work/tasks?create=1')
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
-    renderAt('/work/tasks/new')
-    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
-    expect(screen.queryByRole('link', { name: /\+ create task/i })).toBeNull()
+    renderAtWithLocation('/work/tasks/new', () => {})
+    // The draft row is the NEW task row: an editor input, focused, replacing the title cell.
+    const titleInput = await screen.findByLabelText('Edit task title')
+    expect(document.activeElement).toBe(titleInput)
+    // No create drawer mounts — the draft row is the create surface.
+    expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
+  })
+
+  it('highlighted freshly-created task carries the row flash class', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Freshly created' })])
+    renderAt('/work/tasks?highlight=task-1')
+    await waitFor(() => expect(screen.getByText('Freshly created')).toBeInTheDocument())
+    expect(document.querySelector('tr.task-row.row-just-created')).toBeTruthy()
+  })
+
+  it('AC-023: the true-empty collection\'s Create task starts the draft row, title focused', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderAt('/work/tasks')
+    const create = await screen.findByRole('link', { name: /\+ create task/i })
+    fireEvent.click(create)
+    const titleInput = await screen.findByLabelText('Edit task title')
+    expect(document.activeElement).toBe(titleInput)
   })
 
   // GAP-2 (OD-91 #7): expand-in-place is retired — the drawer never collapses the table grid;
@@ -487,42 +550,39 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelector('.dw-surface')).toBeTruthy()
   })
 
-  // RI-2 (C2): after creating a task in the drawer, the table must show the new
-  // row + updated open/total count without a reload.
-  it('RI-2: creating a task in the drawer adds its row to the table + updates the count (no reload)', async () => {
+  // RI-2 (C2), rewritten for the inline draft (#750): committing the draft row creates the task;
+  // the table shows the new row + updated count without a reload, and the row flashes.
+  it('RI-2: committing the inline draft row adds its row to the table + updates the count (no reload)', async () => {
     // First load: empty list. After create: the new row is present.
     mockListTasks
       .mockResolvedValueOnce([])
       .mockResolvedValue([makeTask({ id: 'task-new', title: 'Freshly created' })])
-    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-new', title: 'Freshly created' }), checklist: [], events: [] })
     mockCreateTask.mockResolvedValue('task-new')
-    renderAt('/work/tasks/new')
-    await waitFor(() => screen.getByRole('complementary', { name: /create task/i }))
+    renderAt('/work/tasks?create=1')
+    // The draft row mounts with its editor focused.
+    const titleInput = await screen.findByLabelText('Edit task title')
     // Initially the table is empty. The count reads inside the ONE muted meta sentence
     // ("N open · M total") — the content-header count pill was removed.
     await waitFor(() => {
       expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open · 0 total')
     })
 
-    // Fill + submit the create form (title required; BU pre-fills from role). Supervisor starts
-    // empty and is required (OD-REDESIGN-3/14/41, task-surface.tsx accountablePersonId) — a valid
-    // submit needs it explicitly chosen.
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Freshly created' } })
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
-    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    // Type the title and press Enter — the draft commits through the same createTask path.
+    fireEvent.change(titleInput, { target: { value: 'Freshly created' } })
+    fireEvent.keyDown(titleInput, { key: 'Enter' })
 
     // The new row appears in the table and the count reflects it — no reload.
     await waitFor(() => {
-      expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
+      expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Freshly created' }))
     })
-    expect(screen.getByText('Freshly created')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open · 1 total')
-    // GAP-6 (OD-91 #11): after-create returns to the collection with the new row HIGHLIGHTED
-    // (row-just-created) — not opened in the drawer. The create drawer is gone.
     await waitFor(() => {
-      const flashed = document.querySelector('tr.task-row.row-just-created')
-      expect(flashed?.textContent).toContain('Freshly created')
+      expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open · 1 total')
+    })
+    // Inline create never navigates — the draft was already on the table — so there is no
+    // ?highlight= flash (that belonged to the retired create-form door).
     expect(screen.queryByRole('complementary', { name: /create task|task detail/i })).toBeNull()
   })
 

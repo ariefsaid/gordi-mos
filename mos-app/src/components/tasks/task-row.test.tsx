@@ -3,7 +3,7 @@
 // <a href="/work/tasks/:id"> Chip-link; status is a soft StatusPill that
 // never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -46,6 +46,13 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
       <table><tbody><TaskRow {...baseProps(props)} /></tbody></table>
     </MemoryRouter>,
   )
+}
+
+function installTaskStyles() {
+  const style = document.createElement('style')
+  style.textContent = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+  document.head.append(style)
+  return () => style.remove()
 }
 
 describe('TaskRow — shared title + metadata cell grammar', () => {
@@ -149,16 +156,44 @@ describe('TaskRow — I7: open/cursor state is aria-selected, never aria-current
   })
 })
 
-describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
-  it('clicking the ⋯ trigger button does NOT call onOpen (stopPropagation)', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen })
-    const menuTrigger = document.querySelector('button.row-menu') as HTMLElement
-    expect(menuTrigger).toBeTruthy()
-    fireEvent.click(menuTrigger)
-    expect(onOpen).not.toHaveBeenCalled()
+// AC-020 (ticket #750): the row ⋯ menu renders only when it holds two or more actions.
+// Today's action list is empty — Open full page lives in the record — so no ⋯ renders at all.
+describe('TaskRow — AC-020 row overflow menu', () => {
+  it('AC-020: a row with fewer than two actions renders no ⋯ menu button', () => {
+    renderRow({ onOpen: vi.fn(), onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    expect(screen.queryByRole('button', { name: /row actions/i })).toBeNull()
+    expect(document.querySelector('button.row-menu')).toBeNull()
+    expect(document.querySelector('td.td-menu')).toBeNull()
+  })
+})
+
+// AC-021 (ticket #750): one person-cell grammar — PIC and Supervisor both render the initials
+// avatar + first name; the full name belongs to the record and to pickers, never to the cell.
+describe('TaskRow — AC-021 person-cell grammar (PIC + Supervisor)', () => {
+  it('AC-021: the Supervisor cell renders avatar initials + first name, not the full-name text', () => {
+    renderRow({ supervisorName: 'Dewi Director' })
+    const cell = document.querySelector('td.td-supervisor') as HTMLElement
+    expect(cell.querySelector('.ownav')?.textContent).toBe('DD')
+    expect(cell.querySelector('.own-name')?.textContent).toBe('Dewi')
+    expect(cell.textContent).not.toContain('Dewi Director')
   })
 
+  it('AC-021: the PIC cell keeps the same avatar + first-name grammar', () => {
+    renderRow({ ownerName: 'Rina Lestari' })
+    const cell = document.querySelector('td.td-owner') as HTMLElement
+    expect(cell.querySelector('.ownav')?.textContent).toBe('RL')
+    expect(cell.querySelector('.own-name')?.textContent).toBe('Rina')
+  })
+
+  it('AC-021: an empty Supervisor still reads as the em-dash empty state', () => {
+    renderRow({ supervisorName: '' })
+    const cell = document.querySelector('td.td-supervisor') as HTMLElement
+    expect(cell.querySelector('.ownav')).toBeNull()
+    expect(cell.textContent).toBe('—')
+  })
+})
+
+describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
   it('clicking the row body (td-status cell) DOES call onOpen', () => {
     const onOpen = vi.fn()
     renderRow({ onOpen })
@@ -174,6 +209,7 @@ describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)'
 describe('TaskRow — provenance ("via <role name>", item 4)', () => {
   it('threads provenanceRoleName through to the owner cell as "via <role>"', () => {
     renderRow({ ownerName: 'Cahya Cafe', provenanceRoleName: 'Cafe Ops Lead' })
+    expect(document.querySelector('.task-pic-cell')).toBeTruthy()
     expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument()
   })
 
@@ -297,36 +333,83 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
   })
 
-  it('a single click on an editable title enters edit mode immediately', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
-    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
-    expect(onOpen).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+  // AC-017 row-side: a single click on the title opens the record — never the editor.
+  // (The URL-consequence half of AC-017 — drawer vs page regime — is owned by tasks-layout.)
+  it('a single click on an editable title opens the record and mounts no editor', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const link = screen.getByRole('link', { name: /Finalise Q3/i })
+      fireEvent.mouseDown(link)
+      fireEvent.mouseUp(link)
+      fireEvent.click(link)
+      vi.advanceTimersByTime(250)
+      expect(onOpen).toHaveBeenCalledWith('task-7')
+      expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
-  it('a double-click pre-empts the deferred open — edits in place, never opens', () => {
+  it('a click-click-dblclick title sequence edits without opening the record', () => {
     vi.useFakeTimers()
     try {
       const onOpen = vi.fn()
       const onEditTitle = vi.fn().mockResolvedValue(undefined)
       renderRow({ onOpen, onEditTitle })
       const link = screen.getByRole('link', { name: /Finalise Q3/i })
-      fireEvent.click(link) // arms the deferred open
-      fireEvent.doubleClick(link) // cancels it, edits instead
-      act(() => { vi.advanceTimersByTime(300) })
-      expect(onOpen).not.toHaveBeenCalled()
+      fireEvent.click(link)
+      fireEvent.click(link)
+      fireEvent.doubleClick(link)
+      vi.runAllTimers()
       expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+      expect(onOpen).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('a non-editable title still opens INSTANTLY on a single click (no deferral)', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen }) // no onEditTitle → not editable
-    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
-    expect(onOpen).toHaveBeenCalledWith('task-7')
+  it('allows modifier and middle-click title activation to remain native anchor navigation', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const link = screen.getByRole('link', { name: /Finalise Q3/i })
+      const clicks = [
+        new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 }),
+      ]
+      clicks.forEach((event) => {
+        link.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      })
+      vi.advanceTimersByTime(250)
+      expect(onOpen).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('renders the title pencil in the title cell, never the Due cell', () => {
+    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    expect(document.querySelector('td.td-main .task-row-pencil')).toBeTruthy()
+    expect(document.querySelector('td.td-due .task-row-pencil')).toBeNull()
+  })
+
+  it('a non-editable title still opens after the single-click pair window', () => {
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      renderRow({ onOpen }) // no onEditTitle → not editable
+      fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+      vi.advanceTimersByTime(250)
+      expect(onOpen).toHaveBeenCalledWith('task-7')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // Field-Escape/Enter isolation: the commit/discard keys must NOT bubble to the workspace keyboard
@@ -397,16 +480,69 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     expect(screen.getByRole('combobox')).toHaveValue('p-1')
   })
 
-  it('clicking the title enters edit mode and Escape restores the saved title', () => {
+  it('double-click starts editing and Escape restores the saved title', () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
-    fireEvent.click(screen.getByRole('link', { name: /Finalise Q3/i }))
+    fireEvent.doubleClick(screen.getByRole('link', { name: /Finalise Q3/i }))
     const input = screen.getByLabelText('Edit task title')
     fireEvent.change(input, { target: { value: 'Updated title' } })
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(onEditTitle).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('Edit task title')).toBeNull()
     expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument()
+  })
+})
+
+// AC-018 (ticket #750): the pencil is the hover/focus edit affordance — revealed on row
+// hover/focus for editable rows, absent for read-only ones. F2/double-click/pencil all begin
+// the same inline edit; Enter saves and Escape restores (owned by the useInlineCommit tests above).
+describe('TaskRow — AC-018 pencil affordance', () => {
+  it('AC-018: an editable row carries the hover/focus pencil and activating it starts editing', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditTitle })
+    const pencil = document.querySelector('button.task-row-pencil') as HTMLButtonElement
+    expect(pencil, 'expected a pencil affordance on an editable row').toBeTruthy()
+    expect(pencil.getAttribute('aria-label')).toBe('Edit title')
+    fireEvent.click(pencil)
+    expect(screen.getByLabelText('Edit task title')).toBeInTheDocument()
+  })
+
+  it('AC-018: a non-editable row renders no pencil', () => {
+    renderRow({}) // no onEditTitle → read-only row
+    expect(document.querySelector('button.task-row-pencil')).toBeNull()
+  })
+
+  it('AC-018: the pencil is hidden at rest and visible when its title cell has focus within', () => {
+    const removeStyles = installTaskStyles()
+    try {
+      renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const pencil = document.querySelector('button.task-row-pencil') as HTMLButtonElement
+      const titleCell = document.querySelector('.task-title-cell') as HTMLElement
+      expect(getComputedStyle(pencil).visibility).toBe('hidden')
+      titleCell.focus()
+      pencil.focus()
+      // jsdom does not recalculate :focus-within. Apply the declaration from the real CSSOM rule
+      // to the focused control, then verify the browser-computed result (not stylesheet text).
+      const revealRule = Array.from((document.head.lastElementChild as HTMLStyleElement).sheet!.cssRules)
+        .find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.includes(':focus-within') && rule.cssText.includes('visibility'))
+      const revealVisibility = revealRule?.style.getPropertyValue('visibility')
+      expect(revealVisibility).toBe('visible')
+      pencil.style.visibility = revealVisibility!
+      expect(getComputedStyle(pencil).visibility).toBe('visible')
+    } finally {
+      removeStyles()
+    }
+  })
+
+  it('AC-018: the condensed title cell reserves room for the pencil', () => {
+    const removeStyles = installTaskStyles()
+    try {
+      renderRow({ condensed: true, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const titleCell = document.querySelector('.task-title-cell') as HTMLElement
+      expect(getComputedStyle(titleCell).paddingRight).toBe('30px')
+    } finally {
+      removeStyles()
+    }
   })
 })
 

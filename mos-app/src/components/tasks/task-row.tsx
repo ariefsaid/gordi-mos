@@ -1,8 +1,11 @@
 // TaskRow — one shared E7-measure record row (PR-2). Extracted verbatim from
-// TasksWorkspace.renderRow, then given a trailing RowMenu ⋯ (AC-T02). The name
-// cell is a real <a href="/work/tasks/:id"> Chip-link (AC-T03); status is a
-// soft StatusPill that never wraps (AC-T05); the row fill is bg-secondary on
-// hover and the existing neutral row-selected on the open drawer row (AC-T04).
+// TasksWorkspace.renderRow. Row activation is OD-REDESIGN-63 / DESIGN § Data Table A3:
+// a click anywhere on the row — the title included — OPENS the record; inline title
+// editing starts from the hover/focus pencil, F2, or double-click, never a single
+// click (AC-017/AC-018, ticket #750). The title stays a real <a href="/work/tasks/:id">
+// for open-in-new-tab; status is a soft StatusPill that never wraps (AC-T05); the row
+// fill is bg-secondary on hover and the existing neutral row-selected on the open
+// drawer row (AC-T04). The row ⋯ menu is gone (AC-020 — it held one action).
 //
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
@@ -16,9 +19,8 @@ import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
 import { statusTone } from './status-tone'
 import { Select } from '@/components/ui/select'
-import { PicCell } from './pic-cell'
+import { PicCell, PersonCell } from './pic-cell'
 import { formatDate, formatAge } from './task-formatters'
-import { RowMenu } from './row-menu'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 
@@ -129,8 +131,6 @@ export function TaskRow({
   // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
   // shared panel's close returns focus to the invoking element.
   const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
-  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current) }, [])
   const inline = useInlineCommit<string>({
     value: task.title,
     onCommit: (next) => (onEditTitle ? onEditTitle(task.id, next) : undefined),
@@ -251,19 +251,37 @@ export function TaskRow({
       beginEdit()
     }
   }
-  // Mouse activation follows the e7 grammar: selecting a title edits it in place. The canonical
-  // href remains available for open-in-new-tab and non-editable rows retain opener behavior.
+  // Click activation is OD-REDESIGN-63 / A3 row activation: a click on the title OPENS the
+  // record — the same journey as a click anywhere else on the row. The title click is deferred
+  // for the double-click window; the second click is cancelled by dblclick before edit begins.
+  // Modified and middle clicks stay native for open-in-new-tab. Editing starts from the pencil,
+  // F2, or double-click — never a single click (AC-017/AC-018, ticket #750).
+  const titleOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (titleOpenTimer.current) clearTimeout(titleOpenTimer.current)
+  }, [])
   const onTitleClick = (e: React.MouseEvent) => {
+    // Keep modified and middle-clicks native so the real href can open a new tab/window.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+      e.stopPropagation()
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
-    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null }
-    if (canEdit) beginEdit()
-    else onOpen(task.id)
+    if (titleOpenTimer.current) clearTimeout(titleOpenTimer.current)
+    titleOpenTimer.current = setTimeout(() => {
+      titleOpenTimer.current = null
+      onOpen(task.id)
+    }, 250)
   }
   const onTitleDoubleClick = (e: React.MouseEvent) => {
     if (!canEdit) return
     e.preventDefault()
     e.stopPropagation()
+    if (titleOpenTimer.current) {
+      clearTimeout(titleOpenTimer.current)
+      titleOpenTimer.current = null
+    }
     beginEdit()
   }
 
@@ -312,32 +330,48 @@ export function TaskRow({
             )}
           </div>
         ) : (
-          <Link
-            to={recordTo}
-            state={panelState}
-            ref={titleLinkRef}
-            className="task-row-link name-chip collection-grammar-title-cell"
-            title={task.title}
-            tabIndex={0}
-            // Double-click renames, F2 renames from the keyboard (the E7 collection promise).
-            // aria-keyshortcuts exposes F2 without hijacking the truncation-hover `title` tooltip;
-            // the quiet under-table hint carries the visible discovery. Only wired when editable.
-            aria-keyshortcuts={canEdit ? 'F2' : undefined}
-            // The href remains the progressive-enhancement/canonical door, but the
-            // application interaction grammar is one shared RecordViewer: activate
-            // the row opener instead of bypassing it into the route-local drawer.
-            onClick={onTitleClick}
-            onDoubleClick={onTitleDoubleClick}
-            onKeyDown={onTitleKeyDown}
-          >
-            <span className="task-title-line">
-              {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
-              <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{displayTitle}</span>
-            </span>
-            {businessUnitName && (
-              <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
+          <div className="task-title-cell">
+            <Link
+              to={recordTo}
+              state={panelState}
+              ref={titleLinkRef}
+              className="task-row-link name-chip collection-grammar-title-cell"
+              title={task.title}
+              tabIndex={0}
+              // Double-click renames, F2 renames from the keyboard (the E7 collection promise).
+              // aria-keyshortcuts exposes F2 without hijacking the truncation-hover `title` tooltip;
+              // the quiet under-table hint carries the visible discovery. Only wired when editable.
+              aria-keyshortcuts={canEdit ? 'F2' : undefined}
+              // The href remains the progressive-enhancement/canonical door, but the
+              // application interaction grammar is one shared RecordViewer: activate
+              // the row opener instead of bypassing it into the route-local drawer.
+              onClick={onTitleClick}
+              onDoubleClick={onTitleDoubleClick}
+              onKeyDown={onTitleKeyDown}
+            >
+              <span className="task-title-line">
+                {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
+                <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{displayTitle}</span>
+              </span>
+              {businessUnitName && (
+                <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
+              )}
+            </Link>
+            {canEdit && !editing && !statusEditing && !picEditing && !dueEditing && (
+              <button
+                type="button"
+                className="task-row-pencil"
+                aria-label={t('tasks.inlineEdit.pencil')}
+                title={t('tasks.inlineEdit.pencil')}
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); beginEdit() }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
             )}
-          </Link>
+          </div>
         )}
         {/* OD-REDESIGN-22 (D-C1): a failed rename surfaces a VISIBLE error + Retry — not a sr-only
             rollback the sighted user never sees. Retry re-sends the preserved attempt. The sr-only
@@ -396,10 +430,14 @@ export function TaskRow({
         ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
       {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row's DEFAULT is only
-          the decision columns — Task · Status · PIC · Supervisor · Due (+ cb + menu). The Fields
-          chooser (AC-006, #743) opts IN to real Project/Process · Objective · Last activity
-          columns here; this is column PRIORITY, not data removal. */}
-      <td className="td-cell td-supervisor">{supervisorName || <span className="td-empty">—</span>}</td>
+          the decision columns — Task · Status · PIC · Supervisor · Due. The Fields chooser
+          (AC-006, #743) opts IN to real Business unit · Project/Process · Objective · Last
+          activity columns here; this is column PRIORITY, not data removal. */}
+      <td className="td-cell td-supervisor">
+        {/* A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
+            name, never the full-name text (that lives in the record and in pickers). */}
+        {supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>}
+      </td>
       {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
       {showWorkline ? <td className="td-cell td-workline">{workLineName || <span className="td-empty">—</span>}</td> : null}
       {showObjective ? <td className="td-cell td-objective">{objectiveName || <span className="td-empty">—</span>}</td> : null}
@@ -417,9 +455,7 @@ export function TaskRow({
             <InlineCommitFeedback {...dueInline} />
           </span>
         ) : <button type="button" className="inline-cell-trigger" aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
-      </td>
-      <td className="td-cell td-menu">
-        <RowMenu taskId={task.id} recordSearch={recordSearch} />
+
       </td>
     </tr>
   )

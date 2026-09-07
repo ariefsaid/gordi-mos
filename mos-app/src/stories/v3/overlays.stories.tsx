@@ -4,7 +4,7 @@ import { expect, userEvent, within } from 'storybook/test'
 import { CommandMenu } from '@/components/command/command-menu'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { RowMenu } from '@/components/tasks/row-menu'
+import { CatalogRowActions } from '@/components/catalog/catalog-row-actions'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 
 export const v3Matrix = {
@@ -20,7 +20,7 @@ export const v3Matrix = {
     { symbol: "CommandMenu", file: "mos-app/src/components/command/command-menu.tsx", importPath: "@/components/command/command-menu" },
     { symbol: "Button", file: "mos-app/src/components/ui/button.tsx", importPath: "@/components/ui/button" },
     { symbol: "ConfirmDialog", file: "mos-app/src/components/ui/confirm-dialog.tsx", importPath: "@/components/ui/confirm-dialog" },
-    { symbol: "RowMenu", file: "mos-app/src/components/tasks/row-menu.tsx", importPath: "@/components/tasks/row-menu" },
+    { symbol: "CatalogRowActions", file: "mos-app/src/components/catalog/catalog-row-actions.tsx", importPath: "@/components/catalog/catalog-row-actions" },
     { symbol: "RecordPanelHost", file: "mos-app/src/shell/record-panel-host.tsx", importPath: "@/shell/record-panel-host" },
   ],
   debt: ["RecordPanelHost remains the current shell; desktop split Esc behavior is intentionally non-modal, and any I2 host unification is owned by Issue 4."],
@@ -56,13 +56,22 @@ export const Confirmation: Story = {
 }
 
 export const AnchoredMenu: Story = {
+  // The Tasks row ⋯ menu retired with #750 (fewer than two actions). The anchored-menu
+  // anatomy's live specimen is the catalog row menu — same useMenuPopover contract.
   render: () => (
     <div className="v3-story-frame">
       <section className="v3-story-section" aria-labelledby="overlay-menu-title">
-        <h1 id="overlay-menu-title" className="v3-story-section__title">Task row actions</h1>
+        <h1 id="overlay-menu-title" className="v3-story-section__title">Row actions</h1>
         <div className="v3-story-row">
           <span>Confirm Roastery calibration notes</span>
-          <RowMenu taskId="task-roastery-071" recordSearch="?from=storybook" />
+          <CatalogRowActions
+            name="Roastery calibration notes"
+            archived={false}
+            canManage
+            onRename={() => undefined}
+            onArchive={() => undefined}
+            onUnarchive={() => undefined}
+          />
         </div>
       </section>
     </div>
