@@ -268,31 +268,35 @@ test.describe('pinned record header geometry (#751)', () => {
     test.setTimeout(120_000)
     const taskId = await seedLongTask751()
 
-    await loginAs(page, VIEWER.email, VIEWER.password)
+    // The seeded row lives in the SHARED dev DB: a failed assertion must not leave it behind
+    // for the next spec (or the next run) to trip over.
+    try {
+      await loginAs(page, VIEWER.email, VIEWER.password)
 
-    // 1440 — the split drawer (?record=), the in-list triage surface.
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('work/tasks')
-    await page.waitForURL(/\/work\/tasks$/)
-    await page.getByRole('button', { name: 'All', exact: true }).click()
-    // Scope the collection to the seeded row so table windowing can never hide it.
-    await page.getByRole('searchbox', { name: 'Search tasks' }).fill('Guard pinned header 751')
-    const row = page.locator('tr.task-row', { hasText: 'Guard pinned header 751' })
-    await expect(row).toBeVisible()
-    await row.locator('td.td-supervisor').click()
-    await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}/)
-    const drawer = page.getByRole('complementary', { name: /task detail/i })
-    await expect(drawer.getByRole('heading', { name: 'Guard pinned header 751' })).toBeVisible()
-    await assertPinnedRecordGeometry(page, '1440 drawer')
+      // 1440 — the split drawer (?record=), the in-list triage surface.
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('work/tasks')
+      await page.waitForURL(/\/work\/tasks$/)
+      await page.getByRole('button', { name: 'All', exact: true }).click()
+      // Scope the collection to the seeded row so table windowing can never hide it.
+      await page.getByRole('searchbox', { name: 'Search tasks' }).fill('Guard pinned header 751')
+      const row = page.locator('tr.task-row', { hasText: 'Guard pinned header 751' })
+      await expect(row).toBeVisible()
+      await row.locator('td.td-supervisor').click()
+      await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}/)
+      const drawer = page.getByRole('complementary', { name: /task detail/i })
+      await expect(drawer.getByRole('heading', { name: 'Guard pinned header 751' })).toBeVisible()
+      await assertPinnedRecordGeometry(page, '1440 drawer')
 
-    // 390 — the standalone record page (the direct /work/tasks/:id surface).
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto(`work/tasks/${taskId}`)
-    await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
-    await expect(page.getByRole('heading', { level: 1, name: 'Guard pinned header 751' })).toBeVisible()
-    await assertPinnedRecordGeometry(page, '390 page')
-
-    await sql743(`delete from mos.tasks where id = '${taskId}'`)
+      // 390 — the standalone record page (the direct /work/tasks/:id surface).
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.goto(`work/tasks/${taskId}`)
+      await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
+      await expect(page.getByRole('heading', { level: 1, name: 'Guard pinned header 751' })).toBeVisible()
+      await assertPinnedRecordGeometry(page, '390 page')
+    } finally {
+      await sql743(`delete from mos.tasks where id = '${taskId}'`)
+    }
   })
 })
 

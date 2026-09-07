@@ -36,9 +36,12 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await expect(archiveBtn).toBeVisible()
   await archiveBtn.click()
 
-  // Confirm dialog
-  const confirmBtn = page.getByRole('button', { name: /^archive$/i })
-  await expect(confirmBtn).toBeVisible()
+  // Confirm dialog — scope to the dialog and let its enter animation settle, or the click
+  // races the transform and Playwright waits out the whole timeout on an unstable element.
+  const confirmDialog = page.getByRole('dialog')
+  await expect(confirmDialog).toBeVisible()
+  const confirmBtn = confirmDialog.getByRole('button', { name: /^archive$/i })
+  await expect(confirmBtn).toBeEnabled()
   await confirmBtn.click()
 
   // After archiving, should navigate back to the tasks list
@@ -55,7 +58,10 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // ── 5. Status popover → "Include archived" — task reappears ─────────────
   // #743: the toolbar checkbox is GONE — "Include archived" is an ADDITIVE choice inside
   // the Status dropdown's popover (AC-008: a popover's boxes are not toolbar controls).
-  const statusTrigger = page.getByRole('button', { name: 'Status', exact: true })
+  // Scope to the toolbar: the table's "Status" column-sort button carries the same name, so a
+  // bare page-level getByRole resolves two elements and dies on strict mode.
+  const statusTrigger = page.getByTestId('record-collection-toolbar')
+    .getByRole('button', { name: 'Status', exact: true })
   await statusTrigger.click()
   await page.getByRole('checkbox', { name: /include archived/i }).check()
   await statusTrigger.click() // close the popover so the row is clickable
