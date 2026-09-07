@@ -14,7 +14,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { Button } from '@/components/ui/button'
-import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
 import type { PersonAction } from '@/components/admin/user-table'
 import { usePeopleListPresentsCards } from '@/components/admin/use-people-list-presents-cards'
@@ -250,31 +250,6 @@ export function AdminUsersPage() {
           background: 'var(--card)',
         }}
       >
-        {loadState === 'loading' && (
-          <>
-            {/* Table header still renders during load */}
-            <div
-              style={{
-                borderBottom: '1px solid var(--border)',
-                height: 38,
-                display: 'flex',
-                alignItems: 'center',
-                paddingLeft: 16,
-              }}
-            >
-              <span
-                className="text-xs font-semibold uppercase"
-                style={{ color: 'var(--muted-foreground)', letterSpacing: '0.06em' }}
-              >
-                {t('admin.people.col.person')}
-              </span>
-            </div>
-            {/* Cohesion-debt 2026-07-19, item #3: one loading grammar — LoadingShell
-                (role=status) instead of a role-less bare SkeletonRows. */}
-            <LoadingShell count={6} />
-          </>
-        )}
-
         {loadState === 'error' && (
           <div className="py-12 px-4">
             <ErrorState
@@ -284,12 +259,14 @@ export function AdminUsersPage() {
           </div>
         )}
 
-        {loadState === 'loaded' && (
+        {loadState !== 'error' && (
           <UserTable
             people={people}
             viewerPersonId={viewerPersonId}
             onAction={handleAction}
             onAddPerson={() => setAddOpen(true)}
+            teams={teams}
+            loading={loadState === 'loading'}
             justSavedId={justSavedId}
           />
         )}

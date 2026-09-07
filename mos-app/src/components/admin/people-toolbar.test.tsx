@@ -394,7 +394,7 @@ describe('PeopleToolbar — no-match empty state', () => {
 // ── Org-empty ("Just you so far") still works ─────────────────────────────────
 
 describe('PeopleToolbar — does not interfere with org-empty state', () => {
-  it('shows "Just you so far" when the org has only the admin (non-self count = 0)', () => {
+  it('AC-046: shows "Just you so far" when the org has only the admin (non-self count = 0)', () => {
     // Only the admin themselves; no filter active
     renderTable([ADMIN], { viewerPersonId: 'p-admin' })
 

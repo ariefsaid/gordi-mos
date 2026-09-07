@@ -197,4 +197,33 @@ export default async function globalTeardown() {
     end $$;
   `)
   console.log('[global-teardown] restored realistic Gordi demo tasks')
+
+  // ── The e2e people leave the directory too (AC-045) ──────────────────────────────────────────
+  // Same defect class as the fixture tasks above, one surface over: global-setup adds dedicated
+  // e2e person rows (all named 'E2E …') and nothing ever removed them, so /admin/people showed a
+  // dev roster padded with test personas. global-setup re-creates each one by fixed id, so this
+  // is a restore, not a loss. Membership/access-role/Jabatan rows cascade off shared.people;
+  // a stream-completeness confirmation does NOT (its FK restricts on purpose), so it goes first.
+  // The delete runs AFTER the fixture-task and AC-204 clears above — those rows point at these
+  // people, and a restricting FK would refuse the delete while they stand.
+  await execSql(`
+    DELETE FROM ops.stream_completeness
+     WHERE org_id = '${ORG}'
+       AND confirmed_by IN (
+         SELECT id FROM shared.people WHERE org_id = '${ORG}' AND full_name LIKE 'E2E %'
+       );
+    DELETE FROM shared.people WHERE org_id = '${ORG}' AND full_name LIKE 'E2E %';
+    do $$
+    declare v_left text;
+    begin
+      select string_agg(full_name, ', ')
+        into v_left
+        from shared.people
+       where org_id = '${ORG}' and full_name like 'E2E %';
+      if v_left is not null then
+        raise exception 'global-teardown: e2e people survived the directory cleanup: %', v_left;
+      end if;
+    end $$;
+  `)
+  console.log('[global-teardown] cleared the E2E people — the directory holds only the seed roster')
 }

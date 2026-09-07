@@ -38,7 +38,9 @@ export const RECOVERY_VIEWER = {
   email: 'e2e.recovery@example.test',
   password: 'e2e-password-123',
   personId: '4e000000-0000-0000-0000-000000000004', // dedicated e2e person (isolated from dev Sari)
-  displayName: 'Recovery Tester',
+  // Every dedicated e2e person's display name starts with "E2E " — that prefix is what
+  // global-teardown deletes on, so the dev directory holds only the seed after a run.
+  displayName: 'E2E Recovery Tester',
 }
 
 // ADMIN: dedicated e2e-only user + dedicated e2e person row, granted the `admin` access role in
