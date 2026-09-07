@@ -1367,6 +1367,11 @@ export const messages = {
     'auth.password.hideNew': 'Hide password',
     'auth.password.showConfirm': 'Show password confirmation',
     'auth.password.hideConfirm': 'Hide password confirmation',
+    // Recovery expired-link card (#799) — all new user-facing strings flow through the catalog.
+    'auth.recovery.expired': 'That link has expired — request a new one.',
+    'auth.recovery.emailPlaceholder': 'you@example.test',
+    'auth.recovery.sending': 'Sending…',
+    'auth.recovery.sent': 'If an account exists for that address, a reset link is on its way.',
   },
   id: {
     'dest.home': 'Beranda',
@@ -2618,6 +2623,11 @@ export const messages = {
     'auth.password.hideNew': 'Sembunyikan kata sandi',
     'auth.password.showConfirm': 'Tampilkan konfirmasi kata sandi',
     'auth.password.hideConfirm': 'Sembunyikan konfirmasi kata sandi',
+    // Kartu kedaluwarsa recovery (#799)
+    'auth.recovery.expired': 'Tautan sudah kedaluwarsa — minta yang baru.',
+    'auth.recovery.emailPlaceholder': 'kamu@example.test',
+    'auth.recovery.sending': 'Mengirim…',
+    'auth.recovery.sent': 'Jika akun untuk alamat itu ada, tautan reset sudah dalam perjalanan.',
   },
 } as const
 

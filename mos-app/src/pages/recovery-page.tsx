@@ -4,8 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { SetPasswordForm } from '@/auth/set-password-form'
 import { useAuth } from '@/auth/use-auth'
-
-const ERR_EXPIRED = 'That link has expired — request a new one.'
+import { useT } from '@/i18n/use-t'
 
 /**
  * The dead end of a recovery link, and the way out of it.
@@ -16,6 +15,7 @@ const ERR_EXPIRED = 'That link has expired — request a new one.'
  * session, so nothing on this screen knows who they are.
  */
 function ExpiredCard() {
+  const t = useT()
   const emailId = useId()
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
@@ -58,7 +58,7 @@ function ExpiredCard() {
               ✓
             </div>
             <p className="text-foreground font-semibold" style={{ fontSize: 16 }}>
-              If an account exists for that address, a reset link is on its way.
+              {t('auth.recovery.sent')}
             </p>
           </div>
           <a
@@ -87,7 +87,7 @@ function ExpiredCard() {
           role="alert"
         >
           <span aria-hidden="true" style={{ marginTop: 1 }}>⚠</span>
-          <span>{ERR_EXPIRED}</span>
+          <span>{t('auth.recovery.expired')}</span>
         </div>
 
         <label
@@ -101,7 +101,7 @@ function ExpiredCard() {
           id={emailId}
           type="email"
           autoComplete="email"
-          placeholder="you@gordi.id"
+          placeholder={t('auth.recovery.emailPlaceholder')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={sending}
@@ -132,7 +132,7 @@ function ExpiredCard() {
             <>
               <span role="status" className="sr-only">Loading…</span>
               <Spinner className="text-primary-foreground" />
-              Sending…
+              {t('auth.recovery.sending')}
             </>
           ) : (
             'Request a new link'
