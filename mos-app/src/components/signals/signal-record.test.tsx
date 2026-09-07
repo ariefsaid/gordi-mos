@@ -43,7 +43,7 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
   function renderReach(props: Partial<React.ComponentProps<typeof SignalReach>> = {}) {
     return wrap(
       <SignalReach
-        mentions={[]} canAcknowledge hasAcknowledged={false}
+        mentions={[]} isMentioned={false} hasSeen={false} onSeen={vi.fn()}
         acknowledgements={[]} {...props}
       />,
     )
@@ -55,15 +55,14 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
     expect(screen.getByText('Visible to HQ Operations · notify 1')).toBeInTheDocument()
   })
 
-  it('AC-ANAT-005: Acknowledge + Create follow-up + Link existing all occupy ONE actions register', () => {
+  it('AC-ANAT-005: Seen ✓ + Create follow-up + Link existing all occupy ONE actions register', () => {
     const onCreateFollowUpTask = vi.fn()
     const onLinkExistingTask = vi.fn()
-    const onAcknowledge = vi.fn()
-    renderReach({ onCreateFollowUpTask, onLinkExistingTask, onAcknowledge })
+    renderReach({ onCreateFollowUpTask, onLinkExistingTask })
     const region = document.querySelector('[data-signal-region="reach"]') as HTMLElement
     const cluster = region.querySelector('[data-signal-actions]')!
     // Every mutating verb is inside the single cluster.
-    for (const name of [/create task/i, /link existing task/i, /acknowledge/i]) {
+    for (const name of [/create task/i, /link existing task/i, /seen/i]) {
       expect(within(cluster as HTMLElement).getByRole('button', { name })).toBeInTheDocument()
     }
   })
@@ -73,16 +72,62 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
     expect(screen.queryByText(/0 Tasks/)).not.toBeInTheDocument()
     rerender(
       <I18nProvider>
-        <SignalReach mentions={[]} canAcknowledge hasAcknowledged={false} acknowledgements={[]} linkedTasksSummary={{ total: 2, open: 1 }} />
+        <SignalReach
+          mentions={[]} isMentioned={false} hasSeen={false} onSeen={vi.fn()}
+          acknowledgements={[]} linkedTasksSummary={{ total: 2, open: 1 }} />
       </I18nProvider>,
     )
     expect(screen.getByText(/2 Tasks · 1 open/)).toBeInTheDocument()
   })
 
-  it('lists the "who\'s acknowledged" roster and disables Acknowledge once done (never disappears)', () => {
-    renderReach({ hasAcknowledged: true, acknowledgements: [{ personId: 'person-author-a', personName: 'Author One' }] })
+  // ── AC-020 — Seen ✓ chip state on the Signal record (#773 / OD-WAY-96 (3, 6)) ────────────────
+  // No "Acknowledge" button anywhere. A mentioned viewer sees the chip PROMPTED (filled-outline);
+  // a non-mentioned viewer sees it plain. Toggling on appends the viewer to the "Seen by" roster
+  // below, and the chip drops (the viewer is now in the roster). Acknowledgement never blocks or
+  // completes anything: no lifecycle change comes with it.
+  it("AC-020: never renders an 'Acknowledge' button; the record's read-state affordance is the Seen ✓ chip", () => {
+    renderReach({ onCreateFollowUpTask: vi.fn(), onLinkExistingTask: vi.fn() })
+    expect(screen.queryByRole('button', { name: /^acknowledge$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^acknowledged$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /seen/i })).toBeInTheDocument()
+  })
+
+  it('AC-020: a MENTIONED viewer sees the chip in the PROMPTED (filled-outline) state', () => {
+    renderReach({ isMentioned: true })
+    const chip = screen.getByRole('button', { name: /seen/i })
+    expect(chip).toHaveClass('signal-seen-chip--prompted')
+    expect(chip).toHaveAttribute('data-mentioned', 'true')
+  })
+
+  it('AC-020: a non-mentioned viewer sees the chip in the plain (non-prompted) state', () => {
+    renderReach({ isMentioned: false })
+    const chip = screen.getByRole('button', { name: /seen/i })
+    expect(chip).toHaveClass('signal-seen-chip')
+    expect(chip).not.toHaveClass('signal-seen-chip--prompted')
+    expect(chip).toHaveAttribute('data-mentioned', 'false')
+  })
+
+  it("AC-020: toggling on drops the chip and appends the viewer to the 'Seen by' roster", async () => {
+    // A mentioned viewer with no ack yet — the chip renders.
+    const onSeen = vi.fn()
+    const { rerender } = renderReach({ isMentioned: true, hasSeen: false, onSeen, acknowledgements: [] })
+    const chip = screen.getByRole('button', { name: /seen/i })
+    await userEvent.click(chip)
+    expect(onSeen).toHaveBeenCalledOnce()
+    // After the parent has refetched: the viewer is now in acknowledgements and hasSeen is true.
+    rerender(
+      <I18nProvider>
+        <SignalReach
+          mentions={[]} isMentioned={true} hasSeen={true} onSeen={onSeen}
+          acknowledgements={[{ personId: 'person-author-a', personName: 'Author One' }]} />
+      </I18nProvider>,
+    )
+    expect(screen.queryByRole('button', { name: /seen/i })).not.toBeInTheDocument()
     expect(screen.getByText('Author One', { selector: '.signal-ack-name' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /acknowledged/i })).toBeDisabled()
+    // The "Seen by" section is the new label — the record is now consistent with the row chip.
+    expect(screen.getByText(/^seen by$/i)).toBeInTheDocument()
+    // And nothing labelled "Acknowledged" survives on the record.
+    expect(screen.queryByText(/acknowledged/i)).not.toBeInTheDocument()
   })
 
   it('never shows a Status/PIC/Supervisor/resolution control (a Signal is a fact, OD-39)', () => {

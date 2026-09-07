@@ -14,7 +14,7 @@ vi.mock('../supabase', () => {
 })
 
 import { supabase } from '@/lib/supabase'
-import { loadFailedChecksForViewer } from './home-attention-data'
+import { loadFailedChecksForViewer, loadHomeAttentionSignals } from './home-attention-data'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -122,5 +122,91 @@ describe('AC-507: loadFailedChecksForViewer — rejected kitchen_logs, RLS-reada
     schemaMock.mockReturnValue(makeSchema({ data: null, error: { message: 'x' } }, rec) as never)
 
     await expect(loadFailedChecksForViewer(VIEWER)).rejects.toThrow('loadFailedChecksForViewer failed')
+  })
+})
+
+// ── loadHomeAttentionSignals — Home Needs-you-now for Signals (#773) ─────────────────────────
+// The DB owns the rules (mos.home_attention_signals — SECURITY INVOKER over mos.can_read_signal
+// with two arms). This layer proves the wire shape only: one RPC round trip to `mos.
+// home_attention_signals`, org_id/person_id NEVER sent (the DB reads them from the JWT), a
+// missing row list returns [] and a real error throws.
+
+interface RpcRecorder { rpcs: Array<{ fn: string; args: unknown }>; fromCalls: string[] }
+
+function makeRpcSchema(response: { data: unknown; error: unknown }, rec: RpcRecorder) {
+  return {
+    rpc: vi.fn((fn: string, args?: unknown) => {
+      rec.rpcs.push({ fn, args })
+      return Promise.resolve(response)
+    }),
+    from: vi.fn((table: string) => {
+      rec.fromCalls.push(table)
+      return { select: vi.fn().mockReturnThis() } as unknown
+    }),
+  }
+}
+
+describe('AC-016/017/018 loader — mos.home_attention_signals wire', () => {
+  it('reads via one mos schema RPC, never sends org_id or person_id, maps rows verbatim', async () => {
+    const rec: RpcRecorder = { rpcs: [], fromCalls: [] }
+    schemaMock.mockReturnValue(
+      makeRpcSchema(
+        {
+          data: [
+            {
+              id: 's-1', owning_team_id: 't-cikal', author_id: 'p-cahya',
+              body: 'the espresso machine is down', occurred_at: '2026-09-07T05:00:00Z',
+              attention: 'Urgent', category: null, is_mentioned: true,
+            },
+            {
+              id: 's-2', owning_team_id: 't-cikal', author_id: 'p-cahya',
+              body: 'oat milk short', occurred_at: '2026-09-07T04:00:00Z',
+              attention: 'Needs attention', category: 'Supply/vendor', is_mentioned: false,
+            },
+          ],
+          error: null,
+        },
+        rec,
+      ) as never,
+    )
+
+    const rows = await loadHomeAttentionSignals()
+
+    expect(schemaMock).toHaveBeenCalledWith('mos')
+    expect(rec.rpcs).toHaveLength(1)
+    expect(rec.rpcs[0].fn).toBe('home_attention_signals')
+    // The DB reads shared.current_person_id() / shared.current_org_id() from the JWT — this
+    // layer must never send them (the ports of tasks.ts / signals.ts follow the same rule).
+    expect(rec.rpcs[0].args).toBeUndefined()
+    expect(rec.fromCalls).toEqual([])
+
+    expect(rows).toEqual([
+      {
+        id: 's-1', owning_team_id: 't-cikal', author_id: 'p-cahya',
+        body: 'the espresso machine is down', occurred_at: '2026-09-07T05:00:00Z',
+        attention: 'Urgent', category: null, is_mentioned: true,
+      },
+      {
+        id: 's-2', owning_team_id: 't-cikal', author_id: 'p-cahya',
+        body: 'oat milk short', occurred_at: '2026-09-07T04:00:00Z',
+        attention: 'Needs attention', category: 'Supply/vendor', is_mentioned: false,
+      },
+    ])
+  })
+
+  it('returns [] on an empty response (no rows is not an error)', async () => {
+    const rec: RpcRecorder = { rpcs: [], fromCalls: [] }
+    schemaMock.mockReturnValue(makeRpcSchema({ data: null, error: null }, rec) as never)
+
+    expect(await loadHomeAttentionSignals()).toEqual([])
+  })
+
+  it('throws a named error when the RPC returns one', async () => {
+    const rec: RpcRecorder = { rpcs: [], fromCalls: [] }
+    schemaMock.mockReturnValue(
+      makeRpcSchema({ data: null, error: { message: 'permission denied' } }, rec) as never,
+    )
+
+    await expect(loadHomeAttentionSignals()).rejects.toThrow('loadHomeAttentionSignals failed')
   })
 })

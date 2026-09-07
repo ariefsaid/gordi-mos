@@ -43,7 +43,7 @@ function composeAndRender(signal: SignalRow) {
       <SignalReach
         mentions={[{ kind: 'person', label: 'Author One' }]}
         shieldLine="Visible to HQ Operations · notify 4 people"
-        canAcknowledge hasAcknowledged={false} onAcknowledge={vi.fn()}
+        isMentioned={false} hasSeen={false} onSeen={vi.fn()}
         acknowledgements={[]} linkedTasksSummary={{ total: 0, open: 0 }}
         onCreateFollowUpTask={vi.fn()} onLinkExistingTask={vi.fn()}
       />

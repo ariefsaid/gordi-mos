@@ -1,7 +1,9 @@
 import { supabase } from '@/lib/supabase'
 import type { AttentionItem } from '@/lib/home-attention'
+import type { Attention, SignalCategory } from './signals.types'
 
 const ops = () => supabase.schema('ops')
+const mos = () => supabase.schema('mos')
 // Café route the barista returns to in order to re-log a rejected check (RATIFY-3 — v1 failed-check
 // source). Exported so Home decides whether to render the band by asking what THIS route admits
 // (`viewerAdmittedToRoute`, OD-WAY-51) — one route constant, never a second copy to drift from.
@@ -45,4 +47,33 @@ export async function loadFailedChecksForViewer(personId: string, limit = 20): P
     meta: r.review_note ?? undefined,
     route: CAFE_LOG_ROUTE,
   }))
+}
+
+// ── Home Needs-you-now for Signals (#773 / OD-WAY-96 (3, 6)) ─────────────────────────────────
+// One RPC round trip to mos.home_attention_signals — the DB owns the R1-R5 read gate (SECURITY
+// INVOKER) plus the two arms (lead of the owning Team until any lead acks; mentioned viewer for
+// Urgent until they personally ack). This layer just types the rows and hands them to the region
+// / row component. Never sends person_id/org_id — the DB reads shared.current_person_id() /
+// shared.current_org_id() from the JWT.
+//
+// `is_mentioned` decides the Seen ✓ chip state on the shared Signal row: mentioned viewers see
+// the prompted (filled-outline) chip; everyone else sees the plain chip.
+
+export interface HomeAttentionSignal {
+  id: string
+  owning_team_id: string
+  author_id: string
+  body: string
+  occurred_at: string
+  attention: Attention
+  category: SignalCategory | null
+  is_mentioned: boolean
+}
+
+/** Read the Signals the current caller should see in Home's "Needs you now" region right now.
+ *  Returns [] on an empty result; throws only on a real error. */
+export async function loadHomeAttentionSignals(): Promise<HomeAttentionSignal[]> {
+  const { data, error } = await mos().rpc('home_attention_signals')
+  if (error) throw new Error(`loadHomeAttentionSignals failed — ${error.message}`)
+  return (data ?? []) as HomeAttentionSignal[]
 }

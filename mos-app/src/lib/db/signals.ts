@@ -140,11 +140,16 @@ export async function retractSignal(id: string, reason: string): Promise<void> {
 
 // ── acknowledgeSignal / linkSignalTask (B5, FR-412/413) ─────────────────────
 
-/** Any reader may acknowledge a Signal at most once (the unique(signal_id,person_id) constraint
- * rejects a repeat). person_id is never sent — the DB default stamps the caller. */
+/** Any reader may mark a Signal Seen ✓ — the toggle-friendly, idempotent write behind the row's
+ *  chip (#773 / OD-WAY-96 (3, 6)): a repeat click MUST NOT throw. person_id is never sent (the
+ *  DB default stamps the caller), and the append-only unique (signal_id, person_id) key rejects
+ *  a duplicate with code 23505; we swallow that one code (the desired state — this caller has an
+ *  acknowledgement row — already holds), same idiom as linkSignalTask. Every other PostgREST
+ *  error still surfaces. Acknowledgement is a private read-state hint, never a lifecycle change:
+ *  nothing on mos.signals moves as a result (guard mos._guard_signals is untouched). */
 export async function acknowledgeSignal(signalId: string): Promise<void> {
   const { error } = await mos().from('signal_acknowledgements').insert({ signal_id: signalId })
-  if (error) throw new Error(`acknowledgeSignal failed — ${error.message}`)
+  if (error && error.code !== '23505') throw new Error(`acknowledgeSignal failed — ${error.message}`)
 }
 
 /** Link a Signal to an existing Task (the many-to-many signal_tasks bridge, D25/OD-39). */

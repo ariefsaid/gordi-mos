@@ -293,10 +293,18 @@ describe('acknowledgeSignal', () => {
     expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID }])
   })
 
-  it('throws on a duplicate-ack unique-constraint error', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'mos.signal_acknowledgements': [{ data: null, error: { message: 'duplicate key value' } }] }, rec)
-    await expect(acknowledgeSignal(SIGNAL_ID)).rejects.toThrow(/duplicate key/)
+  // #773: Seen ✓ is a chip on a row and the row can render on more than one Home read — a
+  // repeat click, or a stale re-render, must be a no-op, not an error dialog. The unique
+  // (signal_id, person_id) constraint fires on the second insert with SQLSTATE 23505; we
+  // silence it (same idiom as linkSignalTask). Every other PostgREST error still surfaces.
+  it('is idempotent — a duplicate-ack (23505) is swallowed, other errors still throw', async () => {
+    const dup = freshRec()
+    mockSupabase({ 'mos.signal_acknowledgements': [{ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }] }, dup)
+    await expect(acknowledgeSignal(SIGNAL_ID)).resolves.toBeUndefined()
+
+    const other = freshRec()
+    mockSupabase({ 'mos.signal_acknowledgements': [{ data: null, error: { code: '42501', message: 'permission denied' } }] }, other)
+    await expect(acknowledgeSignal(SIGNAL_ID)).rejects.toThrow(/permission denied/)
   })
 })
 

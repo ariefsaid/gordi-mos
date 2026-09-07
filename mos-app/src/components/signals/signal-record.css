@@ -35,6 +35,22 @@
 .signal-reach-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .signal-reach-linked { margin: 14px 0 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
 
+/* Seen ✓ chip (#773 / OD-WAY-96 (3, 6)) — the shared row chip on the record. Two states:
+   plain (outline) for a reader who is not mentioned; PROMPTED (filled-outline / accent) for a
+   mentioned reader. Meets the phone tap floor (44px, the shared control minimum). */
+.signal-seen-chip {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px;
+  border-radius: var(--radius-pill); border: 1px solid var(--border);
+  background: transparent; color: var(--foreground);
+  font: inherit; font-size: var(--font-size-control); font-weight: 500;
+  cursor: pointer;
+}
+.signal-seen-chip:hover { background: var(--secondary); }
+.signal-seen-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-seen-chip--prompted {
+  border-color: var(--text-accent); background: var(--accent-subtle); color: var(--text-accent);
+}
+
 .signal-reach-ack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .signal-reach-ack-label { font-size: var(--font-size-label); color: var(--muted-foreground); }
 .signal-ack-list { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }

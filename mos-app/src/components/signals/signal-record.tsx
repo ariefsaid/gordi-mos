@@ -96,20 +96,27 @@ function SignalAttentionEditor({ value, onChange }: { value: Attention; onChange
 }
 
 // ── Region 2 · Reach & response — know the audience, take the one factual response ─────────────
-// Mentions + visibility line, the ONE action register (LAW-3): Acknowledge + linked-work verbs —
-// no Status/resolve/close (a Signal is a fact). The "who's acknowledged" roster + linked summary
-// (only when linked work exists — the empty "0 Tasks · 0 open" line was noise, LAW-5).
+// Mentions + visibility line, the ONE action register (LAW-3): Seen ✓ (a private read-state hint)
+// + linked-work verbs — no Status/resolve/close, and — per #773 / OD-WAY-96 (3, 6) — NO
+// "Acknowledge" button. Acknowledgement here never blocks or completes anything: it is the same
+// action the Home Needs-you-now row exposes, just moved to the record page as the shared Seen ✓
+// chip. A mentioned viewer gets the PROMPTED (filled-outline) chip; every other reader gets the
+// plain chip. Toggling appends the viewer to the "Seen by" roster below, then the chip drops out.
 export function SignalReach({
   mentions, shieldLine,
-  canAcknowledge, hasAcknowledged, onAcknowledge,
+  isMentioned, hasSeen, onSeen,
   acknowledgements, linkedTasksSummary,
   onCreateFollowUpTask, onLinkExistingTask, onRetract, actionForms,
 }: {
   mentions: SignalMentionView[]
   shieldLine?: string
-  canAcknowledge: boolean
-  hasAcknowledged: boolean
-  onAcknowledge?: () => void
+  /** Is the current viewer mentioned on this Signal? Drives the chip's PROMPTED state — the
+   *  filled-outline treatment named in the ticket. `false` → the plain outline chip. */
+  isMentioned: boolean
+  /** Has the current viewer already marked this Signal Seen? `true` hides the chip (the viewer
+   *  is now in the Seen-by list below). */
+  hasSeen: boolean
+  onSeen?: () => void
   acknowledgements: SignalAcknowledgementView[]
   linkedTasksSummary?: LinkedTasksSummary
   onCreateFollowUpTask?: () => void
@@ -136,7 +143,8 @@ export function SignalReach({
         </div>
       )}
 
-      {/* The one action register — Acknowledge (factual response) + linked-work verbs. */}
+      {/* The one action register — Seen ✓ chip (a private read-state hint, per #773 / OD-WAY-96)
+          + linked-work verbs. No Acknowledge button: acknowledgement never completes anything. */}
       <div className="signal-reach-actions" data-signal-actions="true">
         {onCreateFollowUpTask && (
           <Button variant="primary" onClick={onCreateFollowUpTask}>{t('signals.record.createFollowUpTask')}</Button>
@@ -144,10 +152,16 @@ export function SignalReach({
         {onLinkExistingTask && (
           <Button variant="outline" onClick={onLinkExistingTask}>{t('signals.record.linkExistingTask')}</Button>
         )}
-        {canAcknowledge && (
-          <Button variant="outline" disabled={hasAcknowledged} onClick={() => onAcknowledge?.()}>
-            {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.record.acknowledge')}
-          </Button>
+        {!hasSeen && onSeen && (
+          <button
+            type="button"
+            className={`signal-seen-chip${isMentioned ? ' signal-seen-chip--prompted' : ''}`}
+            data-mentioned={isMentioned ? 'true' : 'false'}
+            aria-pressed="false"
+            onClick={onSeen}
+          >
+            {t('signals.record.seen')}
+          </button>
         )}
         {onRetract && <Button variant="outline" onClick={onRetract}>{t('signals.record.retract')}</Button>}
       </div>
@@ -161,8 +175,8 @@ export function SignalReach({
       )}
 
       {acknowledgements.length > 0 && (
-        <div className="signal-reach-ack" aria-label={t('signals.record.acknowledgeLabel')}>
-          <span className="signal-reach-ack-label">{t('signals.record.acknowledgedBy')}</span>
+        <div className="signal-reach-ack" aria-label={t('signals.record.seenByLabel')}>
+          <span className="signal-reach-ack-label">{t('signals.record.seenBy')}</span>
           <ul className="signal-ack-list">
             {acknowledgements.map((ack) => (
               <li key={ack.personId} className="signal-ack-name">{ack.personName}</li>

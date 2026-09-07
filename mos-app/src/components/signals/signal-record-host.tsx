@@ -210,7 +210,15 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     id: rev.id, field: rev.field, old_value: rev.old_value, new_value: rev.new_value,
     created_at: rev.created_at, actorName: personName(people, rev.actor_id, t('signals.card.unknownAuthor')),
   }))
-  const hasAcknowledged = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
+  // Seen ✓ chip state (#773 / OD-WAY-96 (3, 6)): PROMPTED (filled-outline) when the viewer is
+  // mentioned on this Signal; plain otherwise. The chip drops once the viewer has already ack'd
+  // — they render below in the Seen-by list.
+  const hasSeen = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
+  const isMentionedViewer = !!viewerId && activeMentions.some((m) => (
+    (m.mention_kind === 'person' && m.target_person_id === viewerId)
+    || (m.mention_kind === 'team' && (rosters.teamMembers[m.target_team_id ?? ''] ?? []).includes(viewerId))
+    || (m.mention_kind === 'bu' && (rosters.buMembers[m.target_bu_id ?? ''] ?? []).includes(viewerId))
+  ))
 
   // Link-existing remains record-local; Task creation uses the one canonical Tasks composer.
   const actionForms = (
@@ -267,9 +275,9 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       <SignalReach
       mentions={mentionViews}
       shieldLine={shieldLine}
-      canAcknowledge
-      hasAcknowledged={hasAcknowledged}
-      onAcknowledge={() => { void handleAcknowledge() }}
+      isMentioned={isMentionedViewer}
+      hasSeen={hasSeen}
+      onSeen={() => { void handleAcknowledge() }}
       acknowledgements={acknowledgements.map((ack) => ({
         personId: ack.person_id, personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
       }))}

@@ -247,8 +247,8 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
   })
 })
 
-describe('SignalRecordHost — Acknowledge wiring (FR-412)', () => {
-  it('calls acknowledgeSignal and reflects the acknowledged state after refetch', async () => {
+describe('SignalRecordHost — Seen ✓ chip wiring (#773 / OD-WAY-96 (3, 6))', () => {
+  it('clicking Seen ✓ calls acknowledgeSignal; after refetch the viewer joins Seen by and the chip drops', async () => {
     mockAcknowledgeSignal.mockResolvedValue(undefined)
     renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
@@ -257,19 +257,24 @@ describe('SignalRecordHost — Acknowledge wiring (FR-412)', () => {
       signal: baseSignal, mentions: [], tasks: [],
       acknowledgements: [{ id: 'a1', signal_id: SIGNAL_ID, person_id: VIEWER_ID, created_at: '2026-07-16T04:00:00Z' }],
     })
-    await userEvent.click(screen.getByRole('button', { name: /^acknowledge$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /seen/i }))
 
     expect(mockAcknowledgeSignal).toHaveBeenCalledWith(SIGNAL_ID)
-    await waitFor(() => expect(screen.getByRole('button', { name: /acknowledged/i })).toBeDisabled())
+    // The chip drops (the viewer is now in the Seen by roster); no "Acknowledge" button ever
+    // appears (the whole verb went with the affordance).
+    await waitFor(() => expect(screen.queryByRole('button', { name: /seen/i })).toBeNull())
+    expect(screen.queryByRole('button', { name: /acknowledge/i })).toBeNull()
+    expect(screen.getByText(/^seen by$/i)).toBeInTheDocument()
   })
 
-  it('shows Acknowledged (disabled) when the viewer already acknowledged', async () => {
+  it('when the viewer has already acknowledged, the chip does not render and Seen by lists them', async () => {
     mockGetSignal.mockResolvedValue({
       signal: baseSignal, mentions: [], tasks: [],
       acknowledgements: [{ id: 'a1', signal_id: SIGNAL_ID, person_id: VIEWER_ID, created_at: '2026-07-16T04:00:00Z' }],
     })
     renderHost()
-    await waitFor(() => expect(screen.getByRole('button', { name: /acknowledged/i })).toBeDisabled())
+    await waitFor(() => expect(screen.getByText(/^seen by$/i)).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /seen/i })).toBeNull()
   })
 })
 
