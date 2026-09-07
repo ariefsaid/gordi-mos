@@ -76,6 +76,25 @@ describe('SetPasswordForm', () => {
     expect(screen.getByLabelText(/new password/i)).toHaveAttribute('aria-describedby', alert.id)
   })
 
+  it("mode='inline' hides its own title/subtitle so a hosting card's heading is not duplicated (#807)", () => {
+    // Hosted inside a Profile card that already carries an <h2> "Password" heading; the form's
+    // own h1 would render a second visible heading. Fields, aria, submit stay identical.
+    render(
+      <SetPasswordForm
+        title="Change password"
+        subtitle="Choose a new password only you know."
+        onSubmit={vi.fn()}
+        mode="inline"
+      />,
+    )
+    expect(screen.queryByRole('heading')).toBeNull()
+    expect(screen.queryByText('Choose a new password only you know.')).toBeNull()
+    // The form itself is intact.
+    expect(screen.getByLabelText(/new password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save password/i })).toBeInTheDocument()
+  })
+
   it('stays busy after a successful submit, since the caller is about to tear the screen down', async () => {
     // Never resolves the navigation — assert the button does not flash back to enabled.
     const onSubmit = vi.fn().mockResolvedValue(null)

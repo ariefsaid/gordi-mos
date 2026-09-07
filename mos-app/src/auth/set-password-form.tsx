@@ -14,6 +14,14 @@ interface Props {
   onSubmit: (password: string) => Promise<string | null | void>
   /** Rendered under the submit button — e.g. the sign-out escape hatch on the #131 gate. */
   footer?: (busy: boolean) => ReactNode
+  /**
+   * 'standalone' (default): renders its own card heading + subtitle — auth screens
+   *   (recovery, the #131 must-change gate) where the form IS the page.
+   * 'inline': hosted inside another card that already carries a heading (Profile Password card,
+   *   #807). The h1/subtitle are hidden so the section doesn't render two headings. The form's
+   *   field wiring, validation, and submit stay identical — same component, no visual fork.
+   */
+  mode?: 'standalone' | 'inline'
 }
 
 /**
@@ -23,7 +31,7 @@ interface Props {
  * (SetPasswordScreen) so the a11y wiring, `new-password` autocomplete, and weak-password
  * surfacing have exactly one home.
  */
-export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
+export function SetPasswordForm({ title, subtitle, onSubmit, footer, mode = 'standalone' }: Props) {
   const newPasswordId = useId()
   const confirmPasswordId = useId()
   const mismatchErrorId = useId()
@@ -63,18 +71,23 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
     }
   }
 
+  const standalone = mode === 'standalone'
   return (
     <>
-      {/* Card title */}
-      <h1
-        className="text-foreground font-semibold"
-        style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
-      >
-        {title}
-      </h1>
-      <p className="text-muted-foreground mb-5" style={{ fontSize: 16 }}>
-        {subtitle}
-      </p>
+      {standalone && (
+        <>
+          {/* Card title */}
+          <h1
+            className="text-foreground font-semibold"
+            style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
+          >
+            {title}
+          </h1>
+          <p className="text-muted-foreground mb-5" style={{ fontSize: 16 }}>
+            {subtitle}
+          </p>
+        </>
+      )}
 
       {serverError && (
         <div
