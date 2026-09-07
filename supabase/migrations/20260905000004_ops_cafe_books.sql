@@ -15,7 +15,7 @@ declare
 begin
   for o in select id as org_id from shared.orgs loop
     insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity, produces)
-    select o.org_id, bu.id, b.name || ' ' || a.name, b.code || '_' || a.code, b.id, a.code, (a.code = 'bar' or b.code in ('gordi_hq', 'rumah_rames') or a.code not in ('kitchen', 'bar'))
+    select o.org_id, bu.id, b.name || ' ' || a.name, b.code || '_' || a.code, b.id, a.code, (a.code = 'bar' or b.code in ('gordi_hq', 'rumah_rames'))
     from shared.branches b
     cross join shared.activities a
     join shared.business_units bu

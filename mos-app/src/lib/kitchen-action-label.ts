@@ -63,22 +63,16 @@ export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean 
 export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
 
 /**
- * Every movement capturable from an origin stream (FR-013): produce, then a transfer to each
- * branch represented by a live stream Team. That single list carries BOTH movement classes,
- * from either activity surface, because a destination is a branch and nothing else (OD-WAY-44):
+ * Every movement capturable from an origin stream (FR-013): produce, then transfers to each
+ * reachable branch. Non-producing streams return an empty list. Reachable branches depend on
+ * the origin activity:
  *
- *   - CROSS-BRANCH — any branch that is not the origin. A bar → another branch's bar and the
- *     kitchen's existing cross-branch transfers are the same row shape and the same
- *     (preserved) labels; they post through the normal dispatch path.
- *   - INTRA-BRANCH CROSS-ACTIVITY — the origin branch itself, offered from both sides (bar →
- *     own branch's kitchen, kitchen → own branch's bar). This is also the incumbent's
- *     "Transfer to Bungur" on the Rumah Rames stream. There is no destination-activity
- *     dimension and none is being added: what is stored is destination = own branch, and the
- *     counterpart activity is a GLOSS the capture control renders (see `isIntraBranch`), never
- *     a column. Approved, such a movement is held — no ERP document (FR-050/053).
+ *   - Kitchen: every branch in the catalog except the origin branch (cross-branch only).
+ *   - Bar: the origin branch itself if a kitchen stream exists there (the intra-branch arm the
+ *     incumbent labels "Transfer to Bungur" on the Rumah Rames bar — FR-050/053, no ERP
+ *     document on approve), plus every other bar branch.
  *
- * Destination order follows the branch catalog order; `streamOptions` is the live stream-Team
- * catalog and is the authority for which branches are Café destinations.
+ * Destination order follows the catalog iteration order, which is DB-derived via `catalog`.
  */
 export function movementsForStream(
   origin: ProductionStream,

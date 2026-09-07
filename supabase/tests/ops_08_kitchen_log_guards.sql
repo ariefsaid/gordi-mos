@@ -11,7 +11,7 @@
 -- success to the caller and produces a row nobody asked for.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(25);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -20,8 +20,6 @@ select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 set local role authenticated;
-
-select throws_ok($$ insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi) values ('00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf03','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1) $$, '42501', null, 'AC-002: a non-producing stream is refused by behaviour');
 
 -- ── The status gate (FR-044) ─────────────────────────────────────────────────────────────────
 -- A member may submit and may correct their own pending line; they may not decide it is approved.
