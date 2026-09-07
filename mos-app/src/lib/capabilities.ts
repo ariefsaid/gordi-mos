@@ -34,23 +34,31 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   member: ['process.start'],
 }
 
-/** Roles that admit to Revenue VIEW (ADR-0051 D4). Exported for router/destinations consistency. */
-export const REVENUE_VIEW_ROLES = ['finance', 'admin', 'manager', 'supervisor'] as const
+// The two money-read sets (ADR-0051 D4; #797 / OD-WAY-98 dropped admin from both). `admin` is the
+// users-and-settings role and reads no money of its own — the Director reads Money by holding
+// manager beside admin. The database policies on reporting.sales_daily_revenue and
+// reporting.sales_margin_daily (MONEY_READ_POLICY_MIGRATION) state the same two lists, and
+// capabilities.test.ts reads that file to pin them equal. Every shell surface that decides whether
+// Money renders reads these through canViewRevenue / REVENUE_VIEW_ROLES, never its own literal.
+export const MONEY_READ_POLICY_MIGRATION = '20260907000001_reporting_money_read_roles.sql'
 
-/** Roles that admit to Margin/COGS VIEW (ADR-0051 D4 — supervisor excluded, revenue-only). Exported for consistency. */
-export const MARGIN_VIEW_ROLES = ['finance', 'admin', 'manager'] as const
+/** Roles that admit to Revenue VIEW. supervisor is scoped by RLS to their own grants. */
+export const REVENUE_VIEW_ROLES = ['finance', 'manager', 'supervisor'] as const
+
+/** Roles that admit to Margin/COGS VIEW — supervisor excluded, revenue-only. */
+export const MARGIN_VIEW_ROLES = ['finance', 'manager'] as const
 
 /** True iff any of the viewer's accessRoles is granted `capability` (v1 seed). */
 export function can(accessRoles: readonly string[], capability: string): boolean {
   return accessRoles.some((role) => (ROLE_CAPABILITIES[role] ?? []).includes(capability))
 }
 
-/** Revenue-VIEW visibility: finance | admin | manager | supervisor (ADR-0051 D4). RLS is the hard boundary. */
+/** Revenue-VIEW visibility — the one answer every Money door reads. RLS is the hard boundary. */
 export function canViewRevenue(accessRoles: readonly string[]): boolean {
   return REVENUE_VIEW_ROLES.some((r) => accessRoles.includes(r))
 }
 
-/** Margin/COGS-VIEW visibility: finance | admin | manager (ADR-0051 D4 — supervisor excluded, revenue-only). */
+/** Margin/COGS-VIEW visibility — the narrower tier inside the revenue read. */
 export function canViewMargin(accessRoles: readonly string[]): boolean {
   return MARGIN_VIEW_ROLES.some((r) => accessRoles.includes(r))
 }
