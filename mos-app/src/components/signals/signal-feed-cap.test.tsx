@@ -3,7 +3,7 @@
 // "A feed column that grows without limit is the wall of text again, just rotated 90 degrees."
 // The cap is the AMBIENT tail's alone — the /work/signals archive Feed IS the full collection and
 // capping it there would hide records from the surface whose whole job is to show them.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -71,11 +71,10 @@ describe('the ambient Signals column caps at 6 and states the remainder', () => 
       .toHaveAttribute('href', '/work/signals?q=Signal+body')
   })
 
-  it('exposes Create Task directly on the posted feed row', async () => {
-    const onCreateTask = vi.fn()
-    renderFeed('archive', 1, { onCreateTask })
-    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
-    expect(onCreateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-0' }))
+  it('Ticket 770 AC-025: the archive Feed row carries NO Create task button — that action lives on the record', () => {
+    renderFeed('archive', 1)
+    expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /create task/i })).not.toBeInTheDocument()
   })
 
   it('the archive Feed is NOT capped — it is the full collection', () => {

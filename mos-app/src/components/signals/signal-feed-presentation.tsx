@@ -1,13 +1,13 @@
 // Feed presentation for the Signal collection (Issue 6). It reuses SignalFeedRows — the SAME row
 // anatomy the Home ambient tail renders (owner redirect 2026-07-22; rule:product-ban-inconsistent-
 // components) — so a Signal reads as one visual grammar whether it's on Home or in the Signals
-// archive Feed. It reads the React-scoped open/categorize/compose callbacks from the collection
-// ACTIONS context, so the module-level descriptor can render it without threading router/composer
-// state. The collection contract also provides onOpenRecord — wire it through so browser Back
-// preserves the collection query state (FR-V3-OPENER).
+// archive Feed. The collection contract's injected onOpenRecord is wired to the row's whole-surface
+// activation seam so browser Back preserves the collection query state (FR-V3-OPENER).
+//
+// #770 (owner ruling OD-WAY-96): the row itself carries no controls — `Create task`, `Add
+// category`, and `Acknowledge` all live on the Signal record — so the archive Feed no longer
+// threads a `createTaskHref` or a per-row categorize callback through here.
 import { SignalFeedRows } from './signal-feed-rows'
-import { signalTaskCreateHref } from './signal-task-intent'
-import { useSignalCollectionActions } from './signal-collection-actions'
 import type { SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
@@ -27,23 +27,12 @@ export function SignalFeedPresentation({
   SignalCollectionContext,
   string
 >) {
-  const actions = useSignalCollectionActions()
-  const createTaskHref = context.viewerId && context.businessUnitIdsByTeamId
-    ? (signal: SignalRow) => {
-        const businessUnitId = context.businessUnitIdsByTeamId?.get(signal.owning_team_id)
-        return businessUnitId ? signalTaskCreateHref(signal, businessUnitId, context.viewerId!) : undefined
-      }
-    : undefined
   return (
       <SignalFeedRows
         variant="archive"
         signals={[...projection.visibleRecords]}
         authorNamesById={namesToRecord(context.authorNamesById)}
         teamNamesById={namesToRecord(context.teamNamesById)}
-        // D-D2: the archive Feed's Share door is hosted by the CollectionToolbar (layout-independent),
-        // so the in-feed ambient-only Share row is intentionally not wired here.
-        onCategorize={actions.onCategorize}
-        createTaskHref={createTaskHref}
         onOpen={onOpenRecord ? (signal) => onOpenRecord(signal) : undefined}
       />
   )

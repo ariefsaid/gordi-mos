@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -400,19 +402,31 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // is not one of the things behind it.
     expect(document.getElementById('mobile-signal-options-panel')).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
-    // View options (e.g. Show retracted) are genuinely behind the door, not duplicated outside it.
+    // #770 AC-029: no switch anywhere at 390 either — retracted is reached via the `Retracted`
+    // chip inside the door. The domain filters (Team/Category) live behind the door as before.
     expect(screen.queryByRole('switch', { name: /show retracted/i })).not.toBeInTheDocument()
     openViewOptions()
-    expect(screen.getByRole('switch', { name: /show retracted/i })).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: /show retracted/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
     // Still exactly one search input — the toolbar instance inside the now-open door did not
     // render a duplicate copy alongside the one planted outside it.
     expect(screen.getAllByRole('searchbox', { name: /search signals/i })).toHaveLength(1)
   })
 
-  it('authenticated archive Feed rows render the Create task control', async () => {
+  it('Ticket 770 AC-025: archive Feed rows carry NO per-row buttons — Create task lives on the record', async () => {
     renderPage('/work/signals?layout=feed', null, archiveAuth)
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    expect(screen.getAllByRole('link', { name: /create task/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /create task/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
+    // Each rendered row exposes exactly one activation target — the row itself.
+    const rows = document.querySelectorAll('.home-signal-row')
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of Array.from(rows)) {
+      if (row.classList.contains('home-signal-row--retracted')) continue
+      expect(row.querySelectorAll('button')).toHaveLength(0)
+      expect(row.querySelectorAll('a')).toHaveLength(0)
+      expect(row).toHaveAttribute('role', 'button')
+    }
   })
 
   it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {
@@ -451,7 +465,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
   })
 
-  it('hides retracted rows by default, and reveals them as tombstones via "Show retracted" (IMPORTANT-6)', async () => {
+  it('Ticket 770 AC-023: retracted rows are hidden by default and reached via the `Retracted` view (no `Show retracted` control anywhere)', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
     ])
@@ -459,24 +473,23 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument())
     expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument()
 
-    // OD-84.1: the "Show retracted" toggle lives behind the one "View & filters" door.
-    openViewOptions()
-    await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
+    // AC-023: the `Show retracted` switch is retired — a viewer opens the tombstone view by
+    // clicking the `Retracted` chip on the toolbar's first row.
+    expect(screen.queryByRole('switch', { name: /show retracted/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retracted' }))
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
     expect(screen.getByText('Duplicate')).toBeInTheDocument()
   })
 
-  it('restores "Show retracted" from the URL (?retracted=1) on load — round-trips through Back/refresh/new-tab', async () => {
+  it('Ticket 770 AC-023: `?view=retracted` restores the tombstone view on load (Back/refresh/new-tab) with no switch anywhere', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
     ])
-    renderPage('/work/signals?retracted=1')
+    renderPage('/work/signals?view=retracted')
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
-    openViewOptions()
-    expect(screen.getByRole('switch', { name: /show retracted/i })).toHaveAttribute('aria-checked', 'true')
-
-    await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
-    await waitFor(() => expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument())
+    // The `Retracted` chip is the active one — never a switch beside it.
+    expect(screen.getByRole('button', { name: 'Retracted' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('switch', { name: /show retracted/i })).not.toBeInTheDocument()
   })
 })
 
@@ -720,5 +733,331 @@ describe('issue 711 — the plain (unfiltered) empty state speaks its own voice,
     const empty = await screen.findByTestId('empty-state')
     expect(within(empty).queryByText(/match/i)).toBeNull()
     expect(within(empty).getByText(/no signals yet/i)).toBeInTheDocument()
+  })
+})
+
+// #770 — the two-row Signals archive toolbar (OD-WAY-96). The Tasks build (#743) introduced the
+// grammar; ticket 770 owns the Signals adoption. Every AC below drives the persona (Dewi,
+// authenticated, 1440, default Feed) through one deliberate step of the new toolbar and asserts
+// its user-visible outcome — the toolbar's SHAPE (row count, chip set, control set), the ROW
+// grammar (zero buttons, plain-text meta), the ONE-COMPONENT rule (Home + archive), and the
+// empty/phone contracts around them.
+const dewiAuth: AuthState = {
+  status: 'authenticated',
+  viewer: {
+    person: {
+      id: 'person-dewi', org_id: 'org-1', user_id: 'user-dewi', full_name: 'Dewi Director',
+      email: 'dewi@example.test', must_change_password: false, archived_at: null,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    },
+    roles: [], isManager: true, accessRoles: ['admin'], affiliated: [],
+  },
+  signOut: async () => {},
+}
+
+function seedSevenSignals() {
+  const bodies = [
+    'Card reader dropped the connection during the afternoon rush again. @Dewi',
+    'Pastry case ran empty an hour before close and we couldn\'t restock in time.',
+    'Espresso machine repaired',
+    'Grinder 2 throwing inconsistent doses since Wednesday',
+    'New vendor for oat milk arrived',
+    'Late shift kept losing the tap machine',
+    'Ice bin cracked overnight',
+  ]
+  const attentions: Array<SignalRow['attention']> = ['Urgent', 'Needs attention', 'FYI', 'FYI', 'FYI', 'Needs attention', 'FYI']
+  return bodies.map((body, i) => row({
+    id: `signal-${i + 1}`,
+    body,
+    attention: attentions[i],
+    author_id: i === 0 ? 'person-dewi' : 'person-author-a',
+    owning_team_id: i % 2 === 0 ? 'team-hq' : 'team-radiant',
+    category: i === 1 ? 'Supply/vendor' : null,
+  }))
+}
+
+describe('Ticket 770 — the two-row Signals archive toolbar (AC-021 … AC-033)', () => {
+  beforeEach(() => {
+    mockListReadableSignals.mockResolvedValue(seedSevenSignals())
+  })
+
+  it('AC-021 — Dewi, 1440, Feed: two toolbar rows; chips All · Needs attention · Retracted · I posted; segment on row 1 right; ≤16 controls in <main>; no switch; head holds the only `.btn-primary`', async () => {
+    renderPage('/work/signals', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+
+    // TWO toolbar rows — never a third. AC-021 is the shape guarantee for the whole ticket.
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+
+    // The FOUR built-in view chips read exactly in the ticket order — no `Show retracted` control
+    // slipped in beside them, and no `Attention` filter dropdown behind them.
+    const viewsGroup = screen.getByRole('group', { name: 'Signal views' })
+    expect(viewsGroup).toHaveTextContent(/All\s*Needs attention\s*Retracted\s*I posted/)
+    expect(within(viewsGroup).getByRole('button', { name: 'I posted' })).toHaveAttribute('aria-pressed', 'false')
+
+    // The presentation segment lives on row 1's RIGHT (the same slot #743 introduced for Tasks).
+    const rows = screen.getAllByTestId('collection-toolbar-row')
+    const segment = screen.getByRole('tablist', { name: /view as/i })
+    expect(rows[0]).toContainElement(segment)
+
+    // Row 2 carries search · Team · Category · Save view — no Group / Sort while Feed is live.
+    expect(within(rows[1]).getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+    expect(within(rows[1]).getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
+    expect(within(rows[1]).getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
+    expect(within(rows[1]).getByRole('button', { name: /save view/i })).toBeInTheDocument()
+    expect(within(rows[1]).queryByRole('combobox', { name: /^group$/i })).not.toBeInTheDocument()
+    expect(within(rows[1]).queryByRole('combobox', { name: /^sort$/i })).not.toBeInTheDocument()
+
+    // Zero switches / checkboxes anywhere in <main>: the retract switch is retired.
+    const main = document.querySelector('main[data-page-family="workspace"]') as HTMLElement
+    expect(main).toBeTruthy()
+    expect(within(main).queryAllByRole('switch')).toHaveLength(0)
+    expect(main.querySelectorAll('input[type="checkbox"]')).toHaveLength(0)
+
+    // ≤16 controls in <main>: the ticket's control budget for the whole page's default Feed.
+    // A row's whole-surface activation is NOT a "control" in that budget — the Before/After
+    // sums are toolbar + per-row BUTTONS (Before: 16 toolbar + 14 row buttons = 30; After: 16
+    // toolbar + 0 row buttons = 16). So the count excludes `.home-signal-row` activation targets,
+    // which are the record links, not toolbar controls.
+    const rowActivationTargets = new Set(
+      Array.from(main.querySelectorAll('.home-signal-row[role="button"]')),
+    )
+    const controlNodes = [
+      ...within(main).queryAllByRole('button'),
+      ...within(main).queryAllByRole('tab'),
+      ...within(main).queryAllByRole('combobox'),
+      ...within(main).queryAllByRole('searchbox'),
+      ...within(main).queryAllByRole('switch'),
+      ...within(main).queryAllByRole('link'),
+    ].filter((el) => !rowActivationTargets.has(el))
+    expect(controlNodes.length).toBeLessThanOrEqual(16)
+
+    // The ONE `.btn-primary` is the head's `Share Signal` door — nothing else on the page rides
+    // the primary paint (row 1 chips are ghost, saved-view ghost, all filters plain selects).
+    const primaries = main.querySelectorAll('.btn-primary')
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0]).toHaveTextContent(/share signal/i)
+  })
+
+  it('AC-022 — Table live: row 2 adds Group · Sort; Group = Team tints navy and reads "Group: Team", distinct from the Team filter', async () => {
+    renderPage('/work/signals?layout=table&group=team', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+
+    // Still exactly two rows — the Group + Sort dropdowns squeeze into row 2 rather than growing a third.
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+    const rows = screen.getAllByTestId('collection-toolbar-row')
+    const groupSelect = within(rows[1]).getByRole('combobox', { name: 'Group' }) as HTMLSelectElement
+    const teamSelect = within(rows[1]).getByRole('combobox', { name: 'Team' }) as HTMLSelectElement
+    expect(within(rows[1]).getByRole('combobox', { name: 'Sort' })).toBeInTheDocument()
+
+    // Distinct: the Group control's active option reads "Group: Team", the Team filter's default
+    // reads "Any team" — the two never look like a repeated Team chip beside each other.
+    expect(groupSelect.selectedOptions[0]?.textContent).toBe('Group: Team')
+    expect(teamSelect.selectedOptions[0]?.textContent).toBe('Any team')
+    // Tinted wrapper class rides the active group control (mirror of Tasks AC-005).
+    const wrapper = groupSelect.closest('.collection-toolbar__option-field')
+    expect(wrapper?.className).toContain('collection-toolbar__option-field--group')
+  })
+
+  it('AC-024 — `I posted` shows exactly Dewi\'s own Signals, retracted included', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 's-mine-live', author_id: 'person-dewi', body: 'The freezer alarm went off' }),
+      row({ id: 's-mine-dead', author_id: 'person-dewi', body: 'Wrong branch typo', retracted_at: '2026-07-16T05:00:00Z' }),
+      row({ id: 's-theirs', author_id: 'person-author-a', body: 'Someone else posted this' }),
+    ])
+    renderPage('/work/signals', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'I posted' }))
+    await waitFor(() => expect(screen.queryByText(/someone else/i)).not.toBeInTheDocument())
+    expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
+    // AC-024: retracted included — the poster's own tombstone still reads through this chip.
+    expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument()
+  })
+
+  it('AC-025/AC-026 — seven Feed rows carry zero buttons; ONE activation target per row; meta plain text; Home + archive share the component', async () => {
+    renderPage('/work/signals', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+
+    const rows = document.querySelectorAll('.home-signal-row:not(.home-signal-row--retracted)')
+    expect(rows.length).toBe(7)
+    for (const rowEl of Array.from(rows)) {
+      expect(rowEl.querySelectorAll('button')).toHaveLength(0)
+      expect(rowEl.querySelectorAll('a')).toHaveLength(0)
+      expect(rowEl).toHaveAttribute('role', 'button')
+      expect(rowEl.getAttribute('aria-label')).toMatch(/^Open signal:/)
+      // Meta: no bordered chips for team/time.
+      expect(rowEl.querySelector('.home-signal-location-chip')).toBeNull()
+      expect(rowEl.querySelector('.home-signal-time-chip')).toBeNull()
+      // No "Visible to <Team>" line.
+      expect(rowEl.textContent).not.toMatch(/Visible to/)
+    }
+    // AC-026: Home and archive render through ONE component — the marker class the shared
+    // component owns is present, and only the archive variant class differs.
+    const feed = screen.getByTestId('signal-feed')
+    expect(feed.classList.contains('home-signal-feed')).toBe(true)
+    expect(feed.classList.contains('home-signal-feed--archive')).toBe(true)
+  })
+
+  it('AC-027 — Table column order Message · Team · Attention · Occurred', async () => {
+    renderPage('/work/signals?layout=table', null, dewiAuth)
+    await waitFor(() => expect(screen.getByRole('columnheader', { name: /message/i })).toBeInTheDocument())
+    const headers = Array.from(document.querySelectorAll('th'))
+      .map(th => (th.textContent ?? '').trim().toLowerCase())
+      .filter(t => t.length > 0)
+    // Only the four columns land — no PIC / Supervisor / Status ghost columns.
+    expect(headers).toEqual(['message', 'team', 'attention', 'occurred'])
+  })
+
+  it('AC-028 — Save view opens an anchored popover; the toolbar keeps its two rows; Escape returns focus', async () => {
+    renderPage('/work/signals', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+    const before = document.querySelectorAll('.home-signal-row:not(.home-signal-row--retracted)').length
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+
+    const trigger = screen.getByRole('button', { name: /save view/i })
+    await userEvent.click(trigger)
+    const popover = screen.getByRole('group', { name: /save current view/i })
+    expect(popover.className).toContain('collection-toolbar__save')
+    expect(popover.parentElement?.className).toContain('collection-toolbar__save-zone')
+    // Two rows still — the popover overlays, never grows a row.
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+    // Row count unchanged behind the popover.
+    expect(document.querySelectorAll('.home-signal-row:not(.home-signal-row--retracted)').length).toBe(before)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /view name/i }), { key: 'Escape' })
+    expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('AC-029 — 390 phone: search outside the door; door = chips · Team · Category · Save view; rows ≥44px without buttons; ≤9 controls in <main> with seven rows', async () => {
+    desktopState.value = false
+    renderPage('/work/signals', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+
+    // Search is planted OUTSIDE the door — reachable without opening it.
+    const options = screen.getByRole('button', { name: /view & filters/i })
+    expect(options).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+    // The door never carries the `Share Signal` primary — the launcher owns it on phone.
+    expect(within(options.parentElement as HTMLElement).queryByRole('button', { name: /share signal/i })).not.toBeInTheDocument()
+
+    // Rows: zero buttons, whole surface activates. Row height respects the 44px coarse-pointer floor
+    // (`padding: var(--row-pad-y, 10px) 4px` above the min-height ensures it — asserted via CSS below).
+    const feedRows = document.querySelectorAll('.home-signal-row:not(.home-signal-row--retracted)')
+    expect(feedRows.length).toBe(7)
+    for (const feedRow of Array.from(feedRows)) {
+      expect(feedRow.querySelectorAll('button')).toHaveLength(0)
+      expect(feedRow.querySelectorAll('a')).toHaveLength(0)
+    }
+    // ≤9 controls in <main> at 390 with seven rows — row activation targets don't count against
+    // the toolbar budget (see AC-021's control-count rationale).
+    const main = document.querySelector('main[data-page-family="workspace"]') as HTMLElement
+    const rowActivationTargets = new Set(
+      Array.from(main.querySelectorAll('.home-signal-row[role="button"]')),
+    )
+    const controlNodes = [
+      ...within(main).queryAllByRole('button'),
+      ...within(main).queryAllByRole('tab'),
+      ...within(main).queryAllByRole('combobox'),
+      ...within(main).queryAllByRole('searchbox'),
+      ...within(main).queryAllByRole('switch'),
+      ...within(main).queryAllByRole('link'),
+    ].filter((el) => !rowActivationTargets.has(el))
+    expect(controlNodes.length).toBeLessThanOrEqual(9)
+  })
+
+  it('AC-030 — empty scope: "No Signals yet." with "Share the first one" ONLY when the viewer can post', async () => {
+    mockListReadableSignals.mockResolvedValue([])
+    renderPage('/work/signals', null, dewiAuth)
+    const emptyForPoster = await screen.findByTestId('empty-state')
+    expect(within(emptyForPoster).getByText(/no signals yet/i)).toBeInTheDocument()
+    expect(within(emptyForPoster).getByRole('button', { name: /share the first one/i })).toBeInTheDocument()
+
+    // A viewer without `signal.create_for_team` gets the empty title alone — no dead affordance.
+    const memberAuth: AuthState = {
+      ...dewiAuth,
+      viewer: { ...dewiAuth.viewer, accessRoles: ['member'], isManager: false },
+    }
+    const memberView = renderPage('/work/signals', null, memberAuth)
+    const emptyForMember = await within(memberView.container).findByTestId('empty-state')
+    expect(within(emptyForMember).getByText(/no signals yet/i)).toBeInTheDocument()
+    expect(within(emptyForMember).queryByRole('button', { name: /share the first one/i })).toBeNull()
+  })
+
+  it('AC-031 — ID locale: eight category families translate; "Perlu perhatian" and "Mendesak" surface; Team placeholder Indonesian; FYI stays', async () => {
+    // The catalog reads its persisted locale on mount (mos.locale — see I18nProvider); the seed
+    // must be in place BEFORE the tree renders or the initial state falls back to 'en'.
+    try { localStorage.setItem('mos.locale', 'id') } catch { /* jsdom storage disabled */ }
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 's-urgent', body: 'Urgent thing', attention: 'Urgent', category: 'Supply/vendor', author_id: 'person-dewi' }),
+      row({ id: 's-fyi', body: 'FYI thing', attention: 'FYI', category: null }),
+    ])
+    try {
+      renderPage('/work/signals', null, dewiAuth)
+      await waitFor(() => expect(screen.getByText('Urgent thing')).toBeInTheDocument())
+
+      // Row attention words render translated for Urgent + Needs attention; FYI stays as-is.
+      expect(screen.getByText('Mendesak')).toBeInTheDocument()
+      expect(screen.getByText('FYI')).toBeInTheDocument()
+
+      // Category filter shows the eight family translations; Team filter placeholder in Indonesian.
+      const categorySelect = screen.getByRole('combobox', { name: /^kategori$/i }) as HTMLSelectElement
+      const familyLabels = Array.from(categorySelect.options).map(o => o.textContent)
+      for (const expected of [
+        'Pasokan/vendor', 'Peralatan/fasilitas', 'Persediaan/ketersediaan',
+        'Kualitas', 'Pelanggan', 'Orang', 'Proses', 'Lainnya',
+      ]) {
+        expect(familyLabels).toContain(expected)
+      }
+      const teamSelect = screen.getByRole('combobox', { name: /^tim$/i }) as HTMLSelectElement
+      expect(teamSelect.options[0]?.textContent).toBe('Semua tim')
+
+      // The meta line carries the translated category too.
+      expect(document.querySelector('.home-signal-category')).toHaveTextContent('Pasokan/vendor')
+    } finally {
+      try { localStorage.removeItem('mos.locale') } catch { /* noop */ }
+    }
+  })
+
+  it('AC-032 — existing pins stay green: Feed default · filtered-empty + Clear filters · Urgent-only fill · tombstone row', async () => {
+    renderPage('/work/signals', null, dewiAuth)
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+    // Feed is the default surface — the segment names both live options.
+    expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true')
+
+    // Urgent-only fill: the Urgent row carries the urgent modifier class; the Needs-attention row does not.
+    const urgentRow = document.querySelector('[data-signal-id="signal-1"]')
+    expect(urgentRow?.className).toContain('home-signal-row--urgent')
+    const needsAttentionRow = document.querySelector('[data-signal-id="signal-2"]')
+    expect(needsAttentionRow?.className).not.toContain('home-signal-row--urgent')
+
+    // Filtered-empty + Clear filters — the row's own state kit shows the way back out.
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'zzzzzznomatch')
+    const filteredEmpty = await screen.findByTestId('empty-state')
+    expect(within(filteredEmpty).getByRole('button', { name: /clear filters/i })).toBeInTheDocument()
+    await userEvent.click(within(filteredEmpty).getByRole('button', { name: /clear filters/i }))
+    await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
+
+    // Tombstone row renders when a retracted signal enters the projection via the Retracted view.
+    mockListReadableSignals.mockResolvedValueOnce([
+      row({ id: 'signal-tomb', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'wrong branch' }),
+    ])
+    await userEvent.click(screen.getByRole('button', { name: 'Retracted' }))
+    await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
+    expect(document.querySelector('.home-signal-row--retracted')).toBeTruthy()
+  })
+
+  it('AC-033 — DESIGN.md carries the P1 (Signal row) and P2 (DB-view toolbar) amendments verbatim', () => {
+    const design = readFileSync(resolve(__dirname, '..', '..', '..', 'DESIGN.md'), 'utf8')
+    // P1: the ONE row anatomy — no controls, plain-text meta, Home + archive one component.
+    expect(design).toMatch(/The row carries no controls: its whole surface opens the record, and `Create task`, `Add category`, `Acknowledge` live on the record alone\./)
+    expect(design).toMatch(/The meta line is plain text — author · Team · occurred \(`dd Mon HH:MM`\) · category when set — never bordered chips, and never a visibility sentence\./)
+    expect(design).toMatch(/Home and the archive render the same component; a difference between them is a defect\./)
+    // P2: the two-row Signals toolbar contract.
+    expect(design).toMatch(/The Signals archive uses the two-row collection toolbar\./)
+    expect(design).toMatch(/Row 1: `All · Needs attention · Retracted · I posted` then user views/)
+    expect(design).toMatch(/Row 2: search · `Team ▾` · `Category ▾` \(· `Group ▾` · `Sort ▾` when Table is live\) · `Save view` as ghost text\./)
+    expect(design).toMatch(/No switch: a retracted Signal is reached through the `Retracted` view\./)
+    expect(design).toMatch(/Phone keeps the search field outside the single "View & filters" door; the door never carries the surface primary\./)
   })
 })

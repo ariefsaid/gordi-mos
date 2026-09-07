@@ -36,7 +36,7 @@ const signalFeedSpec: CollectionViewSpec = {
   domain: 'signals',
   presentation: 'feed',
   visibleFields: ['message', 'author', 'team', 'occurredAt', 'attention'],
-  query: { view: 'needs-attention', q: 'freezer', attention: 'Needs attention', category: null, teamId: 'team-cafe', showRetracted: false },
+  query: { view: 'needs-attention', q: 'freezer', attention: 'Needs attention', category: null, teamId: 'team-cafe' },
   sort: { field: 'occurredAt', direction: 'descending' },
   grouping: null,
   layout: { density: 'comfortable' },

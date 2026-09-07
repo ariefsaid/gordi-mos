@@ -3,6 +3,10 @@ import type { SignalCollectionQuery } from './signal-collection-adapter'
 
 export type SignalCollectionViewLabels = Readonly<Record<SignalCollectionQuery['view'], string>>
 
+// #770 (AC-021): the four built-in view chips — `All · Needs attention · Retracted · I posted` —
+// leading the archive's row 1. Every non-`all` view is "non-default"; the caller keeps carrying
+// user-saved views after them (getActiveSignalView already covers that path).
+
 // Mirrors task-collection-view.ts's getActiveTaskView, minus the "unselected filter view" case
 // (my-pic/my-supervisor) Tasks has and Signals doesn't — every SignalCollectionView is a real,
 // user-facing view, so the only default is the bare 'all' with no saved view applied.

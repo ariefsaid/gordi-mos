@@ -5,12 +5,16 @@
 // ambient tail AND the /work/signals archive Feed, so BOTH variants are asserted here rather than
 // forking a Home-only row. The signed mockup states the reason in its own source: the disc "cost
 // 28px of measure in the 300px feed column" and "the name already carries the identity".
+//
+// Ticket 770 (owner ruling OD-WAY-96, AC-025/AC-026): the row carries NO per-row controls, the meta
+// line is plain text (no bordered chips, no "Visible to <Team>"), and Home and the archive
+// render the same markup — the ONE difference is the variant class the archive uses to fill
+// Urgent rows.
 import { describe, it, expect, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { SignalFeedRows } from './signal-feed-rows'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -42,7 +46,7 @@ function renderFeed(variant: 'ambient' | 'archive') {
   )
 }
 
-describe('AC-060 Home rows are read-only record links', () => {
+describe('AC-060 / Ticket 770 AC-025: rows are read-only record links with no per-row controls', () => {
   it('renders only feed facts, opens the record from the row surface, and has no row actions or visibility line', async () => {
     const onOpen = vi.fn()
     const { container } = render(
@@ -99,24 +103,28 @@ describe('AC-062 toolbar CSS contract', () => {
   })
 })
 
-describe('AC-061 archive rows keep record actions', () => {
-  it('keeps Create task and Add category in the archive variant', () => {
-    render(
-      <MemoryRouter>
-        <I18nProvider>
-          <SignalFeedRows
-            signals={[row()]}
-            authorNamesById={AUTHORS}
-            teamNamesById={TEAMS}
-            variant="archive"
-            createTaskHref={() => '/work/tasks/new'}
-            onCategorize={vi.fn()}
-          />
-        </I18nProvider>
-      </MemoryRouter>,
+describe('Ticket 770 AC-025/AC-026: the ONE row anatomy — rows carry no controls, ever', () => {
+  it('the archive variant renders the same button-less row grammar as the ambient variant', () => {
+    const { container } = render(
+      <I18nProvider>
+        <SignalFeedRows
+          signals={[row()]}
+          authorNamesById={AUTHORS}
+          teamNamesById={TEAMS}
+          variant="archive"
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
     )
-    expect(screen.getByRole('link', { name: /create task/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /add category/i })).toBeInTheDocument()
+    const signalRow = container.querySelector('[data-signal-id="signal-1"]') as HTMLElement
+    // Zero buttons INSIDE the row — the record has `Create task`, `Add category`, and
+    // `Acknowledge`, never the row.
+    expect(signalRow.querySelectorAll('button')).toHaveLength(0)
+    expect(signalRow.querySelectorAll('a')).toHaveLength(0)
+    // ONE activation target per row — the row surface itself, carrying the shared open-affordance
+    // catalog name.
+    expect(signalRow).toHaveAttribute('role', 'button')
+    expect(signalRow.getAttribute('aria-label')).toContain('Open signal:')
   })
 })
 
@@ -132,14 +140,34 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
     expect(container.querySelector('.home-signal-avatar')).toBeNull()
   })
 
-  it('the meta line carries the author, location/time chips, and archive visibility', () => {
+  it('the meta line carries the author, Team, and time as PLAIN TEXT — no bordered chips (Ticket 770 AC-025)', () => {
     const { container } = renderFeed(variant)
     const meta = container.querySelector('.home-signal-meta')!
     expect(within(meta as HTMLElement).getByText('Author One')).toBeInTheDocument()
     expect(within(meta as HTMLElement).getByText('HQ Operations')).toBeInTheDocument()
-    expect(meta.querySelector('.home-signal-location-chip')).toHaveTextContent('HQ Operations')
-    expect(meta.querySelector('.home-signal-time-chip')).toHaveTextContent(/2026/)
-    if (variant === 'archive') expect(within(meta as HTMLElement).getByText('Visible to HQ Operations')).toBeInTheDocument()
-    else expect(within(meta as HTMLElement).queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+    // Plain-text spans, not the retired bordered pill chrome.
+    expect(meta.querySelector('.home-signal-team')).toHaveTextContent('HQ Operations')
+    expect(meta.querySelector('.home-signal-time')).toHaveTextContent(/2026/)
+    expect(meta.querySelector('.home-signal-location-chip')).toBeNull()
+    expect(meta.querySelector('.home-signal-time-chip')).toBeNull()
+    // AC-025: no visibility sentence on either variant.
+    expect(within(meta as HTMLElement).queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+  })
+
+  it('Ticket 770 AC-025: category rides the meta line as plain text when set', () => {
+    const { container } = render(
+      <I18nProvider>
+        <SignalFeedRows
+          signals={[row({ id: 'signal-cat', category: 'Quality' })]}
+          authorNamesById={AUTHORS}
+          teamNamesById={TEAMS}
+          variant={variant}
+        />
+      </I18nProvider>,
+    )
+    const meta = container.querySelector('.home-signal-meta')!
+    const category = meta.querySelector('.home-signal-category')
+    expect(category).not.toBeNull()
+    expect(category).toHaveTextContent('Quality')
   })
 })

@@ -86,12 +86,10 @@ export function SignalTablePresentation({
       render: (signal) => context.teamNamesById.get(signal.owning_team_id) ?? '',
     },
     {
-      key: 'occurredAt',
-      header: t('signals.table.occurredAt'),
-      sortable: Boolean(actions.onSort),
-      render: (signal) => formatWibDateTime(signal.occurred_at),
-    },
-    {
+      // #770 (AC-027): Message · Team · Attention · Occurred — Attention leads Occurred so a
+      // reader's eye lands on the state that decides "do I open this now?" before the time it
+      // happened at. The old Message · Team · Occurred · Attention buried the actionable pill
+      // at the far right where a wide row hides it.
       key: 'attention',
       header: t('signals.table.attention'),
       sortable: Boolean(actions.onSort),
@@ -103,6 +101,12 @@ export function SignalTablePresentation({
             {signal.attention}
           </span>
         ),
+    },
+    {
+      key: 'occurredAt',
+      header: t('signals.table.occurredAt'),
+      sortable: Boolean(actions.onSort),
+      render: (signal) => formatWibDateTime(signal.occurred_at),
     },
   ]
 

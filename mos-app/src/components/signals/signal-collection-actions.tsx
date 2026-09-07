@@ -7,11 +7,8 @@
 // deliberately supplied by the collection contract's injected onOpenRecord callback instead.
 /* eslint-disable react-refresh/only-export-components -- context seam: provider + hook co-located */
 import { createContext, useContext, type ReactNode } from 'react'
-import type { SignalCategory } from '@/lib/db/signals.types'
 
 export interface SignalCollectionActions {
-  /** Set a Signal's category (mutates via the DAL, then refreshes the collection). */
-  onCategorize?: (signalId: string, category: SignalCategory) => void
   /** Open the shared Signal composer host. */
   onShareClick?: () => void
   /** Apply the table's native column-header sort through the collection query owner. */

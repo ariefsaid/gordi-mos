@@ -83,7 +83,7 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(access.visibleActions).toEqual([])
   })
 
-  it('NFR-V3-001: retracted Signals are hidden by default and revealed only by the typed query', () => {
+  it('AC-023 (Ticket 770): retracted Signals are hidden by default and revealed by the `Retracted` view, never by a switch', () => {
     const rows = [
       row({ id: 's-live', retracted_at: null }),
       row({ id: 's-dead', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
@@ -92,8 +92,18 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(hidden.visibleRecords.map((s) => s.id)).toEqual(['s-live'])
     expect(hidden.totalRecords).toBe(2)
 
-    const shown = signalCollectionDescriptor.project(data(rows), query({ showRetracted: true }), 'table')
-    expect(shown.visibleRecords.map((s) => s.id).sort()).toEqual(['s-dead', 's-live'])
+    const shown = signalCollectionDescriptor.project(data(rows), query({ view: 'retracted' }), 'table')
+    expect(shown.visibleRecords.map((s) => s.id)).toEqual(['s-dead'])
+  })
+
+  it('AC-024 (Ticket 770): `I posted` returns exactly the viewer\'s own Signals, retracted included', () => {
+    const rows = [
+      row({ id: 's-mine-live', author_id: 'p-me', retracted_at: null }),
+      row({ id: 's-mine-dead', author_id: 'p-me', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'typo' }),
+      row({ id: 's-theirs', author_id: 'p-author-a', retracted_at: null }),
+    ]
+    const posted = signalCollectionDescriptor.project(data(rows), query({ view: 'posted' }), 'table')
+    expect(posted.visibleRecords.map((s) => s.id).sort()).toEqual(['s-mine-dead', 's-mine-live'])
   })
 
   it('FR-V3-007: text search + attention filter narrow the projection and mark it filtered', () => {
