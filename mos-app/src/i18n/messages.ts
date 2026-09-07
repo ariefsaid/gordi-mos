@@ -1654,7 +1654,7 @@ export const messages = {
     'common.loadFailed': 'Gagal memuat ${what}. Periksa koneksi Anda lalu coba lagi.',
     'network.error.title': 'Server tidak dapat dihubungi',
     'network.error.copy': 'Periksa koneksi Anda lalu coba lagi.',
-    'network.retry': 'Muat ulang',
+    'network.retry': 'Coba lagi',
     'shell.offline': 'Anda sedang offline',
     'common.what.budgets': 'anggaran',
     'common.what.costLines': 'baris BOM dan biaya bahan',

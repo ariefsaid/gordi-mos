@@ -6,11 +6,12 @@
 // AC-026: while `navigator.onLine === false` the header carries one muted "You're offline" line
 //         (localized), and nothing once the browser is back online.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState, type ComponentType } from 'react'
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { lazyPage } from '@/router'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({
@@ -157,6 +158,52 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
     await screen.findByText('This screen stopped working')
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
     expect(screen.queryByText('Couldn’t reach the server')).toBeNull()
+  })
+
+  // The regression for the round-1 defect (#802): every route is `React.lazy` (`lazyPage` in
+  // `mos-app/src/router.tsx`), and a plain `React.lazy` caches the REJECTED module promise
+  // forever — so a `ContentErrorBoundary` `key={attempt}` remount re-throws the same
+  // `TypeError: Failed to fetch dynamically imported module` and Retry appears to do nothing.
+  // The AC-025 test above uses a non-lazy `DataPage` and cannot see this; this one exercises the
+  // actual `lazyPage` wrapper the route table uses, on the shape that failed offline:
+  // rejects while the network is out, resolves after the user reconnects and presses Retry.
+  it('a lazy route whose chunk failed to load re-imports the chunk on Retry', async () => {
+    // The network is out for the initial mount; flipped to online just before Retry.
+    let networkUp = false
+    const importer = vi.fn<() => Promise<{ default: ComponentType }>>(() =>
+      networkUp
+        ? Promise.resolve({ default: () => <div>lazy page rendered</div> })
+        : Promise.reject(
+            new TypeError('Failed to fetch dynamically imported module: /assets/RealPage.js'),
+          ),
+    )
+
+    // The SAME wrapper the router's split routes use — offline is only recoverable inside the
+    // frame if a Retry through this wrapper actually re-runs the import.
+    const LazyPage = lazyPage(importer)
+
+    renderShell(
+      <Suspense fallback={<div>loading</div>}>
+        <LazyPage />
+      </Suspense>,
+    )
+
+    // First render: every import while offline rejects. React exhausts its own Suspense retries
+    // and the shell boundary shows the network state.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Couldn’t reach the server')
+    const importsWhileOffline = importer.mock.calls.length
+    expect(importsWhileOffline).toBeGreaterThan(0)
+
+    // Reconnect and click Retry: the wrapper remounts, `useState` creates a fresh `React.lazy`,
+    // the loader runs again against the live network, and the page renders instead of walking
+    // into a cached rejection.
+    networkUp = true
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(screen.getByText('lazy page rendered')).toBeInTheDocument())
+    expect(importer.mock.calls.length).toBeGreaterThan(importsWhileOffline)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 

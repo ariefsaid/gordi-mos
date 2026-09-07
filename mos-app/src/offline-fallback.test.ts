@@ -34,6 +34,18 @@ describe('AC-027 — the offline fallback document', () => {
     expect(SW).toContain("const OFFLINE_URL = '/mos/offline.html'")
     expect(SW).toMatch(/cache\.add\(new Request\(OFFLINE_URL/)
     expect(SW).toMatch(/event\.request\.mode !== 'navigate'/)
-    expect(SW).toMatch(/fetch\(event\.request\)\.catch\(\(\) => caches\.match\(OFFLINE_URL\)/)
+    expect(SW).toMatch(/caches\.match\(OFFLINE_URL,\s*\{\s*cacheName:\s*OFFLINE_CACHE\s*\}\)/)
+  })
+
+  it('the activate sweep only deletes THIS app\'s caches — Cache Storage is origin-scoped, other apps live here too', () => {
+    // The prefix constant the worker defines, so the same source line does both jobs.
+    expect(SW).toMatch(/const CACHE_PREFIX = 'mos-'/)
+    // The filter must both keep foreign caches (k.startsWith(CACHE_PREFIX)) and keep the offline
+    // cache the worker just opened (k !== OFFLINE_CACHE) — the missing prefix filter was the bug.
+    expect(SW).toMatch(/keys\.filter\(\(k\) => k\.startsWith\(CACHE_PREFIX\) && k !== OFFLINE_CACHE\)/)
+  })
+
+  it('the fallback lookup is scoped to the offline cache — a sibling app may cache the same URL', () => {
+    expect(SW).toMatch(/caches\.match\(OFFLINE_URL,\s*\{\s*cacheName:\s*OFFLINE_CACHE\s*\}\)/)
   })
 })

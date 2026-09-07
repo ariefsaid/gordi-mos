@@ -11,10 +11,11 @@
  * reset would put the failed tree back on screen without re-reading. The keyed wrapper is
  * `display: contents`, so it adds no box to the shell's flex column.
  */
-import { Component, type ReactNode } from 'react'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { PageFrame } from './page-frame'
 import { NetworkErrorState } from '@/components/ui/state-kit'
 import { isNetworkError } from '@/lib/network-error'
+import { reportError } from '@/lib/telemetry'
 
 interface Props {
   children: ReactNode
@@ -30,6 +31,17 @@ export class ContentErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: unknown): Partial<State> {
     return { error }
+  }
+
+  // Route-level boundary already reports; this one is the page-region seam, and every failure that
+  // reaches here — network read or render exception — is a real signal the app owes telemetry.
+  // Matches RouteErrorBoundary so both shell boundaries speak to the same sink.
+  componentDidCatch(error: unknown, info: ErrorInfo): void {
+    reportError(error, {
+      location: 'ContentErrorBoundary',
+      isNetworkError: isNetworkError(error),
+      componentStack: info.componentStack,
+    })
   }
 
   handleRetry = (): void => {
