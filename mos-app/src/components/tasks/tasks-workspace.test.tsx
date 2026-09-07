@@ -2178,3 +2178,28 @@ describe('Ticket #750 — AC-024 the skeleton never outlives the request', () =>
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })
+
+// ── #751 AC-033 — one primary per screen: the head Create drops to outline while a record is open ──
+describe('Ticket #751 AC-033 — the head "+ Create task" carries .btn-outline while a record is open', () => {
+  it('the head button stays mounted but outline when the drawer is open (no second blue)', async () => {
+    stubMatchMedia(true, true)
+    mockListTasks.mockResolvedValue([makeTask({ id: 'w-1', title: 'Open record row' })])
+    const { container } = renderTable({ drawerOpen: true })
+    await waitFor(() => screen.getByText('Open record row'))
+    const create = screen.getByRole('button', { name: '+ Create task' })
+    expect(create).toHaveClass('btn-outline')
+    expect(create).not.toHaveClass('btn-primary')
+    // The collection contributes zero primaries while the record owns the screen's blue.
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(0)
+  })
+
+  it('the head button is the .btn-primary again once the drawer closes', async () => {
+    stubMatchMedia(true, true)
+    mockListTasks.mockResolvedValue([makeTask({ id: 'w-2', title: 'Closed drawer row' })])
+    const { container } = renderTable({ drawerOpen: false })
+    await waitFor(() => screen.getByText('Closed drawer row'))
+    const create = screen.getByRole('button', { name: '+ Create task' })
+    expect(create).toHaveClass('btn-primary')
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  })
+})

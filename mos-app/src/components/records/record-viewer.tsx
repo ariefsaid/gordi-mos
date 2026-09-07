@@ -11,14 +11,16 @@
 // never renders a confirmation dialog. Field commits route through onCommitField;
 // dirty state forwards to onDirtyChange so the tenant can attach the Issue 4
 // OverlayEntry.leaveGuard. Related links call onOpenRelated (or their href).
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { reportError } from '@/lib/telemetry'
+import { useMenuPopover } from '@/lib/use-menu-popover'
 import { Button, type ButtonVariant } from '@/components/ui/button'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { RecordField } from './record-field'
 import type {
   RecordAction,
+  RecordFieldSpec,
   RecordMetadataSection,
   RecordRelation,
   RecordValue,
@@ -44,6 +46,9 @@ export interface RecordViewerProps {
   onClose?: () => void
   onBack?: () => void
   onOpenPage?: () => void
+  /** The record's canonical URL, copied by the pinned header ⋯ → "Copy link" (#751).
+   *  Omitted (or clipboard unavailable) → the menu item does not render / the copy is a no-op. */
+  canonicalHref?: string
   onOpenRelated?: (relation: RecordRelation) => void
   onDirtyChange?: (dirty: boolean) => void
   /** Persist a field edit by its adapter key; the tenant maps it to the DAL. */
@@ -65,6 +70,144 @@ const ACTION_VARIANT: Record<RecordAction['intent'], ButtonVariant> = {
 }
 
 const noopCommit = async () => {}
+
+/** The pinned header's ONE control row (#751 AC-031, tasks-redesign-B): status pill-dropdown ·
+ *  the record's single primary lifecycle action · ⋯ overflow (Archive/Unarchive · Open full
+ *  page · Copy link). It is the record's ONE actions register — the old footer action bar
+ *  renders nothing. The ⋯ uses the shared useMenuPopover contract: focus enters the menu on
+ *  open, Escape closes and returns focus to the trigger, menu keys navigate. */
+function HeaderActions({
+  adapter,
+  statusField,
+  onOpenPage,
+  canonicalHref,
+  onCommitField,
+  onDirtyChange,
+  fieldCommitsFrozen,
+}: {
+  adapter: RecordViewerAdapter
+  statusField?: RecordFieldSpec
+  onOpenPage?: () => void
+  canonicalHref?: string
+  onCommitField: (value: RecordValue) => Promise<void>
+  onDirtyChange?: (dirty: boolean) => void
+  fieldCommitsFrozen: boolean
+}): ReactNode {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const allowed = new Set(adapter.permission.allowedActionIds)
+  const primaryActions = adapter.actions.filter((action) => action.intent === 'primary' && allowed.has(action.id))
+  const overflowActions = adapter.actions.filter((action) => action.intent !== 'primary' && allowed.has(action.id))
+  const hasMenu = overflowActions.length > 0 || Boolean(onOpenPage) || Boolean(canonicalHref)
+  const close = useCallback(() => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }, [])
+  useMenuPopover(open, close, menuRef, triggerRef)
+  useEffect(() => {
+    const menu = menuRef.current
+    if (!open || !menu) return
+    const onCaptureKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      close()
+    }
+    menu.addEventListener('keydown', onCaptureKeyDown, true)
+    return () => menu.removeEventListener('keydown', onCaptureKeyDown, true)
+  }, [close, open])
+  return (
+    <div className="record-viewer__pinned-status record-viewer__actions">
+      {statusField && (
+        <RecordField
+          spec={statusField}
+          onCommit={onCommitField}
+          onDirtyChange={onDirtyChange}
+          commitsFrozen={fieldCommitsFrozen}
+        />
+      )}
+      {primaryActions.map((primary) => (
+        <Button
+          key={primary.id}
+          variant="primary"
+          disabled={primary.disabled}
+          title={primary.disabled ? primary.disabledReason : undefined}
+          onClick={() => {
+            void Promise.resolve(primary.run()).catch((error) =>
+              reportError(error, { source: 'record-viewer.header-action', action: primary.id }),
+            )
+          }}
+        >
+          {primary.label}
+        </Button>
+      ))}
+      {hasMenu && (
+        <span className="record-viewer__overflow-wrap">
+          <button
+            ref={triggerRef}
+            type="button"
+            className="record-viewer__overflow"
+            aria-label={t('record.moreActions')}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+            </svg>
+          </button>
+          {open && (
+            <div ref={menuRef} role="menu" aria-label={t('record.moreActions')} className="record-viewer__overflow-menu">
+              {overflowActions.map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  role="menuitem"
+                  className="record-viewer__overflow-item"
+                  onClick={() => {
+                    close()
+                    void Promise.resolve(action.run()).catch((error) =>
+                      reportError(error, { source: 'record-viewer.overflow-action', action: action.id }),
+                    )
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+              {onOpenPage && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="record-viewer__overflow-item"
+                  onClick={() => { close(); onOpenPage() }}
+                >
+                  {t('record.openFullPage')}
+                </button>
+              )}
+              {canonicalHref && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="record-viewer__overflow-item"
+                  onClick={() => {
+                    close()
+                    // Clipboard may be unavailable (permissions, non-secure context); the menu
+                    // still closes — the copy is the affordance's one job, not a state to track.
+                    void navigator.clipboard?.writeText(canonicalHref).catch(() => {})
+                  }}
+                >
+                  {t('record.copyLink')}
+                </button>
+              )}
+            </div>
+          )}
+        </span>
+      )}
+    </div>
+  )
+}
 
 /**
  * RecordFieldList — the ONE value-first field-section body (an `<h3>` + the RecordField rows).
@@ -114,6 +257,7 @@ export function RecordViewer({
   showIdentityHeader = true,
   loading = false,
   onOpenPage,
+  canonicalHref,
   onOpenRelated,
   onDirtyChange,
   onCommitField,
@@ -126,13 +270,20 @@ export function RecordViewer({
   const taskAnatomy = adapter.kind === 'task' && adapter.headerFields != null
   const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'activity'>('details')
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const counts = adapter.tabCounts
   const tabLabels = {
+    // #751 AC-032: tabs carry counts — "Checklist 1/4" · "Activity 3" (mockup B). The count is
+    // part of the accessible name, so a screen reader hears the tally, not a bare tab word.
     details: t('tasks.record.tab.details'),
-    checklist: t('tasks.checklistTitle'),
-    activity: t('tasks.feed.activity'),
+    checklist: counts?.checklist
+      ? `${t('tasks.checklistTitle')} ${counts.checklist.done}/${counts.checklist.total}`
+      : t('tasks.checklistTitle'),
+    activity: counts?.activity !== undefined
+      ? `${t('tasks.feed.activity')} ${counts.activity}`
+      : t('tasks.feed.activity'),
   }
   const selectTab = (tab: 'details' | 'checklist' | 'activity') => setActiveTab(tab)
-  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, tab: 'details' | 'checklist' | 'activity') => {
+  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, tab: 'details' | 'checklist' | 'activity') => {
     const tabs = ['details', 'checklist', 'activity'] as const
     const index = tabs.indexOf(tab)
     const nextIndex = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : -1
@@ -162,6 +313,7 @@ export function RecordViewer({
     return (
       <RecordBody
         adapter={adapter}
+        taskAnatomy={taskAnatomy}
         mode={mode}
         activeTab={taskAnatomy ? activeTab : undefined}
         onOpenRelated={onOpenRelated}
@@ -193,21 +345,21 @@ export function RecordViewer({
                 heading={field.key === 'title'}
               />
             ))}
+            {adapter.headerMeta && (
+              // #751 AC-031 — the one-line meta: owning group · PIC · Supervisor · due · activity
+              // age (adapter-built, locale-resolved).
+              <p className="record-viewer__pinned-meta" data-record-meta="true">{adapter.headerMeta}</p>
+            )}
           </div>
-          <div className="record-viewer__pinned-status">
-            {adapter.headerFields.filter((field) => field.key === 'status').map((field) => (
-              <RecordField
-                key={field.key}
-                spec={field}
-                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
-                onDirtyChange={onDirtyChange}
-                commitsFrozen={fieldCommitsFrozen}
-              />
-            ))}
-            <button type="button" className="record-viewer__activity-affordance" onClick={() => selectTab('activity')}>
-              {tabLabels.activity}
-            </button>
-          </div>
+          <HeaderActions
+            adapter={adapter}
+            onOpenPage={onOpenPage}
+            canonicalHref={canonicalHref}
+            onCommitField={(value) => (onCommitField ?? noopCommit)('status', value)}
+            onDirtyChange={onDirtyChange}
+            fieldCommitsFrozen={fieldCommitsFrozen}
+            statusField={adapter.headerFields.find((field) => field.key === 'status')}
+          />
         </header>
       )}
       {taskAnatomy && (
@@ -239,6 +391,7 @@ export function RecordViewer({
 
 function RecordBody({
   adapter,
+  taskAnatomy,
   mode,
   activeTab,
   onOpenRelated,
@@ -248,6 +401,7 @@ function RecordBody({
   fieldCommitsFrozen,
 }: {
   adapter: RecordViewerAdapter
+  taskAnatomy: boolean
   mode: RecordViewerMode
   activeTab?: 'details' | 'checklist' | 'activity'
   onOpenRelated?: (relation: RecordRelation) => void
@@ -260,6 +414,9 @@ function RecordBody({
   const readOnly = adapter.permission.readOnly
   const allowed = new Set(adapter.permission.allowedActionIds)
   const visibleActions = adapter.actions.filter((a) => allowed.has(a.id))
+  // #751 AC-031: a task record's actions register is the pinned header's control row, so the
+  // old footer action bar renders NOTHING here (other kinds keep the footer register).
+  const actionsInHeader = taskAnatomy
   // SR-6: the "select a value to edit" hint is only honest when at least one field CAN be edited.
   // A Signal's Facts are all read-only even on a non-retracted (permission.readOnly=false) record,
   // so gating on !readOnly alone showed the hint on a record with nothing to edit. Gate on the
@@ -338,7 +495,7 @@ function RecordBody({
             {adapter.permission.reason}
           </p>
         )}
-        {(visibleActions.length > 0 || onOpenPage) && (
+        {!actionsInHeader && (visibleActions.length > 0 || onOpenPage) && (
           <div className="record-viewer__actions">
             {visibleActions.map((action) => (
               <Button

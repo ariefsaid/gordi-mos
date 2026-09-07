@@ -153,6 +153,13 @@ function renderSurfaceRoute(path: string) {
 }
 
 // ── View mode ────────────────────────────────────────────────────────────────
+
+// #751 R7: lifecycle actions live in the pinned header's ⋯ overflow — archive/unarchive journeys
+// open it before acting.
+function openMoreActions() {
+  fireEvent.click(screen.getByRole('button', { name: /more actions/i }))
+  return document.querySelector('[role="menu"]') as HTMLElement
+}
 describe('TaskSurface — view mode', () => {
   it('AC-070 (TaskSurface): renders title, status, typed ownership, checklist, activity, and completion', async () => {
     const task = makeTask()
@@ -194,9 +201,9 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
     expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
     expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Checklist' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Checklist 0/0' }))
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Aktivitas' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Aktivitas 0' }))
     expect(screen.getByRole('region', { name: 'Aktivitas' })).toBeInTheDocument()
     expect(screen.getByText(/jadilah yang pertama berkomentar/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kirim komentar' })).toBeInTheDocument()
@@ -221,7 +228,7 @@ describe('TaskSurface — view mode', () => {
     // The shared RecordViewer owns identity + every ordered content slot, content-first.
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     const regions = new Set<string>()
-    for (const tab of ['Details', 'Checklist', 'Activity']) {
+    for (const tab of ['Details', 'Checklist 0/0', 'Activity 0']) {
       fireEvent.click(screen.getByRole('tab', { name: tab }))
       document.querySelectorAll('[data-content-slot]').forEach((n) => regions.add((n as HTMLElement).dataset.contentSlot!))
     }
@@ -269,7 +276,8 @@ describe('TaskSurface — view mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByText(/this task is archived/i))
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeInTheDocument()
+    // #751: Unarchive lives in the pinned header's ⋯ overflow.
+    expect(within(openMoreActions()).getByRole('menuitem', { name: /unarchive/i })).toBeInTheDocument()
   })
 
   it('AC-070 (TaskSurface): shows the loading skeleton initially', () => {
@@ -310,7 +318,8 @@ describe('TaskSurface — view mode', () => {
     vi.mocked(archiveTask).mockResolvedValue()
     renderSurface({ onClose })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    // #751: Archive moved into the header ⋯ overflow (AC-034's journey).
+    fireEvent.click(within(openMoreActions()).getByRole('menuitem', { name: /archive task/i }))
     fireEvent.click(screen.getByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
@@ -392,7 +401,8 @@ describe('TaskSurface — mutation handlers', () => {
     const onTaskArchived = vi.fn()
     renderSurface({ onTaskArchived, onClose: vi.fn() })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    // #751: Archive moved into the header ⋯ overflow.
+    fireEvent.click(within(openMoreActions()).getByRole('menuitem', { name: /archive task/i }))
     fireEvent.click(await screen.findByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(vi.mocked(archiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
     expect(onTaskArchived).toHaveBeenCalledWith('task-abc')
@@ -403,7 +413,8 @@ describe('TaskSurface — mutation handlers', () => {
     vi.mocked(unarchiveTask).mockResolvedValue()
     renderSurface()
     await waitFor(() => screen.getByText(/this task is archived/i))
-    fireEvent.click(screen.getByRole('button', { name: /unarchive/i }))
+    // #751: Unarchive moved into the header ⋯ overflow.
+    fireEvent.click(within(openMoreActions()).getByRole('menuitem', { name: /unarchive/i }))
     await waitFor(() => expect(vi.mocked(unarchiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
   })
 })
@@ -534,13 +545,16 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     await waitFor(() => expect(onTaskChanged).toHaveBeenCalled())
   })
 
-  it('archive lives in the pinned foot at drawer width', async () => {
+  it('archive lives in the pinned header ⋯ overflow at drawer width', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    const actions = document.querySelector('[data-viewer-region="actions"]')
-    expect(actions).toBeTruthy()
-    expect(within(actions as HTMLElement).getByRole('button', { name: /archive task/i })).toBeInTheDocument()
+    // #751 R7: the drawer's ONE actions register is the pinned header's control row; Archive is
+    // an overflow menuitem inside it, and no bottom action bar renders.
+    const header = document.querySelector('[data-record-header="pinned"]')
+    expect(header).toBeTruthy()
+    fireEvent.click(within(header as HTMLElement).getByRole('button', { name: /more actions/i }))
+    expect(within(header as HTMLElement).getByRole('menuitem', { name: /archive task/i })).toBeInTheDocument()
   })
 
   it('GAP-2 (OD-91 #7): the drawer has no expand/collapse toggle — Open full page is the one escalation', async () => {
@@ -557,7 +571,8 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     vi.mocked(unarchiveTask).mockResolvedValue()
     renderDrawer()
     await waitFor(() => screen.getByText(/this task is archived/i))
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeInTheDocument()
+    // #751: Unarchive lives in the pinned header's ⋯ overflow.
+    expect(within(openMoreActions()).getByRole('menuitem', { name: /unarchive/i })).toBeInTheDocument()
     // archived => no status trigger (read-only)
     expect(document.querySelector('[data-field-key="status"] select')).toBeNull()
   })
@@ -631,7 +646,8 @@ describe('TaskSurface — saved-view URL preservation', () => {
     vi.mocked(archiveTask).mockResolvedValue(undefined)
     renderSurfaceRoute('/work/tasks/task-abc?view=mine')
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    // #751: Archive moved into the header ⋯ overflow.
+    fireEvent.click(within(openMoreActions()).getByRole('menuitem', { name: /archive task/i }))
     fireEvent.click(screen.getByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })

@@ -557,7 +557,8 @@ export function TasksWorkspace({
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
   // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
   // 768–919 band must never show both doors.
-  const showNewTask = !drawerOpen && state.status === 'ready' && !isNarrow
+  const showNewTask = state.status === 'ready' && !isNarrow
+  const taskPanelOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -670,7 +671,7 @@ export function TasksWorkspace({
       jobSentence={t('job.tasks')}
       state={frameState}
       action={showNewTask ? (
-        <button ref={(node) => { createControlRef.current = node }} type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
+        <button ref={(node) => { createControlRef.current = node }} type="button" className={`btn ${taskPanelOpen ? 'btn-outline' : 'btn-primary'}`} onClick={() => onNewTask()}>{t('tasks.new')}</button>
       ) : undefined}
       meta={
         // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
@@ -690,8 +691,8 @@ export function TasksWorkspace({
       }
     >
       {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
-      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
-        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+      <div className={`split${taskPanelOpen ? '' : ' nodrawer'}`}>
+        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${taskPanelOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface
               controller={controller}

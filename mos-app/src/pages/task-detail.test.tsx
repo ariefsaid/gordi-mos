@@ -147,6 +147,12 @@ function renderDetail(auth: AuthState = authedState) {
   )
 }
 
+// #751 R7: archive/unarchive live in the pinned header's ⋯ overflow — open it for those journeys.
+function openMoreActions() {
+  fireEvent.click(screen.getByRole('button', { name: /more actions/i }))
+  return document.querySelector('[role="menu"]') as HTMLElement
+}
+
 // Value-first record grammar: a field renders its VALUE first and swaps in its control only when
 // the row is activated. Click the field's edit affordance, then query its control.
 function activateFieldByKey(key: string) {
@@ -320,8 +326,8 @@ describe('AC-073 — read-only mode for non-editors', () => {
     // No checklist "Add a step" input
     expect(screen.queryByPlaceholderText(/add a step/i)).toBeNull()
 
-    // No archive control
-    expect(screen.queryByRole('button', { name: /archive/i })).toBeNull()
+    // No archive control — #751: Archive lives inside the ⋯ overflow, so the check opens it.
+    expect(within(openMoreActions()).queryByRole('menuitem', { name: /archive/i })).toBeNull()
   })
 })
 
@@ -449,11 +455,10 @@ describe('T-047 — archive control on detail', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    const archiveBtn = screen.getByRole('button', { name: /archive task/i })
-    expect(archiveBtn).toBeTruthy()
+    const archiveItem = within(openMoreActions()).getByRole('menuitem', { name: /archive task/i })
 
     // Click — confirm dialog
-    fireEvent.click(archiveBtn)
+    fireEvent.click(archiveItem)
     const confirmBtn = screen.getByRole('button', { name: /^archive$/i })
     fireEvent.click(confirmBtn)
 
@@ -468,7 +473,8 @@ describe('T-047 — archive control on detail', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeTruthy()
+    // #751: Unarchive lives in the pinned header's ⋯ overflow.
+    expect(within(openMoreActions()).getByRole('menuitem', { name: /unarchive/i })).toBeTruthy()
   })
 
   it('hides archive for non-A non-manager Responsible-only user', async () => {
@@ -481,7 +487,8 @@ describe('T-047 — archive control on detail', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.queryByRole('button', { name: /archive task/i })).toBeNull()
+    // #751: Archive is permission-gated INSIDE the ⋯ overflow — open it and assert the item.
+    expect(within(openMoreActions()).queryByRole('menuitem', { name: /archive task/i })).toBeNull()
   })
 
   it('shows archive for a manager above the PIC (the PIC is in their downline)', async () => {
@@ -493,7 +500,8 @@ describe('T-047 — archive control on detail', () => {
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.getByRole('button', { name: /archive task/i })).toBeTruthy()
+    // #751: Archive lives in the pinned header's ⋯ overflow.
+    expect(within(openMoreActions()).getByRole('menuitem', { name: /archive task/i })).toBeTruthy()
   })
 })
 
@@ -553,7 +561,8 @@ describe('RIC-3 — non-editor read-only regression guard', () => {
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
     expect(screen.queryByRole('button', { name: /change status/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /archive/i })).toBeNull()
+    // #751: Archive lives inside the ⋯ overflow — open it and assert the item is absent.
+    expect(within(openMoreActions()).queryByRole('menuitem', { name: /archive/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /add/i })).toBeNull()
     expect(screen.queryByPlaceholderText(/add a step/i)).toBeNull()
   })
@@ -623,6 +632,7 @@ describe('M2 — archived task is read-only except Unarchive', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeTruthy()
+    // #751: Unarchive lives in the pinned header's ⋯ overflow.
+    expect(within(openMoreActions()).getByRole('menuitem', { name: /unarchive/i })).toBeTruthy()
   })
 })

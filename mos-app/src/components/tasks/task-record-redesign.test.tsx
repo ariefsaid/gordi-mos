@@ -113,8 +113,9 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByTestId('record-details').querySelector('[data-record-header="pinned"]')).toBeTruthy()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Details' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Checklist' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Activity' })).toBeInTheDocument()
+    // #751 AC-032: tabs carry counts — this fixture has an empty checklist and no events.
+    expect(screen.getByRole('tab', { name: 'Checklist 0/0' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Activity 0' })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
     expect(screen.getByText('Source')).toBeInTheDocument()
