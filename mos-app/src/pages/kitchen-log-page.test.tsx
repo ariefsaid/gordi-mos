@@ -1743,12 +1743,13 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 // The gloss is the assertable half of "offerable": these tests read the option the way a
 // barista does, not by pulling a branch id out of the component's props.
 describe('AC-007: destinations cover both movement classes from both activity surfaces (FR-013)', () => {
-  it('AC-007: the BAR surface offers another branch AND its own branch qualified as the kitchen', async () => {
+  it('AC-007: the BAR surface offers other producing branches plus its own branch qualified as the kitchen', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar', produces: true })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Intra-branch: destination = own branch, read as "to our kitchen" (bar → own kitchen).
+    // The intra-branch arm survives for BARS (#777 removed it for kitchens only): destination =
+    // own branch, read as "to our kitchen" (bar → own kitchen), approved into the held arm.
     expect(
       screen.getByRole('tab', { name: /transfer to bungur within branch · kitchen/i }),
     ).toBeInTheDocument()
@@ -1759,10 +1760,8 @@ describe('AC-007: destinations cover both movement classes from both activity su
     expect(screen.getByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeInTheDocument()
   })
 
-  it('AC-007: the KITCHEN surface offers its own branch qualified as the bar, with the incumbent cross-branch transfers preserved', async () => {
-    // The default fixture stream is (Rumah Rames, kitchen) — the incumbent's own stream, whose
-    // cross-branch labels are the ones OD-K-1 parity is measured against. They must come
-    // through this change byte-identical; only the own-branch entry gains its qualifier.
+  it('AC-007: the KITCHEN surface offers other producing branches, never its own branch', async () => {
+    // The default fixture stream is (Rumah Rames, kitchen); only other stream branches are books.
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1771,10 +1770,10 @@ describe('AC-007: destinations cover both movement classes from both activity su
     expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
   })
 
-  it('AC-007: the qualified option follows the ORIGIN, not a hardcoded branch', async () => {
-    // On a Radiant stream it is RADIANT that is intra-branch and Bungur that is a cross-branch
-    // destination — the mirror image of the two tests above. Without this, a qualifier pinned
-    // to the incumbent's one branch would pass both of them.
+  it('AC-007: cross-branch options follow the ORIGIN, not a hardcoded branch', async () => {
+    // On a Radiant BAR stream it is RADIANT that is intra-branch (the held arm) and Bungur that
+    // is a cross-branch destination — the mirror image of the Rumah Rames bar surface above.
+    // Without this, a qualifier pinned to the incumbent's one branch would pass both of them.
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -1785,13 +1784,12 @@ describe('AC-007: destinations cover both movement classes from both activity su
     expect(screen.getByRole('tab', { name: 'Transfer to Bungur' })).toBeInTheDocument()
   })
 
-  it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
+  it('AC-007: with no resolved stream (FR-002), the movement control is absent', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(screen.queryByRole('tab')).toBeNull()
-    expect(screen.queryByTestId('movement-seg')).toBeNull()
   })
 
   it('AC-007: an intra-branch movement is submitted as destination = the origin branch', async () => {

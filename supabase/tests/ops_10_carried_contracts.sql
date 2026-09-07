@@ -40,14 +40,7 @@ select plan(36);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
-  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
-  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
-on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
-select shared.seed_stream_teams();
+select ops._test_seed_streams();
 select ops._test_seed_daily_log();
 
 -- #744: the floor-record insert gate arms on stream-Team affiliation. This file's persona (Author
@@ -55,11 +48,8 @@ select ops._test_seed_daily_log();
 -- what they prove — so the fixture gives her a live (Gordi HQ, bar) membership and nothing else
 -- about the file moves: affiliation arms ONLY the two insert policies, never the update/read
 -- gates these sections assert.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000aa22','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Ops10 Fixture Stream','ops10_fixture_stream',
-   '00000000-0000-0000-0000-00000000bf01','bar');
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-00000000aa22',true);
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',(select id from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'gordi_hq_bar'),true);
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. ops.log_entries — every column constraint on the table (27, 47)

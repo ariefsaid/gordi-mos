@@ -456,15 +456,13 @@ function PlanEditor() {
               {/* Same destination picker as capture (FR-013), including the origin so the
                   intra-branch entry reads the same here as it does on the log surface —
                   a plan for a movement the capture form cannot name is a plan nobody fills. */}
-              {stream && (
-                <MovementSeg
-                  value={movement}
-                  options={movementsForStream(stream, streamOptions)}
-                  branches={branches}
-                  origin={stream}
-                  onChange={setMovement}
-                />
-              )}
+              <MovementSeg
+                value={movement}
+                options={movementsForStream(stream, streamOptions)}
+                branches={branches}
+                origin={stream}
+                onChange={setMovement}
+              />
             </div>}
           </KitchenToolbar>
           <DataTable
