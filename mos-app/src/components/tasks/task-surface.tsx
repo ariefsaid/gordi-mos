@@ -626,6 +626,16 @@ function ViewSurface({
           </div>
         )}
 
+        {/* #758 / DESIGN.md § Overlays → Record panel A8 — the labelled Deputy door on the record
+            sits below the body, not in the panel chrome. Opens Deputy beside the drawer with the
+            record reference seeded; the record stays mounted (OD-REDESIGN-80 coexistence). Hidden
+            on phone via CSS; the phone door is the ✦ in the record-page Back row. */}
+        <AskDeputyAction
+          variant="footer"
+          draft={t('assistant.askAbout.task', { title: task.title })}
+          label={t('assistant.askAbout.task.action')}
+        />
+
         {showConfirm && (
           <ConfirmArchive
             onConfirm={() => { setShowConfirm(false); handleArchive() }}
@@ -723,6 +733,15 @@ function ViewSurface({
               fieldCommitsFrozen={fieldCommitsFrozen}
             />
           </div>
+          {/* #758 / DESIGN.md § Overlays → Record panel A8 — the labelled Deputy door on the
+              record sits below the body, not in the page-chrome ✦. Opens Deputy beside the record
+              with the reference seeded; the record stays mounted (OD-REDESIGN-80 coexistence).
+              Hidden on phone via CSS; the phone door is the ✦ in the record-page Back row. */}
+          <AskDeputyAction
+            variant="footer"
+            draft={t('assistant.askAbout.task', { title: task.title })}
+            label={t('assistant.askAbout.task.action')}
+          />
         </div>
       )}
 

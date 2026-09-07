@@ -8,7 +8,6 @@ import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { CloseIcon } from '@/shell/icons'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
@@ -193,24 +192,20 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   // not a host fork — mirrors the create-mode chrome bar's existing tasks.close button) so a
   // keyboard/SR user gets an explicit close control that names the Esc shortcut this host already
   // wires up (both the split and modal regimes close on Escape).
+  //
+  // #758 (DESIGN.md § Overlays → Record panel A8): the record-scoped Ask Deputy affordance is no
+  // longer a 32px unlabelled ✦ in the panel chrome — it is a labelled footer control that
+  // TaskSurface renders below the record body. The chrome carries only the ✕ (close) now.
   const hostActions = mode === 'view' ? (
-    <>
-      {/* Record-scoped "Ask Deputy": opens the Deputy panel pre-seeded with a compact reference to
-          this task. Gated on the resolved title so the seed is meaningful ("About Task: <title>"),
-          never a bare stub. The user still edits and sends — it never auto-sends. */}
-      {resolvedTitle && (
-        <AskDeputyAction draft={t('assistant.askAbout.task', { title: resolvedTitle })} />
-      )}
-      <button
-        type="button"
-        className="record-panel-btn"
-        aria-label={t('tasks.close')}
-        title={t('tasks.close')}
-        onClick={close}
-      >
-        <CloseIcon />
-      </button>
-    </>
+    <button
+      type="button"
+      className="record-panel-btn"
+      aria-label={t('tasks.close')}
+      title={t('tasks.close')}
+      onClick={close}
+    >
+      <CloseIcon />
+    </button>
   ) : (
     // DO-4: create mode — the host bar is the ONE chrome (CreateSurface suppresses its own via
     // showPanelUtility=false below). One title, one ✕ (the host's own); no expand toggle (GAP-2).

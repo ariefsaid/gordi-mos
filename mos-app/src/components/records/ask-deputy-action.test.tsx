@@ -1,6 +1,10 @@
 // Record-scoped "Ask Deputy" (V3 brave slice 1). Proves the quiet affordance in the RecordPanelHost
 // actions seam opens the EXISTING Deputy panel pre-seeded with a compact record reference — for both
 // task and signal records — and NEVER auto-sends. The seed is single-shot (a later reopen is clean).
+//
+// #758 adds the labelled FOOTER placement (AC-045) and the phone-Back-row accessible name (AC-046):
+// the door on a Task record is a labelled footer control on desktop and the ✦ in the Back row on
+// phone, both carrying the accessible name "Ask Deputy about this Task".
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
@@ -113,5 +117,73 @@ describe('AskDeputyAction (V3 brave slice 1 — record-scoped Ask Deputy)', () =
     await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
     // The consumed record reference is NOT re-seeded (single-shot) — the composer stays empty.
     expect(composer().value).toBe('')
+  })
+
+  // Issue 758 — an explicit label overrides the generic "Ask Deputy" default so callers can supply
+  // the record-type-aware accessible name (AC-046: the phone Back row ✦ names the record type).
+  it('issue 758: chrome variant honours the label prop as the button\'s accessible name', () => {
+    renderWithPanel(<AskDeputyAction draft="About Task: X" label="Ask Deputy about this Task" />)
+    expect(screen.getByRole('button', { name: 'Ask Deputy about this Task' })).toBeInTheDocument()
+    // The default generic name must NOT still resolve when an explicit label was supplied.
+    expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
+  })
+
+  // Issue 758 AC-045 — the footer variant renders the labelled row on the record document:
+  //   ✦ Ask Deputy about this Task — Deputy will use this record as context
+  // Activating it opens Deputy with the record reference seeded, exactly like the chrome ✦.
+  describe('issue 758 footer variant (AC-045 — labelled door on the record document)', () => {
+    it('renders the labelled control + helper text and opens Deputy with the record reference seeded', async () => {
+      const runtime = makeFakeRuntime()
+      const draft = 'About Task: Replace grinder burrs (Cafe 2)'
+      renderWithPanel(
+        <AskDeputyAction draft={draft} variant="footer" label="Ask Deputy about this Task" />,
+        runtime,
+      )
+
+      const button = screen.getByRole('button', { name: 'Ask Deputy about this Task' })
+      expect(button).toBeInTheDocument()
+      // The visible label is inside the button, and the helper text sits beside it.
+      expect(button.textContent).toMatch(/Ask Deputy about this Task/)
+      expect(screen.getByText('Deputy will use this record as context')).toBeInTheDocument()
+      // The helper is programmatically associated with the button (aria-describedby), so a screen
+      // reader announces "Ask Deputy about this Task, Deputy will use this record as context".
+      const helperId = button.getAttribute('aria-describedby')
+      expect(helperId).toBeTruthy()
+      expect(document.getElementById(helperId!)?.textContent).toBe('Deputy will use this record as context')
+
+      fireEvent.click(button)
+      await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
+      expect(composer().value).toBe(draft)
+      expect(runtime.createRun).not.toHaveBeenCalled()
+    })
+
+    it('renders nothing when no runtime is available (same gate as chrome variant)', () => {
+      renderWithPanel(
+        <AskDeputyAction draft="About Task: X" variant="footer" label="Ask Deputy about this Task" />,
+        null,
+      )
+      expect(screen.queryByRole('button', { name: 'Ask Deputy about this Task' })).toBeNull()
+      expect(screen.queryByText('Deputy will use this record as context')).toBeNull()
+    })
+
+    // Issue 758 — record coexistence: opening Deputy from the footer must not tear the record down.
+    // The chrome variant already proves this by opening Deputy without ever calling any close
+    // seam; the footer must uphold the same contract (never dispatches a record close on click).
+    it('opening Deputy from the footer never unmounts a mounted record beside it', async () => {
+      const runtime = makeFakeRuntime()
+      const draft = 'About Task: Replace grinder burrs'
+      renderWithPanel(
+        <>
+          <div data-testid="record-frame">record body</div>
+          <AskDeputyAction draft={draft} variant="footer" label="Ask Deputy about this Task" />
+        </>,
+        runtime,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ask Deputy about this Task' }))
+      await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
+      // The record beside Deputy stays mounted (OD-REDESIGN-80 coexistence, DESIGN.md A8).
+      expect(screen.getByTestId('record-frame')).toBeInTheDocument()
+    })
   })
 })

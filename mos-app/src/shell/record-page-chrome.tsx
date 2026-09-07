@@ -27,11 +27,17 @@ export interface RecordPageChromeProps {
   backLabel: string
   /** Record-scoped Ask Deputy composer seed; omitted while no draft is resolved yet. */
   deputyDraft?: string | null
+  /**
+   * Accessible name for the Ask Deputy ✦ button — the phone Deputy door on this record
+   * (#758 / DESIGN.md § Overlays → Record panel A8). Callers pass the record-type-aware label
+   * (e.g. "Ask Deputy about this Task"); omitted callers fall back to the generic "Ask Deputy".
+   */
+  deputyLabel?: string
   /** Extra trailing controls rendered before Ask Deputy (e.g. Task's collapse-to-split). */
   trailing?: ReactNode
 }
 
-export function RecordPageChrome({ backTo, backLabel, deputyDraft, trailing }: RecordPageChromeProps) {
+export function RecordPageChrome({ backTo, backLabel, deputyDraft, deputyLabel, trailing }: RecordPageChromeProps) {
   const t = useT()
   return (
     <div className="record-page-chrome" data-viewer-region="page-chrome">
@@ -41,7 +47,7 @@ export function RecordPageChrome({ backTo, backLabel, deputyDraft, trailing }: R
       </Link>
       <span className="record-page-chrome__spacer" />
       {trailing}
-      {deputyDraft ? <AskDeputyAction draft={deputyDraft} /> : null}
+      {deputyDraft ? <AskDeputyAction draft={deputyDraft} label={deputyLabel} /> : null}
     </div>
   )
 }

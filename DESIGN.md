@@ -701,6 +701,8 @@ Inside the grouped DataTable, each group is introduced by a full-width `<tr>` re
   the three universal actions. Phone palette: search only — navigation is the tab bar, actions are
   the launcher.
 - **Record panel:** the collection click target is a wide right-side panel on desktop (40–45% of the available content area), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
+
+  > The deputy door on a record is a labelled control ("Ask Deputy about this <Type>") in the panel footer; it opens the deputy beside or above the record with the record as context and never unmounts the record (OD-REDESIGN-80).
 - **Menus, confirmations, and feedback:** menus/pickers stay anchored to their trigger; destructive confirmation is one centered blocking dialog; toasts are brief status feedback and never a second navigation surface. Every real overlay owns focus entry, Escape/close, and focus return.
 
 ### Metric summary rule (v4, 2026-07-27)

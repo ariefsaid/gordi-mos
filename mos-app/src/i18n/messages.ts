@@ -726,6 +726,11 @@ export const messages = {
     // #426: Signals gets the same record-scoped Ask Deputy seed as every other record kind.
     'assistant.askAbout.signal': "About Signal: ${title}",
     'assistant.askAboutRecord': "Ask Deputy",
+    // #758 — the labelled record-scoped Deputy door (footer control on desktop, ✦ in the Back
+    // row on phone). Both placements share this accessible name; the footer additionally shows
+    // the helper text below.
+    'assistant.askAbout.task.action': "Ask Deputy about this Task",
+    'assistant.askDeputy.helper': "Deputy will use this record as context",
     'common.clearFilters': "Clear filters",
     // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
     // same key, same value, dropped here rather than duplicated (combination hazard fixed the same
@@ -1985,6 +1990,11 @@ export const messages = {
     // #426: Signals gets the same record-scoped Ask Deputy seed as every other record kind.
     'assistant.askAbout.signal': "Tentang sinyal: ${title}",
     'assistant.askAboutRecord': "Tanya Deputi",
+    // #758 — the labelled record-scoped Deputy door (footer control on desktop, ✦ in the Back
+    // row on phone). Both placements share this accessible name; the footer additionally shows
+    // the helper text below.
+    'assistant.askAbout.task.action': "Tanya Deputi tentang Tugas ini",
+    'assistant.askDeputy.helper': "Deputi akan menggunakan catatan ini sebagai konteks",
     'common.clearFilters': "Hapus filter",
     // common.docTitle / common.help: already ported by #191 (Home), see the home.* block above —
     // same key, same value, dropped here rather than duplicated (combination hazard fixed the same

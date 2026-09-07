@@ -121,6 +121,67 @@
   border: 0;
 }
 
+/* ── Ask Deputy footer (#758, DESIGN.md § Overlays → Record panel A8) ──
+   The labelled Deputy door on a Task record sits at the bottom of the record surface (drawer AND
+   page). A quiet row: ✦ + "Ask Deputy about this Task" + a muted helper "Deputy will use this
+   record as context". The row is flex: none so a scrolling body can never push it below the fold
+   in the drawer (`.dw-surface` is a flex column); on the standalone page it rides inside
+   `.record-doc` above the card's rounded corners. Hidden on phone (≤390) — the phone door is the
+   ✦ in the record-page Back row (RecordPageChrome). */
+.record-ask-deputy-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.record-ask-deputy-foot__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body-lg);
+  font-weight: 500;
+  cursor: pointer;
+}
+.record-ask-deputy-foot__btn:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.record-ask-deputy-foot__btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.record-ask-deputy-foot__label {
+  color: inherit;
+}
+.record-ask-deputy-foot__helper {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Coarse pointer / phone touch floor — the button lifts to the 44px touch target when the input
+   is coarse (the same pattern .record-panel-btn / .dw-iconbtn use). */
+@media (pointer: coarse), (max-width: 767.98px) {
+  .record-ask-deputy-foot__btn { min-height: 44px; padding: 6px 12px; }
+}
+/* Phone (≤390) — the labelled footer is hidden; the phone door is the ✦ in the record-page Back
+   row (RecordPageChrome), which carries the same accessible name. */
+@media (max-width: 390px) {
+  .record-ask-deputy-foot { display: none; }
+}
+
 /* ── Checklist + Activity regions (content-first anatomy, OD-REDESIGN-90 §2.2) ──
    The retired tabbed feed (.rf-*) is gone: Checklist and Activity are now separate ordered
    content slots stacked below Relations, each rendering its own component (ChecklistCard,

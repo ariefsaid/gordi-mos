@@ -35,7 +35,6 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
 
@@ -307,20 +306,15 @@ export function TasksWorkspace({
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
     const pageTo = { pathname: `/work/tasks/${recordId}`, search: pageSearch() }
-    // Record-scoped "Ask Deputy" seed: the loaded row carries the task title, so the composer opens
-    // with "About Task: <title>". Falls back to the generic record noun if the row isn't loaded.
-    const taskTitle = controller.state.data?.records.find((r) => r.id === recordId)?.title?.trim()
+    // #758 (DESIGN.md § Overlays → Record panel A8): the record-scoped Ask Deputy door has moved
+    // from a 32px unlabelled ✦ in the panel chrome to a labelled footer control that TaskSurface
+    // itself renders below the record body — the chrome no longer carries this affordance.
     const entry: OverlayEntry = {
       key: `task:${recordId}`,
       owner: 'tasks' as const,
       tenant: 'record' as const,
       label: t('tasks.detail.title'),
       title: t('tasks.detail.title'),
-      actions: (
-        <AskDeputyAction
-          draft={t('assistant.askAbout.task', { title: taskTitle || t('tasks.detail.title') })}
-        />
-      ),
       pageTo,
       pageState: TASK_PAGE_STATE,
       content: null,
@@ -336,7 +330,7 @@ export function TasksWorkspace({
       />
     )
     return entry
-  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, promoteToPage, t])
+  }, [recordId, pageSearch, host, onTaskArchived, onTaskChanged, promoteToPage, t])
 
   // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
   // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.

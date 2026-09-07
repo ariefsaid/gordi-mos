@@ -765,22 +765,35 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
   // direct-open path) has no RecordPanelHost — TaskSurface's own internal chrome row is
   // the only header the record has, so IT now carries the same affordance, top-right of
   // that row (mirrors E7's `data-journey="J05"` "Ask @Deputy about this" record-header button).
+  //
+  // #758 (AC-046) — the ✦ in the Back row is the PHONE door on the record; it carries the same
+  // accessible name as the desktop footer control ("Ask Deputy about this Task"). Both the Back
+  // row ✦ and the footer control resolve by role now, so scope the assertion to the chrome row
+  // rather than expecting exactly one button.
   it('F3: the standalone full-page record carries the record-scoped Ask Deputy affordance in its own chrome row', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' }, makeFakeRuntime())
 
     await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
-    // Lives in the shared record-page chrome (.record-page-chrome), not buried in the body. The
-    // record-scoped Ask Deputy seed resolves from the record title (onTitleResolved), one render
-    // after the h1, so await it rather than assuming it is present the instant the heading is.
-    const askButton = await screen.findByRole('button', { name: 'Ask Deputy' })
-    expect(askButton.closest('.record-page-chrome')).toBeTruthy()
+    // Lives in the shared record-page chrome (.record-page-chrome). The record-scoped Ask Deputy
+    // seed resolves from the record title (onTitleResolved), one render after the h1, so await it
+    // rather than assuming it is present the instant the heading is. #758 (AC-046): the ✦ names
+    // the record type explicitly ("Ask Deputy about this Task") so a phone / screen-reader user
+    // can tell what the button will ask about.
+    await waitFor(() => {
+      const buttons = screen.getAllByRole('button', { name: 'Ask Deputy about this Task' })
+      const inChrome = buttons.find((b) => b.closest('.record-page-chrome') != null)
+      expect(inChrome).toBeTruthy()
+    })
   })
 
   it('F3: no Ask Deputy affordance renders while the record is still loading', () => {
     mockGetTask.mockReturnValue(new Promise(() => {}))
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' }, makeFakeRuntime())
+    // Neither the labelled footer control nor the phone chrome ✦ resolve before the record loads
+    // (the footer is inside TaskSurface's loaded branch; the chrome ✦ gates on the resolved title).
+    expect(screen.queryByRole('button', { name: 'Ask Deputy about this Task' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
   })
 

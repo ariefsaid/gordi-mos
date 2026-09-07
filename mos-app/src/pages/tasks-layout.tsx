@@ -178,6 +178,9 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         backTo={fromHome ? '/' : { pathname: '/work/tasks', search: location.search }}
         backLabel={fromHome ? t('dest.home') : t('tasks.title')}
         deputyDraft={title ? t('assistant.askAbout.task', { title }) : null}
+        // #758 (AC-046) — the phone record's Deputy door is this ✦ in the Back row; it carries
+        // the same accessible name as the desktop footer control ("Ask Deputy about this Task").
+        deputyLabel={t('assistant.askAbout.task.action')}
         trailing={isSplit ? (
           <button
             type="button"
