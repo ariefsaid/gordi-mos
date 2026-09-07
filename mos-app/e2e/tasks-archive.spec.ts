@@ -29,8 +29,10 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // The record heading IS the page's own h1 (identityHeadingLevel=1); there is no drawer to scope to.
   await expect(page.getByRole('heading', { level: 1, name: taskTitle })).toBeVisible({ timeout: 10_000 })
 
-  // ── 3. Archive the task from the page ────────────────────────────────────────
-  const archiveBtn = page.getByRole('button', { name: /archive task/i })
+  // ── 3. Archive the task from the page (⋯ overflow, #751 AC-034) ────────────
+  // R7: lifecycle actions moved to the pinned header — Archive lives in the ⋯ overflow.
+  await page.getByRole('button', { name: /more actions/i }).click()
+  const archiveBtn = page.getByRole('menuitem', { name: /archive task/i })
   await expect(archiveBtn).toBeVisible()
   await archiveBtn.click()
 
@@ -70,10 +72,15 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   // Detail shows archived banner
   await expect(drawer.getByText(/this task is archived/i)).toBeVisible()
-  // Unarchive button is visible (VIEWER is A)
-  await expect(drawer.getByRole('button', { name: /unarchive/i })).toBeVisible()
+  // Unarchive button is visible (VIEWER is A) — reached through the header ⋯ overflow (#751).
+  const drawerMenuTrigger = drawer.getByRole('button', { name: /more actions/i })
+  await expect(drawerMenuTrigger).toBeVisible()
+  await drawerMenuTrigger.click()
+  const unarchiveItem = drawer.getByRole('menuitem', { name: /unarchive/i })
+  await expect(unarchiveItem).toBeVisible()
   // OD-REDESIGN-84 disclosure + archive journey ruling: restore the fixture for later specs.
-  await drawer.getByRole('button', { name: /unarchive/i }).click()
+  // The menu from the open above is still up — click the item, never re-toggle the trigger.
+  await unarchiveItem.click()
   await expect(drawer.getByText(/this task is archived/i)).toHaveCount(0)
   await page.goto('work/tasks')
   await page.getByRole('group', { name: 'Tasks saved views' }).getByRole('button', { name: 'All' }).click()

@@ -128,7 +128,7 @@ describe('createTaskRecordAdapter', () => {
     expect(formatted.displayValue).toBe('fmt(2026-07-25)')
   })
 
-  it('owner-eyes item 10: a Done task offers Reopen (secondary), not a dead-end Mark complete', async () => {
+  it('owner-eyes item 10, #751 AC-031: a Done task offers Reopen AS THE PRIMARY — never a dead-end Mark complete', async () => {
     const onUpdateStatus = vi.fn(async () => {})
     const adapter = createTaskRecordAdapter(
       makeInput({ detail: makeDetail(makeTask({ status: 'Done' })), onUpdateStatus }),
@@ -137,7 +137,8 @@ describe('createTaskRecordAdapter', () => {
     expect(ids).toContain('reopen')
     expect(ids).not.toContain('complete')
     const reopen = adapter.actions.find((a) => a.id === 'reopen')!
-    expect(reopen.intent).toBe('secondary')
+    // The header has ONE primary slot; on a Done task Reopen IS it (no quiet secondary anymore).
+    expect(reopen.intent).toBe('primary')
     expect(reopen.label).toBe('Reopen')
     await reopen.run()
     expect(onUpdateStatus).toHaveBeenCalledWith('In Progress')
@@ -216,9 +217,21 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     const adapter = createTaskRecordAdapter(makeInput({ viewerId, downlineIds }))
     return render(
       <I18nProvider>
-        <RecordViewer adapter={adapter} mode="page" headingLevel={1} />
+        <RecordViewer
+          adapter={adapter}
+          mode="page"
+          headingLevel={1}
+          // Host-supplied doors the live TaskSurface always passes — the ⋯ never renders empty.
+          canonicalHref="http://localhost:3000/mos/work/tasks/task-1"
+          onOpenPage={() => {}}
+        />
       </I18nProvider>,
     )
+  }
+  // #751 R7: lifecycle actions live in the pinned header's ⋯ overflow — open it before asserting.
+  function openOverflow() {
+    fireEvent.click(screen.getByRole('button', { name: /more actions/i }))
+    return document.querySelector('[role="menu"]') as HTMLElement
   }
   const editableOf = (container: HTMLElement, key: string) =>
     container.querySelector(`[data-field-key="${key}"]`)?.getAttribute('data-editable')
@@ -229,7 +242,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     expect(editableOf(container, 'supervisor')).toBe('true')
     expect(editableOf(container, 'dueDate')).toBe('true')
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
+    expect(within(openOverflow()).queryByRole('menuitem', { name: 'Archive task' })).not.toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
@@ -237,7 +250,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     const { container } = renderAs(SUPERVISOR, [])
     expect(editableOf(container, 'pic')).toBe('true')
     expect(editableOf(container, 'dueDate')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(within(openOverflow()).getByRole('menuitem', { name: 'Archive task' })).toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
@@ -245,7 +258,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     const { container } = renderAs('chain-mgr', [PIC])
     expect(editableOf(container, 'pic')).toBe('true')
     expect(editableOf(container, 'dueDate')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(within(openOverflow()).getByRole('menuitem', { name: 'Archive task' })).toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
@@ -255,14 +268,14 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     expect(editableOf(container, 'supervisor')).toBe('false')
     expect(editableOf(container, 'dueDate')).toBe('false')
     expect(screen.getByRole('note')).toHaveTextContent(/permission to edit/i)
-    expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
+    expect(within(openOverflow()).queryByRole('menuitem', { name: 'Archive task' })).not.toBeInTheDocument()
   })
 
   it('a peer reads the record read-only with the reason and no Archive action', () => {
     const { container } = renderAs('peer', [])
     expect(editableOf(container, 'pic')).toBe('false')
     expect(screen.getByRole('note')).toHaveTextContent(/permission to edit/i)
-    expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
+    expect(within(openOverflow()).queryByRole('menuitem', { name: 'Archive task' })).not.toBeInTheDocument()
   })
 
   it('AC-061 delta: the record PIC picker offers self + downline (like the inline picker); Supervisor keeps the full list', () => {

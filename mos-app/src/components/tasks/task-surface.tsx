@@ -28,7 +28,7 @@ import { TaskActivity } from './task-activity'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { formatDate } from './task-formatters'
+import { formatAge, formatDate } from './task-formatters'
 import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
@@ -343,6 +343,8 @@ function ViewSurface({
       // item 2: the record's Due uses the SAME formatter family as the table row ("Wed 8 Jul"),
       // never the raw ISO. The field's `value` stays ISO for the edit control.
       formatDate: (iso) => formatDate(iso, locale),
+      // #751 AC-031 — the header meta line's compact activity age ("5h"), the table's formatter.
+      formatAge: (iso) => formatAge(iso, new Date(), locale),
       labels: {
         businessUnit: t('tasks.field.businessUnit'),
         pic: t('tasks.pic'),
@@ -371,6 +373,10 @@ function ViewSurface({
         noneMarker: '—',
         markComplete: t('tasks.markComplete'),
         reopen: t('tasks.reopen'),
+        metaPic: t('tasks.record.meta.pic'),
+        metaSupervisor: t('tasks.record.meta.supervisor'),
+        metaDue: t('tasks.record.meta.due'),
+        unassigned: t('tasks.record.unassigned'),
         archive: t('tasks.archive'),
         unarchive: t('tasks.unarchive'),
         readOnlyArchived: t('tasks.field.readOnlyArchived'),
@@ -555,6 +561,12 @@ function ViewSurface({
 
   const task = localTask
 
+  // #751 AC-031 — the record's canonical URL, copied by the pinned header ⋯ → "Copy link".
+  // BASE_URL carries the /mos/ mount; origin keeps the link shareable outside the session.
+  const canonicalHref = task
+    ? `${window.location.origin}${import.meta.env.BASE_URL}work/tasks/${task.id}`
+    : undefined
+
   // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host may
   // not supply onOpenPage; a tenant opened from another surface (Inbox/Follow-ups via the
   // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
@@ -605,6 +617,8 @@ function ViewSurface({
               adapter={taskViewerAdapter}
               mode="panel"
               headingLevel={2}
+              onOpenPage={openPageTarget}
+              canonicalHref={canonicalHref}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
               fieldCommitsFrozen={fieldCommitsFrozen}
@@ -703,6 +717,7 @@ function ViewSurface({
               adapter={taskViewerAdapter}
               mode="page"
               headingLevel={identityHeadingLevel ?? 1}
+              canonicalHref={canonicalHref}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
               fieldCommitsFrozen={fieldCommitsFrozen}

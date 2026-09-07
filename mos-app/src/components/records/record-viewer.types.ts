@@ -107,6 +107,13 @@ export interface RecordActivityItem {
   occurredAt: string
 }
 
+/** Tab-strip counts (#751 AC-032): the checklist count is done/total, the activity count the
+ *  event total. Omitted fields render a bare tab label — only real adapters project counts. */
+export interface RecordTabCounts {
+  checklist?: { done: number; total: number }
+  activity?: number
+}
+
 export interface RecordPermission {
   readOnly: boolean
   reason?: string
@@ -130,6 +137,11 @@ export interface RecordViewerAdapter {
   eyebrow?: string
   /** Optional task action-header fields rendered above the persistent tab strip. */
   headerFields?: readonly RecordFieldSpec[]
+  /** One-line summary under the pinned title (owning group · PIC · Supervisor · due · activity
+   *  age) — built by the adapter so the locale lives where the labels live (#751 AC-031). */
+  headerMeta?: string
+  /** Tab-strip counts (#751 AC-032). */
+  tabCounts?: RecordTabCounts
   metadata: readonly RecordMetadataSection[]
   relations: readonly RecordRelation[]
   contentSlots: readonly RecordContentSlot[]
