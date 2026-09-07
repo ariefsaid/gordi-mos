@@ -23,9 +23,9 @@ insert into definer_acl_authenticated_allowlist (schema_name, function_name, ide
   ('shared', 'admin_list_login_status', '', 'authenticated admin RPC'),
   ('shared', 'admin_reset_password', 'p_person uuid, p_password text', 'authenticated admin RPC'),
   ('shared', 'admin_set_login_enabled', 'p_person uuid, p_enabled boolean', 'authenticated admin RPC');
--- The unauthenticated API role has no deliberate SECURITY DEFINER entry points today: empty.
--- An exposed function must be inserted here with its exact identity arguments and one-line reason.
--- 34 current functions plus the non-empty-enumeration guard below.
+-- An exposed SECURITY DEFINER function must be inserted in the authenticated list above with its
+-- exact identity arguments and one-line reason.
+-- 31 current functions across the five schemas; 26 in mos/shared, plus the non-empty guard below.
 select plan(58);
 
 select ok(

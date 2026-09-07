@@ -4,62 +4,59 @@ insert into shared.role_capabilities (role, capability, scope) values
   ('manager', 'signal.create', 'org')
 on conflict (role, capability) do nothing;
 
+-- OD-WAY-96 (1)/(10): a lead's scope is the Teams of their OWN business unit — never the whole
+-- org. Three arms, each binding on a unit: admins see every Team; a lead-tier holder leads every
+-- Team in the unit of their home Team (the live primary membership; any active Team when no
+-- primary exists); a unit head leads every Team in the unit their root role sits in, and a role
+-- whose business_unit_id is null binds no unit at all.
 create or replace function mos.is_team_lead(p_team_id uuid)
 returns boolean
 language sql stable security invoker set search_path = '' as $$
-  select (shared.has_access_role('ops_lead')
-       or shared.has_access_role('supervisor')
-       or shared.has_access_role('manager'))
-    and exists (
-      select 1
-      from shared.teams target
-      where target.id = p_team_id
-        and target.org_id = shared.current_org_id()
-        and (
-          -- An active Team membership makes a lead responsible for that Team.
-          exists (
-            select 1 from shared.team_memberships m
-            where m.team_id = target.id
-              and m.person_id = shared.current_person_id()
-              and m.org_id = shared.current_org_id()
-              and m.effective_from <= current_date
-              and (m.effective_to is null or m.effective_to >= current_date)
-          )
-          -- A manager in the Team's business unit leads through the reporting line.
-          or exists (
+  select exists (
+    select 1
+    from shared.teams target
+    where target.id = p_team_id
+      and target.org_id = shared.current_org_id()
+      and (
+        shared.has_access_role('admin')
+        or (
+          (shared.has_access_role('ops_lead')
+            or shared.has_access_role('supervisor')
+            or shared.has_access_role('manager'))
+          and exists (
             select 1
-            from shared.team_memberships m
-            join shared.people member on member.id = m.person_id
-            where m.team_id = target.id
-              and m.org_id = shared.current_org_id()
-              and member.org_id = target.org_id
-              and m.effective_from <= current_date
-              and (m.effective_to is null or m.effective_to >= current_date)
-              and exists (
-                select 1
-                from shared.person_roles caller_pr
-                join shared.roles caller_role on caller_role.id = caller_pr.role_id
-                where caller_pr.person_id = shared.current_person_id()
-                  and caller_pr.org_id = target.org_id
-                  and caller_role.business_unit_id = target.business_unit_id
-                  and shared.is_manager_of(member.id)
-              )
-          )
-          -- The unit head leads every Team in the unit.
-          or exists (
-            select 1
-            from shared.person_roles pr
-            join shared.roles r on r.id = pr.role_id
-            where pr.person_id = shared.current_person_id()
-              and pr.org_id = target.org_id
-              and (r.business_unit_id = target.business_unit_id or r.business_unit_id is null)
-              and r.reports_to_role_id is null
+            from shared.team_memberships home_membership
+            join shared.teams home_team on home_team.id = home_membership.team_id
+            where home_membership.person_id = shared.current_person_id()
+              and home_membership.org_id = shared.current_org_id()
+              and home_team.org_id = shared.current_org_id()
+              and (home_membership.is_primary or not exists (
+                select 1 from shared.team_memberships primary_membership
+                where primary_membership.person_id = shared.current_person_id()
+                  and primary_membership.org_id = shared.current_org_id()
+                  and primary_membership.is_primary
+                  and primary_membership.effective_from <= current_date
+                  and (primary_membership.effective_to is null or primary_membership.effective_to >= current_date)
+              ))
+              and home_membership.effective_from <= current_date
+              and (home_membership.effective_to is null or home_membership.effective_to >= current_date)
+              and home_team.business_unit_id = target.business_unit_id
           )
         )
-    );
+        or exists (
+          select 1
+          from shared.person_roles head_pr
+          join shared.roles head_role on head_role.id = head_pr.role_id
+          where head_pr.person_id = shared.current_person_id()
+            and head_pr.org_id = shared.current_org_id()
+            and head_role.business_unit_id = target.business_unit_id
+            and head_role.reports_to_role_id is null
+        )
+      )
+  );
 $$;
 comment on function mos.is_team_lead(uuid) is
-  'Lead fact for a Team: active member, above a member in that Team''s business unit, or unit head in that unit.';
+  'Lead fact for a Team (OD-WAY-96): admin, a lead-tier holder whose home Team is in the Team''s business unit, or a unit head whose root role sits in that unit.';
 revoke execute on function mos.is_team_lead(uuid) from public, anon;
 grant execute on function mos.is_team_lead(uuid) to authenticated;
 
@@ -67,7 +64,8 @@ create or replace function mos.viewer_lead_team_ids()
 returns setof uuid
 language sql stable security invoker set search_path = '' as $$
   select t.id from shared.teams t
-  where t.org_id = shared.current_org_id() and mos.is_team_lead(t.id);
+  where t.org_id = shared.current_org_id()
+    and (shared.has_access_role('admin') or mos.is_team_lead(t.id));
 $$;
 revoke execute on function mos.viewer_lead_team_ids() from public, anon;
 grant execute on function mos.viewer_lead_team_ids() to authenticated;
@@ -137,14 +135,15 @@ begin
     end if;
   end if;
   if tg_op = 'INSERT' then return new; end if;
-  if new.author_id is distinct from old.author_id
+  if new.id is distinct from old.id
+     or new.author_id is distinct from old.author_id
      or new.owning_team_id is distinct from old.owning_team_id
      or new.source is distinct from old.source
      or new.source_ref is distinct from old.source_ref
      or new.org_id is distinct from old.org_id
      or new.created_at is distinct from old.created_at
      or new.updated_at is distinct from old.updated_at then
-    raise exception 'signal author/owning_team/source/source_ref/org/created_at/updated_at are immutable' using errcode = '42501';
+    raise exception 'signal id/author/owning_team/source/source_ref/org/created_at/updated_at are immutable' using errcode = '42501';
   end if;
   if new.edited_at is distinct from old.edited_at
      and new.body is not distinct from old.body
@@ -234,9 +233,6 @@ create unique index if not exists notifications_signal_retracted_once
   on mos.notifications (owner_id, (metadata->>'source'), (metadata#>>'{entity,id}'))
   where metadata->>'source' = 'signal_retracted';
 
-drop trigger if exists signals_lead_retract_guard on mos.signals;
-drop trigger if exists signals_retracted_notification on mos.signals;
-
 drop policy if exists signals_insert on mos.signals;
 create policy signals_insert on mos.signals
   for insert to authenticated
@@ -275,8 +271,6 @@ comment on policy signals_update_author on mos.signals is
 -- DOWN (copy into a transaction to restore the released predecessor):
 -- drop index if exists mos.notifications_signal_retracted_once;
 -- delete from shared.role_capabilities where (role, capability) in (('supervisor', 'signal.create'), ('manager', 'signal.create'));
--- drop function mos.is_team_lead(uuid);
--- drop function mos.viewer_lead_team_ids();
 -- drop policy if exists notifications_insert on mos.notifications;
 -- create policy notifications_insert on mos.notifications for insert to authenticated
 --   with check (org_id = shared.current_org_id() and owner_id = shared.current_person_id());
@@ -288,6 +282,8 @@ comment on policy signals_update_author on mos.signals is
 -- create policy signals_update_author on mos.signals for update to authenticated
 --   using (org_id = shared.current_org_id() and (author_id = shared.current_person_id() or shared.can('signal.retract')))
 --   with check (org_id = shared.current_org_id());
+-- drop function mos.viewer_lead_team_ids();
+-- drop function mos.is_team_lead(uuid);
 -- create or replace function mos.can_post_signal_for_team(p_team_id uuid)
 -- returns boolean language sql stable security invoker set search_path = '' as $$
 --   select shared.can('signal.create_for_team') or exists (
