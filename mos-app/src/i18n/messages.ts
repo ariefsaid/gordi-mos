@@ -360,6 +360,9 @@ export const messages = {
     'record.close': 'Close',
     'record.back': 'Back',
     'record.backToCollection': 'Back to ${collection}',
+    // #751 — the pinned header's ⋯ overflow (Archive · Open full page · Copy link).
+    'record.moreActions': 'More actions',
+    'record.copyLink': 'Copy link',
     // The route leave guard's stay/discard prompt. "Stay" is the safe answer and the one Esc
     // picks — the discard path is never reachable by a stray keystroke.
     'leaveGuard.title': 'Leave without saving?',
@@ -805,6 +808,11 @@ export const messages = {
     'tasks.detailsTitle': "Task details",
     'tasks.record.tabsAria': "Task record sections",
     'tasks.record.tab.details': "Details",
+    // #751 — the pinned header meta line ("Retail Ops · PIC Cahya · Supervisor Dewi · due …").
+    'tasks.record.meta.pic': 'PIC',
+    'tasks.record.meta.supervisor': 'Supervisor',
+    'tasks.record.meta.due': 'due',
+    'tasks.record.unassigned': 'Unassigned',
     'tasks.dueLabel': "Due",
     'tasks.empty.archivedCopy': "Archived tasks would appear here.",
     'tasks.empty.archivedTitle': "No archived tasks.",
@@ -1631,6 +1639,9 @@ export const messages = {
     'record.close': 'Tutup',
     'record.back': 'Kembali',
     'record.backToCollection': 'Kembali ke ${collection}',
+    // #751 — the pinned header's ⋯ overflow.
+    'record.moreActions': 'Tindakan lainnya',
+    'record.copyLink': 'Salin tautan',
     'leaveGuard.title': 'Keluar tanpa menyimpan?',
     'leaveGuard.stay': 'Tetap di halaman ini',
     'leaveGuard.discard': 'Buang dan keluar',
@@ -2056,6 +2067,11 @@ export const messages = {
     'tasks.detailsTitle': "Detail tugas",
     'tasks.record.tabsAria': "Bagian catatan tugas",
     'tasks.record.tab.details': "Detail",
+    // #751 — the pinned header meta line.
+    'tasks.record.meta.pic': 'PIC',
+    'tasks.record.meta.supervisor': 'Supervisor',
+    'tasks.record.meta.due': 'jatuh tempo',
+    'tasks.record.unassigned': 'Belum ditugaskan',
     'tasks.dueLabel': "Jatuh tempo",
     'tasks.empty.archivedCopy': "Tugas yang diarsipkan akan muncul di sini.",
     'tasks.empty.archivedTitle': "Tidak ada tugas yang diarsipkan.",

@@ -642,8 +642,9 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open · 2 total'))
 
-    // Archive from the drawer foot (collapsed split shows "Archive task")
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    // Archive from the drawer's pinned header overflow.
+    fireEvent.click(within(screen.getByRole('complementary', { name: /task detail/i })).getByRole('button', { name: /more actions/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /archive task/i }))
     // Confirm the archive dialog
     const confirm = await screen.findByRole('button', { name: /^archive$/i })
     fireEvent.click(confirm)
@@ -826,5 +827,41 @@ describe('TasksLayout — AC-021: Back names the origin', () => {
     await screen.findByRole('heading', { level: 1, name: 'Reached from Tasks' })
     const back = screen.getByRole('link', { name: /back to tasks/i })
     expect(back).toHaveAttribute('href', '/work/tasks')
+  })
+})
+
+// #751 AC-033: the real row-click overlay journey has one blue action.
+describe('Ticket #751 AC-033 — one blue per screen', () => {
+  it('row click opens ?record= and makes head Create outline', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'One primary row' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'One primary row' }), checklist: [], events: [] })
+    stubWidths({ split: true, desktop: true })
+    let currentPath = ''
+    const { container } = renderAtWithLocation('/work/tasks', (path) => { currentPath = path })
+    await waitFor(() => screen.getByText('One primary row'))
+    fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'One primary row' })).toBeInTheDocument())
+    expect(currentPath).toBe('/work/tasks?record=task-1')
+    expect(screen.getByRole('button', { name: '+ Create task' })).toHaveClass('btn-outline')
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
+  })
+
+  it('overflow Escape closes only the menu inside the panel host', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Escape stays' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Escape stays' }), checklist: [], events: [] })
+    stubWidths({ split: true, desktop: true })
+    let currentPath = ''
+    renderAtWithLocation('/work/tasks', (path) => { currentPath = path })
+    await waitFor(() => screen.getByText('Escape stays'))
+    fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
+    const drawer = await screen.findByRole('complementary', { name: /task detail/i })
+    const trigger = within(drawer).getByRole('button', { name: /more actions/i })
+    fireEvent.click(trigger)
+    const menu = within(drawer).getByRole('menu')
+    fireEvent.keyDown(menu, { key: 'Escape' })
+    expect(within(drawer).queryByRole('menu')).toBeNull()
+    expect(screen.getByRole('complementary', { name: /task detail/i })).toBeInTheDocument()
+    expect(currentPath).toBe('/work/tasks?record=task-1')
+    expect(document.activeElement).toBe(trigger)
   })
 })

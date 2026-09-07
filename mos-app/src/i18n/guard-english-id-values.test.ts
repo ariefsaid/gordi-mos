@@ -58,6 +58,8 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'tasks.pic', // PIC
   'tasks.status.label', // Status
   'tasks.supervisor', // Supervisor
+  'tasks.record.meta.pic', // PIC — same borrowed term (#751 header meta line)
+  'tasks.record.meta.supervisor', // Supervisor — same borrowed term (#751 header meta line)
   'signals.composer.occurredHint', // WIB
   'signals.mention.group.bu', // BU
   'signals.record.revisionDiff', // “${from}” → “${to}” — symbol template

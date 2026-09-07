@@ -19,6 +19,7 @@ import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { canEdit, canArchive, picOptions } from './task-permissions'
+import { firstName } from './task-formatters'
 import { RecordFieldList } from '@/components/records/record-viewer'
 import type {
   RecordAction,
@@ -80,6 +81,9 @@ export interface TaskRecordAdapterInput {
    * adapter's own unit tests literal). The field's `value` stays the ISO string for the edit control.
    */
   formatDate?: (iso: string) => string
+  /** Formats a last-activity ISO timestamp into the meta line's compact age ("5h"); the SAME
+   *  formatter family the table row uses. Omitted → the activity-age item is skipped. */
+  formatAge?: (iso: string) => string
   onUpdateField: (field: TaskViewerFieldKey, value: string | null) => Promise<void>
   onUpdateStatus: (next: TaskStatus) => Promise<void>
   onArchive: () => Promise<void>
@@ -102,14 +106,14 @@ const EVENT_LABELS: Record<string, string> = {
 function personOptions(people: readonly PersonOption[]): RecordFieldOption[] {
   return people.map((p) => ({ value: p.id, label: p.full_name }))
 }
-function personName(people: readonly PersonOption[], id: string | null): string {
-  return people.find((p) => p.id === id)?.full_name ?? 'Unassigned'
+function personName(people: readonly PersonOption[], id: string | null, unassigned = 'Unassigned'): string {
+  return people.find((p) => p.id === id)?.full_name ?? unassigned ?? 'Unassigned'
 }
 function buOptions(bus: readonly BusinessUnitOption[]): RecordFieldOption[] {
   return bus.map((b) => ({ value: b.id, label: b.name }))
 }
-function buName(bus: readonly BusinessUnitOption[], id: string): string {
-  return bus.find((b) => b.id === id)?.name ?? id
+function buName(bus: readonly BusinessUnitOption[], id: string, noneMarker = '—'): string {
+  return bus.find((b) => b.id === id)?.name ?? noneMarker
 }
 
 /** Wrap a field spec with the shared editable policy.
@@ -169,9 +173,15 @@ export interface TaskRecordLabels {
   /** Visible null-indicator for a read-only catalog field with no value (em dash). */
   noneMarker: string
   markComplete: string
-  /** Lifecycle-aware secondary action shown IN PLACE of markComplete on an already-Done task
-   *  (owner-eyes item 10) — sending the task back to the active pool. */
+  /** Lifecycle-aware primary action shown IN PLACE OF markComplete on an already-Done task
+   *  (#751 AC-031: Reopen IS the header primary on a Done task, not a quiet secondary). */
   reopen: string
+  /** Pinned-header meta-line prefixes (#751 AC-031, mockup "PIC Cahya · Supervisor Dewi · due
+   *  Fri 28 Aug"). The owning-group item is unlabeled, so it needs no prefix key. */
+  metaPic: string
+  metaSupervisor: string
+  metaDue: string
+  unassigned: string
   archive: string
   unarchive: string
   readOnlyArchived: string
@@ -199,6 +209,10 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
   noneMarker: '—',
   markComplete: 'Mark complete',
   reopen: 'Reopen',
+  metaPic: 'PIC',
+  metaSupervisor: 'Supervisor',
+  metaDue: 'due',
+  unassigned: 'Unassigned',
   archive: 'Archive task',
   unarchive: 'Unarchive',
   readOnlyArchived: 'This task is archived',
@@ -330,6 +344,7 @@ function statusLabel(s: TaskStatus, L: TaskRecordLabels): string {
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
   const { detail, viewerId, downlineIds, people, businessUnits, objectives = [], workLines = [], team } = input
   const formatDate = input.formatDate ?? ((iso: string) => iso)
+  const formatAge = input.formatAge
   const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
   const L = { ...DEFAULT_TASK_RECORD_LABELS, ...input.recordLabels }
   const task = detail.task
@@ -455,6 +470,27 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     ],
   }
 
+  // The pinned header's one-line summary (#751 AC-031, tasks-redesign-B): owning group · PIC ·
+  // Supervisor · due · activity age. mos.tasks has no team_id yet (Issue 8), so the owning-group
+  // slot shows the real team label when the lookup exists, otherwise the task's business unit —
+  // the owning group the winning mockup draws ("Retail Ops"), never a fabricated team.
+  const picName = personName(people, task.responsible_person_id, L.unassigned)
+  const supervisorName = personName(people, task.accountable_person_id, L.unassigned)
+  const metaItems = [
+    team?.label ?? buName(businessUnits, task.business_unit_id, L.noneMarker),
+    `${L.metaPic} ${firstName(picName)}`,
+    `${L.metaSupervisor} ${firstName(supervisorName)}`,
+    task.due_date ? `${L.metaDue} ${formatDate(task.due_date)}` : null,
+    task.last_activity_at && formatAge ? formatAge(task.last_activity_at) : null,
+  ].filter((item): item is string => item !== null)
+  const headerMeta = metaItems.join(' · ')
+
+  // Tab-strip counts (#751 AC-032): Checklist done/total, Activity = event count.
+  const tabCounts = {
+    checklist: { done: detail.checklist.filter((item) => item.is_done).length, total: detail.checklist.length },
+    activity: detail.events.length,
+  }
+
   const actions: RecordAction[] = []
   const allowedActionIds: string[] = []
   if (archived) {
@@ -476,7 +512,9 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         actions.push({
           id: 'reopen',
           label: L.reopen,
-          intent: 'secondary',
+          // #751 AC-031: the header has ONE primary slot; on a Done task Reopen IS it —
+          // superseding owner-eyes item 10's quiet-secondary placement in the old footer bar.
+          intent: 'primary',
           run: async () => { try { await input.onUpdateStatus('In Progress') } catch { /* surfaced via optimistic rollback */ } },
         })
         allowedActionIds.push('reopen')
@@ -515,6 +553,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     title: task.title,
     typeLabel: L.typeLabel,
     headerFields: [titleField, content.fields.find((field) => field.key === 'status')!],
+    headerMeta,
+    tabCounts,
     metadata: [],
     relations: [],
     contentSlots,
