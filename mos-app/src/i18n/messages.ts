@@ -53,8 +53,11 @@ export const messages = {
     'home.attention.laneError': "Couldn't load this list. Retry.",
     'home.attention.retry': 'Retry',
     'home.region.needsYou': 'Needs you now',
-    'home.stream.band.failedChecks': 'Failed checks',
-    'home.stream.band.myWork': 'My work today',
+    // #759: the cockpit tabs read `Needs you now · My work · Café checks`. Tab labels ARE the
+    // region labels — one label per region model row, so Overview tiles + List bands stay in
+    // step with Focused tabs. Renamed from the pre-#759 "My work today" / "Failed checks".
+    'home.stream.band.failedChecks': 'Café checks',
+    'home.stream.band.myWork': 'My work',
     'home.stream.reason.urgent': 'Urgent',
     'home.stream.reason.needsAttention': 'Needs attention',
     'home.stream.reason.overdue': 'Overdue · ${days}d',
@@ -1374,8 +1377,9 @@ export const messages = {
     'home.attention.laneError': 'Gagal memuat. Coba lagi.',
     'home.attention.retry': 'Coba lagi',
     'home.region.needsYou': 'Perlu Anda sekarang',
-    'home.stream.band.failedChecks': 'Pemeriksaan gagal',
-    'home.stream.band.myWork': 'Pekerjaan saya hari ini',
+    // #759: id parities to the en `My work` / `Café checks` rename above.
+    'home.stream.band.failedChecks': 'Pemeriksaan Kafe',
+    'home.stream.band.myWork': 'Pekerjaan saya',
     'home.stream.reason.urgent': 'Mendesak',
     'home.stream.reason.needsAttention': 'Perlu perhatian',
     'home.stream.reason.overdue': 'Terlambat · ${days}h',

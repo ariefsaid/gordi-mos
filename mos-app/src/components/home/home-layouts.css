@@ -64,11 +64,26 @@
 .home-tile-name { font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; }
 .home-tile-count { font-size: var(--font-size-label); color: var(--muted-foreground); white-space: nowrap; }
 
-.home-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+/* #759 (AC-083, DESIGN.md § Home arrangements): Focused shows at most three tabs and never wraps
+   them. At 390 the strip sits on one line and any overflow scrolls horizontally instead of
+   wrapping to a second row (a wrapping strip pushes the panel down under the fold and hides the
+   selected region on the first paint). `overflow-x: auto` with `overscroll-behavior-x: contain`
+   so a swipe on the strip does not pull the page beside it. The strip's own scroll is silent —
+   `scrollbar-width: none` on Firefox and the ::-webkit rule below hide the bar; the tabs are
+   already reachable by keyboard (roving tabindex, home-focused.tsx). */
+.home-tabs {
+  display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+  flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.home-tabs::-webkit-scrollbar { display: none; }
 .home-tab {
   font: inherit; font-weight: 500; border: 0; background: none; color: var(--muted-foreground);
   padding: 8px 12px; cursor: pointer; min-height: 44px; /* coarse-pointer floor, NFR-921 */
   border-bottom: 2px solid transparent; margin-bottom: -1px;
+  /* #759: a tab label is one line — the strip scrolls when it can't fit, it does not break a
+     label onto two lines. `flex-shrink: 0` keeps every tab at its natural width so the overflow
+     goes to the strip's scroller, not into a squeezed tab. */
+  white-space: nowrap; flex-shrink: 0;
 }
 .home-tab:hover { color: var(--foreground); }
 .home-tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--primary); }

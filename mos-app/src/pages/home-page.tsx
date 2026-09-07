@@ -43,12 +43,11 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
-import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
-import type { RoleScopeRow } from '@/lib/db/directory'
-// The tested role-scope predicates (pure, no I/O). Home asks them the SAME question the role tree
-// answers everywhere else — "does this viewer steer a scope" — rather than growing a second,
-// drifting idea of who heads a business unit.
-import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+// #759: the org-role tree fed the pre-#759 "does this viewer steer a scope" predicate. Home now
+// composes per persona from `isManager` + manage capability (composeHome), so the role-chain read
+// and its `orgRoles` state are dropped — one fewer round trip on the index route, and the
+// Objectives door decision no longer waits on it.
 import { wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
@@ -56,10 +55,12 @@ import {
 } from '@/lib/home-stream'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { buildHomeRegions } from '@/components/home/home-regions'
+import { composeHome } from '@/components/home/home-composition'
 import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-header'
 import { HomeFocused } from '@/components/home/home-focused'
 import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
+import { HomeMember } from '@/components/home/home-member'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
@@ -220,43 +221,40 @@ export function HomePage() {
   // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the app already
   // uses. Best-effort ENRICHMENT only: decorates task rows with the PIC (Responsible) + owning-BU
   // caption; its absence never blocks or errors a band (rows just render without the meta line).
-  // The org role tree rides the SAME read: it answers one question Home asks below (does this
-  // viewer steer a scope, and so does the Objectives door earn its place). One shared-schema
-  // round trip, not a second effect racing this one.
   const [directory, setDirectory] = useState<AttentionDirectory>({})
-  const [orgRoles, setOrgRoles] = useState<RoleScopeRow[]>([])
   useEffect(() => {
     if (!personId) return
     let live = true
-    Promise.all([getPeople(), getBusinessUnits(), getRoles()])
-      .then(([people, bus, roles]) => {
+    Promise.all([getPeople(), getBusinessUnits()])
+      .then(([people, bus]) => {
         if (!live || !isMountedRef.current) return
         setDirectory({
           people: new Map(people.map(p => [p.id, p.full_name])),
           businessUnits: new Map(bus.map(b => [b.id, b.name])),
         })
-        setOrgRoles(roles)
       })
-      // Enrichment is optional — a failed directory read leaves rows undecorated. It also leaves
-      // `orgRoles` empty, so the Objectives door fails CLOSED for a BU-head: an affordance we
-      // cannot justify is not offered, rather than offered on a guess.
+      // Enrichment is optional — a failed directory read leaves rows undecorated (rows just render
+      // without the meta line).
       .catch(() => { /* see above */ })
     return () => { live = false }
   }, [personId])
 
-  // ── Who the Objectives roll-up door is for (AC-204 (4)) ─────────────────────
-  // The people who come to Home to STEER a scope: the owner-director (whole company) and a
-  // function owner (the apex role of a business unit). For them "are we moving toward what we
-  // committed to" is a standing question, so the door earns its place in the aside beside the
-  // ambient feed. A member comes to Home for what needs them TODAY — one door into a
-  // company-wide roll-up is noise on that job, so they get none, exactly as the stacked
-  // composition gives them no cockpit. One door, gated once: the stacked surface repeated the
-  // slot per cockpit section because it renders one section per scope; Home has one aside.
-  const holdsCockpitScope = useMemo(() => {
-    const heldRoles = viewer?.roles ?? []
-    return isOwnerDirector(heldRoles) || buHeadsForViewer(heldRoles, orgRoles).length > 0 ||
-      can(viewer?.accessRoles ?? [], 'objective.manage') || can(viewer?.accessRoles ?? [], 'workline.manage')
-  }, [viewer, orgRoles])
+  // ── Persona-composed Home (#759, AC-080) ───────────────────────────────────
+  // Home composes per persona from the ONE region model: a member (no reports, no manage
+  // capability) gets the capture-first plan (cafe-door → needs-you → signals-no-search); a lead+
+  // gets the cockpit (tabs + Objectives door + Signals). The plan is decided by `composeHome`
+  // (home-composition.ts) — one pure rule, unit-tested against every persona arm; the page
+  // dispatches the rendering off it. `isManager`/access roles arrive on the viewer already —
+  // `orgRoles` used to be a second predicate for the Objectives door here (owner-director or a
+  // BU apex from the role chain), but the composition now folds that into `isManager` +
+  // manage-capability so the whole decision is one call.
+  const composition = useMemo(() => composeHome({
+    isManager: viewer?.isManager ?? false,
+    canManageObjectives: can(viewer?.accessRoles ?? [], 'objective.manage'),
+    canManageWorkLines: can(viewer?.accessRoles ?? [], 'workline.manage'),
+    canCaptureCafe: viewer ? canCaptureCafe(viewer) : false,
+    seesCafeChecks: seesCafe,
+  }), [viewer, seesCafe])
 
   // ── Ranked stream items (owner redirect) ────────────────────────────────────
   const today = useMemo(() => wibToday(), [])
@@ -319,23 +317,41 @@ export function HomePage() {
   // items rendered in the region) — feeds the restored "My open tasks · N →" drill link.
   const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
 
-  // The ONE region model shared by all three arrangements (FR-930) — a layout chooses how to
-  // present these regions, never which of them exist (NFR-924 parity). needs-you and my-work share
-  // the ONE tasks-projection state + retry (DIV-G5); failed-checks carries its own.
+  // The ONE region model — persona-composed (#759, AC-080). A layout chooses how to PRESENT
+  // whatever regions the composition returned, never which of them exist (NFR-924 parity). A
+  // MEMBER carries only `needs-you`, and no `my-work`/`failed-checks` (their assigned work IS the
+  // needs-you band, no reports to review), so `myWorkFullCount` is withheld — the member's
+  // needs-you drills to the same view either way and its label is a number the region should not
+  // borrow from a role it does not have. A LEAD keeps the cockpit region set the layouts have
+  // always carried. needs-you and my-work share the ONE tasks-projection state + retry (DIV-G5);
+  // failed-checks carries its own.
+  const memberComposition = composition.kind === 'member'
   const regions = useMemo(
     () => buildHomeRegions({
-      overdue, dueToday, blocked, myWork,
-      failedChecks: failedChecksBand.items,
-      failedChecksAdmitted: seesCafe,
+      overdue, dueToday, blocked,
+      myWork: memberComposition ? [] : myWork,
+      failedChecks: memberComposition ? [] : failedChecksBand.items,
+      failedChecksAdmitted: composition.failedChecksAdmitted,
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
-      myWorkFullCount: ready ? openCount : undefined,
+      myWorkFullCount: memberComposition ? undefined : (ready ? openCount : undefined),
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
-      taskState, loadTasks, loadFailedChecks, ready, openCount, seesCafe,
+      taskState, loadTasks, loadFailedChecks, ready, openCount,
+      composition.failedChecksAdmitted, memberComposition,
     ],
   )
+  // A member's Home carries only `needs-you` in the region list; the composition drops
+  // `my-work` and `failed-checks` (a member has no reports to review, and their assigned work IS
+  // the needs-you band). Overview/List/Focused for a member all render the SAME single region
+  // (AC-086 parity), rather than a lonely single tab or a lonely single tile — the member layout
+  // below stacks the band directly, with no tab strip and no tile chrome (AC-081 "no tabs").
+  const composedRegions = useMemo(
+    () => memberComposition ? regions.filter((r) => r.id === 'needs-you') : regions,
+    [memberComposition, regions],
+  )
+  const needsYouRegion = composedRegions.find((r) => r.id === 'needs-you')
 
   // ── The day's tally behind the header ──────────────────────────────────────────────────────
   // `left` only — the sum of the SAME region counts rendered a few pixels below it, so the number
@@ -351,12 +367,12 @@ export function HomePage() {
   const tally = useMemo<HomeDayTally | null>(() => {
     if (!personId) return null
     let left = 0
-    for (const region of regions) {
+    for (const region of composedRegions) {
       if (region.count === null) return null
       left += region.count
     }
     return { left }
-  }, [personId, regions])
+  }, [personId, composedRegions])
 
   return (
     <PageFamilyFrame
@@ -385,41 +401,64 @@ export function HomePage() {
         // the section's ErrorState + Retry, so a failed load never reads as "No Signals yet".
         // Author names come from the shared best-effort directory: a missing name leaves a row
         // undecorated, it never blocks or errors the feed.
-        // The standing aside: the Objectives door (cockpit-scope viewers only) above the ambient
-        // Signals feed. ONE node, because `.home-layout` is a two-column grid and a second child
-        // here would drop out of the aside track into the work column's next row. The feed's own
-        // 24px group seam (signal-feed-section.css, DO-16(d)) separates the two — no new spacing
-        // rule. Both arrive through the arrangements' existing `feed` slot, so all three
-        // arrangements inherit the identical aside and none can grow its own (NFR-924).
+        //
+        // The Signals feed is a STANDING column in every persona composition (AC-082: "same bands
+        // in the work column, Signals column beside"). Its shape differs per persona through the
+        // `showSearch` prop the composition supplies: a member's ambient tail carries the Share
+        // door only (D-D2, the ticket's `signals-no-search`); a lead's cockpit keeps search too.
+        const signalFeed = (
+          <SignalFeedSection
+            signals={signals}
+            authorNamesById={directory.people ?? NO_NAMES}
+            teamNamesById={teamNames}
+            createTaskHref={(signal) => {
+              const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
+              return personId && businessUnitId
+                ? signalTaskCreateHref(signal, businessUnitId, personId)
+                : undefined
+            }}
+            loading={signalsState === 'loading'}
+            error={signalsState === 'error'}
+            onReload={loadSignals}
+            showSearch={composition.signalsSearch}
+          />
+        )
+
+        // Member composition (#759, AC-081/082): capture-first stack — Café door (when
+        // affiliated) → Needs you now (as a plain band, NO tabs, no Objectives door, no Failed
+        // checks) → Signals with `Share a Signal` only. HomeMember renders the two work bands
+        // stacked, and the Signals feed sits in the aside column (`.home-layout`'s standing
+        // Signals track carries it in every arrangement, including this one).
+        if (composition.kind === 'member') {
+          return (
+            <HomeMember
+              needsYou={needsYouRegion ?? null}
+              cafeDoor={composition.cafeDoor && viewer != null ? <HomeCafeDoor /> : null}
+              feed={signalFeed}
+            />
+          )
+        }
+
+        // Cockpit (lead+): the three arrangements as before. The standing aside carries the
+        // Objectives door above the Signals feed. ONE aside node, because `.home-layout` is a
+        // two-column grid and a second child here would drop out of the aside track into the
+        // work column's next row. The feed's own 24px group seam (signal-feed-section.css,
+        // DO-16(d)) separates the two — no new spacing rule.
         const aside = (
           <div>
             {/* #444: the door is the drill into /work/objectives, so it follows that path's ship
-                gate — asked through the SAME predicate the router and the rail ask, never a second
-                hardcoded check. Hiding the destination without hiding this leaves a headed band
-                whose only control forwards home: a dead end dressed as a finished section. The
-                aside is a single stacked node, so its absence closes up rather than leaving a
-                hole — the Signals feed simply starts at the top of the column. */}
-            {holdsCockpitScope && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
-            {viewer && canCaptureCafe(viewer) && <HomeCafeDoor />}
-            <SignalFeedSection
-              signals={signals}
-              authorNamesById={directory.people ?? NO_NAMES}
-              teamNamesById={teamNames}
-              createTaskHref={(signal) => {
-                const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
-                return personId && businessUnitId
-                  ? signalTaskCreateHref(signal, businessUnitId, personId)
-                  : undefined
-              }}
-              loading={signalsState === 'loading'}
-              error={signalsState === 'error'}
-              onReload={loadSignals}
-            />
+                gate — asked through the SAME predicate the router and the rail ask, never a
+                second hardcoded check. Hiding the destination without hiding this leaves a
+                headed band whose only control forwards home: a dead end dressed as a finished
+                section. The aside is a single stacked node, so its absence closes up rather than
+                leaving a hole — the Signals feed simply starts at the top of the column. */}
+            {composition.objectivesDoor && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
+            {signalFeed}
           </div>
         )
-        if (layout === 'overview') return <HomeOverview regions={regions} feed={aside} />
-        if (layout === 'list') return <HomeList regions={regions} feed={aside} />
-        return <HomeFocused regions={regions} feed={aside} />
+        if (layout === 'overview') return <HomeOverview regions={composedRegions} feed={aside} />
+        if (layout === 'list') return <HomeList regions={composedRegions} feed={aside} />
+        return <HomeFocused regions={composedRegions} feed={aside} />
       })()}</div>
     </PageFamilyFrame>
   )

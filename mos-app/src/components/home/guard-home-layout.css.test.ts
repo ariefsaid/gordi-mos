@@ -72,6 +72,25 @@ describe('AC-932: Home layout primitives are defined once', () => {
       .toEqual([])
   })
 
+  // #759 (AC-083, DESIGN.md § Home arrangements): Focused shows at most three tabs and never
+  // wraps them; at 390 the strip sits on one line and overflow scrolls horizontally. jsdom
+  // computes no layout, so the catchable layer is the CSS itself: `flex-wrap: nowrap` on the
+  // strip AND `overflow-x: auto` on the strip AND `white-space: nowrap` on the tab (otherwise a
+  // long label wraps in place instead of the strip scrolling). All three pinned together, so a
+  // future refactor cannot drop one and pass the others.
+  it('AC-083: the tab strip does NOT wrap — it scrolls horizontally at 390 instead', () => {
+    const strip = /\.home-tabs\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(strip, '.home-tabs must be flex-wrap: nowrap (a wrapping strip pushes the panel down under the fold)')
+      .toMatch(/flex-wrap:\s*nowrap/)
+    expect(strip, '.home-tabs must overflow-x: auto so the excess scrolls rather than wraps')
+      .toMatch(/overflow-x:\s*auto/)
+    expect(strip, 'a wrapping strip is what a `flex-wrap: wrap` rule produced — that rule must not survive')
+      .not.toMatch(/flex-wrap:\s*wrap\b/)
+    const tab = /\.home-tab\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(tab, '.home-tab must white-space: nowrap so a long label goes to the strip scroller, not to a second line inside the tab')
+      .toMatch(/white-space:\s*nowrap/)
+  })
+
   // NFR-923: a grid child defaults to min-content width. Omitting minmax(0, …) is what lets long
   // titles push a grid past its container — the exact defect found in the mockups.
   it('every grid track uses minmax(0, …)', () => {

@@ -11,7 +11,7 @@ describe('buildHomeRegions (FR-929, FR-930)', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
     })
-    expect(regions.map((r) => r.id)).toEqual(['needs-you', 'failed-checks', 'my-work'])
+    expect(regions.map((r) => r.id)).toEqual(['needs-you', 'my-work', 'failed-checks'])
     expect(regions.every((r) => r.count === 0)).toBe(true)
   })
 

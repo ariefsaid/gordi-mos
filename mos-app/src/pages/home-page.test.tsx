@@ -24,7 +24,6 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
-import type { RolesRow } from '@/lib/database.types'
 import { I18nProvider } from '@/i18n/I18nProvider'
 // The real per-person arrangement store (not a stub): the AC-204 (4) block below switches
 // arrangement the same way /profile does, so the door is proven on more than the default one.
@@ -57,11 +56,12 @@ vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
 
-vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn(), getRoles: vi.fn() }))
-import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
+// #759: `getRoles` is dropped — the persona composition no longer walks the org role tree
+// (Home now decides on `isManager` + manage capability, both already on the viewer).
+vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 const mockGetBUs = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
-const mockGetRoles = vi.mocked(getRoles)
 
 vi.mock('../lib/db/notifications', () => ({
   listNotifications: vi.fn(),
@@ -121,6 +121,15 @@ function signalRow(overrides: Partial<SignalRow> = {}): SignalRow {
 import { HomePage } from './home-page'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 
+// #759 (AC-080): personas moved off role-chain-scope and onto the two composition inputs
+// `isManager` (derived-manager fact from the role chain — CONTEXT.md → Manager) and the manage
+// capabilities. A viewer with reports OR a manage grant is a LEAD (cockpit Home); everyone else
+// is a MEMBER (capture-first Home). Fixtures below carry the flags directly so no test walks the
+// role tree here.
+
+// A LEAD fixture — has reports, so the cockpit composition applies. `financeViewer` was the
+// pre-#759 "any signed-in viewer" fixture; promoting it keeps the Focused tab-strip tests
+// (which are the cockpit path) reading the same DOM they always have.
 const financeViewer: AuthState = {
   status: 'authenticated',
   viewer: {
@@ -136,58 +145,56 @@ const financeViewer: AuthState = {
       updated_at: '2026-01-01T00:00:00Z',
     },
     roles: [],
-    isManager: false,
+    isManager: true,
     accessRoles: ['finance'],
     affiliated: [],
   },
   signOut: vi.fn(),
 }
+// A MEMBER — no reports, no manage capability. The capture-first Home applies.
 const memberViewer: AuthState = {
   ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: [] },
+  viewer: { ...financeViewer.viewer, accessRoles: [], isManager: false },
 }
-// AC-074: the barista — a plain member whose primary Team is a production stream at Gordi HQ.
-// Affiliation arrives as the #744 payload fact, never re-derived from a role name.
+// AC-084 / #759: the barista — a plain member whose primary Team is a production stream at
+// Gordi HQ. Affiliation arrives as the #744 payload fact, never re-derived from a role name.
+// The Café door (from #757) mounts for this persona; the composition drops failed-checks and the
+// Objectives door.
 const baristaViewer: AuthState = {
   ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: ['member'], affiliated: ['cafe'] },
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], isManager: false, affiliated: ['cafe'] },
 }
 const adminViewer: AuthState = {
   ...financeViewer,
   viewer: { ...financeViewer.viewer, accessRoles: ['admin'] },
 }
-// ── Role-chain fixtures for the AC-204 (4) block below (mirror supabase/seed.sql's shape) ──
-const ORG_ID = '10000000-0000-0000-0000-000000000001'
-const BU_FINANCE = '20000000-0000-0000-0000-000000000013'
-const roleStamps = { org_id: ORG_ID, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
-/** Top of the chain — no parent role. The owner-director. */
-const MD_ROLE: RolesRow = { id: '30000000-0000-0000-0000-000000000000', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, ...roleStamps }
-/** The apex of Finance: its parent is the MD, who sits in a DIFFERENT (null) BU. A function owner. */
-const FINANCE_LEAD_ROLE: RolesRow = { id: '30000000-0000-0000-0000-000000000005', business_unit_id: BU_FINANCE, name: 'Finance Lead', reports_to_role_id: MD_ROLE.id, ...roleStamps }
-/** Mid-chain inside Finance — reports to the lead, same BU, so NOT an apex. A plain member. */
-const ANALYST_ROLE: RolesRow = { id: '30000000-0000-0000-0000-000000000099', business_unit_id: BU_FINANCE, name: 'Finance Analyst', reports_to_role_id: FINANCE_LEAD_ROLE.id, ...roleStamps }
-/** What `getRoles()` returns: the org tree, projected to the seam role-scope detection reads. */
-const ORG_TREE = [MD_ROLE, FINANCE_LEAD_ROLE, ANALYST_ROLE].map(
-  ({ id, business_unit_id, reports_to_role_id }) => ({ id, business_unit_id, reports_to_role_id }))
-
-// The same person, holding the given org roles — the input the AC-204 (4) block varies to move a
-// viewer between "steers a scope" and "does not". Access roles stay at plain `member` throughout,
-// so what the door responds to is the ROLE CHAIN, never an access grant.
+// AC-204 (4) block below: the personas that steer a scope get the Objectives door — under the
+// #759 composition this collapses to "any lead" (has reports OR a manage capability). The
+// pre-#759 fixtures walked the role chain (getRoles) to answer the same question; the
+// composition now folds it into `isManager` and the manage caps, so the org-tree mock is gone.
 const ownerDirectorViewer: AuthState = {
   ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [MD_ROLE] },
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], isManager: true, roles: [
+    { id: '30000000-0000-0000-0000-000000000000', org_id: '10000000-0000-0000-0000-000000000001',
+      business_unit_id: null, name: 'Managing Director', reports_to_role_id: null,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+  ] },
 }
 const functionOwnerViewer: AuthState = {
   ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [FINANCE_LEAD_ROLE] },
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], isManager: true, roles: [
+    { id: '30000000-0000-0000-0000-000000000005', org_id: '10000000-0000-0000-0000-000000000001',
+      business_unit_id: '20000000-0000-0000-0000-000000000013', name: 'Finance Lead',
+      reports_to_role_id: '30000000-0000-0000-0000-000000000000',
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+  ] },
 }
-const noScopeViewer: AuthState = {
-  ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [ANALYST_ROLE] },
-}
+// The negative for the Objectives door: a member (no reports, no manage cap). Uses the same
+// shape as `memberViewer` — both classify as MEMBER, so the door is absent.
+const noScopeViewer: AuthState = memberViewer
 const manageCapabilityViewer: AuthState = {
-  ...noScopeViewer,
-  viewer: { ...noScopeViewer.viewer, accessRoles: ['ops_lead'] },
+  ...memberViewer,
+  viewer: { ...memberViewer.viewer, accessRoles: ['ops_lead'] },
 }
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -221,7 +228,6 @@ beforeEach(() => {
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
-  mockGetRoles.mockResolvedValue([])
   mockListNotifications.mockResolvedValue([])
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
@@ -242,96 +248,66 @@ describe('AC-H01/OD-17: Home never renders the revenue/margin KPI tiles nor call
   })
 })
 
-describe('AC-H02/OD-17: a member-only viewer sees the stream (never blank)', () => {
-  it('renders the Focused tabs + the Signals column for a member', async () => {
+describe('AC-H02/OD-17: a member-only viewer sees the capture-first Home (#759 — never blank, never a cockpit)', () => {
+  it('renders the Needs you now band + the Signals column for a member — and NO tab strip', async () => {
     await renderHome(memberViewer)
-    expect(await screen.findByRole('tablist')).toBeInTheDocument()
+    // The member composition (AC-080) renders `needs-you` as a labelled BAND, not a tab.
+    expect(await screen.findByRole('region', { name: /needs you now/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist'), 'member composition never shows the Focused tab strip').toBeNull()
+    // Signals is a STANDING column in every composition (AC-082).
     expect(await screen.findByRole('region', { name: /^Signals · \d+$/ })).toBeInTheDocument()
     expect(mockListRevenue).not.toHaveBeenCalled()
   })
 })
 
-// AC-073 / FR-072 (OD-WAY-93 #8) — `failed-checks` exists only for Café-affiliated viewers or
-// admin. The fact is the #744 payload answer (`viewer.affiliated`), read once at sign-in from the
-// same predicate the write policies consult — never a route regex, never a job-role name.
-// For everyone else the region is absent from every arrangement (two Focused tabs, no tile, no
-// band), and Home runs no failed-checks read at all.
-describe('AC-073: failed-checks renders only for Café-affiliated viewers or admin', () => {
+// AC-073 / FR-072 (OD-WAY-93 #8) — `failed-checks` renders only for viewers admitted by BOTH
+// arms of the #759 composition (AC-080): a cockpit persona (lead or above) AND the /cafe/log
+// route (Café-affiliated or admin). A MEMBER never carries the region, even where the route
+// admits them — a member has no reports to review, and the composition drops the region on that
+// arm before the tabs are ever composed. Everyone else in the cockpit arm without affiliation
+// sees two tabs.
+describe('AC-073 (× #759 AC-080): failed-checks renders only for a cockpit persona admitted by /cafe/log', () => {
   const failedCheck = { id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: CAFE_LOG_ROUTE }
 
-  // Personas span the rule's two arms and its negatives: an affiliated member (the membership
-  // arm), an admin (the role arm), and the unaffiliated viewers the region must never render for.
+  const cockpitAffiliated: AuthState = { ...financeViewer, viewer: { ...financeViewer.viewer, isManager: true, affiliated: ['cafe'] } }
+
+  // Personas span the composition's two axes: composition-arm (member vs lead) and route
+  // admission (unaffiliated vs café). Only the cockpit-and-admitted intersection admits the
+  // region; every other case must not carry it AND must not run the DAL for it either.
   const personas: [string, AuthState, boolean][] = [
-    ['an affiliated barista (stream-Team membership)', baristaViewer, true],
-    ['an admin (unaffiliated)', adminViewer, true],
-    ['a finance viewer (unaffiliated)', financeViewer, false],
+    ['a lead café-affiliated', cockpitAffiliated, true],
+    ['an admin (cockpit via manage capability, route via role)', adminViewer, true],
+    // A barista (MEMBER, affiliated) — the composition drops the region on the member arm even
+    // though /cafe/log admits her. The Café DOOR is her capture affordance instead (AC-074/#757).
+    ['a barista (member, café-affiliated)', baristaViewer, false],
+    ['a lead unaffiliated', financeViewer, false],
     ['a plain unaffiliated member', memberViewer, false],
-    ['an ops_lead whose membership is org-structure only', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['ops_lead'] } }, false],
   ]
 
   for (const [label, viewer, admitted] of personas) {
-    it(`${label}: the region is ${admitted ? 'present' : 'absent'} from every arrangement`, async () => {
+    it(`${label}: the region is ${admitted ? 'present' : 'absent'}`, async () => {
       mockLoadFailedChecks.mockResolvedValue([failedCheck])
       await renderHome(viewer)
-      await screen.findByRole('tablist')
-
-      // The read itself must not run for a region that cannot render — a fetch whose answer has
-      // nowhere to land is noise, and its count would leak into the day tally.
-      expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(admitted)
       if (admitted) {
-        await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
+        // Cockpit path: Focused tabs render, and the region has its own tab that opens to the row.
+        await screen.findByRole('tablist')
+        await userEvent.click(screen.getByRole('tab', { name: /café checks/i }))
         expect(screen.getByText('Production · 2026-07-20')).toBeInTheDocument()
       } else {
-        expect(screen.queryByRole('tab', { name: /failed checks/i })).toBeNull()
+        // The region and its DOM must be entirely absent from the page.
+        expect(screen.queryByRole('tab', { name: /café checks/i })).toBeNull()
+        expect(screen.queryByRole('region', { name: /café checks/i })).toBeNull()
         expect(screen.queryByText('Production · 2026-07-20')).toBeNull()
-        // Two tabs: needs-you and my-work — the whole surface agrees the region does not exist.
-        expect(screen.getAllByRole('tab')).toHaveLength(2)
       }
     })
   }
-
-  it('the job-role NAME plays no part: same access roles + affiliation, opposite job-role names, same result', async () => {
-    // The retired gate decided by role-NAME string; two viewers who differ only there must stay
-    // indistinguishable to Home. Both are unaffiliated members, so both see two tabs.
-    const withRole = (name: string): AuthState => ({
-      ...memberViewer,
-      viewer: {
-        ...memberViewer.viewer,
-        roles: [{
-          id: '30000000-0000-0000-0000-000000000002',
-          org_id: '10000000-0000-0000-0000-000000000001',
-          business_unit_id: '20000000-0000-0000-0000-000000000014',
-          name,
-          reports_to_role_id: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-        }],
-      },
-    })
-    const seen: boolean[] = []
-    for (const name of ['Barista', 'People & Culture Officer']) {
-      vi.clearAllMocks()
-      mockListTasks.mockResolvedValue([])
-      mockGetBUs.mockResolvedValue([])
-      mockGetPeople.mockResolvedValue([])
-      mockListNotifications.mockResolvedValue([])
-      mockLoadFailedChecks.mockResolvedValue([failedCheck])
-      mockListSignals.mockResolvedValue([])
-      mockListAllTeams.mockResolvedValue([])
-      const { unmount } = await renderHome(withRole(name))
-      await screen.findByRole('tablist')
-      seen.push(screen.queryByRole('tab', { name: /failed checks/i }) != null)
-      unmount()
-    }
-    expect(seen[0]).toBe(seen[1])
-    expect(seen[0]).toBe(false)
-  })
 })
 
 describe('F-C / OD-REDESIGN-64 — no legacy dead-link cards on Home', () => {
   it('member Home hides the weekly-update + Daily Log cards entirely', async () => {
     await renderHome(memberViewer)
-    await screen.findByRole('tablist')
+    // #759: member composition renders a `needs-you` BAND, not a tab strip.
+    await screen.findByRole('region', { name: /needs you now/i })
     expect(screen.queryByRole('region', { name: 'My weekly update' })).toBeNull()
     expect(screen.queryByRole('region', { name: /Today on the Daily Log/i })).toBeNull()
     expect(screen.queryByRole('link', { name: /write update/i })).toBeNull()
@@ -391,13 +367,15 @@ describe('Issue 245 / FR-928: the Signals column renders real Signals, with an h
   })
 
   it('shows a zero Signals count when the read is empty (DIV-G5)', async () => {
-    // The header tally is built from the four REGION counts only; Signals is a column, not a
+    // The header tally is built from the region counts only; Signals is a column, not a
     // region, so wiring it must not have invented a fifth number for it to sum.
     let resolveSignals!: (rows: SignalRow[]) => void
     mockListSignals.mockReturnValue(new Promise((resolve) => { resolveSignals = resolve }))
     mockListTasks.mockResolvedValue([])
     await renderHome(memberViewer)
-    await screen.findByRole('tablist')
+    // #759: a member's Home has no tab strip — the region body is a labelled BAND, which lands
+    // when the composition + the region model have resolved, i.e. the moment the tasks read did.
+    await screen.findByRole('region', { name: /needs you now/i })
 
     // Tasks/failed-checks all resolved, so the header states its tally while Signals is
     // still in flight — proof the feed contributes no count that could be wrong.
@@ -442,7 +420,7 @@ describe('My work today region — the viewer\'s own open work, capped, on its o
     ])
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
-    const tab = screen.getByRole('tab', { name: /my work today/i })
+    const tab = screen.getByRole('tab', { name: /my work/i })
     expect(tab.textContent).toMatch(/2/)
     await userEvent.click(tab)
     expect(await screen.findByText('Prep beans')).toBeInTheDocument()
@@ -461,7 +439,7 @@ describe('My work today region — the viewer\'s own open work, capped, on its o
     ])
     await renderHome(financeViewer)
     await screen.findByRole('tablist')
-    await userEvent.click(screen.getByRole('tab', { name: /my work today/i }))
+    await userEvent.click(screen.getByRole('tab', { name: /my work/i }))
     const link = await screen.findByRole('link', { name: /my open tasks · 2/i })
     expect(link.getAttribute('href')).toBe('/work/tasks?view=my-work')
   })
@@ -474,7 +452,7 @@ describe('OD-V4-10: attention always leads my-work in the shared region order (t
     const tabs = await screen.findAllByRole('tab')
     const labels = tabs.map(tab => tab.textContent ?? '')
     const needsYouIdx = labels.findIndex(l => /needs you now/i.test(l))
-    const myWorkIdx = labels.findIndex(l => /my work today/i.test(l))
+    const myWorkIdx = labels.findIndex(l => /my work/i.test(l))
     expect(needsYouIdx).toBeGreaterThanOrEqual(0)
     expect(myWorkIdx).toBeGreaterThan(needsYouIdx)
   })
@@ -499,7 +477,7 @@ describe('OD-V4-9: Home renders the person\'s chosen layout', () => {
     const { container } = await renderHome(financeViewer)
     await waitFor(() =>
       expect(screen.getByRole('region', { name: /needs you now/i })).toBeInTheDocument())
-    expect(screen.getByRole('region', { name: /my work today/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /my work/i })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(container.querySelector('.home-bento')).toBeNull()
   })
@@ -626,12 +604,8 @@ describe('AC-040 — the day header is greeting + role chip + N left, nothing el
 // member, who comes to Home for what needs them today, is not handed a company-wide door they did
 // not ask for. Placeholder copy is what a removed surface leaves behind, so its ABSENCE from the
 // door is asserted too.
-describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () => {
+describe('AC-204 (4) × #759 AC-080: the shipped Home carries the Objectives roll-up door only in the cockpit', () => {
   const objectivesDoor = () => screen.getByRole('region', { name: 'Objectives' })
-
-  beforeEach(() => {
-    mockGetRoles.mockResolvedValue(ORG_TREE)
-  })
 
   it('the owner-director can walk from Home to the Objectives roll-up', async () => {
     await renderHome(ownerDirectorViewer)
@@ -642,29 +616,29 @@ describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () 
     expect(door).not.toHaveTextContent(/Progress rolls up|coming/i)
   })
 
-  it('a function owner gets the same door', async () => {
+  it('a function owner (lead by reports) gets the same door', async () => {
     await renderHome(functionOwnerViewer)
     await screen.findByRole('tablist')
     expect(await screen.findByRole('region', { name: 'Objectives' })).toBe(objectivesDoor())
   })
 
-  it('a manage-capability viewer gets the door even without a role-chain scope', async () => {
+  it('a manage-capability viewer gets the door even with no reports', async () => {
+    // ops_lead holds `objective.manage` — the composition classifies them as LEAD on that alone.
     await renderHome(manageCapabilityViewer)
     await screen.findByRole('tablist')
     expect(await screen.findByRole('region', { name: 'Objectives' })).toBeInTheDocument()
   })
 
-  it('a member who steers no scope is handed no door', async () => {
+  it('a member (no reports, no manage cap) gets the CAPTURE-FIRST Home — no Objectives door, no tabs', async () => {
     await renderHome(noScopeViewer)
-    await screen.findByRole('tablist')
-    // The read the gate rides has LANDED — so this absence is a decision, not a race. Without
-    // this the test would pass just as well against a door that simply had not rendered yet.
-    await waitFor(() => expect(mockGetRoles).toHaveBeenCalled())
-
+    // The member composition renders needs-you as a labelled BAND — the presence of that region
+    // proves the composition landed, so an absent Objectives door is a decision rather than a race.
+    await screen.findByRole('region', { name: /needs you now/i })
     expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
+    expect(screen.queryByRole('tablist'), 'a member sees no tab strip either').toBeNull()
   })
 
-  it('the door rides the shared aside, so every arrangement carries it (NFR-924)', async () => {
+  it('the door rides the shared aside for a lead, so every arrangement carries it (NFR-924)', async () => {
     setHomeLayout(financeViewer.viewer.person.id, 'list')
     await renderHome(ownerDirectorViewer)
 
@@ -700,5 +674,145 @@ describe('issue 444 mechanism: the door component itself never learned about the
       </I18nProvider>,
     )
     expect(await screen.findByRole('region', { name: 'Objectives' })).toBeInTheDocument()
+  })
+})
+
+// ── #759: the persona-composed Home ─────────────────────────────────────────────────────────
+// AC-080 is unit-tested on `composeHome` (home-composition.test.ts). These tests are the RTL
+// integration proof — the page dispatches on the composition and the rendered Home matches the
+// ticket's contract at both the member arm and the cockpit arm.
+
+// AC-081: barista at 390 — three bands in reading order (Café door → Needs you now → Signals),
+// no tabs, no Objectives door, no Failed checks region, no Mentions, at most 9 controls in
+// <main>. jsdom's viewport does not truly measure at 390, so the assertions here are the DOM
+// facts the CSS branch keys off (the single-column collapse below 940px lives in
+// home-layouts.css and is asserted separately). Every reachable count comes from a small,
+// mocked fixture so the ≤9 controls floor is pinned rather than sampled.
+describe('AC-081: barista at 390 renders the capture-first Home — three bands, no cockpit chrome', () => {
+  const barId = baristaViewer.viewer.person.id
+  const dueToday = (id: string, title: string) => ({
+    id, org_id: 'org-1', title, business_unit_id: 'bu-cafe',
+    status: 'Open' as const, responsible_person_id: barId, accountable_person_id: 'other-1',
+    consulted_person_ids: [], informed_person_ids: [], description: null,
+    // Due DATE only — jsdom evaluates the WIB compare on the calendar date, which is what
+    // dueTodayStreamItems uses.
+    due_date: new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10),
+    objective_id: null, work_line_id: null, last_activity_at: '2026-06-30T00:00:00Z',
+    archived_at: null, created_by: 'x', created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-30T00:00:00Z',
+  })
+
+  it('renders Café door + Needs you now band + Signals column, in that order, and no cockpit affordances', async () => {
+    mockListTasks.mockResolvedValue([dueToday('t1', 'Rebuild the espresso hopper'), dueToday('t2', 'Restock the syrup shelf')])
+    mockGetCafeDoor.mockResolvedValue({ branchName: 'Gordi HQ', done: 1, total: 2 })
+    mockListSignals.mockResolvedValue([])
+
+    await renderHome(baristaViewer)
+    // The three bands, present:
+    const cafeDoor = await screen.findByRole('link', { name: /café gordi hq/i })
+    const needsYou = await screen.findByRole('region', { name: /needs you now/i })
+    const signals = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+
+    // …and in reading order — comparePosition is a real DOM check that survives visual
+    // reordering because it names the actual document order. FOLLOWING = 4.
+    expect(cafeDoor.compareDocumentPosition(needsYou) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(needsYou.compareDocumentPosition(signals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    // No cockpit chrome: no tab strip, no Objectives door, no Café-checks tab/region, no
+    // Mentions anywhere on the page.
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: /café checks/i })).toBeNull()
+    expect(screen.queryByRole('region', { name: /café checks/i })).toBeNull()
+    expect(screen.queryByText(/mentions/i)).toBeNull()
+
+    // The Share door is present (`Share a Signal`); the search input is NOT (member composition).
+    expect(screen.getByRole('button', { name: /share a signal/i })).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox', { name: /search signals/i })).toBeNull()
+
+    // ≤9 controls in <main>: the interactive tally the ticket pins. Signals rows count as
+    // buttons in this fixture (the row is a role=button in ambient variant), so a large signal
+    // list would blow the floor — a real barista Home's signal column stays capped anyway.
+    const main = document.querySelector('main')!
+    const controls = main.querySelectorAll('a, button, [role="button"], [role="tab"], input, select, textarea')
+    expect(controls.length, `main carried ${controls.length} controls; the barista Home must stay at 9 or fewer`).toBeLessThanOrEqual(9)
+  })
+})
+
+// AC-082: barista at 1440 — the same three bands, but the layout is two columns (Café door +
+// Needs you now in the work column, Signals in the aside beside them). The two-column grid is
+// `.home-layout` and it collapses to single-column below 940px, so this test asserts the
+// grid-scoped placement of the two work bands vs the Signals section at the DOM level (which is
+// what the responsive branch keys off).
+describe('AC-082: barista at 1440 keeps the same bands and the Signals column beside them', () => {
+  it('the Café door and Needs you now are inside .home-layout\'s work track; Signals is its aside sibling', async () => {
+    mockGetCafeDoor.mockResolvedValue({ branchName: 'Gordi HQ', done: 1, total: 2 })
+    mockListSignals.mockResolvedValue([])
+    const { container } = await renderHome(baristaViewer)
+    const layout = container.querySelector('.home-layout')
+    expect(layout, 'the standing two-column grid must be present').not.toBeNull()
+
+    // Two grid CHILDREN — the standing shape of `.home-layout` (work + Signals). A third child
+    // here would drop under the aside track, so the assertion doubles as a structural guard.
+    expect(layout!.children.length).toBe(2)
+
+    const workColumn = layout!.children[0] as HTMLElement
+    // Café door + needs-you band both live inside the work column.
+    expect(workColumn.contains(screen.getByRole('link', { name: /café gordi hq/i }))).toBe(true)
+    expect(workColumn.contains(screen.getByRole('region', { name: /needs you now/i }))).toBe(true)
+
+    // Signals is the aside sibling — not inside the work column.
+    const signalsSection = screen.getByRole('region', { name: /^Signals · \d+$/ })
+    expect(workColumn.contains(signalsSection)).toBe(false)
+    expect(layout!.contains(signalsSection)).toBe(true)
+  })
+})
+
+// AC-083: lead — at most three tabs `Needs you now · My work · Café checks`. The 390 no-wrap
+// half of the contract is pinned at the CSS layer (guard-home-layout.css.test.ts § AC-083);
+// here the assertion is the DOM facts the CSS relies on: the label set and count, in order.
+describe('AC-083: lead cockpit tabs — at most three, in the ticket order', () => {
+  it('a café-admitted lead sees exactly three tabs: Needs you now · My work · Café checks', async () => {
+    const lead: AuthState = {
+      ...financeViewer,
+      viewer: { ...financeViewer.viewer, isManager: true, affiliated: ['cafe'] },
+    }
+    await renderHome(lead)
+    const tabs = await screen.findAllByRole('tab')
+    expect(tabs).toHaveLength(3)
+    // Trimmed labels — the tab text includes the count, so match the region name as a prefix.
+    const labels = tabs.map((t) => (t.textContent ?? '').replace(/\s*\d+\s*$/, '').trim())
+    expect(labels).toEqual(['Needs you now', 'My work', 'Café checks'])
+  })
+
+  it('a lead NOT café-admitted sees two tabs: Needs you now · My work — a hidden failed-checks is a decision, not a race', async () => {
+    await renderHome(financeViewer)   // isManager:true, affiliated:[] → cockpit, no café
+    const tabs = await screen.findAllByRole('tab')
+    expect(tabs).toHaveLength(2)
+    const labels = tabs.map((t) => (t.textContent ?? '').replace(/\s*\d+\s*$/, '').trim())
+    expect(labels).toEqual(['Needs you now', 'My work'])
+  })
+})
+
+// AC-086: KEEP guards — the parity, layout-picker and quiet-all-clear invariants must survive
+// the persona composition. This block is the smoke test that they still hold on the shipped
+// page for both personas; the real proof is in the sibling guards (guard-home-layout.css.test.ts,
+// home-layout-parity.test.tsx, home-region-polish.test.tsx), which the composition never touches.
+describe('AC-086: KEEP guards — the persona composition never disturbs the shared invariants', () => {
+  it('no horizontal overflow: no element on Home renders wider than its ancestor scroll container', async () => {
+    // jsdom has no layout, so the catchable test is that no element carries an inline width that
+    // would blow the container. The Focused strip's `overflow-x: auto` is asserted at the CSS
+    // layer; this asserts the SHAPE the container query keys off — a single body element on
+    // `<main>` above 100%. A member's Home is the harder case because its bands are the plain
+    // stream-band grammar with no wide tile/tab strip absorbing overflow.
+    await renderHome(baristaViewer)
+    const main = document.querySelector('main')!
+    for (const el of main.querySelectorAll<HTMLElement>('*')) {
+      // A style="width: NNNpx" that ignores the container is what this catches; percentage or
+      // grid widths flow with the container by definition.
+      const w = el.style.width
+      if (!w || !/px$/.test(w)) continue
+      const px = parseFloat(w)
+      expect(px, `an inline pixel width on ${el.tagName} would spill: ${w}`).toBeLessThanOrEqual(390)
+    }
   })
 })

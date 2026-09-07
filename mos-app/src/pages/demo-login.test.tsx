@@ -23,7 +23,7 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
     }
   })
 
-  it('uses Gordi real personas (Director/Cafe/Kitchen/Roastery/Sales/Finance), not the generic mockup labels', () => {
+  it('uses Gordi real personas (Director/Cafe/Kitchen/Barista/Roastery/Sales/Finance), not the generic mockup labels', () => {
     const labels = DEMO_PERSONAS.map((p) => p.label)
     expect(labels).toEqual(
       expect.arrayContaining([
@@ -31,6 +31,7 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
         'Cafe Ops',
         'Kitchen',
         'Kitchen staff',
+        'Barista',
         'Supervisor',
         'Roastery',
         'Sales',
@@ -45,6 +46,14 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
     for (const p of DEMO_PERSONAS) {
       expect(p.email).toMatch(/\.dev@example\.test$/)
     }
+  })
+
+  // AC-084 (#759): the `Barista` demo persona resolves to the seeded HQ barista (Bulan) — the
+  // member composition it exists to walk needs a person the seed has decorated with an assigned
+  // stream Team, due-today tasks and today's opening run.
+  it('AC-084: `Barista` maps to the fictional seeded HQ barista (bulan.dev)', () => {
+    const barista = DEMO_PERSONAS.find((p) => p.label === 'Barista')
+    expect(barista?.email).toBe('bulan.dev@example.test')
   })
 
   it('clicking a persona calls onPick with that persona email', async () => {

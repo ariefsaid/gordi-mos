@@ -83,6 +83,52 @@ begin
   raise notice 'seed.dev-tasks: inserted 11 demo tasks';
 end $$;
 
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The Barista demo persona's due-today assigned items (#759, AC-084)
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- Two ready-to-work tasks assigned to Bulan Barista, both due today (WIB): the member composition
+-- (AC-081) leads with `Needs you now`, and without something visible in it a fresh-reset demo of
+-- the barista Home has an empty band that reads as "nothing to do" rather than "capture-first".
+-- Idempotent by title (each pair recreated only if missing) — the `if exists (select 1 from
+-- mos.tasks)` skip above only fires on the FIRST run, and these are separate rows.
+--
+-- Assigned team: `gordi_hq_bar` is not stamped on the task (mos.tasks.team_id is nullable per the
+-- baseline; the barista's PRIMARY membership already resolves her stream app-wide, seed.sql
+-- OD-WAY-49). BU is `retail_ops` — Retail Ops owns bar-cafe operations post-remap.
+-- ⚠ Jakarta today, not `current_date`. `current_date` in these containers is UTC, so between
+-- 17:00 and 24:00 UTC (00:00-07:00 WIB, seven hours of every day) a task written at UTC-today
+-- lands on yesterday-WIB and the Home's `needs-you` band drops it. Same expression the kitchen
+-- plans seed uses (#469), for the same reason.
+do $$
+declare
+  v_org uuid := '10000000-0000-0000-0000-000000000001';
+  p_bulan uuid := '40000000-0000-0000-0000-000000000007';
+  p_cahya uuid := '40000000-0000-0000-0000-000000000001';
+  bu_retail uuid;
+  today_wib date := (now() at time zone 'Asia/Jakarta')::date;
+begin
+  select id into bu_retail from shared.business_units
+    where org_id = v_org and code = 'retail_ops';
+  if not exists (select 1 from mos.tasks
+                  where org_id = v_org and responsible_person_id = p_bulan
+                    and title = 'Rebuild the espresso hopper') then
+    insert into mos.tasks
+      (org_id, title, business_unit_id, status, responsible_person_id, accountable_person_id,
+       consulted_person_ids, informed_person_ids, description, due_date, last_activity_at,
+       created_by, created_at, updated_at)
+    values
+      (v_org, 'Rebuild the espresso hopper', bu_retail, 'Open',
+        p_bulan, p_cahya, '{}', '{}',
+        'Strip and reassemble the hopper; grind check with today''s dose.',
+        today_wib, now() - interval '2 hours', p_cahya, now(), now()),
+      (v_org, 'Restock the syrup shelf', bu_retail, 'Open',
+        p_bulan, p_cahya, '{}', '{}',
+        'Vanilla and hazelnut down to their last bottle — pull from the back.',
+        today_wib, now() - interval '30 minutes', p_cahya, now(), now());
+    raise notice 'seed.dev-tasks: inserted 2 due-today tasks for Bulan (#759 AC-084)';
+  end if;
+end $$;
+
 -- ─── Cascade lookup seed (objectives + work_lines + FK links on tasks) ────────
 -- Fixed UUIDs for deterministic dev / design-review usage.
 -- Objectives: 2 canonical examples.

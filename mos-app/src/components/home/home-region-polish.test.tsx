@@ -42,7 +42,7 @@ describe('FR-929: a ready-but-empty region says so, in every arrangement', () =>
 
   it('my-work uses its own copy — "nothing else open", not a generic all-clear', () => {
     renderLayout(<HomeList regions={regions} feed={FEED} />)
-    const myWork = screen.getByRole('region', { name: /my work today/i })
+    const myWork = screen.getByRole('region', { name: /my work/i })
     expect(within(myWork).getByText(/nothing else open/i)).toBeInTheDocument()
   })
 
@@ -62,7 +62,7 @@ describe("DESIGN.md Don't: a row's reason never repeats the region's own name", 
 
   it('a "Failed checks" row does not also say "Check failed"', () => {
     renderLayout(<HomeList regions={regions} feed={FEED} />)
-    const band = screen.getByRole('region', { name: /failed checks/i })
+    const band = screen.getByRole('region', { name: /café checks/i })
     expect(within(band).queryByText(/check failed/i)).not.toBeInTheDocument()
   })
 
@@ -124,7 +124,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
 
   it('Focused states no number on a tab whose region is errored or loading', () => {
     renderLayout(<HomeFocused regions={broken} feed={FEED} />)
-    for (const name of [/needs you now/i, /failed checks/i, /my work today/i]) {
+    for (const name of [/needs you now/i, /café checks/i, /my work/i]) {
       const tab = screen.getByRole('tab', { name })
       expect(tab.textContent).not.toMatch(/\d/)
       expect(within(tab).getByText('—')).toBeInTheDocument()
@@ -143,7 +143,7 @@ describe('DIV-G5: a region whose read has not succeeded shows no count, in every
 
   it('List states no number in a band header whose region is errored or loading', () => {
     renderLayout(<HomeList regions={broken} feed={FEED} />)
-    for (const name of [/needs you now/i, /failed checks/i, /my work today/i]) {
+    for (const name of [/needs you now/i, /café checks/i, /my work/i]) {
       const heading = screen.getByRole('heading', { level: 2, name })
       expect(heading.textContent).not.toMatch(/\d/)
       expect(heading.textContent).toContain('—')
@@ -195,7 +195,7 @@ describe('a ready-and-empty region uses the shared all-clear EmptyState primitiv
 
   it('List renders the state-kit empty state with the compact all-clear treatment', () => {
     renderLayout(<HomeList regions={regions} feed={FEED} />)
-    const band = screen.getByRole('region', { name: /^failed checks$/i })
+    const band = screen.getByRole('region', { name: /^café checks$/i })
     const empty = within(band).getByTestId('empty-state')
     expect(empty).toHaveClass('stream-all-clear')
     expect(within(empty).getByText(/all caught up/i)).toBeInTheDocument()
@@ -203,14 +203,14 @@ describe('a ready-and-empty region uses the shared all-clear EmptyState primitiv
 
   it('Overview renders it too — one empty grammar, not one per arrangement', () => {
     renderLayout(<HomeOverview regions={regions} feed={FEED} />)
-    const tile = screen.getByRole('heading', { name: /^failed checks$/i }).closest('section')!
+    const tile = screen.getByRole('heading', { name: /^café checks$/i }).closest('section')!
     expect(within(tile).getByTestId('empty-state')).toHaveClass('stream-all-clear')
   })
 
   it('Focused states it is clear when an empty tab is selected (never a blank body)', async () => {
     const user = userEvent.setup()
     renderLayout(<HomeFocused regions={regions} feed={FEED} />)
-    await user.click(screen.getByRole('tab', { name: /failed checks/i }))
+    await user.click(screen.getByRole('tab', { name: /café checks/i }))
     expect(screen.getByText(/all caught up/i)).toBeInTheDocument()
   })
 })
@@ -224,6 +224,6 @@ describe('Overview tiles carry their region id', () => {
   it('every tile names its region (both wide tiles are distinguishable)', () => {
     const { container } = renderLayout(<HomeOverview regions={regions} feed={FEED} />)
     expect([...container.querySelectorAll('.home-tile')].map((t) => t.getAttribute('data-region')))
-      .toEqual(['needs-you', 'failed-checks', 'my-work'])
+      .toEqual(['needs-you', 'my-work', 'failed-checks'])
   })
 })

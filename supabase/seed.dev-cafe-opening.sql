@@ -66,3 +66,48 @@ insert into mos.process_task_defs
    'e3000000-0000-0000-0000-000000000001', 'Brew station handover', null, 2,
    '30000000-0000-0000-0000-000000000006')    -- Café Opener (demo): two holders → pending row
 on conflict (id) do nothing;
+
+-- ── Today's opening RUN at Gordi HQ (#759, AC-084) ───────────────────────────────────────────
+-- The Barista's Home mounts the Café door (from #757), and the door reads a live process_run for
+-- the viewer's stream Team + today's period key (getViewerCafeDoor → getTodayOpeningForTeam). On
+-- a fresh reset with no run seeded, the door shows `Opening checklist 0/0` — a truthful zero,
+-- but a demo of the AC-081 member composition wants the door to be a real doorway. This inserts
+-- one open process_run for `gordi_hq_bar` today (WIB), so a click on the door lands somewhere.
+--
+-- Written DIRECTLY to mos.process_runs rather than through mos.spawn_process_run: the spawn RPC
+-- checks `shared.current_person_id()` and `shared.can('process.start')`, and the seed connection
+-- carries no auth claim (both are null) — the direct insert bypasses RLS the same way every
+-- other seed row does. `spec_snapshot` mirrors what the spawn RPC would freeze at the same
+-- moment: the process name, its `definition_version`, and the three active task-defs above.
+-- Idempotent by (org, process, team, period_key) — the same UNIQUE the spawn RPC keys on, so a
+-- hand re-run is a no-op.
+--
+-- ⚠ WIB not UTC (#469): the period_key is Jakarta-today, matching what
+-- `wibToday()` (mos-app/src/lib/db/cafe-opening.ts) sends when the door reads it back. A UTC
+-- value here would miss the door's lookup key by seven hours every day.
+insert into mos.process_runs
+  (org_id, work_line_id, owning_team_id, period_key, caption, scheduled_date,
+   definition_version, spec_snapshot, started_by)
+select
+  '10000000-0000-0000-0000-000000000001',
+  'e3000000-0000-0000-0000-000000000001',
+  t.id,
+  to_char((now() at time zone 'Asia/Jakarta')::date, 'YYYY-MM-DD'),
+  'Café Opening · ' || to_char((now() at time zone 'Asia/Jakarta')::date, 'DD Mon YYYY'),
+  (now() at time zone 'Asia/Jakarta')::date,
+  wl.definition_version,
+  jsonb_build_object(
+    'definition_version', wl.definition_version,
+    'process_name', wl.name,
+    'task_defs', coalesce((
+      select jsonb_agg(to_jsonb(d.*) order by d.position)
+        from mos.process_task_defs d
+       where d.work_line_id = wl.id and d.org_id = wl.org_id and d.archived_at is null
+    ), '[]'::jsonb)
+  ),
+  null   -- no acting person on a seed insert; matches the null granted_by pattern above
+from mos.work_lines wl
+join shared.teams t
+  on t.org_id = wl.org_id and t.code = 'gordi_hq_bar' and t.archived_at is null
+where wl.id = 'e3000000-0000-0000-0000-000000000001'
+on conflict (org_id, work_line_id, owning_team_id, period_key) do nothing;

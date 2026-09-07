@@ -31,6 +31,10 @@ export interface SignalFeedSectionProps {
   error?: boolean
   /** Re-run the shared signal read (after a categorize correction, a Share elsewhere, or Retry). */
   onReload?: () => void
+  /** Whether the feed toolbar carries the search field alongside the Share door. `false` for a
+   *  member composition (#759, AC-081) — the ambient tail hides search so the shape does not
+   *  compete with the capture-first bands above it. Cockpit personas keep it (default). */
+  showSearch?: boolean
 }
 
 function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string> {
@@ -39,6 +43,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 
 export function SignalFeedSection({
   signals, authorNamesById, teamNamesById, createTaskHref, loading = false, error = false, onReload,
+  showSearch = true,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -111,6 +116,7 @@ export function SignalFeedSection({
           onShareClick={openSignalComposer}
           createTaskHref={createTaskHref}
           onOpen={(signal) => openRecord(signal.id)}
+          showSearch={showSearch}
         />
       )}
       {host ? <OverlayHostSlot owner="signals" /> : null}

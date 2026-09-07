@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(21);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -178,6 +178,53 @@ select ok(
            where person_id = '40000000-0000-0000-0000-00000000000a'
              and access_role = 'supervisor'),
   'Sinta has the supervisor access role');
+
+-- ── #759 (AC-084): the Barista demo persona is walkable on a fresh reset ───────────────────────
+-- The `Barista` button in DemoLogin maps to Bulan (id …0007), and the member composition it
+-- exists to walk needs her home team, her assigned work, and today's Café run to be present. All
+-- three assertions ride REAL rows the running seed writes, not fixture stand-ins, so a
+-- fresh-reset demo that goes empty here is what the assertions catch.
+
+-- Bulan's primary team is the Gordi HQ bar stream — a Team with a real (branch, activity) pair,
+-- so shared.default_stream() resolves her to gordi_hq_bar and the Home Café door reads a real
+-- stream for her viewer.
+select is(
+  (select t.code
+     from shared.team_memberships m
+     join shared.teams t on t.id = m.team_id
+    where m.person_id = '40000000-0000-0000-0000-000000000007'
+      and m.is_primary and m.effective_to is null
+    limit 1),
+  'gordi_hq_bar',
+  'Bulan Barista holds a primary stream Team at Gordi HQ (bar) — resolves the Home Café door target');
+
+-- The two due-today (Jakarta) assigned items the member composition needs in `Needs you now`.
+-- Named by exact count on the (person, due_date, status) grain, so a seed that dropped one or
+-- pushed the date off WIB-today would go red rather than passing on any-non-empty.
+select is(
+  (select count(*)::int from mos.tasks
+    where org_id = '10000000-0000-0000-0000-000000000001'
+      and responsible_person_id = '40000000-0000-0000-0000-000000000007'
+      and due_date = (now() at time zone 'Asia/Jakarta')::date
+      and status <> 'Done'
+      and archived_at is null),
+  2,
+  'two due-today (WIB) tasks are assigned to Bulan — the member Home has real content in Needs you now');
+
+-- Today's opening run at Gordi HQ (the Café Opening process, gordi_hq_bar team, WIB period_key)
+-- is the door target the Home Café tile reads (getViewerCafeDoor). Without it the door renders
+-- `Opening checklist 0/0` on a fresh reset. Named by the (process, team, period) grain the
+-- spawn RPC's UNIQUE keys on, so the check is exact.
+select is(
+  (select count(*)::int from mos.process_runs
+    where org_id = '10000000-0000-0000-0000-000000000001'
+      and work_line_id = 'e3000000-0000-0000-0000-000000000001'
+      and owning_team_id = (
+        select id from shared.teams
+         where org_id = '10000000-0000-0000-0000-000000000001' and code = 'gordi_hq_bar')
+      and period_key = to_char((now() at time zone 'Asia/Jakarta')::date, 'YYYY-MM-DD')),
+  1,
+  'today''s Café Opening run at Gordi HQ (bar) is seeded — the Home Café door lands on a real occurrence');
 
 select * from finish();
 rollback;

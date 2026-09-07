@@ -47,8 +47,10 @@ const RECORD_HREF = /^\/work\/tasks\/[^?]+$/
 // Stated here rather than imported so a silent rename of either shows up as a red test.
 const REGION_LABEL: Record<HomeRegionId, string> = {
   'needs-you': 'Needs you now',
-  'failed-checks': 'Failed checks',
-  'my-work': 'My work today',
+  // #759 (AC-083): the cockpit tab labels; Overview tiles and List bands share the same names
+  // because the region model owns them.
+  'failed-checks': 'Café checks',
+  'my-work': 'My work',
 }
 const REGION_ROUTE: Record<HomeRegionId, string> = {
   'needs-you': '/work/tasks?view=my-work',
@@ -100,7 +102,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
   // tab strip (that is the whole safety argument for it being the default), Overview's in the tile
   // head beside the tile name, List's in the band label.
   it('AC-928: with every region empty, each region is still named AND carries its zero — in all three layouts', () => {
-    const REGION_NAMES = ['Needs you now', 'Failed checks', 'My work today']
+    const REGION_NAMES = ['Needs you now', 'Café checks', 'My work']
     const hasZero = (el: HTMLElement | null) => /(?<!\d)0(?!\d)/.test(el?.textContent ?? '')
 
     // Focused — the count rides on every tab, selected or not.
@@ -166,7 +168,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
       expect(screen.queryByText(other), `"${other}" belongs to a region that is not selected`).toBeNull()
     }
 
-    await user.click(screen.getByRole('tab', { name: /my work today/i }))
+    await user.click(screen.getByRole('tab', { name: /my work/i }))
 
     // …and after the switch the swap is total, in both directions.
     expect(screen.getByText('Item mw1')).toBeInTheDocument()
@@ -245,11 +247,11 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     expect(panel).toHaveAccessibleName(/needs you now/i)
     // …and both the body AND the name follow the switch.
     expect(within(panel).getByText('Item a')).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /my work today/i }))
+    await user.click(screen.getByRole('tab', { name: /my work/i }))
     const switched = screen.getByRole('tabpanel')
     expect(within(switched).getByText('Item b')).toBeInTheDocument()
     expect(switched).toHaveAttribute('aria-labelledby', screen.getByRole('tab', { selected: true }).id)
-    expect(switched).toHaveAccessibleName(/my work today/i)
+    expect(switched).toHaveAccessibleName(/my work/i)
   })
 
   // ── AC-929 / NFR-924 (AMENDED — see the spec's RATIFY-BEFORE-MERGE §10) ──────────────────────

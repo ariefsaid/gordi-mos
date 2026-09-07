@@ -25,6 +25,7 @@ import type { RouteObject } from 'react-router-dom'
 import { routeConfig } from './router'
 import { HomePage } from './pages/home-page'
 import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
+import { composeHome } from '@/components/home/home-composition'
 
 const SRC = __dirname
 const APP = join(SRC, '..')
@@ -121,10 +122,17 @@ describe('OD-REDESIGN-85: the stacked-union Home fossil is gone and stays gone',
     expect(surviving, 'an unimported module is still a corpse the next reader has to step over').toEqual([])
   })
 
-  it('the role-scope predicates the fossil hosted live on — the shipped Home still gates its Objectives door', () => {
+  it('the role-scope predicates survive the fossil retirement — the shipped Home still gates its Objectives door', () => {
+    // The predicates themselves remain a live module (`@/lib/role-scope`) — the retirement
+    // fossil hosted them but they were never fossil-scoped code.
     expect(typeof isOwnerDirector).toBe('function')
     expect(typeof buHeadsForViewer).toBe('function')
+    // #759 (AC-080): the shipped Home now composes on `isManager` + manage capability instead of
+    // walking the role tree, so the direct role-scope import here is gone. The equivalent guard
+    // is the composition selector — the Objectives door lands on a LEAD persona, and Home reads
+    // that decision through composeHome.
+    expect(typeof composeHome).toBe('function')
     const homePage = stripComments(readFileSync(join(SRC, 'pages', 'home-page.tsx'), 'utf8'))
-    expect(homePage).toContain("from '@/lib/role-scope'")
+    expect(homePage).toContain("from '@/components/home/home-composition'")
   })
 })

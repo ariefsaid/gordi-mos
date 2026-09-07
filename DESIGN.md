@@ -791,6 +791,7 @@ Three arrangements — **Focused**, **Overview**, **List** — render the *same*
 (`needs-you`, `failed-checks`, `mentions`, `my-work`) from one shared region model. An arrangement
 chooses how regions are **presented**, never which of them **exist**; a region with zero items is
 still rendered, so "clear" stays distinguishable from "hidden" and from "broken".
+Regions are **persona-composed** from the one region model: `failed-checks` renders only for viewers affiliated with a Module that produces checks; `mentions` is not a Home region (Inbox owns it); a member composition leads with the viewer's Module capture door and carries no Objectives door. Focused shows at most **three** tabs at 390 and never wraps them.
 
 #### Home day header
 One line at every width: greeting + role chip left, `N left` right; the role chip drops to a second line at 390. No rotating state sentence, no progress track, no help tip. If a `handled` tally has a real source it renders as `N handled · N left`; otherwise only `N left`.

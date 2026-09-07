@@ -36,8 +36,10 @@ const mockUseAuth = vi.mocked(useAuth)
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
 import { listTasks } from '@/lib/db/tasks'
 
-vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn(), getRoles: vi.fn() }))
-import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
+// #759: `getRoles` was retired with the org role-scope predicate (Home now composes on
+// `isManager` + manage capability from the viewer directly).
+vi.mock('../lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 
 vi.mock('../lib/db/notifications', () => ({
   listNotifications: vi.fn(),
@@ -82,7 +84,11 @@ const viewer: AuthState = {
       updated_at: '2026-01-01T00:00:00Z',
     },
     roles: [],
-    isManager: false,
+    // #759: this file exists to pin the three arrangements' MOUNT order — arrangements only
+    // apply to the cockpit persona (a member composition renders no arrangement at all). The
+    // viewer here is deliberately a LEAD so the layout picker's stored preference is what the
+    // test observes, rather than the persona composition making the whole question moot.
+    isManager: true,
     accessRoles: [],
     affiliated: [],
   },
@@ -108,7 +114,6 @@ beforeEach(() => {
   vi.mocked(listTasks).mockResolvedValue([])
   vi.mocked(getBusinessUnits).mockResolvedValue([])
   vi.mocked(getPeople).mockResolvedValue([])
-  vi.mocked(getRoles).mockResolvedValue([])
   vi.mocked(listNotifications).mockResolvedValue([])
   vi.mocked(loadFailedChecksForViewer).mockResolvedValue([])
   vi.mocked(listReadableSignals).mockResolvedValue([])

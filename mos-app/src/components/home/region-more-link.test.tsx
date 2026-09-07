@@ -36,8 +36,8 @@ describe('the remainder a region does not render is reachable from Home', () => 
     )
     expect(hrefByName).toEqual({
       '4 more in Needs you now': '/work/tasks?view=my-work',
-      '2 more in Failed checks': '/cafe/log',
-      '1 more in My work today': '/work/tasks?view=my-work',
+      '2 more in Café checks': '/cafe/log',
+      '1 more in My work': '/work/tasks?view=my-work',
     })
   })
 

@@ -95,12 +95,22 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
   const countOf = (items: StreamItem[], state: StreamBandState) =>
     state === 'ready' ? items.length : null
 
+  // #759 (AC-083): the cockpit reads `Needs you now · My work · Café checks`. `my-work` now
+  // sits BEFORE `failed-checks` on the region model — the tab strip is a projection of the
+  // region model, so the two orders can never disagree. Overview bento packing checks: at 6
+  // columns the row is `needs-you (6) | my-work (4) + failed-checks (2) = 6`; at 4 columns it is
+  // `needs-you (4) | my-work (2) + failed-checks (2) = 4`. Guarded by guard-bento-rows.css.test.ts.
   return [
     {
       id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYouItems,
       count: countOf(needsYouItems, needsYouState),
       state: needsYouState, onRetry: retryNeedsYou,
       drillTo: drillTo('needs-you'),
+    },
+    {
+      id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
+      count: countOf(input.myWork, taskState), state: taskState, onRetry: input.onRetryTasks,
+      drillTo: drillTo('my-work', input.myWorkFullCount),
     },
     ...(input.failedChecksAdmitted ? [{
       id: 'failed-checks' as const, labelKey: 'home.stream.band.failedChecks' as MessageKey,
@@ -109,10 +119,5 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
       onRetry: input.onRetryFailedChecks,
       drillTo: drillTo('failed-checks'),
     }] : []),
-    {
-      id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
-      count: countOf(input.myWork, taskState), state: taskState, onRetry: input.onRetryTasks,
-      drillTo: drillTo('my-work', input.myWorkFullCount),
-    },
   ]
 }
