@@ -14,12 +14,12 @@ select ops._test_seed_daily_log();
 
 -- AC-012: pin the ruling itself with a real plan row and a quantity deviation. Neither note is
 -- supplied, so this approval must refuse rather than silently accepting an off-plan fact.
-insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi)
-values ('2026-06-25', '00000000-0000-0000-0000-00000000ab03',
+insert into ops.kitchen_plans (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi)
+values ('00000000-0000-0000-0000-0000000000a1', '2026-06-25', '00000000-0000-0000-0000-00000000ab03',
         '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'produce', 1);
-insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action,
+insert into ops.kitchen_logs (id, org_id, business_unit_id, log_date, branch_id, activity, action,
                               wip_item_id, qty_porsi, status, submitted_by)
-values ('00000000-0000-0000-0000-00000000af09', '00000000-0000-0000-0000-00000000bb01',
+values ('00000000-0000-0000-0000-00000000af09', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bb01',
         '2026-06-25', '00000000-0000-0000-0000-00000000bf02', 'kitchen', 'produce',
         '00000000-0000-0000-0000-00000000ab03', 2, 'Submitted',
         '00000000-0000-0000-0000-0000000000d1');
@@ -125,7 +125,7 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 update ops.kitchen_logs set status = 'Rejected', review_note = 'cleared for the transfer-sign assertions'
  where id in ('00000000-0000-0000-0000-00000000ac01','00000000-0000-0000-0000-00000000ac02',
               '00000000-0000-0000-0000-00000000ac03','00000000-0000-0000-0000-00000000ac06');
-update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac04';
+update ops.kitchen_logs set status = 'Approved', review_note = 'stock arithmetic' where id = '00000000-0000-0000-0000-00000000ac04';
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',

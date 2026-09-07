@@ -1,9 +1,17 @@
 import { supabase } from '@/lib/supabase'
-import { getRunRollup, startRun, listDueRuns } from './processes'
-import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
+import { getRunRollup, startRun } from './processes'
+import type { ProcessRunRollup, SpawnResult } from './processes.types'
+
+export type CafeOpeningBranch = {
+  branch_id: string
+  team_id: string
+  team_name: string
+  run_id: string | null
+  run_status: string | null
+}
 
 // Café DAL (Step 7 / cafe-retrofit.spec.md). Resolves the "Café Opening" Process + reads today's
-// opening run/roll-up + starts it — REUSES Step 6's processes.ts (startRun/listDueRuns/getRunRollup,
+// opening run/roll-up + starts it — REUSES Step 6's processes.ts (startRun/getRunRollup,
 // Rule 11) rather than re-implementing the spawn/rollup reads. This layer NEVER sends org_id (RLS
 // stamps it) and throws on any non-null PostgREST/RPC error so the UI can surface failures.
 
@@ -50,9 +58,9 @@ export function startTodayOpening(processId: string, teamId: string): Promise<Sp
   return startRun(processId, teamId, wibToday())
 }
 
-/** Branch Teams for which today's opening is due (not yet started) — the Café-scoped slice of
- * Step-6's due_process_runs() (AC-711 backing). */
-export async function listStartableCafeTeams(processId: string): Promise<DueProcessRun[]> {
-  const due = await listDueRuns()
-  return due.filter(d => d.work_line_id === processId)
+/** Branches the caller may start, retaining started openings on the page. */
+export async function listCafeOpeningBranches(): Promise<CafeOpeningBranch[]> {
+  const { data, error } = await mos().rpc('cafe_opening_branches')
+  if (error) throw new Error(`listCafeOpeningBranches failed — ${error.message}`)
+  return (data ?? []) as CafeOpeningBranch[]
 }
