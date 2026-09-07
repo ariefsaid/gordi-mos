@@ -49,6 +49,7 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
     work_line_id: over.work_line_id ?? null,
     last_activity_at: over.last_activity_at ?? '2026-07-20T00:00:00Z',
     archived_at: over.archived_at ?? null,
+    completed_at: over.completed_at ?? null,
     created_by: P_SARI,
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z',
@@ -172,6 +173,53 @@ describe('projectTaskCollection — filtering', () => {
     expect(p.totalRecords).toBe(3)
     expect(p.visibleRecords).toHaveLength(0)
     expect(p.visibleRecordsAreFiltered).toBe(true)
+  })
+
+  it('AC-016 (#752): a Done task ages out of My work seven days after completion; All keeps it', () => {
+    // Two Done tasks — one completed today, one 8 days ago (past the 7-day live-work window).
+    // Both are PIC'd to the viewer (Raka) so the view-scope predicate keeps them; only the
+    // age-out rule decides. My work drops the older one; All shows both. The two In-Progress
+    // rows still-live rows (RAW t-2, t-3) come along on All as well.
+    const now = NOW.getTime()
+    const todayIso = new Date(now - 60 * 60 * 1000).toISOString() // 1h ago = "today"
+    const eightDaysAgoIso = new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString()
+    const rows = [
+      rawTask({
+        id: 't-done-recent', title: 'Refit cold brew taps', status: 'Done',
+        responsible_person_id: P_RAKA, accountable_person_id: P_SARI,
+        completed_at: todayIso,
+      }),
+      rawTask({
+        id: 't-done-stale', title: 'Migrate POS to v4', status: 'Done',
+        responsible_person_id: P_RAKA, accountable_person_id: P_SARI,
+        completed_at: eightDaysAgoIso,
+      }),
+    ]
+
+    const myWork = projectTaskCollection(makeData(rows), q({ view: 'my-work' }))
+    expect(myWork.visibleRecords.map((r) => r.id)).toEqual(['t-done-recent'])
+
+    const all = projectTaskCollection(makeData(rows), q({ view: 'all' }))
+    expect(all.visibleRecords.map((r) => r.id).sort()).toEqual(['t-done-recent', 't-done-stale'])
+  })
+
+  it('AC-016 (#752) fallback: a Done row with a null completed_at ages out of My work (pre-migration row); All still shows it', () => {
+    // A Done row that predates the migration carries no completed_at. The guard's invariant is
+    // "Done ⇔ completed_at set", so a null there is a legacy row — the strictest interpretation
+    // (age it out of live work) matches the intent of #752. All still shows it.
+    const rows = [
+      rawTask({
+        id: 't-done-null', title: 'Legacy Done row', status: 'Done',
+        responsible_person_id: P_RAKA, accountable_person_id: P_SARI,
+        completed_at: null,
+      }),
+    ]
+
+    const myWork = projectTaskCollection(makeData(rows), q({ view: 'my-work' }))
+    expect(myWork.visibleRecords).toHaveLength(0)
+
+    const all = projectTaskCollection(makeData(rows), q({ view: 'all' }))
+    expect(all.visibleRecords.map((r) => r.id)).toEqual(['t-done-null'])
   })
 })
 

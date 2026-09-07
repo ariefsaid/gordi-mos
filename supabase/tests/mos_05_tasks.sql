@@ -19,7 +19,7 @@
 --   Report    ...0d5  SubR       — below Author; downward is not a manager either
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(35);
 
 select shared._test_seed_directory();
 
@@ -226,6 +226,36 @@ select throws_ok($$
   where id = '00000000-0000-0000-0000-000000005001'
 $$, '42501', null,
   'guard: a direct authenticated write cannot stamp process_run_id — otherwise any member could forge "this Task came from a recurring process occurrence"');
+
+-- ── #752 AC-015: the merged guard stamps completed_at on the transition into Done ─────────
+-- A task that has NEVER been Done starts with completed_at null. Reset the row's status to Open
+-- via the Accountable (who is the direct edit gate for ...5001) so the transition test that
+-- follows sees the intended pre-state; the Blocked→Open→Done→In Progress walk is what makes the
+-- clause visible in isolation, both directions, without depending on an earlier test's leftover.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+update mos.tasks set status = 'Open' where id = '00000000-0000-0000-0000-000000005001';
+select is((select completed_at from mos.tasks where id = '00000000-0000-0000-0000-000000005001'),
+  null,
+  'guard: an Open task carries no completion clock — a status that never crossed into Done has nothing to stamp');
+
+update mos.tasks set status = 'Done' where id = '00000000-0000-0000-0000-000000005001';
+select ok(
+  (select completed_at is not null and completed_at <= now() and completed_at >= now() - interval '1 minute'
+     from mos.tasks where id = '00000000-0000-0000-0000-000000005001'),
+  'guard AC-015: the transition Open → Done stamps completed_at at now()');
+
+update mos.tasks set status = 'In Progress' where id = '00000000-0000-0000-0000-000000005001';
+select is((select completed_at from mos.tasks where id = '00000000-0000-0000-0000-000000005001'),
+  null,
+  'guard AC-015: the transition Done → In Progress clears completed_at — a task that left Done no longer carries its completion moment');
+
+-- Guard-owned: a caller cannot pass a completed_at value to forge a completion stamp on a
+-- non-Done row. The trigger reassigns new.completed_at on every path, so this write is silently
+-- normalized to null rather than raised, and the invariant survives even a hostile writer.
+update mos.tasks set completed_at = '2020-01-01T00:00:00Z' where id = '00000000-0000-0000-0000-000000005001';
+select is((select completed_at from mos.tasks where id = '00000000-0000-0000-0000-000000005001'),
+  null,
+  'guard AC-015: a caller-supplied completed_at on a non-Done row is discarded — the value is guard-owned end to end');
 
 reset role;
 select * from finish();

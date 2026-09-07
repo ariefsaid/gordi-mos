@@ -21,6 +21,13 @@ export interface TaskRow {
   work_line_id: string | null
   last_activity_at: string
   archived_at: string | null
+  // #752 (OD-WAY-94 r6): completion clock, guard-stamped by mos._guard_tasks on the transition
+  // into 'Done' and cleared on the transition out. Nullable — an Open/In Progress/Blocked task
+  // carries no completion moment. Client filters age Done rows out of My work / Team work seven
+  // days after this stamp; All shows every non-archived row and ignores it. Kept OPTIONAL (not
+  // just nullable) to match the process_run_id pattern above: every pre-#752 TaskListRow literal
+  // stays structurally satisfiable without a cast, and PostgREST returns the field on every read.
+  completed_at?: string | null
   created_by: string
   created_at: string
   updated_at: string

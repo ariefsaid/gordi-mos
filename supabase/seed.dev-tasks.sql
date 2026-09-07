@@ -39,46 +39,51 @@ begin
   insert into mos.tasks
     (id, org_id, title, business_unit_id, status, responsible_person_id, accountable_person_id,
      consulted_person_ids, informed_person_ids, description, due_date, last_activity_at,
+     completed_at,
      created_by, created_at, updated_at)
   values
     -- In Progress (4; one overdue)
     (gen_random_uuid(), v_org, 'Dial in new Brazil single-origin', bu_roast, 'In Progress',
        p_rama, p_dewi, array[p_cahya, p_sari], '{}',
        'Pull shots across 3 ratios, log TDS + tasting notes, lock the recipe card before the Saturday wholesale tasting.',
-       current_date - 4, now() - interval '2 days', p_dewi, now(), now()),
+       current_date - 4, now() - interval '2 days', null, p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Update espresso recipe cards', bu_cafe, 'In Progress',
        p_cahya, p_dewi, '{}', '{}', 'Refresh dose/yield/time on the bar cards for the new season blend.',
-       current_date + 2, now() - interval '5 hours', p_dewi, now(), now()),
+       current_date + 2, now() - interval '5 hours', null, p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Photograph new pastry line', bu_kitchen, 'In Progress',
        p_krishna, p_dewi, array[p_cahya], '{}', 'Studio shots for the menu + socials.',
-       current_date + 8, now() - interval '1 day', p_dewi, now(), now()),
+       current_date + 8, now() - interval '1 day', null, p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Q3 wholesale price list', bu_sales, 'In Progress',
        p_sari, p_dewi, '{}', '{}', 'Rebuild the wholesale sheet with the new green-bean costs.',
-       current_date + 14, now() - interval '3 days', p_dewi, now(), now()),
+       current_date + 14, now() - interval '3 days', null, p_dewi, now(), now()),
     -- Blocked (2; both overdue)
     (gen_random_uuid(), v_org, 'Replace grinder burrs (Cafe 2)', bu_cafe, 'Blocked',
        p_cahya, p_dewi, '{}', '{}', 'Waiting on the Mazzer parts order to clear customs.',
-       current_date - 7, now() - interval '6 days', p_dewi, now(), now()),
+       current_date - 7, now() - interval '6 days', null, p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Source compostable cups vendor', bu_fin, 'Blocked',
        p_fitri, p_dewi, array[p_cahya], '{}', 'Two quotes in; blocked on the sustainability cert check.',
-       current_date - 5, now() - interval '4 days', p_dewi, now(), now()),
+       current_date - 5, now() - interval '4 days', null, p_dewi, now(), now()),
     -- Open (3)
     (gen_random_uuid(), v_org, 'Plan barista latte-art workshop', bu_cafe, 'Open',
        p_cahya, p_dewi, '{}', '{}', 'Half-day internal workshop for the bar team.',
-       current_date + 17, now() - interval '1 day', p_dewi, now(), now()),
+       current_date + 17, now() - interval '1 day', null, p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Roastery extractor PM schedule', bu_roast, 'Open',
        p_rama, p_dewi, '{}', '{}', 'Stand up a preventive-maintenance calendar for the extractor.',
-       current_date + 22, now() - interval '2 days', p_dewi, now(), now()),
+       current_date + 22, now() - interval '2 days', null, p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Draft Q3 OKRs for cafe team', bu_cafe, 'Open',
        p_dewi, p_dewi, array[p_cahya, p_sari, p_krishna], '{}', 'First pass at the cafe-team objectives for Q3.',
-       current_date + 25, now() - interval '7 hours', p_dewi, now(), now()),
-    -- Done (2)
+       current_date + 25, now() - interval '7 hours', null, p_dewi, now(), now()),
+    -- Done (2) — #752: one within the 7-day live-work window, one older, so My work / Team work
+    -- shows only the recent stamp and All shows both. Seeded completed_at pass through the guard
+    -- because seed runs as the service role (the completion clause is authenticated-scoped).
     (gen_random_uuid(), v_org, 'Refit cold brew taps', bu_kitchen, 'Done',
        p_krishna, p_dewi, '{}', '{}', 'Swapped the cold-brew tap hardware on both lines.',
-       current_date - 10, now() - interval '9 days', p_dewi, now(), now()),
+       current_date - 10, now() - interval '9 days', now() - interval '2 days',
+       p_dewi, now(), now()),
     (gen_random_uuid(), v_org, 'Migrate POS to v4', bu_sales, 'Done',
        p_sari, p_dewi, '{}', '{}', 'Cutover to the v4 POS completed across all outlets.',
-       current_date - 14, now() - interval '12 days', p_dewi, now(), now());
+       current_date - 14, now() - interval '12 days', now() - interval '10 days',
+       p_dewi, now(), now());
 
   raise notice 'seed.dev-tasks: inserted 11 demo tasks';
 end $$;

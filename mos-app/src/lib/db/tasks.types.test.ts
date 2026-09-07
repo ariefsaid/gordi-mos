@@ -42,7 +42,8 @@ describe('tasks.types', () => {
       responsible_person_id: 'p1', accountable_person_id: 'p1',
       consulted_person_ids: [], informed_person_ids: [],
       description: null, due_date: null, objective_id: null, work_line_id: null,
-      last_activity_at: '2026-07-17T00:00:00Z', archived_at: null, created_by: 'p1',
+      last_activity_at: '2026-07-17T00:00:00Z', archived_at: null, completed_at: null,
+      created_by: 'p1',
       created_at: '2026-07-17T00:00:00Z', updated_at: '2026-07-17T00:00:00Z',
       // process_run_id / generated_from_task_def_id intentionally omitted (ad-hoc row).
     }

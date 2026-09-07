@@ -72,7 +72,12 @@ const TASKS: TaskListRow[] = [
   // …under a real Objective → real Project/Process.
   makeTask({ id: 't-launch', title: 'Brief the floor', work_line_id: 'wl-1' }),
   // …the work-line-only case: no objective_id of its own, reachable only via wl-1's direct edge.
-  makeTask({ id: 't-edge', title: 'Print the menus', work_line_id: 'wl-1', status: 'Done' }),
+  // Done and recently completed (within #752's seven-day live-work window) so My work still keeps
+  // it — this test is about Objective grouping, not the age-out rule.
+  makeTask({
+    id: 't-edge', title: 'Print the menus', work_line_id: 'wl-1', status: 'Done',
+    completed_at: new Date().toISOString(),
+  }),
   // …hanging straight off the Objective → the "No Project/Process" branch.
   makeTask({ id: 't-direct', title: 'Sign the lease', objective_id: 'obj-1' }),
   // …on a Project/Process with no parent Objective → the "(Unlinked)" branch.

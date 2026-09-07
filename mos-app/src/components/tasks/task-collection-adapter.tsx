@@ -265,6 +265,9 @@ export interface TaskCollectionRecord {
   objectiveId: string | null
   lastActivityAt: string
   archivedAt: string | null
+  /** When status became 'Done', stamped by mos._guard_tasks. Null on every non-Done row.
+   *  Drives the #752 age-out: My work / Team work drop Done rows completed > 7 days ago. */
+  completedAt: string | null
   processRunId: string | null
   generatedFromTaskDefinitionId: string | null
 }
@@ -285,6 +288,7 @@ export function toTaskCollectionRecord(row: TaskListRow): TaskCollectionRecord {
     objectiveId: row.objective_id,
     lastActivityAt: row.last_activity_at,
     archivedAt: row.archived_at,
+    completedAt: row.completed_at ?? null,
     processRunId: row.process_run_id ?? null,
     generatedFromTaskDefinitionId: row.generated_from_task_def_id ?? null,
   }
@@ -350,6 +354,31 @@ function isRecordOverdue(r: TaskCollectionRecord, now: Date): boolean {
   return isOverdue({ status: r.status, due_date: r.dueDate, archived_at: r.archivedAt }, now)
 }
 
+/**
+ * #752 (OD-WAY-94 r6): the "live work" window. A Done task ages out of My work and Team work
+ * seven days after it was completed; All shows every non-archived row and ignores this. Anchored
+ * to `completed_at` (mos._guard_tasks stamps and clears it, so the value is guard-owned). Seven
+ * days = 7 × 24 × 60 × 60 × 1000 ms; a null completed_at on a Done row (backfilled or missing)
+ * fails the freshness check and ages out — the guard's invariant is "Done ⇔ completed_at set",
+ * so a null there is a pre-migration row and the strictest rule (age it out) matches the intent.
+ */
+const DONE_LIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+function isDoneWithinLiveWindow(r: TaskCollectionRecord, now: Date): boolean {
+  if (r.status !== 'Done') return true
+  if (!r.completedAt) return false
+  const completed = Date.parse(r.completedAt)
+  if (Number.isNaN(completed)) return false
+  return now.getTime() - completed <= DONE_LIVE_WINDOW_MS
+}
+
+/** True when the current view is "All" (per #752 the only view that shows every non-archived
+ *  row, aged-out Done included). Every other view is treated as live-work and applies the
+ *  seven-day age-out to Done rows. */
+function viewShowsEveryNonArchivedRow(view: TaskCollectionView): boolean {
+  return view === 'all'
+}
+
 /** Client-side filter predicate (view scope · PIC · Supervisor · BU · Status · search · overdue). */
 function matchesTaskFilters(r: TaskCollectionRecord, query: TaskCollectionQuery, viewerId: string | null, now: Date): boolean {
   if (query.view === 'my-work' && viewerId && r.picId !== viewerId && r.supervisorId !== viewerId) return false
@@ -364,6 +393,11 @@ function matchesTaskFilters(r: TaskCollectionRecord, query: TaskCollectionQuery,
   if (query.q && !r.title.toLowerCase().includes(query.q.toLowerCase())) return false
   const overdueOnly = query.overdueOnly || query.view === 'overdue'
   if (overdueOnly && !isRecordOverdue(r, now)) return false
+  // #752 AC-016: age out Done rows completed > 7 days ago from every view except All. All is the
+  // catch-all view; "Include archived" is a separate door and stays the only route to archived
+  // rows. Applied AFTER the view/person/BU/status/search filters so an explicit status=Done
+  // filter still narrows to Done rows the view would keep — never widens back to aged-out ones.
+  if (!viewShowsEveryNonArchivedRow(query.view) && !isDoneWithinLiveWindow(r, now)) return false
   return true
 }
 
