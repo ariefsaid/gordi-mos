@@ -249,7 +249,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
             {showWorkline ? <th scope="col" className="th-cell th-workline">{t('tasks.filter.projectProcess')}</th> : null}
             {showObjective ? <th scope="col" className="th-cell th-objective">{t('tasks.objective')}</th> : null}
             {showActivity ? <th scope="col" className="th-cell th-activity">{t('tasks.fields.activity')}</th> : null}
-            {/* Wave 2c: Due is the last decision column before the row-menu — it MUST stay
+            {/* Wave 2c: Due is the last decision column — it MUST stay
                 inside the first paint. The Fields chooser (AC-006, #743) may insert optional
                 columns BEFORE it; the class-based width floors keep Due measurable regardless
                 of its nth-child position. */}

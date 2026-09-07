@@ -89,12 +89,13 @@ const SLUG_BY_STATUS: Readonly<Record<TaskStatus, string>> = {
 
 export const TASK_DECISION_FIELDS: readonly TaskCollectionVisibleField[] = ['title', 'pic', 'supervisor', 'status', 'due']
 
-/** Column span of the desktop Tasks table: the five decision columns + the row-menu column,
- * plus one per visible optional field. Group-header rows and the virtualized body's pad rows must
- * agree with the thead — this helper is the one source of that number (AC-006, #743). */
+/** Column span of the desktop Tasks table: the five decision columns, plus one per visible
+ * optional field. The ⋯ row-menu column is retired (AC-020, #750), so the fixed part is five.
+ * Group-header rows and the virtualized body's pad rows must agree with the thead — this helper
+ * is the one source of that number (AC-006, #743). */
 export function taskTableColumnSpan(visibleFields: readonly TaskCollectionVisibleField[]): number {
   const optional = (field: TaskCollectionVisibleField) => (visibleFields.includes(field) ? 1 : 0)
-  return 6 + optional('businessUnit') + optional('workline') + optional('objective') + optional('activity')
+  return 5 + optional('businessUnit') + optional('workline') + optional('objective') + optional('activity')
 }
 
 export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
