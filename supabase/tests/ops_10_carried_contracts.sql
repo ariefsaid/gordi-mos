@@ -35,7 +35,7 @@
 --   J  46_approve_rpc_atomicity (the deferred-mirror assertion)
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(36);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
