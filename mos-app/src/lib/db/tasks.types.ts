@@ -10,6 +10,7 @@ export interface TaskRow {
   org_id: string
   title: string
   business_unit_id: string
+  team_id?: string | null
   status: TaskStatus
   responsible_person_id: string
   accountable_person_id: string

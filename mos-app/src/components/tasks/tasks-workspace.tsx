@@ -38,6 +38,7 @@ import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
+import { getTaskDefaultView } from '@/lib/task-default-view'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -162,7 +163,19 @@ export function TasksWorkspace({
   // disclosure so the first task card is visible above the fold. Desktop renders it inline.
   const captureFirstMobile = !isDesktop
   const currentSearch = location.search
-  const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
+  // The rail badge calls this same selector; keeping landing scope computed here prevents
+  // OD-WAY-94(3)'s badge and default-view counts from drifting apart.
+  const roleDefaultView = auth.status === 'authenticated'
+    ? getTaskDefaultView({ accessRoles, hasReport: auth.viewer.isManager })
+    : 'all'
+  const initialQuery = useMemo(() => {
+    const legacy = queryFromLegacySavedView(savedView)
+    if (legacy) return legacy
+    if (currentSearch === '') {
+      return { ...TASK_COLLECTION_NEUTRAL_QUERY, view: roleDefaultView }
+    }
+    return undefined
+  }, [currentSearch, roleDefaultView, savedView])
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
@@ -222,6 +235,7 @@ export function TasksWorkspace({
     labels: {
       all: t('tasks.saved.all'),
       'my-work': t('tasks.saved.mine'),
+      'team-work': t('tasks.saved.team'),
       overdue: t('tasks.saved.overdue'),
     },
   })

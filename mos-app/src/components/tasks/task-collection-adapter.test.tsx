@@ -13,6 +13,7 @@ vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
   listRoleNames: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -26,7 +27,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getPersonTeams, listRoleNames } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
@@ -65,6 +66,7 @@ function seedDirectory() {
   mock(getPeople).mockResolvedValue([{ id: 'p-raka', full_name: 'Raka' }, { id: 'p-sari', full_name: 'Sari' }])
   mock(listObjectives).mockResolvedValue([{ id: 'o-1', name: 'Grow café revenue' }])
   mock(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'Roastery output', type: 'project' }])
+  mock(getPersonTeams).mockResolvedValue([])
 }
 
 function q(over: Partial<TaskCollectionQuery> = {}): TaskCollectionQuery {
@@ -197,16 +199,12 @@ describe('FR-V3-007: saved-view spec mapping', () => {
   })
 })
 
-describe('§Task-11: the Team-work view is removed until Issue 8', () => {
-  it('§Task-11: ?view=team is rejected on parse and degrades to the org-visible All view', () => {
-    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
-    // saved-view identity; it is rejected before it can enter collection state and never aliased to a
-    // Business Unit filter — the query degrades to the neutral org-visible All view.
+describe('Team work saved view', () => {
+  it('AC-013: ?view=team is accepted as the canonical Team work view', () => {
     const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=team'), 'table')
-    expect(parsed.ok).toBe(false)
-    if (parsed.ok) throw new Error('view=team must be rejected')
-    expect(parsed.query?.view).toBe('all')
-    expect(parsed.issues.some((issue) => issue.key === 'view')).toBe(true)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) throw new Error('view=team must parse')
+    expect(parsed.query.view).toBe('team-work')
   })
 
   it('D3d: visible optional fields round-trip through the URL while decision fields remain present', () => {
@@ -236,7 +234,7 @@ describe('table presentation (shared-surface fallback renderer)', () => {
       businessUnitNamesById: new Map(), personNamesById: new Map([['p-raka', 'Raka'], ['p-sari', 'Sari']]),
       workLinesById: new Map(), workLineTypeById: new Map(), objectivesById: new Map(),
       runRollupsByRunId: new Map(), provenanceByTaskDefId: new Map(), rowsById: new Map(),
-      viewerId: 'p-raka', statusOverrides: new Map(), now: new Date('2026-07-21T03:00:00Z'), refresh: () => {},
+      viewerId: 'p-raka', viewerTeamIds: [], viewerTeamBusinessUnitIds: [], statusOverrides: new Map(), now: new Date('2026-07-21T03:00:00Z'), refresh: () => {},
     }
     return { records, context }
   }

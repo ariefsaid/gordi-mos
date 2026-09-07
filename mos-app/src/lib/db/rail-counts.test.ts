@@ -74,6 +74,13 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
     ]))
   })
 
+  it('AC-014: Team work count uses team ids plus the legacy BU fallback', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeClient({ tasks: { count: 4, error: null } }, rec) as never)
+    await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', ['team-cafe'], ['bu-retail'])
+    expect(rec.filters).toContain('or:team_id.in.(team-cafe),and(team_id.is.null,business_unit_id.in.(bu-retail))')
+  })
+
   it('coalesces a null count to 0', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(

@@ -96,6 +96,8 @@ function makeContext(over: Partial<TaskCollectionContext> = {}): TaskCollectionC
     provenanceByTaskDefId: new Map(),
     rowsById: new Map(),
     viewerId: P_RAKA,
+    viewerTeamIds: [],
+    viewerTeamBusinessUnitIds: [],
     statusOverrides: new Map(),
     now: NOW,
     refresh: () => {},
@@ -119,12 +121,23 @@ describe('toTaskCollectionRecord — raw columns map to PIC/Supervisor only insi
     expect(rec.businessUnitId).toBe(BU_CAFE)
     // No Team field exists on the typed record.
     const asRecord = rec as unknown as Record<string, unknown>
-    expect(asRecord.teamId).toBeUndefined()
+    expect(asRecord.teamId).toBeNull()
     expect(asRecord.team_id).toBeUndefined()
   })
 })
 
 describe('projectTaskCollection — filtering', () => {
+  it('AC-012: Team work includes viewer teams and legacy null-team rows in the viewer BU, not Marketing', () => {
+    const rows = [
+      RAW[0],
+      { ...RAW[1], id: 't-marketing', business_unit_id: 'bu-marketing', team_id: null },
+      { ...RAW[2], id: 't-team', team_id: 'team-cafe' },
+    ]
+    const projected = projectTaskCollection(makeData(rows, {
+      viewerTeamIds: ['team-cafe'], viewerTeamBusinessUnitIds: [BU_CAFE],
+    }), q({ view: 'team-work' }))
+    expect(projected.visibleRecords.map((row) => row.id)).toEqual(['t-1', 't-team'])
+  })
   it('flat/no-filter: totalRecords is the full set and no filter flag', () => {
     const p = projectTaskCollection(makeData(), q())
     expect(p.totalRecords).toBe(3)
